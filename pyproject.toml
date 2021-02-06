@@ -1,0 +1,3 @@
+[tool.black]
+line-length = 110
+exclude = '/(\.git|\.mypy_cache|\.venv|node_modules)/'

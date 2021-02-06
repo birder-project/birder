@@ -1,0 +1,14 @@
+-r requirements.txt
+
+black
+bump2version~=1.0
+coverage~=5.4
+flake8~=3.8
+invoke~=1.5
+isort~=5.7
+mypy>=0.800,<1.0
+pylint~=2.6
+pylint-django~=2.4
+pylint-plugin-utils>=0.6
+setuptools~=53.0
+wheel~=0.35

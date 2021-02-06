@@ -1,0 +1,65 @@
+# Project data directories
+data/
+model-archive-staging/
+models/
+results/
+training_logs/
+val_data/
+
+# Git
+.git
+.gitignore
+
+# Editor directories and files
+.vscode
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+Session.vim
+Sessionx.vim
+
+# Docker
+docker-compose.yml
+
+# Byte-compiled / optimized / DLL files
+**/__pycache__/
+**/*.py[cod]
+
+# Python venv
+.Python
+[Bb]in
+[Ii]nclude
+[Ll]ib
+[Ll]ib64
+[Ll]ocal
+[Ss]cripts
+pyvenv.cfg
+.venv
+pip-selfcheck.json
+
+# C extensions
+*.so
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Dependencies directory
+**/node_modules/
+
+# Local production build
+frontend/client/dist/
+
+# Unrelated project directories
+docs/
+
+# Profile files
+*.prof

@@ -1,0 +1,15 @@
+-r requirements-web.txt
+
+matplotlib~=3.3.4
+model-archiver~=1.0.3
+mxboard~=0.1
+numpy~=1.19.5
+onnx~=1.2.3
+pandas~=1.2.1
+Pillow~=8.1
+rich~=9.10
+scikit-image~=0.18.1
+scikit-learn~=0.24.1
+scipy~=1.6.0
+seaborn~=0.11.0
+tensorboard~=2.4.0

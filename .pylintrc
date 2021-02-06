@@ -1,0 +1,65 @@
+[MASTER]
+# A comma-separated list of package or module names from where C extensions may
+# be loaded. Extensions are loading into the active Python interpreter and may
+# run arbitrary code.
+extension-pkg-whitelist=cv2,scipy,numpy
+
+# Add <file or directory> to the black list, it should be a base name, not a path
+ignore=.git,.svn,migrations,site-packages,node_modules
+
+# List of plugins (as comma separated values of python module names) to load,
+# usually to register additional checkers.
+load-plugins=pylint.extensions.overlapping_exceptions,pylint.extensions.docparams,pylint.extensions.docstyle
+
+# Pickle collected data for later comparisons.
+persistent=no
+
+[FORMAT]
+# Maximum number of characters on a single line
+max-line-length=110
+
+[MESSAGES CONTROL]
+# Disable the following PyLint checks:
+# C0111 - Missing docstring (missing-docstring)
+# C0330 - Wrong hanging indentation before block (bad-continuation) - ignored due to black formatter
+# R0201 - Method could be a function (no-self-use)
+# R1703 - Used when an if statement can be replaced with 'bool(test)' (simplifiable-if-statement)
+# R0801 - This usually means that the code should be refactored to avoid this duplication (duplicate-code)
+# W1203 - Use lazy % formatting in logging functions (logging-fstring-interpolation)
+# C0199 - First line empty in docstring (docstring-first-line-empty)
+disable=C0111,C0330,R0201,R1703,R0801,W1203,C0199
+
+# Enable the message, report, category or checker with the given id(s):
+# I0021: Useless suppression of '<check>' (useless-suppression)
+enable=I0021
+
+[REPORTS]
+# Set the output format. Available formats are text, parseable, colorized, json
+# and msvs (visual studio). You can also give a reporter class, e.g.
+# mypackage.mymodule.MyReporterClass.
+output-format=colorized
+
+[SIMILARITIES]
+# Ignore imports when computing similarities.
+ignore-imports=yes
+
+# Minimum lines number of a similarity.
+min-similarity-lines=10
+
+[BASIC]
+# Good variable names which should always be accepted, separated by a comma.
+good-names=ax,df,dx,dy,e,i,j,p,q,x,y
+
+[MISCELLANEOUS]
+# List of note tags to take in consideration
+notes=FIXME,TODO
+
+[DESIGN]
+# Maximum number of arguments for function / method.
+max-args=10
+
+# Maximum number of locals for function / method body.
+max-locals=18
+
+# Maximum number of statements in function / method body.
+max-statements=70

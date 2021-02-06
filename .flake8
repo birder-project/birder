@@ -1,0 +1,11 @@
+[flake8]
+# E203: whitespace before ':' - handled by black
+ignore = E203
+
+max-line-length = 110
+exclude =
+    .git,
+    __pycache__,
+    site-packages,
+    node_modules,
+    share,

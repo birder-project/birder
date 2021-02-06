@@ -1,0 +1,80 @@
+# Project data directories
+data/
+detection_data/
+detection_val_data/
+model-archive-staging/
+results/
+training_logs/
+val_data/
+
+docker/mar/*.mar
+frontend/server/config.json
+
+models/*
+!models/synset*.txt
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# Virtualenv
+.Python
+/[Bb]in
+/[Ii]nclude
+/[Ll]ib
+/[Ll]ib64
+/[Ll]ocal
+/[Ss]cripts
+/[Ss]hare
+pyvenv.cfg
+.venv
+pip-selfcheck.json
+
+# C extensions
+*.so
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Unit test / coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Editor directories and files
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+Session.vim
+Sessionx.vim
+
+# VSCode IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/cspell.json
+
+# Profile files
+*.prof
+
+# Jupyter Notebooks
+.ipynb_checkpoints

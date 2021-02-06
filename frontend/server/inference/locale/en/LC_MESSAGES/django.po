@@ -1,0 +1,431 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2020-06-28 09:14+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: synset.py:4
+msgid "Alpine swift"
+msgstr ""
+
+#: synset.py:5
+msgid "Arabian babbler"
+msgstr ""
+
+#: synset.py:6
+msgid "Asian desert warbler"
+msgstr ""
+
+#: synset.py:7
+msgid "Barn owl"
+msgstr ""
+
+#: synset.py:8
+msgid "Barn swallow"
+msgstr ""
+
+#: synset.py:9
+msgid "Bearded reedling"
+msgstr ""
+
+#: synset.py:10
+msgid "Black francolin"
+msgstr ""
+
+#: synset.py:11
+msgid "Black kite"
+msgstr ""
+
+#: synset.py:12
+msgid "Black stork"
+msgstr ""
+
+#: synset.py:13
+msgid "Black-crowned night heron"
+msgstr ""
+
+#: synset.py:14
+msgid "Black-headed gull"
+msgstr ""
+
+#: synset.py:15
+msgid "Black-shouldered kite"
+msgstr ""
+
+#: synset.py:16
+msgid "Black-winged stilt"
+msgstr ""
+
+#: synset.py:17
+msgid "Blackstart"
+msgstr ""
+
+#: synset.py:18
+msgid "Bluethroat"
+msgstr ""
+
+#: synset.py:19
+msgid "Cattle egret"
+msgstr ""
+
+#: synset.py:20
+msgid "Common blackbird"
+msgstr ""
+
+#: synset.py:21
+msgid "Common chaffinch"
+msgstr ""
+
+#: synset.py:22
+msgid "Common crane"
+msgstr ""
+
+#: synset.py:23
+msgid "Common kestrel"
+msgstr ""
+
+#: synset.py:24
+msgid "Common kingfisher"
+msgstr ""
+
+#: synset.py:25
+msgid "Common moorhen"
+msgstr ""
+
+#: synset.py:26
+msgid "Common myna"
+msgstr ""
+
+#: synset.py:27
+msgid "Common quail"
+msgstr ""
+
+#: synset.py:28
+msgid "Common rock thrush"
+msgstr ""
+
+#: synset.py:29
+msgid "Common starling"
+msgstr ""
+
+#: synset.py:30
+msgid "Common tern"
+msgstr ""
+
+#: synset.py:31
+msgid "Cream-colored courser"
+msgstr ""
+
+#: synset.py:32
+msgid "Crested lark"
+msgstr ""
+
+#: synset.py:33
+msgid "Egyptian goose"
+msgstr ""
+
+#: synset.py:34
+msgid "Egyptian vulture"
+msgstr ""
+
+#: synset.py:35
+msgid "Eurasian blackcap"
+msgstr ""
+
+#: synset.py:36
+msgid "Eurasian collared dove"
+msgstr ""
+
+#: synset.py:37
+msgid "Eurasian coot"
+msgstr ""
+
+#: synset.py:38
+msgid "Eurasian curlew"
+msgstr ""
+
+#: synset.py:39
+msgid "Eurasian golden oriole"
+msgstr ""
+
+#: synset.py:40
+msgid "Eurasian hoopoe"
+msgstr ""
+
+#: synset.py:41
+msgid "Eurasian jay"
+msgstr ""
+
+#: synset.py:42
+msgid "Eurasian oystercatcher"
+msgstr ""
+
+#: synset.py:43
+msgid "Eurasian scops owl"
+msgstr ""
+
+#: synset.py:44
+msgid "Eurasian spoonbill"
+msgstr ""
+
+#: synset.py:45
+msgid "Eurasian stone-curlew"
+msgstr ""
+
+#: synset.py:46
+msgid "Eurasian teal"
+msgstr ""
+
+#: synset.py:47
+msgid "Eurasian wryneck"
+msgstr ""
+
+#: synset.py:48
+msgid "European bee-eater"
+msgstr ""
+
+#: synset.py:49
+msgid "European goldfinch"
+msgstr ""
+
+#: synset.py:50
+msgid "European nightjar"
+msgstr ""
+
+#: synset.py:51
+msgid "European robin"
+msgstr ""
+
+#: synset.py:52
+msgid "European roller"
+msgstr ""
+
+#: synset.py:53
+msgid "European stonechat"
+msgstr ""
+
+#: synset.py:54
+msgid "Fan-tailed raven"
+msgstr ""
+
+#: synset.py:55
+msgid "Fieldfare"
+msgstr ""
+
+#: synset.py:56
+msgid "Glossy ibis"
+msgstr ""
+
+#: synset.py:57
+msgid "Great cormorant"
+msgstr ""
+
+#: synset.py:58
+msgid "Great crested grebe"
+msgstr ""
+
+#: synset.py:59
+msgid "Great egret"
+msgstr ""
+
+#: synset.py:60
+msgid "Great spotted cuckoo"
+msgstr ""
+
+#: synset.py:61
+msgid "Great tit"
+msgstr ""
+
+#: synset.py:62
+msgid "Great white pelican"
+msgstr ""
+
+#: synset.py:63
+msgid "Greater flamingo"
+msgstr ""
+
+#: synset.py:64
+msgid "Green bee-eater"
+msgstr ""
+
+#: synset.py:65
+msgid "Grey heron"
+msgstr ""
+
+#: synset.py:66
+msgid "Griffon vulture"
+msgstr ""
+
+#: synset.py:67
+msgid "Hawfinch"
+msgstr ""
+
+#: synset.py:68
+msgid "Hooded crow"
+msgstr ""
+
+#: synset.py:69
+msgid "House sparrow"
+msgstr ""
+
+#: synset.py:70
+msgid "Kentish plover"
+msgstr ""
+
+#: synset.py:71
+msgid "Lappet-faced vulture"
+msgstr ""
+
+#: synset.py:72
+msgid "Laughing dove"
+msgstr ""
+
+#: synset.py:73
+msgid "Little egret"
+msgstr ""
+
+#: synset.py:74
+msgid "Little owl"
+msgstr ""
+
+#: synset.py:75
+msgid "Long-eared owl"
+msgstr ""
+
+#: synset.py:76
+msgid "Mallard"
+msgstr ""
+
+#: synset.py:77
+msgid "Masked shrike"
+msgstr ""
+
+#: synset.py:78
+msgid "Mute swan"
+msgstr ""
+
+#: synset.py:79
+msgid "Northern gannet"
+msgstr ""
+
+#: synset.py:80
+msgid "Northern shoveler"
+msgstr ""
+
+#: synset.py:81
+msgid "Osprey"
+msgstr ""
+
+#: synset.py:82
+msgid "Palestine sunbird"
+msgstr ""
+
+#: synset.py:83
+msgid "Peregrine falcon"
+msgstr ""
+
+#: synset.py:84
+msgid "Pied avocet"
+msgstr ""
+
+#: synset.py:85
+msgid "Pied kingfisher"
+msgstr ""
+
+#: synset.py:86
+msgid "Pin-tailed sandgrouse"
+msgstr ""
+
+#: synset.py:87
+msgid "Pygmy cormorant"
+msgstr ""
+
+#: synset.py:88
+msgid "Red-footed falcon"
+msgstr ""
+
+#: synset.py:89
+msgid "Rock pigeon"
+msgstr ""
+
+#: synset.py:90
+msgid "Rose-ringed parakeet"
+msgstr ""
+
+#: synset.py:91
+msgid "Rosy starling"
+msgstr ""
+
+#: synset.py:92
+msgid "Short-toed snake eagle"
+msgstr ""
+
+#: synset.py:93
+msgid "Sinai rosefinch"
+msgstr ""
+
+#: synset.py:94
+msgid "Spotted flycatcher"
+msgstr ""
+
+#: synset.py:95
+msgid "Spur-winged lapwing"
+msgstr ""
+
+#: synset.py:96
+msgid "Syrian woodpecker"
+msgstr ""
+
+#: synset.py:97
+msgid "Tristrams starling"
+msgstr "Tristram's starling"
+
+#: synset.py:98
+msgid "Trumpeter finch"
+msgstr ""
+
+#: synset.py:99
+msgid "Wallcreeper"
+msgstr ""
+
+#: synset.py:100
+msgid "Whinchat"
+msgstr ""
+
+#: synset.py:101
+msgid "White stork"
+msgstr ""
+
+#: synset.py:102
+msgid "White wagtail"
+msgstr ""
+
+#: synset.py:103
+msgid "White-spectacled bulbul"
+msgstr ""
+
+#: synset.py:104
+msgid "White-tailed eagle"
+msgstr ""
+
+#: synset.py:105
+msgid "White-throated kingfisher"
+msgstr ""
+
+#: synset.py:106
+msgid "Yelkouan shearwater"
+msgstr ""

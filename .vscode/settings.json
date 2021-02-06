@@ -1,0 +1,38 @@
+{
+  "eslint.validate": ["vue", "javascript", "typescript", "html"],
+  "eslint.workingDirectories": [
+    {
+      "directory": "./frontend/client",
+      "changeProcessCWD": true
+    }
+  ],
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.DS_Store": true,
+    "**/.git": true,
+    "**/.mypy_cache": true,
+    "**/node_modules": true
+  },
+  "html.format.endWithNewline": true,
+  "prettier.disableLanguages": [],
+  "python.formatting.provider": "black",
+  "python.linting.flake8Enabled": true,
+  "python.linting.pylintEnabled": true,
+  "python.linting.mypyEnabled": true,
+  "[html]": {
+    "editor.defaultFormatter": "vscode.html-language-features"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[vue]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "todo-tree.filtering.excludeGlobs": ["*/site-packages/*", "*/node_modules/*"]
+}
