@@ -1,0 +1,3 @@
+Source: https://huggingface.co/datasets/timm/imagenet-1k-wds
+Number of samples in training: 1281167
+Number of samples in validation: 50000

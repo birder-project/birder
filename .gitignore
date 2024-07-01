@@ -1,17 +1,8 @@
 # Project data directories
-data/
-detection_data/
-detection_val_data/
-model-archive-staging/
-results/
-training_logs/
-val_data/
-
-docker/mar/*.mar
-frontend/server/config.json
-
-models/*
-!models/synset*.txt
+/data/
+/models/
+/runs/
+/results/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -20,6 +11,7 @@ __pycache__/
 # Virtualenv
 .Python
 /[Bb]in
+/[Ee]tc
 /[Ii]nclude
 /[Ll]ib
 /[Ll]ib64
@@ -77,4 +69,13 @@ Sessionx.vim
 *.prof
 
 # Jupyter Notebooks
+*.ipynb
 .ipynb_checkpoints
+
+# TorchServe
+/ts/*
+!/ts/config.properties
+!/ts/*.yaml
+
+# Vagrant
+.vagrant

@@ -1,229 +1,152 @@
-"""
-ClassificationModelHandler defines a base model for classification service.
-
-Based on template from:
-https://github.com/awslabs/multi-model-server/tree/master/examples/model_service_template
-"""
-
+import base64
+import io
 import json
 import logging
 import os
+from collections.abc import Callable
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import Union
 
-import mxnet as mx
-import numpy as np
+import torch
+import torch.nn.functional as F
+from PIL import Image
+from torchvision.transforms import v2
+from ts.context import Context
+from ts.torch_handler.base_handler import BaseHandler
 
-try:
-    # MMS Runtime
-    from base import ModelHandler
-    from base import check_input_shape
-    from preprocess import preprocess_image
-
-except ImportError:
-    from birder.common.preprocess import preprocess_image
-
-    from .base import ModelHandler
-    from .base import check_input_shape
+logger = logging.getLogger(__name__)
 
 
-def top_probability(data: mx.nd.NDArray, labels: List[str], top: int) -> List[Any]:
-    """
-    Get top probability prediction from NDArray
-    """
+# Must be in sync with birder.core.transforms.classification.inference_preset
+def inference_preset(size: int, center_crop: float, rgv_values: dict[str, list[float]]) -> Callable[..., torch.Tensor]:
+    mean = rgv_values["mean"]
+    std = rgv_values["std"]
 
-    dim = len(data.shape)
-    if dim > 2:
-        data = mx.nd.array(np.squeeze(data.asnumpy(), axis=tuple(range(dim)[2:])))
+    base_size = int(size / center_crop)
+    return v2.Compose(  # type: ignore
+        [
+            v2.Resize((base_size, base_size), interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
+            v2.CenterCrop([size, size]),
+            v2.PILToTensor(),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=mean, std=std),
+        ]
+    )
 
-    sorted_prob = mx.nd.argsort(data[0], is_ascend=False)
-    top_prob = map(lambda x: int(x.asscalar()), sorted_prob[0:top])
 
-    return [{"probability": float(data[0, i].asscalar()), "class": labels[i]} for i in top_prob]
-
-
-class ClassificationModelHandler(ModelHandler):
-    """
-    ClassificationModelHandler defines a fundamental service for image classification task.
-    In preprocess, input image buffer is read to NDArray and resized respect to input
-    shape in signature.
-    In post process, top-K labels are returned.
-    Batching is not supported.
-    """
-
-    def __init__(self, top_k: int = 5):
+class BirdClassifier(BaseHandler):
+    def __init__(self) -> None:
         super().__init__()
-        self.mxnet_ctx: mx.Context = None
-        self.mx_model: mx.module.Module = None
-        self.labels: Optional[List[str]] = None
-        self.signature: Any = None
-        self.rgb_mean: Any = None
-        self.rgb_std: Any = None
-        self.rgb_scale: Any = None
-        self.epoch = 0
-        self.top_k = top_k
+        self.model_yaml_config: dict[str, Any] = {}
+        self.transforms: Callable[..., torch.Tensor]
+        self.top_k = 3
 
-    # pylint: disable=too-many-locals
-    def initialize(self, context) -> None:
-        super().initialize(context)
-
-        assert self._batch_size == 1, "Batch is not supported"
+    def initialize(self, context: Context) -> None:
+        if context is not None and hasattr(context, "model_yaml_config") is True:
+            self.model_yaml_config = context.model_yaml_config
 
         properties = context.system_properties
-        model_dir = properties.get("model_dir")
-        gpu_id = properties.get("gpu_id")
-
-        signature_file_path = os.path.join(model_dir, "signature.json")
-        if os.path.isfile(signature_file_path) is False:
-            raise RuntimeError("Missing signature.json file")
-
-        with open(signature_file_path) as signature_file_handle:
-            self.signature = json.load(signature_file_handle)
-
-        self.rgb_mean = mx.nd.array(
-            [self.signature["mean_r"], self.signature["mean_g"], self.signature["mean_b"]], dtype="float32"
-        )
-        self.rgb_std = mx.nd.array(
-            [self.signature["std_r"], self.signature["std_g"], self.signature["std_b"]], dtype="float32"
-        )
-        self.rgb_scale = self.signature["scale"]
-
-        model_files_prefix = context.manifest["model"]["modelName"]
-        archive_synset = os.path.join(model_dir, "synset.txt")
-        if os.path.isfile(archive_synset):
-            synset = archive_synset
-            with open(synset, "r") as synset_handle:
-                self.labels = [line.strip() for line in synset_handle.readlines()]
-
-        data_names = []
-        data_shapes = []
-        for input_data in self.signature["inputs"]:
-            data_name = input_data["data_name"]
-            data_shape = input_data["data_shape"]
-
-            # Set batch size
-            data_shape[0] = self._batch_size
-
-            # Replace 0 entry in data shape with 1 for binding executor
-            # pylint: disable=consider-using-enumerate
-            for idx in range(len(data_shape)):
-                if data_shape[idx] == 0:
-                    data_shape[idx] = 1
-
-            data_names.append(data_name)
-            data_shapes.append((data_name, tuple(data_shape)))
-
-        checkpoint_prefix = f"{model_dir}/{model_files_prefix}"
-
-        # Load MXNet module
-        if gpu_id is None:
-            self.mxnet_ctx = mx.cpu()
+        if torch.cuda.is_available() is True and properties.get("gpu_id") is not None:
+            self.map_location = "cuda"
+            self.device = torch.device(self.map_location + ":" + str(properties.get("gpu_id")))
 
         else:
-            self.mxnet_ctx = mx.gpu(gpu_id)
+            self.map_location = "cpu"
+            self.device = torch.device(self.map_location)
 
-        (sym, arg_params, aux_params) = mx.model.load_checkpoint(checkpoint_prefix, self.epoch)
+        if properties.get("limit_max_image_pixels") is False:
+            Image.MAX_IMAGE_PIXELS = None
 
-        self.mx_model = mx.module.Module(
-            symbol=sym, context=self.mxnet_ctx, data_names=data_names, label_names=None
-        )
-        self.mx_model.bind(for_training=False, data_shapes=data_shapes)
-        self.mx_model.set_params(arg_params, aux_params, allow_missing=True, allow_extra=True)
+        self.manifest = context.manifest
 
-    def preprocess(self, batch: List[Dict[str, Any]]) -> Optional[List[mx.nd.NDArray]]:
-        """
-        Decode all input images into mx.nd.NDArray and preprocess them.
-        """
+        model_dir = properties.get("model_dir")
+        serialized_file = self.manifest["model"]["serializedFile"]
+        model_path = os.path.join(model_dir, serialized_file)
+        if os.path.isfile(model_path) is False:
+            raise RuntimeError("Missing the model file")
 
-        img_list = []
-        param_name = self.signature["inputs"][0]["data_name"]
-        input_shape = self.signature["inputs"][0]["data_shape"]
+        (self.model, self.mapping, self.transforms) = self._load_model(model_path, self.device, self.model_yaml_config)
 
-        for data in batch:
-            img = data.get(param_name)
-            if img is None:
-                img = data.get("body")
+        self.initialized = True
 
-            if img is None:
-                img = data.get("data")
+    def _load_model(
+        self, path: str, device: torch.device, model_yaml_config: dict[str, Any]
+    ) -> tuple[Union[torch.ScriptModule, torch.nn.Module], dict[int, str], Callable[..., torch.Tensor]]:
+        extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_values": ""}
+        if path.endswith("pts") is True:
+            model = torch.jit.load(path, map_location=device, _extra_files=extra_files)
+            model.eval()
 
-            if img is None or len(img) == 0:
-                self.error = "Empty image input"
-                return None
+        elif path.endswith("pt2") is True:
+            model = torch.export.load(path, extra_files=extra_files).module()
+            model.to(device)
+            # model.eval()  # Use when GraphModule add support for 'eval'
 
-            try:
-                img_arr = mx.image.imdecode(img, to_rgb=True)
+        else:
+            raise RuntimeError(f"Unknown model type {path}")
 
-            # pylint: disable=broad-except
-            except Exception:
-                logging.exception("Corrupted image input")
-                self.error = "Corrupted image input"
-                return None
+        if extra_files["task"] != "image_classification":
+            raise RuntimeError(f"Model type mismatch, task={extra_files['task']}")
 
-            # We are assuming input shape is NCHW
-            (height, width) = input_shape[2:]
-            img_arr = preprocess_image(img_arr, (height, width), self.rgb_mean, self.rgb_std, self.rgb_scale)
+        for param in model.parameters():
+            param.requires_grad = False
 
-            img_list.append(img_arr)
+        class_to_idx: dict[str, int] = json.loads(extra_files["class_to_idx"])
+        signature = json.loads(extra_files["signature"])
+        rgb_values = json.loads(extra_files["rgb_values"])
 
-        return img_list
+        size = signature["inputs"][0]["data_shape"][2]
+        transforms = inference_preset(size, 1.0, rgb_values)
 
-    def inference(self, model_input: Optional[List[mx.nd.NDArray]]) -> Optional[List[mx.nd.NDArray]]:
-        """
-        Internal inference methods for MXNet. Run forward computation and
-        return output.
+        idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
 
-        Parameters
-        ----------
-        model_input
-            Preprocessed inputs in NDArray format.
+        if model_yaml_config.get("compile", False) is True:
+            logger.error("Compiling model")
+            model = torch.compile(model)
 
-        Returns
-        -------
-        list of NDArray
-            Inference output.
-        """
+        return (model, idx_to_class, transforms)
 
-        if self.error is not None:
-            return None
+    def preprocess(self, data: list[Any]) -> torch.Tensor:
+        images = []
+        for row in data:
+            # Compat layer: normally the envelope should just return the data
+            # directly, but older versions of Torchserve didn't have envelope
+            image = row.get("data") or row.get("body")
+            if isinstance(image, str) is True:
+                # if the image is a string of bytesarray
+                image = base64.b64decode(image)
 
-        # Check input shape
-        check_input_shape(model_input, self.signature)
-        model_input = [item.as_in_context(self.mxnet_ctx) for item in model_input]
-        self.mx_model.forward(mx.io.DataBatch(model_input))
-        outputs = self.mx_model.get_outputs()
+            # If the image is sent as bytesarray
+            if isinstance(image, (bytearray, bytes)):
+                image = Image.open(io.BytesIO(image))
 
-        # Bypass lazy evaluation get_outputs either returns a list of nd arrays a list of list of NDArray
-        for output in outputs:
-            if isinstance(output, list):
-                for y in output:
-                    if isinstance(y, mx.nd.NDArray):
-                        y.wait_to_read()
+            else:
+                # If the image is a list
+                image = torch.FloatTensor(image)
 
-            elif isinstance(output, mx.nd.NDArray):
-                output.wait_to_read()
+            images.append(self.transforms(image))
 
-        return outputs
+        return torch.stack(images).to(self.device)
 
-    def postprocess(self, inference_output: Optional[List[mx.nd.NDArray]]) -> List[Any]:
-        if self.error is not None:
-            return [self.error] * self._batch_size
+    def inference(self, data: torch.Tensor, *args: Any, **kwargs: Any) -> torch.Tensor:
+        with torch.inference_mode():
+            results = self.model(data)
 
-        assert isinstance(self.labels, list)
+        return results
 
-        return [top_probability(d, self.labels, top=self.top_k) for d in inference_output]
+    def postprocess(self, data: torch.Tensor) -> list[dict[str, float]]:
+        ps = F.softmax(data, dim=1)
+        (probs, classes) = torch.topk(ps, self.top_k, dim=1)
+        probs = probs.tolist()
+        classes = classes.tolist()
 
+        results = []
+        for s_probs, s_classes in zip(probs, classes):
+            result: dict[str, float] = {}
+            for prob, c in zip(s_probs, s_classes):
+                class_name = self.mapping[c]
+                result[class_name] = prob
 
-_service = ClassificationModelHandler()
+            results.append(result)
 
-
-def handle(data, context):
-    if _service.initialized is False:
-        _service.initialize(context)
-
-    if data is None:
-        return None
-
-    return _service.handle(data, context)
+        return results

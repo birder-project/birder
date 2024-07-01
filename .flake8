@@ -1,11 +1,13 @@
 [flake8]
 # E203: whitespace before ':' - handled by black
-ignore = E203
+# W503: line break before binary operator - handled by black
+ignore = E203,W503
 
-max-line-length = 110
+max-line-length = 120
 exclude =
     .git,
     __pycache__,
-    site-packages,
-    node_modules,
-    share,
+    .venv,
+    data,
+
+pep585-activation = always

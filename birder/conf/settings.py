@@ -1,56 +1,35 @@
-"""
-Birder project settings.
-
-For more information on this file, see
-TODO: link to settings document
-"""
-
-import logging
 import logging.config
 import os
+from pathlib import Path
+from typing import Any
 
-# Build paths inside the project like this: os.path.join(BASE_DIR, ...)
-# BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # Absolute path
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.relpath(__file__))))  # Relative path
+# Data paths
+BASE_DIR = Path(os.path.relpath(__file__)).parent.parent.parent
+DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR.joinpath("data")))
 
-# Paths and files
-DATA_DIR = os.path.join(BASE_DIR, "data")
-VAL_DATA_DIR = os.path.join(BASE_DIR, "val_data")
-DETECTION_DATA_DIR = os.path.join(BASE_DIR, "detection_data")
-DETECTION_VAL_DATA_DIR = os.path.join(BASE_DIR, "detection_val_data")
-MODELS_DIR = os.path.join(BASE_DIR, "models")
-TRAINING_LOGS_DIR = os.path.join(BASE_DIR, "training_logs")
-MODEL_STAGING_DIR = os.path.join(BASE_DIR, "model-archive-staging")
-SYNSET_FILENAME = os.path.join(MODELS_DIR, "synset.txt")
-RGB_VALUES_FILENAME = os.path.join(MODELS_DIR, "rgb_values.json")
-REC_FILENAME = "data.rec"
-IDX_FILENAME = "data.idx"
-DATA_PATH = os.path.join(DATA_DIR, REC_FILENAME)
-VAL_PATH = os.path.join(VAL_DATA_DIR, REC_FILENAME)
+TRAINING_DATA_PATH = DATA_DIR.joinpath("training")
+VALIDATION_DATA_PATH = DATA_DIR.joinpath("validation")
+TESTING_DATA_PATH = DATA_DIR.joinpath("testing")
+DETECTION_DATA_PATH = DATA_DIR.joinpath("detection_data")
+TRAINING_DETECTION_PATH = DETECTION_DATA_PATH.joinpath("testing")
+VALIDATION_DETECTION_PATH = DETECTION_DATA_PATH.joinpath("validation")
+TRAINING_DETECTION_ANNOTATIONS_PATH = DETECTION_DATA_PATH.joinpath("training_annotations")
+VALIDATION_DETECTION_ANNOTATIONS_PATH = DETECTION_DATA_PATH.joinpath("validation_annotations")
+WEAKLY_LABELED_DATA_PATH = DATA_DIR.joinpath("raw_data")
+CLASS_LIST_PATH = DETECTION_DATA_PATH.joinpath("classes.txt")
+PACK_PATH_SUFFIX = "packed"
 
-PREPROCESS_PY_FILE = os.path.join(BASE_DIR, "birder", "common", "preprocess.py")
+MODELS_DIR = BASE_DIR.joinpath("models")
+TRAINING_RUNS_PATH = BASE_DIR.joinpath("runs")
+RESULTS_DIR = BASE_DIR.joinpath("results")
 
-# Custom network module path
-NET_MODULE = "birder.net"
-
-# Inference
+# Results
 TOP_K = 3
 
-# Augmentation, pre-pack time (offline)
-AUG_RATIO = 0.1
-AUG_EXCLUDE = [""]
-POST_AUG_EXCLUDE = ["Rotate"]
-
-# Training (defaults, can override in command line)
-NUM_EPOCHS = 120
-SAVE_FREQUENCY = 20
-RESTART_EPOCHS = [NUM_EPOCHS + 40, NUM_EPOCHS + 80]
-
-# Logging configuration
+# Logging
 # https://docs.python.org/3/library/logging.config.html
-LOG_LEVEL = logging.INFO
-
-LOGGING = {
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+LOGGING: dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
@@ -61,11 +40,11 @@ LOGGING = {
         },
         "simple": {"format": "[{asctime} {levelname}] {message}", "style": "{"},
     },
-    "handlers": {"console": {"class": "logging.StreamHandler", "level": LOG_LEVEL, "formatter": "verbose"}},
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "level": "DEBUG", "formatter": "verbose"},
+    },
     "loggers": {},
     "root": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": True},
 }
 
 logging.config.dictConfig(LOGGING)
-logging.captureWarnings(True)
-logging.debug("Settings loaded")

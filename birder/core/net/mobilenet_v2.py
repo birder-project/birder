@@ -1,131 +1,94 @@
 """
 MobileNet v2, adapted from
-https://github.com/apache/incubator-mxnet/blob/master/example/image-classification/symbols/mobilenetv2.py
+https://github.com/pytorch/vision/blob/main/torchvision/models/mobilenetv2.py
 
 Paper "MobileNetV2: Inverted Residuals and Linear Bottlenecks", https://arxiv.org/abs/1801.04381
 """
 
-from typing import List
-from typing import Tuple
+# Reference license: BSD 3-Clause
 
-import mxnet as mx
+from collections.abc import Callable
+from typing import Optional
 
-from birder.common.net import relu6
+import torch
+from torch import nn
+from torchvision.ops import Conv2dNormActivation
+
 from birder.core.net.base import BaseNet
+from birder.core.net.base import make_divisible
 
 
-def bn_convolution_relu6(
-    data: mx.sym.Symbol,
-    num_filter: int,
-    kernel: Tuple[int, int],
-    stride: Tuple[int, int],
-    pad: Tuple[int, int],
-    num_group: int = 1,
-) -> mx.sym.Symbol:
-    x = mx.sym.Convolution(
-        data=data,
-        num_filter=num_filter,
-        kernel=kernel,
-        stride=stride,
-        pad=pad,
-        num_group=num_group,
-        no_bias=True,
-    )
-    x = mx.sym.BatchNorm(data=x, fix_gamma=False, eps=1e-5, momentum=0.9)
-    x = relu6(data=x)
+class InvertedResidual(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: tuple[int, int],
+        stride: tuple[int, int],
+        padding: tuple[int, int],
+        expansion_factor: float,
+        shortcut: bool,
+        activation_layer: Callable[..., nn.Module] = nn.ReLU6,
+    ) -> None:
+        super().__init__()
+        num_expfilter = int(round(in_channels * expansion_factor))
 
-    return x
-
-
-def inverted_residual_unit(
-    data: mx.sym.Symbol,
-    num_in_filter: int,
-    num_filter: int,
-    kernel: Tuple[int, int],
-    stride: Tuple[int, int],
-    pad: Tuple[int, int],
-    expansion_factor: float,
-    shortcut: bool,
-) -> mx.sym.Symbol:
-    num_expfilter = int(round(num_in_filter * expansion_factor))
-
-    x = bn_convolution_relu6(data, num_filter=num_expfilter, kernel=(1, 1), stride=(1, 1), pad=(0, 0))
-    x = bn_convolution_relu6(
-        x, num_filter=num_expfilter, kernel=kernel, stride=stride, pad=pad, num_group=num_expfilter
-    )
-    x = mx.sym.Convolution(
-        data=x,
-        num_filter=num_filter,
-        kernel=(1, 1),
-        stride=(1, 1),
-        pad=(0, 0),
-        no_bias=True,
-    )
-    x = mx.sym.BatchNorm(data=x, fix_gamma=False, eps=1e-5, momentum=0.9)
-
-    if shortcut is True:
-        x = x + data
-
-    return x
-
-
-def mobilenet_v2(
-    num_classes: int, multiplier: float, inverted_residual_setting: List[List[int]]
-) -> mx.sym.Symbol:
-    data = mx.sym.Variable(name="data")
-
-    in_c = int(round(32 * multiplier))
-    x = bn_convolution_relu6(data, num_filter=in_c, kernel=(3, 3), stride=(2, 2), pad=(1, 1))
-
-    # pylint: disable=invalid-name
-    for t, c, n, s in inverted_residual_setting:
-        c = int(round(c * multiplier))
-        x = inverted_residual_unit(
-            x,
-            num_in_filter=in_c,
-            num_filter=c,
-            kernel=(3, 3),
-            stride=(s, s),
-            pad=(1, 1),
-            expansion_factor=t,
-            shortcut=False,
+        self.shortcut = shortcut
+        self.block = nn.Sequential(
+            Conv2dNormActivation(
+                in_channels,
+                num_expfilter,
+                kernel_size=(1, 1),
+                stride=(1, 1),
+                padding=(0, 0),
+                bias=False,
+                activation_layer=activation_layer,
+            ),
+            Conv2dNormActivation(
+                num_expfilter,
+                num_expfilter,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                groups=num_expfilter,
+                bias=False,
+                activation_layer=activation_layer,
+            ),
+            Conv2dNormActivation(
+                num_expfilter,
+                out_channels,
+                kernel_size=(1, 1),
+                stride=(1, 1),
+                padding=(0, 0),
+                bias=False,
+                activation_layer=None,
+            ),
         )
 
-        for _ in range(1, n):
-            x = inverted_residual_unit(
-                x,
-                num_in_filter=c,
-                num_filter=c,
-                kernel=(3, 3),
-                stride=(1, 1),
-                pad=(1, 1),
-                expansion_factor=t,
-                shortcut=True,
-            )
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.shortcut is True:
+            return x + self.block(x)
 
-        in_c = int(round(c * multiplier))
-
-    x = bn_convolution_relu6(
-        x, num_filter=int(round(1280 * max(1.0, multiplier))), kernel=(1, 1), stride=(1, 1), pad=(0, 0)
-    )
-
-    # Classification block
-    x = mx.sym.Pooling(data=x, global_pool=True, pool_type="avg")
-    x = mx.sym.Flatten(data=x, name="features")
-    x = mx.sym.FullyConnected(data=x, num_hidden=num_classes)
-    x = mx.sym.SoftmaxOutput(data=x, name="softmax")
-
-    return x
+        return self.block(x)
 
 
 # pylint: disable=invalid-name
 class MobileNet_v2(BaseNet):
-    def get_symbol(self) -> mx.sym.Symbol:
-        multiplier = self.num_layers
-        multiplier_values = [0.25, 0.50, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
-        assert multiplier in multiplier_values, f"alpha = {multiplier} not supported"
+    default_size = 224
 
-        # t - expension factor
+    def __init__(
+        self,
+        input_channels: int,
+        num_classes: int,
+        net_param: Optional[float] = None,
+        size: Optional[int] = None,
+    ) -> None:
+        super().__init__(input_channels, num_classes, net_param, size)
+        alpha = net_param
+        alpha_values = [0.25, 0.50, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
+        assert alpha in alpha_values, f"alpha = {alpha} not supported"
+
+        # t - expansion factor
         # c - num_filters (channels)
         # n - number of repetitions
         # s - stride
@@ -140,10 +103,86 @@ class MobileNet_v2(BaseNet):
             [6, 320, 1, 1],
         ]
 
-        return mobilenet_v2(self.num_classes, multiplier, inverted_residual_setting)
-
-    @staticmethod
-    def get_initializer() -> mx.initializer.Initializer:
-        return mx.initializer.Mixed(
-            [".*"], [mx.init.Xavier(rnd_type="gaussian", factor_type="in", magnitude=2)]
+        base = make_divisible(32 * alpha, 8)
+        self.stem = Conv2dNormActivation(
+            self.input_channels,
+            base,
+            kernel_size=(3, 3),
+            stride=(2, 2),
+            padding=(1, 1),
+            bias=False,
+            activation_layer=nn.ReLU6,
         )
+
+        layers = []
+        for t, c, n, s in inverted_residual_setting:
+            c = make_divisible(c * alpha, 8)
+            layers.append(
+                InvertedResidual(
+                    base,
+                    c,
+                    kernel_size=(3, 3),
+                    stride=(s, s),
+                    padding=(1, 1),
+                    expansion_factor=t,
+                    shortcut=False,
+                )
+            )
+            for _ in range(1, n):
+                layers.append(
+                    InvertedResidual(
+                        c,
+                        c,
+                        kernel_size=(3, 3),
+                        stride=(1, 1),
+                        padding=(1, 1),
+                        expansion_factor=t,
+                        shortcut=True,
+                    )
+                )
+
+            base = c
+
+        last_channels = make_divisible(1280 * max(1.0, alpha), 8)
+        layers.append(
+            Conv2dNormActivation(
+                c,
+                last_channels,
+                kernel_size=(1, 1),
+                stride=(1, 1),
+                padding=(0, 0),
+                bias=False,
+                activation_layer=nn.ReLU6,
+            )
+        )
+
+        self.body = nn.Sequential(*layers)
+        self.features = nn.Sequential(
+            nn.AdaptiveAvgPool2d(output_size=(1, 1)),
+            nn.Flatten(1),
+        )
+        self.embedding_size = last_channels
+        self.classifier = self.create_classifier()
+
+        # Weight initialization
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) is True:
+                nn.init.kaiming_normal_(m.weight, mode="fan_out")
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)) is True:
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+
+            elif isinstance(m, nn.Linear) is True:
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.zeros_(m.bias)
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.stem(x)
+        x = self.body(x)
+        return self.features(x)
+
+    def create_classifier(self) -> nn.Module:
+        return nn.Linear(self.embedding_size, self.num_classes)

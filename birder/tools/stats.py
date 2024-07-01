@@ -1,180 +1,213 @@
 import argparse
 import json
 import logging
-import multiprocessing
-import time
 from collections import Counter
-from typing import List
+from pathlib import Path
+from typing import Any
+from typing import Union
 
-import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
+from torch.utils.data import DataLoader
+from torchvision.datasets import ImageFolder
+from torchvision.io import read_image
+from torchvision.transforms import v2
+from tqdm import tqdm
 
-from birder.common import util
+from birder.common import cli
 from birder.conf import settings
 
 
-def reduce_worker(queue) -> None:
-    mean = np.zeros(3)
-    mean_squares = np.zeros(3)
+def detection_object_count(directory: Path) -> tuple[Counter[str], int]:
+    """
+    Assumes directory is in LabelMe format
+    """
 
-    while True:
-        deq = queue.get()
-        if deq is None:
-            break
+    file_count = 0
+    detection_count: Counter[str] = Counter()
+    for file_path in directory.glob("*.json"):
+        with open(file_path, "r", encoding="utf=8") as handle:
+            raw_label = json.load(handle)
 
-        mean += deq[0]
-        mean_squares += deq[1]
+        if raw_label["flags"].get("unknown", False) is True:
+            # Don't count images with unknown species
+            continue
 
-    # Calculate standard deviation
-    std = np.sqrt(mean_squares - np.square(mean))
+        for shape in raw_label["shapes"]:
+            detection_count.update([shape["label"]])
 
-    logging.info(f"mean_r: {mean[2] * 255}")
-    logging.info(f"mean_g: {mean[1] * 255}")
-    logging.info(f"mean_b: {mean[0] * 255}")
-    logging.info(f"std_r: {std[2] * 255}")
-    logging.info(f"std_g: {std[1] * 255}")
-    logging.info(f"std_b: {std[0] * 255}")
+        file_count += 1
 
-    stats = {
-        "mean_r": mean[2] * 255,
-        "mean_g": mean[1] * 255,
-        "mean_b": mean[0] * 255,
-        "std_r": std[2] * 255,
-        "std_g": std[1] * 255,
-        "std_b": std[0] * 255,
-        "scale": 1,
-    }
-
-    logging.info(f"Writing {settings.RGB_VALUES_FILENAME}")
-    with open(settings.RGB_VALUES_FILENAME, "w") as handle:
-        json.dump(stats, handle, indent=2)
+    return (detection_count, file_count)
 
 
-def read_worker(q_in, q_out, num_samples: int) -> None:
-    while True:
-        deq = q_in.get()
-        if deq is None:
-            break
-
-        (image_num, image_path) = deq
-        if image_num % 5000 == 4999:
-            logging.info(f"Calculating image no. {image_num + 1}...")
-
-        img = cv2.imread(image_path, cv2.IMREAD_COLOR)
-        img = img / 255.0
-        mean = img.mean((0, 1)) / num_samples
-        mean_squares = np.square(img).mean((0, 1)) / num_samples
-
-        q_out.put((mean, mean_squares), block=True, timeout=None)
+def directory_label_count(directory: Union[str, Path]) -> Counter[str]:
+    dataset = ImageFolder(directory)
+    labels = [dataset.classes[sample[1]] for sample in dataset.samples]
+    return Counter(labels)
 
 
-def img_stats(images_path: List[str], jobs: int):
-    num_samples = len(images_path)
+def class_graph(args: argparse.Namespace) -> None:
+    if args.detection_class_graph is True:
+        (label_count, _) = detection_object_count(Path(args.data_path))
 
-    q_in = []  # type: ignore
-    for _ in range(jobs):
-        q_in.append(multiprocessing.Queue(1024))
+    else:
+        label_count = directory_label_count(args.data_path)
 
-    q_out = multiprocessing.Queue(1024)  # type: ignore
+    total_count = sum(label_count.values())
+    (sorted_classes, sorted_count) = list(zip(*label_count.most_common()))
 
-    read_processes = []
-    for idx in range(jobs):
-        read_processes.append(
-            multiprocessing.Process(target=read_worker, args=(q_in[idx], q_out, num_samples))
+    fig = plt.figure()
+    ax = fig.add_subplot()
+    ax.barh(sorted_classes, sorted_count, color=plt.get_cmap("RdYlGn")(sorted_count))
+    for i, count in enumerate(sorted_count):
+        ax.text(
+            count + 3,
+            i,
+            str(count),
+            color="dimgrey",
+            va="center",
+            fontsize="small",
+            fontweight="light",
+            clip_on=True,
         )
 
-    for p in read_processes:
-        p.start()
+    ax.set_title(
+        f"{total_count:n} samples, {len(sorted_classes)} classes "
+        f"({total_count / len(sorted_classes):.0f} samples per class on average)"
+    )
 
-    reduce_process = multiprocessing.Process(target=reduce_worker, args=(q_out,))
-    reduce_process.start()
-
-    for idx, image_path in enumerate(images_path):
-        q_in[idx % len(q_in)].put((idx, image_path), block=True, timeout=None)
-
-    for q in q_in:
-        q.put(None, block=True, timeout=None)
-
-    for p in read_processes:
-        p.join()
-
-    q_out.put(None, block=True, timeout=None)
-    reduce_process.join()
+    plt.show()
 
 
-def set_parser(subparsers):
+def set_size(_args: argparse.Namespace) -> None:
+    training_dataset = ImageFolder(settings.TRAINING_DATA_PATH)
+    validation_dataset = ImageFolder(settings.VALIDATION_DATA_PATH)
+    testing_dataset = ImageFolder(settings.TESTING_DATA_PATH)
+    logging.info(
+        f"Training:   {len(training_dataset):,} samples with {len(training_dataset.classes)} classes "
+        f"(average of {round(len(training_dataset) / len(training_dataset.classes))} per class)"
+    )
+    logging.info(
+        f"Validation: {len(validation_dataset):,} samples with {len(validation_dataset.classes)} classes "
+        f"(average of {round(len(validation_dataset) / len(validation_dataset.classes))} per class)"
+    )
+    logging.info(
+        f"Testing:    {len(testing_dataset):,} samples with {len(testing_dataset.classes)} classes "
+        f"(average of {round(len(testing_dataset) / len(testing_dataset.classes))} per class)"
+    )
+    logging.info(
+        f"Total of {len(training_dataset) + len(validation_dataset) + len(testing_dataset):,} " "classification samples"
+    )
+
+    logging.info("---")
+    (training_detection_count, training_file_count) = detection_object_count(
+        settings.TRAINING_DETECTION_ANNOTATIONS_PATH
+    )
+    if training_file_count > 0:
+        logging.info(
+            f"Detection training:   {training_file_count:,} samples containing "
+            f"{sum(training_detection_count.values()):,} "
+            f"objects with {len(training_detection_count.keys())} classes (average of "
+            f"{sum(training_detection_count.values()) / training_file_count:.1f} objects per sample)"
+        )
+
+    (validation_detection_count, validation_file_count) = detection_object_count(
+        settings.VALIDATION_DETECTION_ANNOTATIONS_PATH
+    )
+    if validation_file_count > 0:
+        logging.info(
+            f"Detection validation: {validation_file_count:,} samples containing "
+            f"{sum(validation_detection_count.values()):,} "
+            f"objects with {len(validation_detection_count.keys())} classes (average of "
+            f"{sum(validation_detection_count.values()) / validation_file_count:.1f} objects per sample)"
+        )
+
+    logging.info(f"Total of {training_file_count + validation_file_count:,} detection samples")
+
+    logging.info("---")
+    weak_dataset = ImageFolder(settings.WEAKLY_LABELED_DATA_PATH)
+    logging.info(
+        f"Weakly labeled: {len(weak_dataset):,} samples with {len(weak_dataset.classes)} classes "
+        f"(average of {round(len(weak_dataset) / len(weak_dataset.classes))} per class)"
+    )
+
+
+def mean_and_std(args: argparse.Namespace) -> None:
+    dataset = ImageFolder(
+        args.data_path,
+        transform=v2.Compose(
+            [
+                v2.Resize((256, 256), interpolation=v2.InterpolationMode.BILINEAR),
+                v2.PILToTensor(),
+                v2.ToDtype(torch.float32, scale=True),
+            ]
+        ),
+        loader=read_image,
+    )
+    batch_size = 64
+    data_loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        num_workers=8,
+    )
+    num_samples = len(dataset)
+    mean = np.zeros(3, dtype=np.float64)
+    mean_squares = np.zeros(3, dtype=np.float64)
+    with tqdm(total=num_samples, initial=0, unit="images", unit_scale=True, leave=True) as progress:
+        for images, _ in data_loader:
+            mean += images.mean(dim=(2, 3)).sum(dim=0).numpy().astype(np.float64) / num_samples
+            mean_squares += images.square().mean(dim=(2, 3)).sum(dim=0).numpy().astype(np.float64) / num_samples
+
+            progress.update(n=batch_size)
+
+    std = np.sqrt(mean_squares - np.square(mean))
+    rgb_values = {"mean": tuple(mean.round(decimals=4)), "std": tuple(std.round(decimals=4))}
+    logging.info(f"mean: {rgb_values['mean']}")
+    logging.info(f"std: {rgb_values['std']}")
+
+
+def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
-        "stats", help="show image directory statistics", formatter_class=util.ArgumentHelpFormatter
+        "stats",
+        help="show image directory statistics",
+        description="show image directory statistics",
+        epilog=(
+            "Usage examples:\n"
+            "python3 tool.py stats --class-graph\n"
+            "python3 tool.py stats --class-graph --data-path data/validation\n"
+            "python3 tool.py stats --detection-class-graph --data-path "
+            "data/detection_data/training_annotations\n"
+            "python3 tool.py stats --set-size\n"
+            "python3 tool.py stats --rgb\n"
+        ),
+        formatter_class=cli.ArgumentHelpFormatter,
     )
+    subparser.add_argument("--class-graph", default=False, action="store_true", help="show class sample distribution")
     subparser.add_argument(
-        "-j",
-        "--jobs",
-        type=int,
-        default=1,
-        help="performs calculation on multiple cores, set -1 to run on all cores, e.g. --jobs 4",
-    )
-    subparser.add_argument(
-        "--class-graph",
+        "--detection-class-graph",
         default=False,
         action="store_true",
-        help="show class sample distribution",
+        help="show class sample distribution for detection directory",
     )
+    subparser.add_argument("--set-size", default=False, action="store_true", help="show sample count per set")
     subparser.add_argument(
         "--rgb",
         default=False,
         action="store_true",
-        help="calculate RGB mean and std",
+        help="calculate rgb mean and std",
     )
-    subparser.add_argument("--data-path", type=str, default=settings.DATA_DIR, help="image directory")
+    subparser.add_argument("--data-path", type=str, default=settings.TRAINING_DATA_PATH, help="image directory")
     subparser.set_defaults(func=main)
 
 
 def main(args: argparse.Namespace) -> None:
-    inverse_classes = util.read_synset_reverse()
-    labels = []
-    images_path = []
-    for image_path, label in util.list_images(args.data_path, False, skip_aug=True, skip_adv=True):
-        labels.append(inverse_classes[label])
-        images_path.append(image_path)
+    if args.class_graph is True or args.detection_class_graph:
+        class_graph(args)
 
-    if args.class_graph is True:
-        # TODO: Move to core.gui
-        label_count = Counter(labels)
-        sorted_classes: List[str]
-        sorted_count: List[int]
-        (sorted_classes, sorted_count) = list(zip(*label_count.most_common()))  # type: ignore
-
-        fig = plt.figure()
-        ax = fig.add_subplot()
-        ax.barh(sorted_classes, sorted_count, color=plt.get_cmap("RdYlGn")(sorted_count))
-        for i, count in enumerate(sorted_count):
-            ax.text(
-                count + 3,
-                i,
-                str(count),
-                color="dimgrey",
-                va="center",
-                fontsize="small",
-                fontweight="light",
-                clip_on=True,
-            )
-
-        ax.set_title(
-            f"{len(images_path):n} samples, {len(sorted_classes)} classes "
-            f"({len(images_path) / len(sorted_classes):.0f} samples per class on average)"
-        )
-
-        plt.show()
+    if args.set_size is True:
+        set_size(args)
 
     if args.rgb is True:
-        jobs = args.jobs
-        if jobs == -1:
-            jobs = multiprocessing.cpu_count()
-
-        logging.info(f"Running {jobs} read processes and 1 reduce process")
-
-        tic = time.time()
-        img_stats(images_path, jobs)
-        toc = time.time()
-        logging.info(f"Calculated {len(images_path)} images in {toc - tic:.1f}s")
+        mean_and_std(args)

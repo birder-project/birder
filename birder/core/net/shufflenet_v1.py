@@ -6,137 +6,138 @@ Paper "ShuffleNet: An Extremely Efficient Convolutional Neural Network for Mobil
 https://arxiv.org/abs/1707.01083
 """
 
-from typing import List
+# Reference license: MIT
 
-import mxnet as mx
+from typing import Optional
+
+import torch
+import torch.nn.functional as F
+from torch import nn
+from torchvision.ops import Conv2dNormActivation
 
 from birder.core.net.base import BaseNet
 
 
-def _channel_shuffle(data: mx.sym.Symbol, groups: int) -> mx.sym.Symbol:
-    x = mx.sym.reshape(data, shape=(0, -4, groups, -1, -2))
-    x = mx.sym.swapaxes(x, 1, 2)
-    x = mx.sym.reshape(x, shape=(0, -3, -2))
+def channel_shuffle(x: torch.Tensor, groups: int) -> torch.Tensor:
+    (batch_size, num_channels, height, width) = x.size()
+    channels_per_group = num_channels // groups
+
+    # Reshape
+    x = x.view(batch_size, groups, channels_per_group, height, width)
+
+    # Transpose
+    # contiguous required if transpose is used before view (https://github.com/pytorch/pytorch/issues/764)
+    x = torch.transpose(x, 1, 2).contiguous()
+
+    # Flatten
+    x = x.view(batch_size, -1, height, width)
 
     return x
 
 
-def shuffle_unit(
-    data: mx.sym.Symbol, in_channels: int, out_channels: int, groups: int, grouped_conv: bool
-) -> mx.sym.Symbol:
-    assert in_channels <= out_channels
+class ChannelShuffle(nn.Module):
+    def __init__(self, groups: int) -> None:
+        super().__init__()
+        self.groups = groups
 
-    bottleneck_channels = out_channels // 4
-
-    if in_channels == out_channels:
-        dw_conv_stride = 1
-
-    elif in_channels < out_channels:
-        dw_conv_stride = 2
-        out_channels -= in_channels
-
-    if grouped_conv is True:
-        first_groups = groups
-
-    else:
-        first_groups = 1
-
-    x = mx.sym.Convolution(
-        data=data,
-        num_filter=bottleneck_channels,
-        kernel=(1, 1),
-        stride=(1, 1),
-        pad=(0, 0),
-        num_group=first_groups,
-        no_bias=True,
-    )
-    x = mx.sym.BatchNorm(data=x, fix_gamma=True, eps=2e-5, momentum=0.9)
-    x = mx.sym.Activation(data=x, act_type="relu")
-
-    if grouped_conv is True:
-        x = _channel_shuffle(x, groups)
-
-    x = mx.sym.Convolution(
-        data=x,
-        num_filter=bottleneck_channels,
-        kernel=(3, 3),
-        stride=(dw_conv_stride, dw_conv_stride),
-        pad=(1, 1),
-        num_group=bottleneck_channels,
-        no_bias=True,
-    )
-    x = mx.sym.BatchNorm(data=x, fix_gamma=True, eps=2e-5, momentum=0.9)
-    x = mx.sym.Convolution(
-        data=x,
-        num_filter=out_channels,
-        kernel=(1, 1),
-        stride=(1, 1),
-        pad=(0, 0),
-        num_group=groups,
-        no_bias=True,
-    )
-    x = mx.sym.BatchNorm(data=x, fix_gamma=True, eps=2e-5, momentum=0.9)
-
-    if dw_conv_stride == 1:
-        x = x + data
-
-    else:
-        data = mx.sym.Pooling(data=data, kernel=(3, 3), stride=(2, 2), pad=(1, 1), pool_type="avg")
-        x = mx.sym.concat(x, data, dim=1)
-
-    x = mx.sym.Activation(data=x, act_type="relu")
-
-    return x
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return channel_shuffle(x, groups=self.groups)
 
 
-def shufflenet_v1(
-    num_classes: int, stage_repeats: List[int], out_channels: List[int], groups: int
-) -> mx.sym.Symbol:
-    assert len(stage_repeats) == 3
-    assert len(stage_repeats) + 1 == len(out_channels)
+class ShuffleUnit(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int, groups: int, grouped_conv: bool) -> None:
+        super().__init__()
+        assert in_channels <= out_channels
 
-    # Entry
-    data = mx.sym.Variable(name="data")
-    x = mx.sym.Convolution(data=data, num_filter=24, kernel=(3, 3), stride=(2, 2), pad=(1, 1), no_bias=True)
-    x = mx.sym.Pooling(data=x, kernel=(3, 3), stride=(2, 2), pad=(1, 1), pool_type="max")
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.groups = groups
+        self.grouped_conv = grouped_conv
+        bottleneck_channels = out_channels // 4
 
-    # Generate stages
-    for i, _ in enumerate(stage_repeats):
-        if i == 0:
-            grouped_conv = False
+        if in_channels == out_channels:
+            dw_conv_stride = 1
+
+        elif in_channels < out_channels:
+            dw_conv_stride = 2
+            out_channels -= in_channels
 
         else:
-            grouped_conv = True
+            raise ValueError("in_channels must be smaller or equal to out_channels")
 
-        x = shuffle_unit(
-            data=x,
-            in_channels=out_channels[i],
-            out_channels=out_channels[i + 1],
-            groups=groups,
-            grouped_conv=grouped_conv,
+        if grouped_conv is True:
+            first_groups = groups
+
+        else:
+            first_groups = 1
+
+        self.bottleneck = Conv2dNormActivation(
+            in_channels,
+            bottleneck_channels,
+            kernel_size=(1, 1),
+            stride=(1, 1),
+            padding=(0, 0),
+            groups=first_groups,
+            bias=False,
         )
-        for _ in range(stage_repeats[i]):
-            x = shuffle_unit(
-                data=x,
-                in_channels=out_channels[i + 1],
-                out_channels=out_channels[i + 1],
+        self.expand = nn.Sequential(
+            nn.Conv2d(
+                bottleneck_channels,
+                bottleneck_channels,
+                kernel_size=(3, 3),
+                stride=(dw_conv_stride, dw_conv_stride),
+                padding=(1, 1),
+                groups=bottleneck_channels,
+                bias=False,
+            ),
+            nn.BatchNorm2d(bottleneck_channels),
+            nn.Conv2d(
+                bottleneck_channels,
+                out_channels,
+                kernel_size=(1, 1),
+                stride=(1, 1),
+                padding=(0, 0),
                 groups=groups,
-                grouped_conv=True,
+                bias=False,
+            ),
+            nn.BatchNorm2d(out_channels),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        residual = x
+
+        x = self.bottleneck(x)
+        if self.grouped_conv is True:
+            x = channel_shuffle(x, groups=self.groups)
+
+        x = self.expand(x)
+        if self.in_channels == self.out_channels:
+            x = x + residual
+
+        else:
+            residual = F.avg_pool2d(  # pylint: disable=not-callable
+                residual, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)
             )
+            x = torch.concat((x, residual), dim=1)
 
-    # Classification
-    x = mx.sym.Pooling(data=x, global_pool=True, pool_type="avg")
-    x = mx.sym.Flatten(data=x, name="features")
-    x = mx.sym.FullyConnected(data=x, num_hidden=num_classes)
-    x = mx.sym.SoftmaxOutput(data=x, name="softmax")
-
-    return x
+        x = F.relu(x)
+        return x
 
 
 # pylint: disable=invalid-name
 class ShuffleNet_v1(BaseNet):
-    def get_symbol(self) -> mx.sym.Symbol:
-        groups = int(self.num_layers)
+    default_size = 224
+
+    def __init__(
+        self,
+        input_channels: int,
+        num_classes: int,
+        net_param: Optional[float] = None,
+        size: Optional[int] = None,
+    ) -> None:
+        super().__init__(input_channels, num_classes, net_param, size)
+        assert self.net_param is not None, "must set net-param"
+        groups = int(self.net_param)
 
         if groups == 1:
             stage_repeats = [3, 7, 3]
@@ -161,10 +162,50 @@ class ShuffleNet_v1(BaseNet):
         else:
             raise ValueError(f"groups = {groups} not supported")
 
-        return shufflenet_v1(self.num_classes, stage_repeats, out_channels, groups)
-
-    @staticmethod
-    def get_initializer() -> mx.initializer.Initializer:
-        return mx.initializer.Mixed(
-            [".*"], [mx.init.Xavier(rnd_type="gaussian", factor_type="in", magnitude=2)]
+        self.stem = nn.Sequential(
+            nn.Conv2d(self.input_channels, 24, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)),
         )
+
+        # Generate stages
+        stages = []
+        for i, repeat in enumerate(stage_repeats):
+            if i == 0:
+                grouped_conv = False
+
+            else:
+                grouped_conv = True
+
+            stages.append(
+                ShuffleUnit(
+                    out_channels[i],
+                    out_channels[i + 1],
+                    groups=groups,
+                    grouped_conv=grouped_conv,
+                )
+            )
+            for _ in range(repeat):
+                stages.append(
+                    ShuffleUnit(
+                        out_channels[i + 1],
+                        out_channels[i + 1],
+                        groups=groups,
+                        grouped_conv=True,
+                    )
+                )
+
+        self.body = nn.Sequential(*stages)
+        self.features = nn.Sequential(
+            nn.AdaptiveAvgPool2d(output_size=(1, 1)),
+            nn.Flatten(1),
+        )
+        self.embedding_size = out_channels[-1]
+        self.classifier = self.create_classifier()
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.stem(x)
+        x = self.body(x)
+        return self.features(x)
+
+    def create_classifier(self) -> nn.Module:
+        return nn.Linear(self.embedding_size, self.num_classes)

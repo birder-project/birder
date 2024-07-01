@@ -1,0 +1,155 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.16.1
+  kernelspec:
+    display_name: birder
+    language: python
+    name: birder
+---
+
+```{python}
+import sys
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn.functional as F
+from captum.attr import LRP, IntegratedGradients, NoiseTunnel, Occlusion
+from captum.attr import visualization as viz
+from matplotlib.colors import LinearSegmentedColormap
+from PIL import Image
+```
+
+```{python}
+sys.path.append("..")
+```
+
+```{python}
+from birder.common import cli
+from birder.common.lib import get_label_from_path
+from birder.conf import settings
+from birder.core.transforms.classification import inference_preset
+```
+
+```{python}
+default_cmap = LinearSegmentedColormap.from_list(
+    "custom blue", [(0, "#ffffff"), (0.25, "#000000"), (1, "#000000")], N=256
+)
+```
+
+```{python}
+network = "efficientnet_v2"
+# network = "swin_transformer_v2"
+net_param = 0
+epoch = 0
+```
+
+```{python}
+device = torch.device("cpu")
+(net, class_to_idx, signature, rgb_values) = cli.load_model(
+    device, network, net_param=net_param, epoch=epoch, inference=True
+)
+idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
+size = signature["inputs"][0]["data_shape"][3]
+input_shape = [1] + signature["inputs"][0]["data_shape"][1:]
+transform = inference_preset(size, 1.0, rgb_values)
+```
+
+```{python}
+# image = "../data/testing/Lesser kestrel/000202.jpeg"
+image = "../data/testing/Bluethroat/000202.jpeg"
+# image = "../data/testing/Lesser grey shrike/000200.jpeg"
+# image = "../data/testing/Great bittern/000107.jpeg"
+# image = "../data/testing/Crowned sandgrouse/000012.jpeg"
+img = Image.open(image)
+input_tensor = transform(img).unsqueeze(dim=0).to(device)
+```
+
+```{python}
+output = F.softmax(net(input_tensor), dim=1)
+(prob, class_idx) = torch.topk(output, k=1)
+class_idx.squeeze_()
+prob.squeeze_()
+
+print(
+    f"Predicted {idx_to_class[class_idx.cpu().detach().item()]} ({prob.cpu().detach().item():.3f})"
+)
+img
+```
+
+```{python}
+integrated_gradients = IntegratedGradients(net)
+attributions_ig = integrated_gradients.attribute(
+    input_tensor, target=class_idx, n_steps=128, internal_batch_size=16
+)
+```
+
+```{python}
+_ = viz.visualize_image_attr_multiple(
+    np.transpose(attributions_ig.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+    np.array(img.resize([size, size])),
+    ["original_image", "heat_map"],
+    ["all", "positive"],
+    cmap=default_cmap,
+    show_colorbar=True,
+    outlier_perc=1,
+    fig_size=(12, 8),
+)
+```
+
+```{python}
+occlusion = Occlusion(net)
+attributions_occ = occlusion.attribute(
+    input_tensor,
+    strides=(3, 14, 14),
+    target=class_idx,
+    sliding_window_shapes=(3, 32, 32),
+    baselines=0,
+)
+```
+
+```{python}
+_ = viz.visualize_image_attr_multiple(
+    np.transpose(attributions_occ.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+    np.array(img.resize([size, size])),
+    ["original_image", "heat_map"],
+    ["all", "all"],
+    show_colorbar=True,
+    outlier_perc=2,
+    fig_size=(12, 8),
+)
+```
+
+```{python}
+noise_tunnel = NoiseTunnel(integrated_gradients)
+attributions_ig_nt = noise_tunnel.attribute(
+    input_tensor,
+    nt_samples=4,
+    nt_samples_batch_size=1,
+    nt_type="smoothgrad_sq",
+    target=class_idx,
+)
+```
+
+```{python}
+_ = viz.visualize_image_attr_multiple(
+    np.transpose(attributions_ig_nt.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+    np.array(img.resize([size, size])),
+    ["original_image", "heat_map"],
+    ["all", "positive"],
+    cmap=default_cmap,
+    show_colorbar=True,
+    fig_size=(12, 8),
+)
+```
+
+```{python}
+
+```

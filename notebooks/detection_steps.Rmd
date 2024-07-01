@@ -1,0 +1,379 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.16.1
+  kernelspec:
+    display_name: birder
+    language: python
+    name: birder
+---
+
+```{python}
+import sys
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import torch
+import torchvision.transforms.v2.functional as F
+from PIL import Image
+from torchvision.utils import draw_bounding_boxes
+```
+
+```{python}
+sys.path.append("..")
+```
+
+```{python}
+from birder.common import cli
+from birder.common.lib import get_label_from_path
+from birder.conf import settings
+from birder.core.net.base import net_factory
+from birder.core.net.detection.base import ImageList
+from birder.core.net.detection.faster_rcnn import concat_box_prediction_layers
+from birder.core.net.pretraining.base import pretrain_net_factory
+from birder.core.transforms.classification import get_rgb_values, reverse_preset
+from birder.core.transforms.detection import inference_preset
+from torchvision.ops import boxes as box_ops
+```
+
+```{python}
+plt.rcParams["figure.figsize"] = [15, 15]
+```
+
+```{python}
+transform = inference_preset(size=640, rgv_values=get_rgb_values("calculated"))
+reverse_transform = reverse_preset(get_rgb_values("calculated"))
+```
+
+```{python}
+device = torch.device("cpu")
+(net, class_to_idx, _, _, _) = cli.load_detection_checkpoint(
+    device,
+    "faster_rcnn",
+    net_param=None,
+    tag=None,
+    backbone="resnext",
+    backbone_param=101,
+    backbone_tag=None,
+    epoch=0,
+)
+net.eval();
+```
+
+```{python}
+class_list = list(class_to_idx.keys())
+class_list.insert(0, "Background")
+num_classes = len(class_list)
+```
+
+```{python}
+image = "../data/detection_data/training/000003.jpeg"
+# image = "../data/detection_data/training/000001.jpeg"
+img = Image.open(image)
+img
+```
+
+```{python}
+input_tensor = transform(img).unsqueeze(dim=0).to(device)
+input_tensor.size()
+```
+
+```{python}
+img_tensor = reverse_transform(input_tensor)[0]
+transformed_img = F.to_pil_image(img_tensor)
+transformed_img
+```
+
+```{python}
+net.backbone.return_stages
+```
+
+```{python}
+detection_features = net.backbone.detection_features(input_tensor)
+detection_features.keys()
+```
+
+```{python}
+(
+    detection_features["stage1"].size(),
+    detection_features["stage2"].size(),
+    detection_features["stage3"].size(),
+    detection_features["stage4"].size(),
+)
+```
+
+```{python}
+fpn_output = net.backbone_with_fpn.fpn(detection_features)
+fpn_output.keys()
+```
+
+```{python}
+(
+    fpn_output["stage1"].size(),
+    fpn_output["stage2"].size(),
+    fpn_output["stage3"].size(),
+    fpn_output["stage4"].size(),
+    fpn_output["pool"].size(),
+)
+```
+
+```{python}
+image_sizes = [img.shape[-2:] for img in input_tensor]
+image_sizes
+```
+
+```{python}
+images = ImageList(input_tensor, image_sizes)
+```
+
+```{python}
+# RPN - Region Proposal Network
+features_list = list(fpn_output.values())
+(objectness, pred_bbox_deltas) = net.rpn.head(features_list)
+
+num_anchors_per_level_shape_tensors = [o[0].shape for o in objectness]
+num_anchors_per_level = [
+    s[0] * s[1] * s[2] for s in num_anchors_per_level_shape_tensors
+]
+
+# Pred box per feature map
+(
+    len(pred_bbox_deltas),
+    len(objectness),
+    pred_bbox_deltas[0].size(),
+    objectness[0].size(),
+    pred_bbox_deltas[1].size(),
+    objectness[1].size(),
+    num_anchors_per_level,
+)
+```
+
+```{python}
+(objectness, pred_bbox_deltas) = concat_box_prediction_layers(
+    objectness, pred_bbox_deltas
+)
+objectness.size(), pred_bbox_deltas.size()
+```
+
+```{python}
+anchors = net.rpn.anchor_generator(images, features_list)
+anchors[0].size()
+```
+
+```{python}
+proposals = net.rpn.box_coder.decode(pred_bbox_deltas.detach(), anchors)
+proposals.size()
+```
+
+```{python}
+proposals = proposals.view(len(anchors), -1, 4)
+proposals.size()
+```
+
+```{python}
+(boxes, scores) = net.rpn.filter_proposals(
+    proposals, objectness, images.image_sizes, num_anchors_per_level
+)
+(boxes[0].size(), scores[0].size())
+```
+
+```{python}
+annotated_img = draw_bounding_boxes(img_tensor, boxes=boxes[0])
+transformed_img = F.to_pil_image(annotated_img)
+transformed_img
+```
+
+```{python}
+(proposals, proposal_losses) = net.rpn(images, fpn_output, targets=None)
+len(proposals), len(proposal_losses)
+```
+
+```{python}
+proposals[0].size()
+```
+
+```{python}
+annotated_img = draw_bounding_boxes(img_tensor, boxes=proposals[0])
+transformed_img = F.to_pil_image(annotated_img)
+transformed_img
+```
+
+```{python}
+annotated_img = draw_bounding_boxes(img_tensor, boxes=proposals[0][0].unsqueeze(0))
+transformed_img = F.to_pil_image(annotated_img)
+transformed_img
+```
+
+```{python}
+box_features = net.roi_heads.box_roi_pool(fpn_output, proposals, images.image_sizes)
+box_features.size()
+```
+
+```{python}
+box_features = net.roi_heads.box_head(box_features)
+box_features.size()
+```
+
+```{python}
+(class_logits, box_regression) = net.roi_heads.box_predictor(box_features)
+(class_logits.size(), box_regression.size())
+```
+
+```{python}
+class_logits.argmax(dim=1)[0:72]
+```
+
+```{python}
+pred_boxes = net.roi_heads.box_coder.decode(box_regression, proposals)
+pred_boxes.size()
+```
+
+```{python}
+box = pred_boxes[0][class_logits.argmax(dim=1)[0]].unsqueeze(0)
+box
+```
+
+```{python}
+annotated_img = draw_bounding_boxes(img_tensor, boxes=box)
+transformed_img = F.to_pil_image(annotated_img)
+transformed_img
+```
+
+```{python}
+pred_scores = torch.nn.functional.softmax(class_logits, -1)
+pred_scores.size()
+```
+
+```{python}
+# Make sure no box gets outside the image
+boxes = box_ops.clip_boxes_to_image(pred_boxes, images.image_sizes[0])
+```
+
+```{python}
+labels = torch.arange(num_classes, device=device)
+labels = labels.view(1, -1).expand_as(pred_scores)
+labels.size()
+```
+
+```{python}
+# Remove predictions with the background label
+boxes = boxes[:, 1:]
+pred_scores = pred_scores[:, 1:]
+labels = labels[:, 1:]
+```
+
+```{python}
+boxes = boxes.reshape(-1, 4)
+pred_scores = pred_scores.reshape(-1)
+labels = labels.reshape(-1)
+(boxes.size(), pred_scores.size(), labels.size())
+```
+
+```{python}
+# Filter out low score boxes
+score_thresh = 0.05
+idxs = torch.where(pred_scores > score_thresh)[0]
+idxs.size()
+```
+
+```{python}
+(boxes, pred_scores, labels) = boxes[idxs], pred_scores[idxs], labels[idxs]
+(boxes.size(), pred_scores.size(), labels.size())
+```
+
+```{python}
+# Remove tiny boxes
+keep = box_ops.remove_small_boxes(boxes, min_size=1e-2)
+keep.size()
+```
+
+```{python}
+annotated_img = draw_bounding_boxes(img_tensor, boxes=boxes)
+transformed_img = F.to_pil_image(annotated_img)
+transformed_img
+```
+
+```{python}
+# Non-maximum suppression, independently done per class
+nms_thresh = 0.5
+keep = box_ops.batched_nms(boxes, pred_scores, labels, nms_thresh)
+keep.size()
+```
+
+```{python}
+# Keep only topk scoring predictions
+keep = keep[:100]
+(boxes, pred_scores, labels) = boxes[keep], pred_scores[keep], labels[keep]
+(boxes.size(), pred_scores.size(), labels.size())
+```
+
+```{python}
+annotated_img = draw_bounding_boxes(img_tensor, boxes=boxes)
+transformed_img = F.to_pil_image(annotated_img)
+transformed_img
+```
+
+```{python}
+pred_scores
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+(detections, _) = net(input_tensor)
+detections = detections[0]
+```
+
+```{python}
+threshold = 0.0
+scores = detections["scores"].detach().numpy()
+idx = np.where(scores > threshold)[0].max() + 1
+boxes = detections["boxes"]
+labels = detections["labels"]
+labels = [class_list[i] for i in labels]
+img_tensor = reverse_transform(input_tensor)[0]
+annotated_img = draw_bounding_boxes(
+    img_tensor, boxes=boxes[0:idx].detach(), labels=labels[0:idx]
+)
+transformed_img = F.to_pil_image(annotated_img)
+print(idx, labels[0:idx])
+print(idx, scores[0:idx])
+transformed_img
+```
+
+```{python}
+detections
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```

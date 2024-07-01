@@ -1,10 +1,8 @@
 # Project data directories
 data/
-model-archive-staging/
 models/
 results/
-training_logs/
-val_data/
+runs/
 
 # Git
 .git
@@ -20,9 +18,6 @@ val_data/
 *.sw?
 Session.vim
 Sessionx.vim
-
-# Docker
-docker-compose.yml
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
@@ -51,15 +46,3 @@ Thumbs.db
 .mypy_cache/
 .dmypy.json
 dmypy.json
-
-# Dependencies directory
-**/node_modules/
-
-# Local production build
-frontend/client/dist/
-
-# Unrelated project directories
-docs/
-
-# Profile files
-*.prof

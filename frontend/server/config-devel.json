@@ -1,7 +1,0 @@
-{
-  "debug": true,
-  "secret_key": "aptg)jwdghuoqw=0h7hssac@_d9$+@%5gt5%u9-xko)k=)*)11",
-  "allowed_hosts": ["localhost", "birderapp.com"],
-  "mms_host": "http://localhost",
-  "frontend_host": "http://localhost:8888"
-}

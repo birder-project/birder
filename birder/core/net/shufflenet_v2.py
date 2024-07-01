@@ -1,122 +1,110 @@
 """
 ShuffleNet v2, adapted from
-https://github.com/Tveek/mxnet-shufflenet/blob/master/model/shufflenet_v2.py
+https://github.com/pytorch/vision/blob/main/torchvision/models/shufflenetv2.py
 
 Paper "ShuffleNet V2: Practical Guidelines for Efficient CNN Architecture Design",
 https://arxiv.org/abs/1807.11164
 """
 
-from typing import List
+# Reference license: BSD 3-Clause
 
-import mxnet as mx
+from typing import Optional
+
+import torch
+from torch import nn
+from torchvision.ops import Conv2dNormActivation
 
 from birder.core.net.base import BaseNet
+from birder.core.net.shufflenet_v1 import channel_shuffle
 
 
-def _channel_shuffle(data: mx.sym.Symbol, groups: int) -> mx.sym.Symbol:
-    x = mx.sym.reshape(data, shape=(0, -4, groups, -1, -2))
-    x = mx.sym.swapaxes(x, 1, 2)
-    x = mx.sym.reshape(x, shape=(0, -3, -2))
+class ShuffleUnit(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int, dw_conv_stride: int) -> None:
+        super().__init__()
+        self.dw_conv_stride = dw_conv_stride
+        branch_channels = out_channels // 2
 
-    return x
+        if dw_conv_stride == 1:
+            branch2_input = branch_channels
+            self.branch1 = nn.Sequential()
 
-
-def shuffle_unit(
-    data: mx.sym.Symbol, in_channels: int, out_channels: int, dw_conv_stride: int
-) -> mx.sym.Symbol:
-    branch_channels = out_channels // 2
-
-    if dw_conv_stride == 1:
-        branch1 = mx.sym.slice_axis(data, axis=1, begin=0, end=in_channels // 2)
-        branch2 = mx.sym.slice_axis(data, axis=1, begin=in_channels // 2, end=in_channels)
-
-    else:
-        branch1 = data
-        branch2 = data
-
-        branch1 = mx.sym.Convolution(
-            data=branch1,
-            num_filter=in_channels,
-            kernel=(3, 3),
-            stride=(dw_conv_stride, dw_conv_stride),
-            pad=(1, 1),
-            num_group=in_channels,
-            no_bias=True,
-        )
-        branch1 = mx.sym.BatchNorm(data=branch1, fix_gamma=True, eps=2e-5, momentum=0.9)
-        branch1 = mx.sym.Convolution(
-            data=branch1, num_filter=branch_channels, kernel=(1, 1), stride=(1, 1), pad=(0, 0), no_bias=True
-        )
-        branch1 = mx.sym.BatchNorm(data=branch1, fix_gamma=True, eps=2e-5, momentum=0.9)
-        branch1 = mx.sym.Activation(data=branch1, act_type="relu")
-
-    branch2 = mx.sym.Convolution(
-        data=branch2, num_filter=branch_channels, kernel=(1, 1), stride=(1, 1), pad=(0, 0), no_bias=True
-    )
-    branch2 = mx.sym.BatchNorm(data=branch2, fix_gamma=True, eps=2e-5, momentum=0.9)
-    branch2 = mx.sym.Activation(data=branch2, act_type="relu")
-
-    branch2 = mx.sym.Convolution(
-        data=branch2,
-        num_filter=branch_channels,
-        kernel=(3, 3),
-        stride=(dw_conv_stride, dw_conv_stride),
-        pad=(1, 1),
-        num_group=branch_channels,
-        no_bias=True,
-    )
-    branch2 = mx.sym.BatchNorm(data=branch2, fix_gamma=True, eps=2e-5, momentum=0.9)
-    branch2 = mx.sym.Convolution(
-        data=branch2, num_filter=branch_channels, kernel=(1, 1), stride=(1, 1), pad=(0, 0), no_bias=True
-    )
-    branch2 = mx.sym.BatchNorm(data=branch2, fix_gamma=True, eps=2e-5, momentum=0.9)
-    branch2 = mx.sym.Activation(data=branch2, act_type="relu")
-
-    x = mx.sym.concat(branch1, branch2, dim=1)
-    x = _channel_shuffle(x, groups=2)
-
-    return x
-
-
-def shufflenet_v2(num_classes: int, stage_repeats: List[int], out_channels: List[int]) -> mx.sym.Symbol:
-    assert len(stage_repeats) == 3
-    assert len(stage_repeats) + 2 == len(out_channels)
-
-    # Entry
-    data = mx.sym.Variable(name="data")
-    x = mx.sym.Convolution(data=data, num_filter=24, kernel=(3, 3), stride=(2, 2), pad=(1, 1), no_bias=True)
-    x = mx.sym.BatchNorm(data=x, fix_gamma=True, eps=2e-5, momentum=0.9)
-    x = mx.sym.Activation(data=x, act_type="relu")
-    x = mx.sym.Pooling(data=x, kernel=(3, 3), stride=(2, 2), pad=(1, 1), pool_type="max")
-
-    # Generate stages
-    for i, _ in enumerate(stage_repeats):
-        x = shuffle_unit(
-            data=x, in_channels=out_channels[i], out_channels=out_channels[i + 1], dw_conv_stride=2
-        )
-        for _ in range(stage_repeats[i]):
-            x = shuffle_unit(
-                data=x, in_channels=out_channels[i + 1], out_channels=out_channels[i + 1], dw_conv_stride=1
+        else:
+            branch2_input = in_channels
+            self.branch1 = nn.Sequential(
+                nn.Conv2d(
+                    in_channels,
+                    in_channels,
+                    kernel_size=(3, 3),
+                    stride=(dw_conv_stride, dw_conv_stride),
+                    padding=(1, 1),
+                    groups=in_channels,
+                    bias=False,
+                ),
+                nn.BatchNorm2d(in_channels),
+                Conv2dNormActivation(
+                    in_channels,
+                    branch_channels,
+                    kernel_size=(1, 1),
+                    stride=(1, 1),
+                    padding=(0, 0),
+                    bias=False,
+                ),
             )
 
-    # Classification block
-    x = mx.sym.Convolution(
-        data=x, num_filter=out_channels[-1], kernel=(1, 1), stride=(1, 1), pad=(0, 0), no_bias=True
-    )
-    x = mx.sym.BatchNorm(data=x, fix_gamma=True, eps=2e-5, momentum=0.9)
-    x = mx.sym.Activation(data=x, act_type="relu")
-    x = mx.sym.Pooling(data=x, global_pool=True, pool_type="avg")
-    x = mx.sym.Flatten(data=x, name="features")
-    x = mx.sym.FullyConnected(data=x, num_hidden=num_classes)
-    x = mx.sym.SoftmaxOutput(data=x, name="softmax")
+        self.branch2 = nn.Sequential(
+            Conv2dNormActivation(
+                branch2_input,
+                branch_channels,
+                kernel_size=(1, 1),
+                stride=(1, 1),
+                padding=(0, 0),
+                bias=False,
+            ),
+            nn.Conv2d(
+                branch_channels,
+                branch_channels,
+                kernel_size=(3, 3),
+                stride=(dw_conv_stride, dw_conv_stride),
+                padding=(1, 1),
+                groups=branch_channels,
+                bias=False,
+            ),
+            nn.BatchNorm2d(branch_channels),
+            Conv2dNormActivation(
+                branch_channels,
+                branch_channels,
+                kernel_size=(1, 1),
+                stride=(1, 1),
+                padding=(0, 0),
+                bias=False,
+            ),
+        )
 
-    return x
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.dw_conv_stride == 1:
+            (branch1, branch2) = x.chunk(2, dim=1)
+            x = torch.concat((branch1, self.branch2(branch2)), dim=1)
+
+        else:
+            x = torch.concat((self.branch1(x), self.branch2(x)), dim=1)
+
+        x = channel_shuffle(x, groups=2)
+        return x
 
 
 # pylint: disable=invalid-name
 class ShuffleNet_v2(BaseNet):
-    def get_symbol(self) -> mx.sym.Symbol:
-        multiplier = self.num_layers
+    default_size = 224
+
+    def __init__(
+        self,
+        input_channels: int,
+        num_classes: int,
+        net_param: Optional[float] = None,
+        size: Optional[int] = None,
+    ) -> None:
+        super().__init__(input_channels, num_classes, net_param, size)
+        multiplier = net_param
         if multiplier == 0.5:
             stage_repeats = [3, 7, 3]
             out_channels = [24, 48, 96, 192, 1024]
@@ -136,10 +124,47 @@ class ShuffleNet_v2(BaseNet):
         else:
             raise ValueError(f"multiplier = {multiplier} not supported")
 
-        return shufflenet_v2(self.num_classes, stage_repeats, out_channels)
-
-    @staticmethod
-    def get_initializer() -> mx.initializer.Initializer:
-        return mx.initializer.Mixed(
-            [".*"], [mx.init.Xavier(rnd_type="gaussian", factor_type="in", magnitude=2)]
+        self.stem = nn.Sequential(
+            Conv2dNormActivation(
+                self.input_channels,
+                out_channels[0],
+                kernel_size=(3, 3),
+                stride=(2, 2),
+                padding=(1, 1),
+                bias=False,
+            ),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)),
         )
+
+        # Generate stages
+        stages = []
+        for i, repeat in enumerate(stage_repeats):
+            stages.append(ShuffleUnit(in_channels=out_channels[i], out_channels=out_channels[i + 1], dw_conv_stride=2))
+            for _ in range(repeat):
+                stages.append(
+                    ShuffleUnit(in_channels=out_channels[i + 1], out_channels=out_channels[i + 1], dw_conv_stride=1)
+                )
+
+        self.body = nn.Sequential(*stages)
+        self.features = nn.Sequential(
+            Conv2dNormActivation(
+                out_channels[-2],
+                out_channels[-1],
+                kernel_size=(1, 1),
+                stride=(1, 1),
+                padding=(0, 0),
+                bias=False,
+            ),
+            nn.AdaptiveAvgPool2d(output_size=(1, 1)),
+            nn.Flatten(1),
+        )
+        self.embedding_size = out_channels[-1]
+        self.classifier = self.create_classifier()
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.stem(x)
+        x = self.body(x)
+        return self.features(x)
+
+    def create_classifier(self) -> nn.Module:
+        return nn.Linear(self.embedding_size, self.num_classes)

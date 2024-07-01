@@ -1,74 +1,96 @@
 """
 SqueezeNet v1.1, adapted from
-https://github.com/dmlc/gluon-cv/blob/master/gluoncv/model_zoo/squeezenet.py
+https://github.com/pytorch/vision/blob/main/torchvision/models/squeezenet.py
 
 Paper "SqueezeNet: AlexNet-level accuracy with 50x fewer parameters and <0.5MB model size",
 https://arxiv.org/abs/1602.07360
 """
 
-import mxnet as mx
+# Reference license: BSD 3-Clause
+
+from typing import Optional
+
+import torch
+from torch import nn
 
 from birder.core.net.base import BaseNet
 
 
-def fire_module(data: mx.sym.Symbol, squeeze: int, expand: int) -> mx.sym.Symbol:
-    x = mx.sym.Convolution(
-        data=data, num_filter=squeeze, kernel=(1, 1), stride=(1, 1), pad=(0, 0), no_bias=True
-    )
-    x = mx.sym.Activation(data=x, act_type="relu")
+class Fire(nn.Module):
+    def __init__(self, in_planes: int, squeeze: int, expand: int) -> None:
+        super().__init__()
+        self.squeeze = nn.Conv2d(in_planes, squeeze, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False)
+        self.squeeze_activation = nn.ReLU(inplace=True)
+        self.left = nn.Conv2d(squeeze, expand, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False)
+        self.left_activation = nn.ReLU(inplace=True)
+        self.right = nn.Conv2d(squeeze, expand, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+        self.right_activation = nn.ReLU(inplace=True)
 
-    left = mx.sym.Convolution(
-        data=x, num_filter=expand, kernel=(1, 1), stride=(1, 1), pad=(0, 0), no_bias=True
-    )
-    left = mx.sym.Activation(data=left, act_type="relu")
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.squeeze_activation(self.squeeze(x))
+        left = self.left_activation(self.left(x))
+        right = self.right_activation(self.right(x))
 
-    right = mx.sym.Convolution(
-        data=x, num_filter=expand, kernel=(3, 3), stride=(1, 1), pad=(1, 1), no_bias=True
-    )
-    right = mx.sym.Activation(data=right, act_type="relu")
+        x = torch.concat((left, right), dim=1)
 
-    x = mx.sym.concat(left, right, dim=1)
-
-    return x
-
-
-def squeezenet(num_classes: int) -> mx.sym.Symbol:
-    data = mx.sym.Variable(name="data")
-
-    x = mx.sym.Convolution(data=data, num_filter=64, kernel=(3, 3), stride=(2, 2), pad=(0, 0), no_bias=True)
-    x = mx.sym.Activation(data=x, act_type="relu")
-    x = mx.sym.Pooling(data=x, kernel=(3, 3), stride=(2, 2), pad=(0, 0), pool_type="max")
-
-    x = fire_module(x, squeeze=16, expand=64)
-    x = fire_module(x, squeeze=16, expand=64)
-    x = mx.sym.Pooling(data=x, kernel=(3, 3), stride=(2, 2), pad=(0, 0), pool_type="max")
-
-    x = fire_module(x, squeeze=32, expand=128)
-    x = fire_module(x, squeeze=32, expand=128)
-    x = mx.sym.Pooling(data=x, kernel=(3, 3), stride=(2, 2), pad=(0, 0), pool_type="max")
-
-    x = fire_module(x, squeeze=48, expand=192)
-    x = fire_module(x, squeeze=48, expand=192)
-    x = fire_module(x, squeeze=64, expand=256)
-    x = fire_module(x, squeeze=64, expand=256)
-
-    # Top
-    x = mx.sym.Dropout(data=x, p=0.5)
-    x = mx.sym.Convolution(
-        data=x, num_filter=num_classes, kernel=(1, 1), stride=(1, 1), pad=(0, 0), no_bias=True
-    )
-    x = mx.sym.Activation(data=x, act_type="relu")
-    x = mx.sym.Pooling(data=x, global_pool=True, pool_type="avg")
-    x = mx.sym.Flatten(data=x, name="features")
-    x = mx.sym.SoftmaxOutput(data=x, name="softmax")
-
-    return x
+        return x
 
 
 class SqueezeNet(BaseNet):
-    def get_symbol(self) -> mx.sym.Symbol:
-        return squeezenet(self.num_classes)
+    default_size = 224
 
-    @staticmethod
-    def get_initializer() -> mx.initializer.Initializer:
-        return mx.initializer.Mixed([".*"], [mx.init.MSRAPrelu()])
+    def __init__(
+        self,
+        input_channels: int,
+        num_classes: int,
+        net_param: Optional[float] = None,
+        size: Optional[int] = None,
+    ) -> None:
+        super().__init__(input_channels, num_classes, net_param, size)
+        assert self.net_param is None, "net-param not supported"
+
+        self.stem = nn.Sequential(
+            nn.Conv2d(self.input_channels, 64, kernel_size=(3, 3), stride=(2, 2), padding=(0, 0), bias=False),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(0, 0), ceil_mode=True),
+        )
+        self.features = nn.Sequential(
+            Fire(64, 16, 64),
+            Fire(128, 16, 64),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(0, 0), ceil_mode=True),
+            Fire(128, 32, 128),
+            Fire(256, 32, 128),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(0, 0), ceil_mode=True),
+            Fire(256, 48, 192),
+            Fire(384, 48, 192),
+            Fire(384, 64, 256),
+            Fire(512, 64, 256),
+        )
+        self.embedding_size = 512
+        self.classifier = self.create_classifier()
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) is True:
+                nn.init.kaiming_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.stem(x)
+        return self.features(x)
+
+    def create_classifier(self) -> nn.Module:
+        return nn.Sequential(
+            nn.Dropout(p=0.5, inplace=True),
+            nn.Conv2d(
+                self.embedding_size,
+                self.num_classes,
+                kernel_size=(1, 1),
+                stride=(1, 1),
+                padding=(0, 0),
+                bias=False,
+            ),
+            nn.ReLU(inplace=True),
+            nn.AdaptiveAvgPool2d(output_size=(1, 1)),
+            nn.Flatten(1),
+        )

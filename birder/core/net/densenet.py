@@ -1,86 +1,88 @@
 """
-Densenet, adapted from
-https://github.com/apache/incubator-mxnet/blob/master/python/mxnet/gluon/model_zoo/vision/densenet.py
+DenseNet, adapted from
+https://github.com/apache/mxnet/blob/master/python/mxnet/gluon/model_zoo/vision/densenet.py
+and
+https://github.com/pytorch/vision/blob/main/torchvision/models/densenet.py
 
 Paper "Densely Connected Convolutional Networks", https://arxiv.org/abs/1608.06993
 """
 
-from typing import List
+# Reference license: Apache-2.0 and BSD 3-Clause
 
-import mxnet as mx
+from typing import Optional
+
+import torch
+from torch import nn
+from torchvision.ops import Conv2dNormActivation
 
 from birder.core.net.base import BaseNet
 
 
-def dense_block(data: mx.sym.Variable, num_layers: int, growth_rate: int) -> mx.sym.Symbol:
-    x = data
-    for _ in range(num_layers):
-        dense_branch = mx.sym.BatchNorm(data=x, fix_gamma=False, eps=2e-5, momentum=0.9)
-        dense_branch = mx.sym.Activation(data=dense_branch, act_type="relu")
-        dense_branch = mx.sym.Convolution(
-            data=dense_branch,
-            num_filter=4 * growth_rate,
-            kernel=(1, 1),
-            stride=(1, 1),
-            pad=(0, 0),
-            no_bias=True,
+class DenseBlock(nn.Module):
+    def __init__(self, in_channels: int, num_layers: int, growth_rate: int) -> None:
+        super().__init__()
+        self.layers = nn.ModuleList()
+        for i in range(num_layers):
+            self.layers.append(
+                nn.Sequential(
+                    nn.BatchNorm2d(in_channels + i * growth_rate),
+                    nn.ReLU(inplace=True),
+                    Conv2dNormActivation(
+                        in_channels + i * growth_rate,
+                        4 * growth_rate,
+                        kernel_size=(1, 1),
+                        stride=(1, 1),
+                        padding=(0, 0),
+                        bias=False,
+                    ),
+                    nn.Conv2d(
+                        4 * growth_rate,
+                        growth_rate,
+                        kernel_size=(3, 3),
+                        stride=(1, 1),
+                        padding=(1, 1),
+                        bias=False,
+                    ),
+                )
+            )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        for layer in self.layers:
+            dense_branch = layer(x)
+            x = torch.concat((x, dense_branch), dim=1)
+
+        return x
+
+
+class TransitionBlock(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int) -> None:
+        super().__init__()
+        self.block = nn.Sequential(
+            nn.BatchNorm2d(in_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
+            nn.AvgPool2d(kernel_size=(2, 2), stride=(2, 2), padding=(0, 0)),
         )
-        dense_branch = mx.sym.BatchNorm(data=dense_branch, fix_gamma=False, eps=2e-5, momentum=0.9)
-        dense_branch = mx.sym.Activation(data=dense_branch, act_type="relu")
-        dense_branch = mx.sym.Convolution(
-            data=dense_branch, num_filter=growth_rate, kernel=(3, 3), stride=(1, 1), pad=(1, 1), no_bias=True
-        )
-        x = mx.sym.concat(x, dense_branch, dim=1)
 
-    return x
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.block(x)
+        return x
 
 
-def transition_block(data: mx.sym.Variable, num_features) -> mx.sym.Symbol:
-    x = mx.sym.BatchNorm(data=data, fix_gamma=False, eps=2e-5, momentum=0.9)
-    x = mx.sym.Activation(data=x, act_type="relu")
-    x = mx.sym.Convolution(
-        data=x, num_filter=num_features, kernel=(1, 1), stride=(1, 1), pad=(0, 0), no_bias=True
-    )
-    x = mx.sym.Pooling(data=x, kernel=(2, 2), stride=(2, 2), pad=(0, 0), pool_type="avg")
+class DenseNet(BaseNet):
+    default_size = 224
 
-    return x
+    def __init__(
+        self,
+        input_channels: int,
+        num_classes: int,
+        net_param: Optional[float] = None,
+        size: Optional[int] = None,
+    ) -> None:
+        super().__init__(input_channels, num_classes, net_param, size)
+        assert self.net_param is not None, "must set net-param"
+        num_layers = int(self.net_param)
 
-
-def densenet(
-    num_classes: int, growth_rate: int, num_init_features: int, layer_list: List[int]
-) -> mx.sym.Symbol:
-    data = mx.sym.Variable(name="data")
-
-    x = mx.sym.Convolution(
-        data=data, num_filter=num_init_features, kernel=(7, 7), stride=(2, 2), pad=(3, 3), no_bias=True
-    )
-    x = mx.sym.BatchNorm(data=x, fix_gamma=False, eps=2e-5, momentum=0.9)
-    x = mx.sym.Activation(data=x, act_type="relu")
-    x = mx.sym.Pooling(data=x, kernel=(3, 3), stride=(2, 2), pad=(1, 1), pool_type="max")
-
-    # Add dense blocks
-    num_features = num_init_features
-    for i, num_layers in enumerate(layer_list):
-        x = dense_block(x, num_layers, growth_rate)
-        num_features = num_features + (num_layers * growth_rate)
-
-        # Last block does not require transition
-        if i != len(layer_list) - 1:
-            num_features = num_features // 2
-            x = transition_block(x, num_features)
-
-    # Classification block
-    x = mx.sym.Pooling(data=x, global_pool=True, pool_type="avg")
-    x = mx.sym.Flatten(data=x, name="features")
-    x = mx.sym.FullyConnected(data=x, num_hidden=num_classes)
-    x = mx.sym.SoftmaxOutput(data=x, name="softmax")
-
-    return x
-
-
-class Densenet(BaseNet):
-    def get_symbol(self) -> mx.sym.Symbol:
-        num_layers = int(self.num_layers)
         if num_layers == 121:
             growth_rate = 32
             num_init_features = 64
@@ -104,15 +106,42 @@ class Densenet(BaseNet):
         else:
             raise ValueError(f"num_layers = {num_layers} not supported")
 
-        return densenet(
-            num_classes=self.num_classes,
-            growth_rate=growth_rate,
-            num_init_features=num_init_features,
-            layer_list=layer_list,
+        self.stem = nn.Sequential(
+            Conv2dNormActivation(
+                self.input_channels,
+                num_init_features,
+                kernel_size=(7, 7),
+                stride=(2, 2),
+                padding=(3, 3),
+                bias=False,
+            ),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)),
         )
 
-    @staticmethod
-    def get_initializer() -> mx.initializer.Initializer:
-        return mx.initializer.Mixed(
-            [".*"], [mx.init.Xavier(rnd_type="gaussian", factor_type="in", magnitude=2)]
+        # Add dense blocks
+        layers = []
+        num_features = num_init_features
+        for i, num_layers in enumerate(layer_list):
+            layers.append(DenseBlock(num_features, num_layers=num_layers, growth_rate=growth_rate))
+            num_features = num_features + (num_layers * growth_rate)
+
+            # Last block does not require transition
+            if i != len(layer_list) - 1:
+                layers.append(TransitionBlock(num_features, num_features // 2))
+                num_features = num_features // 2
+
+        self.body = nn.Sequential(*layers)
+        self.features = nn.Sequential(
+            nn.AdaptiveAvgPool2d(output_size=(1, 1)),
+            nn.Flatten(1),
         )
+        self.embedding_size = num_features
+        self.classifier = self.create_classifier()
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.stem(x)
+        x = self.body(x)
+        return self.features(x)
+
+    def create_classifier(self) -> nn.Module:
+        return nn.Linear(self.embedding_size, self.num_classes)

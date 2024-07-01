@@ -1,0 +1,37 @@
+Source: https://cocodataset.org/#download
+
+train2017.zip
+link: http://images.cocodataset.org/zips/train2017.zip
+md5:  cced6f7f71b7629ddf16f17bbcfab6b2
+
+val2017.zip
+link: http://images.cocodataset.org/zips/val2017.zip
+md5:  442b8da7639aecaf257c1dceb8ba8c80
+
+test2017.zip
+link: http://images.cocodataset.org/zips/test2017.zip
+md5:  77ad2c53ac5d0aea611d422c0938fb35
+
+unlabeled2017.zip
+link: http://images.cocodataset.org/zips/unlabeled2017.zip
+md5:  7ebc562819fdb32847aab79530457326
+
+annotations_trainval2017.zip
+link: http://images.cocodataset.org/annotations/annotations_trainval2017.zip
+md5:  f4bbac642086de4f52a3fdda2de5fa2c
+
+stuff_annotations_trainval2017.zip
+link: http://images.cocodataset.org/annotations/stuff_annotations_trainval2017.zip
+md5:  2a27c15a2dfcbd2e1c9276dc23cac101
+
+panoptic_annotations_trainval2017.zip
+link: http://images.cocodataset.org/annotations/panoptic_annotations_trainval2017.zip
+md5:  4170db65fc022c9c296af880dbca6055
+
+image_info_test2017.zip
+link: http://images.cocodataset.org/annotations/image_info_test2017.zip
+md5:  85da7065e5e600ebfee8af1edb634eb5
+
+image_info_unlabeled2017.zip
+link: http://images.cocodataset.org/annotations/image_info_unlabeled2017.zip
+md5:  ede38355d5c3e5251bb7f8b68e2c068f

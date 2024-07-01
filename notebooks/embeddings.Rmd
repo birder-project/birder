@@ -1,0 +1,110 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.14.5
+  kernelspec:
+    display_name: birder
+    language: python
+    name: birder
+---
+
+```{python}
+import sys
+from itertools import combinations
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from PIL import Image
+from scipy.spatial import distance_matrix
+from scipy.spatial.distance import squareform
+from sklearn.manifold import TSNE
+```
+
+```{python}
+sys.path.append("..")
+```
+
+```{python}
+from birder.common import cli
+from birder.common.lib import get_label_from_path
+from birder.conf import settings
+```
+
+```{python}
+embeddings_path = "../results/efficientnet_v2_1_144_e0_320px_crop1.0_5795_embeddings.csv"
+```
+
+```{python}
+embeddings_df = pd.read_csv(embeddings_path)
+embeddings_df["label"] = embeddings_df["sample"].apply(lambda x: get_label_from_path(x))
+```
+
+```{python}
+tsne_embeddings_arr = TSNE(n_components=3, learning_rate="auto", init="random", perplexity=3).fit_transform(
+    embeddings_df.drop(["sample", "label"], axis="columns")
+)
+```
+
+```{python}
+tsne_embeddings_df = pd.DataFrame(tsne_embeddings_arr)
+tsne_embeddings_df.insert(0, "label", embeddings_df["label"])
+```
+
+```{python}
+fig = plt.figure(figsize=(12, 8))
+ax = fig.add_subplot(projection="3d")
+for name, df in tsne_embeddings_df.groupby("label"):
+    if name in [
+        "Barnacle goose",
+        "Canada goose",
+        "Common shelduck",
+        "Egyptian goose",
+        "Eurasian coot",
+        "Eurasian teal",
+        "Eurasian wigeon",
+        "Great crested grebe",
+        "Mallard",
+        "Marbled duck",
+        "Northern pintail",
+        "Northern shoveler",
+        "Ruddy shelduck",
+        "White-headed duck",
+        # "Wallcreeper",
+    ]:
+        ax.scatter(df[0], df[1], df[2], label=name)
+
+
+fig.legend();
+```
+
+```{python}
+fig = plt.figure(figsize=(12, 8))
+ax = fig.add_subplot(projection="3d")
+for name, df in embeddings_df.groupby("label"):
+    if name in [
+        "Blackstart",
+        "White-tailed eagle",
+        "Black kite",
+        # "Peregrine falcon",
+        "Black-shouldered kite",
+        "Common kestrel",
+        # "Booted eagle",
+        "Common blackbird",
+        "Asian desert warbler",
+        "Eurasian teal",
+        "Wallcreeper",
+    ]:
+        ax.scatter(df["400"], df["20"], df["30"], label=name)
+
+fig.legend();
+```
+
+```{python}
+
+```

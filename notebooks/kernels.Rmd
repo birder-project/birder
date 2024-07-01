@@ -1,0 +1,96 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.14.5
+  kernelspec:
+    display_name: birder
+    language: python
+    name: birder
+---
+
+```{python}
+import sys
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn.functional as F
+from PIL import Image
+```
+
+```{python}
+sys.path.append("..")
+```
+
+```{python}
+from birder.common import cli
+from birder.common.lib import get_label_from_path
+from birder.conf import settings
+from birder.core.transforms.classification import inference_preset
+```
+
+```{python}
+network = "efficientnet_v2"
+net_param = 0
+epoch = 0
+image = "../data/validation/Bluethroat/000013.jpeg"
+```
+
+```{python}
+device = torch.device("cpu")
+(net, class_to_idx, signature, rgb_values) = cli.load_model(
+    device, network, net_param=net_param, epoch=epoch, inference=False
+)
+idx_to_class = {v: k for k, v in class_to_idx.items()}
+
+net.eval()
+size = signature["inputs"][0]["data_shape"][3]
+transform = inference_preset(size, 1.0, rgb_values)
+```
+
+```{python}
+img = Image.open(image)
+input_tensor = transform(img).unsqueeze(dim=0).to(device)
+```
+
+```{python}
+out = net.body(net.stem(input_tensor)).squeeze()
+#out = net.body[5](net.body[4](net.body[3](net.body[2](net.body[1](net.body[0](net.stem(input_tensor))))))).squeeze()
+#out = net.body[4](net.body[3](net.body[2](net.body[1](net.body[0](net.stem(input_tensor)))))).squeeze()
+#out = net.body[3](net.body[2](net.body[1](net.body[0](net.stem(input_tensor))))).squeeze()
+#out = net.body[2](net.body[1](net.body[0](net.stem(input_tensor)))).squeeze()
+#out = net.body[1](net.body[0](net.stem(input_tensor))).squeeze()
+#out = net.stem(input_tensor).squeeze()
+kernels = out.cpu().detach().numpy()
+```
+
+```{python}
+kernels.shape
+```
+
+```{python}
+(fig, axes) = plt.subplots(ncols=4, nrows=6, constrained_layout=True, figsize=(14, 18))
+axes = axes.ravel()
+for idx, kernel in enumerate(kernels):
+    axes[idx].matshow(kernel)
+    if idx >= 23:
+        break
+```
+
+```{python}
+plt.matshow(kernels[5])
+```
+
+```{python}
+img
+```
+
+```{python}
+
+```

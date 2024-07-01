@@ -1,188 +1,254 @@
 """
 Inception v3, adapted from
-https://github.com/apache/incubator-mxnet/blob/master/example/image-classification/symbols/inception-v3.py
+https://github.com/pytorch/vision/blob/main/torchvision/models/inception.py
 
 Paper "Rethinking the Inception Architecture for Computer Vision", https://arxiv.org/abs/1512.00567
 """
 
-import mxnet as mx
+# Reference license: BSD 3-Clause
 
-from birder.common.net import bn_convolution
+from typing import Optional
+
+import torch
+from torch import nn
+from torchvision.ops import Conv2dNormActivation
+
 from birder.core.net.base import BaseNet
 
 
-def inception_a_block(data: mx.sym.Symbol) -> mx.sym.Symbol:
-    # 1x1 branch
-    branch_1x1 = bn_convolution(data, num_filter=64, kernel=(1, 1), stride=(1, 1), pad=(0, 0))
+class InceptionBlockA(nn.Module):
+    def __init__(self, in_channels: int, pool_features: int) -> None:
+        super().__init__()
+        self.branch_1x1 = Conv2dNormActivation(
+            in_channels, 64, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False
+        )
+        self.branch_5x5 = nn.Sequential(
+            Conv2dNormActivation(in_channels, 48, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
+            Conv2dNormActivation(48, 64, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2), bias=False),
+        )
+        self.branch_3x3dbl = nn.Sequential(
+            Conv2dNormActivation(in_channels, 64, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
+            Conv2dNormActivation(64, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
+            Conv2dNormActivation(96, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
+        )
+        self.branch_pool = nn.Sequential(
+            nn.AvgPool2d(kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            Conv2dNormActivation(
+                in_channels, pool_features, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False
+            ),
+        )
 
-    # 5x5 branch
-    branch_5x5 = bn_convolution(data, num_filter=48, kernel=(1, 1), stride=(1, 1), pad=(0, 0))
-    branch_5x5 = bn_convolution(branch_5x5, num_filter=64, kernel=(5, 5), stride=(1, 1), pad=(2, 2))
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        branch_1x1 = self.branch_1x1(x)
+        branch_5x5 = self.branch_5x5(x)
+        branch_3x3dbl = self.branch_3x3dbl(x)
+        branch_pool = self.branch_pool(x)
+        x = torch.concat((branch_1x1, branch_5x5, branch_3x3dbl, branch_pool), dim=1)
 
-    # 3x3 branch
-    branch_3x3 = bn_convolution(data, num_filter=64, kernel=(1, 1), stride=(1, 1), pad=(0, 0))
-    branch_3x3 = bn_convolution(branch_3x3, num_filter=96, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-    branch_3x3 = bn_convolution(branch_3x3, num_filter=96, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-
-    # Pool branch
-    pooling = mx.sym.Pooling(data=data, kernel=(3, 3), stride=(1, 1), pad=(1, 1), pool_type="avg")
-    pooling = bn_convolution(pooling, num_filter=32, kernel=(1, 1), stride=(1, 1), pad=(0, 0))
-
-    # Concat
-    x = mx.sym.concat(branch_1x1, branch_5x5, branch_3x3, pooling, dim=1)
-
-    return x
-
-
-def inception_a_reduction_block(data: mx.sym.Symbol) -> mx.sym.Symbol:
-    # Branch 1
-    branch_1 = bn_convolution(data, num_filter=384, kernel=(3, 3), stride=(2, 2), pad=(0, 0))
-
-    # Branch 2
-    branch_2 = bn_convolution(data, num_filter=64, kernel=(1, 1), stride=(1, 1), pad=(0, 0))
-    branch_2 = bn_convolution(branch_2, num_filter=96, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-    branch_2 = bn_convolution(branch_2, num_filter=96, kernel=(3, 3), stride=(2, 2), pad=(0, 0))
-
-    # Pool branch
-    pooling = mx.sym.Pooling(data=data, kernel=(3, 3), stride=(2, 2), pad=(0, 0), pool_type="max")
-
-    # Concat
-    x = mx.sym.concat(branch_1, branch_2, pooling, dim=1)
-
-    return x
+        return x
 
 
-def inception_b_block(data: mx.sym.Symbol, num_channels: int, num_bottleneck: int) -> mx.sym.Symbol:
-    # 1x1 branch
-    branch_1x1 = bn_convolution(data, num_filter=num_channels, kernel=(1, 1), stride=(1, 1), pad=(0, 0))
+class InceptionReductionBlockA(nn.Module):
+    def __init__(self, in_channels: int) -> None:
+        super().__init__()
+        self.branch_3x3 = Conv2dNormActivation(
+            in_channels, 384, kernel_size=(3, 3), stride=(2, 2), padding=(0, 0), bias=False
+        )
+        self.branch_3x3dbl = nn.Sequential(
+            Conv2dNormActivation(in_channels, 64, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
+            Conv2dNormActivation(64, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
+            Conv2dNormActivation(96, 96, kernel_size=(3, 3), stride=(2, 2), padding=(0, 0), bias=False),
+        )
+        self.branch_pool = nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(0, 0))
 
-    # 7x7 branch
-    branch_7x7 = bn_convolution(data, num_filter=num_bottleneck, kernel=(1, 1), stride=(1, 1), pad=(0, 0))
-    branch_7x7 = bn_convolution(
-        branch_7x7, num_filter=num_bottleneck, kernel=(1, 7), stride=(1, 1), pad=(0, 3)
-    )
-    branch_7x7 = bn_convolution(branch_7x7, num_filter=num_channels, kernel=(7, 1), stride=(1, 1), pad=(3, 0))
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        branch_3x3 = self.branch_3x3(x)
+        branch_3x3dbl = self.branch_3x3dbl(x)
+        branch_pool = self.branch_pool(x)
+        x = torch.concat((branch_3x3, branch_3x3dbl, branch_pool), dim=1)
 
-    # Double 7x7 branch
-    branch_dbl_7x7 = bn_convolution(data, num_filter=num_bottleneck, kernel=(1, 1), stride=(1, 1), pad=(0, 0))
-    branch_dbl_7x7 = bn_convolution(
-        branch_dbl_7x7, num_filter=num_bottleneck, kernel=(7, 1), stride=(1, 1), pad=(3, 0)
-    )
-    branch_dbl_7x7 = bn_convolution(
-        branch_dbl_7x7, num_filter=num_bottleneck, kernel=(1, 7), stride=(1, 1), pad=(0, 3)
-    )
-    branch_dbl_7x7 = bn_convolution(
-        branch_dbl_7x7, num_filter=num_bottleneck, kernel=(7, 1), stride=(1, 1), pad=(3, 0)
-    )
-    branch_dbl_7x7 = bn_convolution(
-        branch_dbl_7x7, num_filter=num_channels, kernel=(1, 7), stride=(1, 1), pad=(0, 3)
-    )
-
-    # Pool branch
-    pooling = mx.sym.Pooling(data=data, kernel=(3, 3), stride=(1, 1), pad=(1, 1), pool_type="avg")
-    pooling = bn_convolution(pooling, num_filter=num_channels, kernel=(1, 1), stride=(1, 1), pad=(0, 0))
-
-    # Concat
-    x = mx.sym.concat(branch_1x1, branch_7x7, branch_dbl_7x7, pooling, dim=1)
-
-    return x
+        return x
 
 
-def inception_b_reduction_block(data: mx.sym.Symbol) -> mx.sym.Symbol:
-    # 3x3 branch
-    branch_3x3 = bn_convolution(data, num_filter=192, kernel=(1, 1), stride=(1, 1), pad=(0, 0))
-    branch_3x3 = bn_convolution(branch_3x3, num_filter=320, kernel=(3, 3), stride=(2, 2), pad=(0, 0))
+class InceptionBlockB(nn.Module):
+    def __init__(self, in_channels: int, num_channels: int) -> None:
+        super().__init__()
+        self.branch_1x1 = Conv2dNormActivation(
+            in_channels, 192, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False
+        )
+        self.branch_7x7 = nn.Sequential(
+            Conv2dNormActivation(
+                in_channels, num_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False
+            ),
+            Conv2dNormActivation(
+                num_channels, num_channels, kernel_size=(1, 7), stride=(1, 1), padding=(0, 3), bias=False
+            ),
+            Conv2dNormActivation(num_channels, 192, kernel_size=(7, 1), stride=(1, 1), padding=(3, 0), bias=False),
+        )
+        self.branch_7x7dbl = nn.Sequential(
+            Conv2dNormActivation(
+                in_channels, num_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False
+            ),
+            Conv2dNormActivation(
+                num_channels, num_channels, kernel_size=(7, 1), stride=(1, 1), padding=(3, 0), bias=False
+            ),
+            Conv2dNormActivation(
+                num_channels, num_channels, kernel_size=(1, 7), stride=(1, 1), padding=(0, 3), bias=False
+            ),
+            Conv2dNormActivation(
+                num_channels, num_channels, kernel_size=(7, 1), stride=(1, 1), padding=(3, 0), bias=False
+            ),
+            Conv2dNormActivation(num_channels, 192, kernel_size=(1, 7), stride=(1, 1), padding=(0, 3), bias=False),
+        )
+        self.branch_pool = nn.Sequential(
+            nn.AvgPool2d(kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            Conv2dNormActivation(in_channels, 192, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
+        )
 
-    # 7x7 branch
-    branch_7x7 = bn_convolution(data, num_filter=192, kernel=(1, 1), stride=(1, 1), pad=(0, 0))
-    branch_7x7 = bn_convolution(branch_7x7, num_filter=192, kernel=(1, 7), stride=(1, 1), pad=(0, 3))
-    branch_7x7 = bn_convolution(branch_7x7, num_filter=192, kernel=(7, 1), stride=(1, 1), pad=(3, 0))
-    branch_7x7 = bn_convolution(branch_7x7, num_filter=192, kernel=(3, 3), stride=(2, 2), pad=(0, 0))
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        branch_1x1 = self.branch_1x1(x)
+        branch_7x7 = self.branch_7x7(x)
+        branch_7x7dbl = self.branch_7x7dbl(x)
+        branch_pool = self.branch_pool(x)
+        x = torch.concat((branch_1x1, branch_7x7, branch_7x7dbl, branch_pool), dim=1)
 
-    # Pool branch
-    pooling = mx.sym.Pooling(data=data, kernel=(3, 3), stride=(2, 2), pad=(0, 0), pool_type="max")
-
-    # Concat
-    x = mx.sym.concat(branch_3x3, branch_7x7, pooling, dim=1)
-
-    return x
+        return x
 
 
-def inception_c_block(data: mx.sym.Symbol) -> mx.sym.Symbol:
-    # 1x1 branch
-    branch_1x1 = bn_convolution(data, num_filter=320, kernel=(1, 1), stride=(1, 1), pad=(0, 0))
+class InceptionReductionBlockB(nn.Module):
+    def __init__(self, in_channels: int) -> None:
+        super().__init__()
+        self.branch_3x3 = nn.Sequential(
+            Conv2dNormActivation(in_channels, 192, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
+            Conv2dNormActivation(192, 320, kernel_size=(3, 3), stride=(2, 2), padding=(0, 0), bias=False),
+        )
+        self.branch_7x7 = nn.Sequential(
+            Conv2dNormActivation(in_channels, 192, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
+            Conv2dNormActivation(192, 192, kernel_size=(1, 7), stride=(1, 1), padding=(0, 3), bias=False),
+            Conv2dNormActivation(192, 192, kernel_size=(7, 1), stride=(1, 1), padding=(3, 0), bias=False),
+            Conv2dNormActivation(192, 192, kernel_size=(3, 3), stride=(2, 2), padding=(0, 0), bias=False),
+        )
+        self.branch_pool = nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(0, 0))
 
-    # 3x3 branch
-    branch_3x3 = bn_convolution(data, num_filter=384, kernel=(1, 1), stride=(1, 1), pad=(0, 0))
-    branch_3x3a = bn_convolution(branch_3x3, num_filter=384, kernel=(1, 3), stride=(1, 1), pad=(0, 1))
-    branch_3x3b = bn_convolution(branch_3x3, num_filter=384, kernel=(3, 1), stride=(1, 1), pad=(1, 0))
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        branch_3x3 = self.branch_3x3(x)
+        branch_7x7 = self.branch_7x7(x)
+        branch_pool = self.branch_pool(x)
+        x = torch.concat((branch_3x3, branch_7x7, branch_pool), dim=1)
 
-    # Double 3x3 branch
-    branch_dbl_3x3 = bn_convolution(data, num_filter=448, kernel=(1, 1), stride=(1, 1), pad=(0, 0))
-    branch_dbl_3x3 = bn_convolution(branch_dbl_3x3, num_filter=384, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-    branch_dbl_3x3a = bn_convolution(branch_dbl_3x3, num_filter=384, kernel=(1, 3), stride=(1, 1), pad=(0, 1))
-    branch_dbl_3x3b = bn_convolution(branch_dbl_3x3, num_filter=384, kernel=(3, 1), stride=(1, 1), pad=(1, 0))
-
-    # Pool branch
-    pooling = mx.sym.Pooling(data=data, kernel=(3, 3), stride=(1, 1), pad=(1, 1), pool_type="avg")
-    pooling = bn_convolution(pooling, num_filter=192, kernel=(1, 1), stride=(1, 1), pad=(0, 0))
-
-    # Concat
-    x = mx.sym.concat(branch_1x1, branch_3x3a, branch_3x3b, branch_dbl_3x3a, branch_dbl_3x3b, pooling, dim=1)
-
-    return x
+        return x
 
 
-def inception_v3(num_classes: int) -> mx.sym.Symbol:
-    data = mx.sym.Variable(name="data")
+class InceptionBlockC(nn.Module):
+    def __init__(self, in_channels: int) -> None:
+        super().__init__()
+        self.branch_1x1 = Conv2dNormActivation(
+            in_channels, 320, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False
+        )
+        self.branch_3x3 = Conv2dNormActivation(
+            in_channels, 384, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False
+        )
+        self.branch_3x3_a = Conv2dNormActivation(
+            384, 384, kernel_size=(1, 3), stride=(1, 1), padding=(0, 1), bias=False
+        )
+        self.branch_3x3_b = Conv2dNormActivation(
+            384, 384, kernel_size=(3, 1), stride=(1, 1), padding=(1, 0), bias=False
+        )
+        self.branch_3x3dbl = nn.Sequential(
+            Conv2dNormActivation(in_channels, 448, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
+            Conv2dNormActivation(448, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
+        )
+        self.branch_3x3dbl_a = Conv2dNormActivation(
+            384, 384, kernel_size=(1, 3), stride=(1, 1), padding=(0, 1), bias=False
+        )
+        self.branch_3x3dbl_b = Conv2dNormActivation(
+            384, 384, kernel_size=(3, 1), stride=(1, 1), padding=(1, 0), bias=False
+        )
+        self.branch_pool = nn.Sequential(
+            nn.AvgPool2d(kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            Conv2dNormActivation(in_channels, 192, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
+        )
 
-    # Stage 1
-    x = bn_convolution(data, num_filter=32, kernel=(3, 3), stride=(2, 2), pad=(0, 0))
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        branch_1x1 = self.branch_1x1(x)
 
-    x = bn_convolution(x, num_filter=32, kernel=(3, 3), stride=(1, 1), pad=(0, 0))
-    x = bn_convolution(x, num_filter=64, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-    x = mx.sym.Pooling(data=x, kernel=(3, 3), stride=(2, 2), pad=(0, 0), pool_type="max")
+        branch_3x3 = self.branch_3x3(x)
+        branch_3x3 = [
+            self.branch_3x3_a(branch_3x3),
+            self.branch_3x3_b(branch_3x3),
+        ]
+        branch_3x3 = torch.concat(branch_3x3, dim=1)
 
-    # Stage 2
-    x = bn_convolution(x, num_filter=80, kernel=(1, 1), stride=(1, 1), pad=(0, 0))
-    x = bn_convolution(x, num_filter=192, kernel=(3, 3), stride=(1, 1), pad=(0, 0))
-    x = mx.sym.Pooling(data=x, kernel=(3, 3), stride=(2, 2), pad=(0, 0), pool_type="max")
+        branch_3x3dbl = self.branch_3x3dbl(x)
+        branch_3x3dbl = [
+            self.branch_3x3dbl_a(branch_3x3dbl),
+            self.branch_3x3dbl_b(branch_3x3dbl),
+        ]
+        branch_3x3dbl = torch.concat(branch_3x3dbl, dim=1)
 
-    # Stage 3
-    x = inception_a_block(x)
-    x = inception_a_block(x)
-    x = inception_a_block(x)
-    x = inception_a_reduction_block(x)
+        branch_pool = self.branch_pool(x)
+        x = torch.concat((branch_1x1, branch_3x3, branch_3x3dbl, branch_pool), dim=1)
 
-    # Stage 4
-    x = inception_b_block(x, num_channels=192, num_bottleneck=128)
-    x = inception_b_block(x, num_channels=192, num_bottleneck=160)
-    x = inception_b_block(x, num_channels=192, num_bottleneck=160)
-    x = inception_b_block(x, num_channels=192, num_bottleneck=192)
-    x = inception_b_reduction_block(x)
-
-    # Stage 5
-    x = inception_c_block(x)
-    x = inception_c_block(x)
-
-    # Classification block
-    x = mx.sym.Pooling(data=x, global_pool=True, pool_type="avg")
-    x = mx.sym.Flatten(data=x, name="features")
-    x = mx.sym.FullyConnected(data=x, num_hidden=num_classes)
-    x = mx.sym.SoftmaxOutput(data=x, name="softmax")
-
-    return x
+        return x
 
 
 # pylint: disable=invalid-name
 class Inception_v3(BaseNet):
     default_size = 299
 
-    def get_symbol(self) -> mx.sym.Symbol:
-        return inception_v3(num_classes=self.num_classes)
+    def __init__(
+        self,
+        input_channels: int,
+        num_classes: int,
+        net_param: Optional[float] = None,
+        size: Optional[int] = None,
+    ) -> None:
+        super().__init__(input_channels, num_classes, net_param, size)
+        assert self.net_param is None, "net-param not supported"
 
-    @staticmethod
-    def get_initializer() -> mx.initializer.Initializer:
-        return mx.initializer.Mixed(
-            [".*"], [mx.init.Xavier(rnd_type="gaussian", factor_type="in", magnitude=2)]
+        self.stem = Conv2dNormActivation(
+            self.input_channels, 32, kernel_size=(3, 3), stride=(2, 2), padding=(0, 0), bias=False
         )
+        stage1 = nn.Sequential(
+            Conv2dNormActivation(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(0, 0), bias=False),
+            Conv2dNormActivation(32, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(0, 0)),
+        )
+        stage2 = nn.Sequential(
+            Conv2dNormActivation(64, 80, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
+            Conv2dNormActivation(80, 192, kernel_size=(3, 3), stride=(1, 1), padding=(0, 0), bias=False),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(0, 0)),
+        )
+        stage3 = nn.Sequential(
+            InceptionBlockA(192, pool_features=32),
+            InceptionBlockA(256, pool_features=64),
+            InceptionBlockA(288, pool_features=64),
+            InceptionReductionBlockA(288),
+        )
+        stage4 = nn.Sequential(
+            InceptionBlockB(768, num_channels=128),
+            InceptionBlockB(768, num_channels=160),
+            InceptionBlockB(768, num_channels=160),
+            InceptionBlockB(768, num_channels=192),
+            InceptionReductionBlockB(768),
+        )
+        stage5 = nn.Sequential(
+            InceptionBlockC(1280),
+            InceptionBlockC(2048),
+        )
+        self.body = nn.Sequential(stage1, stage2, stage3, stage4, stage5)
+        self.features = nn.Sequential(
+            nn.AdaptiveAvgPool2d(output_size=(1, 1)),
+            nn.Flatten(1),
+            nn.Dropout(p=0.5),
+        )
+        self.embedding_size = 2048
+        self.classifier = self.create_classifier()
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.stem(x)
+        x = self.body(x)
+        return self.features(x)
+
+    def create_classifier(self) -> nn.Module:
+        return nn.Linear(self.embedding_size, self.num_classes)

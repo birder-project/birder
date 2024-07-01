@@ -1,173 +1,165 @@
 """
 Xception, adapted from
-https://github.com/keras-team/keras-applications/blob/master/keras_applications/xception.py
+https://github.com/keras-team/keras/blob/r2.15/keras/applications/xception.py
 
 Paper "Xception: Deep Learning with Depthwise Separable Convolutions", https://arxiv.org/abs/1610.02357
 """
 
-from typing import Tuple
+# Reference license: Apache-2.0
 
-import mxnet as mx
+from typing import Optional
 
-from birder.common.net import bn_convolution
+import torch
+from torch import nn
+from torchvision.ops import Conv2dNormActivation
+
 from birder.core.net.base import BaseNet
 
 
-def separable_conv(
-    data: mx.sym.Symbol,
-    num_filter_a: int,
-    num_filter_b: int,
-    kernel: Tuple[int, int],
-    stride: Tuple[int, int],
-    pad: Tuple[int, int],
-    no_bias: bool = True,
-) -> mx.sym.Symbol:
-    x = mx.sym.Convolution(
-        data=data,
-        num_filter=num_filter_a,
-        kernel=kernel,
-        stride=stride,
-        pad=pad,
-        num_group=num_filter_a,
-        no_bias=no_bias,
-    )
-    x = mx.sym.Convolution(
-        data=x,
-        num_filter=num_filter_b,
-        kernel=(1, 1),
-        stride=(1, 1),
-        pad=(0, 0),
-        num_group=1,
-        no_bias=no_bias,
-    )
+class SeparableConv2d(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: tuple[int, int],
+        stride: tuple[int, int],
+        padding: tuple[int, int],
+    ) -> None:
+        super().__init__()
+        self.conv = nn.Conv2d(
+            in_channels,
+            in_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            groups=in_channels,
+            bias=False,
+        )
+        self.pointwise = nn.Conv2d(
+            in_channels, out_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False
+        )
 
-    return x
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.conv(x)
+        x = self.pointwise(x)
+        return x
 
 
-def xception(num_classes: int) -> mx.sym.Symbol:
-    data = mx.sym.Variable(name="data")
+class XceptionBlock(nn.Module):
+    def __init__(
+        self, in_channels: int, out_channels: int, repeats: int, stride: tuple[int, int], grow_first: bool
+    ) -> None:
+        super().__init__()
 
-    # Entry
-    x = bn_convolution(data, num_filter=32, kernel=(3, 3), stride=(2, 2), pad=(0, 0))
-    x = bn_convolution(x, num_filter=64, kernel=(3, 3), stride=(1, 1), pad=(0, 0))
+        if out_channels != in_channels or stride[0] != 1 or stride[1] != 1:
+            self.skip = Conv2dNormActivation(
+                in_channels,
+                out_channels,
+                kernel_size=(1, 1),
+                stride=stride,
+                padding=(0, 0),
+                bias=False,
+                activation_layer=None,
+            )
 
-    residual = mx.sym.Convolution(
-        data=x,
-        num_filter=128,
-        kernel=(1, 1),
-        stride=(2, 2),
-        pad=(0, 0),
-        no_bias=True,
-    )
-    residual = mx.sym.BatchNorm(data=residual, fix_gamma=False, eps=2e-5, momentum=0.9)
+        else:
+            self.skip = nn.Identity()
 
-    x = mx.sym.Activation(data=x, act_type="relu")
-    x = separable_conv(x, num_filter_a=64, num_filter_b=128, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-    x = mx.sym.BatchNorm(data=x, fix_gamma=False, eps=2e-5, momentum=0.9)
-    x = mx.sym.Activation(data=x, act_type="relu")
-    x = separable_conv(x, num_filter_a=128, num_filter_b=128, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-    x = mx.sym.BatchNorm(data=x, fix_gamma=False, eps=2e-5, momentum=0.9)
-    x = mx.sym.Pooling(data=x, kernel=(3, 3), stride=(2, 2), pad=(1, 1), pool_type="max")
-    x = x + residual
+        layers = []
+        for i in range(repeats):
+            if grow_first is True:
+                out_c = out_channels
+                if i == 0:
+                    in_c = in_channels
 
-    residual = mx.sym.Convolution(
-        data=x,
-        num_filter=256,
-        kernel=(1, 1),
-        stride=(2, 2),
-        pad=(0, 0),
-        no_bias=True,
-    )
-    residual = mx.sym.BatchNorm(data=residual, fix_gamma=False, eps=2e-5, momentum=0.9)
+                else:
+                    in_c = out_channels
 
-    x = mx.sym.Activation(data=x, act_type="relu")
-    x = separable_conv(x, num_filter_a=128, num_filter_b=256, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-    x = mx.sym.BatchNorm(data=x, fix_gamma=False, eps=2e-5, momentum=0.9)
-    x = mx.sym.Activation(data=x, act_type="relu")
-    x = separable_conv(x, num_filter_a=256, num_filter_b=256, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-    x = mx.sym.BatchNorm(data=x, fix_gamma=False, eps=2e-5, momentum=0.9)
-    x = mx.sym.Pooling(data=x, kernel=(3, 3), stride=(2, 2), pad=(1, 1), pool_type="max")
-    x = x + residual
+            else:
+                in_c = in_channels
+                if i < (repeats - 1):
+                    out_c = in_channels
 
-    residual = mx.sym.Convolution(
-        data=x,
-        num_filter=728,
-        kernel=(1, 1),
-        stride=(2, 2),
-        pad=(0, 0),
-        no_bias=True,
-    )
-    residual = mx.sym.BatchNorm(data=residual, fix_gamma=False, eps=2e-5, momentum=0.9)
+                else:
+                    out_c = out_channels
 
-    x = mx.sym.Activation(data=x, act_type="relu")
-    x = separable_conv(x, num_filter_a=256, num_filter_b=728, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-    x = mx.sym.BatchNorm(data=x, fix_gamma=False, eps=2e-5, momentum=0.9)
-    x = mx.sym.Activation(data=x, act_type="relu")
-    x = separable_conv(x, num_filter_a=728, num_filter_b=728, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-    x = mx.sym.BatchNorm(data=x, fix_gamma=False, eps=2e-5, momentum=0.9)
-    x = mx.sym.Pooling(data=x, kernel=(3, 3), stride=(2, 2), pad=(1, 1), pool_type="max")
-    x = x + residual
+            layers.append(nn.ReLU(inplace=True))
+            layers.append(SeparableConv2d(in_c, out_c, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)))
+            layers.append(nn.BatchNorm2d(out_c))
 
-    # Middle
-    for _ in range(8):
-        residual = x
+        if stride[0] != 1 or stride[1] != 1:
+            layers.append(nn.MaxPool2d(kernel_size=(3, 3), stride=stride, padding=(1, 1)))
 
-        x = mx.sym.Activation(data=x, act_type="relu")
-        x = separable_conv(x, num_filter_a=728, num_filter_b=728, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-        x = mx.sym.BatchNorm(data=x, fix_gamma=False, eps=2e-5, momentum=0.9)
-        x = mx.sym.Activation(data=x, act_type="relu")
-        x = separable_conv(x, num_filter_a=728, num_filter_b=728, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-        x = mx.sym.BatchNorm(data=x, fix_gamma=False, eps=2e-5, momentum=0.9)
-        x = mx.sym.Activation(data=x, act_type="relu")
-        x = separable_conv(x, num_filter_a=728, num_filter_b=728, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-        x = mx.sym.BatchNorm(data=x, fix_gamma=False, eps=2e-5, momentum=0.9)
+        self.block = nn.Sequential(*layers)
 
-        x = x + residual
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        branch = self.block(x)
+        identity = self.skip(x)
+        x = branch + identity
 
-    # Exit
-    residual = mx.sym.Convolution(
-        data=x,
-        num_filter=1024,
-        kernel=(1, 1),
-        stride=(2, 2),
-        pad=(0, 0),
-        no_bias=True,
-    )
-    residual = mx.sym.BatchNorm(data=residual, fix_gamma=False, eps=2e-5, momentum=0.9)
-
-    x = mx.sym.Activation(data=x, act_type="relu")
-    x = separable_conv(x, num_filter_a=728, num_filter_b=728, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-    x = mx.sym.BatchNorm(data=x, fix_gamma=False, eps=2e-5, momentum=0.9)
-    x = mx.sym.Activation(data=x, act_type="relu")
-    x = separable_conv(x, num_filter_a=728, num_filter_b=1024, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-    x = mx.sym.BatchNorm(data=x, fix_gamma=False, eps=2e-5, momentum=0.9)
-    x = mx.sym.Pooling(data=x, kernel=(3, 3), stride=(2, 2), pad=(1, 1), pool_type="max")
-    x = x + residual
-
-    x = separable_conv(x, num_filter_a=1024, num_filter_b=1536, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-    x = mx.sym.BatchNorm(data=x, fix_gamma=False, eps=2e-5, momentum=0.9)
-    x = mx.sym.Activation(data=x, act_type="relu")
-    x = separable_conv(x, num_filter_a=1536, num_filter_b=2048, kernel=(3, 3), stride=(1, 1), pad=(1, 1))
-    x = mx.sym.BatchNorm(data=x, fix_gamma=False, eps=2e-5, momentum=0.9)
-    x = mx.sym.Activation(data=x, act_type="relu")
-
-    # Classification block
-    x = mx.sym.Pooling(data=x, global_pool=True, pool_type="avg")
-    x = mx.sym.Flatten(data=x, name="features")
-    x = mx.sym.FullyConnected(data=x, num_hidden=num_classes)
-    x = mx.sym.SoftmaxOutput(data=x, name="softmax")
-
-    return x
+        return x
 
 
 class Xception(BaseNet):
     default_size = 299
 
-    def get_symbol(self) -> mx.sym.Symbol:
-        return xception(num_classes=self.num_classes)
+    def __init__(
+        self,
+        input_channels: int,
+        num_classes: int,
+        net_param: Optional[float] = None,
+        size: Optional[int] = None,
+    ) -> None:
+        super().__init__(input_channels, num_classes, net_param, size)
+        assert self.net_param is None, "net-param not supported"
 
-    @staticmethod
-    def get_initializer() -> mx.initializer.Initializer:
-        return mx.initializer.Mixed(
-            [".*"], [mx.init.Xavier(rnd_type="gaussian", factor_type="in", magnitude=2)]
+        self.stem = nn.Sequential(
+            Conv2dNormActivation(
+                self.input_channels, 32, kernel_size=(3, 3), stride=(2, 2), padding=(0, 0), bias=False
+            ),
+            Conv2dNormActivation(
+                32, 64, kernel_size=(3, 3), stride=(1, 1), padding=(0, 0), bias=False, activation_layer=None
+            ),  # Remove ReLU here, first Xception block starts with ReLU
         )
+        self.body = nn.Sequential(
+            XceptionBlock(64, 128, repeats=2, stride=(2, 2), grow_first=True),
+            XceptionBlock(128, 256, repeats=2, stride=(2, 2), grow_first=True),
+            XceptionBlock(256, 728, repeats=2, stride=(2, 2), grow_first=True),
+            XceptionBlock(728, 728, repeats=3, stride=(1, 1), grow_first=True),
+            XceptionBlock(728, 728, repeats=3, stride=(1, 1), grow_first=True),
+            XceptionBlock(728, 728, repeats=3, stride=(1, 1), grow_first=True),
+            XceptionBlock(728, 728, repeats=3, stride=(1, 1), grow_first=True),
+            XceptionBlock(728, 728, repeats=3, stride=(1, 1), grow_first=True),
+            XceptionBlock(728, 728, repeats=3, stride=(1, 1), grow_first=True),
+            XceptionBlock(728, 728, repeats=3, stride=(1, 1), grow_first=True),
+            XceptionBlock(728, 728, repeats=3, stride=(1, 1), grow_first=True),
+            XceptionBlock(728, 1024, repeats=2, stride=(2, 2), grow_first=False),
+            SeparableConv2d(1024, 1536, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(1536),
+            nn.ReLU(inplace=True),
+            SeparableConv2d(1536, 2048, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(2048),
+            nn.ReLU(inplace=True),
+        )
+        self.features = nn.Sequential(
+            nn.AdaptiveAvgPool2d(output_size=(1, 1)),
+            nn.Flatten(1),
+        )
+        self.embedding_size = 2048
+        self.classifier = self.create_classifier()
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) is True:
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+
+            elif isinstance(m, nn.BatchNorm2d) is True:
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.stem(x)
+        x = self.body(x)
+        return self.features(x)
+
+    def create_classifier(self) -> nn.Module:
+        return nn.Linear(self.embedding_size, self.num_classes)

@@ -1,13 +1,15 @@
 {
   "recommendations": [
     "davidanson.vscode-markdownlint",
-    "dbaeumer.vscode-eslint",
     "esbenp.prettier-vscode",
-    "gruntfuggly.todo-tree",
+    "foxundermoon.shell-format",
     "ms-azuretools.vscode-docker",
+    "ms-python.black-formatter",
+    "ms-python.flake8",
+    "ms-python.isort",
+    "ms-python.mypy-type-checker",
+    "ms-python.pylint",
     "ms-python.python",
-    "octref.vetur",
-    "streetsidesoftware.code-spell-checker",
-    "stylelint.vscode-stylelint"
+    "streetsidesoftware.code-spell-checker"
   ]
 }
