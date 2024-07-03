@@ -2,6 +2,7 @@ h5py~=3.11.0
 invoke~=2.2.0
 matplotlib~=3.9.0
 numpy~=1.26.4  # --no-binary numpy
+onnx~=1.16.1
 pandas[performance,plot,output_formatting,hdf5]~=2.2.1
 Pillow~=10.4.0
 pyarrow~=16.1.0

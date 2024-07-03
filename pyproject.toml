@@ -25,7 +25,7 @@ Homepage = "https://gitlab.com/birder/birder"
 Issues = "https://gitlab.com/birder/birder/-/issues"
 
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
+requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]

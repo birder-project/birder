@@ -2,6 +2,8 @@
 Adapted from https://github.com/jacobgil/pytorch-grad-cam
 """
 
+# Reference license: MIT
+
 from typing import Any
 from typing import Optional
 

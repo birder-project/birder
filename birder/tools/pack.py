@@ -68,7 +68,7 @@ def read_worker(q_in: Any, q_out: Any, size: Optional[int]) -> None:
 
         else:
             suffix = "webp"
-            image = Image.open(path)
+            image: Image.Image = Image.open(path)
             if image.size[0] > image.size[1]:
                 ratio = image.size[0] / size
 

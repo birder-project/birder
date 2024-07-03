@@ -28,6 +28,7 @@
     "batchnorm",
     "binarize",
     "bluethroat",
+    "bumpver",
     "bytesarray",
     "cait",
     "cmap",

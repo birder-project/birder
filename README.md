@@ -16,7 +16,31 @@ The same applies here.
 
 ## Setup
 
-After cloning the repository, setup up venv and activate it (recommended).
+This project can be either installed as a package or cloned form git.
+
+### Package
+
+It's recommended to first update the base pip and wheel packages in your venv
+
+```sh
+pip3 install --upgrade pip wheel
+```
+
+Next, install PyTorch suitable for you hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
+
+Lastly, install the `birder` package
+
+```sh
+pip3 install birder
+```
+
+### Clone
+
+```sh
+git clone https://gitlab.com/birder/birder.git
+```
+
+After cloning the repository, setup up venv and activate it (recommended)
 
 ```sh
 python3 -m venv .venv
@@ -29,7 +53,8 @@ Update pip and install wheel
 pip3 install --upgrade pip wheel
 ```
 
-Install PyTorch for CPU or CUDA
+Next, install PyTorch suitable for you hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
+The most common CPU and CUDA can be found in requirements file.
 
 ```sh
 # For CUDA
@@ -68,28 +93,6 @@ Total: ~7M images
 
 Dataset information can be found at [public_datasets_metadata/](public_datasets_metadata/)
 
-## Random Stuff
-
-fdupes -r data/training data/validation data/testing data/raw_data
-
-exiftool -all:all= -overwrite_original -ext jpeg .
-
-find training/ -type f -name '*.jpeg' -print0 | parallel -0 'mkdir -p "training_webp/$(dirname {})" && mogrify -format webp -resize "1048576@>" -path "training_webp/$(dirname {})" {}' \;
-
-find . -type f -name '*.*' -not -name '.*' | sed -Ee 's,.*/.+\.([^/]+)$,\1,' | sort | uniq -ci | sort -n
-
-cat training.md | grep -E "^### " | sed -E 's/(#+) (.+)/\1:\2:\2/g' | awk -F ":" '{ gsub(/#/,"  ",$1); gsub(/[ ]/,"-",$3); print $1 "- [" $2 "](#" tolower($3) ")" }'
-
-<https://www.israbirding.com/checklist/>
-
-<https://www.birds.org.il/he/species-families>
-
-python3 -m ipykernel install --user --name birder
-
-cloc --fullpath --not-match-d='data/' --exclude-dir=.mypy_cache,.venv .
-
-cat annotations_status.csv | column -t -s, --table-noextreme 8
-
 ## TorchServe
 
 Create model archive file (mar)
@@ -127,3 +130,39 @@ For annotation run the following
 ```sh
 labelme --labels ../birder/data/detection_data/classes.txt --nodata --output ../birder/data/detection_data/training_annotations --flags unknown ../birder/data/detection_data/training
 ```
+
+## Release
+
+1. Make sure the full CI passes
+
+   ```sh
+   inv ci
+   ```
+
+1. Update CHANGELOG.
+
+1. Bump version (`--major`, `--minor` or `--patch`)
+
+    ```sh
+    bumpver update --patch
+    ```
+
+1. Review the commit and tag and push.
+
+1. Build the updated package
+
+    ```sh
+    python3 -m build
+    ```
+
+1. Test the package
+
+    ```sh
+    TODO
+    ```
+
+1. Release to PyPI
+
+    ```sh
+    twine upload dist/*
+    ```

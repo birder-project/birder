@@ -26,7 +26,7 @@ def show_fgsm(args: argparse.Namespace) -> None:
     size = signature["inputs"][0]["data_shape"][3]
     transform = inference_preset(size, 1.0, rgb_values)
 
-    img = Image.open(args.image)
+    img: Image.Image = Image.open(args.image)
     input_tensor = transform(img).unsqueeze(dim=0).to(device)
 
     fgsm = FGSM(net, eps=args.eps)
