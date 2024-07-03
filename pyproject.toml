@@ -1,3 +1,42 @@
+[project]
+name = "birder"
+authors = [{ name = "Ofer Hasson", email = "author@example.com" }]
+description = "A computer vision framework for wildlife image analysis, focusing on avian species."
+readme = "README.md"
+requires-python = ">=3.9"
+keywords = ["computer-vision", "image-classification"]
+license = { text = "Apache-2.0" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dynamic = ["dependencies", "version"]
+
+[project.urls]
+Homepage = "https://gitlab.com/birder/birder"
+Issues = "https://gitlab.com/birder/birder/-/issues"
+
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["birder*"]
+namespaces = false
+
+[tool.setuptools.dynamic]
+version = { attr = "birder.__version__" }
+dependencies = { file = ["requirements/requirements.txt"] }
+
 [tool.black]
 line-length = 120
 exclude = '/(\.git|\.mypy_cache|\.venv|node_modules|data)/'
