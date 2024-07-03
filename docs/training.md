@@ -963,6 +963,12 @@ torchrun --nproc_per_node=2 train.py --network vit --net-param 1 --tag pretraine
 torchrun --nproc_per_node=2 train_pretrain.py --network mae_vit --encoder vit --encoder-param 3 --opt adamw --lr 0.00015 --lr-scheduler cosine --lr-cosine-min 0.0 --warmup-epochs 40 --batch-size 128 --epochs 800 --wd 0.05 --amp --compile --save-frequency 1 --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
+Optional intermediate training: first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit --net-param 3 --tag pretrained --lr 0.3 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-6 --epochs 10 --size 256 --wd 0.00002 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+```
+
 Fine-tuning, first stage - linear probing
 
 ```sh

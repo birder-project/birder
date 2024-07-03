@@ -149,10 +149,11 @@ labelme --labels ../birder/data/detection_data/classes.txt --nodata --output ../
 
 1. Review the commit and tag and push.
 
-1. Build the updated package
+1. Build and check the updated package
 
     ```sh
     python3 -m build
+    twine check dist/*
     ```
 
 1. Test the package

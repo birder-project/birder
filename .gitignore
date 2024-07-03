@@ -16,6 +16,8 @@ pip-selfcheck.json
 
 # Packaging
 .pypirc
+*.egg-info/
+dist/
 
 # C extensions
 *.so

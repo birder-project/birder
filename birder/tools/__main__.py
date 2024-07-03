@@ -33,7 +33,7 @@ def main() -> None:
             "--epoch 200 --image 'data/validation/Mallard/000003.jpeg'\n"
             "python3 tool.py labelme-to-coco data/detection_data\n"
             "python3 tool.py model-info -n deit -p 2 -t intermediate -e 0\n"
-            "python3 tool.py pack\n"
+            "python3 tool.py pack data/training\n"
             "python3 tool.py quantize-model -n convnext_v2 -p 4 -e 0 --qbackend x86\n"
             "python3 tool.py results results/inception_resnet_v2_105_e100_3150.csv --print --pr-curve\n"
             "python3 tool.py script-model --network shufflenet_v2 --net-param 2 --epoch 100\n"
