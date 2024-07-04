@@ -5,7 +5,6 @@ import logging
 import os
 from collections.abc import Callable
 from typing import Any
-from typing import Union
 
 import torch
 import torch.nn.functional as F
@@ -71,7 +70,7 @@ class BirdClassifier(BaseHandler):
 
     def _load_model(
         self, path: str, device: torch.device, model_yaml_config: dict[str, Any]
-    ) -> tuple[Union[torch.ScriptModule, torch.nn.Module], dict[int, str], Callable[..., torch.Tensor]]:
+    ) -> tuple[torch.ScriptModule | torch.nn.Module, dict[int, str], Callable[..., torch.Tensor]]:
         extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_values": ""}
         if path.endswith("pts") is True:
             model = torch.jit.load(path, map_location=device, _extra_files=extra_files)

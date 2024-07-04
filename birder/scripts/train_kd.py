@@ -73,6 +73,8 @@ def train(args: argparse.Namespace) -> None:
             wds_path,
             args.batch_size,
             dataset_size=dataset_size,
+            shuffle=True,
+            samples_names=False,
             transform=training_preset(args.size, args.aug_level, rgb_values),
         )
         (wds_path, _) = cli.wds_braces_from_path(Path(args.val_path))
@@ -86,9 +88,14 @@ def train(args: argparse.Namespace) -> None:
             wds_path,
             args.batch_size,
             dataset_size=dataset_size,
+            shuffle=False,
+            samples_names=False,
             transform=inference_preset(args.size, 1.0, rgb_values),
         )
-        ds_class_to_idx = cli.read_class_file(settings.CLASS_LIST_PATH)
+        if args.wds_class_file is None:
+            args.wds_class_file = str(Path(args.data_path).joinpath(settings.CLASS_LIST_NAME))
+
+        ds_class_to_idx = cli.read_class_file(args.wds_class_file)
         assert class_to_idx == ds_class_to_idx
 
     else:
@@ -703,6 +710,7 @@ def main() -> None:
         "--data-path", type=str, default=str(settings.TRAINING_DATA_PATH), help="training directory path"
     )
     parser.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
+    parser.add_argument("--wds-class-file", type=str, default=None, help="class list file")
     parser.add_argument("--wds-train-size", type=int, help="size of the wds training set")
     parser.add_argument("--wds-val-size", type=int, help="size of the wds validation set")
     args = parser.parse_args()

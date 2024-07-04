@@ -22,7 +22,7 @@ from birder.core.net.mobilenet_v2 import MobileNet_v2
 from birder.core.net.mobilenet_v3 import MobileNet_v3
 from birder.core.net.mobilevit_v1 import MobileViT_v1
 from birder.core.net.mobilevit_v2 import MobileViT_v2
-from birder.core.net.next_vit import NextViT
+from birder.core.net.nextvit import NextViT
 from birder.core.net.regnet import RegNet
 from birder.core.net.resnest import ResNeSt
 from birder.core.net.resnet_v2 import ResNet_v2

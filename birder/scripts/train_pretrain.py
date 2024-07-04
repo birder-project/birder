@@ -55,6 +55,8 @@ def train(args: argparse.Namespace) -> None:
             wds_path,
             args.batch_size,
             dataset_size=dataset_size,
+            shuffle=True,
+            samples_names=False,
             transform=training_preset(args.size, args.aug_level, rgb_values),
         )
         input_idx = 0

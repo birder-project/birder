@@ -2,7 +2,6 @@ import argparse
 import json
 import logging
 from typing import Any
-from typing import Union
 
 import onnx
 import onnx.checker
@@ -63,7 +62,7 @@ def set_parser(subparsers: Any) -> None:
 def main(args: argparse.Namespace) -> None:
     # Load model
     device = torch.device("cpu")
-    signature: Union[SignatureType, DetectionSignatureType]
+    signature: SignatureType | DetectionSignatureType
     if args.backbone is None:
         (net, class_to_idx, signature, rgb_values) = cli.load_model(
             device,

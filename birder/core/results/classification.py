@@ -2,7 +2,6 @@ import logging
 import os
 from typing import Any
 from typing import Optional
-from typing import Union
 
 import numpy as np
 import numpy.typing as npt
@@ -213,7 +212,7 @@ class Results:
             )
 
             # Save metrics
-            row: dict[str, Union[int, float, str]] = {}
+            row: dict[str, int | float | str] = {}
             row["Class"] = class_num
             row["Class name"] = label_name
             row["Precision"] = metrics["precision"]

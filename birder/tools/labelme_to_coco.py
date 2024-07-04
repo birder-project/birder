@@ -34,7 +34,7 @@ def _create_annotation(
 
 
 def labelme_to_coco(args: argparse.Namespace, target_path: Path) -> None:
-    class_to_idx = cli.read_class_file(settings.CLASS_LIST_PATH)
+    class_to_idx = cli.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
     class_to_idx = lib.detection_class_to_idx(class_to_idx)
 
     image_list = []

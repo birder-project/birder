@@ -1,6 +1,5 @@
 import argparse
 from typing import Any
-from typing import Union
 
 import torch
 from rich.columns import Columns
@@ -55,7 +54,7 @@ def set_parser(subparsers: Any) -> None:
 def main(args: argparse.Namespace) -> None:
     # Load model
     device = torch.device("cpu")
-    signature: Union[SignatureType, DetectionSignatureType]
+    signature: SignatureType | DetectionSignatureType
     if args.backbone is None:
         (net, class_to_idx, signature, rgb_values) = cli.load_model(
             device,
@@ -81,10 +80,21 @@ def main(args: argparse.Namespace) -> None:
             script=False,
         )
 
+    num_params = 0
+    param_size = 0
+    buffer_size = 0
+    for param in net.parameters():
+        num_params += param.numel()
+        param_size += param.nelement() * param.element_size()
+
+    for buffer in net.buffers():
+        buffer_size += buffer.nelement() * buffer.element_size()
+
     console = Console()
     console.print(f"Network type: [bold]{type(net).__name__}[/bold], with task={net.task}")
     console.print(f"Network signature: {signature}")
     console.print(f"Network rgb values: {rgb_values}")
-    console.print(f"Number of parameters: {sum(p.numel() for p in net.parameters()):,}")
+    console.print(f"Number of parameters: {num_params:,}")
+    console.print(f"Model size (inc. buffers): {(param_size + buffer_size) / 1024**2:,.2f} [bold]MB[/bold]")
     console.print()
     console.print(Columns(list(class_to_idx.keys()), column_first=True, title="[bold]Class list[/bold]"))

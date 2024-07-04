@@ -33,7 +33,7 @@ def show_det_iterator(args: argparse.Namespace) -> None:
 
     batch_size = 2
 
-    class_to_idx = cli.read_class_file(settings.CLASS_LIST_PATH)
+    class_to_idx = cli.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
     class_to_idx = lib.detection_class_to_idx(class_to_idx)
     class_list = list(class_to_idx.keys())
     class_list.insert(0, "Background")

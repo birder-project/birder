@@ -9,10 +9,11 @@ coverage~=7.5.4
 deptry~=0.16.1
 flake8-pep585~=0.1.7
 flake8~=7.1.0
-ipython~=8.18.1
+ipython~=8.26.0
 isort~=5.13.2
 MonkeyType~=23.3.0
 mypy~=1.10.1
+parameterized~=0.9.0
 pylint~=3.2.5
 setuptools
 tensorboard~=2.17.0

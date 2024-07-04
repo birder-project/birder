@@ -48,7 +48,7 @@ def train(args: argparse.Namespace) -> None:
     training_dataset = wrap_dataset_for_transforms_v2(training_dataset)
     validation_dataset = CocoDetection(".", val_coco_path, transforms=inference_preset(args.size, rgb_values))
     validation_dataset = wrap_dataset_for_transforms_v2(validation_dataset)
-    class_to_idx = cli.read_class_file(settings.CLASS_LIST_PATH)
+    class_to_idx = cli.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
     class_to_idx = lib.detection_class_to_idx(class_to_idx)
 
     assert args.model_ema is False or args.model_ema_steps <= len(training_dataset) / args.batch_size

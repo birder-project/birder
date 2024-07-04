@@ -6,7 +6,6 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 from typing import Optional
-from typing import Union
 
 import torch
 from torchvision.datasets.folder import IMG_EXTENSIONS
@@ -31,23 +30,23 @@ class ArgumentHelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.Raw
     pass
 
 
-def write_signature(network_name: str, signature: Union[SignatureType, DetectionSignatureType]) -> None:
+def write_signature(network_name: str, signature: SignatureType | DetectionSignatureType) -> None:
     signature_file = settings.MODELS_DIR.joinpath(f"{network_name}.json")
     logging.info(f"Writing {signature_file}")
     with open(signature_file, "w", encoding="utf-8") as handle:
         json.dump(signature, handle, indent=2)
 
 
-def read_signature(network_name: str) -> Union[SignatureType, DetectionSignatureType]:
+def read_signature(network_name: str) -> SignatureType | DetectionSignatureType:
     signature_file = settings.MODELS_DIR.joinpath(f"{network_name}.json")
     logging.info(f"Reading {signature_file}")
     with open(signature_file, "r", encoding="utf-8") as handle:
-        signature: Union[SignatureType, DetectionSignatureType] = json.load(handle)
+        signature: SignatureType | DetectionSignatureType = json.load(handle)
 
     return signature
 
 
-def read_class_file(path: Union[Path, str]) -> dict[str, int]:
+def read_class_file(path: Path | str) -> dict[str, int]:
     if Path(path).exists() is False:
         logging.warning(f"Class file '{path}' not found... class_to_idx returns empty")
         return {}
@@ -134,7 +133,7 @@ def checkpoint_model(
     network_name: str,
     epoch: int,
     net: torch.nn.Module,
-    signature: Union[SignatureType, DetectionSignatureType],
+    signature: SignatureType | DetectionSignatureType,
     class_to_idx: dict[str, int],
     rgb_values: RGBType,
     optimizer: Optional[torch.optim.Optimizer],
@@ -291,7 +290,7 @@ def load_model(
     inference: bool,
     script: bool = False,
     pt2: bool = False,
-) -> tuple[Union[torch.nn.Module, torch.ScriptModule], dict[str, int], SignatureType, RGBType]:
+) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], SignatureType, RGBType]:
     network_name = get_network_name(network, net_param, tag)
     path = model_path(network_name, epoch=epoch, quantized=quantized, script=script, pt2=pt2)
     logging.info(f"Loading model from {path} on device {device}...")
@@ -354,7 +353,7 @@ def load_detection_model(
     quantized: bool = False,
     inference: bool,
     script: bool = False,
-) -> tuple[Union[torch.nn.Module, torch.ScriptModule], dict[str, int], DetectionSignatureType, RGBType]:
+) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], DetectionSignatureType, RGBType]:
     network_name = get_detection_network_name(
         network,
         net_param=net_param,

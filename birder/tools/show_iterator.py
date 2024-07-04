@@ -47,9 +47,14 @@ def show_iterator(args: argparse.Namespace) -> None:
             wds_path,
             batch_size,
             dataset_size=dataset_size,
+            shuffle=True,
+            samples_names=False,
             transform=transform,
         )
-        class_to_idx = cli.read_class_file(settings.CLASS_LIST_PATH)
+        if args.wds_class_file is None:
+            args.wds_class_file = Path(args.data_path).joinpath(settings.CLASS_LIST_NAME)
+
+        class_to_idx = cli.read_class_file(args.wds_class_file)
 
     else:
         dataset = ImageFolder(args.data_path, transform=transform)
@@ -145,9 +150,11 @@ def set_parser(subparsers: Any) -> None:
             "python3 tool.py show-iterator --mode training --size 224 --aug-level 2 --batch\n"
             "python3 tool.py show-iterator --mode inference --size 320\n"
             "python3 tool.py show-iterator --mode training --size 224 --batch --wds "
-            "--wds-size 50000 --data-path ~/Datasets/imagenet-1k-wds/validation\n"
+            "--wds-class-file ~/Datasets/imagenet-1k-wds/classes.txt --wds-size 50000 "
+            "--data-path ~/Datasets/imagenet-1k-wds/validation\n"
             "python3 tool.py show-iterator --mode training --size 384 --aug-level 4 --batch "
             "--cutmix --wds --data-path ~/Datasets/imagenet-1k-wds/validation\n"
+            "python3 tool.py show-iterator --mode training --size 224 --batch --wds --data-path data/training_packed\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -171,6 +178,7 @@ def set_parser(subparsers: Any) -> None:
         "--data-path", type=str, default=str(settings.TRAINING_DATA_PATH), help="image directory path"
     )
     subparser.add_argument("--wds", default=False, action="store_true", help="use webdataset")
+    subparser.add_argument("--wds-class-file", type=str, default=None, help="class list file")
     subparser.add_argument("--wds-size", type=int, help="size of the wds directory")
     subparser.set_defaults(func=main)
 

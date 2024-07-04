@@ -276,7 +276,7 @@ def gen_classes_file(_ctx):
         settings.DETECTION_DATA_PATH.mkdir(parents=True)
 
     class_list = _class_list()
-    class_to_idx = cli.read_class_file(settings.CLASS_LIST_PATH)
+    class_to_idx = cli.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
     if class_list == list(class_to_idx.keys()):
         echo("No new species")
 

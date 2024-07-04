@@ -1,6 +1,7 @@
 import argparse
 import logging
 import time
+from pathlib import Path
 
 import numpy as np
 import numpy.typing as npt
@@ -13,7 +14,10 @@ from tqdm import tqdm
 from birder.common import cli
 from birder.common.lib import get_network_name
 from birder.conf import settings
+from birder.core.dataloader.webdataset import make_wds_loader
 from birder.core.datasets.directory import ImageListDataset
+from birder.core.datasets.webdataset import make_wds_dataset
+from birder.core.datasets.webdataset import wds_size
 from birder.core.inference import inference
 from birder.core.results.classification import Results
 from birder.core.results.gui import show_top_k
@@ -92,24 +96,50 @@ def predict(args: argparse.Namespace) -> None:
         args.size = signature["inputs"][0]["data_shape"][2]
         logging.debug(f"Using size={args.size}")
 
-    samples = cli.samples_from_paths(args.data_path, class_to_idx=class_to_idx)
-    assert len(samples) > 0, "Couldn't find any images"
-
     batch_size = args.batch_size
-    dataset = ImageListDataset(samples, transforms=inference_preset(args.size, args.center_crop, rgb_values))
-    inference_loader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=args.shuffle,
-        num_workers=8,
-    )
+    inference_transform = inference_preset(args.size, args.center_crop, rgb_values)
+    if args.wds is True:
+        (wds_path, _) = cli.wds_braces_from_path(Path(args.data_path[0]))
+        dataset_size = wds_size(wds_path, device)
+        num_samples = dataset_size
+        dataset = make_wds_dataset(
+            wds_path,
+            batch_size,
+            dataset_size=dataset_size,
+            shuffle=args.shuffle,
+            samples_names=True,
+            transform=inference_transform,
+        )
+        inference_loader = make_wds_loader(
+            dataset,
+            batch_size,
+            shuffle=args.shuffle,
+            num_workers=8,
+            prefetch_factor=2,
+            collate_fn=None,
+            world_size=1,
+            pin_memory=False,
+        )
+
+    else:
+        samples = cli.samples_from_paths(args.data_path, class_to_idx=class_to_idx)
+        num_samples = len(samples)
+        assert num_samples > 0, "Couldn't find any images"
+
+        dataset = ImageListDataset(samples, transforms=inference_transform)
+        inference_loader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=args.shuffle,
+            num_workers=8,
+        )
 
     embeddings: list[npt.NDArray[np.float32]] = []
     outs: list[npt.NDArray[np.float32]] = []
     labels: list[int] = []
     sample_paths: list[str] = []
     tic = time.time()
-    with tqdm(total=len(samples), initial=0, unit="images", unit_scale=True, leave=False) as progress:
+    with tqdm(total=num_samples, initial=0, unit="images", unit_scale=True, leave=False) as progress:
         for file_paths, inputs, targets in inference_loader:
             # Predict
             inputs = inputs.to(device)
@@ -150,7 +180,7 @@ def predict(args: argparse.Namespace) -> None:
 
     # Save embeddings
     base_output_path = (
-        f"{network_name}_{len(class_to_idx)}_e{args.epoch}_{args.size}px_" f"crop{args.center_crop}_{len(samples)}"
+        f"{network_name}_{len(class_to_idx)}_e{args.epoch}_{args.size}px_" f"crop{args.center_crop}_{num_samples}"
     )
     if args.suffix is not None:
         base_output_path = f"{base_output_path}_{args.suffix}"
@@ -209,6 +239,8 @@ def main() -> None:
             "python3 predict.py -n efficientnet_v1 -p 4 -e 300 --gpu --save-embedding "
             "data/*/Alpine\\ swift --suffix alpine_swift\n"
             "python3 predict.py -n convnext -p 2 -e 0 --gpu --parallel data/testing\n"
+            "python3 predict.py -n mobilevit_v2 -p 1.5 -t intermediate -e 80 --gpu --save-results "
+            "--wds data/validation_packed\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -246,13 +278,16 @@ def main() -> None:
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
     parser.add_argument("--parallel", default=False, action="store_true", help="use multiple gpu's")
+    parser.add_argument("--wds", default=False, action="store_true", help="predict a webdataset directory")
     parser.add_argument("data_path", nargs="+", help="data files path (directories and files)")
     args = parser.parse_args()
 
     assert args.center_crop <= 1 and args.center_crop > 0
-    assert args.parallel is False or (args.parallel is True and args.gpu is True)
+    assert args.parallel is False or args.gpu is True
     assert args.save_embedding is False or args.parallel is False
     assert args.parallel is False or args.compile is False
+    assert args.wds is False or len(args.data_path) == 1
+    assert args.wds is False or (args.show is False and args.show_mistakes is False and args.show_out_of_k is False)
 
     if settings.RESULTS_DIR.exists() is False:
         logging.info(f"Creating {settings.RESULTS_DIR} directory...")

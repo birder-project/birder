@@ -1,74 +1,102 @@
 # Birder
 
-This project aim to classify bird species using deep neural networks.
+* [Introduction](#introduction)
+* [Setup](#setup)
 
-This is a very early stage of the project, mostly data collection at this point.
+## Introduction
 
-List of supported bird species [docs/classes.md](docs/classes.md).
+Birder is an open-source computer vision framework designed for wildlife imagery, with a specific focus on bird species classification and detection. This project leverages deep neural networks to provide robust models capable of handling real-world data challenges.
 
-As Ross Wightman wrote at the [timm README](https://github.com/huggingface/pytorch-image-models#introduction):
+The project features:
 
-The work of many others is present here.
-I've tried to make sure all source material is acknowledged via links to
-github, arXiv papers, etc. in the README, documentation, and code docstrings. Please let me know if I missed anything.
+* A diverse collection of classification and detection models
+* Support for self-supervised pretraining
+* Knowledge distillation training (teacher-student)
+* Custom utilities and data augmentation techniques
+* Comprehensive training scripts
+* Advanced error analysis tools
+* Extensive documentation and tutorials (hopefully...)
 
-The same applies here.
+Unlike projects that aim to reproduce ImageNet training results from common papers, Birder is tailored for practical applications in ornithology, conservation, and wildlife photography.
+
+For a complete list of supported bird species, please refer to [docs/classes.md](docs/classes.md).
+
+As Ross Wightman eloquently stated in the [timm README](https://github.com/huggingface/pytorch-image-models#introduction):
+
+> The work of many others is present here. I've tried to make sure all source material is acknowledged via links to github, arXiv papers, etc. in the README, documentation, and code docstrings. Please let me know if I missed anything.
+
+The same principle applies to Birder. We stand on the shoulders of giants in the fields of computer vision, machine learning, and ornithology. We've made every effort to acknowledge and credit the work that has influenced and contributed to this project. If you believe we've missed any attributions, please let us know by opening an issue.
 
 ## Setup
 
-This project can be either installed as a package or cloned form git.
+Birder can be installed either as a package or cloned from git.
 
-### Package
+### Option 1: Package Installation (Recommended for Users)
 
-It's recommended to first update the base pip and wheel packages in your venv
+1. Update pip and wheel in your virtual environment:
+
+    ```sh
+    pip3 install --upgrade pip wheel
+    ```
+
+1. Install PyTorch: choose the version suitable for your hardware and drivers from PyTorch's official website [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/).
+
+1. Install the `birder` package
+
+    ```sh
+    pip3 install birder
+    ```
+
+### Option 2: Cloning from Git (Recommended for Contributors or Advanced Users)
+
+1. Clone the repository:
+
+    ```sh
+    git clone https://gitlab.com/birder/birder.git
+    ```
+
+1. Set up and activate a virtual environment:
+
+    ```sh
+    python3 -m venv .venv
+    source .venv/bin/activate
+    ```
+
+1. Update pip and install wheel
+
+    ```sh
+    pip3 install --upgrade pip wheel
+    ```
+
+1. Install PyTorch suitable for your hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
+
+    ```sh
+    # For CUDA
+    pip3 install --upgrade -r requirements/requirements-pytorch-gpu.txt
+
+    # For CPU
+    pip3 install --upgrade -r requirements/requirements-pytorch-cpu.txt
+    ```
+
+1. Install development requirements:
+
+    ```sh
+    pip3 install --upgrade -r requirements/requirements-dev.txt
+    ```
+
+### Verifying the Installation
+
+To verify that Birder is installed correctly, run:
 
 ```sh
-pip3 install --upgrade pip wheel
+python3 -c "import birder; print(birder.__version__)"
 ```
 
-Next, install PyTorch suitable for you hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
+This should print the version of Birder.
 
-Lastly, install the `birder` package
+## Getting Started
 
-```sh
-pip3 install birder
-```
-
-### Clone
-
-```sh
-git clone https://gitlab.com/birder/birder.git
-```
-
-After cloning the repository, setup up venv and activate it (recommended)
-
-```sh
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-Update pip and install wheel
-
-```sh
-pip3 install --upgrade pip wheel
-```
-
-Next, install PyTorch suitable for you hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
-The most common CPU and CUDA can be found in requirements file.
-
-```sh
-# For CUDA
-pip3 install --upgrade -r requirements/requirements-pytorch-gpu.txt
-
-# For CPU
-pip3 install --upgrade -r requirements/requirements-pytorch-cpu.txt
-```
-
-Install dev requirements
-
-```sh
-pip3 install --upgrade -r requirements/requirements-dev.txt
-```
+TBD
 
 ## Trained Models
 
@@ -149,17 +177,11 @@ labelme --labels ../birder/data/detection_data/classes.txt --nodata --output ../
 
 1. Review the commit and tag and push.
 
-1. Build and check the updated package
-
-    ```sh
-    python3 -m build
-    twine check dist/*
-    ```
-
 1. Test the package
 
     ```sh
-    TODO
+    docker build -f docker/test.Dockerfile . -t birder-package-test
+    docker run birder-package-test:latest
     ```
 
 1. Release to PyPI

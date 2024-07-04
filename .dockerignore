@@ -23,17 +23,25 @@ Sessionx.vim
 **/__pycache__/
 **/*.py[cod]
 
-# Python venv
+# Virtualenv
 .Python
-[Bb]in
-[Ii]nclude
-[Ll]ib
-[Ll]ib64
-[Ll]ocal
-[Ss]cripts
 pyvenv.cfg
 .venv
 pip-selfcheck.json
+
+# Packaging
+.pypirc
+*.egg-info/
+dist/
+
+# Unit test / coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
 
 # C extensions
 *.so
@@ -46,3 +54,10 @@ Thumbs.db
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+# Profile files
+*.prof
+
+# Jupyter Notebooks
+*.ipynb
+.ipynb_checkpoints

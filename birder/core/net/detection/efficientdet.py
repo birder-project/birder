@@ -11,7 +11,6 @@ from collections.abc import Callable
 from functools import partial
 from typing import Literal
 from typing import Optional
-from typing import Union
 
 import torch
 import torch.nn.functional as F
@@ -36,8 +35,8 @@ class Interpolate2d(nn.Module):
 
     def __init__(
         self,
-        size: Optional[Union[int, tuple[int, int]]] = None,
-        scale_factor: Optional[Union[float, tuple[float, float]]] = None,
+        size: Optional[int | tuple[int, int]] = None,
+        scale_factor: Optional[float | tuple[float, float]] = None,
         mode: str = "nearest",
         align_corners: bool = False,
     ) -> None:

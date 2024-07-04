@@ -4,7 +4,6 @@ import logging
 from collections import Counter
 from pathlib import Path
 from typing import Any
-from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -42,7 +41,7 @@ def detection_object_count(directory: Path) -> tuple[Counter[str], int]:
     return (detection_count, file_count)
 
 
-def directory_label_count(directory: Union[str, Path]) -> Counter[str]:
+def directory_label_count(directory: str | Path) -> Counter[str]:
     dataset = ImageFolder(directory)
     labels = [dataset.classes[sample[1]] for sample in dataset.samples]
     return Counter(labels)

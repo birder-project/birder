@@ -55,6 +55,8 @@ def train(args: argparse.Namespace) -> None:
             wds_path,
             args.batch_size,
             dataset_size=dataset_size,
+            shuffle=True,
+            samples_names=False,
             transform=training_preset(args.size, args.aug_level, rgb_values),
         )
         (wds_path, _) = cli.wds_braces_from_path(Path(args.val_path))
@@ -68,8 +70,13 @@ def train(args: argparse.Namespace) -> None:
             wds_path,
             args.batch_size,
             dataset_size=dataset_size,
+            shuffle=False,
+            samples_names=False,
             transform=inference_preset(args.size, 1.0, rgb_values),
         )
+        if args.wds_class_file is None:
+            args.wds_class_file = str(Path(args.data_path).joinpath(settings.CLASS_LIST_NAME))
+
         class_to_idx = cli.read_class_file(args.wds_class_file)
 
     else:
@@ -713,17 +720,17 @@ def main() -> None:
         "--data-path", type=str, default=str(settings.TRAINING_DATA_PATH), help="training directory path"
     )
     parser.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
-    parser.add_argument("--wds-class-file", type=str, default=str(settings.CLASS_LIST_PATH), help="class list file")
+    parser.add_argument("--wds-class-file", type=str, default=None, help="class list file")
     parser.add_argument("--wds-train-size", type=int, help="size of the wds training set")
     parser.add_argument("--wds-val-size", type=int, help="size of the wds validation set")
     args = parser.parse_args()
 
     assert 0.5 > args.smoothing_alpha >= 0, "Smoothing alpha must be in range of [0, 0.5)"
-    assert args.load_states is False or (
-        args.load_states is True and args.resume_epoch is not None
+    assert (
+        args.load_states is False or args.resume_epoch is not None
     ), "Load states must be from resumed training (--resume-epoch)"
-    assert args.load_scheduler is False or (
-        args.load_scheduler is True and args.resume_epoch is not None
+    assert (
+        args.load_scheduler is False or args.resume_epoch is not None
     ), "Load scheduler must be from resumed training (--resume-epoch)"
     assert args.wds is False or args.ra_sampler is False, "Repeated Augmentation not currently supported with wds"
 

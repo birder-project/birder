@@ -1,49 +1,34 @@
 import logging
 import unittest
+from typing import Optional
 
 import torch
+from parameterized import parameterized
 
-from birder.core import net
-from birder.core.net import pretraining
+from birder.core.net.base import net_factory
+from birder.core.net.pretraining import base
 
 logging.disable(logging.CRITICAL)
 
 
 class TestNetPretrain(unittest.TestCase):
-    def test_fcmae(self) -> None:
-        size = pretraining.FCMAE.default_size
-        encoder = net.ConvNeXt_v2(3, 2, 0, size=size)
-        n = pretraining.FCMAE(encoder, size=size)
+    @parameterized.expand(  # type: ignore[misc]
+        [
+            ("fcmae", None, ("convnext_v2", 0)),
+            ("mae_vit", None, ("vit", 0)),
+            ("mae_vit", None, ("vitreg4", 1)),
+            ("simmim", None, ("swin_transformer_v2", 0)),
+            ("simmim", None, ("swin_transformer_v2_w2", 0)),
+        ]
+    )
+    def test_net_pretrain(
+        self, network_name: str, net_param: Optional[float], encoder_params: tuple[str, float]
+    ) -> None:
+        encoder = net_factory(encoder_params[0], 3, 10, encoder_params[1])
+        n = base.pretrain_net_factory(network_name, encoder, net_param=net_param)
+        size = n.default_size
+        encoder.adjust_size(size)
 
         out = n(torch.rand((1, 3, size, size)))
-        self.assertIn("loss", out)
-
-    def test_mae_vit(self) -> None:
-        size = pretraining.MAE_ViT.default_size
-        encoder = net.ViT(3, 2, 0, size=size)
-        n = pretraining.MAE_ViT(encoder, size=size)
-
-        out = n(torch.rand((1, 3, size, size)))
-        self.assertIn("loss", out)
-
-        # ViTReg encoder
-        encoder = net.ViTReg4(3, 2, 0, size=size)
-        n = pretraining.MAE_ViT(encoder, size=size)
-
-        out = n(torch.rand((1, 3, size, size)))
-        self.assertIn("loss", out)
-
-    def test_simmim(self) -> None:
-        size = pretraining.SimMIM.default_size
-        encoder = net.Swin_Transformer_v2(3, 2, 0, size=size)
-        n = pretraining.SimMIM(encoder, size=size)
-
-        out = n(torch.rand((1, 3, size, size)))
-        self.assertIn("loss", out)
-
-        # Swin Transformer v2 w2 encoder
-        encoder = net.Swin_Transformer_v2_w2(3, 2, 0, size=size)
-        n = pretraining.SimMIM(encoder, size=size)
-
-        out = n(torch.rand((1, 3, size, size)))
-        self.assertIn("loss", out)
+        for key in ["loss", "pred", "mask"]:
+            self.assertFalse(torch.isnan(out[key]).any())

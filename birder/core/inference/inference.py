@@ -1,5 +1,4 @@
 from typing import Optional
-from typing import Union
 
 import numpy as np
 import numpy.typing as npt
@@ -8,7 +7,7 @@ import torch.nn.functional as F
 
 
 def predict(
-    net: Union[torch.nn.Module, torch.ScriptModule], inputs: torch.Tensor, return_embedding: bool = False
+    net: torch.nn.Module | torch.ScriptModule, inputs: torch.Tensor, return_embedding: bool = False
 ) -> tuple[npt.NDArray[np.float32], Optional[npt.NDArray[np.float32]]]:
     if return_embedding is True:
         embedding_tensor: torch.Tensor = net.embedding(inputs)
