@@ -53,13 +53,14 @@ Birder can be installed either as a package or cloned from git.
 
     ```sh
     git clone https://gitlab.com/birder/birder.git
+    cd birder
     ```
 
 1. Set up and activate a virtual environment:
 
     ```sh
     python -m venv .venv
-    source .venv/bin/activate
+    source .venv/bin/activate  # On Windows, use .venv\Scripts\activate
     ```
 
 1. Update pip and install wheel
@@ -96,12 +97,13 @@ This should print the version of Birder.
 
 ## Getting Started
 
-Once Birder is installed, you can start exploring its capabilities. For example, you can fetch pre-trained models and use them to make predictions on bird images. Let's walk through these primary features to get you started with Birder.
+Once Birder is installed, you can start exploring its capabilities.
 
-Birder provides pre-trained models that you can download using the `fetch-model` tool. To download a model, use the following command:
+Birder provides pre-trained models that you can download using the `fetch-model` tool.
+To download a model, use the following command:
 
 ```sh
-python -m birder.tools fetch-model mobilenet_v3_1_0.pt
+python -m birder.tools fetch-model mobilenet_v3_1_0
 ```
 
 To classify bird images, use the predict script:
@@ -110,9 +112,15 @@ To classify bird images, use the predict script:
 birder-predict -n mobilenet_v3 -p 1 -e 0 --show bird.jpeg
 ```
 
-## Trained Models
+For more options and detailed usage of the prediction tool, run:
 
-Classification training procedures can be seen at [docs/training.md](docs/training.md)
+```sh
+birder-predict --help
+```
+
+For more detailed usage instructions and examples, please refer to our [documentation](docs/README.md).
+
+## Pre-trained Models
 
 TBD
 

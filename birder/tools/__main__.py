@@ -30,7 +30,7 @@ def main() -> None:
             "--image 'data/training/Mallard/000112.jpeg'\n"
             "python tool.py avg-model --network resnet_v2 --net-param 50 --epochs 95 95 100\n"
             "python tool.py ensemble-model --network convnext_v2_4_0 focalnet_3_0\n"
-            "python tool.py fetch-model mobilenet_v3_1_0.pt\n"
+            "python tool.py fetch-model mobilenet_v3_1_0\n"
             "python tool.py introspection --method gradcam --network efficientnet_v2 --net-param 1 "
             "--epoch 200 --image 'data/validation/Mallard/000003.jpeg'\n"
             "python tool.py labelme-to-coco data/detection_data\n"
