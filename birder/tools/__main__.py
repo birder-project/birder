@@ -21,29 +21,29 @@ from birder.tools import verify_directory
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        prog="python3 -m birder.tools",
+        prog="python -m birder.tools",
         allow_abbrev=False,
         description="Tool to run auxiliary commands",
         epilog=(
             "Usage examples:\n"
-            "python3 tool.py adversarial --method fgsm -n swin_transformer_v1 -p 2 -e 0 "
+            "python tool.py adversarial --method fgsm -n swin_transformer_v1 -p 2 -e 0 "
             "--image 'data/training/Mallard/000112.jpeg'\n"
-            "python3 tool.py avg-model --network resnet_v2 --net-param 50 --epochs 95 95 100\n"
-            "python3 tool.py ensemble-model --network convnext_v2_4_0 focalnet_3_0\n"
-            "python3 tool.py fetch-model mobilenet_v3_1_0.pt\n"
-            "python3 tool.py introspection --method gradcam --network efficientnet_v2 --net-param 1 "
+            "python tool.py avg-model --network resnet_v2 --net-param 50 --epochs 95 95 100\n"
+            "python tool.py ensemble-model --network convnext_v2_4_0 focalnet_3_0\n"
+            "python tool.py fetch-model mobilenet_v3_1_0.pt\n"
+            "python tool.py introspection --method gradcam --network efficientnet_v2 --net-param 1 "
             "--epoch 200 --image 'data/validation/Mallard/000003.jpeg'\n"
-            "python3 tool.py labelme-to-coco data/detection_data\n"
-            "python3 tool.py model-info -n deit -p 2 -t intermediate -e 0\n"
-            "python3 tool.py pack data/training\n"
-            "python3 tool.py quantize-model -n convnext_v2 -p 4 -e 0 --qbackend x86\n"
-            "python3 tool.py results results/inception_resnet_v2_105_e100_3150.csv --print --pr-curve\n"
-            "python3 tool.py script-model --network shufflenet_v2 --net-param 2 --epoch 100\n"
-            "python3 tool.py show-det-iterator --mode inference --size 640 --batch\n"
-            "python3 tool.py show-iterator --mode training --size 256 --aug-level 3\n"
-            "python3 tool.py similarity -n efficientnet_v2 -p 1 -e 0 --limit 15 data/*/*crane\n"
-            "python3 tool.py stats --class-graph\n"
-            "python3 tool.py verify-directory data/testing\n"
+            "python tool.py labelme-to-coco data/detection_data\n"
+            "python tool.py model-info -n deit -p 2 -t intermediate -e 0\n"
+            "python tool.py pack data/training\n"
+            "python tool.py quantize-model -n convnext_v2 -p 4 -e 0 --qbackend x86\n"
+            "python tool.py results results/inception_resnet_v2_105_e100_3150.csv --print --pr-curve\n"
+            "python tool.py script-model --network shufflenet_v2 --net-param 2 --epoch 100\n"
+            "python tool.py show-det-iterator --mode inference --size 640 --batch\n"
+            "python tool.py show-iterator --mode training --size 256 --aug-level 3\n"
+            "python tool.py similarity -n efficientnet_v2 -p 1 -e 0 --limit 15 data/*/*crane\n"
+            "python tool.py stats --class-graph\n"
+            "python tool.py verify-directory data/testing\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

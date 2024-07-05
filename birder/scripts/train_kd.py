@@ -555,7 +555,7 @@ def main() -> None:
         description="Train classification model using Knowledge Distillation",
         epilog=(
             "Usage examples:\n"
-            "python3 train_kd.py --teacher convnext_v2 --teacher-param 4 --teacher-epoch 0 --student regnet "
+            "python train_kd.py --teacher convnext_v2 --teacher-param 4 --teacher-epoch 0 --student regnet "
             "--student-param 1.6 --lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 "
             "--size 256 --epochs 100 --wd 0.00005 --mixup-alpha 0.2 --aug-level 3\n"
         ),

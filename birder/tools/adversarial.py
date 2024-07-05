@@ -63,9 +63,9 @@ def set_parser(subparsers: Any) -> None:
         description="deep learning adversarial attacks",
         epilog=(
             "Usage examples:\n"
-            "python3 tool.py adversarial --method fgsm --network efficientnet_v2 --net-param 1 "
+            "python tool.py adversarial --method fgsm --network efficientnet_v2 --net-param 1 "
             "--epoch 0 --target Bluethroat --image 'data/training/Mallard/000117.jpeg'\n"
-            "python3 tool.py adversarial --method fgsm --network efficientnet_v2 --net-param 1 "
+            "python tool.py adversarial --method fgsm --network efficientnet_v2 --net-param 1 "
             "--epoch 0 --eps 0.02 --target Mallard --image 'data/validation/White-tailed eagle/000006.jpeg'\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,

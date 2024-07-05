@@ -125,13 +125,13 @@ def set_parser(subparsers: Any) -> None:
         description="computer vision introspection and explainability",
         epilog=(
             "Usage examples:\n"
-            "python3 tool.py introspection --method gradcam --network efficientnet_v2 --net-param 1 "
+            "python tool.py introspection --method gradcam --network efficientnet_v2 --net-param 1 "
             "--epoch 200 --image 'data/training/European goldfinch/000300.jpeg'\n"
-            "python3 tool.py introspection --method gradcam -n resnest --net-param 50 --epoch 300 "
+            "python tool.py introspection --method gradcam -n resnest --net-param 50 --epoch 300 "
             "--image data/index5.jpeg --target 'Grey heron'\n"
-            "python3 tool.py introspection --method guided-backprop -n efficientnet_v2 -p 0 "
+            "python tool.py introspection --method guided-backprop -n efficientnet_v2 -p 0 "
             "-e 0 --image 'data/training/European goldfinch/000300.jpeg'\n"
-            "python3 tool.py introspection --method gradcam -n swin_transformer_v1 -p 2 -e 85 --layer-num -4 "
+            "python tool.py introspection --method gradcam -n swin_transformer_v1 -p 2 -e 85 --layer-num -4 "
             "--reshape-size 20 --image data/training/Fieldfare/000002.jpeg\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,

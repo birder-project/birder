@@ -146,15 +146,15 @@ def set_parser(subparsers: Any) -> None:
         description="show training / inference iterator output vs input",
         epilog=(
             "Usage examples:\n"
-            "python3 tool.py show-iterator --mode training --size 224 --aug-level 3\n"
-            "python3 tool.py show-iterator --mode training --size 224 --aug-level 2 --batch\n"
-            "python3 tool.py show-iterator --mode inference --size 320\n"
-            "python3 tool.py show-iterator --mode training --size 224 --batch --wds "
+            "python tool.py show-iterator --mode training --size 224 --aug-level 3\n"
+            "python tool.py show-iterator --mode training --size 224 --aug-level 2 --batch\n"
+            "python tool.py show-iterator --mode inference --size 320\n"
+            "python tool.py show-iterator --mode training --size 224 --batch --wds "
             "--wds-class-file ~/Datasets/imagenet-1k-wds/classes.txt --wds-size 50000 "
             "--data-path ~/Datasets/imagenet-1k-wds/validation\n"
-            "python3 tool.py show-iterator --mode training --size 384 --aug-level 4 --batch "
+            "python tool.py show-iterator --mode training --size 384 --aug-level 4 --batch "
             "--cutmix --wds --data-path ~/Datasets/imagenet-1k-wds/validation\n"
-            "python3 tool.py show-iterator --mode training --size 224 --batch --wds --data-path data/training_packed\n"
+            "python tool.py show-iterator --mode training --size 224 --batch --wds --data-path data/training_packed\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

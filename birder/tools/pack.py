@@ -187,9 +187,9 @@ def set_parser(subparsers: Any) -> None:
         description="pack training dataset into webdataset format",
         epilog=(
             "Usage examples:\n"
-            "python3 tool.py pack --size 512 data/training\n"
-            "python3 tool.py pack -j 8 --size 384 data/training data/raw_data\n"
-            "python3 tool.py pack -j 2 --class-file data/training_packed/classes.txt data/validation\n"
+            "python tool.py pack --size 512 data/training\n"
+            "python tool.py pack -j 8 --size 384 data/training data/raw_data\n"
+            "python tool.py pack -j 2 --class-file data/training_packed/classes.txt data/validation\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

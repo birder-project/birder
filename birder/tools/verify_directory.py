@@ -69,8 +69,8 @@ def set_parser(subparsers: Any) -> None:
         description="loads every image in the dataset and raises exception on corrupted files",
         epilog=(
             "Usage examples:\n"
-            "python3 tool.py verify-directory --fast data/testing\n"
-            "python3 tool.py verify-directory ~/Datasets/birdsnap\n"
+            "python tool.py verify-directory --fast data/testing\n"
+            "python tool.py verify-directory ~/Datasets/birdsnap\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

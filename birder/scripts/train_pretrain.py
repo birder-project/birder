@@ -360,7 +360,7 @@ def main() -> None:
         description="Pre-train model",
         epilog=(
             "Usage examples:\n"
-            "python3 train_pretrain.py --network mae_vit --encoder vit --encoder-param 2 "
+            "python train_pretrain.py --network mae_vit --encoder vit --encoder-param 2 "
             "--batch-size 32 --opt adamw --lr 0.0001\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,

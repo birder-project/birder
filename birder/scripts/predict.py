@@ -228,18 +228,18 @@ def main() -> None:
         description="Run prediction on directories and/or files",
         epilog=(
             "Usage example:\n"
-            "python3 predict.py --network resnet_v2 --net-param 50 --epoch 0 --script --gpu "
+            "python predict.py --network resnet_v2 --net-param 50 --epoch 0 --script --gpu "
             "--save-output data/Unknown\n"
-            "python3 predict.py --network maxvit --net-param 1 --epoch 0 --script --gpu "
+            "python predict.py --network maxvit --net-param 1 --epoch 0 --script --gpu "
             "--summary data/*.jpeg\n"
-            "python3 predict.py --network densenet -p 121 -e 90 --shuffle --gpu --show data/validation\n"
-            "python3 predict.py --network inception_resnet_v2 -e 100 --gpu --show-out-of-k data/validation\n"
-            "python3 predict.py --network inception_v3 -e 200 --gpu --save-results data/validation/*crane\n"
-            "python3 predict.py -n efficientnet_v2 -p 1 -e 200 --gpu --save-embedding data/validation\n"
-            "python3 predict.py -n efficientnet_v1 -p 4 -e 300 --gpu --save-embedding "
+            "python predict.py --network densenet -p 121 -e 90 --shuffle --gpu --show data/validation\n"
+            "python predict.py --network inception_resnet_v2 -e 100 --gpu --show-out-of-k data/validation\n"
+            "python predict.py --network inception_v3 -e 200 --gpu --save-results data/validation/*crane\n"
+            "python predict.py -n efficientnet_v2 -p 1 -e 200 --gpu --save-embedding data/validation\n"
+            "python predict.py -n efficientnet_v1 -p 4 -e 300 --gpu --save-embedding "
             "data/*/Alpine\\ swift --suffix alpine_swift\n"
-            "python3 predict.py -n convnext -p 2 -e 0 --gpu --parallel data/testing\n"
-            "python3 predict.py -n mobilevit_v2 -p 1.5 -t intermediate -e 80 --gpu --save-results "
+            "python predict.py -n convnext -p 2 -e 0 --gpu --parallel data/testing\n"
+            "python predict.py -n mobilevit_v2 -p 1.5 -t intermediate -e 80 --gpu --save-results "
             "--wds data/validation_packed\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,

@@ -31,7 +31,7 @@ def set_parser(subparsers: Any) -> None:
         description="create an ensemble model from multiple torchscript models",
         epilog=(
             "Usage examples:\n"
-            "python3 tool.py ensemble-model --network convnext_v2_4_0 focalnet_3_0 swin_transformer_v2_1_0\n"
+            "python tool.py ensemble-model --network convnext_v2_4_0 focalnet_3_0 swin_transformer_v2_1_0\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

@@ -15,8 +15,8 @@ def set_parser(subparsers: Any) -> None:
         description="download pretrained model",
         epilog=(
             "Usage examples:\n"
-            "python3 tool.py fetch-model mobilenet_v3_1_0.pt\n"
-            "python3 tool.py fetch-model convnext_v2_4_0.pt\n"
+            "python tool.py fetch-model mobilenet_v3_1_0.pt\n"
+            "python tool.py fetch-model convnext_v2_4_0.pt\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -25,6 +25,10 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
+    if settings.MODELS_DIR.exists() is False:
+        logging.info(f"Creating {settings.MODELS_DIR} directory...")
+        settings.MODELS_DIR.mkdir(parents=True)
+
     dst = settings.MODELS_DIR.joinpath(args.model_name)
     if dst.exists() is True:
         logging.warning(f"Model {args.model_name} already exists... aborting")

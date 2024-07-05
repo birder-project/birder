@@ -559,12 +559,12 @@ def main() -> None:
         description="Train classification model",
         epilog=(
             "Usage examples:\n"
-            "python3 train.py --network vgg -p 11 --momentum 0\n"
-            "python3 train.py --network resnet_v2 --net-param 50 --nesterov --lr-scheduler cosine "
+            "python train.py --network vgg -p 11 --momentum 0\n"
+            "python train.py --network resnet_v2 --net-param 50 --nesterov --lr-scheduler cosine "
             "--size 288 --batch-size 64 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3\n"
-            "python3 train.py --network inception_resnet_v2 --nesterov --lr-scheduler cosine "
+            "python train.py --network inception_resnet_v2 --nesterov --lr-scheduler cosine "
             "--batch-size 64 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3\n"
-            "python3 train.py --network inception_resnet_v2 --opt adamw --lr 0.0001 --wd 0.01 --epochs 105 "
+            "python train.py --network inception_resnet_v2 --opt adamw --lr 0.0001 --wd 0.01 --epochs 105 "
             "--save-frequency 1 --batch-size 64 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 "
             "--resume-epoch 100\n"
         ),

@@ -27,10 +27,10 @@ def set_parser(subparsers: Any) -> None:
         description="quantize model",
         epilog=(
             "Usage examples:\n"
-            "python3 tool.py quantize-model --network shufflenet_v2 --net-param 2 --epoch 0\n"
-            "python3 tool.py quantize-model -n convnext_v2 -p 4 -e 0 --qbackend x86 \n"
-            "python3 tool.py quantize-model --network densenet -p 121 -e 100 --num-calibration-batches 256\n"
-            "python3 tool.py quantize-model -n efficientnet_v2 -p 1 -e 200 --qbackend x86\n"
+            "python tool.py quantize-model --network shufflenet_v2 --net-param 2 --epoch 0\n"
+            "python tool.py quantize-model -n convnext_v2 -p 4 -e 0 --qbackend x86 \n"
+            "python tool.py quantize-model --network densenet -p 121 -e 100 --num-calibration-batches 256\n"
+            "python tool.py quantize-model -n efficientnet_v2 -p 1 -e 200 --qbackend x86\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

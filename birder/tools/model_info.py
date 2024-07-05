@@ -19,11 +19,11 @@ def set_parser(subparsers: Any) -> None:
         description="print information about the model",
         epilog=(
             "Usage examples:\n"
-            "python3 tool.py model-info -n deit -p 2 -t intermediate -e 0\n"
-            "python3 tool.py model-info --network squeezenet --epoch 100\n"
-            "python3 tool.py model-info --network densenet -p 121 -e 100 --pt2\n"
-            "python3 tool.py model-info -n efficientnet_v2 -p 1 -e 200 --lite\n"
-            "python3 tool.py model-info --network faster_rcnn --backbone resnext "
+            "python tool.py model-info -n deit -p 2 -t intermediate -e 0\n"
+            "python tool.py model-info --network squeezenet --epoch 100\n"
+            "python tool.py model-info --network densenet -p 121 -e 100 --pt2\n"
+            "python tool.py model-info -n efficientnet_v2 -p 1 -e 200 --lite\n"
+            "python tool.py model-info --network faster_rcnn --backbone resnext "
             "--backbone-param 101 -e 0\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 # Data paths
-BASE_DIR = Path(os.path.relpath(__file__)).parent.parent.parent
+BASE_DIR = Path(".")
 DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR.joinpath("data")))
 
 TRAINING_DATA_PATH = DATA_DIR.joinpath("training")

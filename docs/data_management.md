@@ -18,7 +18,7 @@ Generate simple table of contents for a markdown file
 `cat training.md | grep -E "^### " | sed -E 's/(#+) (.+)/\1:\2:\2/g' | awk -F ":" '{ gsub(/#/,"  ",$1); gsub(/[ ]/,"-",$3); print $1 "- [" $2 "](#" tolower($3) ")" }'`
 
 Install current venv as an ipykernel
-`python3 -m ipykernel install --user --name birder`
+`python -m ipykernel install --user --name birder`
 
 Count code lines of the project
 `cloc --fullpath --not-match-d='data/' --exclude-dir=.mypy_cache,.venv .`

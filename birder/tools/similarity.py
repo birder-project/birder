@@ -125,8 +125,8 @@ def set_parser(subparsers: Any) -> None:
         description="show most similar images",
         epilog=(
             "Usage examples:\n"
-            "python3 tool.py similarity -n efficientnet_v1 -p 4 -e 300 data/*/Alpine\\ swift\n"
-            "python3 tool.py similarity -n efficientnet_v2 -p 1 -e 200 --limit 3 data/*/Arabian\\ babbler\n"
+            "python tool.py similarity -n efficientnet_v1 -p 4 -e 300 data/*/Alpine\\ swift\n"
+            "python tool.py similarity -n efficientnet_v2 -p 1 -e 200 --limit 3 data/*/Arabian\\ babbler\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

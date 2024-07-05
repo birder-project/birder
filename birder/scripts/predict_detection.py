@@ -145,11 +145,11 @@ def main() -> None:
         description="Run detection prediction on directories and/or files",
         epilog=(
             "Usage example:\n"
-            "python3 predict_detection.py --network faster_rcnn --backbone resnext --backbone-param 101 "
+            "python predict_detection.py --network faster_rcnn --backbone resnext --backbone-param 101 "
             "-e 0 data/detection_data/validation\n"
-            "python3 predict_detection.py --network retinanet --backbone resnext --backbone-param 101 "
+            "python predict_detection.py --network retinanet --backbone resnext --backbone-param 101 "
             "-e 0 --show --gpu --compile data/detection_data/training\n"
-            "python3 predict_detection.py --network faster_rcnn --backbone resnext --backbone-param 101 "
+            "python predict_detection.py --network faster_rcnn --backbone resnext --backbone-param 101 "
             "-e 0 --min-score 0.25 --gpu --show --shuffle data/detection_data/validation\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,

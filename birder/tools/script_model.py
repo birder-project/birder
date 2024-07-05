@@ -24,11 +24,11 @@ def set_parser(subparsers: Any) -> None:
         description="convert pytorch model to torchscript model",
         epilog=(
             "Usage examples:\n"
-            "python3 tool.py script-model --network shufflenet_v2 --net-param 2 --epoch 200\n"
-            "python3 tool.py script-model --network squeezenet --epoch 100\n"
-            "python3 tool.py script-model --network densenet -p 121 -e 100 --pt2\n"
-            "python3 tool.py script-model -n efficientnet_v2 -p 1 -e 200 --lite\n"
-            "python3 tool.py script-model --network faster_rcnn --backbone resnext "
+            "python tool.py script-model --network shufflenet_v2 --net-param 2 --epoch 200\n"
+            "python tool.py script-model --network squeezenet --epoch 100\n"
+            "python tool.py script-model --network densenet -p 121 -e 100 --pt2\n"
+            "python tool.py script-model -n efficientnet_v2 -p 1 -e 200 --lite\n"
+            "python tool.py script-model --network faster_rcnn --backbone resnext "
             "--backbone-param 101 -e 0\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,

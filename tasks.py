@@ -78,7 +78,7 @@ def pylint(ctx):
 
     # pylint
     result = ctx.run(
-        f"python3 -m pylint *.py tests {PROJECT_DIR}",
+        f"python -m pylint *.py tests {PROJECT_DIR}",
         echo=True,
         pty=True,
         warn=True,
@@ -91,7 +91,7 @@ def pylint(ctx):
         echo("Passed", color=COLOR_GREEN)
 
     # flake8
-    result = ctx.run("python3 -m flake8 .", echo=True, pty=True, warn=True)
+    result = ctx.run("python -m flake8 .", echo=True, pty=True, warn=True)
     if result.exited != 0:
         return_code = 1
         echo("Failed", color=COLOR_RED)
@@ -101,7 +101,7 @@ def pylint(ctx):
 
     # mypy type checking
     result = ctx.run(
-        "python3 -m mypy --pretty --show-error-codes .",
+        "python -m mypy --pretty --show-error-codes .",
         echo=True,
         pty=True,
         warn=True,
@@ -114,7 +114,7 @@ def pylint(ctx):
         echo("Passed", color=COLOR_GREEN)
 
     # Format check, black
-    result = ctx.run("python3 -m black --check .", echo=True, pty=True, warn=True)
+    result = ctx.run("python -m black --check .", echo=True, pty=True, warn=True)
     if result.exited != 0:
         return_code = 1
         echo("Failed", color=COLOR_RED)
@@ -123,7 +123,7 @@ def pylint(ctx):
         echo("Passed", color=COLOR_GREEN)
 
     # Import check, isort
-    result = ctx.run("python3 -m isort --check-only .", echo=True, pty=True, warn=True)
+    result = ctx.run("python -m isort --check-only .", echo=True, pty=True, warn=True)
     if result.exited != 0:
         return_code = 1
         echo("Failed", color=COLOR_RED)
@@ -142,7 +142,7 @@ def sec(ctx):
 
     return_code = 0
 
-    result = ctx.run("python3 -m bandit -r .", echo=True, pty=True, warn=True)
+    result = ctx.run("python -m bandit -r .", echo=True, pty=True, warn=True)
 
     if result.exited != 0:
         return_code = 1
@@ -164,15 +164,15 @@ def pytest(ctx, coverage=False):
 
     if coverage is True:
         result = ctx.run(
-            f"python3 -m coverage run --source={PROJECT_DIR} -m unittest discover -s tests -v",
+            f"python -m coverage run --source={PROJECT_DIR} -m unittest discover -s tests -v",
             echo=True,
             pty=True,
             warn=True,
         )
-        ctx.run("python3 -m coverage report", echo=True, pty=True, warn=True)
+        ctx.run("python -m coverage report", echo=True, pty=True, warn=True)
 
     else:
-        result = ctx.run("python3 -m unittest discover -s tests -v", echo=True, pty=True, warn=True)
+        result = ctx.run("python -m unittest discover -s tests -v", echo=True, pty=True, warn=True)
 
     if result.exited != 0:
         return_code = 1
@@ -297,13 +297,13 @@ def convert_to_coco(ctx):
     """
 
     ctx.run(
-        "python3 tool.py labelme-to-coco data/detection_data/training_annotations",
+        "python tool.py labelme-to-coco data/detection_data/training_annotations",
         echo=True,
         pty=True,
         warn=True,
     )
     ctx.run(
-        "python3 tool.py labelme-to-coco data/detection_data/validation_annotations",
+        "python tool.py labelme-to-coco data/detection_data/validation_annotations",
         echo=True,
         pty=True,
         warn=True,

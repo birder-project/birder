@@ -36,7 +36,7 @@ Birder can be installed either as a package or cloned from git.
 1. Update pip and wheel in your virtual environment:
 
     ```sh
-    pip3 install --upgrade pip wheel
+    pip install --upgrade pip wheel
     ```
 
 1. Install PyTorch: choose the version suitable for your hardware and drivers from PyTorch's official website [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/).
@@ -44,7 +44,7 @@ Birder can be installed either as a package or cloned from git.
 1. Install the `birder` package
 
     ```sh
-    pip3 install birder
+    pip install birder
     ```
 
 ### Option 2: Cloning from Git (Recommended for Contributors or Advanced Users)
@@ -58,30 +58,30 @@ Birder can be installed either as a package or cloned from git.
 1. Set up and activate a virtual environment:
 
     ```sh
-    python3 -m venv .venv
+    python -m venv .venv
     source .venv/bin/activate
     ```
 
 1. Update pip and install wheel
 
     ```sh
-    pip3 install --upgrade pip wheel
+    pip install --upgrade pip wheel
     ```
 
 1. Install PyTorch suitable for your hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
 
     ```sh
     # For CUDA
-    pip3 install --upgrade -r requirements/requirements-pytorch-gpu.txt
+    pip install --upgrade -r requirements/requirements-pytorch-gpu.txt
 
     # For CPU
-    pip3 install --upgrade -r requirements/requirements-pytorch-cpu.txt
+    pip install --upgrade -r requirements/requirements-pytorch-cpu.txt
     ```
 
 1. Install development requirements:
 
     ```sh
-    pip3 install --upgrade -r requirements/requirements-dev.txt
+    pip install --upgrade -r requirements/requirements-dev.txt
     ```
 
 ### Verifying the Installation
@@ -89,14 +89,26 @@ Birder can be installed either as a package or cloned from git.
 To verify that Birder is installed correctly, run:
 
 ```sh
-python3 -c "import birder; print(birder.__version__)"
+python -c "import birder; print(birder.__version__)"
 ```
 
 This should print the version of Birder.
 
 ## Getting Started
 
-TBD
+Once Birder is installed, you can start exploring its capabilities. For example, you can fetch pre-trained models and use them to make predictions on bird images. Let's walk through these primary features to get you started with Birder.
+
+Birder provides pre-trained models that you can download using the `fetch-model` tool. To download a model, use the following command:
+
+```sh
+python -m birder.tools fetch-model mobilenet_v3_1_0.pt
+```
+
+To classify bird images, use the predict script:
+
+```sh
+birder-predict -n mobilenet_v3 -p 1 -e 0 --show bird.jpeg
+```
 
 ## Trained Models
 
