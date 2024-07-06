@@ -18,6 +18,7 @@ import torch
 from torch import nn
 
 from birder.core.net.base import BaseNet
+from birder.core.net.base import create_alias
 from birder.core.net.vit import Encoder
 from birder.core.net.vit import PatchEmbed
 
@@ -171,3 +172,10 @@ class Simple_ViT(BaseNet):
         self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=False)
 
         logging.info(f"Resized position embedding: {num_pos_tokens} to {num_new_tokens}")
+
+
+create_alias("simple_vit_b32", Simple_ViT, 0)
+create_alias("simple_vit_b16", Simple_ViT, 1)
+create_alias("simple_vit_l32", Simple_ViT, 2)
+create_alias("simple_vit_l16", Simple_ViT, 3)
+create_alias("simple_vit_h14", Simple_ViT, 4)

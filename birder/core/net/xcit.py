@@ -19,6 +19,7 @@ from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
 from birder.core.net.base import BaseNet
+from birder.core.net.base import create_alias
 from birder.core.net.cait import ClassAttention
 
 
@@ -446,3 +447,15 @@ class XCiT(BaseNet):
 
     def create_classifier(self) -> nn.Module:
         return nn.Linear(self.embedding_size, self.num_classes)
+
+
+create_alias("xcit_nano16", XCiT, 0)
+create_alias("xcit_nano8", XCiT, 1)
+create_alias("xcit_tiny16", XCiT, 2)
+create_alias("xcit_tiny8", XCiT, 3)
+create_alias("xcit_small16", XCiT, 4)
+create_alias("xcit_small8", XCiT, 5)
+create_alias("xcit_medium16", XCiT, 6)
+create_alias("xcit_medium8", XCiT, 7)
+create_alias("xcit_large16", XCiT, 8)
+create_alias("xcit_large8", XCiT, 9)

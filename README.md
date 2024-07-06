@@ -1,5 +1,7 @@
 # Birder
 
+Birder is an open-source computer vision framework for bird species classification and detection in wildlife imagery.
+
 * [Introduction](#introduction)
 * [Setup](#setup)
 * [Getting Started](#getting-started)
@@ -10,7 +12,7 @@
 
 ## Introduction
 
-Birder is an open-source computer vision framework designed for wildlife imagery, with a specific focus on bird species classification and detection. This project leverages deep neural networks to provide robust models capable of handling real-world data challenges.
+Birder is an open-source computer vision framework designed for wildlife imagery, specifically focused on bird species classification and detection. This project leverages deep neural networks to provide robust models that can handle real-world data challenges.
 
 The project features:
 
@@ -22,9 +24,9 @@ The project features:
 * Advanced error analysis tools
 * Extensive documentation and tutorials (hopefully...)
 
-Unlike projects that aim to reproduce ImageNet training results from common papers, Birder is tailored for practical applications in ornithology, conservation, and wildlife photography.
+Unlike projects that aim to reproduce ImageNet training results from common papers, Birder is tailored specifically for practical applications in ornithology, conservation, and wildlife photography.
 
-For a complete list of supported bird species, please refer to [docs/classes.md](docs/classes.md).
+For a complete list of supported bird species, please refer to the [docs/classes.md](docs/classes.md) file in the docs folder.
 
 As Ross Wightman eloquently stated in the [timm README](https://github.com/huggingface/pytorch-image-models#introduction):
 
@@ -34,9 +36,16 @@ The same principle applies to Birder. We stand on the shoulders of giants in the
 
 ## Setup
 
-Birder can be installed either as a package or cloned from git.
+Birder can be installed either as a package or cloned from Git.
 
 ### Option 1: Package Installation (Recommended for Users)
+
+1. Set up and activate a virtual environment:
+
+    ```sh
+    python -m venv .venv
+    source .venv/bin/activate  # On Windows, use .venv\Scripts\activate
+    ```
 
 1. Update pip and wheel in your virtual environment:
 
@@ -44,7 +53,7 @@ Birder can be installed either as a package or cloned from git.
     pip install --upgrade pip wheel
     ```
 
-1. Install PyTorch: choose the version suitable for your hardware and drivers from PyTorch's official website [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/).
+1. Install PyTorch suitable for your hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
 
 1. Install the `birder` package
 
@@ -111,7 +120,7 @@ To download a model, use the following command:
 python -m birder.tools fetch-model mobilenet_v3_1_0
 ```
 
-To classify bird images, use the predict script:
+To classify bird images, use the `birder-predict` script as follows:
 
 ```sh
 birder-predict -n mobilenet_v3 -p 1 -e 0 --show bird.jpeg
@@ -141,7 +150,7 @@ This command displays a catalog of models ready for download.
 
 The naming convention for Birder models encapsulates key information about their architecture and training approach.
 
-Architecture: The initial component of the name denotes the core neural network structure (e.g., MobileNetV3, ResNet50).
+Architecture: The first part of the model name indicates the core neural network structure (e.g., MobileNet, ResNet).
 
 Training indicators:
 
@@ -152,9 +161,9 @@ Other tags:
 
 * quantized: Model that has been quantized to reduce the computational and memory costs of running inference
 
-Net Param: The number following the model name (e.g., 50, 1.0, 0.5) is called the `net_param`. It represents a specific configuration choice for the network, which can affect aspects such as model size or complexity.
+Net Param: The number following the model name (e.g., 50, 1.0, 0.5), called the `net_param`, represents a specific configuration choice for the network. It represents a specific configuration choice for the network, which can affect aspects such as model size or complexity.
 
-for instance *convnext_v2_5_pretrained-intermediate_0* represents a ConvNeXt v2 model with a `net_param` of 5 that underwent both pre-training and intermediate training.
+For instance, *convnext_v2_5_pretrained-intermediate_0* represents a ConvNeXt v2 model with a `net_param` of 5 that underwent both pre-training and intermediate training.
 
 ### Self-supervised Image Pre-training
 
@@ -174,15 +183,15 @@ The pre-training dataset comprises:
 
 Total: ~7.5M images
 
-This carefully curated mix of datasets provides a balance between general visual knowledge and domain-specific bird imagery.
+This carefully curated mix of datasets balances general visual knowledge with domain-specific bird imagery, enhancing the model's overall performance.
 
 For detailed information about these datasets, including descriptions, citations, and licensing details, please refer to [docs/public_datasets.md](docs/public_datasets.md).
 
 ## Detection
 
-Coming soon...
+Detection features are currently under development and will be available in future releases.
 
-For annotation run the following
+For annotation, run the following command:
 
 ```sh
 labelme --labels ../birder/data/detection_data/classes.txt --nodata --output ../birder/data/detection_data/training_annotations --flags unknown ../birder/data/detection_data/training
@@ -206,10 +215,12 @@ Thank you for your understanding and interest in Birder!
 
 ### Code
 
-The code here is licensed Apache 2.0 [LICENSE](LICENSE).
-Some code is adapted from other projects, there are notices with links to the references at the top of the file or at the specific class / function. It is your responsibility to ensure you comply with licenses here and conditions of any dependent licenses.
+The code in this project is licensed under Apache 2.0. See [LICENSE](LICENSE) for details.
+Some code is adapted from other projects.
+There are notices with links to the references at the top of the file or at the specific class/function.
+It is your responsibility to ensure compliance with licenses here and conditions of any dependent licenses.
 
-If you think I've missed a reference or a license please create an issue.
+If you think we've missed a reference or a license, please create an issue.
 
 ### Pretrained Weights
 
@@ -236,4 +247,4 @@ Special thanks to:
 
 This project also benefits from numerous open-source libraries and ornithological resources.
 
-If any attribution is missing, please open an issue to let me know.
+If any attribution is missing, please open an issue to let us know.
