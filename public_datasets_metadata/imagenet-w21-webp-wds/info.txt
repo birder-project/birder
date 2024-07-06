@@ -1,5 +1,0 @@
-Source: https://huggingface.co/datasets/timm/imagenet-w21-webp-wds
-Number of samples in training: 13022846
-Number of samples in validation: 128430
-
-Note: Last 10 shards taken into validation
