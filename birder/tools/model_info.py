@@ -12,6 +12,20 @@ from birder.core.net.base import network_names_filter
 from birder.core.net.detection.base import DetectionSignatureType
 
 
+def get_model_info(net: torch.nn.Module) -> dict[str, float]:
+    num_params = 0
+    param_size = 0
+    buffer_size = 0
+    for param in net.parameters():
+        num_params += param.numel()
+        param_size += param.nelement() * param.element_size()
+
+    for buffer in net.buffers():
+        buffer_size += buffer.nelement() * buffer.element_size()
+
+    return {"num_params": num_params, "model_size": param_size + buffer_size}
+
+
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "model-info",
@@ -80,21 +94,13 @@ def main(args: argparse.Namespace) -> None:
             script=False,
         )
 
-    num_params = 0
-    param_size = 0
-    buffer_size = 0
-    for param in net.parameters():
-        num_params += param.numel()
-        param_size += param.nelement() * param.element_size()
-
-    for buffer in net.buffers():
-        buffer_size += buffer.nelement() * buffer.element_size()
+    model_info = get_model_info(net)
 
     console = Console()
     console.print(f"Network type: [bold]{type(net).__name__}[/bold], with task={net.task}")
     console.print(f"Network signature: {signature}")
     console.print(f"Network rgb values: {rgb_values}")
-    console.print(f"Number of parameters: {num_params:,}")
-    console.print(f"Model size (inc. buffers): {(param_size + buffer_size) / 1024**2:,.2f} [bold]MB[/bold]")
+    console.print(f"Number of parameters: {model_info['num_params']:,}")
+    console.print(f"Model size (inc. buffers): {(model_info['model_size']) / 1024**2:,.2f} [bold]MB[/bold]")
     console.print()
     console.print(Columns(list(class_to_idx.keys()), column_first=True, title="[bold]Class list[/bold]"))

@@ -465,14 +465,22 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v2 --net-param 2 --lr 0
 
 ### Mobilenet v3
 
+#### ### Mobilenet v3: 1.5
+
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3 --net-param 1 --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 300 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3 --net-param 1.5 --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile
 ```
 
-At epoch 210 increase resolution
+At epoch 320 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3 --net-param 1 --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 128 --size 384 --epochs 300 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --resume-epoch 210 --load-states
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3 --net-param 1.5 --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 128 --size 384 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile --resume-epoch 320 --load-states
+```
+
+Optional intermediate training
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3 --net-param 1.5 --tag intermediate --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 ### MobileViT v1
@@ -812,15 +820,15 @@ torchrun --nproc_per_node=2 train.py --network xcit --net-param 5 --opt adamw --
 ### ResNet v2: 50 ImageNet 1K Example
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network resnet_v2 --net-param 50 --tag imagenet1k --lr-scheduler step --lr-step-size 30 --lr-step-gamma 0.1 --batch-size 256 --epochs 90 --smoothing-alpha 0.1 --aug-level 3 --rgb-mode imagenet --wds --wds-class-file public_datasets_metadata/imagenet-1k-wds/classes.txt --wds-train-size 1281167 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
+torchrun --nproc_per_node=2 train.py --network resnet_v2 --net-param 50 --tag imagenet1k --lr-scheduler step --lr-step-size 30 --lr-step-gamma 0.1 --batch-size 256 --epochs 90 --smoothing-alpha 0.1 --aug-level 3 --rgb-mode imagenet --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
 ```
 
-## ImageNet 21K
+## ImageNet 12K
 
-### ResNet v2: 50 ImageNet 21K Example
+### ResNet v2: 50 ImageNet 12K Example
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network resnet_v2 --net-param 50 --tag imagenet21k --lr-scheduler step --lr-step-size 30 --lr-step-gamma 0.1 --batch-size 256 --epochs 90 --smoothing-alpha 0.1 --aug-level 3 --rgb-mode imagenet --wds --wds-class-file public_datasets_metadata/imagenet-w21-webp-wds/classes.txt --wds-train-size 13022846 --data-path ~/Datasets/imagenet-w21-webp-wds/training --wds-val-size 128430 --val-path ~/Datasets/imagenet-w21-webp-wds/validation
+torchrun --nproc_per_node=2 train.py --network resnet_v2 --net-param 50 --tag imagenet12k --lr-scheduler step --lr-step-size 30 --lr-step-gamma 0.1 --batch-size 256 --epochs 90 --smoothing-alpha 0.1 --aug-level 3 --rgb-mode imagenet --wds --wds-class-file public_datasets_metadata/imagenet-12k-classes.txt --wds-train-size 13022846 --data-path ~/Datasets/imagenet-w21-webp-wds/training --wds-val-size 128430 --val-path ~/Datasets/imagenet-w21-webp-wds/validation
 ```
 
 ----

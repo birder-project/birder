@@ -23,43 +23,45 @@ def verify_directory(args: argparse.Namespace) -> None:
             v2.ToDtype(torch.float32, scale=True),
         ]
     )
-    dataset = ImageFolder(args.data_path, transform=transform, loader=read_image)
-    total = len(dataset)
-    dataset.samples = dataset.samples[args.start :]
-    data_loader = DataLoader(
-        dataset,
-        shuffle=False,
-        batch_size=batch_size,
-        num_workers=8,
-        drop_last=False,
-    )
-    with tqdm(total=total, initial=args.start, unit="images", unit_scale=True, leave=False) as progress:
-        if args.fast is True:
-            idx = 0
-            try:
-                for idx, (_, _) in enumerate(data_loader):
-                    progress.update(batch_size)
 
-            except (OSError, RuntimeError) as e:
-                logging.warning(
-                    f"File at batch no. {idx} (batch size = {batch_size}, "
-                    f"{(idx-1) * batch_size + args.start}) failed to load {e}"
-                )
-
-        else:
-            for img_path, _ in dataset.samples:
+    for data_path in args.data_path:
+        dataset = ImageFolder(data_path, transform=transform, loader=read_image)
+        total = len(dataset)
+        dataset.samples = dataset.samples[args.start :]
+        data_loader = DataLoader(
+            dataset,
+            shuffle=False,
+            batch_size=batch_size,
+            num_workers=8,
+            drop_last=False,
+        )
+        with tqdm(total=total, initial=args.start, unit="images", unit_scale=True, leave=False) as progress:
+            if args.fast is True:
+                idx = 0
                 try:
-                    img = dataset.loader(img_path)
-                    img = transform(img)
-                    if img.size(0) != 3:
-                        logging.warning(f"File {img_path} failed to load {img.size()}")
+                    for idx, (_, _) in enumerate(data_loader):
+                        progress.update(batch_size)
 
                 except (OSError, RuntimeError) as e:
-                    logging.warning(f"File {img_path} failed to load {e}")
+                    logging.warning(
+                        f"File at batch no. {idx} (batch size = {batch_size}, "
+                        f"{(idx-1) * batch_size + args.start}) failed to load {e}"
+                    )
 
-                progress.update(1)
+            else:
+                for img_path, _ in dataset.samples:
+                    try:
+                        img = dataset.loader(img_path)
+                        img = transform(img)
+                        if img.size(0) != 3:
+                            logging.warning(f"File {img_path} failed to load {img.size()}")
 
-    logging.info("Done !")
+                    except (OSError, RuntimeError) as e:
+                        logging.warning(f"File {img_path} failed to load {e}")
+
+                    progress.update(1)
+
+        logging.info(f"Finished {data_path}")
 
 
 def set_parser(subparsers: Any) -> None:
@@ -71,12 +73,13 @@ def set_parser(subparsers: Any) -> None:
             "Usage examples:\n"
             "python tool.py verify-directory --fast data/testing\n"
             "python tool.py verify-directory ~/Datasets/birdsnap\n"
+            "python tool.py verify-directory --fast data/training data/validation data/testing data/raw_data\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
     subparser.add_argument("--fast", default=False, action="store_true", help="use parallel dataloader")
     subparser.add_argument("--start", type=int, default=0, help="start at sample number (skip the beginning)")
-    subparser.add_argument("data_path", help="image directory path")
+    subparser.add_argument("data_path", nargs="+", help="image directory paths")
     subparser.set_defaults(func=main)
 
 

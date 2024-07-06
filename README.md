@@ -2,6 +2,11 @@
 
 * [Introduction](#introduction)
 * [Setup](#setup)
+* [Getting Started](#getting-started)
+* [Pre-trained Models](#pre-trained-models)
+* [Detection](#detection)
+* [Licenses](#licenses)
+* [Acknowledgments](#acknowledgments)
 
 ## Introduction
 
@@ -10,7 +15,7 @@ Birder is an open-source computer vision framework designed for wildlife imagery
 The project features:
 
 * A diverse collection of classification and detection models
-* Support for self-supervised pretraining
+* Support for self-supervised pre-training
 * Knowledge distillation training (teacher-student)
 * Custom utilities and data augmentation techniques
 * Comprehensive training scripts
@@ -122,11 +127,41 @@ For more detailed usage instructions and examples, please refer to our [document
 
 ## Pre-trained Models
 
-TBD
+Birder provides a comprehensive suite of pre-trained models for bird species classification.
 
-### Image Pre-training
+To explore the full range of available pre-trained models, use the `list-models` tool:
 
-Data used in pre-training:
+```sh
+python -m birder.tools list-models --registry
+```
+
+This command displays a catalog of models ready for download.
+
+### Model Nomenclature
+
+The naming convention for Birder models encapsulates key information about their architecture and training approach.
+
+Architecture: The initial component of the name denotes the core neural network structure (e.g., MobileNetV3, ResNet50).
+
+Training indicators:
+
+* intermediate: Signifies models that underwent a two-stage training process, beginning with a large-scale weakly labeled dataset before fine-tuning on the primary dataset
+* pretrained: Indicates models that leveraged self-supervised pre-training techniques, primarily Masked Autoencoder (MAE), prior to supervised training
+
+Other tags:
+
+* quantized: Model that has been quantized to reduce the computational and memory costs of running inference
+
+Net Param: The number following the model name (e.g., 50, 1.0, 0.5) is called the `net_param`. It represents a specific configuration choice for the network, which can affect aspects such as model size or complexity.
+
+for instance *convnext_v2_5_pretrained-intermediate_0* represents a ConvNeXt v2 model with a `net_param` of 5 that underwent both pre-training and intermediate training.
+
+### Self-supervised Image Pre-training
+
+Our pre-training process utilizes a diverse collection of image datasets.
+This approach allows our models to learn rich, general-purpose visual representations before fine-tuning on specific bird classification tasks.
+
+The pre-training dataset comprises:
 
 * iNaturalist 2021 (~3.3M)
 * WebVision-2.0 (~1.5M random subset)
@@ -135,43 +170,17 @@ Data used in pre-training:
 * NABirds (~48K)
 * Birdsnap v1.1 (~44K)
 * CUB-200 2011 (~18K)
-* The Birder dataset (~1M)
+* The Birder dataset (~1.5M)
 
-Total: ~7M images
+Total: ~7.5M images
 
-Dataset information can be found at [public_datasets_metadata/](public_datasets_metadata/)
+This carefully curated mix of datasets provides a balance between general visual knowledge and domain-specific bird imagery.
 
-## TorchServe
-
-Create model archive file (mar)
-
-```sh
-torch-model-archiver --model-name convnext_v2_4 --version 1.0 --handler birder/service/classification.py --serialized-file models/convnext_v2_4_0.pts --export-path ts
-```
-
-```sh
-torch-model-archiver --model-name convnext_v2_4 --version 1.0 --handler birder/service/classification.py --serialized-file models/convnext_v2_4_0.pt2 --export-path ts --config-file ts/example_config.yaml
-```
-
-Run TorchServe
-
-```sh
-LOG_LOCATION=ts/logs METRICS_LOCATION=ts/logs torchserve --start --ncs --foreground --ts-config ts/config.properties --model-store ts/ --models convnext_v2_4.mar
-```
-
-Verify service is running
-
-```sh
-curl http://localhost:8080/ping
-```
-
-Run inference
-
-```sh
-curl http://localhost:8080/predictions/convnext_v2_4 -F "data=@data/validation/African crake/000001.jpeg"
-```
+For detailed information about these datasets, including descriptions, citations, and licensing details, please refer to [docs/public_datasets.md](docs/public_datasets.md).
 
 ## Detection
+
+Coming soon...
 
 For annotation run the following
 
@@ -179,33 +188,52 @@ For annotation run the following
 labelme --labels ../birder/data/detection_data/classes.txt --nodata --output ../birder/data/detection_data/training_annotations --flags unknown ../birder/data/detection_data/training
 ```
 
-## Release
+## Project Status and Contributions
 
-1. Make sure the full CI passes
+Birder is currently a personal project in active development. As the sole developer, I am focused on building and refining the core functionalities of the framework. At this time, I am not actively seeking external contributors.
 
-   ```sh
-   inv ci
-   ```
+However, I greatly appreciate the interest and support from the community. If you have suggestions, find bugs, or want to provide feedback, please feel free to:
 
-1. Update CHANGELOG.
+* Open an issue in the project's issue tracker
+* Use the project and share your experiences
+* Star the repository if you find it useful
 
-1. Bump version (`--major`, `--minor` or `--patch`)
+While I may not be able to incorporate external contributions at this stage, your input is valuable and helps shape the direction of Birder. I'll update this section if the contribution policy changes in the future.
 
-    ```sh
-    bumpver update --patch
-    ```
+Thank you for your understanding and interest in Birder!
 
-1. Review the commit and tag and push.
+## Licenses
 
-1. Test the package
+### Code
 
-    ```sh
-    docker build -f docker/test.Dockerfile . -t birder-package-test
-    docker run birder-package-test:latest
-    ```
+The code here is licensed Apache 2.0 [LICENSE](LICENSE).
+Some code is adapted from other projects, there are notices with links to the references at the top of the file or at the specific class / function. It is your responsibility to ensure you comply with licenses here and conditions of any dependent licenses.
 
-1. Release to PyPI
+If you think I've missed a reference or a license please create an issue.
 
-    ```sh
-    twine upload dist/*
-    ```
+### Pretrained Weights
+
+Some of the pretrained weights available here are pretrained on ImageNet. ImageNet was released for non-commercial research purposes only (<https://image-net.org/download>). It's not clear what the implications of that are for the use of pretrained weights from that dataset. It's best to seek legal advice if you intend to use the pretrained weights in a commercial product.
+
+### Disclaimer
+
+If you intend to use Birder, its pretrained weights, or any associated datasets in a commercial product, we strongly recommend seeking legal advice to ensure compliance with all relevant licenses and terms of use.
+
+It's the user's responsibility to ensure that their use of this project, including any pretrained weights or datasets, complies with all applicable licenses and legal requirements.
+
+## Acknowledgments
+
+Birder owes much to the work of others in computer vision, machine learning, and ornithology.
+
+Special thanks to:
+
+* **Ross Wightman**: His work on [PyTorch Image Models (timm)](https://github.com/huggingface/pytorch-image-models) greatly inspired the design and approach of Birder.
+
+* **Image Contributors**:
+  * Yaron Schmid - from [YS Wildlife](https://www.yswildlifephotography.com/who-we-are)
+
+  for their generous donations of bird photographs.
+
+This project also benefits from numerous open-source libraries and ornithological resources.
+
+If any attribution is missing, please open an issue to let me know.

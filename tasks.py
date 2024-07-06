@@ -308,3 +308,18 @@ def convert_to_coco(ctx):
         pty=True,
         warn=True,
     )
+
+
+@task
+def pack_intermediate(ctx):
+    """
+    Pack data for intermediate training
+    """
+
+    ctx.run("python3 tool.py pack -j 12 --size 384 data/training data/raw_data", echo=True, pty=True, warn=True)
+    ctx.run(
+        "python tool.py pack -j 4 --class-file data/training_packed/classes.txt data/validation raw_data_validation",
+        echo=True,
+        pty=True,
+        warn=True,
+    )

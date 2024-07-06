@@ -17,6 +17,7 @@ from torch import nn
 from torchvision.ops import StochasticDepth
 
 from birder.core.net.base import BaseNet
+from birder.core.net.base import create_alias
 
 
 class LayerNorm2d(nn.LayerNorm):
@@ -528,3 +529,17 @@ class FocalNet(BaseNet):
 
     def create_classifier(self) -> nn.Module:
         return nn.Linear(self.embedding_size, self.num_classes)
+
+
+create_alias("focalnet_t_srf", FocalNet, 0)
+create_alias("focalnet_t_lrf", FocalNet, 1)
+create_alias("focalnet_s_srf", FocalNet, 2)
+create_alias("focalnet_s_lrf", FocalNet, 3)
+create_alias("focalnet_b_srf", FocalNet, 4)
+create_alias("focalnet_b_lrf", FocalNet, 5)
+create_alias("focalnet_l3", FocalNet, 6)
+create_alias("focalnet_l4", FocalNet, 7)
+create_alias("focalnet_xl3", FocalNet, 8)
+create_alias("focalnet_xl4", FocalNet, 9)
+create_alias("focalnet_h3", FocalNet, 10)
+create_alias("focalnet_h4", FocalNet, 11)

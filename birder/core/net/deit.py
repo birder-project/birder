@@ -16,6 +16,7 @@ import torch
 from torch import nn
 
 from birder.core.net.base import BaseNet
+from birder.core.net.base import create_alias
 from birder.core.net.vit import Encoder
 from birder.core.net.vit import PatchEmbed
 from birder.core.net.vit import adjust_position_embedding
@@ -173,3 +174,8 @@ class DeiT(BaseNet):
         )
 
         logging.info(f"Resized position embedding: {num_pos_tokens} to {num_new_tokens}")
+
+
+create_alias("deit_t16", DeiT, 0)
+create_alias("deit_s16", DeiT, 1)
+create_alias("deit_b16", DeiT, 2)

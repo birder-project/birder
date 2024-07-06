@@ -50,6 +50,7 @@ class BaseNet(nn.Module):
             # Exclude aliases
             return
 
+        _BASE_NETWORKS.append(cls.__name__.lower())
         _REGISTERED_NETWORKS[cls.__name__.lower()] = cls
 
     def __init__(
@@ -121,8 +122,11 @@ def net_factory(
 
 def create_alias(alias: str, module: type[BaseNet], net_param: float) -> None:
     _REGISTERED_NETWORKS[alias] = type(alias, (module,), {"net_param": net_param})
+    _ALIAS.append(alias)
 
 
+_BASE_NETWORKS: list[str] = []
+_ALIAS: list[str] = []
 _REGISTERED_NETWORKS: dict[str, type[BaseNet]] = {}
 
 
