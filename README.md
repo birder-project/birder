@@ -14,6 +14,8 @@ Birder is an open-source computer vision framework for bird species classificati
 
 Birder is an open-source computer vision framework designed for wildlife imagery, specifically focused on bird species classification and detection. This project leverages deep neural networks to provide robust models that can handle real-world data challenges.
 
+For comprehensive documentation, tutorials, and more visit the main documentation at [docs/README.md](docs/README.md).
+
 The project features:
 
 * A diverse collection of classification and detection models
@@ -53,7 +55,7 @@ Birder can be installed either as a package or cloned from Git.
     pip install --upgrade pip wheel
     ```
 
-1. Install PyTorch suitable for your hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
+1. Install PyTorch 2.3 or above suitable for your hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
 
 1. Install the `birder` package
 
@@ -83,7 +85,7 @@ Birder can be installed either as a package or cloned from Git.
     pip install --upgrade pip wheel
     ```
 
-1. Install PyTorch suitable for your hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
+1. Install PyTorch 2.3 or above suitable for your hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
 
     ```sh
     # For CUDA
@@ -175,7 +177,7 @@ The pre-training dataset comprises:
 * iNaturalist 2021 (~3.3M)
 * WebVision-2.0 (~1.5M random subset)
 * imagenet-w21-webp-wds (~1M random subset)
-* SA-1B (~200K random subset of 18 chunks)
+* SA-1B (~220K random subset of 20 chunks)
 * NABirds (~48K)
 * Birdsnap v1.1 (~44K)
 * CUB-200 2011 (~18K)

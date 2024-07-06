@@ -1,5 +1,4 @@
 import argparse
-import json
 import logging
 from typing import Any
 
@@ -31,11 +30,17 @@ def set_parser(subparsers: Any) -> None:
         description="create an ensemble model from multiple torchscript models",
         epilog=(
             "Usage examples:\n"
-            "python tool.py ensemble-model --network convnext_v2_4_0 focalnet_3_0 swin_transformer_v2_1_0\n"
+            "python tool.py ensemble-model --networks convnext_v2_4_0 focalnet_3_0 swin_transformer_v2_1_0 --pts\n"
+            "python tool.py ensemble-model --networks mobilevit_v2_1.5_intermediate_80 edgevit_2_intermediate_100 --pt2"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
     subparser.add_argument("--networks", type=str, required=True, nargs="+", help="networks to ensemble")
+
+    format_group = subparser.add_mutually_exclusive_group(required=True)
+    format_group.add_argument("--pts", default=False, action="store_true", help="ensemble TorchScript models")
+    format_group.add_argument("--pt2", default=False, action="store_true", help="ensemble pt2 models")
+
     subparser.set_defaults(func=main)
 
 
@@ -46,7 +51,7 @@ def main(args: argparse.Namespace) -> None:
     signature_list = []
     rgb_values_list = []
     for network in args.networks:
-        (net, class_to_idx, signature, rgb_values) = cli.load_model(device, network, inference=True, script=True)
+        (net, class_to_idx, signature, rgb_values) = cli.load_model(device, network, inference=True, pt2=True)
         nets.append(net)
         class_to_idx_list.append(class_to_idx)
         signature_list.append(signature)
@@ -62,19 +67,31 @@ def main(args: argparse.Namespace) -> None:
     if [rgb_values_list[0]] * len(rgb_values_list) != rgb_values_list:
         logging.warning(f"Networks rgb values differ, using rgb values of {rgb_values_list[0]}")
 
+    signature = signature_list[0]
+    class_to_idx = class_to_idx_list[0]
+    rgb_values = rgb_values_list[0]
     ensemble = Ensemble(nets)
-    scripted_ensemble = torch.jit.script(ensemble)
 
-    # Save model
     network_name = "ensemble"
-    model_path = cli.model_path(network_name, script=True)
-    logging.info(f"Saving TorchScript model checkpoint {model_path}...")
-    torch.jit.save(
-        scripted_ensemble,
-        model_path,
-        _extra_files={
-            "class_to_idx": json.dumps(class_to_idx_list[0]),
-            "signature": json.dumps(signature_list[0]),
-            "rgb_values": json.dumps(rgb_values_list[0]),
-        },
-    )
+    model_path = cli.model_path(network_name, pts=args.pts, pt2=args.pt2)
+    if model_path.exists() is True:
+        logging.warning("Ensemble already exists... aborting")
+        raise SystemExit(1)
+
+    logging.info(f"Saving model {model_path}...")
+    if args.pt2 is True:
+        signature["inputs"][0]["data_shape"][0] = 2  # Set batch size
+        sample_shape = signature["inputs"][0]["data_shape"]
+        batch_dim = torch.export.Dim("batch", min=1)
+        exported_net = torch.export.export(
+            ensemble, (torch.randn(*sample_shape, device=device),), dynamic_shapes={"x": {0: batch_dim}}
+        )
+
+        # Save model
+        cli.save_pt2(exported_net, model_path, nets[0].task, class_to_idx, signature, rgb_values)
+
+    elif args.pts is True:
+        scripted_ensemble = torch.jit.script(ensemble)
+
+        # Save model
+        cli.save_pts(scripted_ensemble, model_path, nets[0].task, class_to_idx, signature, rgb_values)

@@ -19,17 +19,17 @@ from birder.core.net.detection.base import DetectionSignatureType
 
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
-        "script-model",
-        help="convert pytorch model to torchscript model",
-        description="convert pytorch model to torchscript model",
+        "convert-model",
+        help="convert PyTorch model to various formats",
+        description="convert PyTorch model to various formats",
         epilog=(
             "Usage examples:\n"
-            "python tool.py script-model --network shufflenet_v2 --net-param 2 --epoch 200\n"
-            "python tool.py script-model --network squeezenet --epoch 100\n"
-            "python tool.py script-model --network densenet -p 121 -e 100 --pt2\n"
-            "python tool.py script-model -n efficientnet_v2 -p 1 -e 200 --lite\n"
-            "python tool.py script-model --network faster_rcnn --backbone resnext "
-            "--backbone-param 101 -e 0\n"
+            "python tool.py convert-model --network shufflenet_v2 --net-param 2 --epoch 200 --pts\n"
+            "python tool.py convert-model --network squeezenet --epoch 100 --onnx\n"
+            "python tool.py convert-model -n mobilevit_v2 -p 1.5 -t intermediate -e 80 --pt2\n"
+            "python tool.py convert-model -n efficientnet_v2 -p 1 -e 0 --lite\n"
+            "python tool.py convert-model --network faster_rcnn --backbone resnext "
+            "--backbone-param 101 -e 0 --pts\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -53,9 +53,17 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--backbone-tag", type=str, help="backbone training log tag (loading only)")
     subparser.add_argument("-e", "--epoch", type=int, default=0, help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
-    subparser.add_argument("--lite", default=False, action="store_true", help="lite interpreter version model")
-    subparser.add_argument("--pt2", default=False, action="store_true", help="standardized model representation")
-    subparser.add_argument("--onnx", default=False, action="store_true", help="export to onnx format")
+
+    format_group = subparser.add_mutually_exclusive_group(required=True)
+    format_group.add_argument("--pts", default=False, action="store_true", help="convert to TorchScript model")
+    format_group.add_argument(
+        "--lite", default=False, action="store_true", help="convert to lite interpreter version model"
+    )
+    format_group.add_argument(
+        "--pt2", default=False, action="store_true", help="convert to standardized model representation"
+    )
+    format_group.add_argument("--onnx", default=False, action="store_true", help="convert to ONNX format")
+
     subparser.set_defaults(func=main)
 
 
@@ -71,7 +79,7 @@ def main(args: argparse.Namespace) -> None:
             tag=args.tag,
             epoch=args.epoch,
             inference=True,
-            script=False,
+            pts=False,
         )
         network_name = lib.get_network_name(args.network, net_param=args.net_param, tag=args.tag)
 
@@ -86,7 +94,7 @@ def main(args: argparse.Namespace) -> None:
             backbone_tag=args.backbone_tag,
             epoch=args.epoch,
             inference=True,
-            script=False,
+            pts=False,
         )
         network_name = lib.get_detection_network_name(
             args.network,
@@ -100,7 +108,7 @@ def main(args: argparse.Namespace) -> None:
     net.eval()
 
     model_path = cli.model_path(
-        network_name, epoch=args.epoch, script=True, lite=args.lite, pt2=args.pt2, onnx=args.onnx
+        network_name, epoch=args.epoch, pts=args.pts, lite=args.lite, pt2=args.pt2, onnx=args.onnx
     )
     logging.info(f"Saving converted model {model_path}...")
     if args.lite is True:
@@ -123,16 +131,7 @@ def main(args: argparse.Namespace) -> None:
         exported_net = torch.export.export(
             net, (torch.randn(*sample_shape, device=device),), dynamic_shapes={"x": {0: batch_dim}}
         )
-        torch.export.save(
-            exported_net,
-            model_path,
-            extra_files={
-                "task": net.task,
-                "class_to_idx": json.dumps(class_to_idx),
-                "signature": json.dumps(signature),
-                "rgb_values": json.dumps(rgb_values),
-            },
-        )
+        cli.save_pt2(exported_net, model_path, net.task, class_to_idx, signature, rgb_values)
 
     elif args.onnx is True:
         signature["inputs"][0]["data_shape"][0] = 1  # Set batch size
@@ -162,15 +161,6 @@ def main(args: argparse.Namespace) -> None:
         onnx_model = onnx.load(str(model_path))
         onnx.checker.check_model(onnx_model, full_check=True)
 
-    else:
+    elif args.pts is True:
         scripted_module = torch.jit.script(net)
-        torch.jit.save(
-            scripted_module,
-            model_path,
-            _extra_files={
-                "task": net.task,
-                "class_to_idx": json.dumps(class_to_idx),
-                "signature": json.dumps(signature),
-                "rgb_values": json.dumps(rgb_values),
-            },
-        )
+        cli.save_pts(scripted_module, model_path, net.task, class_to_idx, signature, rgb_values)

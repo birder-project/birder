@@ -1,0 +1,26 @@
+stages:
+  - test
+  - build
+
+all-test-job:
+  stage: test
+  image: python:3.10
+  only:
+    - tags
+  script:
+    - pip install -r requirements/requirements-pytorch-cpu.txt
+    - pip install -r requirements/requirements-dev.txt
+    - inv ci
+
+build-job:
+  stage: build
+  image: python:3.10
+  only:
+    - tags
+  script:
+    - pip install --upgrade pip wheel build twine
+    - python -m build
+    - twine check dist/*
+  artifacts:
+    paths:
+      - dist/*.whl

@@ -46,7 +46,7 @@ def show_guided_backprop(args: argparse.Namespace) -> None:
         tag=args.tag,
         epoch=args.epoch,
         inference=False,
-        script=False,
+        pts=False,
     )
     size = signature["inputs"][0]["data_shape"][3]
     transform = inference_preset(size, 1.0, rgb_values)
@@ -66,7 +66,7 @@ def show_guided_backprop(args: argparse.Namespace) -> None:
     bp_img = guided_bp(input_tensor, target_category=target)
     bp_img = _deprocess_image(bp_img * rgb_img)
 
-    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
+    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))  # type: ignore[misc]
     ax1.imshow(bp_img)
     ax2.imshow(rgb_img)
     plt.show()
@@ -81,7 +81,6 @@ def show_grad_cam(args: argparse.Namespace) -> None:
         tag=args.tag,
         epoch=args.epoch,
         inference=False,
-        script=False,
     )
     size = signature["inputs"][0]["data_shape"][3]
     transform = inference_preset(size, 1.0, rgb_values)
@@ -112,7 +111,7 @@ def show_grad_cam(args: argparse.Namespace) -> None:
     grayscale_cam = grayscale_cam[0, :]
     visualization = gradcam.show_cam_on_image(rgb_img, grayscale_cam)
 
-    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
+    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))  # type: ignore[misc]
     ax1.imshow(visualization)
     ax2.imshow(rgb_img)
     plt.show()

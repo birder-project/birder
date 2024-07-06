@@ -45,7 +45,7 @@ def predict(args: argparse.Namespace) -> None:
         new_size=args.size,
         quantized=args.quantized,
         inference=True,
-        script=args.script,
+        pts=args.pts,
     )
 
     if args.compile is True:
@@ -172,7 +172,7 @@ def main() -> None:
     parser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
     parser.add_argument("--quantized", default=False, action="store_true", help="load quantized model")
     parser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
-    parser.add_argument("--script", default=False, action="store_true", help="load torchscript network")
+    parser.add_argument("--pts", default=False, action="store_true", help="load torchscript network")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument("--min-score", type=float, default=0.5, help="prediction score threshold")
     parser.add_argument("--size", type=int, default=None, help="image size for inference (defaults to model signature)")

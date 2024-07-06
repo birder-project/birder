@@ -77,7 +77,7 @@ def predict(args: argparse.Namespace) -> None:
         new_size=args.size,
         quantized=args.quantized,
         inference=True,
-        script=args.script,
+        pts=args.pts,
         pt2=args.pt2,
     )
 
@@ -228,9 +228,9 @@ def main() -> None:
         description="Run prediction on directories and/or files",
         epilog=(
             "Usage example:\n"
-            "python predict.py --network resnet_v2 --net-param 50 --epoch 0 --script --gpu "
+            "python predict.py --network resnet_v2 --net-param 50 --epoch 0 --pts --gpu "
             "--save-output data/Unknown\n"
-            "python predict.py --network maxvit --net-param 1 --epoch 0 --script --gpu "
+            "python predict.py --network maxvit --net-param 1 --epoch 0 --pts --gpu "
             "--summary data/*.jpeg\n"
             "python predict.py --network densenet -p 121 -e 90 --shuffle --gpu --show data/validation\n"
             "python predict.py --network inception_resnet_v2 -e 100 --gpu --show-out-of-k data/validation\n"
@@ -249,7 +249,7 @@ def main() -> None:
     parser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
     parser.add_argument("--quantized", default=False, action="store_true", help="load quantized model")
     parser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
-    parser.add_argument("--script", default=False, action="store_true", help="load torchscript network")
+    parser.add_argument("--pts", default=False, action="store_true", help="load torchscript network")
     parser.add_argument("--pt2", default=False, action="store_true", help="load standardized model")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument("--amp", default=False, action="store_true", help="use torch.autocast")

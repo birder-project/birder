@@ -55,7 +55,7 @@ def train(args: argparse.Namespace) -> None:
         epoch=args.teacher_epoch,
         new_size=args.size,
         inference=True,
-        script=args.script,
+        pts=args.pts,
     )
     if args.size is None:
         args.size = signature["inputs"][0]["data_shape"][2]
@@ -570,7 +570,7 @@ def main() -> None:
     )
     parser.add_argument("--teacher-param", type=float, help="network specific parameter (teacher)")
     parser.add_argument("--teacher-tag", type=str, help="teacher training log tag (loading only)")
-    parser.add_argument("--script", default=False, action="store_true", help="load torchscript teacher")
+    parser.add_argument("--pts", default=False, action="store_true", help="load torchscript teacher")
     parser.add_argument("--teacher-epoch", type=int, help="load teacher weights from selected epoch")
     parser.add_argument(
         "--student",

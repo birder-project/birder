@@ -77,7 +77,6 @@ def main(args: argparse.Namespace) -> None:
             tag=args.tag,
             epoch=args.epoch,
             inference=True,
-            script=False,
         )
 
     else:
@@ -91,7 +90,6 @@ def main(args: argparse.Namespace) -> None:
             backbone_tag=args.backbone_tag,
             epoch=args.epoch,
             inference=True,
-            script=False,
         )
 
     model_info = get_model_info(net)

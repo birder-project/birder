@@ -17,7 +17,7 @@ def avg_models(network: str, net_param: Optional[float], tag: Optional[str], epo
     aux_data = {}
     for idx, epoch in enumerate(epochs):
         network_name = get_network_name(network, net_param, tag)
-        path = cli.model_path(network_name, epoch=epoch, script=False)
+        path = cli.model_path(network_name, epoch=epoch, pts=False)
         logging.info(f"Loading model from {path}...")
 
         model_dict: dict[str, Any] = torch.load(path, map_location=device)
@@ -54,7 +54,7 @@ def avg_models(network: str, net_param: Optional[float], tag: Optional[str], epo
     net.load_state_dict(avg_state)
 
     # Save model
-    model_path = cli.model_path(network_name, epoch=0, script=False)
+    model_path = cli.model_path(network_name, epoch=0, pts=False)
     logging.info(f"Saving model checkpoint {model_path}...")
     torch.save(
         {

@@ -20,7 +20,7 @@ def show_fgsm(args: argparse.Namespace) -> None:
         tag=args.tag,
         epoch=args.epoch,
         inference=False,
-        script=False,
+        pts=False,
     )
     label_names = list(class_to_idx.keys())
     size = signature["inputs"][0]["data_shape"][3]
@@ -48,7 +48,7 @@ def show_fgsm(args: argparse.Namespace) -> None:
     idx = np.argmax(prob)
     adv_idx = np.argmax(adv_prob)
 
-    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
+    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))  # type: ignore[misc]
     ax1.imshow(img)
     ax1.set_title(f"{label_names[idx]} {100 * prob[idx]:.2f}%")
     ax2.imshow(fgsm_img)

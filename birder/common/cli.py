@@ -64,7 +64,7 @@ def model_path(
     *,
     epoch: Optional[int] = None,
     quantized: bool = False,
-    script: bool = False,
+    pts: bool = False,
     lite: bool = False,
     pt2: bool = False,
     onnx: bool = False,
@@ -95,7 +95,7 @@ def model_path(
     elif onnx is True:
         file_name = f"{file_name}.onnx"
 
-    elif script is True:
+    elif pts is True:
         file_name = f"{file_name}.pts"
 
     else:
@@ -140,8 +140,8 @@ def checkpoint_model(
     scheduler: Optional[torch.optim.lr_scheduler._LRScheduler],
     scaler: Optional[torch.cuda.amp.grad_scaler.GradScaler],
 ) -> None:
-    path = model_path(network_name, epoch=epoch, script=False)
-    states_path = model_path(network_name, epoch=epoch, script=False, states=True)
+    path = model_path(network_name, epoch=epoch, pts=False)
+    states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
     logging.info(f"Saving model checkpoint {path}...")
     torch.save(
         {
@@ -183,8 +183,8 @@ def load_checkpoint(
     new_size: Optional[int] = None,
 ) -> tuple[BaseNet, dict[str, int], dict[str, Any], dict[str, Any], dict[str, Any]]:
     network_name = get_network_name(network, net_param, tag)
-    path = model_path(network_name, epoch=epoch, script=False)
-    states_path = model_path(network_name, epoch=epoch, script=False, states=True)
+    path = model_path(network_name, epoch=epoch, pts=False)
+    states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
     logging.info(f"Loading model from {path} on device {device}...")
 
     model_dict: dict[str, Any] = torch.load(path, map_location=device)
@@ -218,8 +218,8 @@ def load_pretrain_checkpoint(
     network_name = get_pretrain_network_name(
         network, net_param=net_param, encoder=encoder, encoder_param=encoder_param, tag=tag
     )
-    path = model_path(network_name, epoch=epoch, script=False)
-    states_path = model_path(network_name, epoch=epoch, script=False, states=True)
+    path = model_path(network_name, epoch=epoch, pts=False)
+    states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
     logging.info(f"Loading model from {path} on device {device}...")
 
     model_dict: dict[str, Any] = torch.load(path, map_location=device)
@@ -257,8 +257,8 @@ def load_detection_checkpoint(
         backbone_param=backbone_param,
         backbone_tag=backbone_tag,
     )
-    path = model_path(network_name, epoch=epoch, script=False)
-    states_path = model_path(network_name, epoch=epoch, script=False, states=True)
+    path = model_path(network_name, epoch=epoch, pts=False)
+    states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
     logging.info(f"Loading model from {path} on device {device}...")
 
     model_dict: dict[str, Any] = torch.load(path, map_location=device)
@@ -288,17 +288,17 @@ def load_model(
     new_size: Optional[int] = None,
     quantized: bool = False,
     inference: bool,
-    script: bool = False,
+    pts: bool = False,
     pt2: bool = False,
 ) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], SignatureType, RGBType]:
     network_name = get_network_name(network, net_param, tag)
-    path = model_path(network_name, epoch=epoch, quantized=quantized, script=script, pt2=pt2)
+    path = model_path(network_name, epoch=epoch, quantized=quantized, pts=pts, pt2=pt2)
     logging.info(f"Loading model from {path} on device {device}...")
 
-    if script is True:
+    if pts is True:
         extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_values": ""}
         net = torch.jit.load(path, map_location=device, _extra_files=extra_files)
-        _ = extra_files["task"]
+        net.task = extra_files["task"]
         class_to_idx: dict[str, int] = json.loads(extra_files["class_to_idx"])
         signature: SignatureType = json.loads(extra_files["signature"])
         rgb_values: RGBType = json.loads(extra_files["rgb_values"])
@@ -307,7 +307,7 @@ def load_model(
         extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_values": ""}
         net = torch.export.load(path, extra_files=extra_files).module()
         net.to(device)
-        _ = extra_files["task"]
+        net.task = extra_files["task"]
         class_to_idx = json.loads(extra_files["class_to_idx"])
         signature = json.loads(extra_files["signature"])
         rgb_values = json.loads(extra_files["rgb_values"])
@@ -352,7 +352,7 @@ def load_detection_model(
     new_size: Optional[int] = None,
     quantized: bool = False,
     inference: bool,
-    script: bool = False,
+    pts: bool = False,
 ) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], DetectionSignatureType, RGBType]:
     network_name = get_detection_network_name(
         network,
@@ -362,10 +362,10 @@ def load_detection_model(
         backbone_param=backbone_param,
         backbone_tag=backbone_tag,
     )
-    path = model_path(network_name, epoch=epoch, quantized=quantized, script=script)
+    path = model_path(network_name, epoch=epoch, quantized=quantized, pts=pts)
     logging.info(f"Loading model from {path} on device {device}...")
 
-    if script is True:
+    if pts is True:
         extra_files = {"class_to_idx": "", "signature": "", "rgb_values": ""}
         net = torch.jit.load(path, map_location=device, _extra_files=extra_files)
         class_to_idx: dict[str, int] = json.loads(extra_files["class_to_idx"])
@@ -396,6 +396,46 @@ def load_detection_model(
         net.eval()
 
     return (net, class_to_idx, signature, rgb_values)
+
+
+def save_pts(
+    scripted_module: torch.ScriptModule,
+    dst: str | Path,
+    task: str,
+    class_to_idx: dict[str, int],
+    signature: SignatureType | DetectionSignatureType,
+    rgb_values: RGBType,
+) -> None:
+    torch.jit.save(
+        scripted_module,
+        str(dst),
+        _extra_files={
+            "task": task,
+            "class_to_idx": json.dumps(class_to_idx),
+            "signature": json.dumps(signature),
+            "rgb_values": json.dumps(rgb_values),
+        },
+    )
+
+
+def save_pt2(
+    exported_net: torch.export.ExportedProgram,
+    dst: str | Path,
+    task: str,
+    class_to_idx: dict[str, int],
+    signature: SignatureType | DetectionSignatureType,
+    rgb_values: RGBType,
+) -> None:
+    torch.export.save(
+        exported_net,
+        dst,
+        extra_files={
+            "task": task,
+            "class_to_idx": json.dumps(class_to_idx),
+            "signature": json.dumps(signature),
+            "rgb_values": json.dumps(rgb_values),
+        },
+    )
 
 
 def file_iter(data_path: str, extensions: list[str]) -> Iterator[str]:

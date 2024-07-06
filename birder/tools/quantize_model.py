@@ -70,6 +70,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.set_defaults(func=main)
 
 
+# pylint: disable=too-many-locals
 def main(args: argparse.Namespace) -> None:
     if args.gpu is True:
         device = torch.device("cuda")
@@ -85,9 +86,10 @@ def main(args: argparse.Namespace) -> None:
         tag=args.tag,
         epoch=args.epoch,
         inference=True,
-        script=False,
+        pts=False,
     )
     net.eval()
+    task = net.task
     size = signature["inputs"][0]["data_shape"][2]
 
     # Set calibration data
@@ -125,28 +127,21 @@ def main(args: argparse.Namespace) -> None:
     logging.info(f"{int(minutes):0>2}m{seconds:04.1f}s to quantize model")
 
     network_name = get_network_name(args.network, net_param=args.net_param, tag=args.tag)
-    model_path = cli.model_path(network_name, epoch=args.epoch, quantized=True, script=True)
+    model_path = cli.model_path(network_name, epoch=args.epoch, quantized=True, pts=True)
     logging.info(f"Saving quantized TorchScript model {model_path}...")
 
     # Convert to TorchScript
     scripted_module = torch.jit.script(net)
-    torch.jit.save(
-        scripted_module,
-        model_path,
-        _extra_files={
-            "class_to_idx": json.dumps(class_to_idx),
-            "signature": json.dumps(signature),
-            "rgb_values": json.dumps(rgb_values),
-        },
-    )
+    cli.save_pts(scripted_module, model_path, task, class_to_idx, signature, rgb_values)
 
     if args.qbackend == "qnnpack":
-        model_path = cli.model_path(network_name, epoch=args.epoch, quantized=True, script=True, lite=True)
+        model_path = cli.model_path(network_name, epoch=args.epoch, quantized=True, lite=True)
         logging.info(f"Saving quantized TorchScript model {model_path}...")
         optimized_scripted_module = optimize_for_mobile(scripted_module)
         optimized_scripted_module._save_for_lite_interpreter(  # pylint: disable=protected-access
             str(model_path),
             _extra_files={
+                "task": task,
                 "class_to_idx": json.dumps(class_to_idx),
                 "signature": json.dumps(signature),
                 "rgb_values": json.dumps(rgb_values),

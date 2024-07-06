@@ -8,7 +8,7 @@
 
 1. Update CHANGELOG.
 
-1. Bump version (`--major`, `--minor` or `--patch`)
+1. Bump version (`--major`, `--minor`, `--patch` or `--tag-num`)
 
     ```sh
     bumpver update --patch

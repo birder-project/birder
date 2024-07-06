@@ -59,7 +59,7 @@ class TestCommon(unittest.TestCase):
         path = cli.model_path("net", quantized=True)
         self.assertEqual(path, settings.MODELS_DIR.joinpath("net_quantized.pt"))
 
-        path = cli.model_path("net", script=True)
+        path = cli.model_path("net", pts=True)
         self.assertEqual(path, settings.MODELS_DIR.joinpath("net.pts"))
 
         path = cli.model_path("net", lite=True)
