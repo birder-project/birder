@@ -1,11 +1,11 @@
 class,scientific_name,verified,similarity_check,weakly_labeled,comments,training_samples,validation_samples,testing_samples,training_detection_samples,validation_detection_samples
 African crake,Crecopsis egregia,0,0,0,,180,50,5,3,1
 African swamphen,Porphyrio madagascariensis,0,1,0,Mixed with Western swamphen,997,50,106,14,4
-Alpine swift,,1,1,0,,710,50,207,8,11
-American wigeon,,0,0,0,,702,50,178,12,4
-Arabian babbler,,1,1,0,,932,50,209,14,10
-Arabian green bee-eater,,0,0,0,,831,50,201,15,5
-Asian desert warbler,,0,1,0,Mixed with African desert warbler,831,50,203,12,2
+Alpine swift,Tachymarptis melba,1,1,0,,710,50,207,8,11
+American wigeon,Mareca americana,0,0,0,,702,50,178,12,4
+Arabian babbler,Argya squamiceps,1,1,0,,932,50,209,14,10
+Arabian green bee-eater,Merops cyanophrys,0,0,0,,831,50,201,15,5
+Asian desert warbler,Curruca nana,0,1,0,Mixed with African desert warbler,831,50,203,12,2
 Baillons crake,,0,0,0,,844,50,202,8,6
 Barn owl,,1,1,0,,1209,50,203,10,8
 Barn swallow,,0,1,0,,822,50,204,15,11

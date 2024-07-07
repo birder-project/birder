@@ -26,6 +26,9 @@ RESULTS_DIR = BASE_DIR.joinpath("results")
 # Results
 TOP_K = 3
 
+# Model registry
+REGISTRY_BASE_UTL = "https://f000.backblazeb2.com/file/birder/models"
+
 # Logging
 # https://docs.python.org/3/library/logging.config.html
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()

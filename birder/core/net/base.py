@@ -5,6 +5,9 @@ from typing import TypedDict
 import torch
 from torch import nn
 
+from birder.model_registry import Task
+from birder.model_registry import registry
+
 DataShapeType = TypedDict("DataShapeType", {"data_shape": list[int]})
 SignatureType = TypedDict("SignatureType", {"inputs": list[DataShapeType], "outputs": list[DataShapeType]})
 
@@ -38,7 +41,7 @@ def make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> i
 
 class BaseNet(nn.Module):
     default_size: int
-    task = "image_classification"
+    task = Task.IMAGE_CLASSIFICATION
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
@@ -50,8 +53,7 @@ class BaseNet(nn.Module):
             # Exclude aliases
             return
 
-        _BASE_NETWORKS.append(cls.__name__.lower())
-        _REGISTERED_NETWORKS[cls.__name__.lower()] = cls
+        registry.register_model(cls.__name__.lower(), cls)
 
     def __init__(
         self,
@@ -110,26 +112,6 @@ class BaseNet(nn.Module):
         return self.classify(x)
 
 
-def net_factory(
-    name: str,
-    input_channels: int,
-    num_classes: int,
-    net_param: Optional[float] = None,
-    size: Optional[int] = None,
-) -> BaseNet:
-    return _REGISTERED_NETWORKS[name](input_channels, num_classes, net_param, size)
-
-
-def create_alias(alias: str, module: type[BaseNet], net_param: float) -> None:
-    _REGISTERED_NETWORKS[alias] = type(alias, (module,), {"net_param": net_param})
-    _ALIAS.append(alias)
-
-
-_BASE_NETWORKS: list[str] = []
-_ALIAS: list[str] = []
-_REGISTERED_NETWORKS: dict[str, type[BaseNet]] = {}
-
-
 class PreTrainEncoder(BaseNet):
     def __init__(
         self,
@@ -165,12 +147,3 @@ class DetectorBackbone(BaseNet):
 
     def freeze_stages(self, up_to_stage: int) -> None:
         raise NotImplementedError
-
-
-def network_names_filter(t: type) -> list[str]:
-    network_names = []
-    for name, network_type in _REGISTERED_NETWORKS.items():
-        if issubclass(network_type, t) is True:
-            network_names.append(name)
-
-    return network_names

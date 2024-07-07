@@ -36,6 +36,7 @@ def set_parser(subparsers: Any) -> None:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     subparser.add_argument("--networks", type=str, required=True, nargs="+", help="networks to ensemble")
+    subparser.add_argument("--force", action="store_true", help="override existing model")
 
     format_group = subparser.add_mutually_exclusive_group(required=True)
     format_group.add_argument("--pts", default=False, action="store_true", help="ensemble TorchScript models")
@@ -74,7 +75,7 @@ def main(args: argparse.Namespace) -> None:
 
     network_name = "ensemble"
     model_path = cli.model_path(network_name, pts=args.pts, pt2=args.pt2)
-    if model_path.exists() is True:
+    if model_path.exists() is True and args.force is False:
         logging.warning("Ensemble already exists... aborting")
         raise SystemExit(1)
 

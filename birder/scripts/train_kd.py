@@ -32,12 +32,12 @@ from birder.conf import settings
 from birder.core.dataloader.webdataset import make_wds_loader
 from birder.core.datasets.webdataset import make_wds_dataset
 from birder.core.datasets.webdataset import wds_size
-from birder.core.net.base import _REGISTERED_NETWORKS
 from birder.core.net.base import get_signature
-from birder.core.net.base import net_factory
 from birder.core.transforms.classification import get_mixup_cutmix
 from birder.core.transforms.classification import inference_preset
 from birder.core.transforms.classification import training_preset
+from birder.model_registry import Task
+from birder.model_registry import registry
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
@@ -135,7 +135,7 @@ def train(args: argparse.Namespace) -> None:
         collate_fn = None  # type: ignore
 
     # Initialize student network
-    sample_shape = (batch_size,) + (3, args.size, args.size)  # B, C, H, W
+    sample_shape = (batch_size,) + (args.channels, args.size, args.size)  # B, C, H, W
     student_name = get_network_name(args.student, net_param=args.student_param, tag=args.student_tag)
 
     if args.resume_epoch is not None:
@@ -151,7 +151,13 @@ def train(args: argparse.Namespace) -> None:
         assert class_to_idx == class_to_idx_saved
 
     else:
-        student = net_factory(args.student, sample_shape[1], num_outputs, args.student_param, args.size).to(device)
+        student = registry.net_factory(
+            args.student,
+            sample_shape[1],
+            num_outputs,
+            args.student_param,
+            args.size,
+        ).to(device)
 
     # Compile teacher network
     if args.compile is True:
@@ -564,7 +570,7 @@ def main() -> None:
     parser.add_argument(
         "--teacher",
         type=str,
-        choices=list(_REGISTERED_NETWORKS.keys()),
+        choices=registry.list_models(task=Task.IMAGE_CLASSIFICATION),
         required=True,
         help="the teacher network",
     )
@@ -575,7 +581,7 @@ def main() -> None:
     parser.add_argument(
         "--student",
         type=str,
-        choices=list(_REGISTERED_NETWORKS.keys()),
+        choices=registry.list_models(task=Task.IMAGE_CLASSIFICATION),
         required=True,
         help="the student network to train",
     )
@@ -628,11 +634,12 @@ def main() -> None:
         default=0.000001,
         help="minimum learning rate (for cosine annealing scheduler only)",
     )
+    parser.add_argument("--channels", type=int, default=3, help="no. of image channels")
     parser.add_argument(
         "--size",
         type=int,
         default=None,
-        help="image size (defaults to network recommendation) shared by both networks",
+        help="image size (defaults to teacher network size) shared by both networks",
     )
     parser.add_argument("--batch-size", type=int, default=128, help="the batch size")
     parser.add_argument("--warmup-epochs", type=int, default=0, help="number of warmup epochs")

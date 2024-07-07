@@ -26,14 +26,14 @@ from birder.conf import settings
 from birder.core.dataloader.webdataset import make_wds_loader
 from birder.core.datasets.webdataset import make_wds_dataset
 from birder.core.datasets.webdataset import wds_size
-from birder.core.net.base import _REGISTERED_NETWORKS
 from birder.core.net.base import get_signature
-from birder.core.net.base import net_factory
 from birder.core.transforms.classification import RGBMode
 from birder.core.transforms.classification import get_mixup_cutmix
 from birder.core.transforms.classification import get_rgb_values
 from birder.core.transforms.classification import inference_preset
 from birder.core.transforms.classification import training_preset
+from birder.model_registry import Task
+from birder.model_registry import registry
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
@@ -115,7 +115,7 @@ def train(args: argparse.Namespace) -> None:
         collate_fn = None  # type: ignore
 
     # Initialize network
-    sample_shape = (batch_size,) + (3, args.size, args.size)  # B, C, H, W
+    sample_shape = (batch_size,) + (args.channels, args.size, args.size)  # B, C, H, W
     network_name = get_network_name(args.network, net_param=args.net_param, tag=args.tag)
 
     if args.resume_epoch is not None:
@@ -137,7 +137,7 @@ def train(args: argparse.Namespace) -> None:
             assert class_to_idx == class_to_idx_saved
 
     else:
-        net = net_factory(args.network, sample_shape[1], num_outputs, args.net_param, args.size).to(device)
+        net = registry.net_factory(args.network, sample_shape[1], num_outputs, args.net_param, args.size).to(device)
 
     # Compile network
     if args.compile is True:
@@ -574,7 +574,7 @@ def main() -> None:
         "-n",
         "--network",
         type=str,
-        choices=list(_REGISTERED_NETWORKS.keys()),
+        choices=registry.list_models(task=Task.IMAGE_CLASSIFICATION),
         required=True,
         help="the neural network to use",
     )
@@ -633,6 +633,7 @@ def main() -> None:
         default=0.000001,
         help="minimum learning rate (for cosine annealing scheduler only)",
     )
+    parser.add_argument("--channels", type=int, default=3, help="no. of image channels")
     parser.add_argument("--size", type=int, default=None, help="image size (defaults to network recommendation)")
     parser.add_argument("--batch-size", type=int, default=128, help="the batch size")
     parser.add_argument("--warmup-epochs", type=int, default=0, help="number of warmup epochs")
@@ -740,7 +741,7 @@ def main() -> None:
 
     training_utils.init_distributed_mode(args)
     if args.size is None:
-        args.size = _REGISTERED_NETWORKS[args.network].default_size
+        args.size = registry.get_default_size(args.network)
 
     logging.info(f"Using size={args.size}")
     train(args)

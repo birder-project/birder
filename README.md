@@ -143,7 +143,7 @@ Birder provides a comprehensive suite of pre-trained models for bird species cla
 To explore the full range of available pre-trained models, use the `list-models` tool:
 
 ```sh
-python -m birder.tools list-models --registry
+python -m birder.tools list-models --pretrained
 ```
 
 This command displays a catalog of models ready for download.

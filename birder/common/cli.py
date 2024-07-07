@@ -17,13 +17,11 @@ from birder.common.lib import get_pretrain_network_name
 from birder.conf import settings
 from birder.core.net.base import BaseNet
 from birder.core.net.base import SignatureType
-from birder.core.net.base import net_factory
 from birder.core.net.detection.base import DetectionBaseNet
 from birder.core.net.detection.base import DetectionSignatureType
-from birder.core.net.detection.base import detection_net_factory
 from birder.core.net.pretraining.base import PreTrainBaseNet
-from birder.core.net.pretraining.base import pretrain_net_factory
 from birder.core.transforms.classification import RGBType
+from birder.model_registry import registry
 
 
 class ArgumentHelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawTextHelpFormatter):
@@ -193,7 +191,7 @@ def load_checkpoint(
     input_channels = signature["inputs"][0]["data_shape"][1]
     num_classes = signature["outputs"][0]["data_shape"][1]
     size = signature["inputs"][0]["data_shape"][2]
-    net = net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
+    net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
     net.load_state_dict(model_dict["state"])
     if new_size is not None:
         net.adjust_size(new_size)
@@ -228,8 +226,8 @@ def load_pretrain_checkpoint(
     input_channels = signature["inputs"][0]["data_shape"][1]
     num_classes = signature["outputs"][0]["data_shape"][1]
     size = signature["inputs"][0]["data_shape"][2]
-    net_encoder = net_factory(encoder, input_channels, num_classes, net_param=encoder_param, size=size)
-    net = pretrain_net_factory(network, net_encoder, net_param, size)
+    net_encoder = registry.net_factory(encoder, input_channels, num_classes, net_param=encoder_param, size=size)
+    net = registry.pretrain_net_factory(network, net_encoder, net_param, size)
     net.load_state_dict(model_dict["state"])
     net.to(device)
 
@@ -267,8 +265,8 @@ def load_detection_checkpoint(
     input_channels = signature["inputs"][0]["data_shape"][1]
     num_classes = signature["num_labels"]
     size = signature["inputs"][0]["data_shape"][2]
-    net_backbone = net_factory(backbone, input_channels, num_classes, net_param=backbone_param, size=size)
-    net = detection_net_factory(network, num_classes, net_backbone, net_param, size)
+    net_backbone = registry.net_factory(backbone, input_channels, num_classes, net_param=backbone_param, size=size)
+    net = registry.detection_net_factory(network, num_classes, net_backbone, net_param, size)
     net.load_state_dict(model_dict["state"])
     net.to(device)
 
@@ -319,7 +317,7 @@ def load_model(
         num_classes = signature["outputs"][0]["data_shape"][1]
         size = signature["inputs"][0]["data_shape"][2]
 
-        net = net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
+        net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
         net.load_state_dict(model_dict["state"])
         if new_size is not None:
             net.adjust_size(new_size)
@@ -379,8 +377,8 @@ def load_detection_model(
         num_classes = signature["num_labels"]
         size = signature["inputs"][0]["data_shape"][2]
 
-        net_backbone = net_factory(backbone, input_channels, num_classes, net_param=backbone_param, size=size)
-        net = detection_net_factory(network, num_classes, net_backbone, net_param, size)
+        net_backbone = registry.net_factory(backbone, input_channels, num_classes, net_param=backbone_param, size=size)
+        net = registry.detection_net_factory(network, num_classes, net_backbone, net_param, size)
         net.load_state_dict(model_dict["state"])
         if new_size is not None:
             net.adjust_size(new_size)

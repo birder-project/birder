@@ -21,7 +21,7 @@ from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
 from birder.core.net.base import PreTrainEncoder
-from birder.core.net.base import create_alias
+from birder.model_registry import registry
 
 
 def adjust_position_embedding(
@@ -387,8 +387,8 @@ class ViT(PreTrainEncoder):
         logging.info(f"Resized position embedding: {num_pos_tokens} to {num_new_tokens}")
 
 
-create_alias("vit_b32", ViT, 0)
-create_alias("vit_b16", ViT, 1)
-create_alias("vit_l32", ViT, 2)
-create_alias("vit_l16", ViT, 3)
-create_alias("vit_h14", ViT, 4)
+registry.register_alias("vit_b32", ViT, 0)
+registry.register_alias("vit_b16", ViT, 1)
+registry.register_alias("vit_l32", ViT, 2)
+registry.register_alias("vit_l16", ViT, 3)
+registry.register_alias("vit_h14", ViT, 4)

@@ -6,6 +6,7 @@ import torch
 from parameterized import parameterized
 
 from birder.core.net import base
+from birder.model_registry import registry
 
 logging.disable(logging.CRITICAL)
 
@@ -74,7 +75,7 @@ class TestNet(unittest.TestCase):
     def test_net(
         self, network_name: str, net_param: Optional[float], skip_embedding: bool = False, batch_size: int = 1
     ) -> None:
-        n = base.net_factory(network_name, 3, 100, net_param=net_param)
+        n = registry.net_factory(network_name, 3, 100, net_param=net_param)
         size = n.default_size
 
         out = n(torch.rand((batch_size, 3, size, size)))
@@ -110,7 +111,7 @@ class TestNet(unittest.TestCase):
         ]
     )
     def test_detection_backbone(self, network_name: str, net_param: Optional[float]) -> None:
-        n = base.net_factory(network_name, 3, 100, net_param=net_param)
+        n = registry.net_factory(network_name, 3, 100, net_param=net_param)
         size = n.default_size
 
         self.assertEqual(len(n.return_channels), len(n.return_stages))
@@ -132,7 +133,7 @@ class TestNet(unittest.TestCase):
         ]
     )
     def test_pre_training_encoder(self, network_name: str, net_param: Optional[float], mask_token: bool) -> None:
-        n = base.net_factory(network_name, 3, 100, net_param=net_param)
+        n = registry.net_factory(network_name, 3, 100, net_param=net_param)
         size = n.default_size
 
         mt = None

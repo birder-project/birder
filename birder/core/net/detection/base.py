@@ -9,6 +9,8 @@ from torchvision.ops.feature_pyramid_network import ExtraFPNBlock
 
 from birder.core.net.base import DataShapeType
 from birder.core.net.base import DetectorBackbone
+from birder.model_registry import Task
+from birder.model_registry import registry
 
 DetectorResultType = TypedDict(
     "DetectorResultType", {"boxes": torch.Tensor, "labels": torch.Tensor, "scores": torch.Tensor}
@@ -33,11 +35,11 @@ def get_detection_signature(input_shape: tuple[int, ...], num_outputs: int) -> D
 
 class DetectionBaseNet(nn.Module):
     default_size: int
-    task = "object_detection"
+    task = Task.OBJECT_DETECTION
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
-        _REGISTERED_DETECTION_NETWORKS[cls.__name__.lower()] = cls
+        registry.register_model(cls.__name__.lower(), cls)
 
     def __init__(
         self,
@@ -72,16 +74,6 @@ class DetectionBaseNet(nn.Module):
         self, x: torch.Tensor, targets: Optional[list[dict[str, torch.Tensor]]] = None
     ) -> tuple[list[DetectorResultType], dict[str, torch.Tensor]]:
         raise NotImplementedError
-
-
-def detection_net_factory(
-    name: str,
-    num_classes: int,
-    backbone: DetectorBackbone,
-    net_param: Optional[float] = None,
-    size: Optional[int] = None,
-) -> DetectorBackbone:
-    return _REGISTERED_DETECTION_NETWORKS[name](num_classes, backbone, net_param, size)
 
 
 class ImageList:

@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from birder.common import cli
 from birder.conf import settings
-from birder.conf.registry import MODEL_REGISTRY
+from birder.model_registry import registry
 
 
 def download_file(url: str, dst: Path | str, expected_sha256: str) -> None:
@@ -80,7 +80,7 @@ def set_parser(subparsers: Any) -> None:
         "--format", type=str, choices=["pt", "pt2", "ptl", "pts"], default="pt", help="model serialization format"
     )
     subparser.add_argument("--force", action="store_true", help="force download even if model already exists")
-    subparser.add_argument("model_name", choices=list(MODEL_REGISTRY.keys()), help="the model to download")
+    subparser.add_argument("model_name", choices=registry.list_pretrained_models(), help="the model to download")
     subparser.set_defaults(func=main)
 
 
@@ -89,7 +89,7 @@ def main(args: argparse.Namespace) -> None:
         logging.info(f"Creating {settings.MODELS_DIR} directory...")
         settings.MODELS_DIR.mkdir(parents=True)
 
-    model_info = MODEL_REGISTRY[args.model_name]
+    model_info = registry.get_pretrained_info(args.model_name)
     if args.format not in model_info["formats"]:
         logging.warning(f"Available formats for {args.model_name} are: {model_info['formats']}")
         raise SystemExit(1)
@@ -100,5 +100,5 @@ def main(args: argparse.Namespace) -> None:
         logging.warning(f"Model {args.model_name} already exists... aborting")
         raise SystemExit(1)
 
-    url = f"https://f000.backblazeb2.com/file/birder/models/{model_file}"
-    download_file(url, dst, MODEL_REGISTRY[args.model_name]["sha256"])
+    url = f"{settings.REGISTRY_BASE_UTL}/{model_file}"
+    download_file(url, dst, model_info["sha256"])

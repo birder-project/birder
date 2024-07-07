@@ -8,8 +8,8 @@ from rich.console import Console
 from birder.common import cli
 from birder.core.net.base import DetectorBackbone
 from birder.core.net.base import SignatureType
-from birder.core.net.base import network_names_filter
 from birder.core.net.detection.base import DetectionSignatureType
+from birder.model_registry import registry
 
 
 def get_model_info(net: torch.nn.Module) -> dict[str, float]:
@@ -51,7 +51,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--backbone",
         type=str,
-        choices=network_names_filter(DetectorBackbone),
+        choices=registry.list_models(t=DetectorBackbone),
         help="the neural network to used as backbone",
     )
     subparser.add_argument(

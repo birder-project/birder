@@ -86,16 +86,28 @@ class Results:
         self._results_df = self._results_df.astype({"label": int, "prediction": int})
         self._results_df = self._results_df.sort_values(by="sample", ascending=True).reset_index(drop=True)
 
+        if np.all(self.labels == -1) is np.True_:
+            self.missing_all_labels = True
+
+        else:
+            self.missing_all_labels = False
+
         # Calculate metrics
-        accuracy: int = int(accuracy_score(self.labels, self.predictions, normalize=False))
-        self._num_mistakes = len(self) - accuracy
-        self._accuracy = accuracy / len(self)
+        if self.missing_all_labels is False:
+            self.valid_idx = self.labels != -1
+            self._valid_length: int = np.sum(self.valid_idx)
+            accuracy: int = int(
+                accuracy_score(self.labels[self.valid_idx], self.predictions[self.valid_idx], normalize=False)
+            )
+            self._num_mistakes = self._valid_length - accuracy
+            self._accuracy = accuracy / self._valid_length
 
-        self._top_k_indices = top_k_accuracy_score(self.labels, self.output, top_k=settings.TOP_K)
-        self._num_out_of_top_k = len(self) - len(self._top_k_indices)
-        self._top_k = len(self._top_k_indices) / len(self)
+            self._top_k_indices = top_k_accuracy_score(
+                self.labels[self.valid_idx], self.output[self.valid_idx], top_k=settings.TOP_K
+            )
+            self._num_out_of_top_k = self._valid_length - len(self._top_k_indices)
+            self._top_k = len(self._top_k_indices) / self._valid_length
 
-        if np.all(self.labels == -1) is np.False_:
             self._confusion_matrix = confusion_matrix(self.labels, self.predictions)
 
     def __len__(self) -> int:
@@ -104,12 +116,12 @@ class Results:
     def __repr__(self) -> str:
         head = self.__class__.__name__
         body = [
-            f"Number of samples: {self.__len__()}",
-            f"Accuracy: {self.accuracy:.3f}",
+            f"Number of samples: {len(self)}",
+            f"Number of valid samples: {self._valid_length}",
         ]
 
-        if self.missing_labels is True:
-            body.append("Some labels are missing")
+        if self.missing_all_labels is False:
+            body.append(f"Accuracy: {self.accuracy:.3f}")
 
         lines = [head] + ["    " + line for line in body]
 
@@ -185,7 +197,7 @@ class Results:
         """
 
         raw_report_dict: dict[str, dict[str, float]] = classification_report(
-            self.labels, self.predictions, output_dict=True, zero_division=0
+            self.labels[self.valid_idx], self.predictions[self.valid_idx], output_dict=True, zero_division=0
         )
         del raw_report_dict["accuracy"]
         del raw_report_dict["macro avg"]
@@ -250,9 +262,9 @@ class Results:
         highest_precision = report_df.iloc[report_df["Precision"].argmax()]
         highest_recall = report_df.iloc[report_df["Recall"].argmax()]
 
-        logging.info(f"Accuracy {self._accuracy:.3f} on {len(self)} samples ({self._num_mistakes} mistakes)")
+        logging.info(f"Accuracy {self._accuracy:.3f} on {self._valid_length} samples ({self._num_mistakes} mistakes)")
         logging.info(
-            f"Top-{settings.TOP_K} accuracy {self._top_k:.3f} on {len(self)} samples "
+            f"Top-{settings.TOP_K} accuracy {self._top_k:.3f} on {self._valid_length} samples "
             f"({self._num_out_of_top_k} samples out of top-{settings.TOP_K})"
         )
 
@@ -277,6 +289,11 @@ class Results:
             f"({highest_recall['False negative']} false negatives, "
             f"{highest_recall['False positive']} false positives)"
         )
+        if self.missing_labels is True:
+            logging.warning(
+                f"{len(self) - self._valid_length} of the samples did not have labels, metrics calculated only on "
+                f"{self._valid_length} out of total {len(self)} samples"
+            )
 
     def pretty_print(self) -> None:
         console = Console()
@@ -334,17 +351,23 @@ class Results:
         console.print(table)
 
         accuracy_text = Text()
-        accuracy_text.append(f"Accuracy {self._accuracy:.3f} on {len(self)} samples (")
+        accuracy_text.append(f"Accuracy {self._accuracy:.3f} on {self._valid_length} samples (")
         accuracy_text.append(f"{self._num_mistakes}", style="bold")
         accuracy_text.append(" mistakes)")
 
         top_k_text = Text()
-        top_k_text.append(f"Top-{settings.TOP_K} accuracy {self._top_k:.3f} on {len(self)} samples (")
+        top_k_text.append(f"Top-{settings.TOP_K} accuracy {self._top_k:.3f} on {self._valid_length} samples (")
         top_k_text.append(f"{self._num_out_of_top_k}", style="bold")
         top_k_text.append(f" samples out of top-{settings.TOP_K})")
 
         console.print(accuracy_text)
         console.print(top_k_text)
+        if self.missing_labels is True:
+            console.print(
+                "[bold][bright_red]NOTICE[/bright_red][/bold]: "
+                f"{len(self) - self._valid_length} of the samples did not have labels, metrics calculated only on "
+                f"{self._valid_length} out of total {len(self)} samples"
+            )
 
     def save(self, path: str) -> None:
         """

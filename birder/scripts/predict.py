@@ -206,14 +206,14 @@ def predict(args: argparse.Namespace) -> None:
 
     # Handle results
     results = Results(sample_paths, labels, label_names, output=outs)
-    if results.missing_labels is False:
+    if results.missing_all_labels is False:
         if args.save_results is True:
             results.save(f"{base_output_path}.csv")
 
         results.log_short_report()
 
     else:
-        logging.warning("Some samples were missing labels")
+        logging.warning("No known labeled samples found")
 
     # Summary
     if args.summary is True:

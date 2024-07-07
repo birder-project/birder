@@ -22,16 +22,14 @@ from birder.common import lib
 from birder.common import training_utils
 from birder.conf import settings
 from birder.core.net.base import DetectorBackbone
-from birder.core.net.base import net_factory
-from birder.core.net.base import network_names_filter
-from birder.core.net.detection.base import _REGISTERED_DETECTION_NETWORKS
-from birder.core.net.detection.base import detection_net_factory
 from birder.core.net.detection.base import get_detection_signature
 from birder.core.transforms.classification import RGBMode
 from birder.core.transforms.classification import get_rgb_values
 from birder.core.transforms.detection import batch_images
 from birder.core.transforms.detection import inference_preset
 from birder.core.transforms.detection import training_preset
+from birder.model_registry import Task
+from birder.model_registry import registry
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
@@ -67,7 +65,7 @@ def train(args: argparse.Namespace) -> None:
     epochs = args.epochs + 1
 
     # Initialize network
-    sample_shape = (batch_size,) + (3, args.size, args.size)  # B, C, H, W
+    sample_shape = (batch_size,) + (args.channels, args.size, args.size)  # B, C, H, W
     network_name = lib.get_detection_network_name(
         args.network,
         net_param=args.net_param,
@@ -104,9 +102,9 @@ def train(args: argparse.Namespace) -> None:
             )
 
         else:
-            backbone = net_factory(args.backbone, sample_shape[1], num_outputs, args.backbone_param, args.size)
+            backbone = registry.net_factory(args.backbone, sample_shape[1], num_outputs, args.backbone_param, args.size)
 
-        net = detection_net_factory(args.network, num_outputs, backbone, args.net_param, args.size).to(device)
+        net = registry.detection_net_factory(args.network, num_outputs, backbone, args.net_param, args.size).to(device)
 
     # Freeze backbone
     if args.freeze_backbone is True:
@@ -474,7 +472,7 @@ def main() -> None:
         "-n",
         "--network",
         type=str,
-        choices=list(_REGISTERED_DETECTION_NETWORKS.keys()),
+        choices=registry.list_models(task=Task.OBJECT_DETECTION),
         required=True,
         help="the neural network to use",
     )
@@ -482,7 +480,7 @@ def main() -> None:
     parser.add_argument(
         "--backbone",
         type=str,
-        choices=network_names_filter(DetectorBackbone),
+        choices=registry.list_models(t=DetectorBackbone),
         required=True,
         help="the neural network to used as backbone",
     )
@@ -543,6 +541,7 @@ def main() -> None:
         default=0.000001,
         help="minimum learning rate (for cosine annealing scheduler only)",
     )
+    parser.add_argument("--channels", type=int, default=3, help="no. of image channels")
     parser.add_argument("--size", type=int, default=None, help="image size (defaults to network recommendation)")
     parser.add_argument("--batch-size", type=int, default=16, help="the batch size")
     parser.add_argument("--warmup-epochs", type=int, default=0, help="number of warmup epochs")
@@ -637,7 +636,7 @@ def main() -> None:
 
     training_utils.init_distributed_mode(args)
     if args.size is None:
-        args.size = _REGISTERED_DETECTION_NETWORKS[args.network].default_size
+        args.size = registry.get_default_size(args.network)
 
     logging.info(f"Using size={args.size}")
     train(args)

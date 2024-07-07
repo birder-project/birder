@@ -4,15 +4,17 @@ import torch
 from torch import nn
 
 from birder.core.net.base import PreTrainEncoder
+from birder.model_registry import Task
+from birder.model_registry import registry
 
 
 class PreTrainBaseNet(nn.Module):
     default_size: int
-    task = "image_pretraining"
+    task = Task.IMAGE_PRETRAINING
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
-        _REGISTERED_PRETRAIN_NETWORKS[cls.__name__.lower()] = cls
+        registry.register_model(cls.__name__.lower(), cls)
 
     def __init__(
         self,
@@ -36,15 +38,3 @@ class PreTrainBaseNet(nn.Module):
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         raise NotImplementedError
-
-
-def pretrain_net_factory(
-    name: str,
-    encoder: PreTrainBaseNet,
-    net_param: Optional[float] = None,
-    size: Optional[int] = None,
-) -> PreTrainBaseNet:
-    return _REGISTERED_PRETRAIN_NETWORKS[name](encoder, net_param, size)
-
-
-_REGISTERED_PRETRAIN_NETWORKS: dict[str, type[PreTrainBaseNet]] = {}

@@ -19,8 +19,8 @@ from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
 from birder.core.net.base import BaseNet
-from birder.core.net.base import create_alias
 from birder.core.net.vit import adjust_position_embedding
+from birder.model_registry import registry
 
 
 class PatchEmbed(nn.Module):
@@ -334,10 +334,10 @@ class CaiT(BaseNet):
         logging.info(f"Resized position embedding: {num_pos_tokens} to {num_new_tokens}")
 
 
-create_alias("cait_xxs24", CaiT, 0)
-create_alias("cait_xxs36", CaiT, 1)
-create_alias("cait_xs24", CaiT, 2)
-create_alias("cait_s24", CaiT, 3)
-create_alias("cait_s36", CaiT, 4)
-create_alias("cait_m36", CaiT, 5)
-create_alias("cait_m48", CaiT, 6)
+registry.register_alias("cait_xxs24", CaiT, 0)
+registry.register_alias("cait_xxs36", CaiT, 1)
+registry.register_alias("cait_xs24", CaiT, 2)
+registry.register_alias("cait_s24", CaiT, 3)
+registry.register_alias("cait_s36", CaiT, 4)
+registry.register_alias("cait_m36", CaiT, 5)
+registry.register_alias("cait_m48", CaiT, 6)

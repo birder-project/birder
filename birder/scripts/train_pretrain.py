@@ -25,13 +25,11 @@ from birder.core.datasets.webdataset import make_wds_dataset
 from birder.core.datasets.webdataset import wds_size
 from birder.core.net.base import PreTrainEncoder
 from birder.core.net.base import get_signature
-from birder.core.net.base import net_factory
-from birder.core.net.base import network_names_filter
-from birder.core.net.pretraining.base import _REGISTERED_PRETRAIN_NETWORKS
-from birder.core.net.pretraining.base import pretrain_net_factory
 from birder.core.transforms.classification import RGBMode
 from birder.core.transforms.classification import get_rgb_values
 from birder.core.transforms.classification import training_preset
+from birder.model_registry import Task
+from birder.model_registry import registry
 
 NUM_OUTPUTS = 2  # Just a place holder for easy encoder loading
 
@@ -74,7 +72,7 @@ def train(args: argparse.Namespace) -> None:
     epochs = args.epochs + 1
 
     # Initialize network
-    sample_shape = (batch_size,) + (3, args.size, args.size)  # B, C, H, W
+    sample_shape = (batch_size,) + (args.channels, args.size, args.size)  # B, C, H, W
     encoder_name = get_network_name(args.encoder, net_param=args.encoder_param, tag="pretrained")
     network_name = get_pretrain_network_name(
         args.network,
@@ -97,8 +95,8 @@ def train(args: argparse.Namespace) -> None:
         )
 
     else:
-        encoder = net_factory(args.encoder, sample_shape[1], NUM_OUTPUTS, args.encoder_param, args.size)
-        net = pretrain_net_factory(args.network, encoder, args.net_param, args.size).to(device)
+        encoder = registry.net_factory(args.encoder, sample_shape[1], NUM_OUTPUTS, args.encoder_param, args.size)
+        net = registry.pretrain_net_factory(args.network, encoder, args.net_param, args.size).to(device)
 
     # Compile network
     if args.compile is True:
@@ -369,7 +367,7 @@ def main() -> None:
         "-n",
         "--network",
         type=str,
-        choices=list(_REGISTERED_PRETRAIN_NETWORKS.keys()),
+        choices=registry.list_models(task=Task.IMAGE_PRETRAINING),
         required=True,
         help="the neural network to use",
     )
@@ -377,7 +375,7 @@ def main() -> None:
     parser.add_argument(
         "--encoder",
         type=str,
-        choices=network_names_filter(PreTrainEncoder),
+        choices=registry.list_models(t=PreTrainEncoder),
         required=True,
         help="the neural network to used as encoder (network being pre-trained)",
     )
@@ -423,6 +421,7 @@ def main() -> None:
         default=0.000001,
         help="minimum learning rate (for cosine annealing scheduler only)",
     )
+    parser.add_argument("--channels", type=int, default=3, help="no. of image channels")
     parser.add_argument("--size", type=int, default=None, help="image size (defaults to network recommendation)")
     parser.add_argument("--batch-size", type=int, default=32, help="the batch size")
     parser.add_argument("--warmup-epochs", type=int, default=0, help="number of warmup epochs")
@@ -490,7 +489,7 @@ def main() -> None:
     training_utils.init_distributed_mode(args)
     if args.size is None:
         # Prefer pretrain size over encoder default size
-        args.size = _REGISTERED_PRETRAIN_NETWORKS[args.network].default_size
+        args.size = registry.get_default_size(args.network)
 
     logging.info(f"Using size={args.size}")
     train(args)

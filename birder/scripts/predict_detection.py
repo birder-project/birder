@@ -14,9 +14,9 @@ from birder.common import cli
 from birder.conf import settings
 from birder.core.datasets.directory import ImageListDataset
 from birder.core.net.base import DetectorBackbone
-from birder.core.net.base import network_names_filter
 from birder.core.transforms.detection import batch_images
 from birder.core.transforms.detection import inference_preset
+from birder.model_registry import registry
 
 
 # pylint: disable=too-many-locals
@@ -159,7 +159,7 @@ def main() -> None:
     parser.add_argument(
         "--backbone",
         type=str,
-        choices=network_names_filter(DetectorBackbone),
+        choices=registry.list_models(t=DetectorBackbone),
         required=True,
         help="the neural network to used as backbone",
     )

@@ -8,10 +8,10 @@ import torch
 from birder.common import cli
 from birder.common.lib import get_network_name
 from birder.core.net.base import SignatureType
-from birder.core.net.base import net_factory
+from birder.model_registry import registry
 
 
-def avg_models(network: str, net_param: Optional[float], tag: Optional[str], epochs: list[int]) -> None:
+def avg_models(network: str, net_param: Optional[float], tag: Optional[str], epochs: list[int], force: bool) -> None:
     device = torch.device("cpu")
     state_list = []
     aux_data = {}
@@ -37,7 +37,7 @@ def avg_models(network: str, net_param: Optional[float], tag: Optional[str], epo
             num_classes = signature["outputs"][0]["data_shape"][1]
             size = signature["inputs"][0]["data_shape"][2]
 
-            net = net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
+            net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
             net.to(device)
 
     # Average state
@@ -54,7 +54,11 @@ def avg_models(network: str, net_param: Optional[float], tag: Optional[str], epo
     net.load_state_dict(avg_state)
 
     # Save model
-    model_path = cli.model_path(network_name, epoch=0, pts=False)
+    model_path = cli.model_path(network_name, epoch=0)
+    if model_path.exists() is True and force is False:
+        logging.warning("Averaged model already exists... aborting")
+        raise SystemExit(1)
+
     logging.info(f"Saving model checkpoint {model_path}...")
     torch.save(
         {
@@ -86,8 +90,9 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--epochs", type=int, nargs="+", help="epochs to average")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
+    subparser.add_argument("--force", action="store_true", help="override existing model")
     subparser.set_defaults(func=main)
 
 
 def main(args: argparse.Namespace) -> None:
-    avg_models(args.network, args.net_param, args.tag, args.epochs)
+    avg_models(args.network, args.net_param, args.tag, args.epochs, args.force)

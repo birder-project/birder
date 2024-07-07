@@ -5,8 +5,7 @@ from typing import Optional
 import torch
 from parameterized import parameterized
 
-from birder.core.net.base import net_factory
-from birder.core.net.pretraining import base
+from birder.model_registry import registry
 
 logging.disable(logging.CRITICAL)
 
@@ -24,8 +23,8 @@ class TestNetPretrain(unittest.TestCase):
     def test_net_pretrain(
         self, network_name: str, net_param: Optional[float], encoder_params: tuple[str, float]
     ) -> None:
-        encoder = net_factory(encoder_params[0], 3, 10, encoder_params[1])
-        n = base.pretrain_net_factory(network_name, encoder, net_param=net_param)
+        encoder = registry.net_factory(encoder_params[0], 3, 10, encoder_params[1])
+        n = registry.pretrain_net_factory(network_name, encoder, net_param=net_param)
         size = n.default_size
         encoder.adjust_size(size)
 

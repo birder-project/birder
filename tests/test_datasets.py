@@ -2,6 +2,7 @@ import logging
 import unittest
 
 from birder.core.datasets import directory
+from birder.core.datasets import webdataset
 
 logging.disable(logging.CRITICAL)
 
@@ -21,3 +22,9 @@ class TestDatasets(unittest.TestCase):
         self.assertEqual(label, 0)
 
         repr(dataset)
+
+    def test_webdataset(self) -> None:
+        (sample_name, data, label) = webdataset.decode_sample_name(("shard1", "sample6", b"data", 1))
+        self.assertEqual(sample_name, "shard1/sample6")
+        self.assertEqual(data, b"data")
+        self.assertEqual(label, 1)

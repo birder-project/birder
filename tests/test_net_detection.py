@@ -5,8 +5,7 @@ from typing import Optional
 import torch
 from parameterized import parameterized
 
-from birder.core.net.base import net_factory
-from birder.core.net.detection import base
+from birder.model_registry import registry
 
 logging.disable(logging.CRITICAL)
 
@@ -20,8 +19,8 @@ class TestNetDetection(unittest.TestCase):
         ]
     )
     def test_net_detection(self, network_name: str, net_param: Optional[float], encoder: tuple[str, float]) -> None:
-        backbone = net_factory(encoder[0], 3, 10, encoder[1])
-        n = base.detection_net_factory(network_name, 10, backbone, net_param=net_param)
+        backbone = registry.net_factory(encoder[0], 3, 10, encoder[1])
+        n = registry.detection_net_factory(network_name, 10, backbone, net_param=net_param)
         size = n.default_size
         backbone.adjust_size(size)
 

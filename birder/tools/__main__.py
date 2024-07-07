@@ -36,7 +36,7 @@ def main() -> None:
             "python tool.py introspection --method gradcam --network efficientnet_v2 --net-param 1 "
             "--epoch 200 --image 'data/validation/Mallard/000003.jpeg'\n"
             "python tool.py labelme-to-coco data/detection_data\n"
-            "python tool.py list-models --registry\n"
+            "python tool.py list-models --pretrained\n"
             "python tool.py model-info -n deit -p 2 -t intermediate -e 0\n"
             "python tool.py pack data/training\n"
             "python tool.py quantize-model -n convnext_v2 -p 4 -e 0 --qbackend x86\n"
