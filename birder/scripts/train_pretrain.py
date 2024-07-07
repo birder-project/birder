@@ -375,7 +375,7 @@ def main() -> None:
     parser.add_argument(
         "--encoder",
         type=str,
-        choices=registry.list_models(t=PreTrainEncoder),
+        choices=registry.list_models(net_type=PreTrainEncoder),
         required=True,
         help="the neural network to used as encoder (network being pre-trained)",
     )

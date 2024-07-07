@@ -480,7 +480,7 @@ def main() -> None:
     parser.add_argument(
         "--backbone",
         type=str,
-        choices=registry.list_models(t=DetectorBackbone),
+        choices=registry.list_models(net_type=DetectorBackbone),
         required=True,
         help="the neural network to used as backbone",
     )

@@ -51,7 +51,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--backbone",
         type=str,
-        choices=registry.list_models(t=DetectorBackbone),
+        choices=registry.list_models(net_type=DetectorBackbone),
         help="the neural network to used as backbone",
     )
     subparser.add_argument(

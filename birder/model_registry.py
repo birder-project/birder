@@ -1,4 +1,4 @@
-from enum import StrEnum
+from enum import Enum
 from typing import TYPE_CHECKING
 from typing import Optional
 from typing import TypedDict
@@ -16,10 +16,12 @@ if TYPE_CHECKING is True:
 ModelInfoType = TypedDict("ModelInfoType", {"sha256": str, "formats": list[str]})
 
 
-class Task(StrEnum):
+class Task(str, Enum):
     IMAGE_CLASSIFICATION = "image_classification"
     OBJECT_DETECTION = "object_detection"
     IMAGE_PRETRAINING = "image_pretraining"
+
+    __str__ = str.__str__
 
 
 _MODEL_REGISTRY: dict[str, ModelInfoType] = {
@@ -101,13 +103,13 @@ class ModelRegistry:
 
         return nets
 
-    def list_models(self, *, task: Optional[Task] = None, t: Optional[type] = None) -> list[str]:
+    def list_models(self, *, task: Optional[Task] = None, net_type: Optional[type] = None) -> list[str]:
         nets = self.all_nets
         if task is not None:
             nets = self._get_models_for_task(task)
 
-        if t is not None:
-            nets = {name: network_type for name, network_type in nets.items() if issubclass(network_type, t) is True}
+        if net_type is not None:
+            nets = {name: t for name, t in nets.items() if issubclass(t, net_type) is True}
 
         return list(nets.keys())
 
