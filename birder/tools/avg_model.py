@@ -86,7 +86,7 @@ def set_parser(subparsers: Any) -> None:
         "-n", "--network", type=str, required=True, help="the neural network to use (i.e. resnet_v2)"
     )
     subparser.add_argument(
-        "-p", "--net-param", type=float, help="network specific parameter, required by most networks"
+        "-p", "--net-param", type=float, help="network specific parameter, required for most networks"
     )
     subparser.add_argument("--epochs", type=int, nargs="+", help="epochs to average")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")

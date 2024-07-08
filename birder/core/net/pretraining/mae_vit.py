@@ -37,7 +37,7 @@ class MAE_ViT(PreTrainBaseNet):
 
         self.mask_ratio = 0.75
         num_patches = self.encoder.encoding_size // self.encoder.embedding_size  # Include special tokens
-        self.patch_size = int(self.size / ((num_patches - 1 - self.encoder.num_reg_tokens) ** 0.5))
+        self.patch_size = self.encoder.patch_size
         encoder_dim = self.encoder.embedding_size
         decoder_embed_dim = 512
         decoder_depth = 8
@@ -54,7 +54,7 @@ class MAE_ViT(PreTrainBaseNet):
 
         layers.append(nn.LayerNorm(decoder_embed_dim, eps=1e-6))
         layers.append(
-            nn.Linear(decoder_embed_dim, self.encoder.patch_size**2 * self.encoder.input_channels, bias=True)
+            nn.Linear(decoder_embed_dim, self.patch_size**2 * self.encoder.input_channels, bias=True)
         )  # Decoder to patch
         self.decoder = nn.Sequential(*layers)
 
@@ -64,7 +64,7 @@ class MAE_ViT(PreTrainBaseNet):
         x: (N, L, patch_size**2 * 3)
         """
 
-        p = self.encoder.patch_size
+        p = self.patch_size
         assert imgs.shape[2] == imgs.shape[3] and imgs.shape[2] % p == 0
 
         h = imgs.shape[2] // p
@@ -81,7 +81,7 @@ class MAE_ViT(PreTrainBaseNet):
         imgs: (N, 3, H, W)
         """
 
-        p = self.encoder.patch_size
+        p = self.patch_size
         h = int(x.shape[1] ** 0.5)
         w = int(x.shape[1] ** 0.5)
         assert h * w == x.shape[1]

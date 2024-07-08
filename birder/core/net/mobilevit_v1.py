@@ -21,6 +21,7 @@ from torchvision.ops import Conv2dNormActivation
 from birder.core.net.base import BaseNet
 from birder.core.net.mobilenet_v2 import InvertedResidual
 from birder.core.net.vit import EncoderBlock
+from birder.model_registry import registry
 
 
 class MobileVitBlock(nn.Module):
@@ -270,3 +271,8 @@ class MobileViT_v1(BaseNet):
 
     def create_classifier(self) -> nn.Module:
         return nn.Linear(self.embedding_size, self.num_classes, bias=False)
+
+
+registry.register_alias("mobilevit_v1_xxs", MobileViT_v1, 0)
+registry.register_alias("mobilevit_v1_xs", MobileViT_v1, 1)
+registry.register_alias("mobilevit_v1_s", MobileViT_v1, 2)

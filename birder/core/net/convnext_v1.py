@@ -17,6 +17,7 @@ from torchvision.ops import Permute
 from torchvision.ops import StochasticDepth
 
 from birder.core.net.base import BaseNet
+from birder.model_registry import registry
 
 
 class LayerNorm2d(nn.LayerNorm):
@@ -170,3 +171,9 @@ class ConvNeXt_v1(BaseNet):
 
     def create_classifier(self) -> nn.Module:
         return nn.Linear(self.embedding_size, self.num_classes)
+
+
+registry.register_alias("convnext_v1_tiny", ConvNeXt_v1, 0)
+registry.register_alias("convnext_v1_small", ConvNeXt_v1, 1)
+registry.register_alias("convnext_v1_base", ConvNeXt_v1, 2)
+registry.register_alias("convnext_v1_large", ConvNeXt_v1, 3)

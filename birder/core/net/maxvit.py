@@ -23,6 +23,7 @@ from torchvision.ops import SqueezeExcitation
 from torchvision.ops import StochasticDepth
 
 from birder.core.net.base import BaseNet
+from birder.model_registry import registry
 
 
 def _get_conv_output_shape(
@@ -719,3 +720,9 @@ class MaxViT(BaseNet):
                             log_flag = True
 
                 new_grid_size = m.grid_size
+
+
+registry.register_alias("maxvit_t", MaxViT, 0)
+registry.register_alias("maxvit_s", MaxViT, 1)
+registry.register_alias("maxvit_b", MaxViT, 2)
+registry.register_alias("maxvit_l", MaxViT, 3)

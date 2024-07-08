@@ -49,10 +49,6 @@ class BaseNet(nn.Module):
             # Exclude all other base classes here
             return
 
-        if cls.__module__.endswith("net.base") is True:
-            # Exclude aliases
-            return
-
         registry.register_model(cls.__name__.lower(), cls)
 
     def __init__(

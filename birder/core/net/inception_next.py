@@ -16,6 +16,7 @@ from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
 from birder.core.net.base import BaseNet
+from birder.model_registry import registry
 
 
 class InceptionDWConv2d(nn.Module):
@@ -181,26 +182,26 @@ class Inception_NeXt(BaseNet):
         layer_scale = 1e-6
         mlp_ratios = [4, 4, 4, 3]
 
-        # 0 = tiny
-        # 1 = small
-        # 2 = base
-        # 3 = large
         if net_param == 0:
+            # Tiny
             channels = [96, 192, 384, 768]
             num_layers = [3, 3, 9, 3]
             stochastic_depth_prob = 0.1
 
         elif net_param == 1:
+            # Small
             channels = [96, 192, 384, 768]
             num_layers = [3, 3, 27, 3]
             stochastic_depth_prob = 0.3
 
         elif net_param == 2:
+            # Base
             channels = [128, 256, 512, 1024]
             num_layers = [3, 3, 27, 3]
             stochastic_depth_prob = 0.4
 
         elif net_param == 3:
+            # Large
             channels = [192, 384, 768, 1536]
             num_layers = [3, 3, 27, 3]
             stochastic_depth_prob = 0.5
@@ -272,3 +273,9 @@ class Inception_NeXt(BaseNet):
             nn.LayerNorm(self.last_mlp_ratio * self.embedding_size, eps=1e-6),
             nn.Linear(self.last_mlp_ratio * self.embedding_size, self.num_classes),
         )
+
+
+registry.register_alias("inception_next_t", Inception_NeXt, 0)
+registry.register_alias("inception_next_s", Inception_NeXt, 1)
+registry.register_alias("inception_next_b", Inception_NeXt, 2)
+registry.register_alias("inception_next_l", Inception_NeXt, 3)

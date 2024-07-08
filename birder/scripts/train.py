@@ -574,11 +574,10 @@ def main() -> None:
         "-n",
         "--network",
         type=str,
-        choices=registry.list_models(task=Task.IMAGE_CLASSIFICATION),
         required=True,
         help="the neural network to use",
     )
-    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by most networks")
+    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required for most networks")
     parser.add_argument(
         "--reset-head",
         default=False,
@@ -734,6 +733,9 @@ def main() -> None:
         args.load_scheduler is False or args.resume_epoch is not None
     ), "Load scheduler must be from resumed training (--resume-epoch)"
     assert args.wds is False or args.ra_sampler is False, "Repeated Augmentation not currently supported with wds"
+    assert (
+        registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION) is True
+    ), "Unknown network, see list-models tool for available options"
 
     if settings.MODELS_DIR.exists() is False:
         logging.info(f"Creating {settings.MODELS_DIR} directory...")

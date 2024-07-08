@@ -108,12 +108,12 @@ class BackboneWithFPN(nn.Module):
         return out
 
 
-_REGISTERED_DETECTION_NETWORKS: dict[str, type[DetectionBaseNet]] = {}
-
-
 ###############################################################################
 # General Detection
 ###############################################################################
+
+# Code adapted from https://github.com/pytorch/vision/blob/main/torchvision/models/detection/_utils.py
+# Reference license: BSD 3-Clause
 
 
 # pylint: disable=protected-access,too-many-locals

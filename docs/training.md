@@ -448,7 +448,7 @@ torchrun --nproc_per_node=2 train.py --network maxvit --net-param 2 --opt adamw 
 ### MnasNet
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mnasnet --net-param 0.5 --lr 0.5 --nesterov --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 5 --batch-size 256 --epochs 200 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3
+torchrun --nproc_per_node=2 train.py --network mnasnet --net-param 0.5 --opt rmsprop --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 256 --epochs 200 --wd 1e-5 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --model-ema
 ```
 
 ### Mobilenet v1
@@ -468,19 +468,19 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v2 --net-param 2 --lr 0
 #### ### Mobilenet v3: 1.5
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3 --net-param 1.5 --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3 --net-param 1.5 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile
 ```
 
 At epoch 320 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3 --net-param 1.5 --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 128 --size 384 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile --resume-epoch 320 --load-states
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3 --net-param 1.5 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 128 --size 384 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile --resume-epoch 320 --load-states
 ```
 
 Optional intermediate training
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3 --net-param 1.5 --tag intermediate --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3 --net-param 1.5 --tag intermediate --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 ### MobileViT v1

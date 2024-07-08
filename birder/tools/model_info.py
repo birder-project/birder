@@ -46,7 +46,7 @@ def set_parser(subparsers: Any) -> None:
         "-n", "--network", type=str, required=True, help="the neural network to load (i.e. resnet_v2_50)"
     )
     subparser.add_argument(
-        "-p", "--net-param", type=float, help="network specific parameter, required by most networks"
+        "-p", "--net-param", type=float, help="network specific parameter, required for most networks"
     )
     subparser.add_argument(
         "--backbone",

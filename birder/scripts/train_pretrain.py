@@ -367,15 +367,13 @@ def main() -> None:
         "-n",
         "--network",
         type=str,
-        choices=registry.list_models(task=Task.IMAGE_PRETRAINING),
         required=True,
         help="the neural network to use",
     )
-    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by most networks")
+    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required for most networks")
     parser.add_argument(
         "--encoder",
         type=str,
-        choices=registry.list_models(net_type=PreTrainEncoder),
         required=True,
         help="the neural network to used as encoder (network being pre-trained)",
     )
@@ -481,6 +479,12 @@ def main() -> None:
         args.load_states is True and args.resume_epoch is not None
     ), "Load states must be from resumed training (--resume-epoch)"
     assert args.wds is False or len(args.data_path) == 1, "WDS must be a single directory"
+    assert (
+        registry.exists(args.network, task=Task.IMAGE_PRETRAINING) is True
+    ), "Unknown network, see list-models tool for available options"
+    assert (
+        registry.exists(args.encoder, net_type=PreTrainEncoder) is True
+    ), "Unknown encoder, see list-models tool for available options"
 
     if settings.MODELS_DIR.exists() is False:
         logging.info(f"Creating {settings.MODELS_DIR} directory...")

@@ -7,6 +7,8 @@ all-test-job:
   image: python:3.10
   only:
     - tags
+  variables:
+    NETWORK_TESTS: 1
   script:
     - pip install -r requirements/requirements-pytorch-cpu.txt
     - pip install -r requirements/requirements-dev.txt

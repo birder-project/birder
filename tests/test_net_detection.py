@@ -5,9 +5,18 @@ from typing import Optional
 import torch
 from parameterized import parameterized
 
+from birder.core.net.detection import base
 from birder.model_registry import registry
 
 logging.disable(logging.CRITICAL)
+
+
+class TestBase(unittest.TestCase):
+    def test_get_signature(self) -> None:
+        signature = base.get_detection_signature((1, 3, 224, 224), 10)
+        self.assertIn("inputs", signature)
+        self.assertIn("outputs", signature)
+        self.assertIn("boxes", signature["outputs"][0][0])
 
 
 class TestNetDetection(unittest.TestCase):

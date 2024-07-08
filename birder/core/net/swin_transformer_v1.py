@@ -22,6 +22,7 @@ from torchvision.ops import Permute
 from torchvision.ops import StochasticDepth
 
 from birder.core.net.base import BaseNet
+from birder.model_registry import registry
 
 
 def patch_merging_pad(x: torch.Tensor) -> torch.Tensor:
@@ -470,3 +471,9 @@ class Swin_Transformer_v1(BaseNet):
                 if log_flag is False:
                     logging.info(f"Resized relative position bias table: {src_size} to {dst_size}")
                     log_flag = True
+
+
+registry.register_alias("swin_transformer_v1_t", Swin_Transformer_v1, 0)
+registry.register_alias("swin_transformer_v1_s", Swin_Transformer_v1, 1)
+registry.register_alias("swin_transformer_v1_b", Swin_Transformer_v1, 2)
+registry.register_alias("swin_transformer_v1_l", Swin_Transformer_v1, 3)

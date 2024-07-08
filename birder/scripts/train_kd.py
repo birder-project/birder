@@ -570,7 +570,6 @@ def main() -> None:
     parser.add_argument(
         "--teacher",
         type=str,
-        choices=registry.list_models(task=Task.IMAGE_CLASSIFICATION),
         required=True,
         help="the teacher network",
     )
@@ -581,7 +580,6 @@ def main() -> None:
     parser.add_argument(
         "--student",
         type=str,
-        choices=registry.list_models(task=Task.IMAGE_CLASSIFICATION),
         required=True,
         help="the student network to train",
     )
@@ -727,6 +725,12 @@ def main() -> None:
         args.load_states is True and args.resume_epoch is not None
     ), "Load states must be from resumed training (--resume-epoch)"
     assert args.wds is False or args.ra_sampler is False, "Repeated Augmentation not currently supported with wds"
+    assert (
+        registry.exists(args.teacher, task=Task.IMAGE_CLASSIFICATION) is True
+    ), "Unknown teacher network, see list-models tool for available options"
+    assert (
+        registry.exists(args.student, task=Task.IMAGE_CLASSIFICATION) is True
+    ), "Unknown student network, see list-models tool for available options"
 
     if settings.MODELS_DIR.exists() is False:
         logging.info(f"Creating {settings.MODELS_DIR} directory...")

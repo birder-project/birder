@@ -21,6 +21,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.core.net.base import PreTrainEncoder
 from birder.core.net.convnext_v1 import LayerNorm2d
+from birder.model_registry import registry
 
 
 class GRN(nn.Module):
@@ -247,3 +248,13 @@ class ConvNeXt_v2(PreTrainEncoder):
 
     def create_classifier(self) -> nn.Module:
         return nn.Linear(self.embedding_size, self.num_classes)
+
+
+registry.register_alias("convnext_v2_atto", ConvNeXt_v2, 0)
+registry.register_alias("convnext_v2_femto", ConvNeXt_v2, 1)
+registry.register_alias("convnext_v2_pico", ConvNeXt_v2, 2)
+registry.register_alias("convnext_v2_nano", ConvNeXt_v2, 3)
+registry.register_alias("convnext_v2_tiny", ConvNeXt_v2, 4)
+registry.register_alias("convnext_v2_base", ConvNeXt_v2, 5)
+registry.register_alias("convnext_v2_large", ConvNeXt_v2, 6)
+registry.register_alias("convnext_v2_huge", ConvNeXt_v2, 7)

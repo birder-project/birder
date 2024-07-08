@@ -22,6 +22,7 @@ from birder.core.net.base import PreTrainEncoder
 from birder.core.net.swin_transformer_v1 import get_relative_position_bias
 from birder.core.net.swin_transformer_v1 import patch_merging_pad
 from birder.core.net.swin_transformer_v1 import shifted_window_attention
+from birder.model_registry import registry
 
 
 class PatchMerging(nn.Module):
@@ -405,3 +406,9 @@ class Swin_Transformer_v2(PreTrainEncoder):
                 if log_flag is False:
                     logging.info(f"Resized window size: {src_window_size} to {new_window_size}")
                     log_flag = True
+
+
+registry.register_alias("swin_transformer_v2_t", Swin_Transformer_v2, 0)
+registry.register_alias("swin_transformer_v2_s", Swin_Transformer_v2, 1)
+registry.register_alias("swin_transformer_v2_b", Swin_Transformer_v2, 2)
+registry.register_alias("swin_transformer_v2_l", Swin_Transformer_v2, 3)

@@ -48,6 +48,9 @@ def predict(args: argparse.Namespace) -> None:
         pts=args.pts,
     )
 
+    if args.fast_matmul is True:
+        torch.set_float32_matmul_precision("high")
+
     if args.compile is True:
         net = torch.compile(net)
 
@@ -155,7 +158,7 @@ def main() -> None:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("-n", "--network", type=str, required=True, help="the neural network to use (i.e. faster_rcnn)")
-    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by most networks")
+    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required for most networks")
     parser.add_argument(
         "--backbone",
         type=str,
@@ -174,6 +177,12 @@ def main() -> None:
     parser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
     parser.add_argument("--pts", default=False, action="store_true", help="load torchscript network")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
+    parser.add_argument(
+        "--fast-matmul",
+        default=False,
+        action="store_true",
+        help="use fast matrix multiplication (affects precision)",
+    )
     parser.add_argument("--min-score", type=float, default=0.5, help="prediction score threshold")
     parser.add_argument("--size", type=int, default=None, help="image size for inference (defaults to model signature)")
     parser.add_argument("--show", default=False, action="store_true", help="show image predictions")

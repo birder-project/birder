@@ -17,6 +17,7 @@ from torch import nn
 from torchvision.ops import StochasticDepth
 
 from birder.core.net.base import BaseNet
+from birder.model_registry import registry
 
 
 class MLP(nn.Module):
@@ -388,3 +389,8 @@ class EdgeViT(BaseNet):
 
     def create_classifier(self) -> nn.Module:
         return nn.Linear(self.embedding_size, self.num_classes, bias=False)
+
+
+registry.register_alias("edgevit_xxs", EdgeViT, 0)
+registry.register_alias("edgevit_xs", EdgeViT, 1)
+registry.register_alias("edgevit_s", EdgeViT, 2)

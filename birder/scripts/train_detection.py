@@ -472,15 +472,13 @@ def main() -> None:
         "-n",
         "--network",
         type=str,
-        choices=registry.list_models(task=Task.OBJECT_DETECTION),
         required=True,
         help="the neural network to use",
     )
-    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by most networks")
+    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required for most networks")
     parser.add_argument(
         "--backbone",
         type=str,
-        choices=registry.list_models(net_type=DetectorBackbone),
         required=True,
         help="the neural network to used as backbone",
     )
@@ -629,6 +627,12 @@ def main() -> None:
         args.load_states is True and args.resume_epoch is not None
     ), "Load states must be from resumed training (--resume-epoch)"
     assert args.freeze_backbone is False or args.freeze_backbone_stages is None
+    assert (
+        registry.exists(args.network, task=Task.OBJECT_DETECTION) is True
+    ), "Unknown network, see list-models tool for available options"
+    assert (
+        registry.exists(args.backbone, net_type=DetectorBackbone) is True
+    ), "Unknown backbone, see list-models tool for available options"
 
     if settings.MODELS_DIR.exists() is False:
         logging.info(f"Creating {settings.MODELS_DIR} directory...")

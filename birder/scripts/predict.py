@@ -213,7 +213,7 @@ def predict(args: argparse.Namespace) -> None:
         results.log_short_report()
 
     else:
-        logging.warning("No known labeled samples found")
+        logging.warning("No labeled samples found")
 
     # Summary
     if args.summary is True:
@@ -245,7 +245,7 @@ def main() -> None:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("-n", "--network", type=str, required=True, help="the neural network to use (i.e. resnet_v2)")
-    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by most networks")
+    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required for most networks")
     parser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
     parser.add_argument("--quantized", default=False, action="store_true", help="load quantized model")
     parser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
@@ -257,11 +257,11 @@ def main() -> None:
         "--fast-matmul",
         default=False,
         action="store_true",
-        help="use fast matrix multiplication (affect precision)",
+        help="use fast matrix multiplication (affects precision)",
     )
     parser.add_argument("--size", type=int, default=None, help="image size for inference (defaults to model signature)")
     parser.add_argument("--batch-size", type=int, default=32, help="the batch size")
-    parser.add_argument("--center-crop", type=float, default=1.0, help="Center crop ratio during inference")
+    parser.add_argument("--center-crop", type=float, default=1.0, help="Center crop ratio to use during inference")
     parser.add_argument("--show", default=False, action="store_true", help="show image predictions")
     parser.add_argument(
         "--show-below", type=float, default=None, help="show when target prediction is below given threshold"
@@ -282,7 +282,7 @@ def main() -> None:
     parser.add_argument("data_path", nargs="+", help="data files path (directories and files)")
     args = parser.parse_args()
 
-    assert args.center_crop <= 1 and args.center_crop > 0
+    assert args.center_crop <= 1 and args.center_crop > 0, "Center crop ratio must be between 0 and 1"
     assert args.parallel is False or args.gpu is True
     assert args.save_embedding is False or args.parallel is False
     assert args.parallel is False or args.compile is False

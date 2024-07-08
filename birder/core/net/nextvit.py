@@ -17,6 +17,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.core.net.base import BaseNet
 from birder.core.net.base import make_divisible
+from birder.model_registry import registry
 
 
 class PatchEmbed(nn.Module):
@@ -375,3 +376,8 @@ class NextViT(BaseNet):
 
     def create_classifier(self) -> nn.Module:
         return nn.Linear(self.embedding_size, self.num_classes)
+
+
+registry.register_alias("nextvit_s", NextViT, 0)
+registry.register_alias("nextvit_b", NextViT, 1)
+registry.register_alias("nextvit_l", NextViT, 2)

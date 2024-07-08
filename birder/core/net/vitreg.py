@@ -19,8 +19,8 @@ class ViTReg4(ViT):
         super().__init__(input_channels, num_classes, net_param, size, num_reg_tokens=4)
 
 
-registry.register_alias("vit_reg4_b32", ViTReg4, 0)
-registry.register_alias("vit_reg4_b16", ViTReg4, 1)
-registry.register_alias("vit_reg4_l32", ViTReg4, 2)
-registry.register_alias("vit_reg4_l16", ViTReg4, 3)
-registry.register_alias("vit_reg4_h14", ViTReg4, 4)
+registry.register_alias("vitreg4_b32", ViTReg4, 0)
+registry.register_alias("vitreg4_b16", ViTReg4, 1)
+registry.register_alias("vitreg4_l32", ViTReg4, 2)
+registry.register_alias("vitreg4_l16", ViTReg4, 3)
+registry.register_alias("vitreg4_h14", ViTReg4, 4)
