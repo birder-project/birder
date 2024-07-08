@@ -1,14 +1,8 @@
-# Introduction
-
-## What is Birder?
+# About Birder
 
 Birder is an open-source computer vision framework designed for wildlife imagery, specifically focused on bird species classification and detection. This project leverages deep neural networks to provide robust models that can handle real-world data challenges.
 
 Unlike general-purpose image classification frameworks, Birder is tailored to the unique requirements of bird identification. It offers a comprehensive suite of tools and models that cater to various aspects of avian visual analysis, from species classification to object detection.
-
-## Key Features
-
-This section is currently a work in progress. Please check back later for updates.
 
 ## Project Goals
 
