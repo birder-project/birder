@@ -170,6 +170,7 @@ def mean_and_std(args: argparse.Namespace) -> None:
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "stats",
+        allow_abbrev=False,
         help="show image directory statistics",
         description="show image directory statistics",
         epilog=(

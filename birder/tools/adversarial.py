@@ -59,6 +59,7 @@ def show_fgsm(args: argparse.Namespace) -> None:
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "adversarial",
+        allow_abbrev=False,
         help="deep learning adversarial attacks",
         description="deep learning adversarial attacks",
         epilog=(

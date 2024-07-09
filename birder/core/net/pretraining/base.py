@@ -1,11 +1,28 @@
 from typing import Optional
+from typing import TypedDict
 
 import torch
 from torch import nn
 
+from birder.core.net.base import DataShapeType
 from birder.core.net.base import PreTrainEncoder
 from birder.model_registry import Task
 from birder.model_registry import registry
+
+PreTrainSignatureType = TypedDict(
+    "PreTrainSignatureType",
+    {
+        "inputs": list[DataShapeType],
+        "outputs": list[DataShapeType],
+    },
+)
+
+
+def get_pretrain_signature(input_shape: tuple[int, ...]) -> PreTrainSignatureType:
+    return {
+        "inputs": [{"data_shape": [0, *input_shape[1:]]}],
+        "outputs": [{"data_shape": [0, *input_shape[1:]]}],
+    }
 
 
 class PreTrainBaseNet(nn.Module):

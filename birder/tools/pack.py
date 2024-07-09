@@ -183,6 +183,7 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "pack",
+        allow_abbrev=False,
         help="pack training dataset into webdataset format",
         description="pack training dataset into webdataset format",
         epilog=(

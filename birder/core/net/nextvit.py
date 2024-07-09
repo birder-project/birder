@@ -374,9 +374,6 @@ class NextViT(BaseNet):
         x = self.body(x)
         return self.features(x)
 
-    def create_classifier(self) -> nn.Module:
-        return nn.Linear(self.embedding_size, self.num_classes)
-
 
 registry.register_alias("nextvit_s", NextViT, 0)
 registry.register_alias("nextvit_b", NextViT, 1)

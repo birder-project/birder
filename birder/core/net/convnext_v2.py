@@ -246,9 +246,6 @@ class ConvNeXt_v2(PreTrainEncoder):
         x = self.body(x)
         return self.features(x)
 
-    def create_classifier(self) -> nn.Module:
-        return nn.Linear(self.embedding_size, self.num_classes)
-
 
 registry.register_alias("convnext_v2_atto", ConvNeXt_v2, 0)
 registry.register_alias("convnext_v2_femto", ConvNeXt_v2, 1)

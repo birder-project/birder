@@ -80,6 +80,9 @@ class SqueezeNet(BaseNet):
         return self.features(x)
 
     def create_classifier(self) -> nn.Module:
+        if self.num_classes == 0:
+            return nn.Identity()
+
         return nn.Sequential(
             nn.Dropout(p=0.5, inplace=True),
             nn.Conv2d(

@@ -85,6 +85,7 @@ def show_det_iterator(args: argparse.Namespace) -> None:
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "show-det-iterator",
+        allow_abbrev=False,
         help="show training / inference detection iterator output vs input",
         description="show training / inference detection iterator output vs input",
         epilog=(

@@ -222,6 +222,3 @@ class ResNet_v2(DetectorBackbone):
         x = self.stem(x)
         x = self.body(x)
         return self.features(x)
-
-    def create_classifier(self) -> nn.Module:
-        return nn.Linear(self.embedding_size, self.num_classes)

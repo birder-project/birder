@@ -169,9 +169,6 @@ class ConvNeXt_v1(BaseNet):
         x = self.body(x)
         return self.features(x)
 
-    def create_classifier(self) -> nn.Module:
-        return nn.Linear(self.embedding_size, self.num_classes)
-
 
 registry.register_alias("convnext_v1_tiny", ConvNeXt_v1, 0)
 registry.register_alias("convnext_v1_small", ConvNeXt_v1, 1)

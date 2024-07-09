@@ -445,9 +445,6 @@ class XCiT(BaseNet):
 
         return x[:, 0]
 
-    def create_classifier(self) -> nn.Module:
-        return nn.Linear(self.embedding_size, self.num_classes)
-
 
 registry.register_alias("xcit_nano16", XCiT, 0)
 registry.register_alias("xcit_nano8", XCiT, 1)

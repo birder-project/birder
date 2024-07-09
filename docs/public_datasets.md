@@ -93,9 +93,9 @@ About ~1.3M images of 1000 classes.
 
 You have to accept the terms and conditions to access it.
 
-## ImageNet 12K
+## ImageNet 21K
 
-ImageNet 12K clean, encoded as WEBP and packed as `webdataset` by timm - <https://huggingface.co/datasets/timm/imagenet-w21-webp-wds>
+ImageNet 21K clean, encoded as WEBP and packed as `webdataset` by timm - <https://huggingface.co/datasets/timm/imagenet-w21-webp-wds>
 
 About ~13M images of 19000 classes.
 

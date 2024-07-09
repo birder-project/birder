@@ -270,6 +270,9 @@ class MobileViT_v1(BaseNet):
         return self.features(x)
 
     def create_classifier(self) -> nn.Module:
+        if self.num_classes == 0:
+            return nn.Identity()
+
         return nn.Linear(self.embedding_size, self.num_classes, bias=False)
 
 

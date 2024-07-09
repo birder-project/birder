@@ -26,6 +26,7 @@ class Ensemble(torch.nn.Module):
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "ensemble-model",
+        allow_abbrev=False,
         help="create an ensemble model from multiple torchscript models",
         description="create an ensemble model from multiple torchscript models",
         epilog=(

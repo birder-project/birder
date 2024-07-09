@@ -120,6 +120,7 @@ def similarity(args: argparse.Namespace) -> None:
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "similarity",
+        allow_abbrev=False,
         help="show most similar images",
         description="show most similar images",
         epilog=(

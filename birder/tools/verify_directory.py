@@ -67,6 +67,7 @@ def verify_directory(args: argparse.Namespace) -> None:
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "verify-directory",
+        allow_abbrev=False,
         help="loads every image in the dataset and raises exception on corrupted files",
         description="loads every image in the dataset and raises exception on corrupted files",
         epilog=(

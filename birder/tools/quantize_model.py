@@ -23,6 +23,7 @@ from birder.core.transforms.classification import inference_preset
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "quantize-model",
+        allow_abbrev=False,
         help="quantize model",
         description="quantize model",
         epilog=(

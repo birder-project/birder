@@ -314,9 +314,6 @@ class CaiT(BaseNet):
 
         return x[:, 0]
 
-    def create_classifier(self) -> nn.Module:
-        return nn.Linear(self.embedding_size, self.num_classes)
-
     def adjust_size(self, new_size: int) -> None:
         super().adjust_size(new_size)
 

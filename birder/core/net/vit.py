@@ -362,9 +362,6 @@ class ViT(PreTrainEncoder):
         # Classifier "token" as used by standard language architectures
         return x[:, self.num_reg_tokens]
 
-    def create_classifier(self) -> nn.Module:
-        return nn.Linear(self.embedding_size, self.num_classes)
-
     def adjust_size(self, new_size: int) -> None:
         super().adjust_size(new_size)
 

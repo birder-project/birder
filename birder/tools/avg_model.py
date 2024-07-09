@@ -73,6 +73,7 @@ def avg_models(network: str, net_param: Optional[float], tag: Optional[str], epo
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "avg-model",
+        allow_abbrev=False,
         help="create weight average model from multiple trained models",
         description="create weight average model from multiple trained models",
         epilog=(

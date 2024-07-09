@@ -267,6 +267,9 @@ class Inception_NeXt(BaseNet):
         return self.features(x)
 
     def create_classifier(self) -> nn.Module:
+        if self.num_classes == 0:
+            return nn.Identity()
+
         return nn.Sequential(
             nn.Linear(self.embedding_size, self.last_mlp_ratio * self.embedding_size),
             nn.GELU(),

@@ -120,6 +120,7 @@ def show_grad_cam(args: argparse.Namespace) -> None:
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "introspection",
+        allow_abbrev=False,
         help="computer vision introspection and explainability",
         description="computer vision introspection and explainability",
         epilog=(

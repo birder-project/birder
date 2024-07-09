@@ -75,7 +75,10 @@ class BaseNet(nn.Module):
         self.embedding_size: int
 
     def create_classifier(self) -> nn.Module:
-        raise NotImplementedError
+        if self.num_classes == 0:
+            return nn.Identity()
+
+        return nn.Linear(self.embedding_size, self.num_classes)
 
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes

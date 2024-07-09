@@ -20,6 +20,7 @@ from birder.core.net.base import SignatureType
 from birder.core.net.detection.base import DetectionBaseNet
 from birder.core.net.detection.base import DetectionSignatureType
 from birder.core.net.pretraining.base import PreTrainBaseNet
+from birder.core.net.pretraining.base import PreTrainSignatureType
 from birder.core.transforms.classification import RGBType
 from birder.model_registry import registry
 
@@ -131,7 +132,7 @@ def checkpoint_model(
     network_name: str,
     epoch: int,
     net: torch.nn.Module,
-    signature: SignatureType | DetectionSignatureType,
+    signature: SignatureType | DetectionSignatureType | PreTrainSignatureType,
     class_to_idx: dict[str, int],
     rgb_values: RGBType,
     optimizer: Optional[torch.optim.Optimizer],
@@ -222,7 +223,7 @@ def load_pretrain_checkpoint(
 
     model_dict: dict[str, Any] = torch.load(path, map_location=device)
 
-    signature: SignatureType = model_dict["signature"]
+    signature: PreTrainSignatureType = model_dict["signature"]
     input_channels = signature["inputs"][0]["data_shape"][1]
     num_classes = signature["outputs"][0]["data_shape"][1]
     size = signature["inputs"][0]["data_shape"][2]

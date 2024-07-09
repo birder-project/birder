@@ -20,6 +20,7 @@ from birder.model_registry import registry
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "convert-model",
+        allow_abbrev=False,
         help="convert PyTorch model to various formats",
         description="convert PyTorch model to various formats",
         epilog=(

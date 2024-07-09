@@ -14,6 +14,7 @@ from birder.model_registry import registry
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "list-models",
+        allow_abbrev=False,
         help="list available models",
         description="list available models",
         epilog=(
@@ -68,5 +69,13 @@ def main(args: argparse.Namespace) -> None:
     else:
         model_list = registry.list_models(net_type=t)
 
+    # Sort by model group for visibility
+    index_map = {item: index for index, item in enumerate(model_list)}
+    model_list = sorted(model_list, key=lambda x: (x.split("_")[0], index_map[x]))
+
     console = Console()
-    console.print(Columns(model_list, padding=(0, 3), equal=True, column_first=True, title="[bold]Models[/bold]"))
+    console.print(
+        Columns(
+            model_list, padding=(0, 3), equal=True, column_first=True, title=f"[bold]{len(model_list)} Models[/bold]"
+        ),
+    )

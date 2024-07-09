@@ -29,6 +29,7 @@ def get_model_info(net: torch.nn.Module) -> dict[str, float]:
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "model-info",
+        allow_abbrev=False,
         help="print information about the model",
         description="print information about the model",
         epilog=(

@@ -67,6 +67,7 @@ def download_file(url: str, dst: Path | str, expected_sha256: str) -> None:
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "fetch-model",
+        allow_abbrev=False,
         help="download pretrained model",
         description="download pretrained model",
         epilog=(

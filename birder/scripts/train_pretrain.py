@@ -25,13 +25,12 @@ from birder.core.datasets.webdataset import make_wds_dataset
 from birder.core.datasets.webdataset import wds_size
 from birder.core.net.base import PreTrainEncoder
 from birder.core.net.base import get_signature
+from birder.core.net.pretraining.base import get_pretrain_signature
 from birder.core.transforms.classification import RGBMode
 from birder.core.transforms.classification import get_rgb_values
 from birder.core.transforms.classification import training_preset
 from birder.model_registry import Task
 from birder.model_registry import registry
-
-NUM_OUTPUTS = 2  # Just a place holder for easy encoder loading
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
@@ -95,7 +94,7 @@ def train(args: argparse.Namespace) -> None:
         )
 
     else:
-        encoder = registry.net_factory(args.encoder, sample_shape[1], NUM_OUTPUTS, args.encoder_param, args.size)
+        encoder = registry.net_factory(args.encoder, sample_shape[1], 0, args.encoder_param, args.size)
         net = registry.pretrain_net_factory(args.network, encoder, args.net_param, args.size).to(device)
 
     # Compile network
@@ -144,7 +143,7 @@ def train(args: argparse.Namespace) -> None:
     # Distributed
     net_without_ddp = net
     if args.distributed is True:
-        net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[args.gpu], find_unused_parameters=True)
+        net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[args.gpu])
         net_without_ddp = net.module
 
     model_to_save = net_without_ddp
@@ -172,7 +171,8 @@ def train(args: argparse.Namespace) -> None:
     logging.info(f"Logging training run at {training_log_path}")
     summary_writer = SummaryWriter(training_log_path)
 
-    signature = get_signature(input_shape=sample_shape, num_outputs=NUM_OUTPUTS)
+    signature = get_pretrain_signature(input_shape=sample_shape)
+    encoder_signature = get_signature(input_shape=sample_shape, num_outputs=0)
     if args.rank == 0:
         summary_writer.flush()
         cli.write_signature(network_name, signature)
@@ -310,7 +310,7 @@ def train(args: argparse.Namespace) -> None:
                     encoder_name,
                     epoch,
                     model_to_save.encoder,
-                    signature,
+                    encoder_signature,
                     {},
                     rgb_values,
                     optimizer=None,
@@ -343,7 +343,7 @@ def train(args: argparse.Namespace) -> None:
             encoder_name,
             epoch,
             model_to_save.encoder,
-            signature,
+            encoder_signature,
             {},
             rgb_values,
             optimizer,

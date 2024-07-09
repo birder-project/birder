@@ -1,219 +1,219 @@
-class,scientific_name,verified,similarity_check,weakly_labeled,comments,training_samples,validation_samples,testing_samples,training_detection_samples,validation_detection_samples
-African crake,Crecopsis egregia,0,0,0,,180,50,5,3,1
-African swamphen,Porphyrio madagascariensis,0,1,0,Mixed with Western swamphen,997,50,106,14,4
-Alpine swift,Tachymarptis melba,1,1,0,,710,50,207,8,11
-American wigeon,Mareca americana,0,0,0,,702,50,178,12,4
-Arabian babbler,Argya squamiceps,1,1,0,,932,50,209,14,10
-Arabian green bee-eater,Merops cyanophrys,0,0,0,,831,50,201,15,5
-Asian desert warbler,Curruca nana,0,1,0,Mixed with African desert warbler,831,50,203,12,2
-Baillons crake,,0,0,0,,844,50,202,8,6
-Barn owl,,1,1,0,,1209,50,203,10,8
-Barn swallow,,0,1,0,,822,50,204,15,11
-Barnacle goose,,0,0,0,,1221,50,110,40,13
-Bateleur,,0,0,0,,1284,50,238,12,7
-Bearded reedling,,1,0,0,,884,50,206,19,13
-Bearded vulture,,0,0,0,,904,50,204,4,4
-Black francolin,,1,1,0,,857,50,204,5,4
-Black kite,,0,1,0,,959,50,213,13,5
-Black scrub robin,,0,0,0,,684,50,47,5,3
-Black stork,,1,1,0,,819,50,227,14,11
-Black-bellied sandgrouse,,0,0,0,,572,50,201,9,4
-Black-crowned night heron,,1,1,0,,834,50,208,4,4
-Black-headed gull,,0,1,0,Mixed,1003,50,200,23,1
-Black-winged kite,,0,1,0,,863,50,213,24,10
-Black-winged stilt,,0,1,0,,826,50,206,130,26
-Blackstart,,1,1,0,,808,50,202,7,3
-Blue-cheeked bee-eater,,0,0,0,,913,50,200,17,6
-Bluethroat,,1,1,0,,879,50,203,7,3
-Bohemian waxwing,,0,0,0,,815,50,201,108,7
-Booted eagle,,0,0,0,,946,50,201,10,5
-Brambling,,0,0,0,,825,50,201,13,6
-Brown booby,,0,0,0,,1143,50,202,11,8
-Canada goose,,0,0,0,,801,50,200,20,14
-Cattle egret,,0,1,0,,816,50,204,20,7
-Chukar partridge,,0,0,0,,1132,50,212,20,12
-Cinereous vulture,,0,0,0,,829,50,202,15,12
-Citrine wagtail,,0,0,0,,837,50,208,13,8
-Common blackbird,,1,0,0,,825,50,213,16,8
-Common buzzard,,0,0,0,,875,50,21,11,9
-Common chaffinch,,0,0,0,,1160,50,210,12,5
-Common crane,,1,1,0,,804,50,205,55,20
-Common cuckoo,,0,0,0,,727,50,231,15,8
-Common firecrest,,0,0,0,,1060,50,243,12,4
-Common house martin,,0,0,0,Mixed with some sand martin,624,50,204,34,15
-Common kestrel,,0,0,0,,1076,50,204,0,0
-Common kingfisher,,1,0,0,,720,50,223,1,0
-Common linnet,,0,0,0,,806,50,207,1,0
-Common moorhen,,1,0,0,,809,50,206,2,0
-Common myna,,1,0,0,,1005,50,239,10,0
-Common pochard,,0,0,0,,887,50,206,5,0
-Common quail,,0,0,0,,744,50,52,0,0
-Common rock thrush,,0,0,0,,917,50,218,10,0
-Common shelduck,,0,1,0,,767,50,213,4,0
-Common starling,,1,0,0,,847,50,238,1,0
-Common tern,,0,0,0,Mixed,778,50,200,0,0
-Common wood pigeon,,0,0,0,,645,50,206,0,0
-Corn bunting,,0,0,0,,826,50,203,1,0
-Corn crake,,0,0,0,,683,50,149,0,0
-Crab-plover,,0,0,0,,1282,50,205,3,0
-Cream-colored courser,,0,0,0,,879,50,210,41,0
-Crested lark,,0,0,0,,808,50,206,1,0
-Crowned sandgrouse,,0,0,0,,419,50,114,0,0
-Dalmatian pelican,,0,0,0,,738,50,202,0,0
-Demoiselle crane,,0,0,0,,564,50,203,28,0
-Desert owl,,0,0,0,Missing thumbnail image,124,39,0,0,0
-Egyptian goose,,1,0,0,,822,50,216,6,0
-Egyptian nightjar,,0,0,0,,784,50,133,0,0
-Egyptian vulture,,1,0,0,,814,50,211,1,0
-Eurasian blackcap,,0,0,0,,816,50,209,0,0
-Eurasian collared dove,,0,0,0,,746,50,213,0,0
-Eurasian coot,,1,0,0,,702,50,208,40,0
-Eurasian curlew,,0,0,0,,736,50,213,2,0
-Eurasian dotterel,,0,0,0,,822,50,201,0,0
-Eurasian eagle-owl,,0,0,0,,463,50,10,9,0
-Eurasian golden oriole,,0,0,0,,859,50,206,7,0
-Eurasian hoopoe,,0,0,0,,952,50,204,3,0
-Eurasian jay,,0,0,0,,816,50,219,0,0
-Eurasian oystercatcher,,0,0,0,,815,50,211,0,0
-Eurasian scops owl,,0,0,0,,966,50,208,2,0
-Eurasian spoonbill,,0,0,0,,807,50,204,76,0
-Eurasian stone-curlew,,0,0,0,,659,50,209,0,0
-Eurasian teal,,0,0,0,,771,50,217,0,0
-Eurasian wigeon,,0,0,0,,593,50,204,0,0
-Eurasian wren,,0,0,0,,906,50,203,0,0
-Eurasian wryneck,,0,0,0,,870,50,204,5,0
-European bee-eater,,0,0,0,,899,50,233,15,0
-European goldfinch,,0,0,0,,858,50,210,3,0
-European greenfinch,,0,0,0,,1180,50,204,0,0
-European nightjar,,0,0,0,,829,50,211,0,0
-European robin,,0,0,0,,843,50,209,0,0
-European roller,,0,0,0,,823,50,205,0,0
-European shag,,0,0,0,,670,50,215,0,0
-European stonechat,,0,0,0,Mixed with Siberian stonechat,819,50,205,3,0
-Fan-tailed raven,,0,0,0,,724,50,202,27,0
-Ferruginous duck,,0,0,0,,804,50,214,0,0
-Fieldfare,,0,0,0,,1125,50,211,13,0
-Gadwall,,0,0,0,,981,50,211,0,0
-Glossy ibis,,0,0,0,,856,50,216,2,0
-Goldcrest,,0,0,0,,817,50,205,1,0
-Goliath heron,,0,0,0,,814,50,208,2,0
-Graceful prinia,,0,0,0,,867,50,200,1,0
-Great bittern,,0,0,0,,1160,50,223,1,0
-Great bustard,,0,0,0,,853,50,201,1,0
-Great cormorant,,0,0,0,Mixed with white-breasted cormorant,932,50,209,5,2
-Great crested grebe,,0,0,0,,930,50,202,0,0
-Great egret,,0,0,0,,959,50,234,4,0
-Great grey shrike,,1,0,0,,670,50,201,0,0
-Great spotted cuckoo,,0,0,0,,859,50,206,21,0
-Great tit,,0,0,0,,877,50,209,11,0
-Great white pelican,,0,0,0,,838,50,182,2,0
-Greater flamingo,,0,0,0,,812,50,233,10,0
-Greater painted-snipe,,0,0,0,,834,50,209,1,0
-Grey heron,,0,0,0,,823,50,200,8,0
-Grey hypocolius,,0,0,0,,741,50,201,0,0
-Grey wagtail,,0,0,0,,815,50,205,0,0
-Griffon vulture,,0,0,0,,951,50,205,3,0
-Hawfinch,,0,0,0,,840,50,202,1,0
-Hen harrier,,0,0,0,,1000,50,205,0,0
-Hooded crow,,0,0,0,,994,50,203,19,0
-House crow,,0,0,0,,940,50,213,1,0
-House sparrow,,0,0,0,,802,50,207,3,0
-Kentish plover,,0,0,0,,785,50,212,0,0
-Lappet-faced vulture,,0,0,0,,741,50,201,0,0
-Laughing dove,,0,0,0,,571,50,213,1,0
-Lesser flamingo,,0,0,0,,595,50,203,9,0
-Lesser grey shrike,,1,0,0,,776,50,201,2,0
-Lesser kestrel,,0,0,0,,964,50,202,0,0
-Levant sparrowhawk,,0,0,0,,630,50,209,0,0
-Lichtensteins sandgrouse,,0,0,0,,511,50,57,0,0
-Little bittern,,0,0,0,,1016,50,230,0,0
-Little crake,,0,0,0,,623,50,206,0,0
-Little egret,,0,0,0,Missing grey morph,848,50,227,12,0
-Little grebe,,0,0,0,,1113,50,229,0,0
-Little owl,,0,0,0,,1080,50,200,1,0
-Long-eared owl,,0,0,0,,845,50,228,0,0
-Mallard,,0,0,0,,903,50,200,6,0
-Marabou stork,,0,0,0,,957,50,207,9,0
-Marbled duck,,0,0,0,,1292,50,196,4,0
-Masked shrike,,0,0,0,,864,50,201,0,0
-Merlin,,0,0,0,,1142,50,206,0,0
-Monk parakeet,,0,0,0,,904,50,221,0,0
-Mute swan,,0,0,0,,688,50,206,3,0
-Namaqua dove,,0,0,0,,842,50,209,1,0
-Nanday parakeet,,0,0,0,,861,50,215,0,0
-Northern bald ibis,,0,0,0,,542,50,203,0,0
-Northern gannet,,0,0,0,,657,50,200,1,0
-Northern lapwing,,0,0,0,,1145,50,216,0,0
-Northern pintail,,0,0,0,,1440,50,204,0,0
-Northern shoveler,,0,0,0,,977,50,208,23,0
-Osprey,,0,1,0,,884,50,215,1,0
-Palestine sunbird,,0,0,0,,840,50,204,1,0
-Peregrine falcon,,0,0,0,,954,50,210,4,0
-Pied avocet,,0,0,0,,865,50,209,7,0
-Pied kingfisher,,0,0,0,,902,50,227,4,0
-Pin-tailed sandgrouse,,0,0,0,,632,50,217,4,0
-Purple heron,,0,0,0,,1487,50,214,1,0
-Pygmy cormorant,,0,0,0,,807,50,241,11,0
-Red phalarope,,0,0,0,,705,50,201,2,0
-Red-backed shrike,,0,0,0,,623,50,211,1,0
-Red-billed tropicbird,,0,0,0,,647,50,202,10,0
-Red-breasted goose,,0,1,0,,394,50,50,12,0
-Red-crested pochard,,0,0,0,,843,50,208,0,0
-Red-footed falcon,,0,0,0,,810,50,207,0,0
-Red-fronted serin,,0,0,0,,847,50,211,6,0
-Red-necked phalarope,,0,0,0,,736,50,204,2,0
-Red-rumped swallow,,0,0,0,,612,50,203,0,0
-Ring ouzel,,0,0,0,,710,50,203,0,0
-Rock pigeon,,0,0,0,,475,50,204,0,0
-Rook,,0,0,0,,807,50,204,0,0
-Rose-ringed parakeet,,0,0,0,,811,50,231,0,0
-Rosy starling,,0,0,0,,811,50,200,1,0
-Rough-legged buzzard,,0,0,0,,528,50,46,0,0
-Ruddy shelduck,,0,0,0,,1149,50,203,2,0
-Ruddy turnstone,,0,0,0,,909,50,230,0,0
-Rufous-tailed scrub robin,,0,0,0,,780,50,213,0,0
-Sand partridge,,0,0,0,,656,50,74,1,0
-Senegal thick-knee,,0,0,0,,697,50,173,0,0
-Short-eared owl,,0,0,0,,898,50,202,2,0
-Short-toed snake eagle,,0,0,0,,923,50,209,2,0
-Sinai rosefinch,,1,1,0,,563,50,203,3,0
-Smew,,0,0,0,,811,50,208,1,0
-Sociable lapwing,,0,0,0,,878,50,200,2,0
-Sombre tit,,0,0,0,,578,50,200,1,0
-Sooty falcon,,0,1,0,,474,50,62,1,0
-Spotted crake,,0,0,0,,978,50,204,0,0
-Spotted flycatcher,,0,0,0,,1076,50,206,0,0
-Spotted sandgrouse,,0,0,0,,476,50,202,1,0
-Spur-winged lapwing,,0,0,0,,954,50,213,0,0
-Squacco heron,,0,0,0,,1209,50,252,0,0
-Stock dove,,0,0,0,,686,50,201,0,0
-Streaked scrub warbler,,0,0,0,,606,50,58,1,0
-Striated heron,,0,0,0,,847,50,207,0,0
-Syrian woodpecker,,0,0,0,Mixed,549,50,204,2,0
-Tawny owl,,0,0,0,,1031,50,201,0,0
-Thick-billed lark,,0,0,0,,701,50,26,2,0
-Tristrams starling,,0,0,0,,721,50,210,0,0
-Trumpeter finch,,0,0,0,,885,50,204,20,0
-Tundra swan,,0,0,0,,605,50,197,0,0
-Unknown,,0,1,0,,903,50,49,0,0
-Verreauxs eagle,,0,0,0,,656,50,132,1,0
-Vinous-breasted myna,,0,0,0,Conspecific with Burmese myna,562,50,213,1,0
-Wallcreeper,,0,0,0,,854,50,205,0,0
-Water rail,,0,0,0,,1163,50,244,1,0
-Western jackdaw,,0,0,0,,847,50,207,0,0
-Western marsh harrier,,0,0,0,,858,50,165,2,0
-Western yellow wagtail,,0,0,0,,961,50,217,1,0
-Whinchat,,0,1,0,,994,50,207,3,0
-White stork,,0,0,0,,831,50,223,31,0
-White wagtail,,0,0,0,,863,50,206,0,0
-White-headed duck,,0,0,0,,1255,50,211,4,0
-White-spectacled bulbul,,0,0,0,,816,50,213,1,0
-White-tailed eagle,,0,0,0,,820,50,208,19,0
-White-tailed lapwing,,0,0,0,,1346,50,193,0,0
-White-throated kingfisher,,0,1,0,,830,50,213,1,0
-White-throated robin,,1,0,0,,826,50,202,1,0
-Whooper swan,,0,0,0,,733,50,213,1,0
-Woodchat shrike,,0,0,0,,995,50,207,1,0
-Yelkouan shearwater,,1,1,0,,244,50,19,8,0
-Yellow-billed stork,,0,0,0,,1293,50,231,11,0
-Zitting cisticola,,0,0,0,,763,50,172,2,0
+id,class,scientific_name,verified,similarity_check,weakly_labeled,comments,training_samples,validation_samples,testing_samples,training_detection_samples,validation_detection_samples
+0,African crake,Crecopsis egregia,0,0,0,,180,50,5,3,1
+1,African swamphen,Porphyrio madagascariensis,0,1,0,Mixed with Western swamphen,997,50,106,14,4
+2,Alpine swift,Tachymarptis melba,1,1,0,,710,50,207,8,11
+3,American wigeon,Mareca americana,0,0,0,,702,50,178,12,4
+4,Arabian babbler,Argya squamiceps,1,1,0,,932,50,209,14,10
+5,Arabian green bee-eater,Merops cyanophrys,0,0,0,,831,50,201,15,5
+6,Asian desert warbler,Curruca nana,0,1,0,Mixed with African desert warbler,831,50,203,12,2
+7,Baillons crake,Zapornia pusilla,0,0,0,,844,50,202,8,6
+8,Barn owl,Tyto alba,1,1,0,,1209,50,203,10,8
+9,Barn swallow,Hirundo rustica,0,1,0,,822,50,204,15,11
+10,Barnacle goose,Branta leucopsis,0,0,0,,1221,50,110,40,13
+11,Bateleur,Terathopius ecaudatus,0,0,0,,1284,50,238,12,7
+12,Bearded reedling,Panurus biarmicus,1,0,0,,884,50,206,19,13
+13,Bearded vulture,Gypaetus barbatus,0,0,0,,904,50,204,4,4
+14,Black francolin,Francolinus francolinus,1,1,0,,857,50,204,5,4
+15,Black kite,Milvus migrans,0,1,0,,959,50,213,13,5
+16,Black scrub robin,Cercotrichas podobe,0,0,0,,684,50,47,5,3
+17,Black stork,Ciconia nigra,1,1,0,,819,50,227,14,11
+18,Black-bellied sandgrouse,Pterocles orientalis,0,0,0,,572,50,201,9,4
+19,Black-crowned night heron,Nycticorax nycticorax,1,1,0,,834,50,208,4,4
+20,Black-headed gull,Chroicocephalus ridibundus,0,1,0,Mixed,1003,50,200,23,1
+21,Black-winged kite,Elanus caeruleus,0,1,0,,863,50,213,24,10
+22,Black-winged stilt,Himantopus himantopus,0,1,0,,826,50,206,130,26
+23,Blackstart,Oenanthe melanura,1,1,0,,808,50,202,7,3
+24,Blue-cheeked bee-eater,,0,0,0,,913,50,200,17,6
+25,Bluethroat,,1,1,0,,879,50,203,7,3
+26,Bohemian waxwing,,0,0,0,,815,50,201,108,7
+27,Booted eagle,,0,0,0,,946,50,201,10,5
+28,Brambling,,0,0,0,,825,50,201,13,6
+29,Brown booby,,0,0,0,,1143,50,202,11,8
+30,Canada goose,,0,0,0,,801,50,200,20,14
+31,Cattle egret,,0,1,0,,816,50,204,20,7
+32,Chukar partridge,,0,0,0,,1132,50,212,20,12
+33,Cinereous vulture,,0,0,0,,829,50,202,15,12
+34,Citrine wagtail,,0,0,0,,837,50,208,13,8
+35,Common blackbird,,1,0,0,,825,50,213,16,8
+36,Common buzzard,,0,0,0,,875,50,21,11,9
+37,Common chaffinch,,0,0,0,,1160,50,210,12,5
+38,Common crane,,1,1,0,,804,50,205,55,20
+39,Common cuckoo,,0,0,0,,727,50,231,15,8
+40,Common firecrest,,0,0,0,,1060,50,243,12,4
+41,Common house martin,,0,0,0,Mixed with some sand martin,624,50,204,34,15
+42,Common kestrel,,0,0,0,,1076,50,204,0,0
+43,Common kingfisher,,1,0,0,,720,50,223,1,0
+44,Common linnet,,0,0,0,,806,50,207,1,0
+45,Common moorhen,,1,0,0,,809,50,206,2,0
+46,Common myna,,1,0,0,,1005,50,239,10,0
+47,Common pochard,,0,0,0,,887,50,206,5,0
+48,Common quail,,0,0,0,,744,50,52,0,0
+49,Common rock thrush,,0,0,0,,917,50,218,10,0
+50,Common shelduck,,0,1,0,,767,50,213,4,0
+51,Common starling,,1,0,0,,847,50,238,1,0
+52,Common tern,,0,0,0,Mixed,778,50,200,0,0
+53,Common wood pigeon,,0,0,0,,645,50,206,0,0
+54,Corn bunting,,0,0,0,,826,50,203,1,0
+55,Corn crake,,0,0,0,,683,50,149,0,0
+56,Crab-plover,,0,0,0,,1282,50,205,3,0
+57,Cream-colored courser,,0,0,0,,879,50,210,41,0
+58,Crested lark,,0,0,0,,808,50,206,1,0
+59,Crowned sandgrouse,,0,0,0,,419,50,114,0,0
+60,Dalmatian pelican,,0,0,0,,738,50,202,0,0
+61,Demoiselle crane,,0,0,0,,564,50,203,28,0
+62,Desert owl,,0,0,0,Missing thumbnail image,124,39,0,0,0
+63,Egyptian goose,,1,0,0,,822,50,216,6,0
+64,Egyptian nightjar,,0,0,0,,784,50,133,0,0
+65,Egyptian vulture,,1,0,0,,814,50,211,1,0
+66,Eurasian blackcap,,0,0,0,,816,50,209,0,0
+67,Eurasian collared dove,,0,0,0,,746,50,213,0,0
+68,Eurasian coot,,1,0,0,,702,50,208,40,0
+69,Eurasian curlew,,0,0,0,,736,50,213,2,0
+70,Eurasian dotterel,,0,0,0,,822,50,201,0,0
+71,Eurasian eagle-owl,,0,0,0,,463,50,10,9,0
+72,Eurasian golden oriole,,0,0,0,,859,50,206,7,0
+73,Eurasian hoopoe,,0,0,0,,952,50,204,3,0
+74,Eurasian jay,,0,0,0,,816,50,219,0,0
+75,Eurasian oystercatcher,,0,0,0,,815,50,211,0,0
+76,Eurasian scops owl,,0,0,0,,966,50,208,2,0
+77,Eurasian spoonbill,,0,0,0,,807,50,204,76,0
+78,Eurasian stone-curlew,,0,0,0,,659,50,209,0,0
+79,Eurasian teal,,0,0,0,,771,50,217,0,0
+80,Eurasian wigeon,,0,0,0,,593,50,204,0,0
+81,Eurasian wren,,0,0,0,,906,50,203,0,0
+82,Eurasian wryneck,,0,0,0,,870,50,204,5,0
+83,European bee-eater,,0,0,0,,899,50,233,15,0
+84,European goldfinch,,0,0,0,,858,50,210,3,0
+85,European greenfinch,,0,0,0,,1180,50,204,0,0
+86,European nightjar,,0,0,0,,829,50,211,0,0
+87,European robin,,0,0,0,,843,50,209,0,0
+88,European roller,,0,0,0,,823,50,205,0,0
+89,European shag,,0,0,0,,670,50,215,0,0
+90,European stonechat,,0,0,0,Mixed with Siberian stonechat,819,50,205,3,0
+91,Fan-tailed raven,,0,0,0,,724,50,202,27,0
+92,Ferruginous duck,,0,0,0,,804,50,214,0,0
+93,Fieldfare,,0,0,0,,1125,50,211,13,0
+94,Gadwall,,0,0,0,,981,50,211,0,0
+95,Glossy ibis,,0,0,0,,856,50,216,2,0
+96,Goldcrest,,0,0,0,,817,50,205,1,0
+97,Goliath heron,,0,0,0,,814,50,208,2,0
+98,Graceful prinia,,0,0,0,,867,50,200,1,0
+99,Great bittern,,0,0,0,,1160,50,223,1,0
+100,Great bustard,,0,0,0,,853,50,201,1,0
+101,Great cormorant,,0,0,0,Mixed with white-breasted cormorant,932,50,209,5,2
+102,Great crested grebe,,0,0,0,,930,50,202,0,0
+103,Great egret,,0,0,0,,959,50,234,4,0
+104,Great grey shrike,,1,0,0,,670,50,201,0,0
+105,Great spotted cuckoo,,0,0,0,,859,50,206,21,0
+106,Great tit,,0,0,0,,877,50,209,11,0
+107,Great white pelican,,0,0,0,,838,50,182,2,0
+108,Greater flamingo,,0,0,0,,812,50,233,10,0
+109,Greater painted-snipe,,0,0,0,,834,50,209,1,0
+110,Grey heron,,0,0,0,,823,50,200,8,0
+111,Grey hypocolius,,0,0,0,,741,50,201,0,0
+112,Grey wagtail,,0,0,0,,815,50,205,0,0
+113,Griffon vulture,,0,0,0,,951,50,205,3,0
+114,Hawfinch,,0,0,0,,840,50,202,1,0
+115,Hen harrier,,0,0,0,,1000,50,205,0,0
+116,Hooded crow,,0,0,0,,994,50,203,19,0
+117,House crow,,0,0,0,,940,50,213,1,0
+118,House sparrow,,0,0,0,,802,50,207,3,0
+119,Kentish plover,,0,0,0,,785,50,212,0,0
+120,Lappet-faced vulture,,0,0,0,,741,50,201,0,0
+121,Laughing dove,,0,0,0,,571,50,213,1,0
+122,Lesser flamingo,,0,0,0,,595,50,203,9,0
+123,Lesser grey shrike,,1,0,0,,776,50,201,2,0
+124,Lesser kestrel,,0,0,0,,964,50,202,0,0
+125,Levant sparrowhawk,,0,0,0,,630,50,209,0,0
+126,Lichtensteins sandgrouse,,0,0,0,,511,50,57,0,0
+127,Little bittern,,0,0,0,,1016,50,230,0,0
+128,Little crake,,0,0,0,,623,50,206,0,0
+129,Little egret,,0,0,0,Missing grey morph,848,50,227,12,0
+130,Little grebe,,0,0,0,,1113,50,229,0,0
+131,Little owl,,0,0,0,,1080,50,200,1,0
+132,Long-eared owl,,0,0,0,,845,50,228,0,0
+133,Mallard,,0,0,0,,903,50,200,6,0
+134,Marabou stork,,0,0,0,,957,50,207,9,0
+135,Marbled duck,,0,0,0,,1292,50,196,4,0
+136,Masked shrike,,0,0,0,,864,50,201,0,0
+137,Merlin,,0,0,0,,1142,50,206,0,0
+138,Monk parakeet,,0,0,0,,904,50,221,0,0
+139,Mute swan,,0,0,0,,688,50,206,3,0
+140,Namaqua dove,,0,0,0,,842,50,209,1,0
+141,Nanday parakeet,,0,0,0,,861,50,215,0,0
+142,Northern bald ibis,,0,0,0,,542,50,203,0,0
+143,Northern gannet,,0,0,0,,657,50,200,1,0
+144,Northern lapwing,,0,0,0,,1145,50,216,0,0
+145,Northern pintail,,0,0,0,,1440,50,204,0,0
+146,Northern shoveler,,0,0,0,,977,50,208,23,0
+147,Osprey,,0,1,0,,884,50,215,1,0
+148,Palestine sunbird,,0,0,0,,840,50,204,1,0
+149,Peregrine falcon,,0,0,0,,954,50,210,4,0
+150,Pied avocet,,0,0,0,,865,50,209,7,0
+151,Pied kingfisher,,0,0,0,,902,50,227,4,0
+152,Pin-tailed sandgrouse,,0,0,0,,632,50,217,4,0
+153,Purple heron,,0,0,0,,1487,50,214,1,0
+154,Pygmy cormorant,,0,0,0,,807,50,241,11,0
+155,Red phalarope,,0,0,0,,705,50,201,2,0
+156,Red-backed shrike,,0,0,0,,623,50,211,1,0
+157,Red-billed tropicbird,,0,0,0,,647,50,202,10,0
+158,Red-breasted goose,,0,1,0,,394,50,50,12,0
+159,Red-crested pochard,,0,0,0,,843,50,208,0,0
+160,Red-footed falcon,,0,0,0,,810,50,207,0,0
+161,Red-fronted serin,,0,0,0,,847,50,211,6,0
+162,Red-necked phalarope,,0,0,0,,736,50,204,2,0
+163,Red-rumped swallow,,0,0,0,,612,50,203,0,0
+164,Ring ouzel,,0,0,0,,710,50,203,0,0
+165,Rock pigeon,,0,0,0,,475,50,204,0,0
+166,Rook,,0,0,0,,807,50,204,0,0
+167,Rose-ringed parakeet,,0,0,0,,811,50,231,0,0
+168,Rosy starling,,0,0,0,,811,50,200,1,0
+169,Rough-legged buzzard,,0,0,0,,528,50,46,0,0
+170,Ruddy shelduck,,0,0,0,,1149,50,203,2,0
+171,Ruddy turnstone,,0,0,0,,909,50,230,0,0
+172,Rufous-tailed scrub robin,,0,0,0,,780,50,213,0,0
+173,Sand partridge,,0,0,0,,656,50,74,1,0
+174,Senegal thick-knee,,0,0,0,,697,50,173,0,0
+175,Short-eared owl,,0,0,0,,898,50,202,2,0
+176,Short-toed snake eagle,,0,0,0,,923,50,209,2,0
+177,Sinai rosefinch,,1,1,0,,563,50,203,3,0
+178,Smew,,0,0,0,,811,50,208,1,0
+179,Sociable lapwing,,0,0,0,,878,50,200,2,0
+180,Sombre tit,,0,0,0,,578,50,200,1,0
+181,Sooty falcon,,0,1,0,,474,50,62,1,0
+182,Spotted crake,,0,0,0,,978,50,204,0,0
+183,Spotted flycatcher,,0,0,0,,1076,50,206,0,0
+184,Spotted sandgrouse,,0,0,0,,476,50,202,1,0
+185,Spur-winged lapwing,,0,0,0,,954,50,213,0,0
+186,Squacco heron,,0,0,0,,1209,50,252,0,0
+187,Stock dove,,0,0,0,,686,50,201,0,0
+188,Streaked scrub warbler,,0,0,0,,606,50,58,1,0
+189,Striated heron,,0,0,0,,847,50,207,0,0
+190,Syrian woodpecker,,0,0,0,Mixed,549,50,204,2,0
+191,Tawny owl,,0,0,0,,1031,50,201,0,0
+192,Thick-billed lark,,0,0,0,,701,50,26,2,0
+193,Tristrams starling,,0,0,0,,721,50,210,0,0
+194,Trumpeter finch,,0,0,0,,885,50,204,20,0
+195,Tundra swan,,0,0,0,,605,50,197,0,0
+196,Unknown,,0,1,0,,903,50,49,0,0
+197,Verreauxs eagle,,0,0,0,,656,50,132,1,0
+198,Vinous-breasted myna,,0,0,0,Conspecific with Burmese myna,562,50,213,1,0
+199,Wallcreeper,,0,0,0,,854,50,205,0,0
+200,Water rail,,0,0,0,,1163,50,244,1,0
+201,Western jackdaw,,0,0,0,,847,50,207,0,0
+202,Western marsh harrier,,0,0,0,,858,50,165,2,0
+203,Western yellow wagtail,,0,0,0,,961,50,217,1,0
+204,Whinchat,,0,1,0,,994,50,207,3,0
+205,White stork,,0,0,0,,831,50,223,31,0
+206,White wagtail,,0,0,0,,863,50,206,0,0
+207,White-headed duck,,0,0,0,,1255,50,211,4,0
+208,White-spectacled bulbul,,0,0,0,,816,50,213,1,0
+209,White-tailed eagle,,0,0,0,,820,50,208,19,0
+210,White-tailed lapwing,,0,0,0,,1346,50,193,0,0
+211,White-throated kingfisher,,0,1,0,,830,50,213,1,0
+212,White-throated robin,,1,0,0,,826,50,202,1,0
+213,Whooper swan,,0,0,0,,733,50,213,1,0
+214,Woodchat shrike,,0,0,0,,995,50,207,1,0
+215,Yelkouan shearwater,,1,1,0,,244,50,19,8,0
+216,Yellow-billed stork,,0,0,0,,1293,50,231,11,0
+217,Zitting cisticola,,0,0,0,,763,50,172,2,0

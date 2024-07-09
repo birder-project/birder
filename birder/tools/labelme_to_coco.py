@@ -103,6 +103,7 @@ def labelme_to_coco(args: argparse.Namespace, target_path: Path) -> None:
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "labelme-to-coco",
+        allow_abbrev=False,
         help="convert labelme detection annotations to coco format",
         description="convert labelme detection annotations to coco format",
         epilog=(

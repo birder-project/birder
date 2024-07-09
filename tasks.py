@@ -202,7 +202,7 @@ def update_annotation_table(_ctx):
     classes = pd.Series(class_list)
     column_class = "class"
 
-    annotations_status = pd.read_csv("annotations_status.csv")
+    annotations_status = pd.read_csv("annotations_status.csv", index_col="id")
     new_classes = classes[~classes.isin(annotations_status[column_class])].values
     if len(new_classes) == 0:
         echo("No new species")
@@ -230,7 +230,7 @@ def update_annotation_table(_ctx):
     annotations_status["validation_detection_samples"] = annotations_status["class"].map(validation_detection_count)
 
     # Save
-    annotations_status.to_csv("annotations_status.csv", index=False)
+    annotations_status.to_csv("annotations_status.csv", index=True)
     echo(f"Done, added {len(new_classes)} new classes")
 
 

@@ -1,6 +1,6 @@
 # Birder
 
-Birder is an open-source computer vision framework for bird species classification and detection in wildlife imagery.
+Birder is an open-source computer vision framework for wildlife image analysis, focusing on avian species.
 
 * [Introduction](#introduction)
 * [Setup](#setup)

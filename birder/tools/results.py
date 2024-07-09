@@ -101,6 +101,7 @@ def print_report(results_dict: dict[str, Results], classes: list[str]) -> None:
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "results",
+        allow_abbrev=False,
         help="read and process result files",
         description="read and process result files",
         epilog=(
