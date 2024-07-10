@@ -238,19 +238,19 @@ torchrun --nproc_per_node=2 train.py --network densenet --net-param 161 --lr-sch
 #### EdgeViT: Extra small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network edgevit --net-param 1 --opt adamw --lr 5e-4 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 5 --batch-size 256 --epochs 200 --size 224 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --model-ema --ra-sampler --ra-reps 2
+torchrun --nproc_per_node=2 train.py --network edgevit_xs --opt adamw --lr 5e-4 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 5 --batch-size 256 --epochs 200 --size 224 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --model-ema --ra-sampler --ra-reps 2
 ```
 
 #### EdgeViT: Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network edgevit --net-param 2 --opt adamw --lr 5e-4 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 5 --batch-size 128 --epochs 200 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --model-ema --ra-sampler --ra-reps 2
+torchrun --nproc_per_node=2 train.py --network edgevit_s --opt adamw --lr 5e-4 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 5 --batch-size 128 --epochs 200 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --model-ema --ra-sampler --ra-reps 2
 ```
 
 Optional intermediate training
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network edgevit --net-param 2 --tag intermediate --opt adamw --lr 5e-4 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 5 --batch-size 256 --epochs 100 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network edgevit_s --tag intermediate --opt adamw --lr 5e-4 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 5 --batch-size 256 --epochs 100 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 ### EfficientNet v1
@@ -278,55 +278,55 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v1 --net-param 5 --l
 #### EfficientNet v2: Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_v2 --net-param 0 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 64 --epochs 300 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 64 --epochs 300 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 At epoch 150 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_v2 --net-param 0 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 64 --epochs 300 --size 384 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 150 --load-states
+torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 64 --epochs 300 --size 384 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 150 --load-states
 ```
 
 At epoch 260 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_v2 --net-param 0 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 32 --epochs 300 --size 448 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 260 --load-states
+torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 32 --epochs 300 --size 448 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 260 --load-states
 ```
 
 #### EfficientNet v2: Medium
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_v2 --net-param 1 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 32 --epochs 300 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 32 --epochs 300 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 #### EfficientNet v2: Large
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_v2 --net-param 2 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 16 --epochs 300 --size 384 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+torchrun --nproc_per_node=2 train.py --network efficientnet_v2_l --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 16 --epochs 300 --size 384 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 #### FocalNet: Tiny SRF
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network focalnet --net-param 0 --opt adamw --lr 1e-4 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 10 --batch-size 64 --epochs 300 --size 288 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile --rgb-mode none
+torchrun --nproc_per_node=2 train.py --network focalnet_t_srf --opt adamw --lr 1e-4 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 10 --batch-size 64 --epochs 300 --size 288 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile --rgb-mode none
 ```
 
 #### FocalNet: Small LRF
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network focalnet --net-param 3 --opt adamw --lr 1e-4 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 10 --batch-size 64 --epochs 300 --size 320 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile --rgb-mode none
+torchrun --nproc_per_node=2 train.py --network focalnet_s_lrf --opt adamw --lr 1e-4 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 10 --batch-size 64 --epochs 300 --size 320 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile --rgb-mode none
 ```
 
 At epoch 150 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network focalnet --net-param 3 --opt adamw --lr 1e-4 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 10 --batch-size 32 --epochs 300 --size 384 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile --rgb-mode none --resume-epoch 150 --load-states
+torchrun --nproc_per_node=2 train.py --network focalnet_s_lrf --opt adamw --lr 1e-4 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 10 --batch-size 32 --epochs 300 --size 384 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile --rgb-mode none --resume-epoch 150 --load-states
 ```
 
 At epoch 220 increase resolution again
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network focalnet --net-param 3 --opt adamw --lr 1e-4 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 10 --batch-size 16 --epochs 300 --size 448 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile --rgb-mode none --resume-epoch 220 --load-states
+torchrun --nproc_per_node=2 train.py --network focalnet_s_lrf --opt adamw --lr 1e-4 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 10 --batch-size 16 --epochs 300 --size 448 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile --rgb-mode none --resume-epoch 220 --load-states
 ```
 
 #### GhostNet v1: 0.5 (50)
@@ -370,13 +370,13 @@ torchrun --nproc_per_node=2 train.py --network ghostnet_v2 --net-param 1.6 --lr 
 #### InceptionNeXt: Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network inception_next --net-param 1 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 10 --batch-size 64 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --model-ema --ra-sampler --ra-reps 2
+torchrun --nproc_per_node=2 train.py --network inception_next_s --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 10 --batch-size 64 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --model-ema --ra-sampler --ra-reps 2
 ```
 
 #### InceptionNeXt: Base
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network inception_next --net-param 2 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 10 --batch-size 32 --epochs 300 --size 288 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+torchrun --nproc_per_node=2 train.py --network inception_next_b --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 10 --batch-size 32 --epochs 300 --size 288 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 ### Inception-ResNet v2
@@ -402,37 +402,37 @@ torchrun --nproc_per_node=2 train.py --network inception_v4 --lr-scheduler cosin
 #### MaxViT: Tiny
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network maxvit --net-param 0 --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 64 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --clip-grad-norm 1 --amp --rgb-mode none
+torchrun --nproc_per_node=2 train.py --network maxvit_t --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 64 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --clip-grad-norm 1 --amp --rgb-mode none
 ```
 
 #### MaxViT: Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network maxvit --net-param 1 --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 64 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --rgb-mode none
+torchrun --nproc_per_node=2 train.py --network maxvit_s --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 64 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --rgb-mode none
 ```
 
 At epoch 120 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network maxvit --net-param 1 --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 32 --size 320 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --rgb-mode none --resume-epoch 120 --load-scheduler
+torchrun --nproc_per_node=2 train.py --network maxvit_s --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 32 --size 320 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --rgb-mode none --resume-epoch 120 --load-scheduler
 ```
 
 At epoch 140 increase resolution again
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network maxvit --net-param 1 --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 16 --size 384 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --rgb-mode none --resume-epoch 140 --load-scheduler
+torchrun --nproc_per_node=2 train.py --network maxvit_s --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 16 --size 384 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --rgb-mode none --resume-epoch 140 --load-scheduler
 ```
 
 At epoch 180 increase resolution again
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network maxvit --net-param 1 --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 16 --size 448 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --rgb-mode none --resume-epoch 180 --load-scheduler
+torchrun --nproc_per_node=2 train.py --network maxvit_s --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 16 --size 448 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --rgb-mode none --resume-epoch 180 --load-scheduler
 ```
 
 #### MaxViT: Base
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network maxvit --net-param 2 --opt adamw --lr 0.0014 --lr-scheduler cosine --batch-size 32 --size 288 --lr-cosine-min 1e-7 --warmup-epochs 32 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --rgb-mode none
+torchrun --nproc_per_node=2 train.py --network maxvit_b --opt adamw --lr 0.0014 --lr-scheduler cosine --batch-size 32 --size 288 --lr-cosine-min 1e-7 --warmup-epochs 32 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --rgb-mode none
 ```
 
 ### MnasNet
@@ -478,7 +478,7 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v3 --net-param 1.5 --ta
 #### MobileViT v1: Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilevit_v1 --net-param 2 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 2e-5 --warmup-epochs 5 --batch-size 128 --size 256 --epochs 300 --wd 0.01 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --ra-sampler --ra-reps 2 --amp
+torchrun --nproc_per_node=2 train.py --network mobilevit_v1_s --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 2e-5 --warmup-epochs 5 --batch-size 128 --size 256 --epochs 300 --wd 0.01 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --ra-sampler --ra-reps 2 --amp
 ```
 
 ### MobileViT v2
@@ -512,31 +512,31 @@ torchrun --nproc_per_node=2 train.py --network mobilevit_v2 --net-param 1.5 --ta
 #### Next-ViT: Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network nextvit --net-param 0 --opt adamw --lr 0.00175 --lr-scheduler cosine --warmup-epochs 20 --batch-size 64 --size 256 --epochs 300 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --amp
+torchrun --nproc_per_node=2 train.py --network nextvit_s --opt adamw --lr 0.00175 --lr-scheduler cosine --warmup-epochs 20 --batch-size 64 --size 256 --epochs 300 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --amp
 ```
 
 At epoch 250 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network nextvit --net-param 0 --opt adamw --lr 0.00175 --lr-scheduler cosine --warmup-epochs 20 --batch-size 32 --size 384 --epochs 300 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --amp --resume-epoch 250 --load-states
+torchrun --nproc_per_node=2 train.py --network nextvit_s --opt adamw --lr 0.00175 --lr-scheduler cosine --warmup-epochs 20 --batch-size 32 --size 384 --epochs 300 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --amp --resume-epoch 250 --load-states
 ```
 
 #### Next-ViT: Base
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network nextvit --net-param 1 --opt adamw --lr 0.00175 --lr-scheduler cosine --warmup-epochs 20 --batch-size 64 --size 256 --epochs 300 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --amp --compile
+torchrun --nproc_per_node=2 train.py --network nextvit_b --opt adamw --lr 0.00175 --lr-scheduler cosine --warmup-epochs 20 --batch-size 64 --size 256 --epochs 300 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 At epoch 250 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network nextvit --net-param 1 --opt adamw --lr 0.00175 --lr-scheduler cosine --warmup-epochs 20 --batch-size 32 --size 384 --epochs 300 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 250 --load-states
+torchrun --nproc_per_node=2 train.py --network nextvit_b --opt adamw --lr 0.00175 --lr-scheduler cosine --warmup-epochs 20 --batch-size 32 --size 384 --epochs 300 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 250 --load-states
 ```
 
 When finished, run 30 more epochs at increased resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network nextvit --net-param 1 --opt adamw --lr 5e-6 --lr-scheduler cosine --batch-size 32 --size 448 --epochs 330 --wd 1e-8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 300
+torchrun --nproc_per_node=2 train.py --network nextvit_b --opt adamw --lr 5e-6 --lr-scheduler cosine --batch-size 32 --size 448 --epochs 330 --wd 1e-8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 300
 ```
 
 ### RegNet
@@ -644,25 +644,25 @@ torchrun --nproc_per_node=2 train.py --network shufflenet_v2 --net-param 2 --lr 
 #### Simple ViT: b32
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network simple_vit --net-param 0 --opt adamw --lr 0.0004 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --size 256 --wd 0.0001 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network simple_vit_b32 --opt adamw --lr 0.0004 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --size 256 --wd 0.0001 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 #### Simple ViT: b16
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network simple_vit --net-param 1 --opt adamw --lr 0.0004 --lr-scheduler cosine --batch-size 64 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --size 288 --wd 0.0001 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network simple_vit_b16 --opt adamw --lr 0.0004 --lr-scheduler cosine --batch-size 64 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --size 288 --wd 0.0001 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 #### Simple ViT: l32
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network simple_vit --net-param 2 --opt adamw --lr 0.00025 --lr-scheduler cosine --batch-size 64 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --size 320 --wd 0.0001 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network simple_vit_l32 --opt adamw --lr 0.00025 --lr-scheduler cosine --batch-size 64 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --size 320 --wd 0.0001 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 #### Simple ViT: l16
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network simple_vit --net-param 3 --lr 0.3 --lr-scheduler cosine --batch-size 16 --lr-cosine-min 1e-6 --warmup-epochs 15 --epochs 400 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network simple_vit_l16 --lr 0.3 --lr-scheduler cosine --batch-size 16 --lr-cosine-min 1e-6 --warmup-epochs 15 --epochs 400 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 ### SqueezeNet
@@ -682,25 +682,25 @@ torchrun --nproc_per_node=2 train.py --network squeezenext --net-param 2 --lr 0.
 #### Swin Transformer v1: Tiny
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network swin_transformer_v1 --net-param 0 --opt adamw --lr 0.0004 --lr-scheduler cosine --batch-size 128 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+torchrun --nproc_per_node=2 train.py --network swin_transformer_v1_t --opt adamw --lr 0.0004 --lr-scheduler cosine --batch-size 128 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
 ```
 
 #### Swin Transformer v1: Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network swin_transformer_v1 --net-param 1 --opt adamw --lr 0.0004 --lr-scheduler cosine --batch-size 64 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+torchrun --nproc_per_node=2 train.py --network swin_transformer_v1_s --opt adamw --lr 0.0004 --lr-scheduler cosine --batch-size 64 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
 ```
 
 #### Swin Transformer v1: Base
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network swin_transformer_v1 --net-param 2 --opt adamw --lr 0.0004 --lr-scheduler cosine --batch-size 32 --size 320 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+torchrun --nproc_per_node=2 train.py --network swin_transformer_v1_b --opt adamw --lr 0.0004 --lr-scheduler cosine --batch-size 32 --size 320 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
 ```
 
 #### Swin Transformer v1: Large
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network swin_transformer_v1 --net-param 2 --opt adamw --lr 0.0004 --lr-scheduler cosine --batch-size 16 --size 384 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+torchrun --nproc_per_node=2 train.py --network swin_transformer_v1_l --opt adamw --lr 0.0004 --lr-scheduler cosine --batch-size 16 --size 384 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
 ```
 
 ### Swin Transformer v2
@@ -708,25 +708,25 @@ torchrun --nproc_per_node=2 train.py --network swin_transformer_v1 --net-param 2
 #### Swin Transformer v2: Tiny
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network swin_transformer_v2 --net-param 0 --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 64 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_t --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 64 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
 ```
 
 #### Swin Transformer v2: Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network swin_transformer_v2 --net-param 1 --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 64 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 64 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
 ```
 
 #### Swin Transformer v2: Base
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network swin_transformer_v2 --net-param 2 --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 32 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_b --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 32 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
 ```
 
 #### Swin Transformer v2: Large
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network swin_transformer_v2 --net-param 3 --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 16 --size 320 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_l --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 16 --size 320 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
 ```
 
 ### Swin Transformer v2 w2
@@ -750,31 +750,31 @@ torchrun --nproc_per_node=2 train.py --network vgg_reduced --net-param 19 --lr 0
 #### ViT: b32
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit --net-param 0 --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-7 --warmup-epochs 30 --epochs 300 --size 224 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network vit_b32 --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-7 --warmup-epochs 30 --epochs 300 --size 224 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 #### ViT: b16
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit --net-param 1 --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 30 --epochs 300 --size 288 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network vit_b16 --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 30 --epochs 300 --size 288 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 #### ViT: l32
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit --net-param 2 --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 64 --lr-cosine-min 1e-7 --warmup-epochs 30 --epochs 300 --size 320 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network vit_l32 --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 64 --lr-cosine-min 1e-7 --warmup-epochs 30 --epochs 300 --size 320 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 #### ViT: l16
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit --net-param 3 --lr 0.3 --lr-scheduler cosine --batch-size 16 --lr-cosine-min 1e-6 --warmup-epochs 10 --epochs 400 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network vit_l16 --lr 0.3 --lr-scheduler cosine --batch-size 16 --lr-cosine-min 1e-6 --warmup-epochs 10 --epochs 400 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 #### ViT: h14
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit --net-param 4 --lr 0.3 --lr-scheduler cosine --batch-size 8 --lr-cosine-min 1e-6 --warmup-epochs 10 --epochs 400 --size 336 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network vit_h14 --lr 0.3 --lr-scheduler cosine --batch-size 8 --lr-cosine-min 1e-6 --warmup-epochs 10 --epochs 400 --size 336 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 ### ViTReg
@@ -800,7 +800,7 @@ torchrun --nproc_per_node=2 train.py --network xception --lr-scheduler cosine --
 ### XCiT: small p8
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network xcit --net-param 5 --opt adamw --lr 0.0005 --lr-scheduler cosine --batch-size 64 --lr-cosine-min 1e-7 --warmup-epochs 30 --epochs 400 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network xcit_small8 --opt adamw --lr 0.0005 --lr-scheduler cosine --batch-size 64 --lr-cosine-min 1e-7 --warmup-epochs 30 --epochs 400 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 ----
@@ -830,94 +830,100 @@ torchrun --nproc_per_node=2 train.py --network resnet_v2 --net-param 50 --tag im
 #### FCMAE: ConvNeXt v2 Tiny
 
 ```sh
-torchrun --nproc_per_node=2 train_pretrain.py --network fcmae --encoder convnext_v2 --encoder-param 4 --opt adamw --lr 0.00015 --lr-scheduler cosine --lr-cosine-min 0.0 --warmup-epochs 40 --batch-size 256 --epochs 800 --wd 0.05 --amp --compile --save-frequency 1 --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_pretrain.py --network fcmae --encoder convnext_v2_tiny --opt adamw --lr 0.00015 --lr-scheduler cosine --lr-cosine-min 0.0 --warmup-epochs 40 --batch-size 256 --epochs 800 --wd 0.05 --amp --compile --save-frequency 1 --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Optional intermediate training: first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2 --net-param 4 --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 Optional intermediate training: next, full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2 --net-param 4 --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 15 --batch-size 256 --epochs 100 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --layer-decay 0.9 --resume-epoch 10 --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 15 --batch-size 256 --epochs 100 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --layer-decay 0.9 --resume-epoch 10 --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 Optional intermediate training: fine-tuning, second stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2 --net-param 4 --tag pretrained-intermediate --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 384 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag pretrained-intermediate --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 384 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head
 ```
 
 Optional intermediate training: full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2 --net-param 4 --tag pretrained-intermediate --opt adamw --lr 0.000025 --lr-scheduler cosine --lr-cosine-min 1e-8 --batch-size 64 --epochs 60 --size 448 --wd 1e-8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --layer-decay 0.9 --resume-epoch 10
+torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag pretrained-intermediate --opt adamw --lr 0.000025 --lr-scheduler cosine --lr-cosine-min 1e-8 --batch-size 64 --epochs 60 --size 448 --wd 1e-8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --layer-decay 0.9 --resume-epoch 10
 ```
 
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2 --net-param 4 --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 320 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 320 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head
 ```
 
 Next, full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2 --net-param 4 --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 30 --batch-size 128 --epochs 210 --size 320 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --layer-decay 0.96 --resume-epoch 10
+torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 30 --batch-size 128 --epochs 210 --size 320 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --layer-decay 0.96 --resume-epoch 10
 ```
 
 At epoch 120 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2 --net-param 4 --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 30 --batch-size 64 --epochs 210 --size 384 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --layer-decay 0.96 --resume-epoch 120 --load-states
+torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 30 --batch-size 64 --epochs 210 --size 384 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --layer-decay 0.96 --resume-epoch 120 --load-states
 ```
 
 At epoch 170 increase resolution again
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2 --net-param 4 --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 30 --batch-size 64 --epochs 210 --size 448 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --layer-decay 0.96 --resume-epoch 170 --load-states
+torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 30 --batch-size 64 --epochs 210 --size 448 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --layer-decay 0.96 --resume-epoch 170 --load-states
 ```
 
 #### FCMAE: ConvNeXt v2 Base
 
 ```sh
-torchrun --nproc_per_node=2 train_pretrain.py --network fcmae --encoder convnext_v2 --encoder-param 5 --opt adamw --lr 0.00015 --lr-scheduler cosine --lr-cosine-min 0.0 --warmup-epochs 40 --batch-size 128 --epochs 800 --wd 0.05 --amp --compile --save-frequency 1 --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_pretrain.py --network fcmae --encoder convnext_v2_base --opt adamw --lr 0.00015 --lr-scheduler cosine --lr-cosine-min 0.0 --warmup-epochs 40 --batch-size 128 --epochs 800 --wd 0.05 --amp --compile --save-frequency 1 --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Optional intermediate training: first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2 --net-param 5 --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 Optional intermediate training: next, full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2 --net-param 5 --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 15 --batch-size 128 --epochs 100 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --layer-decay 0.8 --resume-epoch 10 --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 15 --batch-size 128 --epochs 100 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --layer-decay 0.8 --resume-epoch 10 --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 Optional intermediate training: fine-tuning, second stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2 --net-param 5 --tag pretrained-intermediate --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 384 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag pretrained-intermediate --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 384 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head
 ```
 
 Optional intermediate training: full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2 --net-param 5 --tag pretrained-intermediate --opt adamw --lr 0.000025 --lr-scheduler cosine --lr-cosine-min 1e-8 --batch-size 32 --epochs 40 --size 448 --wd 1e-8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --layer-decay 0.8 --resume-epoch 10
+torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag pretrained-intermediate --opt adamw --lr 0.000025 --lr-scheduler cosine --lr-cosine-min 1e-8 --batch-size 32 --epochs 40 --size 448 --wd 1e-8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --layer-decay 0.8 --resume-epoch 10
 ```
 
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2 --net-param 5 --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 320 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag pretrained --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 320 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head
 ```
 
 ### MAE ViT
+
+#### MAE ViT: Simple ViT b16
+
+```sh
+torchrun --nproc_per_node=2 train_pretrain.py --network mae_vit --encoder simple_vit_b16 --opt adamw --lr 0.00015 --lr-scheduler cosine --lr-cosine-min 0.0 --warmup-epochs 40 --batch-size 256 --epochs 800 --wd 0.0001 --clip-grad-norm 1 --amp --compile --save-frequency 1 --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
 
 #### MAE ViT: ViT b16
 
@@ -958,37 +964,37 @@ torchrun --nproc_per_node=2 train.py --network vit_b16 --tag pretrained --opt ad
 #### MAE ViT: ViT l16
 
 ```sh
-torchrun --nproc_per_node=2 train_pretrain.py --network mae_vit --encoder vit --encoder-param 3 --opt adamw --lr 0.00015 --lr-scheduler cosine --lr-cosine-min 0.0 --warmup-epochs 40 --batch-size 128 --epochs 800 --wd 0.05 --amp --compile --save-frequency 1 --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_pretrain.py --network mae_vit --encoder vit_l16 --opt adamw --lr 0.00015 --lr-scheduler cosine --lr-cosine-min 0.0 --warmup-epochs 40 --batch-size 128 --epochs 800 --wd 0.05 --amp --compile --save-frequency 1 --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Optional intermediate training: first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit --net-param 3 --tag pretrained --lr 0.3 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-6 --epochs 10 --size 256 --wd 0.00002 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network vit_l16 --tag pretrained --lr 0.3 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-6 --epochs 10 --size 256 --wd 0.00002 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit --net-param 3 --tag pretrained --lr 0.3 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-6 --epochs 10 --size 320 --wd 0.00002 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network vit_l16 --tag pretrained --lr 0.3 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-6 --epochs 10 --size 320 --wd 0.00002 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head
 ```
 
 Next, full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit --net-param 3 --tag pretrained --lr 0.1 --lr-scheduler cosine --batch-size 32 --lr-cosine-min 1e-6 --warmup-epochs 20 --epochs 100 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --layer-decay 0.9 --resume-epoch 10
+torchrun --nproc_per_node=2 train.py --network vit_l16 --tag pretrained --lr 0.1 --lr-scheduler cosine --batch-size 32 --lr-cosine-min 1e-6 --warmup-epochs 20 --epochs 100 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --layer-decay 0.9 --resume-epoch 10
 ```
 
 At epoch 75 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit --net-param 3 --tag pretrained --lr 0.01 --lr-scheduler cosine --batch-size 16 --lr-cosine-min 1e-6 --epochs 100 --size 384 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --layer-decay 0.9 --resume-epoch 75
+torchrun --nproc_per_node=2 train.py --network vit_l16 --tag pretrained --lr 0.01 --lr-scheduler cosine --batch-size 16 --lr-cosine-min 1e-6 --epochs 100 --size 384 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --layer-decay 0.9 --resume-epoch 75
 ```
 
 At epoch 80 increase resolution again
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit --net-param 3 --tag pretrained --lr 0.0075 --lr-scheduler cosine --batch-size 16 --lr-cosine-min 1e-6 --epochs 100 --size 448 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --layer-decay 0.9 --resume-epoch 80
+torchrun --nproc_per_node=2 train.py --network vit_l16 --tag pretrained --lr 0.0075 --lr-scheduler cosine --batch-size 16 --lr-cosine-min 1e-6 --epochs 100 --size 448 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --layer-decay 0.9 --resume-epoch 80
 ```
 
 ### SimMIM
@@ -996,7 +1002,7 @@ torchrun --nproc_per_node=2 train.py --network vit --net-param 3 --tag pretraine
 #### SimMIM: Swin Transformer v2 Small
 
 ```sh
-torchrun --nproc_per_node=2 train_pretrain.py --network simmim --encoder swin_transformer_v2_s --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 0.0 --warmup-epochs 10 --batch-size 128 --epochs 800 --wd 0.05 --clip-grad-norm 5 --amp --compile --save-frequency 1 --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_pretrain.py --network simmim --encoder swin_transformer_v2_s --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 0.0 --warmup-epochs 10 --batch-size 128 --epochs 800 --wd 0.05 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --save-frequency 1 --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Fine-tuning, first stage - linear probing
@@ -1008,19 +1014,19 @@ torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s --tag pretr
 #### SimMIM: Swin Transformer v2 Base
 
 ```sh
-torchrun --nproc_per_node=2 train_pretrain.py --network simmim --encoder swin_transformer_v2_b --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 0.0 --warmup-epochs 10 --batch-size 128 --epochs 800 --wd 0.05 --clip-grad-norm 5 --amp --compile --save-frequency 1 --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_pretrain.py --network simmim --encoder swin_transformer_v2_b --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 0.0 --warmup-epochs 10 --batch-size 128 --epochs 800 --wd 0.05 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --save-frequency 1 --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 #### SimMIM: Swin Transformer v2 w2 Base
 
 ```sh
-torchrun --nproc_per_node=2 train_pretrain.py --network simmim --encoder swin_transformer_v2_w2 --encoder-param 2 --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 0.0 --warmup-epochs 10 --batch-size 64 --epochs 800 --wd 0.05 --clip-grad-norm 5 --amp --compile --save-frequency 1 --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_pretrain.py --network simmim --encoder swin_transformer_v2_w2_b --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 0.0 --warmup-epochs 10 --batch-size 64 --epochs 800 --wd 0.05 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --save-frequency 1 --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_w2 --net-param 2 --tag pretrained --opt adamw --lr 0.00005 --lr-scheduler cosine --batch-size 128 --size 256 --lr-cosine-min 1e-7 --epochs 10 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --clip-grad-norm 5 --amp --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_w2_b --tag pretrained --opt adamw --lr 0.00005 --lr-scheduler cosine --batch-size 128 --size 256 --lr-cosine-min 1e-7 --epochs 10 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --clip-grad-norm 5 --amp --resume-epoch 0 --reset-head
 ```
 
 ## Knowledge Distillation
@@ -1028,11 +1034,11 @@ torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_w2 --net-para
 ### ConvNeXt v2 Tiny Teacher: RegNet 1.6 GF
 
 ```sh
-torchrun --nproc_per_node=2 train_kd.py --teacher convnext_v2 --teacher-param 4 --teacher-epoch 0 --student regnet --student-param 1.6 --lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --compile
+torchrun --nproc_per_node=2 train_kd.py --teacher convnext_v2_tiny --teacher-epoch 0 --student regnet --student-param 1.6 --lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --compile
 ```
 
 ### ConvNeXt v2 Tiny Teacher: MobileNet v3
 
 ```sh
-torchrun --nproc_per_node=2 train_kd.py --teacher convnext_v2 --teacher-param 4 --teacher-epoch 0 --student mobilenet_v3 --student-param 1 --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 64 --size 288 --epochs 300 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --compile
+torchrun --nproc_per_node=2 train_kd.py --teacher convnext_v2_tiny --teacher-epoch 0 --student mobilenet_v3 --student-param 1 --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 64 --size 288 --epochs 300 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --compile
 ```

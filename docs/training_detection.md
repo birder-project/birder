@@ -18,7 +18,7 @@ torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone 
 ### Faster R-CNN: EfficientNet v2 Small Backbone
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone efficientnet_v2 --backbone-param 0 --backbone-epoch 0 --freeze-backbone --lr 0.02 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.93 --batch-size 16 --epochs 100
+torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone efficientnet_v2_s --backbone-epoch 0 --freeze-backbone --lr 0.02 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.93 --batch-size 16 --epochs 100
 ```
 
 ### Faster R-CNN: ResNeXt 101 Backbone

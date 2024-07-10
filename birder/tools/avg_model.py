@@ -78,7 +78,7 @@ def set_parser(subparsers: Any) -> None:
         description="create weight average model from multiple trained models",
         epilog=(
             "Usage examples:\n"
-            "python tool.py avg-model --network efficientnet_v2 --net-param 1 --epochs 290 295 300\n"
+            "python tool.py avg-model --network efficientnet_v2_m --epochs 290 295 300\n"
             "python tool.py avg-model --network shufflenet_v2 --net-param 2 --epochs 95 100 100\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,

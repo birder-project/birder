@@ -27,6 +27,7 @@
     "barh",
     "batchmean",
     "batchnorm",
+    "bfloat",
     "binarize",
     "bluethroat",
     "bumpver",

@@ -225,7 +225,7 @@ def load_pretrain_checkpoint(
 
     signature: PreTrainSignatureType = model_dict["signature"]
     input_channels = signature["inputs"][0]["data_shape"][1]
-    num_classes = signature["outputs"][0]["data_shape"][1]
+    num_classes = 0
     size = signature["inputs"][0]["data_shape"][2]
     net_encoder = registry.net_factory(encoder, input_channels, num_classes, net_param=encoder_param, size=size)
     net = registry.pretrain_net_factory(network, net_encoder, net_param, size)

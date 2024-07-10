@@ -235,10 +235,10 @@ def main() -> None:
             "python predict.py --network densenet -p 121 -e 90 --shuffle --gpu --show data/validation\n"
             "python predict.py --network inception_resnet_v2 -e 100 --gpu --show-out-of-k data/validation\n"
             "python predict.py --network inception_v3 -e 200 --gpu --save-results data/validation/*crane\n"
-            "python predict.py -n efficientnet_v2 -p 1 -e 200 --gpu --save-embedding data/validation\n"
+            "python predict.py -n efficientnet_v2_m -e 200 --gpu --save-embedding data/validation\n"
             "python predict.py -n efficientnet_v1 -p 4 -e 300 --gpu --save-embedding "
             "data/*/Alpine\\ swift --suffix alpine_swift\n"
-            "python predict.py -n convnext -p 2 -e 0 --gpu --parallel data/testing\n"
+            "python predict.py -n convnext_v1 -p 2 -e 0 --gpu --parallel data/testing\n"
             "python predict.py -n mobilevit_v2 -p 1.5 -t intermediate -e 80 --gpu --save-results "
             "--wds data/validation_packed\n"
         ),

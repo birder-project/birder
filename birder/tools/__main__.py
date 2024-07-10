@@ -30,7 +30,7 @@ def main() -> None:
             "python tool.py adversarial --method fgsm -n swin_transformer_v1 -p 2 -e 0 "
             "--image 'data/training/Mallard/000112.jpeg'\n"
             "python tool.py avg-model --network resnet_v2 --net-param 50 --epochs 95 95 100\n"
-            "python tool.py convert-model --network convnext_v2 --net-param 5 --epoch 0 --pt2\n"
+            "python tool.py convert-model --network convnext_v2_base --epoch 0 --pt2\n"
             "python tool.py ensemble-model --network convnext_v2_4_0 focalnet_3_0 --pts\n"
             "python tool.py fetch-model mobilenet_v3_1_0\n"
             "python tool.py introspection --method gradcam --network efficientnet_v2 --net-param 1 "
@@ -43,7 +43,7 @@ def main() -> None:
             "python tool.py results results/inception_resnet_v2_105_e100_3150.csv --print --pr-curve\n"
             "python tool.py show-det-iterator --mode inference --size 640 --batch\n"
             "python tool.py show-iterator --mode training --size 256 --aug-level 3\n"
-            "python tool.py similarity -n efficientnet_v2 -p 1 -e 0 --limit 15 data/*/*crane\n"
+            "python tool.py similarity -n efficientnet_v2_l -e 0 --limit 15 data/*/*crane\n"
             "python tool.py stats --class-graph\n"
             "python tool.py verify-directory data/testing\n"
         ),

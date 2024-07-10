@@ -131,7 +131,7 @@ def set_parser(subparsers: Any) -> None:
             "--image data/index5.jpeg --target 'Grey heron'\n"
             "python tool.py introspection --method guided-backprop -n efficientnet_v2 -p 0 "
             "-e 0 --image 'data/training/European goldfinch/000300.jpeg'\n"
-            "python tool.py introspection --method gradcam -n swin_transformer_v1 -p 2 -e 85 --layer-num -4 "
+            "python tool.py introspection --method gradcam -n swin_transformer_v1_b -e 85 --layer-num -4 "
             "--reshape-size 20 --image data/training/Fieldfare/000002.jpeg\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,

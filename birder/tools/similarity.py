@@ -126,7 +126,7 @@ def set_parser(subparsers: Any) -> None:
         epilog=(
             "Usage examples:\n"
             "python tool.py similarity -n efficientnet_v1 -p 4 -e 300 data/*/Alpine\\ swift\n"
-            "python tool.py similarity -n efficientnet_v2 -p 1 -e 200 --limit 3 data/*/Arabian\\ babbler\n"
+            "python tool.py similarity -n efficientnet_v2_s -e 200 --limit 3 data/*/Arabian\\ babbler\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

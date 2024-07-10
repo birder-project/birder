@@ -126,6 +126,7 @@ class TestNet(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
             ("convnext_v2", 0, False),
+            ("simple_vit", 0, False),
             ("swin_transformer_v2", 0, True),
             ("swin_transformer_v2_w2", 0, True),
             ("vit", 0, False),

@@ -12,33 +12,22 @@ https://arxiv.org/abs/2205.01580
 
 import logging
 import math
+from functools import partial
 from typing import Optional
 
 import torch
 from torch import nn
 
-from birder.core.net.base import BaseNet
+from birder.core.net.base import PreTrainEncoder
+from birder.core.net.base import pos_embedding_sin_cos_2d
 from birder.core.net.vit import Encoder
+from birder.core.net.vit import EncoderBlock
 from birder.core.net.vit import PatchEmbed
 from birder.model_registry import registry
 
 
-def pos_embedding_sin_cos_2d(h: int, w: int, dim: int, temperature: int = 10000) -> torch.Tensor:
-    assert (dim % 4) == 0, "feature dimension must be multiple of 4 for sin-cos emb"
-
-    (y, x) = torch.meshgrid(torch.arange(h), torch.arange(w), indexing="ij")
-    omega = torch.arange(dim // 4) / (dim // 4 - 1)
-    omega = 1.0 / (temperature**omega)
-
-    y = y.flatten()[:, None] * omega[None, :]
-    x = x.flatten()[:, None] * omega[None, :]
-    pe = torch.concat((x.sin(), x.cos(), y.sin(), y.cos()), dim=1)
-
-    return pe
-
-
 # pylint: disable=invalid-name
-class Simple_ViT(BaseNet):
+class Simple_ViT(PreTrainEncoder):
     default_size = 224
 
     def __init__(
@@ -102,6 +91,7 @@ class Simple_ViT(BaseNet):
         self.patch_size = patch_size
         self.hidden_dim = hidden_dim
         self.mlp_dim = mlp_dim
+        self.num_special_tokens = 0
         self.num_classes = num_classes
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
@@ -120,6 +110,7 @@ class Simple_ViT(BaseNet):
             h=image_size // patch_size,
             w=image_size // patch_size,
             dim=hidden_dim,
+            num_special_tokens=self.num_special_tokens,
         )
         self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=False)
 
@@ -132,6 +123,17 @@ class Simple_ViT(BaseNet):
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
 
+        self.encoding_size = hidden_dim * (image_size // patch_size) ** 2
+        self.decoder_block = partial(
+            EncoderBlock,
+            16,
+            mlp_dim=None,
+            dropout=0,
+            attention_dropout=0,
+            drop_path=0,
+            activation_layer=nn.GELU,
+        )
+
         # Weight initialization
         if isinstance(self.conv_proj, nn.Conv2d) is True:
             # Init the patchify stem
@@ -143,6 +145,46 @@ class Simple_ViT(BaseNet):
         if isinstance(self.classifier, nn.Linear) is True:
             nn.init.zeros_(self.classifier.weight)
             nn.init.zeros_(self.classifier.bias)
+
+    def masked_encoding(
+        self, x: torch.Tensor, mask_ratio: float, _mask_token: Optional[torch.Tensor] = None
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        # Reshape and permute the input tensor
+        x = self.conv_proj(x)
+        x = self.patch_embed(x)
+
+        # Add pos embedding
+        x = x + self.pos_embedding
+
+        # Masking: length -> length * mask_ratio
+        # Perform per-sample random masking by per-sample shuffling.
+        # Per-sample shuffling is done by argsort random noise.
+        (N, L, D) = x.shape  # batch, length, dim
+        len_keep = int(L * (1 - mask_ratio))
+
+        noise = torch.rand(N, L, device=x.device)  # Noise in [0, 1]
+
+        # Sort noise for each sample
+        ids_shuffle = torch.argsort(noise, dim=1)  # Ascend: small is keep, large is remove
+        ids_restore = torch.argsort(ids_shuffle, dim=1)
+
+        # Keep the first subset
+        ids_keep = ids_shuffle[:, :len_keep]
+        x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
+
+        # Generate the binary mask: 0 is keep, 1 is remove
+        mask = torch.ones([N, L], device=x.device)
+        mask[:, :len_keep] = 0
+
+        # Un-shuffle to get the binary mask
+        mask = torch.gather(mask, dim=1, index=ids_restore)
+
+        x = x_masked
+
+        # Apply transformer
+        x = self.encoder(x)
+
+        return (x, mask, ids_restore)
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.conv_proj(x)
@@ -165,6 +207,7 @@ class Simple_ViT(BaseNet):
             h=new_size // self.patch_size,
             w=new_size // self.patch_size,
             dim=self.hidden_dim,
+            num_special_tokens=self.num_special_tokens,
         )
         self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=False)
 

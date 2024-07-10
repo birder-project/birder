@@ -361,3 +361,16 @@ def training_log_name(network: str, device: torch.device) -> str:
 
     iso_timestamp = timestamp.isoformat()
     return f"{network}__{iso_timestamp}"
+
+
+def get_grad_norm(parameters: Iterator[torch.Tensor], norm_type: float = 2) -> float:
+    filtered_parameters = list(filter(lambda p: p.grad is not None, parameters))
+    norm_type = float(norm_type)
+    total_norm = 0.0
+    for p in filtered_parameters:
+        param_norm = p.grad.data.norm(norm_type)
+        total_norm += param_norm.item() ** norm_type
+
+    total_norm = total_norm ** (1.0 / norm_type)
+
+    return total_norm

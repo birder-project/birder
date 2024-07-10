@@ -187,3 +187,19 @@ class TestCommon(unittest.TestCase):
         # Misc
         self.assertFalse(training_utils.is_dist_available_and_initialized())
         self.assertRegex(training_utils.training_log_name("something", torch.device("cpu")), "something__")
+
+        # Test grad norm
+        model = torch.nn.Sequential(
+            torch.nn.Linear(1, 2, bias=True),
+            torch.nn.BatchNorm1d(2),
+            torch.nn.Linear(2, 1, bias=False),
+        )
+        out: torch.Tensor = model(torch.rand((2, 1)))
+        grad_norm = training_utils.get_grad_norm(model.parameters())
+        self.assertEqual(grad_norm, 0.0)
+
+        loss = out**2
+        loss = loss.sum()
+        loss.backward()
+        grad_norm = training_utils.get_grad_norm(model.parameters())
+        self.assertGreater(grad_norm, 0.0)

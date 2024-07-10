@@ -16,7 +16,9 @@ import torch
 from torch import nn
 
 from birder.core.net.base import PreTrainEncoder
+from birder.core.net.base import pos_embedding_sin_cos_2d
 from birder.core.net.pretraining.base import PreTrainBaseNet
+from birder.core.net.simple_vit import Simple_ViT
 from birder.core.net.vit import ViT
 
 
@@ -32,11 +34,10 @@ class MAE_ViT(PreTrainBaseNet):
     ) -> None:
         super().__init__(encoder, net_param, size)
         assert self.net_param is None, "net-param not supported"
-        assert isinstance(self.encoder, ViT) is True, "Only ViT is supported as an encoder for this network"
-        self.encoder: ViT
+        assert isinstance(self.encoder, (ViT, Simple_ViT)) is True
+        self.encoder: ViT | Simple_ViT
 
         self.mask_ratio = 0.75
-        num_patches = self.encoder.encoding_size // self.encoder.embedding_size  # Include special tokens
         self.patch_size = self.encoder.patch_size
         encoder_dim = self.encoder.embedding_size
         decoder_embed_dim = 512
@@ -46,7 +47,13 @@ class MAE_ViT(PreTrainBaseNet):
         self.mask_token = nn.Parameter(torch.zeros(1, 1, decoder_embed_dim))
 
         # Fixed sin-cos embedding
-        self.decoder_pos_embed = nn.Parameter(torch.zeros(1, num_patches, decoder_embed_dim).normal_(std=0.02))
+        pos_embedding = pos_embedding_sin_cos_2d(
+            h=self.size // self.patch_size,
+            w=self.size // self.patch_size,
+            dim=decoder_embed_dim,
+            num_special_tokens=self.encoder.num_special_tokens,
+        )
+        self.decoder_pos_embed = nn.Parameter(pos_embedding, requires_grad=False)
 
         layers = []
         for _ in range(decoder_depth):
@@ -96,7 +103,7 @@ class MAE_ViT(PreTrainBaseNet):
         x = self.decoder_embed(x)
 
         # Append mask tokens to sequence
-        special_token_len = 1 + self.encoder.num_reg_tokens
+        special_token_len = self.encoder.num_special_tokens
         mask_tokens = self.mask_token.repeat(x.shape[0], ids_restore.shape[1] + special_token_len - x.shape[1], 1)
         x_ = torch.concat([x[:, special_token_len:, :], mask_tokens], dim=1)  # No special tokens
         x_ = torch.gather(x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2]))  # Un-shuffle

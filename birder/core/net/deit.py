@@ -127,10 +127,9 @@ class DeiT(BaseNet):
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
         x = self.patch_embed(x)
-        n = x.shape[0]
 
         # Expand the class token to the full batch
-        batch_class_token = self.class_token.expand(n, -1, -1)
+        batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
 
         if self.pos_embed_class is True:
             x = torch.concat([batch_class_token, x], dim=1)

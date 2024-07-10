@@ -225,6 +225,7 @@ class ViT(PreTrainEncoder):
         self.patch_size = patch_size
         self.hidden_dim = hidden_dim
         self.mlp_dim = mlp_dim
+        self.num_special_tokens = 1 + self.num_reg_tokens
         self.attention_dropout = attention_dropout
         self.dropout = dropout
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
@@ -299,7 +300,7 @@ class ViT(PreTrainEncoder):
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
-        # Add pos embed without special tokens
+        # Add pos embedding without special tokens
         x = x + self.pos_embedding[:, self.num_reg_tokens + 1 :, :]
 
         # Masking: length -> length * mask_ratio

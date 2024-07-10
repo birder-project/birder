@@ -97,6 +97,9 @@ def train(args: argparse.Namespace) -> None:
         encoder = registry.net_factory(args.encoder, sample_shape[1], 0, args.encoder_param, args.size)
         net = registry.pretrain_net_factory(args.network, encoder, args.net_param, args.size).to(device)
 
+    if args.fast_matmul is True:
+        torch.set_float32_matmul_precision("high")
+
     # Compile network
     if args.compile is True:
         net = torch.compile(net)
@@ -114,12 +117,21 @@ def train(args: argparse.Namespace) -> None:
         args.lr_step_gamma,
     )
 
-    # Gradient scaler
+    # Gradient scaler and AMP related tasks
     if args.amp is True:
         scaler = torch.cuda.amp.GradScaler()
+        if args.amp_dtype == "float16":
+            amp_dtype = torch.float16
+
+        elif args.amp_dtype == "bfloat16":
+            amp_dtype = torch.bfloat16
+
+        else:
+            raise ValueError(f"Unknown dtype {args.amp_dtype}")
 
     else:
         scaler = None
+        amp_dtype = None
 
     if args.load_states is True:
         optimizer.load_state_dict(optimizer_state)  # pylint: disable=possibly-used-before-assignment
@@ -242,7 +254,7 @@ def train(args: argparse.Namespace) -> None:
             optimizer.zero_grad()
 
             # Forward, backward and optimize
-            with torch.cuda.amp.autocast(enabled=args.amp):
+            with torch.cuda.amp.autocast(enabled=args.amp, dtype=amp_dtype):
                 outputs: dict[str, torch.Tensor] = net(inputs)
                 loss = outputs["loss"]
 
@@ -358,7 +370,7 @@ def main() -> None:
         description="Pre-train model",
         epilog=(
             "Usage examples:\n"
-            "python train_pretrain.py --network mae_vit --encoder vit --encoder-param 2 "
+            "python train_pretrain.py --network mae_vit --encoder vit_b16 "
             "--batch-size 32 --opt adamw --lr 0.0001\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
@@ -462,6 +474,19 @@ def main() -> None:
     )
     parser.add_argument(
         "--amp", default=False, action="store_true", help="use torch.cuda.amp for mixed precision training"
+    )
+    parser.add_argument(
+        "--amp-dtype",
+        type=str,
+        choices=["float16", "bfloat16"],
+        default="float16",
+        help="whether to use float16 or bfloat16 for mixed precision",
+    )
+    parser.add_argument(
+        "--fast-matmul",
+        default=False,
+        action="store_true",
+        help="use fast matrix multiplication (affects precision)",
     )
     parser.add_argument("--world-size", type=int, default=1, help="number of distributed processes")
     parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")

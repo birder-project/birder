@@ -159,9 +159,13 @@ def train(args: argparse.Namespace) -> None:
             args.size,
         ).to(device)
 
+    if args.fast_matmul is True:
+        torch.set_float32_matmul_precision("high")
+
     # Compile teacher network
     if args.compile is True:
         teacher = torch.compile(teacher)
+        student = torch.compile(student)
 
     # Define loss criteria, optimizer and learning rate scheduler
     custom_keys_weight_decay = []
@@ -199,12 +203,21 @@ def train(args: argparse.Namespace) -> None:
         args.lr_step_gamma,
     )
 
-    # Gradient scaler
+    # Gradient scaler and AMP related tasks
     if args.amp is True:
         scaler = torch.cuda.amp.GradScaler()
+        if args.amp_dtype == "float16":
+            amp_dtype = torch.float16
+
+        elif args.amp_dtype == "bfloat16":
+            amp_dtype = torch.bfloat16
+
+        else:
+            raise ValueError(f"Unknown dtype {args.amp_dtype}")
 
     else:
         scaler = None
+        amp_dtype = None
 
     if args.load_states is True:
         optimizer.load_state_dict(optimizer_state)  # pylint: disable=possibly-used-before-assignment
@@ -240,6 +253,9 @@ def train(args: argparse.Namespace) -> None:
         model_to_save = net_without_ddp
         eval_model = student
 
+    if args.compile is True and hasattr(model_to_save, "_orig_mod") is True:
+        model_to_save = model_to_save._orig_mod  # pylint: disable=protected-access
+
     # Define metrics
     training_metrics = torchmetrics.MetricCollection(
         {
@@ -253,8 +269,12 @@ def train(args: argparse.Namespace) -> None:
     validation_metrics = training_metrics.clone(prefix="validation_")
 
     # Print network summary
+    net_for_info = net_without_ddp
+    if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
+        net_for_info = net_without_ddp._orig_mod  # pylint: disable=protected-access
+
     torchinfo.summary(
-        net_without_ddp,
+        net_for_info,
         device=device,
         input_size=sample_shape,
         dtypes=[torch.float32],
@@ -272,7 +292,7 @@ def train(args: argparse.Namespace) -> None:
     signature = get_signature(input_shape=sample_shape, num_outputs=num_outputs)
     if args.rank == 0:
         with torch.no_grad():
-            summary_writer.add_graph(net_without_ddp, torch.rand(sample_shape, device=device))
+            summary_writer.add_graph(net_for_info, torch.rand(sample_shape, device=device))
 
         summary_writer.flush()
         cli.write_signature(student_name, signature)
@@ -382,7 +402,7 @@ def train(args: argparse.Namespace) -> None:
             optimizer.zero_grad()
 
             # Forward, backward and optimize
-            with torch.cuda.amp.autocast(enabled=args.amp):
+            with torch.cuda.amp.autocast(enabled=args.amp, dtype=amp_dtype):
                 student_outputs = student(inputs)
                 with torch.inference_mode():
                     teacher_outputs = teacher(inputs)
@@ -561,7 +581,7 @@ def main() -> None:
         description="Train classification model using Knowledge Distillation",
         epilog=(
             "Usage examples:\n"
-            "python train_kd.py --teacher convnext_v2 --teacher-param 4 --teacher-epoch 0 --student regnet "
+            "python train_kd.py --teacher convnext_v2_tiny --teacher-epoch 0 --student regnet "
             "--student-param 1.6 --lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 "
             "--size 256 --epochs 100 --wd 0.00005 --mixup-alpha 0.2 --aug-level 3\n"
         ),
@@ -703,6 +723,19 @@ def main() -> None:
     )
     parser.add_argument(
         "--amp", default=False, action="store_true", help="use torch.cuda.amp for mixed precision training"
+    )
+    parser.add_argument(
+        "--amp-dtype",
+        type=str,
+        choices=["float16", "bfloat16"],
+        default="float16",
+        help="whether to use float16 or bfloat16 for mixed precision",
+    )
+    parser.add_argument(
+        "--fast-matmul",
+        default=False,
+        action="store_true",
+        help="use fast matrix multiplication (affects precision)",
     )
     parser.add_argument("--world-size", type=int, default=1, help="number of distributed processes")
     parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
