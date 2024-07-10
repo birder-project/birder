@@ -179,8 +179,12 @@ def predict(args: argparse.Namespace) -> None:
     label_names = list(class_to_idx.keys())
 
     # Save embeddings
+    epoch_str = ""
+    if args.epoch is not None:
+        epoch_str = f"_e{args.epoch}"
+
     base_output_path = (
-        f"{network_name}_{len(class_to_idx)}_e{args.epoch}_{args.size}px_" f"crop{args.center_crop}_{num_samples}"
+        f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size}px_" f"crop{args.center_crop}_{num_samples}"
     )
     if args.suffix is not None:
         base_output_path = f"{base_output_path}_{args.suffix}"

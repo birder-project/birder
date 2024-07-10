@@ -56,13 +56,20 @@ Birder provides pre-trained models that you can download using the `fetch-model`
 To download a model, use the following command:
 
 ```sh
-python -m birder.tools fetch-model mobilenet_v3_1_0
+python -m birder.tools fetch-model mobilenet_v3_1
+```
+
+Create a data directory and download an example image:
+
+```sh
+mkdir data
+wget https://f000.backblazeb2.com/file/birder/data/img_001.jpeg -O data/img_001.jpeg
 ```
 
 To classify bird images, use the `birder-predict` script as follows:
 
 ```sh
-birder-predict -n mobilenet_v3 -p 1 -e 0 --show bird.jpeg
+birder-predict -n mobilenet_v3 -p 1 --show data/bird.jpeg
 ```
 
 For more options and detailed usage of the prediction tool, run:

@@ -24,6 +24,7 @@
     "autoencoders",
     "autograd",
     "backprop",
+    "backpropagation",
     "barh",
     "batchmean",
     "batchnorm",

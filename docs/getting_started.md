@@ -78,3 +78,42 @@ python -c "import birder; print(birder.__version__)"
 This should print the version of Birder.
 
 ## Quick Start Guide
+
+### Simple Image Classification
+
+Get started with Birder by classifying a single image, visualizing the results and exploring model decision-making through introspection techniques.
+
+1. **Download a Pre-trained Model**
+
+    ```sh
+    python -m birder.tools fetch-model efficientnet_v2_s
+    ```
+
+1. **Download a Sample Image**
+
+    Create a data directory and download an example image:
+
+    ```sh
+    mkdir data
+    wget https://f000.backblazeb2.com/file/birder/data/img_001.jpeg -O data/img_001.jpeg
+    ```
+
+1. **Classify the Image**
+
+    ```sh
+    birder-predict -n efficientnet_v2_s --show data/img_001.jpeg
+    ```
+
+1. **Explore Model Decision-Making with Introspection**
+
+    To gain insight into the model's decision-making process, we'll use Guided Backpropagation [^1], a technique that visualizes the input features most influential to the classification:
+
+    ```sh
+    python -m birder.tool introspection --method guided-backprop --network efficientnet_v2_s --image data/img_001.jpeg
+    ```
+
+    This command generates a saliency map highlighting the pixels in the input image that most significantly influenced the model's classification decision.
+
+    [^1]: [Jost Tobias Springenberg, Alexey Dosovitskiy, Thomas Brox, Martin Riedmiller. (2014). *Striving for Simplicity: The All Convolutional Net*. arXiv:1412.6806](https://arxiv.org/abs/1412.6806)
+
+### Camera Trap Analysis

@@ -8,6 +8,14 @@ The `convert-model` tool allows you to convert PyTorch models to various formats
 python -m birder.tools convert-model [OPTIONS]
 ```
 
+To see all available options and get detailed help, run:
+
+```sh
+python -m birder.tools convert-model --help
+```
+
+This will display a comprehensive list of all options and their descriptions, ensuring you have access to the full functionality of the `convert-model` tool.
+
 ## Description
 
 This tool provides flexibility in converting Birder models to different formats, each serving specific purposes:

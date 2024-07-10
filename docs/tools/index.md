@@ -29,7 +29,7 @@ python -m birder.tools [TOOL_NAME] --help
 * model-info
 * pack
 * quantize-model
-* results
+* [results](results.md)
 * show-det-iterator
 * show-iterator
 * similarity
