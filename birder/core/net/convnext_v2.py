@@ -77,7 +77,7 @@ class ConvNeXtBlock(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,too-many-branches
 class ConvNeXt_v2(PreTrainEncoder):
     default_size = 224
 
@@ -204,8 +204,9 @@ class ConvNeXt_v2(PreTrainEncoder):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-        self.classifier.weight.data.mul_(0.001)
-        self.classifier.bias.data.mul_(0.001)
+        if isinstance(self.classifier, nn.Linear) is True:
+            self.classifier.weight.data.mul_(0.001)
+            self.classifier.bias.data.mul_(0.001)
 
     def masked_encoding(
         self, x: torch.Tensor, mask_ratio: float, _mask_token: Optional[torch.Tensor] = None

@@ -3,8 +3,6 @@
 Training script and procedures adapted from PyTorch vision reference
 <https://github.com/pytorch/vision/blob/main/references/detection>
 
-Set `OMP_NUM_THREADS`.
-
 ## Object Detection
 
 ### Faster R-CNN

@@ -94,6 +94,7 @@ def main(args: argparse.Namespace) -> None:
         )
 
     model_info = get_model_info(net)
+    is_nan = torch.stack([torch.isnan(p).any() for p in net.parameters()]).any().item()
 
     console = Console()
     console.print(f"Network type: [bold]{type(net).__name__}[/bold], with task={net.task}")
@@ -103,3 +104,6 @@ def main(args: argparse.Namespace) -> None:
     console.print(f"Model size (inc. buffers): {(model_info['model_size']) / 1024**2:,.2f} [bold]MB[/bold]")
     console.print()
     console.print(Columns(list(class_to_idx.keys()), column_first=True, title="[bold]Class list[/bold]"))
+    if is_nan is True:
+        console.print()
+        console.print("[red]Warning, NaN detected at the model weights[/red]")

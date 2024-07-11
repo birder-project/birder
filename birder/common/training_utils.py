@@ -11,13 +11,14 @@ from typing import Sized
 
 import torch
 import torch.distributed as dist
-from torch.utils.data import Sampler
+import torch.utils.data
+import torch.utils.data.distributed
 
 OptimizerType = Literal["sgd", "rmsprop", "adamw"]
 SchedulerType = Literal["constant", "step", "cosine"]
 
 
-class RASampler(Sampler):
+class RASampler(torch.utils.data.Sampler):
     """
     Sampler that restricts data loading to a subset of the dataset for distributed,
     with repeated augmentation.
@@ -95,6 +96,22 @@ class ExponentialMovingAverage(torch.optim.swa_utils.AveragedModel):
             return decay * avg_model_param + (1 - decay) * model_param
 
         super().__init__(model, device, ema_avg, use_buffers=True)
+
+
+def ema_model(args: argparse.Namespace, net: torch.nn.Module, device: torch.device) -> ExponentialMovingAverage:
+    # Decay adjustment that aims to keep the decay independent of other hyper-parameters originally
+    # proposed at: https://github.com/facebookresearch/pycls/blob/f8cd9627/pycls/core/net.py#L123
+    #
+    # total_ema_updates = (Dataset_size / n_GPUs) * epochs / (batch_size_per_gpu * EMA_steps)
+    # We consider constant = Dataset_size for a given dataset/setup and omit it. Thus:
+    # adjust = 1 / total_ema_updates ~= n_GPUs * batch_size_per_gpu * EMA_steps / epochs
+
+    adjust = args.world_size * args.batch_size * args.model_ema_steps / args.epochs
+    alpha = 1.0 - args.model_ema_decay
+    alpha = min(1.0, alpha * adjust)
+    model_ema = ExponentialMovingAverage(net, device=device, decay=1.0 - alpha)
+
+    return model_ema
 
 
 # pylint: disable=protected-access,too-many-locals,too-many-branches
@@ -220,6 +237,27 @@ def optimizer_parameter_groups(
     return params
 
 
+def get_wd_custom_keys(args: argparse.Namespace) -> list[tuple[str, float]]:
+    custom_keys_weight_decay = []
+    if args.bias_weight_decay is not None:
+        custom_keys_weight_decay.append(("bias", args.bias_weight_decay))
+
+    if args.transformer_embedding_decay is not None:
+        for key in [
+            "cls_token",
+            "class_token",
+            "mask_token",
+            "pos_embed",
+            "pos_embedding",
+            "position_embedding",
+            "relative_position_bias_table",
+            "decoder_embed",
+        ]:
+            custom_keys_weight_decay.append((key, args.transformer_embedding_decay))
+
+    return custom_keys_weight_decay
+
+
 def get_optimizer(
     opt: OptimizerType,
     parameters: list[dict[str, Any]],
@@ -285,6 +323,50 @@ def get_scheduler(
         scheduler = main_scheduler
 
     return scheduler
+
+
+def get_amp_scaler(amp: bool, amp_dtype_str: str) -> tuple[Optional[torch.cuda.amp.GradScaler], Optional[torch.dtype]]:
+    if amp is True:
+        scaler = torch.cuda.amp.GradScaler()
+        if amp_dtype_str == "float16":
+            amp_dtype = torch.float16
+
+        elif amp_dtype_str == "bfloat16":
+            amp_dtype = torch.bfloat16
+
+        else:
+            raise ValueError(f"Unknown dtype {amp_dtype_str}")
+
+    else:
+        scaler = None
+        amp_dtype = None
+
+    return (scaler, amp_dtype)
+
+
+def get_samplers(
+    args: argparse.Namespace, training_dataset: torch.utils.data.Dataset, validation_dataset: torch.utils.data.Dataset
+) -> torch.utils.data.Sampler:
+    if args.distributed is True:
+        if args.ra_sampler is True:
+            train_sampler = RASampler(
+                training_dataset,
+                num_replicas=args.world_size,
+                rank=args.rank,
+                shuffle=True,
+                repetitions=args.ra_reps,
+            )
+
+        else:
+            train_sampler = torch.utils.data.distributed.DistributedSampler(training_dataset, shuffle=True)
+
+        validation_sampler = torch.utils.data.distributed.DistributedSampler(validation_dataset, shuffle=False)
+
+    else:
+        train_sampler = torch.utils.data.RandomSampler(training_dataset)
+        validation_sampler = torch.utils.data.SequentialSampler(validation_dataset)
+
+    return (train_sampler, validation_sampler)
 
 
 def init_distributed_mode(args: argparse.Namespace) -> None:

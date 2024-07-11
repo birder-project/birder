@@ -69,6 +69,11 @@ def train(args: argparse.Namespace) -> None:
     batch_size: int = args.batch_size
     begin_epoch = 1
     epochs = args.epochs + 1
+    if args.stop_epoch is None:
+        args.stop_epoch = epochs
+
+    else:
+        args.stop_epoch += 1
 
     # Initialize network
     sample_shape = (batch_size,) + (args.channels, args.size, args.size)  # B, C, H, W
@@ -104,7 +109,15 @@ def train(args: argparse.Namespace) -> None:
     if args.compile is True:
         net = torch.compile(net)
 
-    parameters = training_utils.optimizer_parameter_groups(net, args.wd)
+    # Define optimizer and learning rate scheduler and training parameter groups
+    custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
+    parameters = training_utils.optimizer_parameter_groups(
+        net,
+        args.wd,
+        norm_weight_decay=args.norm_wd,
+        custom_keys_weight_decay=custom_keys_weight_decay,
+        layer_decay=args.layer_decay,
+    )
     optimizer = training_utils.get_optimizer(args.opt, parameters, args.lr, args.wd, args.momentum, args.nesterov)
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
@@ -118,21 +131,9 @@ def train(args: argparse.Namespace) -> None:
     )
 
     # Gradient scaler and AMP related tasks
-    if args.amp is True:
-        scaler = torch.cuda.amp.GradScaler()
-        if args.amp_dtype == "float16":
-            amp_dtype = torch.float16
+    (scaler, amp_dtype) = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
 
-        elif args.amp_dtype == "bfloat16":
-            amp_dtype = torch.bfloat16
-
-        else:
-            raise ValueError(f"Unknown dtype {args.amp_dtype}")
-
-    else:
-        scaler = None
-        amp_dtype = None
-
+    # Load states
     if args.load_states is True:
         optimizer.load_state_dict(optimizer_state)  # pylint: disable=possibly-used-before-assignment
         scheduler.load_state_dict(scheduler_state)  # pylint: disable=possibly-used-before-assignment
@@ -227,9 +228,12 @@ def train(args: argparse.Namespace) -> None:
             pin_memory=True,
         )
 
+    # Enable or disable the autograd anomaly detection
+    torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
+
     # Training loop
     logging.info(f"Starting training with learning rate of {last_lr}")
-    for epoch in range(begin_epoch, epochs):
+    for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
         running_loss = 0.0
@@ -406,6 +410,17 @@ def main() -> None:
     parser.add_argument("--momentum", type=float, default=0.9, help="optimizer momentum")
     parser.add_argument("--nesterov", default=False, action="store_true", help="use nesterov momentum")
     parser.add_argument("--wd", type=float, default=0.0001, help="weight decay")
+    parser.add_argument("--norm-wd", type=float, default=None, help="weight decay for Normalization layers")
+    parser.add_argument(
+        "--bias-weight-decay", default=None, type=float, help="weight decay for bias parameters of all layers"
+    )
+    parser.add_argument(
+        "--transformer-embedding-decay",
+        default=None,
+        type=float,
+        help="weight decay for embedding parameters for vision transformer models",
+    )
+    parser.add_argument("--layer-decay", type=float, default=None, help="layer-wise learning rate decay (LLRD)")
     parser.add_argument(
         "--lr-scheduler",
         type=str,
@@ -428,7 +443,7 @@ def main() -> None:
     parser.add_argument(
         "--lr-cosine-min",
         type=float,
-        default=0.000001,
+        default=0.0,
         help="minimum learning rate (for cosine annealing scheduler only)",
     )
     parser.add_argument("--channels", type=int, default=3, help="no. of image channels")
@@ -449,8 +464,11 @@ def main() -> None:
         default="calculated",
         help="rgb mean and std to use for normalization",
     )
-    parser.add_argument("--epochs", type=int, default=100, help="number of training epochs")
-    parser.add_argument("--save-frequency", type=int, default=2, help="frequency of model saving")
+    parser.add_argument("--epochs", type=int, default=800, help="number of training epochs")
+    parser.add_argument(
+        "--stop-epoch", type=int, default=None, help="epoch to stop the training at (multi step training)"
+    )
+    parser.add_argument("--save-frequency", type=int, default=1, help="frequency of model saving")
     parser.add_argument("--resume-epoch", type=int, help="epoch to resume training from")
     parser.add_argument(
         "--load-states",
@@ -487,6 +505,12 @@ def main() -> None:
         default=False,
         action="store_true",
         help="use fast matrix multiplication (affects precision)",
+    )
+    parser.add_argument(
+        "--grad-anomaly-detection",
+        default=False,
+        action="store_true",
+        help="enable the autograd anomaly detection (for debugging)",
     )
     parser.add_argument("--world-size", type=int, default=1, help="number of distributed processes")
     parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")

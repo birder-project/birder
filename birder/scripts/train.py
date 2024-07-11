@@ -102,6 +102,11 @@ def train(args: argparse.Namespace) -> None:
     batch_size: int = args.batch_size
     begin_epoch = 1
     epochs = args.epochs + 1
+    if args.stop_epoch is None:
+        args.stop_epoch = epochs
+
+    else:
+        args.stop_epoch += 1
 
     # Set data iterators
     if args.mixup_alpha is not None or args.cutmix is True:
@@ -146,21 +151,8 @@ def train(args: argparse.Namespace) -> None:
     if args.compile is True:
         net = torch.compile(net)
 
-    # Define loss criteria, optimizer and learning rate scheduler
-    custom_keys_weight_decay = []
-    if args.bias_weight_decay is not None:
-        custom_keys_weight_decay.append(("bias", args.bias_weight_decay))
-
-    if args.transformer_embedding_decay is not None:
-        for key in [
-            "cls_token",
-            "class_token",
-            "pos_embedding",
-            "position_embedding",
-            "relative_position_bias_table",
-        ]:
-            custom_keys_weight_decay.append((key, args.transformer_embedding_decay))
-
+    # Define loss criteria, optimizer, learning rate scheduler and training parameter groups
+    custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
     parameters = training_utils.optimizer_parameter_groups(
         net,
         args.wd,
@@ -182,21 +174,9 @@ def train(args: argparse.Namespace) -> None:
     )
 
     # Gradient scaler and AMP related tasks
-    if args.amp is True:
-        scaler = torch.cuda.amp.GradScaler()
-        if args.amp_dtype == "float16":
-            amp_dtype = torch.float16
+    (scaler, amp_dtype) = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
 
-        elif args.amp_dtype == "bfloat16":
-            amp_dtype = torch.bfloat16
-
-        else:
-            raise ValueError(f"Unknown dtype {args.amp_dtype}")
-
-    else:
-        scaler = None
-        amp_dtype = None
-
+    # Load states
     if args.load_states is True:
         optimizer.load_state_dict(optimizer_state)  # pylint: disable=possibly-used-before-assignment
         scheduler.load_state_dict(scheduler_state)  # pylint: disable=possibly-used-before-assignment
@@ -230,17 +210,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Model EMA
     if args.model_ema is True:
-        # Decay adjustment that aims to keep the decay independent of other hyper-parameters originally
-        # proposed at: https://github.com/facebookresearch/pycls/blob/f8cd9627/pycls/core/net.py#L123
-        #
-        # total_ema_updates = (Dataset_size / n_GPUs) * epochs / (batch_size_per_gpu * EMA_steps)
-        # We consider constant = Dataset_size for a given dataset/setup and omit it. Thus:
-        # adjust = 1 / total_ema_updates ~= n_GPUs * batch_size_per_gpu * EMA_steps / epochs
-        adjust = args.world_size * args.batch_size * args.model_ema_steps / args.epochs
-        alpha = 1.0 - args.model_ema_decay
-        alpha = min(1.0, alpha * adjust)
-        model_ema = training_utils.ExponentialMovingAverage(net_without_ddp, device=device, decay=1.0 - alpha)
-
+        model_ema = training_utils.ema_model(args, net_without_ddp, device=device)
         model_to_save = model_ema.module
         eval_model = model_ema
 
@@ -306,24 +276,7 @@ def train(args: argparse.Namespace) -> None:
             )
 
     # Data loaders and samplers
-    if args.distributed is True:
-        if args.ra_sampler is True:
-            train_sampler = training_utils.RASampler(
-                training_dataset,
-                num_replicas=args.world_size,
-                rank=args.rank,
-                shuffle=True,
-                repetitions=args.ra_reps,
-            )
-
-        else:
-            train_sampler = torch.utils.data.distributed.DistributedSampler(training_dataset, shuffle=True)
-
-        validation_sampler = torch.utils.data.distributed.DistributedSampler(validation_dataset, shuffle=False)
-
-    else:
-        train_sampler = torch.utils.data.RandomSampler(training_dataset)
-        validation_sampler = torch.utils.data.SequentialSampler(validation_dataset)
+    (train_sampler, validation_sampler) = training_utils.get_samplers(args, training_dataset, validation_dataset)
 
     if args.wds is True:
         training_loader = make_wds_loader(
@@ -367,9 +320,12 @@ def train(args: argparse.Namespace) -> None:
             pin_memory=True,
         )
 
+    # Enable or disable the autograd anomaly detection
+    torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
+
     # Training loop
     logging.info(f"Starting training with learning rate of {last_lr}")
-    for epoch in range(begin_epoch, epochs):
+    for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
         running_loss = 0.0
@@ -666,6 +622,9 @@ def main() -> None:
         help="rgb mean and std to use for normalization",
     )
     parser.add_argument("--epochs", type=int, default=100, help="number of training epochs")
+    parser.add_argument(
+        "--stop-epoch", type=int, default=None, help="epoch to stop the training at (multi step training)"
+    )
     parser.add_argument("--save-frequency", type=int, default=5, help="frequency of model saving")
     parser.add_argument("--resume-epoch", type=int, help="epoch to resume training from")
     parser.add_argument(
@@ -731,6 +690,12 @@ def main() -> None:
         action="store_true",
         help="use fast matrix multiplication (affects precision)",
     )
+    parser.add_argument(
+        "--grad-anomaly-detection",
+        default=False,
+        action="store_true",
+        help="enable the autograd anomaly detection (for debugging)",
+    )
     parser.add_argument("--world-size", type=int, default=1, help="number of distributed processes")
     parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
     parser.add_argument("--clip-grad-norm", type=float, default=None, help="the maximum gradient norm")
@@ -750,6 +715,9 @@ def main() -> None:
     parser.add_argument("--wds-val-size", type=int, help="size of the wds validation set")
     args = parser.parse_args()
 
+    assert (
+        args.stop_epoch is None or args.stop_epoch < args.epochs
+    ), "Stop epoch must be smaller than total number of epochs"
     assert 0.5 > args.smoothing_alpha >= 0, "Smoothing alpha must be in range of [0, 0.5)"
     assert (
         args.load_states is False or args.resume_epoch is not None
