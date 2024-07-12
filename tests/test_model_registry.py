@@ -39,7 +39,7 @@ class TestRegistry(unittest.TestCase):
 
         self.assertEqual(len(all_names), len(set(all_names)))
 
-    @unittest.skipUnless(os.environ.get("NETWORK_TESTS", False), "Avoid tests that requiring network access")
+    @unittest.skipUnless(os.environ.get("NETWORK_TESTS", False), "Avoid tests that require network access")
     def test_manifest(self) -> None:
         for model_name, model_info in registry.pretrained_nets.items():
             for model_format in model_info["formats"]:

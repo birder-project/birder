@@ -218,6 +218,7 @@ def update_annotation_table(_ctx):
         annotations_status = pd.concat([annotations_status, new_annotations_status])
         annotations_status.sort_values(by=column_class, inplace=True)
         annotations_status.reset_index(drop=True, inplace=True)
+        annotations_status.index.rename("id", inplace=True)
 
     # Update sample count
     training_count = directory_label_count(settings.TRAINING_DATA_PATH)

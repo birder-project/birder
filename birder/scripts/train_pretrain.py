@@ -216,6 +216,7 @@ def train(args: argparse.Namespace) -> None:
             collate_fn=None,
             world_size=args.world_size,
             pin_memory=True,
+            partial=False,
         )
 
     else:
@@ -226,6 +227,7 @@ def train(args: argparse.Namespace) -> None:
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
             pin_memory=True,
+            drop_last=True,
         )
 
     # Enable or disable the autograd anomaly detection

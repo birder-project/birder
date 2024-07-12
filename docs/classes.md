@@ -1,6 +1,6 @@
 # Classes
 
-Currently supporting the following 218 classes:
+Currently supporting the following 243 classes:
 
 * African crake
 * African swamphen
@@ -8,6 +8,8 @@ Currently supporting the following 218 classes:
 * American wigeon
 * Arabian babbler
 * Arabian green bee-eater
+* Arctic tern
+* Asian crimson-winged finch
 * Asian desert warbler
 * Baillons crake
 * Barn owl
@@ -23,20 +25,26 @@ Currently supporting the following 218 classes:
 * Black-bellied sandgrouse
 * Black-crowned night heron
 * Black-headed gull
+* Black-necked grebe
+* Black-throated loon
 * Black-winged kite
+* Black-winged pratincole
 * Black-winged stilt
 * Blackstart
 * Blue-cheeked bee-eater
 * Bluethroat
 * Bohemian waxwing
+* Bonellis eagle
 * Booted eagle
 * Brambling
 * Brown booby
+* Brown-necked raven
 * Canada goose
 * Cattle egret
 * Chukar partridge
 * Cinereous vulture
 * Citrine wagtail
+* Collared pratincole
 * Common blackbird
 * Common buzzard
 * Common chaffinch
@@ -51,7 +59,9 @@ Currently supporting the following 218 classes:
 * Common myna
 * Common pochard
 * Common quail
+* Common raven
 * Common rock thrush
+* Common rosefinch
 * Common shelduck
 * Common starling
 * Common tern
@@ -60,14 +70,17 @@ Currently supporting the following 218 classes:
 * Corn crake
 * Crab-plover
 * Cream-colored courser
+* Crested honey buzzard
 * Crested lark
 * Crowned sandgrouse
 * Dalmatian pelican
 * Demoiselle crane
 * Desert owl
+* Eastern imperial eagle
 * Egyptian goose
 * Egyptian nightjar
 * Egyptian vulture
+* Eleonoras falcon
 * Eurasian blackcap
 * Eurasian collared dove
 * Eurasian coot
@@ -75,6 +88,7 @@ Currently supporting the following 218 classes:
 * Eurasian dotterel
 * Eurasian eagle-owl
 * Eurasian golden oriole
+* Eurasian hobby
 * Eurasian hoopoe
 * Eurasian jay
 * Eurasian oystercatcher
@@ -88,17 +102,20 @@ Currently supporting the following 218 classes:
 * European bee-eater
 * European goldfinch
 * European greenfinch
+* European honey buzzard
 * European nightjar
 * European robin
 * European roller
 * European shag
 * European stonechat
 * Fan-tailed raven
+* Feral pigeon
 * Ferruginous duck
 * Fieldfare
 * Gadwall
 * Glossy ibis
 * Goldcrest
+* Golden eagle
 * Goliath heron
 * Graceful prinia
 * Great bittern
@@ -112,6 +129,7 @@ Currently supporting the following 218 classes:
 * Great white pelican
 * Greater flamingo
 * Greater painted-snipe
+* Greater white-fronted goose
 * Grey heron
 * Grey hypocolius
 * Grey wagtail
@@ -119,9 +137,11 @@ Currently supporting the following 218 classes:
 * Hawfinch
 * Hen harrier
 * Hooded crow
+* Horned grebe
 * House crow
 * House sparrow
 * Kentish plover
+* Lanner falcon
 * Lappet-faced vulture
 * Laughing dove
 * Lesser flamingo
@@ -155,6 +175,7 @@ Currently supporting the following 218 classes:
 * Pied avocet
 * Pied kingfisher
 * Pin-tailed sandgrouse
+* Pink-backed pelican
 * Purple heron
 * Pygmy cormorant
 * Red phalarope
@@ -164,8 +185,10 @@ Currently supporting the following 218 classes:
 * Red-crested pochard
 * Red-footed falcon
 * Red-fronted serin
+* Red-necked grebe
 * Red-necked phalarope
 * Red-rumped swallow
+* Red-throated loon
 * Ring ouzel
 * Rock pigeon
 * Rook
@@ -189,6 +212,7 @@ Currently supporting the following 218 classes:
 * Spotted sandgrouse
 * Spur-winged lapwing
 * Squacco heron
+* Steppe eagle
 * Stock dove
 * Streaked scrub warbler
 * Striated heron
@@ -197,6 +221,7 @@ Currently supporting the following 218 classes:
 * Thick-billed lark
 * Tristrams starling
 * Trumpeter finch
+* Tufted duck
 * Tundra swan
 * Unknown
 * Verreauxs eagle

@@ -109,7 +109,9 @@ Other tags:
 
 Net Param: The number following the model name (e.g., 50, 1.0, 0.5), called the `net_param`, represents a specific configuration choice for the network. It represents a specific configuration choice for the network, which can affect aspects such as model size or complexity.
 
-For instance, *convnext_v2_5_pretrained-intermediate_0* represents a ConvNeXt v2 model with a `net_param` of 5 that underwent both pre-training and intermediate training.
+Epoch Number (optional): The last part of the model name may include an underscore followed by a number (e.g., `_0`, `_200`), which represents the epoch.
+
+For instance, *convnext_v2_5_pretrained-intermediate_300* represents a ConvNeXt v2 model with a `net_param` of 5 that underwent both pre-training and intermediate training and is from epoch 300.
 
 ### Self-supervised Image Pre-training
 
