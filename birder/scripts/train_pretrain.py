@@ -210,7 +210,7 @@ def train(args: argparse.Namespace) -> None:
         training_loader = make_wds_loader(
             training_dataset,
             batch_size,
-            shuffle=True,
+            shuffle=False,  # Shuffle is done at the wds dataset
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
             collate_fn=None,

@@ -298,7 +298,7 @@ class Results:
     def pretty_print(self) -> None:
         console = Console()
 
-        table = Table(show_header=True, header_style="bold magenta")
+        table = Table(show_header=True, header_style="bold dark_magenta")
         table.add_column("Class")
         table.add_column("Class name", style="dim")
         table.add_column("Precision", justify="right")

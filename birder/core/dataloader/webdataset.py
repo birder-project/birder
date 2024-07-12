@@ -24,7 +24,12 @@ def make_wds_loader(
         collate_fn = default_collation_fn
 
     dataloader = wds.WebLoader(
-        dataset, batch_size=None, num_workers=num_workers, prefetch_factor=prefetch_factor, pin_memory=pin_memory
+        dataset,
+        batch_size=None,
+        num_workers=num_workers,
+        prefetch_factor=prefetch_factor,
+        pin_memory=pin_memory,
+        drop_last=not partial,
     )
 
     if shuffle is True:

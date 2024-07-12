@@ -27,7 +27,7 @@ python -m birder.tools [TOOL_NAME] --help
 * labelme-to-coco
 * list-models
 * model-info
-* pack
+* [pack](pack.md)
 * quantize-model
 * [results](results.md)
 * show-det-iterator

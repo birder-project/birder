@@ -89,7 +89,9 @@ def train(args: argparse.Namespace) -> None:
             args.val_path,
             transform=inference_preset(args.size, 1.0, rgb_values),
             loader=read_image,
+            allow_empty=True,
         )
+        assert training_dataset.class_to_idx == validation_dataset.class_to_idx
         class_to_idx = training_dataset.class_to_idx
 
     assert args.model_ema is False or args.model_ema_steps <= len(training_dataset) / args.batch_size
@@ -282,7 +284,7 @@ def train(args: argparse.Namespace) -> None:
         training_loader = make_wds_loader(
             training_dataset,
             batch_size,
-            shuffle=True,
+            shuffle=False,  # Shuffle is done at the wds dataset
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
             collate_fn=collate_fn,

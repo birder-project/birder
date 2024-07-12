@@ -113,7 +113,7 @@ def predict(args: argparse.Namespace) -> None:
         inference_loader = make_wds_loader(
             dataset,
             batch_size,
-            shuffle=args.shuffle,
+            shuffle=False,  # Shuffle is done at the wds dataset
             num_workers=8,
             prefetch_factor=2,
             collate_fn=None,

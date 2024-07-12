@@ -1,5 +1,5 @@
 """
-ConvNeXt, adapted from
+ConvNeXt v1, adapted from
 https://github.com/pytorch/vision/blob/main/torchvision/models/convnext.py
 
 Paper "A ConvNet for the 2020s", https://arxiv.org/abs/2201.03545

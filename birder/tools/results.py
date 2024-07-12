@@ -24,7 +24,7 @@ def print_report(results_dict: dict[str, Results], classes: list[str]) -> None:
 
     console = Console()
 
-    table = Table(show_header=True, header_style="bold magenta")
+    table = Table(show_header=True, header_style="bold dark_magenta")
     table.add_column("File name")
     table.add_column("Accuracy", justify="right")
     table.add_column(f"Top-{settings.TOP_K} Accuracy", justify="right")
@@ -56,7 +56,7 @@ def print_report(results_dict: dict[str, Results], classes: list[str]) -> None:
     classes = sorted(list(set(all_classes)))
 
     # Per class
-    table = Table(show_header=True, header_style="bold magenta")
+    table = Table(show_header=True, header_style="bold dark_magenta")
     table.add_column("File name")
     table.add_column("Class name", style="dim")
     table.add_column("Precision", justify="right")

@@ -134,7 +134,11 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
         datasets.append(CustomImageFolder(path, class_to_idx=class_to_idx))
 
     dataset = ConcatDataset(datasets)
-    indices = torch.randperm(len(dataset)).tolist()
+    if args.shuffle:
+        indices = torch.randperm(len(dataset)).tolist()
+
+    else:
+        indices = list(range(len(dataset)))
 
     if args.jobs == -1:
         args.jobs = multiprocessing.cpu_count()
@@ -189,7 +193,7 @@ def set_parser(subparsers: Any) -> None:
         epilog=(
             "Usage examples:\n"
             "python tool.py pack --size 512 data/training\n"
-            "python tool.py pack -j 8 --size 384 data/training data/raw_data\n"
+            "python tool.py pack -j 8 --shuffle --size 384 data/training data/raw_data\n"
             "python tool.py pack -j 2 --class-file data/training_packed/classes.txt data/validation\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
@@ -201,16 +205,22 @@ def set_parser(subparsers: Any) -> None:
         default=1,
         help="performs calculation on multiple cores, set -1 to run on all cores",
     )
+    subparser.add_argument("--shuffle", default=False, action="store_true", help="shuffle the dataset during packing")
     subparser.add_argument("--size", type=int, default=None, help="resize image longest dimension to size")
     subparser.add_argument("--class-file", type=str, help="class list file")
+    subparser.add_argument("--suffix", type=str, default=settings.PACK_PATH_SUFFIX, help="directory suffix")
     subparser.add_argument("data_path", nargs="+", help="image directories")
     subparser.set_defaults(func=main)
 
 
 def main(args: argparse.Namespace) -> None:
-    pack_path = Path(f"{Path(args.data_path[0])}_{settings.PACK_PATH_SUFFIX}")
+    pack_path = Path(f"{Path(args.data_path[0])}_{args.suffix}")
     if pack_path.exists() is False:
         logging.info(f"Creating {pack_path} directory...")
         pack_path.mkdir(parents=True)
+
+    else:
+        logging.warning("Directory already exists... aborting")
+        raise SystemExit(1)
 
     pack(args, pack_path)

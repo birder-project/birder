@@ -26,33 +26,33 @@ class Task(str, Enum):
 class ModelRegistry:
     def __init__(self) -> None:
         self.aliases: dict[str, BaseNetType] = {}
-        self.nets: dict[str, type["BaseNet"]] = {}
-        self.detection_nets: dict[str, type["DetectionBaseNet"]] = {}
-        self.pretrain_nets: dict[str, type["PreTrainBaseNet"]] = {}
-        self.pretrained_nets = manifest.REGISTRY_MANIFEST
+        self._nets: dict[str, type["BaseNet"]] = {}
+        self._detection_nets: dict[str, type["DetectionBaseNet"]] = {}
+        self._pretrain_nets: dict[str, type["PreTrainBaseNet"]] = {}
+        self._pretrained_nets = manifest.REGISTRY_MANIFEST
 
     @property
     def all_nets(self) -> dict[str, "BaseNetType"]:
-        return {**self.nets, **self.detection_nets, **self.pretrain_nets}
+        return {**self._nets, **self._detection_nets, **self._pretrain_nets}
 
     def register_model(self, name: str, net_type: "BaseNetType") -> None:
         if net_type.task == Task.IMAGE_CLASSIFICATION:
-            if name in self.nets:
+            if name in self._nets:
                 warnings.warn(f"Network named {name} is already registered", UserWarning)
 
-            self.nets[name] = net_type
+            self._nets[name] = net_type
 
         elif net_type.task == Task.OBJECT_DETECTION:
-            if name in self.detection_nets:
+            if name in self._detection_nets:
                 warnings.warn(f"Detection network named {name} is already registered", UserWarning)
 
-            self.detection_nets[name] = net_type
+            self._detection_nets[name] = net_type
 
         elif net_type.task == Task.IMAGE_PRETRAINING:
-            if name in self.pretrain_nets:
+            if name in self._pretrain_nets:
                 warnings.warn(f"Pretrain network named {name} is already registered", UserWarning)
 
-            self.pretrain_nets[name] = net_type
+            self._pretrain_nets[name] = net_type
 
         else:
             raise ValueError(f"Unsupported model task: {net_type.task}")
@@ -70,14 +70,14 @@ class ModelRegistry:
         self.aliases[alias] = type(alias, (net_type,), {"net_param": net_param})
 
     def _get_model_by_name(self, name: str) -> "BaseNetType":
-        if name in self.nets:
-            net = self.nets[name]
+        if name in self._nets:
+            net = self._nets[name]
 
-        elif name in self.detection_nets:
-            net = self.detection_nets[name]
+        elif name in self._detection_nets:
+            net = self._detection_nets[name]
 
-        elif name in self.pretrain_nets:
-            net = self.pretrain_nets[name]
+        elif name in self._pretrain_nets:
+            net = self._pretrain_nets[name]
 
         else:
             raise ValueError(f"Network with name: {name} not found")
@@ -86,13 +86,13 @@ class ModelRegistry:
 
     def _get_models_for_task(self, task: Task) -> dict[str, "BaseNetType"]:
         if task == Task.IMAGE_CLASSIFICATION:
-            nets = self.nets
+            nets = self._nets
 
         elif task == Task.OBJECT_DETECTION:
-            nets = self.detection_nets
+            nets = self._detection_nets
 
         elif task == Task.IMAGE_PRETRAINING:
-            nets = self.pretrain_nets
+            nets = self._pretrain_nets
 
         else:
             raise ValueError(f"Unsupported model task: {task}")
@@ -120,14 +120,14 @@ class ModelRegistry:
         return name in nets
 
     def list_pretrained_models(self) -> list[str]:
-        return list(self.pretrained_nets.keys())
+        return list(self._pretrained_nets.keys())
 
     def get_default_size(self, model_name: str) -> int:
         net = self._get_model_by_name(model_name)
         return net.default_size
 
     def get_pretrained_info(self, model_name: str) -> manifest.ModelInfoType:
-        return self.pretrained_nets[model_name]
+        return self._pretrained_nets[model_name]
 
     def net_factory(
         self,
@@ -137,7 +137,7 @@ class ModelRegistry:
         net_param: Optional[float] = None,
         size: Optional[int] = None,
     ) -> "BaseNet":
-        return self.nets[name](input_channels, num_classes, net_param, size)
+        return self._nets[name](input_channels, num_classes, net_param, size)
 
     def detection_net_factory(
         self,
@@ -147,7 +147,7 @@ class ModelRegistry:
         net_param: Optional[float] = None,
         size: Optional[int] = None,
     ) -> "DetectorBackbone":
-        return self.detection_nets[name](num_classes, backbone, net_param, size)
+        return self._detection_nets[name](num_classes, backbone, net_param, size)
 
     def pretrain_net_factory(
         self,
@@ -156,7 +156,7 @@ class ModelRegistry:
         net_param: Optional[float] = None,
         size: Optional[int] = None,
     ) -> "PreTrainBaseNet":
-        return self.pretrain_nets[name](encoder, net_param, size)
+        return self._pretrain_nets[name](encoder, net_param, size)
 
 
 registry = ModelRegistry()

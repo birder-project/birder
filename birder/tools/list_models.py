@@ -3,6 +3,7 @@ from typing import Any
 
 from rich.columns import Columns
 from rich.console import Console
+from rich.table import Table
 
 from birder.common import cli
 from birder.core.net.base import DetectorBackbone
@@ -24,6 +25,7 @@ def set_parser(subparsers: Any) -> None:
             "python tool.py list-models --classification --detector-backbone\n"
             "python tool.py list-models --detection\n"
             "python tool.py list-models --pretrained\n"
+            "python tool.py list-models --pretrained --verbose\n"
             "python tool.py list-models --pretrain-encoder\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
@@ -43,6 +45,13 @@ def set_parser(subparsers: Any) -> None:
         "--pretrain-encoder", default=False, action="store_true", help="list models that support pretraining"
     )
 
+    subparser.add_argument(
+        "-v",
+        "--verbose",
+        default=False,
+        action="store_true",
+        help="enable verbose output with additional model details",
+    )
     subparser.set_defaults(func=main)
 
 
@@ -74,8 +83,50 @@ def main(args: argparse.Namespace) -> None:
     model_list = sorted(model_list, key=lambda x: (x.split("_")[0], index_map[x]))
 
     console = Console()
-    console.print(
-        Columns(
-            model_list, padding=(0, 3), equal=True, column_first=True, title=f"[bold]{len(model_list)} Models[/bold]"
-        ),
-    )
+    if args.verbose is True:
+        if args.pretrained is True:
+            table = Table(show_header=True, header_style="bold dark_magenta")
+            table.add_column("Model name")
+            table.add_column("Formats", style="dim")
+            table.add_column("File size", justify="right")
+            table.add_column("Description")
+            for model_name in model_list:
+                model_info = registry.get_pretrained_info(model_name)
+                table.add_row(
+                    model_name,
+                    ", ".join(model_info["formats"]),
+                    f"{model_info['file_size']}MB",
+                    model_info["description"],
+                )
+
+            console.print(table)
+
+        else:
+            raise NotImplementedError
+            # table = Table(show_header=True, header_style="bold dark_magenta")
+            # table.add_column("Model name")
+            # table.add_column("Description")
+            # for model_name in model_list:
+            #     if model_name in registry.aliases:
+            #         desc = ""
+
+            #     else:
+            #         net = registry.all_nets[model_name]
+            #         desc = sys.modules[net.__module__].__doc__
+            #         if desc is not None:
+            #             desc = desc.strip("\n")
+
+            #     table.add_row(model_name, desc)
+
+            # console.print(table)
+
+    else:
+        console.print(
+            Columns(
+                model_list,
+                padding=(0, 3),
+                equal=True,
+                column_first=True,
+                title=f"[bold]{len(model_list)} Models[/bold]",
+            )
+        )
