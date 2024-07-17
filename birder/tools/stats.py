@@ -175,12 +175,12 @@ def set_parser(subparsers: Any) -> None:
         description="show image directory statistics",
         epilog=(
             "Usage examples:\n"
-            "python tool.py stats --class-graph\n"
-            "python tool.py stats --class-graph --data-path data/validation\n"
-            "python tool.py stats --detection-class-graph --data-path "
+            "python -m birder.tools stats --class-graph\n"
+            "python -m birder.tools stats --class-graph --data-path data/validation\n"
+            "python -m birder.tools stats --detection-class-graph --data-path "
             "data/detection_data/training_annotations\n"
-            "python tool.py stats --set-size\n"
-            "python tool.py stats --rgb\n"
+            "python -m birder.tools stats --set-size\n"
+            "python -m birder.tools stats --rgb\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

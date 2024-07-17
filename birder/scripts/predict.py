@@ -97,7 +97,7 @@ def predict(args: argparse.Namespace) -> None:
         logging.debug(f"Using size={args.size}")
 
     batch_size = args.batch_size
-    inference_transform = inference_preset(args.size, args.center_crop, rgb_values)
+    inference_transform = inference_preset((args.size, args.size), args.center_crop, rgb_values)
     if args.wds is True:
         (wds_path, _) = cli.wds_braces_from_path(Path(args.data_path[0]))
         dataset_size = wds_size(wds_path, device)

@@ -41,9 +41,9 @@ class TestTransforms(unittest.TestCase):
         repr(mixup)
 
         # Presets
-        classification.training_preset(256, 0, classification.get_rgb_values("none"))
-        classification.training_preset(256, 3, classification.get_rgb_values("none"))
-        classification.inference_preset(256, 0.9, classification.get_rgb_values("none"))
+        classification.training_preset((256, 256), 0, classification.get_rgb_values("none"))
+        classification.training_preset((256, 256), 3, classification.get_rgb_values("none"))
+        classification.inference_preset((256, 256), 0.9, classification.get_rgb_values("none"))
 
     def test_detection(self) -> None:
         images = detection.batch_images(

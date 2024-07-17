@@ -106,20 +106,21 @@ def set_parser(subparsers: Any) -> None:
         description="read and process result files",
         epilog=(
             "Usage examples:\n"
-            "python tool.py results results/vit_3_pretrained340_218_e0_448px_crop1.0_10883.csv "
+            "python -m birder.tools results results/vit_3_pretrained340_218_e0_448px_crop1.0_10883.csv "
             "--cnf --cnf-mistakes\n"
-            'python tool.py results results/deit_2_* --print --classes "Lesser kestrel" "Common kestrel" "*swan"\n'
-            "python tool.py results results/inception_resnet_v2_105_e100_299px_crop1.0_3150.csv "
+            'python -m birder.tools results results/deit_2_* --print --classes "Lesser kestrel" '
+            '"Common kestrel" "*swan"\n'
+            "python -m birder.tools results results/inception_resnet_v2_105_e100_299px_crop1.0_3150.csv "
             "--print --roc\n"
-            "python tool.py results results/inception_resnet_v2_105_e100_299px_crop1.0_3150.csv "
+            "python -m birder.tools results results/inception_resnet_v2_105_e100_299px_crop1.0_3150.csv "
             '--pr-curve --pr-classes "Common crane" "Demoiselle crane"\n'
-            "python tool.py results results/densenet_121_105_e100_224px_crop1.0_3150.csv --prob-hist "
+            "python -m birder.tools results results/densenet_121_105_e100_224px_crop1.0_3150.csv --prob-hist "
             '"Common kestrel" "Red-footed falcon"\n'
-            "python tool.py results results/inception_resnet_v2_105_e100_299px_crop1.0_3150.csv --cnf "
+            "python -m birder.tools results results/inception_resnet_v2_105_e100_299px_crop1.0_3150.csv --cnf "
             "--cnf-classes Mallard Unknown Wallcreeper\n"
-            "python tool.py results results/maxvit_2_154_e0_288px_crop1.0_6286.csv "
+            "python -m birder.tools results results/maxvit_2_154_e0_288px_crop1.0_6286.csv "
             "results/inception_next_1_160_e0_384px_crop1.0_6762.csv --print\n"
-            "python tool.py results results/convnext_v2_4_214_e0_448px_crop1.0_10682.csv "
+            "python -m birder.tools results results/convnext_v2_4_214_e0_448px_crop1.0_10682.csv "
             '--prob-hist "Common kestrel" "Lesser kestrel"\n'
         ),
         formatter_class=cli.ArgumentHelpFormatter,

@@ -24,7 +24,7 @@ def show_fgsm(args: argparse.Namespace) -> None:
     )
     label_names = list(class_to_idx.keys())
     size = signature["inputs"][0]["data_shape"][3]
-    transform = inference_preset(size, 1.0, rgb_values)
+    transform = inference_preset((size, size), 1.0, rgb_values)
 
     img: Image.Image = Image.open(args.image)
     input_tensor = transform(img).unsqueeze(dim=0).to(device)
@@ -64,9 +64,9 @@ def set_parser(subparsers: Any) -> None:
         description="deep learning adversarial attacks",
         epilog=(
             "Usage examples:\n"
-            "python tool.py adversarial --method fgsm --network efficientnet_v2_s "
+            "python -m birder.tools adversarial --method fgsm --network efficientnet_v2_s "
             "--epoch 0 --target Bluethroat --image 'data/training/Mallard/000117.jpeg'\n"
-            "python tool.py adversarial --method fgsm --network efficientnet_v2_m "
+            "python -m birder.tools adversarial --method fgsm --network efficientnet_v2_m "
             "--epoch 0 --eps 0.02 --target Mallard --image 'data/validation/White-tailed eagle/000006.jpeg'\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,

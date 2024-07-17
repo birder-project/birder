@@ -90,9 +90,9 @@ def set_parser(subparsers: Any) -> None:
         description="show training / inference detection iterator output vs input",
         epilog=(
             "Usage examples:\n"
-            "python tool.py show-det-iterator --size 512 --aug-level 0\n"
-            "python tool.py show-det-iterator --mode training --size 512 --aug-level 2\n"
-            "python tool.py show-det-iterator --mode inference --size 640\n"
+            "python -m birder.tools show-det-iterator --size 512 --aug-level 0\n"
+            "python -m birder.tools show-det-iterator --mode training --size 512 --aug-level 2\n"
+            "python -m birder.tools show-det-iterator --mode inference --size 640\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

@@ -25,11 +25,11 @@ def set_parser(subparsers: Any) -> None:
         description="convert PyTorch model to various formats",
         epilog=(
             "Usage examples:\n"
-            "python tool.py convert-model --network shufflenet_v2 --net-param 2 --epoch 200 --pts\n"
-            "python tool.py convert-model --network squeezenet --epoch 100 --onnx\n"
-            "python tool.py convert-model -n mobilevit_v2 -p 1.5 -t intermediate -e 80 --pt2\n"
-            "python tool.py convert-model -n efficientnet_v2 -p 1 -e 0 --lite\n"
-            "python tool.py convert-model --network faster_rcnn --backbone resnext "
+            "python -m birder.tools convert-model --network shufflenet_v2 --net-param 2 --epoch 200 --pts\n"
+            "python -m birder.tools convert-model --network squeezenet --epoch 100 --onnx\n"
+            "python -m birder.tools convert-model -n mobilevit_v2 -p 1.5 -t intermediate -e 80 --pt2\n"
+            "python -m birder.tools convert-model -n efficientnet_v2 -p 1 -e 0 --lite\n"
+            "python -m birder.tools convert-model --network faster_rcnn --backbone resnext "
             "--backbone-param 101 -e 0 --pts\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
@@ -52,7 +52,7 @@ def set_parser(subparsers: Any) -> None:
         help="network specific parameter, required by most networks (for the backbone)",
     )
     subparser.add_argument("--backbone-tag", type=str, help="backbone training log tag (loading only)")
-    subparser.add_argument("-e", "--epoch", type=int, default=0, help="model checkpoint to load")
+    subparser.add_argument("-e", "--epoch", type=int, default=None, help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
 
     format_group = subparser.add_mutually_exclusive_group(required=True)

@@ -28,10 +28,10 @@ def set_parser(subparsers: Any) -> None:
         description="quantize model",
         epilog=(
             "Usage examples:\n"
-            "python tool.py quantize-model --network shufflenet_v2 --net-param 2 --epoch 0\n"
-            "python tool.py quantize-model -n convnext_v2 -p 4 -e 0 --qbackend x86 \n"
-            "python tool.py quantize-model --network densenet -p 121 -e 100 --num-calibration-batches 256\n"
-            "python tool.py quantize-model -n efficientnet_v2_s -e 200 --qbackend x86\n"
+            "python -m birder.tools quantize-model --network shufflenet_v2 --net-param 2 --epoch 0\n"
+            "python -m birder.tools quantize-model -n convnext_v2 -p 4 -e 0 --qbackend x86 \n"
+            "python -m birder.tools quantize-model --network densenet -p 121 -e 100 --num-calibration-batches 256\n"
+            "python -m birder.tools quantize-model -n efficientnet_v2_s -e 200 --qbackend x86\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -94,7 +94,7 @@ def main(args: argparse.Namespace) -> None:
     size = signature["inputs"][0]["data_shape"][2]
 
     # Set calibration data
-    full_dataset = ImageFolder(args.data_path, transform=inference_preset(size, 1.0, rgb_values))
+    full_dataset = ImageFolder(args.data_path, transform=inference_preset((size, size), 1.0, rgb_values))
     calibration_dataset = Subset(full_dataset, indices=list(range(args.batch_size * args.num_calibration_batches)))
     calibration_data_loader = DataLoader(
         calibration_dataset,

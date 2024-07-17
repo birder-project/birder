@@ -85,9 +85,9 @@ def read_worker(q_in: Any, q_out: Any, size: Optional[int]) -> None:
         q_out.put((idx, sample, suffix, target), block=True, timeout=None)
 
 
-def write_worker(q_out: Any, pack_path: Path, total: int) -> None:
+def write_worker(q_out: Any, pack_path: Path, total: int, max_size: float) -> None:
     path_pattern = str(pack_path.joinpath("%06d.tar"))
-    sink = wds.ShardWriter(path_pattern, maxsize=5e8, verbose=0)
+    sink = wds.ShardWriter(path_pattern, maxsize=max_size, verbose=0)
 
     count = 0
     buf = {}
@@ -134,7 +134,7 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
         datasets.append(CustomImageFolder(path, class_to_idx=class_to_idx))
 
     dataset = ConcatDataset(datasets)
-    if args.shuffle:
+    if args.shuffle is True:
         indices = torch.randperm(len(dataset)).tolist()
 
     else:
@@ -158,7 +158,7 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
     for p in read_processes:
         p.start()
 
-    write_process = multiprocessing.Process(target=write_worker, args=(q_out, pack_path, len(dataset)))
+    write_process = multiprocessing.Process(target=write_worker, args=(q_out, pack_path, len(dataset), args.max_size))
     write_process.start()
 
     tic = time.time()
@@ -192,12 +192,14 @@ def set_parser(subparsers: Any) -> None:
         description="pack training dataset into webdataset format",
         epilog=(
             "Usage examples:\n"
-            "python tool.py pack --size 512 data/training\n"
-            "python tool.py pack -j 8 --shuffle --size 384 data/training data/raw_data\n"
-            "python tool.py pack -j 2 --class-file data/training_packed/classes.txt data/validation\n"
+            "python -m birder.tools pack --size 512 data/training\n"
+            "python -m birder.tools pack -j 8 --shuffle --size 384 data/training data/raw_data\n"
+            "python -m birder.tools pack -j 2 --max-size 250 --class-file data/training_packed/classes.txt "
+            "data/validation\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
+    subparser.add_argument("--max-size", type=int, default=500, help="maximum size of each shard in MB")
     subparser.add_argument(
         "-j",
         "--jobs",
@@ -214,6 +216,7 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
+    args.max_size = args.max_size * 1e6
     pack_path = Path(f"{Path(args.data_path[0])}_{args.suffix}")
     if pack_path.exists() is False:
         logging.info(f"Creating {pack_path} directory...")

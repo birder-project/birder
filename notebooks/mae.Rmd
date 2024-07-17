@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.16.2
+      jupytext_version: 1.16.3
   kernelspec:
     display_name: birder
     language: python
@@ -42,6 +42,10 @@ plt.rcParams["figure.figsize"] = [24, 24]
 ```
 
 ```{python}
+# %cd ..
+```
+
+```{python}
 def show_image(image, title=""):
     mean = np.array((0.5189, 0.5255, 0.4845))
     std = np.array((0.2124, 0.2083, 0.2555))
@@ -56,35 +60,33 @@ def show_image(image, title=""):
 # network = "mae_vit"
 # encoder = "vit"
 # encoder_param = 3
+# size = 224
 
-# network = "mae_vit"
-# encoder = "vitreg4"
-# encoder_param = 1
+network = "mae_vit"
+encoder = "vitreg4_b16"
+encoder_param = None
+size = 224
 
 # network = "fcmae"
 # encoder = "convnext_v2"
 # encoder_param = 5
+# size = 224
 
-network = "simmim"
-encoder = "swin_transformer_v2_s"
-encoder_param = None
+# network = "simmim"
+# encoder = "swin_transformer_v2_s"
+# encoder_param = None
+# size = 192
 
 epoch_start = 1
 epoch_end = 400
 
-size = 192
-
-# image = "../data/validation/Bluethroat/000013.jpeg"
-# image = "../data/training/African crake/000005.jpeg"
-# image = "../data/training/African swamphen/000001.jpeg"
-# image = "../data/validation/Barn owl/000013.jpeg"
-image = "../data/validation/Zitting cisticola/000025.jpeg"
-# image = "../data/validation/Great egret/000031.jpeg"
+# image = "data/validation/Bluethroat/000013.jpeg"
+image = "data/training/African crake/000005.jpeg"
+# image = "data/training/African swamphen/000001.jpeg"
+# image = "data/validation/Barn owl/000013.jpeg"
+# image = "data/validation/Zitting cisticola/000025.jpeg"
+# image = "data/validation/Great egret/000031.jpeg"
 img = Image.open(image)
-```
-
-```{python}
-# %cd ..
 ```
 
 ```{python}
@@ -105,7 +107,7 @@ for e in range(epoch_start, epoch_end + 1):
     except FileNotFoundError:
         continue
 
-    transform = inference_preset(size, 1.0, get_rgb_values("calculated"))
+    transform = inference_preset((size, size), 1.0, get_rgb_values("calculated"))
     input_tensor = transform(img).unsqueeze(dim=0).to(device)
 
     torch.manual_seed(0)

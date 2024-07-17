@@ -17,15 +17,17 @@ logger = logging.getLogger(__name__)
 
 
 # Must be in sync with birder.core.transforms.classification.inference_preset
-def inference_preset(size: int, center_crop: float, rgv_values: dict[str, list[float]]) -> Callable[..., torch.Tensor]:
+def inference_preset(
+    size: tuple[int, int], center_crop: float, rgv_values: dict[str, list[float]]
+) -> Callable[..., torch.Tensor]:
     mean = rgv_values["mean"]
     std = rgv_values["std"]
 
-    base_size = int(size / center_crop)
+    base_size = (int(size[0] / center_crop), int(size[1] / center_crop))
     return v2.Compose(  # type: ignore
         [
-            v2.Resize((base_size, base_size), interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
-            v2.CenterCrop([size, size]),
+            v2.Resize(base_size, interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
+            v2.CenterCrop(size),
             v2.PILToTensor(),
             v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(mean=mean, std=std),
@@ -95,7 +97,7 @@ class BirdClassifier(BaseHandler):
         rgb_values = json.loads(extra_files["rgb_values"])
 
         size = signature["inputs"][0]["data_shape"][2]
-        transforms = inference_preset(size, 1.0, rgb_values)
+        transforms = inference_preset((size, size), 1.0, rgb_values)
 
         idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
 

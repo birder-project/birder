@@ -268,7 +268,7 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --lr 0.5 --lr-s
 At epoch 260 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 32 --epochs 300 --size 448 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 260 --load-states
+torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 64 --epochs 300 --size 448 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 260 --load-states
 ```
 
 Optional intermediate training
@@ -277,10 +277,28 @@ Optional intermediate training
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag intermediate --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 128 --epochs 100 --size 256 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 3 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
+Optional intermediate training: linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag intermediate --lr 0.1 --lr-scheduler cosine --batch-size 128 --epochs 10 --size 448 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head
+```
+
+Optional intermediate training: fine-tuning
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag intermediate --lr 0.002 --lr-scheduler cosine --batch-size 64 --epochs 50 --size 448 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 10
+```
+
 #### EfficientNet v2: Medium
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 32 --epochs 300 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+Optional intermediate training
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --tag intermediate --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 64 --epochs 100 --size 256 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 3 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 #### EfficientNet v2: Large
@@ -796,5 +814,5 @@ torchrun --nproc_per_node=2 train.py --network resnet_v2 --net-param 50 --tag im
 #### ResNet v2: 50 ImageNet 21K Example
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network resnet_v2 --net-param 50 --tag imagenet21k --lr-scheduler step --lr-step-size 30 --lr-step-gamma 0.1 --batch-size 256 --epochs 90 --smoothing-alpha 0.1 --aug-level 3 --rgb-mode imagenet --wds --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-train-size 13022846 --data-path ~/Datasets/imagenet-w21-webp-wds/training --wds-val-size 128430 --val-path ~/Datasets/imagenet-w21-webp-wds/validation
+torchrun --nproc_per_node=2 train.py --network resnet_v2 --net-param 50 --tag imagenet21k --lr-scheduler step --lr-step-size 30 --lr-step-gamma 0.1 --batch-size 256 --epochs 90 --smoothing-alpha 0.1 --aug-level 3 --rgb-mode imagenet --wds --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-train-size 13087061 --data-path ~/Datasets/imagenet-w21-webp-wds/training --wds-val-size 64215 --val-path ~/Datasets/imagenet-w21-webp-wds/validation
 ```

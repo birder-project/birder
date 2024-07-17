@@ -1,5 +1,7 @@
 """
 Adapted from https://github.com/jacobgil/pytorch-grad-cam
+
+Paper "Striving for Simplicity: The All Convolutional Net", https://arxiv.org/abs/1412.6806
 """
 
 # Reference license: MIT

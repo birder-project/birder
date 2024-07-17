@@ -10,6 +10,12 @@ To use any of the Birder tools, use the following command structure:
 python -m birder.tools [TOOL_NAME] [OPTIONS]
 ```
 
+For a list of tools, use:
+
+```sh
+python -m birder.tools --help
+```
+
 For help on a specific tool, use:
 
 ```sh
@@ -21,7 +27,7 @@ python -m birder.tools [TOOL_NAME] --help
 * adversarial
 * avg-model
 * [convert-model](convert-model.md)
-* ensemble-model
+* [ensemble-model](ensemble-model.md)
 * fetch-model
 * introspection
 * labelme-to-coco

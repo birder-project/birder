@@ -21,7 +21,7 @@ def download_file(url: str, dst: Path | str, expected_sha256: str) -> None:
 
     chunk_size = 128 * 1024
     file_size = None
-    req = Request(url, headers={"User-Agent": "torch.hub"})
+    req = Request(url, headers={"User-Agent": "birder.datahub"})
     u = urlopen(req)  # pylint: disable=consider-using-with  # nosec
     meta = u.info()
     if hasattr(meta, "getheaders") is True:
@@ -72,8 +72,8 @@ def set_parser(subparsers: Any) -> None:
         description="download pretrained model",
         epilog=(
             "Usage examples:\n"
-            "python tool.py fetch-model mobilenet_v3_1_0\n"
-            "python tool.py fetch-model convnext_v2_4_0 --force\n"
+            "python -m birder.tools fetch-model mobilenet_v3_1_0\n"
+            "python -m birder.tools fetch-model convnext_v2_4_0 --force\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

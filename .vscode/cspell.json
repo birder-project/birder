@@ -45,6 +45,7 @@
     "cudnn",
     "cumsum",
     "cutmix",
+    "datahub",
     "deit",
     "densenet",
     "departition",

@@ -1,4 +1,5 @@
 import argparse
+import logging
 import random
 from pathlib import Path
 from typing import Any
@@ -26,10 +27,10 @@ from birder.core.transforms.classification import training_preset
 def show_iterator(args: argparse.Namespace) -> None:
     reverse_transform = reverse_preset(get_rgb_values("calculated"))
     if args.mode == "training":
-        transform = training_preset(args.size, args.aug_level, get_rgb_values("calculated"))
+        transform = training_preset((args.size, args.size), args.aug_level, get_rgb_values("calculated"))
 
     elif args.mode == "inference":
-        transform = inference_preset(args.size, args.center_crop, get_rgb_values("calculated"))
+        transform = inference_preset((args.size, args.size), args.center_crop, get_rgb_values("calculated"))
 
     else:
         raise ValueError(f"Unknown mode={args.mode}")
@@ -42,6 +43,7 @@ def show_iterator(args: argparse.Namespace) -> None:
 
         else:
             dataset_size = wds_size(wds_path, 1)
+            logging.info(f"WDS dataset size is {dataset_size:,}")
 
         dataset = make_wds_dataset(
             wds_path,
@@ -147,15 +149,16 @@ def set_parser(subparsers: Any) -> None:
         description="show training / inference iterator output vs input",
         epilog=(
             "Usage examples:\n"
-            "python tool.py show-iterator --mode training --size 224 --aug-level 3\n"
-            "python tool.py show-iterator --mode training --size 224 --aug-level 2 --batch\n"
-            "python tool.py show-iterator --mode inference --size 320\n"
-            "python tool.py show-iterator --mode training --size 224 --batch --wds "
+            "python -m birder.tools show-iterator --mode training --size 224 --aug-level 3\n"
+            "python -m birder.tools show-iterator --mode training --size 224 --aug-level 2 --batch\n"
+            "python -m birder.tools show-iterator --mode inference --size 320\n"
+            "python -m birder.tools show-iterator --mode training --size 224 --batch --wds "
             "--wds-class-file ~/Datasets/imagenet-1k-wds/classes.txt --wds-size 50000 "
             "--data-path ~/Datasets/imagenet-1k-wds/validation\n"
-            "python tool.py show-iterator --mode training --size 384 --aug-level 4 --batch "
+            "python -m birder.tools show-iterator --mode training --size 384 --aug-level 4 --batch "
             "--cutmix --wds --data-path ~/Datasets/imagenet-1k-wds/validation\n"
-            "python tool.py show-iterator --mode training --size 224 --batch --wds --data-path data/training_packed\n"
+            "python -m birder.tools show-iterator --mode training --size 224 --batch --wds "
+            "--data-path data/training_packed\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

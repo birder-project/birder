@@ -42,7 +42,7 @@ def similarity(args: argparse.Namespace) -> None:
     assert len(samples) > 0, "Couldn't find any images"
 
     batch_size = 32
-    dataset = ImageListDataset(samples, transforms=inference_preset(size, 1.0, rgb_values))
+    dataset = ImageListDataset(samples, transforms=inference_preset((size, size), 1.0, rgb_values))
     inference_loader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -125,8 +125,8 @@ def set_parser(subparsers: Any) -> None:
         description="show most similar images",
         epilog=(
             "Usage examples:\n"
-            "python tool.py similarity -n efficientnet_v1 -p 4 -e 300 data/*/Alpine\\ swift\n"
-            "python tool.py similarity -n efficientnet_v2_s -e 200 --limit 3 data/*/Arabian\\ babbler\n"
+            "python -m birder.tools similarity -n efficientnet_v1 -p 4 -e 300 data/*/Alpine\\ swift\n"
+            "python -m birder.tools similarity -n efficientnet_v2_s -e 200 --limit 3 data/*/Arabian\\ babbler\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

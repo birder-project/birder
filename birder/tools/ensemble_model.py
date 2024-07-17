@@ -31,8 +31,10 @@ def set_parser(subparsers: Any) -> None:
         description="create an ensemble model from multiple torchscript models",
         epilog=(
             "Usage examples:\n"
-            "python tool.py ensemble-model --networks convnext_v2_4_0 focalnet_3_0 swin_transformer_v2_1_0 --pts\n"
-            "python tool.py ensemble-model --networks mobilevit_v2_1.5_intermediate_80 edgevit_2_intermediate_100 --pt2"
+            "python -m birder.tools ensemble-model --networks convnext_v2_4_0 focalnet_3_0 "
+            "swin_transformer_v2_1_0 --pts\n"
+            "python -m birder.tools ensemble-model --networks mobilevit_v2_1.5_intermediate_80 "
+            "edgevit_2_intermediate_100 --pt2"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -53,7 +55,9 @@ def main(args: argparse.Namespace) -> None:
     signature_list = []
     rgb_values_list = []
     for network in args.networks:
-        (net, class_to_idx, signature, rgb_values) = cli.load_model(device, network, inference=True, pt2=True)
+        (net, class_to_idx, signature, rgb_values) = cli.load_model(
+            device, network, inference=True, pts=args.pts, pt2=args.pt2
+        )
         nets.append(net)
         class_to_idx_list.append(class_to_idx)
         signature_list.append(signature)

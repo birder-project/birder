@@ -72,9 +72,9 @@ def set_parser(subparsers: Any) -> None:
         description="loads every image in the dataset and raises exception on corrupted files",
         epilog=(
             "Usage examples:\n"
-            "python tool.py verify-directory --fast data/testing\n"
-            "python tool.py verify-directory ~/Datasets/birdsnap\n"
-            "python tool.py verify-directory --fast data/training data/validation data/testing data/raw_data\n"
+            "python -m birder.tools verify-directory --fast data/testing\n"
+            "python -m birder.tools verify-directory ~/Datasets/birdsnap\n"
+            "python -m birder.tools verify-directory --fast data/training data/validation data/testing data/raw_data\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

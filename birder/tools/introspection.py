@@ -1,4 +1,5 @@
 import argparse
+from collections.abc import Callable
 from functools import partial
 from typing import Any
 
@@ -11,6 +12,7 @@ from PIL import Image
 from birder.common import cli
 from birder.core.introspection import gradcam
 from birder.core.introspection import guided_backprop
+from birder.core.net.base import BaseNet
 from birder.core.transforms.classification import inference_preset
 
 
@@ -37,22 +39,15 @@ def _deprocess_image(img: npt.NDArray[np.float32]) -> npt.NDArray[np.uint8]:
     return np.array(img * 255).astype(np.uint8)
 
 
-def show_guided_backprop(args: argparse.Namespace) -> None:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    (net, class_to_idx, signature, rgb_values) = cli.load_model(
-        device,
-        args.network,
-        net_param=args.net_param,
-        tag=args.tag,
-        epoch=args.epoch,
-        inference=False,
-        pts=False,
-    )
-    size = signature["inputs"][0]["data_shape"][3]
-    transform = inference_preset(size, 1.0, rgb_values)
-
+def show_guided_backprop(
+    args: argparse.Namespace,
+    net: BaseNet,
+    class_to_idx: dict[str, int],
+    transform: Callable[..., torch.Tensor],
+    device: torch.device,
+) -> None:
     img = Image.open(args.image)
-    rgb_img = np.array(img.resize((size, size))).astype(np.float32) / 255.0
+    rgb_img = np.array(img.resize((args.size, args.size))).astype(np.float32) / 255.0
 
     input_tensor = transform(img).unsqueeze(dim=0).to(device)
 
@@ -72,22 +67,16 @@ def show_guided_backprop(args: argparse.Namespace) -> None:
     plt.show()
 
 
-def show_grad_cam(args: argparse.Namespace) -> None:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    (net, class_to_idx, signature, rgb_values) = cli.load_model(
-        device,
-        args.network,
-        net_param=args.net_param,
-        tag=args.tag,
-        epoch=args.epoch,
-        inference=False,
-    )
-    size = signature["inputs"][0]["data_shape"][3]
-    transform = inference_preset(size, 1.0, rgb_values)
-
+def show_grad_cam(
+    args: argparse.Namespace,
+    net: BaseNet,
+    class_to_idx: dict[str, int],
+    transform: Callable[..., torch.Tensor],
+    device: torch.device,
+) -> None:
     if args.network.startswith("swin_") is True:
         if args.reshape_size is None:
-            args.reshape_size = int(size / (2**5))
+            args.reshape_size = int(args.size / (2**5))
 
         reshape_transform = partial(_swin_reshape_transform, height=args.reshape_size, width=args.reshape_size)
 
@@ -95,7 +84,7 @@ def show_grad_cam(args: argparse.Namespace) -> None:
         reshape_transform = None
 
     img = Image.open(args.image)
-    rgb_img = np.array(img.resize((size, size))).astype(np.float32) / 255.0
+    rgb_img = np.array(img.resize((args.size, args.size))).astype(np.float32) / 255.0
 
     target_layer = net.body[args.layer_num]
     input_tensor = transform(img).unsqueeze(dim=0).to(device)
@@ -125,13 +114,13 @@ def set_parser(subparsers: Any) -> None:
         description="computer vision introspection and explainability",
         epilog=(
             "Usage examples:\n"
-            "python tool.py introspection --method gradcam --network efficientnet_v2 --net-param 1 "
+            "python -m birder.tools introspection --method gradcam --network efficientnet_v2 --net-param 1 "
             "--epoch 200 --image 'data/training/European goldfinch/000300.jpeg'\n"
-            "python tool.py introspection --method gradcam -n resnest --net-param 50 --epoch 300 "
+            "python -m birder.tools introspection --method gradcam -n resnest --net-param 50 --epoch 300 "
             "--image data/index5.jpeg --target 'Grey heron'\n"
-            "python tool.py introspection --method guided-backprop -n efficientnet_v2 -p 0 "
+            "python -m birder.tools introspection --method guided-backprop -n efficientnet_v2 -p 0 "
             "-e 0 --image 'data/training/European goldfinch/000300.jpeg'\n"
-            "python tool.py introspection --method gradcam -n swin_transformer_v1_b -e 85 --layer-num -4 "
+            "python -m birder.tools introspection --method gradcam -n swin_transformer_v1_b -e 85 --layer-num -4 "
             "--reshape-size 20 --image data/training/Fieldfare/000002.jpeg\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
@@ -145,6 +134,9 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
+    subparser.add_argument(
+        "--size", type=int, default=None, help="image size for inference (defaults to model signature)"
+    )
     subparser.add_argument("--target", type=str, help="target class, leave empty to use predicted class")
     subparser.add_argument(
         "--layer-num", type=int, default=-1, help="target layer, index for body block (gradcam only)"
@@ -155,8 +147,25 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    (net, class_to_idx, signature, rgb_values) = cli.load_model(
+        device,
+        args.network,
+        net_param=args.net_param,
+        tag=args.tag,
+        epoch=args.epoch,
+        inference=False,
+    )
+    if args.size is None:
+        args.size = signature["inputs"][0]["data_shape"][3]
+
+    else:
+        net.adjust_size(args.size)
+
+    transform = inference_preset((args.size, args.size), 1.0, rgb_values)
+
     if args.method == "gradcam":
-        show_grad_cam(args)
+        show_grad_cam(args, net, class_to_idx, transform, device)
 
     if args.method == "guided-backprop":
-        show_guided_backprop(args)
+        show_guided_backprop(args, net, class_to_idx, transform, device)

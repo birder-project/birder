@@ -142,14 +142,14 @@ class RandomMixup(nn.Module):
         return f"{self.__class__.__name__}(num_classes={self.num_classes}, p={self.p}, alpha={self.alpha})"
 
 
-def training_preset(size: int, level: int, rgv_values: RGBType) -> Callable[..., torch.Tensor]:
+def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> Callable[..., torch.Tensor]:
     mean = rgv_values["mean"]
     std = rgv_values["std"]
 
     if level == 0:
         return v2.Compose(  # type: ignore
             [
-                v2.Resize((size, size), interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
+                v2.Resize(size, interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
                 v2.PILToTensor(),
                 v2.ToDtype(torch.float32, scale=True),
                 v2.Normalize(mean=mean, std=std),
@@ -157,13 +157,13 @@ def training_preset(size: int, level: int, rgv_values: RGBType) -> Callable[...,
         )
 
     if level == 1:
-        base_size = int(size * 1.1)
+        base_size = (int(size[0] * 1.1), int(size[1] * 1.1))
         return v2.Compose(  # type: ignore
             [
-                v2.Resize((base_size, base_size), interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
-                v2.RandomRotation(4, fill=0),
+                v2.Resize(base_size, interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
+                v2.RandomRotation(5, fill=0),
                 v2.ColorJitter(brightness=0.2, contrast=0.1, hue=0),
-                v2.RandomResizedCrop(size, scale=(0.85, 1.0), ratio=(3 / 4, 4 / 3), antialias=True),
+                v2.RandomResizedCrop(size, scale=(0.8, 1.0), ratio=(3 / 4, 4 / 3), antialias=True),
                 v2.RandomHorizontalFlip(0.5),
                 v2.PILToTensor(),
                 v2.ToDtype(torch.float32, scale=True),
@@ -172,13 +172,13 @@ def training_preset(size: int, level: int, rgv_values: RGBType) -> Callable[...,
         )
 
     if level == 2:
-        base_size = int(size * 1.2)
+        base_size = (int(size[0] * 1.2), int(size[1] * 1.2))
         return v2.Compose(  # type: ignore
             [
-                v2.Resize((base_size, base_size), interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
+                v2.Resize(base_size, interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
                 v2.RandomChoice(
                     [
-                        v2.RandomRotation(9, fill=0),
+                        v2.RandomRotation(10, fill=0),
                         v2.RandomAffine(degrees=0, translate=(0, 0), shear=(-15, 15, 0, 0), fill=0),
                     ]
                 ),
@@ -198,10 +198,10 @@ def training_preset(size: int, level: int, rgv_values: RGBType) -> Callable[...,
         )
 
     if level == 3:
-        base_size = int(size * 1.25)
+        base_size = (int(size[0] * 1.25), int(size[1] * 1.25))
         return v2.Compose(  # type: ignore
             [
-                v2.Resize((base_size, base_size), interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
+                v2.Resize(base_size, interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
                 v2.RandomChoice(
                     [
                         v2.RandomRotation(12, fill=0),
@@ -232,17 +232,17 @@ def training_preset(size: int, level: int, rgv_values: RGBType) -> Callable[...,
         )
 
     if level == 4:
-        base_size = int(size * 1.25)
+        base_size = (int(size[0] * 1.25), int(size[1] * 1.25))
         return v2.Compose(  # type: ignore
             [
-                v2.Resize((base_size, base_size), interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
+                v2.Resize(base_size, interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
                 v2.RandomChoice(
                     [
                         v2.RandomRotation(14, fill=0),
                         v2.RandomAffine(degrees=0, translate=(0, 0), shear=(-22, 22, 0, 0), fill=0),
                     ]
                 ),
-                v2.RandomResizedCrop(size, scale=(0.7, 1.0), ratio=(3 / 4, 4 / 3), antialias=True),
+                v2.RandomResizedCrop(size, scale=(0.67, 1.0), ratio=(3 / 4, 4 / 3), antialias=True),
                 v2.RandomPosterize(6, p=0.2),
                 v2.RandomChoice(
                     [
@@ -269,15 +269,15 @@ def training_preset(size: int, level: int, rgv_values: RGBType) -> Callable[...,
     raise ValueError("Unsupported level")
 
 
-def inference_preset(size: int, center_crop: float, rgv_values: RGBType) -> Callable[..., torch.Tensor]:
+def inference_preset(size: tuple[int, int], center_crop: float, rgv_values: RGBType) -> Callable[..., torch.Tensor]:
     mean = rgv_values["mean"]
     std = rgv_values["std"]
 
-    base_size = int(size / center_crop)
+    base_size = (int(size[0] / center_crop), int(size[1] / center_crop))
     return v2.Compose(  # type: ignore
         [
-            v2.Resize((base_size, base_size), interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
-            v2.CenterCrop([size, size]),
+            v2.Resize(base_size, interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
+            v2.CenterCrop(size),
             v2.PILToTensor(),
             v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(mean=mean, std=std),

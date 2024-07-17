@@ -108,8 +108,8 @@ def set_parser(subparsers: Any) -> None:
         description="convert labelme detection annotations to coco format",
         epilog=(
             "Usage examples:\n"
-            "python tool.py labelme-to-coco data/detection_data/training_annotations\n"
-            "python tool.py labelme-to-coco --include-unknown data/detection_data/validation_annotations\n"
+            "python -m birder.tools labelme-to-coco data/detection_data/training_annotations\n"
+            "python -m birder.tools labelme-to-coco --include-unknown data/detection_data/validation_annotations\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

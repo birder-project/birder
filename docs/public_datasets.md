@@ -66,7 +66,7 @@ image_info_unlabeled2017.zip
 * link: <http://images.cocodataset.org/annotations/image_info_unlabeled2017.zip>
 * md5:  ede38355d5c3e5251bb7f8b68e2c068f
 
-### Caltech-UCSD Birds-200-2011 (CUB-200-2011)
+## Caltech-UCSD Birds-200-2011 (CUB-200-2011)
 
 Dataset paper: <https://authors.library.caltech.edu/records/cvm3y-5hh21>
 
@@ -142,6 +142,20 @@ public_test.json.tar.gz
 
 * link: <https://ml-inat-competition-datasets.s3.amazonaws.com/2021/public_test.json.tar.gz>
 * md5:  7a9413db55c6fa452824469cc7dd9d3d
+
+### iNaturalist 2021 Mini - Files
+
+The "mini" training dataset with 50 examples per species for a total of 500K images.
+
+train_mini.tar.gz
+
+* link: <https://ml-inat-competition-datasets.s3.amazonaws.com/2021/train_mini.tar.gz>
+* md5:  db6ed8330e634445efc8fec83ae81442
+
+train_mini.json.tar.gz
+
+* link: <https://ml-inat-competition-datasets.s3.amazonaws.com/2021/train_mini.json.tar.gz>
+* md5:  395a35be3651d86dc3b0d365b8ea5f92
 
 ## NABirds
 

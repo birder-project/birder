@@ -20,13 +20,13 @@ def set_parser(subparsers: Any) -> None:
         description="list available models",
         epilog=(
             "Usage examples:\n"
-            "python tool.py list-models\n"
-            "python tool.py list-models --classification\n"
-            "python tool.py list-models --classification --detector-backbone\n"
-            "python tool.py list-models --detection\n"
-            "python tool.py list-models --pretrained\n"
-            "python tool.py list-models --pretrained --verbose\n"
-            "python tool.py list-models --pretrain-encoder\n"
+            "python -m birder.tools list-models\n"
+            "python -m birder.tools list-models --classification\n"
+            "python -m birder.tools list-models --classification --detector-backbone\n"
+            "python -m birder.tools list-models --detection\n"
+            "python -m birder.tools list-models --pretrained\n"
+            "python -m birder.tools list-models --pretrained --verbose\n"
+            "python -m birder.tools list-models --pretrain-encoder\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

@@ -202,7 +202,7 @@ def update_annotation_table(_ctx):
     classes = pd.Series(class_list)
     column_class = "class"
 
-    annotations_status = pd.read_csv("annotations_status.csv", index_col="id")
+    annotations_status = pd.read_csv("annotations_status.csv")
     new_classes = classes[~classes.isin(annotations_status[column_class])].values
     if len(new_classes) == 0:
         echo("No new species")
@@ -218,7 +218,6 @@ def update_annotation_table(_ctx):
         annotations_status = pd.concat([annotations_status, new_annotations_status])
         annotations_status.sort_values(by=column_class, inplace=True)
         annotations_status.reset_index(drop=True, inplace=True)
-        annotations_status.index.rename("id", inplace=True)
 
     # Update sample count
     training_count = directory_label_count(settings.TRAINING_DATA_PATH)
@@ -231,28 +230,17 @@ def update_annotation_table(_ctx):
     annotations_status["validation_detection_samples"] = annotations_status["class"].map(validation_detection_count)
 
     # Save
-    annotations_status.to_csv("annotations_status.csv", index=True)
+    annotations_status.to_csv("annotations_status.csv", index=False)
     echo(f"Done, added {len(new_classes)} new classes")
 
 
 @task
-def gen_classes_doc(_ctx):
+def gen_android_classes(_ctx):
     """
-    Generates docs/classes.md and Android values.xml
+    Generates Android values.xml
     """
 
     class_list = _class_list()
-
-    doc = ""
-    doc += "# Classes\n\n"
-    doc += f"Currently supporting the following {len(class_list)} classes:\n\n"
-
-    for key in class_list:
-        doc += f"* {key}\n"
-
-    echo("Writing docs/classes.md")
-    with open("docs/classes.md", "w", encoding="utf-8") as handle:
-        handle.write(doc)
 
     doc = ""
     doc += "<resources>\n"
@@ -312,16 +300,20 @@ def convert_to_coco(ctx):
 
 
 @task
-def pack_intermediate(ctx):
+def pack_intermediate(ctx, size=384):
     """
     Pack data for intermediate training
     """
 
     ctx.run(
-        "python3 tool.py pack -j 12 --shuffle --size 384 data/training data/raw_data", echo=True, pty=True, warn=True
+        f"python3 tool.py pack -j 12 --shuffle --size {size} data/training data/raw_data",
+        echo=True,
+        pty=True,
+        warn=True,
     )
     ctx.run(
-        "python tool.py pack -j 4 --class-file data/training_packed/classes.txt data/validation raw_data_validation",
+        f"python tool.py pack -j 12 --size {size} --class-file data/training_packed/classes.txt "
+        "data/validation data/raw_data_validation",
         echo=True,
         pty=True,
         warn=True,

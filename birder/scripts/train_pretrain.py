@@ -54,13 +54,15 @@ def train(args: argparse.Namespace) -> None:
             dataset_size=dataset_size,
             shuffle=True,
             samples_names=False,
-            transform=training_preset(args.size, args.aug_level, rgb_values),
+            transform=training_preset((args.size, args.size), args.aug_level, rgb_values),
         )
         input_idx = 0
 
     else:
         samples = cli.samples_from_paths(args.data_path, class_to_idx={})
-        training_dataset = ImageListDataset(samples, transforms=training_preset(args.size, args.aug_level, rgb_values))
+        training_dataset = ImageListDataset(
+            samples, transforms=training_preset((args.size, args.size), args.aug_level, rgb_values)
+        )
         input_idx = 1
 
     logging.info(f"Using device {device}:{device_id}")
