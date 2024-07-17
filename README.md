@@ -28,8 +28,6 @@ The project features:
 
 Unlike projects that aim to reproduce ImageNet training results from common papers, Birder is tailored specifically for practical applications in ornithology, conservation, and wildlife photography.
 
-For a complete list of supported bird species, please refer to the [docs/classes.md](docs/classes.md) file in the docs folder.
-
 As Ross Wightman eloquently stated in the [timm README](https://github.com/huggingface/pytorch-image-models#introduction):
 
 > The work of many others is present here. I've tried to make sure all source material is acknowledged via links to github, arXiv papers, etc. in the README, documentation, and code docstrings. Please let me know if I missed anything.
