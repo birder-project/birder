@@ -76,7 +76,6 @@ def shifted_window_attention(
     shift_size_h = shift_size[1]
     if window_size[0] >= H:
         shift_size_h = 0
-
     if window_size[1] >= W:
         shift_size_w = 0
 
@@ -345,7 +344,6 @@ class Swin_Transformer_v1(BaseNet):
                 sd_prob = stochastic_depth_prob * float(stage_block_id) / (total_stage_blocks - 1)
                 if i_layer % 2 == 0:
                     shift_size = (0, 0)
-
                 else:
                     shift_size = (window_size[0] // 2, window_size[1] // 2)
 
@@ -429,7 +427,6 @@ class Swin_Transformer_v1(BaseNet):
                         gp = (1.0 - q ** (src // 2)) / (1.0 - q)  # Geometric progression
                         if gp > dst // 2:
                             right = q
-
                         else:
                             left = q
 

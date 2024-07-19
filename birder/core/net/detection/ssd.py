@@ -112,9 +112,8 @@ class DefaultBoxGenerator(nn.Module):
             if self.steps is not None:
                 x_f_k = image_size[1] / self.steps[k]
                 y_f_k = image_size[0] / self.steps[k]
-
             else:
-                y_f_k, x_f_k = f_k
+                (y_f_k, x_f_k) = f_k
 
             shifts_x = ((torch.arange(0, f_k[1]) + 0.5) / x_f_k).to(dtype=dtype)
             shifts_y = ((torch.arange(0, f_k[0]) + 0.5) / y_f_k).to(dtype=dtype)

@@ -52,7 +52,6 @@ class InvertedResidual(nn.Module):
         super().__init__()
         if cnf.stride[0] == 1 and cnf.stride[1] == 1 and cnf.in_channels == cnf.out_channels:
             self.shortcut = True
-
         else:
             self.shortcut = False
 

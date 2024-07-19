@@ -50,7 +50,6 @@ def directory_label_count(directory: str | Path) -> Counter[str]:
 def class_graph(args: argparse.Namespace) -> None:
     if args.detection_class_graph is True:
         (label_count, _) = detection_object_count(Path(args.data_path))
-
     else:
         label_count = directory_label_count(args.data_path)
 

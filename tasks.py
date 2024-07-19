@@ -86,7 +86,6 @@ def pylint(ctx):
     if result.exited != 0:
         return_code = 1
         echo("Failed", color=COLOR_RED)
-
     else:
         echo("Passed", color=COLOR_GREEN)
 
@@ -95,7 +94,6 @@ def pylint(ctx):
     if result.exited != 0:
         return_code = 1
         echo("Failed", color=COLOR_RED)
-
     else:
         echo("Passed", color=COLOR_GREEN)
 
@@ -109,7 +107,6 @@ def pylint(ctx):
     if result.exited != 0:
         return_code = 1
         echo("Failed", color=COLOR_RED)
-
     else:
         echo("Passed", color=COLOR_GREEN)
 
@@ -118,7 +115,6 @@ def pylint(ctx):
     if result.exited != 0:
         return_code = 1
         echo("Failed", color=COLOR_RED)
-
     else:
         echo("Passed", color=COLOR_GREEN)
 
@@ -127,7 +123,6 @@ def pylint(ctx):
     if result.exited != 0:
         return_code = 1
         echo("Failed", color=COLOR_RED)
-
     else:
         echo("Passed", color=COLOR_GREEN)
 
@@ -170,14 +165,12 @@ def pytest(ctx, coverage=False):
             warn=True,
         )
         ctx.run("python -m coverage report", echo=True, pty=True, warn=True)
-
     else:
         result = ctx.run("python -m unittest discover -s tests -v", echo=True, pty=True, warn=True)
 
     if result.exited != 0:
         return_code = 1
         echo("Failed", color=COLOR_RED)
-
     else:
         echo("Passed", color=COLOR_GREEN)
 
@@ -206,7 +199,6 @@ def update_annotation_table(_ctx):
     new_classes = classes[~classes.isin(annotations_status[column_class])].values
     if len(new_classes) == 0:
         echo("No new species")
-
     else:
         new_annotations_status = pd.DataFrame(new_classes, columns=[column_class])
         for column in annotations_status:
@@ -268,7 +260,6 @@ def gen_classes_file(_ctx):
     class_to_idx = cli.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
     if class_list == list(class_to_idx.keys()):
         echo("No new species")
-
     else:
         doc = "\n".join(class_list)
 

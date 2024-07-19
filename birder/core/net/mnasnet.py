@@ -57,7 +57,6 @@ class InvertedResidual(nn.Module):
         mid_channels = in_channels * expansion_factor
         if in_channels == out_channels and stride[0] == 1:
             self.shortcut = True
-
         else:
             self.shortcut = False
 

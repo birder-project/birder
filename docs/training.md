@@ -52,6 +52,8 @@ On fine-tuning phase
 * [Mobilenet v1](#mobilenet-v1)
 * [Mobilenet v2](#mobilenet-v2)
 * [Mobilenet v3](#mobilenet-v3)
+* [Mobilenet v4](#mobilenet-v4)
+* [Mobilenet v4 Hybrid](#mobilenet-v4-hybrid)
 * [MobileViT v1](#mobilevit-v1)
 * [MobileViT v2](#mobilevit-v2)
 * [Next-ViT](#next-vit)
@@ -467,6 +469,40 @@ Optional intermediate training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v3 --net-param 1.5 --tag intermediate --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+```
+
+### Mobilenet v4
+
+#### Mobilenet v4: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mobilenet_v4_s --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 5 --batch-size 512 --size 256 --epochs 600 --wd 0.01 --smoothing-alpha 0.1 --aug-level 3 --ra-sampler --ra-reps 2 --clip-grad-norm 5
+```
+
+#### Mobilenet v4: Medium
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mobilenet_v4_m --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 5 --batch-size 512 --size 256 --epochs 500 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+```
+
+#### Mobilenet v4: Large
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mobilenet_v4_l --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 20 --batch-size 256 --size 256 --epochs 500 --wd 0.2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+```
+
+### Mobilenet v4 Hybrid
+
+#### Mobilenet v4 Hybrid: Medium
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mobilenet_v4_hybrid_m --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 20 --batch-size 256 --size 256 --epochs 500 --wd 0.15 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+```
+
+#### Mobilenet v4 Hybrid: Large
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mobilenet_v4_hybrid_l --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 20 --batch-size 256 --size 256 --epochs 500 --wd 0.2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
 ```
 
 ### MobileViT v1

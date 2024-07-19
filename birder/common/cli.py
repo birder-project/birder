@@ -114,7 +114,6 @@ def _checkpoint_states(
 
     if scaler is not None:
         scaler_state = scaler.state_dict()
-
     else:
         scaler_state = None
 
@@ -460,7 +459,6 @@ def sample_iter(data_path: str, class_to_idx: dict[str, int]) -> Iterator[tuple[
             label = lib.get_label_from_path(file_path)
             if label in class_to_idx:
                 yield (file_path, class_to_idx[label])
-
             else:
                 yield (file_path, -1)
 
@@ -470,7 +468,6 @@ def sample_iter(data_path: str, class_to_idx: dict[str, int]) -> Iterator[tuple[
         if suffix in IMG_EXTENSIONS:
             if label in class_to_idx:
                 yield (data_path, class_to_idx[label])
-
             else:
                 yield (data_path, -1)
 

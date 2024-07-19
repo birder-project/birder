@@ -79,7 +79,6 @@ class MBConv(nn.Module):
                 nn.AvgPool2d(kernel_size=(2, 2), stride=stride, padding=(0, 0)),
                 nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=True),
             )
-
         else:
             self.proj = nn.Identity()
 
@@ -272,7 +271,6 @@ class PartitionAttentionLayer(nn.Module):
         if partition_type == "window":
             self.p = partition_size
             self.g = self.n_partitions
-
         else:
             self.p = self.n_partitions
             self.g = partition_size
@@ -421,7 +419,6 @@ class MaxVitBlock(nn.Module):
         for idx, p in enumerate(p_stochastic):
             if idx == 0:
                 stride = (2, 2)
-
             else:
                 stride = (1, 1)
 

@@ -421,7 +421,6 @@ class RetinaNet(DetectionBaseNet):
         if self.training is True:
             if targets is None:  # Redundant due to MyPy
                 torch._assert(False, "targets should not be none when in training mode")
-
             else:
                 losses = self.compute_loss(targets, head_outputs, anchors)
 

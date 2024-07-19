@@ -124,7 +124,7 @@ class MobileVitBlock(nn.Module):
 
         # [B*C*n_h, n_w, p_h, p_w] --> [B*C*n_h, p_h, n_w, p_w] --> [B, C, H, W]
         x = x.transpose(1, 2).reshape(B, C, num_patch_h * patch_h, num_patch_w * patch_w)
-        if interpolate:
+        if interpolate is True:
             x = F.interpolate(x, size=(H, W), mode="bilinear", align_corners=False)
 
         x = self.conv_proj(x)
@@ -193,7 +193,6 @@ class MobileViT_v1(BaseNet):
         for i in range(1, len(channels_a)):
             if channels_a[i - 1] == channels_a[i] and strides[i - 1] == 1:
                 shortcut = True
-
             else:
                 shortcut = False
 
@@ -214,7 +213,6 @@ class MobileViT_v1(BaseNet):
             k = 2
             if i == 0:
                 in_channels = channels_a[-1]
-
             else:
                 in_channels = channels_b[i - 1]
 

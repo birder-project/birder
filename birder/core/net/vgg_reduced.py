@@ -50,10 +50,8 @@ class Vgg_Reduced(DetectorBackbone):
             for j in range(num):
                 if i == 0 and j == 0:
                     in_channels = self.input_channels
-
                 elif j == 0:
                     in_channels = filters[i - 1]
-
                 else:
                     in_channels = filters[i]
 

@@ -59,22 +59,17 @@ def main(args: argparse.Namespace) -> None:
     t = None
     if args.detector_backbone is True:
         t = DetectorBackbone
-
     elif args.pretrain_encoder is True:
         t = PreTrainEncoder
 
     if args.classification is True:
         model_list = registry.list_models(task=Task.IMAGE_CLASSIFICATION, net_type=t)
-
     elif args.detection is True:
         model_list = registry.list_models(task=Task.OBJECT_DETECTION, net_type=t)
-
     elif args.pretrain is True:
         model_list = registry.list_models(task=Task.IMAGE_PRETRAINING, net_type=t)
-
     elif args.pretrained is True:
         model_list = registry.list_pretrained_models()
-
     else:
         model_list = registry.list_models(net_type=t)
 

@@ -53,7 +53,6 @@ def show_guided_backprop(
 
     if args.target is not None:
         target = class_to_idx[args.target]
-
     else:
         target = None
 

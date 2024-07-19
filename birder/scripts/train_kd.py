@@ -126,7 +126,6 @@ def train(args: argparse.Namespace) -> None:
     epochs = args.epochs + 1
     if args.stop_epoch is None:
         args.stop_epoch = epochs
-
     else:
         args.stop_epoch += 1
 

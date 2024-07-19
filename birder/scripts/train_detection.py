@@ -65,7 +65,6 @@ def train(args: argparse.Namespace) -> None:
     epochs = args.epochs + 1
     if args.stop_epoch is None:
         args.stop_epoch = epochs
-
     else:
         args.stop_epoch += 1
 
@@ -114,7 +113,6 @@ def train(args: argparse.Namespace) -> None:
     # Freeze backbone
     if args.freeze_backbone is True:
         net.backbone.freeze()
-
     elif args.freeze_backbone_stages is not None:
         net.backbone.freeze_stages(up_to_stage=args.freeze_backbone_stages)
 

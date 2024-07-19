@@ -116,7 +116,7 @@ class GhostBottleneck(nn.Module):
             mid_channels, out_channels, kernel_size=(1, 1), ratio=2, dw_size=(3, 3), stride=(1, 1), use_act=False
         )
 
-        # shortcut
+        # Shortcut
         if in_channels == out_channels and stride[0] == 1 and stride[1] == 1:
             self.shortcut = nn.Identity()
 

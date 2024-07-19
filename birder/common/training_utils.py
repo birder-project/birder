@@ -59,7 +59,6 @@ class RASampler(torch.utils.data.Sampler):
             g = torch.Generator()
             g.manual_seed(self.seed + self.epoch)
             indices = torch.randperm(len(self.dataset), generator=g).tolist()
-
         else:
             indices = list(range(len(self.dataset)))
 
@@ -268,13 +267,10 @@ def get_optimizer(
 ) -> torch.optim.Optimizer:
     if opt == "sgd":
         optimizer = torch.optim.SGD(parameters, lr=lr, momentum=momentum, nesterov=nesterov, weight_decay=wd)
-
     elif opt == "rmsprop":
         optimizer = torch.optim.RMSprop(parameters, lr=lr, momentum=momentum, weight_decay=wd, eps=0.0316, alpha=0.9)
-
     elif opt == "adamw":
         optimizer = torch.optim.AdamW(parameters, lr=lr, weight_decay=wd)
-
     else:
         raise ValueError("Unknown optimizer")
 
@@ -295,15 +291,12 @@ def get_scheduler(
     remaining_warmup = max(0, warmup_epochs - begin_epoch)
     if lr_scheduler == "constant":
         main_scheduler = torch.optim.lr_scheduler.ConstantLR(optimizer, factor=1.0, total_iters=1)
-
     elif lr_scheduler == "step":
         main_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_step_size, gamma=lr_step_gamma)
-
     elif lr_scheduler == "cosine":
         main_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=(epochs - begin_epoch + 1 - remaining_warmup), eta_min=lr_cosine_min
         )
-
     else:
         raise ValueError("Unknown learning rate scheduler")
 
@@ -330,10 +323,8 @@ def get_amp_scaler(amp: bool, amp_dtype_str: str) -> tuple[Optional[torch.cuda.a
         scaler = torch.cuda.amp.GradScaler()
         if amp_dtype_str == "float16":
             amp_dtype = torch.float16
-
         elif amp_dtype_str == "bfloat16":
             amp_dtype = torch.bfloat16
-
         else:
             raise ValueError(f"Unknown dtype {amp_dtype_str}")
 
@@ -414,7 +405,6 @@ def disable_print() -> None:
 def is_dist_available_and_initialized() -> bool:
     if dist.is_available() is False:
         return False
-
     if dist.is_initialized() is False:
         return False
 

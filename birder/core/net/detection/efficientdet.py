@@ -213,7 +213,6 @@ class EfficientDet(DetectionBaseNet):
         if net_param == 0:
             box_class_repeats = 3
             fpn_channels = 64
-
         else:
             raise ValueError(f"net_param = {net_param} not supported")
 

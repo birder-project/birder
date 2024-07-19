@@ -47,7 +47,6 @@ class PreTrainBaseNet(nn.Module):
 
         if size is not None:
             self.size = size
-
         else:
             self.size = self.default_size
 

@@ -307,7 +307,6 @@ class NextViT(BaseNet):
             for block_id in range(repeats):
                 if strides[stage_id] == 2 and block_id == 0:
                     stride = (2, 2)
-
                 else:
                     stride = (1, 1)
 

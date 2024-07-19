@@ -83,7 +83,6 @@ class SplitAttn(nn.Module):
         if self.radix > 1:
             x = x.reshape((B, self.radix, RC // self.radix, H, W))
             x_gap = x.sum(dim=1)
-
         else:
             x_gap = x
 
@@ -94,7 +93,6 @@ class SplitAttn(nn.Module):
         x_attn = self.r_softmax(x_attn).view(B, -1, 1, 1)
         if self.radix > 1:
             out = (x * x_attn.reshape((B, self.radix, RC // self.radix, 1, 1))).sum(dim=1)
-
         else:
             out = x * x_attn
 
@@ -257,7 +255,6 @@ class ResNeSt(BaseNet):
         for i, (channels, num_blocks) in enumerate(zip(filter_list, units)):
             if i == 0:
                 stride = (1, 1)
-
             else:
                 stride = (2, 2)
 

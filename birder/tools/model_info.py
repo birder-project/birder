@@ -61,7 +61,7 @@ def set_parser(subparsers: Any) -> None:
         help="network specific parameter, required by most networks (for the backbone)",
     )
     subparser.add_argument("--backbone-tag", type=str, help="backbone training log tag (loading only)")
-    subparser.add_argument("-e", "--epoch", type=int, default=0, help="model checkpoint to load")
+    subparser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
     subparser.set_defaults(func=main)
 

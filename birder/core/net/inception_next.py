@@ -228,7 +228,6 @@ class Inception_NeXt(BaseNet):
             out_chs = channels[i]
             if i > 0:
                 stride = 2
-
             else:
                 stride = 1
 

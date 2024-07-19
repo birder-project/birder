@@ -134,7 +134,6 @@ class DeiT(BaseNet):
         if self.pos_embed_class is True:
             x = torch.concat([batch_class_token, x], dim=1)
             x = x + self.pos_embedding
-
         else:
             x = x + self.pos_embedding
             x = torch.concat([batch_class_token, x], dim=1)
@@ -155,7 +154,6 @@ class DeiT(BaseNet):
         if self.pos_embed_class is True:
             num_prefix_tokens = 1
             num_new_tokens += 1  # Adding the class token
-
         else:
             num_prefix_tokens = 0
 

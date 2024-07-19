@@ -57,17 +57,14 @@ class ShuffleUnit(nn.Module):
 
         if in_channels == out_channels:
             dw_conv_stride = 1
-
         elif in_channels < out_channels:
             dw_conv_stride = 2
             out_channels -= in_channels
-
         else:
             raise ValueError("in_channels must be smaller or equal to out_channels")
 
         if grouped_conv is True:
             first_groups = groups
-
         else:
             first_groups = 1
 
@@ -172,7 +169,6 @@ class ShuffleNet_v1(BaseNet):
         for i, repeat in enumerate(stage_repeats):
             if i == 0:
                 grouped_conv = False
-
             else:
                 grouped_conv = True
 

@@ -52,18 +52,22 @@ def handle_show_flags(
                 img = pil_loader(img_path)
                 show_top_k(img, img_path, prob, label, class_to_idx)
 
+        elif args.show_class is not None:
+            idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
+            if args.show_class == idx_to_class[np.argmax(prob)]:  # type: ignore
+                img = pil_loader(img_path)
+                show_top_k(img, img_path, prob, label, class_to_idx)
+
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def predict(args: argparse.Namespace) -> None:
     if args.gpu is True:
         device = torch.device("cuda")
-
     else:
         device = torch.device("cpu")
 
     if args.parallel is True and torch.cuda.device_count() > 1:
         logging.info(f"Using {torch.cuda.device_count()} {device} devices")
-
     else:
         logging.info(f"Using device {device}")
 
@@ -80,6 +84,10 @@ def predict(args: argparse.Namespace) -> None:
         pts=args.pts,
         pt2=args.pt2,
     )
+
+    if args.show_class is not None:
+        if args.show_class not in class_to_idx:
+            logging.warning("Select show class is not part of the model classes")
 
     if args.fast_matmul is True:
         torch.set_float32_matmul_precision("high")
@@ -162,6 +170,7 @@ def predict(args: argparse.Namespace) -> None:
                 or args.show_below is not None
                 or args.show_mistakes is True
                 or args.show_out_of_k is True
+                or args.show_class is not None
             ):
                 for img_path, prob, label in zip(file_paths, out, batch_labels):
                     handle_show_flags(args, img_path, prob, label, class_to_idx)
@@ -245,6 +254,7 @@ def main() -> None:
             "python predict.py -n convnext_v1 -p 2 -e 0 --gpu --parallel data/testing\n"
             "python predict.py -n mobilevit_v2 -p 1.5 -t intermediate -e 80 --gpu --save-results "
             "--wds data/validation_packed\n"
+            "python predict.py -n efficientnet_v2_m -t intermediate --show-class Unknown data/raw_data\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -272,6 +282,7 @@ def main() -> None:
     )
     parser.add_argument("--show-mistakes", default=False, action="store_true", help="show only mis-classified images")
     parser.add_argument("--show-out-of-k", default=False, action="store_true", help="show images not in the top-k")
+    parser.add_argument("--show-class", type=str, help="show specific class predictions")
     parser.add_argument("--shuffle", default=False, action="store_true", help="predict samples in random order")
     parser.add_argument("--summary", default=False, action="store_true", help="log prediction summary")
     parser.add_argument("--save-results", default=False, action="store_true", help="save results object")
@@ -291,7 +302,9 @@ def main() -> None:
     assert args.save_embedding is False or args.parallel is False
     assert args.parallel is False or args.compile is False
     assert args.wds is False or len(args.data_path) == 1
-    assert args.wds is False or (args.show is False and args.show_mistakes is False and args.show_out_of_k is False)
+    assert args.wds is False or (
+        args.show is False and args.show_mistakes is False and args.show_out_of_k is False and args.show_class is False
+    )
 
     if settings.RESULTS_DIR.exists() is False:
         logging.info(f"Creating {settings.RESULTS_DIR} directory...")

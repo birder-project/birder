@@ -6,6 +6,7 @@
     <string name="arabian_babbler">Arabian babbler</string>
     <string name="arabian_green_bee_eater">Arabian green bee-eater</string>
     <string name="arctic_tern">Arctic tern</string>
+    <string name="armenian_gull">Armenian gull</string>
     <string name="asian_crimson_winged_finch">Asian crimson-winged finch</string>
     <string name="asian_desert_warbler">Asian desert warbler</string>
     <string name="baillons_crake">Baillons crake</string>
@@ -50,6 +51,7 @@
     <string name="common_crane">Common crane</string>
     <string name="common_cuckoo">Common cuckoo</string>
     <string name="common_firecrest">Common firecrest</string>
+    <string name="common_greenshank">Common greenshank</string>
     <string name="common_house_martin">Common house martin</string>
     <string name="common_kestrel">Common kestrel</string>
     <string name="common_kingfisher">Common kingfisher</string>
@@ -59,10 +61,13 @@
     <string name="common_pochard">Common pochard</string>
     <string name="common_quail">Common quail</string>
     <string name="common_raven">Common raven</string>
+    <string name="common_redshank">Common redshank</string>
     <string name="common_ringed_plover">Common ringed plover</string>
     <string name="common_rock_thrush">Common rock thrush</string>
     <string name="common_rosefinch">Common rosefinch</string>
+    <string name="common_sandpiper">Common sandpiper</string>
     <string name="common_shelduck">Common shelduck</string>
+    <string name="common_snipe">Common snipe</string>
     <string name="common_starling">Common starling</string>
     <string name="common_tern">Common tern</string>
     <string name="common_wood_pigeon">Common wood pigeon</string>
@@ -135,6 +140,7 @@
     <string name="greater_sand_plover">Greater sand plover</string>
     <string name="greater_spotted_eagle">Greater spotted eagle</string>
     <string name="greater_white_fronted_goose">Greater white-fronted goose</string>
+    <string name="green_sandpiper">Green sandpiper</string>
     <string name="grey_heron">Grey heron</string>
     <string name="grey_hypocolius">Grey hypocolius</string>
     <string name="grey_plover">Grey plover</string>
@@ -165,12 +171,14 @@
     <string name="little_grebe">Little grebe</string>
     <string name="little_owl">Little owl</string>
     <string name="little_ringed_plover">Little ringed plover</string>
+    <string name="little_stint">Little stint</string>
     <string name="long_eared_owl">Long-eared owl</string>
     <string name="long_legged_buzzard">Long-legged buzzard</string>
     <string name="macqueens_bustard">MacQueens bustard</string>
     <string name="mallard">Mallard</string>
     <string name="marabou_stork">Marabou stork</string>
     <string name="marbled_duck">Marbled duck</string>
+    <string name="marsh_sandpiper">Marsh sandpiper</string>
     <string name="masked_shrike">Masked shrike</string>
     <string name="merlin">Merlin</string>
     <string name="monk_parakeet">Monk parakeet</string>
@@ -215,6 +223,7 @@
     <string name="rough_legged_buzzard">Rough-legged buzzard</string>
     <string name="ruddy_shelduck">Ruddy shelduck</string>
     <string name="ruddy_turnstone">Ruddy turnstone</string>
+    <string name="ruff">Ruff</string>
     <string name="rufous_tailed_scrub_robin">Rufous-tailed scrub robin</string>
     <string name="saker_falcon">Saker falcon</string>
     <string name="sand_partridge">Sand partridge</string>
@@ -231,6 +240,7 @@
     <string name="spanish_sparrow">Spanish sparrow</string>
     <string name="spotted_crake">Spotted crake</string>
     <string name="spotted_flycatcher">Spotted flycatcher</string>
+    <string name="spotted_redshank">Spotted redshank</string>
     <string name="spotted_sandgrouse">Spotted sandgrouse</string>
     <string name="spur_winged_lapwing">Spur-winged lapwing</string>
     <string name="squacco_heron">Squacco heron</string>
@@ -264,7 +274,9 @@
     <string name="white_tailed_lapwing">White-tailed lapwing</string>
     <string name="white_throated_kingfisher">White-throated kingfisher</string>
     <string name="white_throated_robin">White-throated robin</string>
+    <string name="white_winged_tern">White-winged tern</string>
     <string name="whooper_swan">Whooper swan</string>
+    <string name="wood_sandpiper">Wood sandpiper</string>
     <string name="woodchat_shrike">Woodchat shrike</string>
     <string name="yelkouan_shearwater">Yelkouan shearwater</string>
     <string name="yellow_billed_stork">Yellow-billed stork</string>

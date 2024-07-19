@@ -24,10 +24,8 @@ def show_det_iterator(args: argparse.Namespace) -> None:
     reverse_transform = reverse_preset(get_rgb_values("calculated"))
     if args.mode == "training":
         transform = training_preset(args.size, args.aug_level, get_rgb_values("calculated"))
-
     elif args.mode == "inference":
         transform = inference_preset(args.size, get_rgb_values("calculated"))
-
     else:
         raise ValueError(f"Unknown mode={args.mode}")
 

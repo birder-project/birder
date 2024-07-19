@@ -71,7 +71,6 @@ class XceptionBlock(nn.Module):
                 out_c = out_channels
                 if i == 0:
                     in_c = in_channels
-
                 else:
                     in_c = out_channels
 
@@ -79,7 +78,6 @@ class XceptionBlock(nn.Module):
                 in_c = in_channels
                 if i < (repeats - 1):
                     out_c = in_channels
-
                 else:
                     out_c = out_channels
 

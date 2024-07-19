@@ -147,7 +147,6 @@ class SwinTransformerBlock(nn.Module):
         if self.input_resolution[0] <= window_size_w:
             shift_size_w = 0
             window_size_w = self.input_resolution[0]
-
         if self.input_resolution[1] <= window_size_h:
             shift_size_h = 0
             window_size_h = self.input_resolution[1]
@@ -263,7 +262,6 @@ class Swin_Transformer_v2(PreTrainEncoder):
                 sd_prob = stochastic_depth_prob * float(stage_block_id) / (total_stage_blocks - 1)
                 if i_layer % 2 == 0:
                     shift_size = (0, 0)
-
                 else:
                     shift_size = (window_size[0] // 2, window_size[1] // 2)
 

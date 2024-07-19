@@ -76,7 +76,6 @@ def print_report(results_dict: dict[str, Results], classes: list[str]) -> None:
             recall_msg = f"{row['Recall']:.3f}"
             if row["Recall"] < 0.75:
                 recall_msg = "[red1]" + recall_msg + "[/red1]"
-
             elif row["Recall"] < 0.9:
                 recall_msg = "[dark_orange]" + recall_msg + "[/dark_orange]"
 

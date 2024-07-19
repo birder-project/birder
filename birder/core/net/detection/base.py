@@ -58,7 +58,6 @@ class DetectionBaseNet(nn.Module):
 
         if size is not None:
             self.size = size
-
         else:
             self.size = self.default_size
 
@@ -411,7 +410,6 @@ class Matcher(nn.Module):
         matched_vals, matches = match_quality_matrix.max(dim=0)
         if self.allow_low_quality_matches is True:
             all_matches = matches.clone()
-
         else:
             all_matches = None
 
@@ -424,7 +422,6 @@ class Matcher(nn.Module):
         if self.allow_low_quality_matches is True:
             if all_matches is None:
                 torch._assert(False, "all_matches should not be None")  # pylint: disable=protected-access
-
             else:
                 self.set_low_quality_matches_(matches, all_matches, match_quality_matrix)
 

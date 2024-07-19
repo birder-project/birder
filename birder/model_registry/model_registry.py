@@ -72,13 +72,10 @@ class ModelRegistry:
     def _get_model_by_name(self, name: str) -> "BaseNetType":
         if name in self._nets:
             net = self._nets[name]
-
         elif name in self._detection_nets:
             net = self._detection_nets[name]
-
         elif name in self._pretrain_nets:
             net = self._pretrain_nets[name]
-
         else:
             raise ValueError(f"Network with name: {name} not found")
 
@@ -87,13 +84,10 @@ class ModelRegistry:
     def _get_models_for_task(self, task: Task) -> dict[str, "BaseNetType"]:
         if task == Task.IMAGE_CLASSIFICATION:
             nets = self._nets
-
         elif task == Task.OBJECT_DETECTION:
             nets = self._detection_nets
-
         elif task == Task.IMAGE_PRETRAINING:
             nets = self._pretrain_nets
-
         else:
             raise ValueError(f"Unsupported model task: {task}")
 

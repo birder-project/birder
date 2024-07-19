@@ -32,7 +32,6 @@ def show_fgsm(args: argparse.Namespace) -> None:
     fgsm = FGSM(net, eps=args.eps)
     if args.target is not None:
         target = torch.tensor(class_to_idx[args.target]).unsqueeze(dim=0).to(device)
-
     else:
         target = None
 

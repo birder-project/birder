@@ -63,7 +63,6 @@ class ResidualBlock(nn.Module):
 
         if in_channels == out_channels:
             self.block2 = nn.Identity()
-
         else:
             self.block2 = nn.Sequential(
                 nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), stride=stride, padding=(0, 0), bias=False),
@@ -73,7 +72,6 @@ class ResidualBlock(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         if squeeze_excitation is True:
             self.se = SqueezeExcitation(out_channels, out_channels // 16)
-
         else:
             self.se = nn.Identity()
 
@@ -160,7 +158,6 @@ class ResNet_v2(DetectorBackbone):
             layers = []
             if i == 0:
                 stride = (1, 1)
-
             else:
                 stride = (2, 2)
 

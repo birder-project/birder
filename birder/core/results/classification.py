@@ -88,7 +88,6 @@ class Results:
 
         if np.all(self.labels == -1) is np.True_:
             self.missing_all_labels = True
-
         else:
             self.missing_all_labels = False
 

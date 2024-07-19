@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import tarfile
 from pathlib import Path
 from urllib.request import Request
 from urllib.request import urlopen
@@ -50,7 +51,14 @@ def download_url(url: str, target: str | Path, sha256: str) -> None:
             raise RuntimeError("Downloaded file is corrupted")
 
     else:
+        target.parent.mkdir(parents=True, exist_ok=True)  # type: ignore[union-attr]
         logging.info(f"Downloading {url} to {target}")
         _download(url, target)
         if calc_sha256(target) != sha256:
             raise RuntimeError("Downloaded file is corrupted")
+
+
+def extract_archive(from_path: str | Path, to_path: str | Path) -> None:
+    logging.info(f"Extracting {from_path} to {to_path}")
+    with tarfile.open(from_path, "r") as tar:
+        tar.extractall(to_path, filter="data")

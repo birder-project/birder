@@ -23,13 +23,11 @@ from birder.model_registry import registry
 def predict(args: argparse.Namespace) -> None:
     if args.gpu is True:
         device = torch.device("cuda")
-
     else:
         device = torch.device("cpu")
 
     if args.parallel is True and torch.cuda.device_count() > 1:
         logging.info(f"Using {torch.cuda.device_count()} {device} devices")
-
     else:
         logging.info(f"Using device {device}")
 

@@ -41,7 +41,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "-p", "--net-param", type=float, help="network specific parameter, required for most networks"
     )
-    subparser.add_argument("-e", "--epoch", type=int, default=0, help="model checkpoint to load")
+    subparser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
     subparser.add_argument(
         "-j",
@@ -75,7 +75,6 @@ def set_parser(subparsers: Any) -> None:
 def main(args: argparse.Namespace) -> None:
     if args.gpu is True:
         device = torch.device("cuda")
-
     else:
         device = torch.device("cpu")
 

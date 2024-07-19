@@ -250,7 +250,6 @@ class ViT(PreTrainEncoder):
         if self.num_reg_tokens > 0:
             self.reg_tokens = nn.Parameter(torch.zeros(1, self.num_reg_tokens, hidden_dim))
             seq_length += self.num_reg_tokens
-
         else:
             self.reg_tokens = None
 

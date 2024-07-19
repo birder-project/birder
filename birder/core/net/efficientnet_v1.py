@@ -45,7 +45,6 @@ class MBConv(nn.Module):
 
         if stride == (1, 1) and in_channels == out_channels:
             self.use_res_connect = True
-
         else:
             self.use_res_connect = False
 
@@ -104,7 +103,7 @@ class MBConv(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         branch = self.block(x)
-        if self.use_res_connect:
+        if self.use_res_connect is True:
             branch = self.stochastic_depth(branch)
             branch += x
 

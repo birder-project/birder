@@ -238,7 +238,6 @@ class AnyStage(nn.Module):
             if i == 0:
                 in_ch = width_in
                 cur_stride = stride
-
             else:
                 in_ch = width_out
                 cur_stride = (1, 1)

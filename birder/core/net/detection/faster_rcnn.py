@@ -585,10 +585,8 @@ class RoIHeads(nn.Module):
     ) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]:
         if targets is None:
             raise ValueError("targets should not be None")
-
         if all("boxes" in t for t in targets) is False:
             raise ValueError("Every element of targets should have a boxes key")
-
         if all("labels" in t for t in targets) is False:
             raise ValueError("Every element of targets should have a labels key")
 
@@ -701,13 +699,11 @@ class RoIHeads(nn.Module):
                 floating_point_types = (torch.float, torch.double, torch.half)
                 if not t["boxes"].dtype in floating_point_types:
                     raise TypeError(f"target boxes must of float type, instead got {t['boxes'].dtype}")
-
                 if not t["labels"].dtype == torch.int64:
                     raise TypeError(f"target labels must of int64 type, instead got {t['labels'].dtype}")
 
         if self.training is True:
             (proposals, _matched_idxs, labels, regression_targets) = self.select_training_samples(proposals, targets)
-
         else:
             labels = None
             regression_targets = None
@@ -722,7 +718,6 @@ class RoIHeads(nn.Module):
         if self.training is True:
             if labels is None:
                 raise ValueError("labels cannot be None")
-
             if regression_targets is None:
                 raise ValueError("regression_targets cannot be None")
 

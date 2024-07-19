@@ -20,6 +20,8 @@ from birder.core.net.mnasnet import MNASNet
 from birder.core.net.mobilenet_v1 import MobileNet_v1
 from birder.core.net.mobilenet_v2 import MobileNet_v2
 from birder.core.net.mobilenet_v3 import MobileNet_v3
+from birder.core.net.mobilenet_v4 import MobileNet_v4
+from birder.core.net.mobilenet_v4_hybrid import MobileNet_v4_Hybrid
 from birder.core.net.mobilevit_v1 import MobileViT_v1
 from birder.core.net.mobilevit_v2 import MobileViT_v2
 from birder.core.net.nextvit import NextViT
@@ -68,6 +70,8 @@ __all__ = [
     "MobileNet_v1",
     "MobileNet_v2",
     "MobileNet_v3",
+    "MobileNet_v4",
+    "MobileNet_v4_Hybrid",
     "MobileViT_v1",
     "MobileViT_v2",
     "NextViT",

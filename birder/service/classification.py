@@ -50,7 +50,6 @@ class BirdClassifier(BaseHandler):
         if torch.cuda.is_available() is True and properties.get("gpu_id") is not None:
             self.map_location = "cuda"
             self.device = torch.device(self.map_location + ":" + str(properties.get("gpu_id")))
-
         else:
             self.map_location = "cpu"
             self.device = torch.device(self.map_location)
@@ -77,12 +76,10 @@ class BirdClassifier(BaseHandler):
         if path.endswith("pts") is True:
             model = torch.jit.load(path, map_location=device, _extra_files=extra_files)
             model.eval()
-
         elif path.endswith("pt2") is True:
             model = torch.export.load(path, extra_files=extra_files).module()
             model.to(device)
             # model.eval()  # Use when GraphModule add support for 'eval'
-
         else:
             raise RuntimeError(f"Unknown model type {path}")
 

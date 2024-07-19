@@ -123,7 +123,6 @@ def write_worker(q_out: Any, pack_path: Path, total: int, max_size: float) -> No
 def pack(args: argparse.Namespace, pack_path: Path) -> None:
     if args.class_file is not None:
         class_to_idx = cli.read_class_file(args.class_file)
-
     else:
         class_to_idx = _get_class_to_idx(args.data_path)
 
@@ -136,7 +135,6 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
     dataset = ConcatDataset(datasets)
     if args.shuffle is True:
         indices = torch.randperm(len(dataset)).tolist()
-
     else:
         indices = list(range(len(dataset)))
 

@@ -131,7 +131,6 @@ class SqueezeNext(BaseNet):
             for j in range(lps):
                 if j == 0 and i != 0:
                     stride = 2
-
                 else:
                     stride = 1
 

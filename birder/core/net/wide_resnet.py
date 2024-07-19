@@ -59,7 +59,6 @@ class ResidualBlock(nn.Module):
 
         if in_channels == out_channels:
             self.block2 = nn.Identity()
-
         else:
             self.block2 = nn.Sequential(
                 nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), stride=stride, padding=(0, 0), bias=False),
@@ -133,7 +132,6 @@ class Wide_ResNet(BaseNet):
         for i in range(num_unit):
             if i == 0:
                 stride = (1, 1)
-
             else:
                 stride = (2, 2)
 

@@ -26,7 +26,6 @@ def download_file(url: str, dst: Path | str, expected_sha256: str) -> None:
     meta = u.info()
     if hasattr(meta, "getheaders") is True:
         content_length = meta.getheaders("Content-Length")
-
     else:
         content_length = meta.get_all("Content-Length")
 
