@@ -303,7 +303,7 @@ def pack_intermediate(ctx, size=384):
         warn=True,
     )
     ctx.run(
-        f"python tool.py pack -j 12 --size {size} --class-file data/training_packed/classes.txt "
+        f"python tool.py pack -j 12 --size {size} --max-size 200 --class-file data/training_packed/classes.txt "
         "data/validation data/raw_data_validation",
         echo=True,
         pty=True,

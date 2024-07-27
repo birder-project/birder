@@ -171,6 +171,9 @@ def set_parser(subparsers: Any) -> None:
         default=3,
         help="magnitude of augmentations (0 off -> 4 highest)",
     )
+    subparser.add_argument(
+        "--aa", default=False, action="store_true", help="Use AutoAugment policy (ignoring aug-level)"
+    )
     subparser.add_argument("--center-crop", type=float, default=1.0, help="Center crop ratio during inference")
     subparser.add_argument(
         "--batch", default=False, action="store_true", help="Show a batch instead of a single sample"
@@ -187,5 +190,7 @@ def set_parser(subparsers: Any) -> None:
 
 def main(args: argparse.Namespace) -> None:
     assert args.wds is False or args.batch is True, "WDS only works in batch mode"
+    if args.aa is True:
+        args.aug_level = -1
 
     show_iterator(args)

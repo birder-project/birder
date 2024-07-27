@@ -22,6 +22,7 @@ from birder.core.net.vit import adjust_position_embedding
 from birder.model_registry import registry
 
 
+# pylint: disable=too-many-instance-attributes
 class DeiT(BaseNet):
     default_size = 224
 
@@ -95,6 +96,11 @@ class DeiT(BaseNet):
         if pos_embed_class is True:
             seq_length += 1
 
+        # Add distillation token
+        self.dist_token = nn.Parameter(torch.zeros(1, 1, hidden_dim))
+        if pos_embed_class is True:
+            seq_length += 1
+
         # Add positional embedding
         self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, hidden_dim).normal_(std=0.02))  # from BERT
 
@@ -109,7 +115,9 @@ class DeiT(BaseNet):
         )
 
         self.embedding_size = hidden_dim
+        self.dist_classifier = self.create_classifier()
         self.classifier = self.create_classifier()
+        self.distillation_output = False
 
         # Weight initialization
         if isinstance(self.conv_proj, nn.Conv2d) is True:
@@ -123,6 +131,26 @@ class DeiT(BaseNet):
             nn.init.zeros_(self.classifier.weight)
             nn.init.zeros_(self.classifier.bias)
 
+        if isinstance(self.dist_classifier, nn.Linear) is True:
+            nn.init.zeros_(self.dist_classifier.weight)
+            nn.init.zeros_(self.dist_classifier.bias)
+
+    def reset_classifier(self, num_classes: int) -> None:
+        self.num_classes = num_classes
+        self.dist_classifier = self.create_classifier()
+        self.classifier = self.create_classifier()
+
+    def freeze(self, freeze_classifier: bool = True) -> None:
+        for param in self.parameters():
+            param.requires_grad = False
+
+        if freeze_classifier is False:
+            for param in self.classifier.parameters():
+                param.requires_grad = True
+
+            for param in self.dist_classifier.parameters():
+                param.requires_grad = True
+
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
@@ -130,18 +158,35 @@ class DeiT(BaseNet):
 
         # Expand the class token to the full batch
         batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
+        batch_dist_token = self.dist_token.expand(x.shape[0], -1, -1)
 
         if self.pos_embed_class is True:
-            x = torch.concat([batch_class_token, x], dim=1)
+            x = torch.concat([batch_class_token, batch_dist_token, x], dim=1)
             x = x + self.pos_embedding
         else:
             x = x + self.pos_embedding
-            x = torch.concat([batch_class_token, x], dim=1)
+            x = torch.concat([batch_class_token, batch_dist_token, x], dim=1)
 
         x = self.encoder(x)
+        x = x[:, 0:2]
 
-        # Classifier "token" as used by standard language architectures
-        x = x[:, 0]
+        return x
+
+    def set_distillation_output(self, enable: bool = True) -> None:
+        self.distillation_output = enable
+
+    def classify(self, x: torch.Tensor) -> torch.Tensor:
+        x_cls = x[:, 0]
+        x_dist = x[:, 1]
+
+        x_cls = self.classifier(x_cls)
+        x_dist = self.dist_classifier(x_dist)
+
+        if self.training is True and self.distillation_output is True:
+            x = torch.stack([x_cls, x_dist], dim=1)
+        else:
+            # Classifier "token" as an average of both tokens (during normal training or inference)
+            x = (x_cls + x_dist) / 2
 
         return x
 
@@ -152,8 +197,8 @@ class DeiT(BaseNet):
         num_pos_tokens = self.pos_embedding.shape[1]
         num_new_tokens = (new_size // self.patch_size) ** 2
         if self.pos_embed_class is True:
-            num_prefix_tokens = 1
-            num_new_tokens += 1  # Adding the class token
+            num_prefix_tokens = 2
+            num_new_tokens += 2  # Adding the class and distillation tokens
         else:
             num_prefix_tokens = 0
 

@@ -2,6 +2,7 @@ from collections.abc import Callable
 from typing import Any
 from typing import Optional
 
+import numpy as np
 import torch
 import torch.utils.data
 from torchvision.datasets.folder import pil_loader
@@ -16,12 +17,18 @@ class ImageListDataset(torch.utils.data.Dataset):
         loader: Callable[[str], Any] = pil_loader,
     ) -> None:
         super().__init__()
-        self.samples = samples
         self.transforms = transforms
         self.loader = loader
 
+        # Avoid yielding Python objects
+        # see: https://ppwwyyxx.com/blog/2022/Demystify-RAM-Usage-in-Multiprocess-DataLoader/
+        (paths, labels) = list(zip(*samples))
+        self.labels = np.array(labels, dtype=np.int32)
+        self.paths = np.array(paths, dtype=np.string_)
+
     def __getitem__(self, index: int) -> tuple[str, torch.Tensor, Any]:
-        (path, label) = self.samples[index]
+        path = self.paths[index].decode("utf-8")
+        label = self.labels[index].item()
         img = self.loader(path)
         if self.transforms is not None:
             sample = self.transforms(img)
@@ -32,7 +39,7 @@ class ImageListDataset(torch.utils.data.Dataset):
         return (path, sample, label)
 
     def __len__(self) -> int:
-        return len(self.samples)
+        return len(self.paths)
 
     def __repr__(self) -> str:
         head = "Dataset " + self.__class__.__name__

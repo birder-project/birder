@@ -536,6 +536,9 @@ def main() -> None:
             "python train.py --network inception_resnet_v2 --opt adamw --lr 0.0001 --wd 0.01 --epochs 105 "
             "--save-frequency 1 --batch-size 64 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 "
             "--resume-epoch 100\n"
+            "torchrun --nproc_per_node=2 train.py --network squeezenext --net-param 2 --lr 0.1 --lr-scheduler step "
+            "--lr-step-size 20 --lr-step-gamma 0.75 --batch-size 128 --smoothing-alpha 0.1 --mixup-alpha 0.2 "
+            "--aug-level 3 --gpu 1\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -615,6 +618,7 @@ def main() -> None:
         default=2,
         help="magnitude of augmentations (0 off -> 4 highest)",
     )
+    parser.add_argument("--aa", default=False, action="store_true", help="Use AutoAugment policy (ignoring aug-level)")
     parser.add_argument(
         "--rgb-mode",
         type=str,
@@ -738,6 +742,9 @@ def main() -> None:
     training_utils.init_distributed_mode(args)
     if args.size is None:
         args.size = registry.get_default_size(args.network)
+
+    if args.aa is True:
+        args.aug_level = -1
 
     logging.info(f"Using size={args.size}")
     train(args)

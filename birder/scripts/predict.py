@@ -69,6 +69,9 @@ def predict(args: argparse.Namespace) -> None:
     if args.parallel is True and torch.cuda.device_count() > 1:
         logging.info(f"Using {torch.cuda.device_count()} {device} devices")
     else:
+        if args.gpu_id is not None:
+            torch.cuda.set_device(args.gpu_id)
+
         logging.info(f"Using device {device}")
 
     network_name = get_network_name(args.network, net_param=args.net_param, tag=args.tag)
@@ -255,6 +258,8 @@ def main() -> None:
             "python predict.py -n mobilevit_v2 -p 1.5 -t intermediate -e 80 --gpu --save-results "
             "--wds data/validation_packed\n"
             "python predict.py -n efficientnet_v2_m -t intermediate --show-class Unknown data/raw_data\n"
+            "python predict.py -n convnext_v2_tiny -t intermediate -e 70 --gpu --gpu-id 1 --compile --fast-matmul "
+            "--show-class Unknown data/raw_data\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -292,6 +297,7 @@ def main() -> None:
     )
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
+    parser.add_argument("--gpu-id", type=int, help="gpu id to use (ignored in parallel mode)")
     parser.add_argument("--parallel", default=False, action="store_true", help="use multiple gpu's")
     parser.add_argument("--wds", default=False, action="store_true", help="predict a webdataset directory")
     parser.add_argument("data_path", nargs="+", help="data files path (directories and files)")

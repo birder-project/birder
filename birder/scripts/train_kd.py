@@ -1,7 +1,9 @@
 """
 Knowledge Distillation training script.
 Supports:
- - Simple logits matching, https://arxiv.org/abs/1503.02531
+ * Logits matching (Soft distillation), https://arxiv.org/abs/1503.02531
+ * Hard-label distillation, https://arxiv.org/pdf/2012.12877
+ * Distillation token, https://arxiv.org/pdf/2012.12877
 """
 
 import argparse
@@ -12,6 +14,7 @@ import time
 import typing
 from pathlib import Path
 from typing import Any
+from typing import Literal
 
 import torch
 import torch.nn.functional as F
@@ -39,9 +42,11 @@ from birder.core.transforms.classification import training_preset
 from birder.model_registry import Task
 from birder.model_registry import registry
 
+DistType = Literal["soft", "hard", "deit"]
+
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
-def train(args: argparse.Namespace) -> None:
+def train(args: argparse.Namespace, distillation_type: DistType) -> None:
     device = torch.device("cuda")
     device_id = torch.cuda.current_device()
     torch.backends.cudnn.benchmark = True
@@ -56,6 +61,7 @@ def train(args: argparse.Namespace) -> None:
         new_size=args.size,
         inference=True,
         pts=args.pts,
+        pt2=args.pt2,
     )
     if args.size is None:
         args.size = signature["inputs"][0]["data_shape"][2]
@@ -183,7 +189,16 @@ def train(args: argparse.Namespace) -> None:
         layer_decay=args.layer_decay,
     )
     criterion = torch.nn.CrossEntropyLoss(label_smoothing=args.smoothing_alpha)
-    distillation_criterion = torch.nn.KLDivLoss(reduction="batchmean", log_target=False)
+    if distillation_type == "soft":
+        distillation_criterion = torch.nn.KLDivLoss(reduction="batchmean", log_target=False)
+    elif distillation_type == "hard":
+        distillation_criterion = torch.nn.CrossEntropyLoss(label_smoothing=args.smoothing_alpha)
+    elif distillation_type == "deit":
+        distillation_criterion = torch.nn.CrossEntropyLoss(label_smoothing=args.smoothing_alpha)
+        student.set_distillation_output()
+    else:
+        raise ValueError(f"Unknown KD type: {args.type}")
+
     optimizer = training_utils.get_optimizer(args.opt, parameters, args.lr, args.wd, args.momentum, args.nesterov)
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
@@ -360,14 +375,23 @@ def train(args: argparse.Namespace) -> None:
 
             # Forward, backward and optimize
             with torch.cuda.amp.autocast(enabled=args.amp, dtype=amp_dtype):
-                student_outputs = student(inputs)
                 with torch.inference_mode():
                     teacher_outputs = teacher(inputs)
 
-                soft_teacher = F.softmax(teacher_outputs / args.temperature, dim=-1)
-                log_soft_student = F.log_softmax(student_outputs / args.temperature, dim=-1)
-                dist_loss = distillation_criterion(log_soft_student, soft_teacher) * (args.temperature**2)
-                target_loss = criterion(student_outputs, targets)
+                softmax_teacher = F.softmax(teacher_outputs / args.temperature, dim=-1)
+                if distillation_type == "soft":
+                    output = student(inputs)
+                    dist_output = F.log_softmax(output / args.temperature, dim=-1)
+                elif distillation_type == "hard":
+                    output = student(inputs)
+                    dist_output = output
+                elif distillation_type == "deit":
+                    (output, dist_output) = torch.unbind(student(inputs), dim=1)
+                else:
+                    raise RuntimeError
+
+                dist_loss = distillation_criterion(dist_output, softmax_teacher) * (args.temperature**2)
+                target_loss = criterion(output, targets)
                 loss = (1 - args.lambda_param) * target_loss + (args.lambda_param * dist_loss)
 
             if scaler is not None:
@@ -398,7 +422,7 @@ def train(args: argparse.Namespace) -> None:
             if targets.ndim == 2:
                 targets = targets.argmax(dim=1)
 
-            training_metrics(student_outputs, targets)
+            training_metrics(output, targets)
 
             # Write statistics
             if i % 50 == 49:
@@ -538,12 +562,16 @@ def main() -> None:
         description="Train classification model using Knowledge Distillation",
         epilog=(
             "Usage examples:\n"
-            "python train_kd.py --teacher convnext_v2_tiny --teacher-epoch 0 --student regnet "
+            "python train_kd.py --type soft --teacher convnext_v2_tiny --teacher-epoch 0 --student regnet "
             "--student-param 1.6 --lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 "
             "--size 256 --epochs 100 --wd 0.00005 --mixup-alpha 0.2 --aug-level 3\n"
+            "python train_kd.py --type hard --teacher convnext_v2_base --student mobilenet_v4_m --lr 0.8 "
+            "--lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 100 "
+            "--wd 0.00005 --mixup-alpha 0.2 --aug-level 3\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
+    parser.add_argument("--type", type=str, choices=typing.get_args(DistType), help="type of distillation")
     parser.add_argument(
         "--teacher",
         type=str,
@@ -553,6 +581,7 @@ def main() -> None:
     parser.add_argument("--teacher-param", type=float, help="network specific parameter (teacher)")
     parser.add_argument("--teacher-tag", type=str, help="teacher training log tag (loading only)")
     parser.add_argument("--pts", default=False, action="store_true", help="load torchscript teacher")
+    parser.add_argument("--pt2", default=False, action="store_true", help="load pt2 teacher")
     parser.add_argument("--teacher-epoch", type=int, help="load teacher weights from selected epoch")
     parser.add_argument(
         "--student",
@@ -628,7 +657,13 @@ def main() -> None:
         default=2,
         help="magnitude of augmentations (0 off -> 4 highest)",
     )
-    parser.add_argument("--temperature", type=float, default=5.0, help="importance of each soft target")
+    parser.add_argument("--aa", default=False, action="store_true", help="Use AutoAugment policy (ignoring aug-level)")
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=5.0,
+        help="controls the smoothness of the output distributions (only used in 'soft')",
+    )
     parser.add_argument("--lambda-param", type=float, default=0.5, help="importance of the distillation loss")
     parser.add_argument("--epochs", type=int, default=100, help="number of training epochs")
     parser.add_argument(
@@ -731,14 +766,19 @@ def main() -> None:
         registry.exists(args.student, task=Task.IMAGE_CLASSIFICATION) is True
     ), "Unknown student network, see list-models tool for available options"
 
+    if args.type != "soft":
+        args.temperature = 1.0
+
     if settings.MODELS_DIR.exists() is False:
         logging.info(f"Creating {settings.MODELS_DIR} directory...")
         settings.MODELS_DIR.mkdir(parents=True)
 
     training_utils.init_distributed_mode(args)
+    if args.aa is True:
+        args.aug_level = -1
 
     logging.info(f"Using size={args.size}")
-    train(args)
+    train(args, args.type)
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ Paper "Designing Network Design Spaces", https://arxiv.org/abs/2003.13678
 # Reference license: BSD 3-Clause
 
 import math
+from collections import OrderedDict
 from collections.abc import Iterator
 from typing import Optional
 
@@ -16,7 +17,7 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import SqueezeExcitation
 
-from birder.core.net.base import BaseNet
+from birder.core.net.base import DetectorBackbone
 from birder.core.net.base import make_divisible
 
 
@@ -259,7 +260,7 @@ class AnyStage(nn.Module):
         return self.block(x)
 
 
-class RegNet(BaseNet):
+class RegNet(DetectorBackbone):
     default_size = 224
 
     # pylint: disable=too-many-statements
@@ -342,7 +343,9 @@ class RegNet(BaseNet):
         )
 
         current_width = stem_width
-        blocks = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
+        i = 0
         for (
             width_out,
             stride,
@@ -350,25 +353,19 @@ class RegNet(BaseNet):
             group_width,
             bottleneck_multiplier,
         ) in block_params._get_expanded_params():
-            blocks.append(
-                AnyStage(
-                    current_width,
-                    width_out,
-                    (stride, stride),
-                    depth,
-                    group_width,
-                    bottleneck_multiplier,
-                    se_ratio,
-                )
+            stages[f"stage{i+1}"] = AnyStage(
+                current_width, width_out, (stride, stride), depth, group_width, bottleneck_multiplier, se_ratio
             )
-
+            return_channels.append(width_out)
             current_width = width_out
+            i += 1
 
-        self.body = nn.Sequential(*blocks)
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = current_width
         self.classifier = self.create_classifier()
 
@@ -386,6 +383,28 @@ class RegNet(BaseNet):
             elif isinstance(m, nn.Linear) is True:
                 nn.init.normal_(m.weight, mean=0.0, std=0.01)
                 nn.init.zeros_(m.bias)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

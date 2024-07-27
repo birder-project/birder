@@ -28,8 +28,8 @@ class TestNet(unittest.TestCase):
             ("cait", 0),
             ("convnext_v1", 0),
             ("convnext_v2", 0),
-            ("deit", 0),
-            ("deit3", 0),
+            ("deit", 0, True),
+            ("deit3", 0, True),
             ("densenet", 121),
             ("edgevit", 1),
             ("efficientnet_v1", 0),
@@ -99,6 +99,11 @@ class TestNet(unittest.TestCase):
             embedding = n.embedding(torch.rand((batch_size, 3, size, size))).flatten()
             self.assertEqual(len(embedding), n.embedding_size * batch_size)
 
+        # Reset classifier
+        n.reset_classifier(200)
+        out = n(torch.rand((batch_size, 3, size, size)))
+        self.assertEqual(out.numel(), 200 * batch_size)
+
     @parameterized.expand(  # type: ignore[misc]
         [
             ("efficientnet_v1", 0),
@@ -106,6 +111,7 @@ class TestNet(unittest.TestCase):
             ("mobilenet_v3", 1),
             ("mobilenet_v4", 0),
             ("mobilenet_v4_hybrid", 0),
+            ("regnet", 0.8),
             ("resnet_v2", 50),
             ("resnext", 50),
             ("se_resnet_v2", 50),

@@ -130,6 +130,9 @@ def set_parser(subparsers: Any) -> None:
         action="store_true",
         help="print results table",
     )
+    subparser.add_argument(
+        "--print-mistakes", default=False, action="store_true", help="print only classes with non-perfect f1-score"
+    )
     subparser.add_argument("--classes", default=[], type=str, nargs="+", help="class name to compare (print)")
     subparser.add_argument("--list-mistakes", default=False, action="store_true", help="list all mistakes")
     subparser.add_argument("--list-out-of-k", default=False, action="store_true", help="list all samples not in top-k")
@@ -163,6 +166,22 @@ def main(args: argparse.Namespace) -> None:
         results_dict[results_file] = results
 
     if args.print is True:
+        if args.print_mistakes is True and len(results_dict) > 1:
+            logging.warning("Cannot print mistakes in compare mode. processing only the first file")
+
+        if args.print_mistakes is True:
+            (result_name, results) = next(iter(results_dict.items()))
+            classes_list = list(results.prediction_names.iloc[results.mistakes.index].unique())
+            classes_list.extend(list(results.mistakes["label_name"].unique()))
+            results_df = results.get_as_df()[results.get_as_df()["label_name"].isin(classes_list)]
+            results = Results(
+                results_df["sample"],
+                results_df["label"],
+                results.label_names,
+                results_df.iloc[:, Results.num_desc_cols :].values,
+            )
+            results_dict = {result_name: results}
+
         print_report(results_dict, args.classes)
 
     if args.list_mistakes is True:
