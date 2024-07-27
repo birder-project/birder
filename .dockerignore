@@ -4,6 +4,9 @@ models/
 results/
 runs/
 
+# Project generated documentation
+/public/
+
 # Git
 .git
 .gitignore

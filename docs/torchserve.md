@@ -33,15 +33,11 @@ Now, use the `torch-model-archiver` command to create the .mar file. Here are tw
 
 1. Basic usage:
 
-    ```sh
-    torch-model-archiver --model-name convnext_v2_tiny --version 1.0 --handler $(python -c "from birder.service import classification; print(classification.__file__)" 2> /dev/null) --serialized-file models/convnext_v2_tiny.pts --export-path ts
-    ```
+        torch-model-archiver --model-name convnext_v2_tiny --version 1.0 --handler $(python -c "from birder.service import classification; print(classification.__file__)" 2> /dev/null) --serialized-file models/convnext_v2_tiny.pts --export-path ts
 
 1. With a configuration file:
 
-    ```sh
-    torch-model-archiver --model-name convnext_v2_tiny --version 1.0 --handler $(python -c "from birder.service import classification; print(classification.__file__)" 2> /dev/null) --serialized-file models/convnext_v2_tiny.pt2 --export-path ts --config-file ts/example_config.yaml
-    ```
+        torch-model-archiver --model-name convnext_v2_tiny --version 1.0 --handler $(python -c "from birder.service import classification; print(classification.__file__)" 2> /dev/null) --serialized-file models/convnext_v2_tiny.pt2 --export-path ts --config-file ts/example_config.yaml
 
 The `$(python -c "..." 2> /dev/null)` part dynamically retrieves the correct path to the classification.py file (birder/service/classification.py at the repository).
 

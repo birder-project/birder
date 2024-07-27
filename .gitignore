@@ -4,6 +4,9 @@
 /runs/
 /results/
 
+# Project generated documentation
+/public/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

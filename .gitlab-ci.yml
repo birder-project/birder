@@ -1,6 +1,7 @@
 stages:
   - test
   - build
+  - deploy
 
 all-test-job:
   stage: test
@@ -26,3 +27,15 @@ build-job:
   artifacts:
     paths:
       - dist/*.whl
+
+pages:
+  stage: deploy
+  image: python:3.10
+  only:
+    - tags
+  script:
+    - pip install -r requirements/requirements-dev.txt
+    - mkdocs build --strict --verbose
+  artifacts:
+    paths:
+      - public

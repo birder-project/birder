@@ -10,62 +10,46 @@ Birder can be installed either as a package or cloned from Git.
 
 1. Set up and activate a virtual environment:
 
-    ```sh
-    python -m venv .venv
-    source .venv/bin/activate  # On Windows, use .venv\Scripts\activate
-    ```
+        python -m venv .venv
+        source .venv/bin/activate  # On Windows, use .venv\Scripts\activate
 
 1. Update pip and wheel in your virtual environment:
 
-    ```sh
-    pip install --upgrade pip wheel
-    ```
+        pip install --upgrade pip wheel
 
 1. Install PyTorch 2.3 or above suitable for your hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
 
 1. Install the `birder` package
 
-    ```sh
-    pip install birder
-    ```
+        pip install birder
 
 ### Option 2: Cloning from Git (Recommended for Contributors or Advanced Users)
 
 1. Clone the repository:
 
-    ```sh
-    git clone https://gitlab.com/birder/birder.git
-    cd birder
-    ```
+        git clone https://gitlab.com/birder/birder.git
+        cd birder
 
 1. Set up and activate a virtual environment:
 
-    ```sh
-    python -m venv .venv
-    source .venv/bin/activate  # On Windows, use .venv\Scripts\activate
-    ```
+        python -m venv .venv
+        source .venv/bin/activate  # On Windows, use .venv\Scripts\activate
 
 1. Update pip and install wheel
 
-    ```sh
-    pip install --upgrade pip wheel
-    ```
+        pip install --upgrade pip wheel
 
 1. Install PyTorch 2.3 or above suitable for your hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
 
-    ```sh
-    # For CUDA
-    pip install --upgrade -r requirements/requirements-pytorch-gpu.txt
+        # For CUDA
+        pip install --upgrade -r requirements/requirements-pytorch-gpu.txt
 
-    # For CPU
-    pip install --upgrade -r requirements/requirements-pytorch-cpu.txt
-    ```
+        # For CPU
+        pip install --upgrade -r requirements/requirements-pytorch-cpu.txt
 
 1. Install development requirements:
 
-    ```sh
-    pip install --upgrade -r requirements/requirements-dev.txt
-    ```
+        pip install --upgrade -r requirements/requirements-dev.txt
 
 ### Verifying the Installation
 
@@ -85,32 +69,24 @@ Get started with Birder by classifying a single image, visualizing the results a
 
 1. **Download a Pre-trained Model**
 
-    ```sh
-    python -m birder.tools fetch-model efficientnet_v2_s
-    ```
+        python -m birder.tools fetch-model efficientnet_v2_s
 
 1. **Download a Sample Image**
 
     Create a data directory and download an example image:
 
-    ```sh
-    mkdir data
-    wget https://f000.backblazeb2.com/file/birder/data/img_001.jpeg -O data/img_001.jpeg
-    ```
+        mkdir data
+        wget https://f000.backblazeb2.com/file/birder/data/img_001.jpeg -O data/img_001.jpeg
 
 1. **Classify the Image**
 
-    ```sh
-    birder-predict -n efficientnet_v2_s --show data/img_001.jpeg
-    ```
+        birder-predict -n efficientnet_v2_s --show data/img_001.jpeg
 
 1. **Explore Model Decision-Making with Introspection**
 
     To gain insight into the model's decision-making process, we'll use Guided Backpropagation [^1], a technique that visualizes the input features most influential to the classification:
 
-    ```sh
-    python -m birder.tool introspection --method guided-backprop --network efficientnet_v2_s --image data/img_001.jpeg
-    ```
+        python -m birder.tool introspection --method guided-backprop --network efficientnet_v2_s --image data/img_001.jpeg
 
     This command generates a saliency map highlighting the pixels in the input image that most significantly influenced the model's classification decision.
 

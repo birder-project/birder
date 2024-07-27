@@ -1,0 +1,10 @@
+site_name: Birder
+site_dir: public/
+repo_url: https://gitlab.com/birder/birder
+nav:
+  - Birder Documentation: README.md
+  - Getting Started: getting_started.md
+  - About: about.md
+theme:
+  name: readthedocs
+  color_mode: auto

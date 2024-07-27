@@ -192,9 +192,9 @@ def train(args: argparse.Namespace, distillation_type: DistType) -> None:
     if distillation_type == "soft":
         distillation_criterion = torch.nn.KLDivLoss(reduction="batchmean", log_target=False)
     elif distillation_type == "hard":
-        distillation_criterion = torch.nn.CrossEntropyLoss(label_smoothing=args.smoothing_alpha)
+        distillation_criterion = torch.nn.CrossEntropyLoss()
     elif distillation_type == "deit":
-        distillation_criterion = torch.nn.CrossEntropyLoss(label_smoothing=args.smoothing_alpha)
+        distillation_criterion = torch.nn.CrossEntropyLoss()
         student.set_distillation_output()
     else:
         raise ValueError(f"Unknown KD type: {args.type}")
