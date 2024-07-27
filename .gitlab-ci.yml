@@ -28,12 +28,23 @@ build-job:
     paths:
       - dist/*.whl
 
+publish:
+  stage: deploy
+  image: python:3.10
+  dependencies:
+    - build-job
+  only:
+    - tags
+  script:
+    - pip install --upgrade pip wheel build twine
+    - twine upload dist/*
+  environment: release
+
 pages:
   stage: deploy
   image: python:3.10
   only:
     - tags
-    - main
   script:
     - pip install -r requirements/requirements-dev.txt
     - mkdocs build --strict --verbose
