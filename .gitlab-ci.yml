@@ -33,6 +33,7 @@ pages:
   image: python:3.10
   only:
     - tags
+    - main
   script:
     - pip install -r requirements/requirements-dev.txt
     - mkdocs build --strict --verbose
