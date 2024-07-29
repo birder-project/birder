@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import math
 import sys
 import time
 import typing
@@ -321,6 +322,9 @@ def train(args: argparse.Namespace) -> None:
             pin_memory=True,
         )
 
+    last_batch_idx = math.ceil(len(training_dataset) / batch_size) - 1
+    grad_accum_steps: int = args.grad_accum_steps
+
     # Enable or disable the autograd anomaly detection
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
 
@@ -346,35 +350,42 @@ def train(args: argparse.Namespace) -> None:
                 leave=False,
             )
 
+        # Zero the parameter gradients
+        optimizer.zero_grad()
+
         for i, (inputs, targets) in enumerate(training_loader):
             inputs = inputs.to(device, non_blocking=True)
             targets = targets.to(device, non_blocking=True)
 
-            # Zero the parameter gradients
-            optimizer.zero_grad()
+            optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
 
             # Forward, backward and optimize
             with torch.cuda.amp.autocast(enabled=args.amp, dtype=amp_dtype):
                 outputs = net(inputs)
                 loss = criterion(outputs, targets)
 
+            # if grad_accum_steps > 1:
+            #     loss = loss / grad_accum_steps
+
             if scaler is not None:
                 scaler.scale(loss).backward()
-                # gn = torch.norm(torch.stack([torch.norm(p.grad.detach(), 2) for p in net.parameters()]), 2)
-                if args.clip_grad_norm is not None:
-                    scaler.unscale_(optimizer)
-                    torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
+                if optimizer_update is True:
+                    if args.clip_grad_norm is not None:
+                        scaler.unscale_(optimizer)
+                        torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
-                scaler.step(optimizer)
-                scaler.update()
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad()
 
             else:
                 loss.backward()
-                # gn = torch.norm(torch.stack([torch.norm(p.grad.detach(), 2) for p in net.parameters()]), 2)
-                if args.clip_grad_norm is not None:
-                    torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
+                if optimizer_update is True:
+                    if args.clip_grad_norm is not None:
+                        torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
-                optimizer.step()
+                    optimizer.step()
+                    optimizer.zero_grad()
 
             # Exponential moving average
             if args.model_ema is True and i % args.model_ema_steps == 0:
@@ -604,6 +615,7 @@ def main() -> None:
         default=0.000001,
         help="minimum learning rate (for cosine annealing scheduler only)",
     )
+    parser.add_argument("--grad-accum-steps", type=int, default=1, help="number of steps to accumulate gradients")
     parser.add_argument("--channels", type=int, default=3, help="no. of image channels")
     parser.add_argument("--size", type=int, default=None, help="image size (defaults to network recommendation)")
     parser.add_argument("--batch-size", type=int, default=128, help="the batch size")

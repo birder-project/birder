@@ -297,7 +297,7 @@ def pack_intermediate(ctx, size=384):
     """
 
     ctx.run(
-        f"python3 tool.py pack -j 12 --shuffle --size {size} data/training data/raw_data",
+        f"python tool.py pack -j 12 --shuffle --size {size} data/training data/raw_data",
         echo=True,
         pty=True,
         warn=True,

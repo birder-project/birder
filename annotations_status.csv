@@ -89,11 +89,11 @@ Crowned sandgrouse,Pterocles coronatus,0,0,0,,419,50,114,0,0
 Curlew sandpiper,Calidris ferruginea,0,0,1,,521,4,0,0,0
 Dalmatian pelican,Pelecanus crispus,0,0,0,,739,50,202,0,0
 Demoiselle crane,Grus virgo,0,0,0,,564,50,203,28,0
-Desert lark,Ammomanes deserti,0,0,1,,903,2,0,0,0
+Desert lark,Ammomanes deserti,0,0,1,,903,6,0,0,0
 Desert owl,,0,0,0,Missing thumbnail image,128,40,0,0,0
 Dunlin,,0,0,1,,1008,3,0,0,0
 Eastern black-eared wheatear,,0,0,1,,936,2,0,0,0
-Eastern imperial eagle,,0,0,1,,2002,4,0,0,0
+Eastern imperial eagle,,0,0,1,,2034,50,66,0,0
 Eastern olivaceous warbler,,0,0,1,,936,3,0,0,0
 Egyptian goose,,1,0,0,,822,50,216,6,0
 Egyptian nightjar,,0,0,0,,789,50,133,0,0
@@ -104,7 +104,7 @@ Eurasian collared dove,,0,0,0,,747,50,213,0,0
 Eurasian coot,,1,0,0,,702,50,208,40,0
 Eurasian curlew,,0,0,0,,737,50,213,2,0
 Eurasian dotterel,,0,0,0,,822,50,201,0,0
-Eurasian eagle-owl,,0,0,0,,468,50,12,9,0
+Eurasian eagle-owl,,0,0,0,,468,50,16,9,0
 Eurasian golden oriole,,0,0,0,,859,50,206,7,0
 Eurasian hobby,,0,0,1,,1147,50,98,0,0
 Eurasian hoopoe,,0,0,0,,952,50,204,3,0
@@ -138,7 +138,7 @@ Gadwall,,0,0,0,,981,50,211,0,0
 Garganey,,0,0,1,,804,6,0,0,0
 Glossy ibis,,0,0,0,,856,50,216,2,0
 Goldcrest,,0,0,0,,817,50,205,1,0
-Golden eagle,,0,0,1,,1933,6,7,0,0
+Golden eagle,,0,0,1,,1992,50,100,0,0
 Goliath heron,,0,0,0,,814,50,208,2,0
 Graceful prinia,,0,0,0,,867,50,200,1,0
 Great bittern,,0,0,0,,1160,50,223,1,0
@@ -228,7 +228,7 @@ Peregrine falcon,,0,0,0,,959,50,210,4,0
 Pied avocet,,0,0,0,,865,50,209,7,0
 Pied kingfisher,,0,0,0,,903,50,227,4,0
 Pin-tailed sandgrouse,,0,0,0,,632,50,217,4,0
-Pink-backed pelican,,0,0,1,,1612,1,0,0,0
+Pink-backed pelican,,0,0,1,,1662,50,49,0,0
 Purple heron,,0,0,0,,1489,50,214,1,0
 Pygmy cormorant,,0,0,0,,807,50,241,11,0
 Red phalarope,,0,0,0,,705,50,201,2,0
@@ -279,7 +279,7 @@ Spotted redshank,,0,0,1,,601,7,3,0,0
 Spotted sandgrouse,,0,0,0,,476,50,202,1,0
 Spur-winged lapwing,,0,0,0,,954,50,213,0,0
 Squacco heron,,0,0,0,,1210,50,252,0,0
-Steppe eagle,,0,0,1,,1915,50,92,0,0
+Steppe eagle,,0,0,1,,1915,50,99,0,0
 Stock dove,,0,0,0,,686,50,201,0,0
 Streaked scrub warbler,,0,0,0,,606,50,58,1,0
 Striated heron,,0,0,0,,847,50,207,0,0

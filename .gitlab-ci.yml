@@ -27,6 +27,7 @@ build-job:
   artifacts:
     paths:
       - dist/*.whl
+      - dist/*.tar.gz
 
 publish:
   stage: deploy
