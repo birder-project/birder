@@ -291,20 +291,20 @@ def convert_to_coco(ctx):
 
 
 @task
-def pack_intermediate(ctx, size=384):
+def pack_intermediate(ctx, size=384, suffix=settings.PACK_PATH_SUFFIX):
     """
     Pack data for intermediate training
     """
 
     ctx.run(
-        f"python tool.py pack -j 12 --shuffle --size {size} data/training data/raw_data",
+        f"python tool.py pack -j 12 --shuffle --suffix {suffix} --size {size} data/training data/raw_data",
         echo=True,
         pty=True,
         warn=True,
     )
     ctx.run(
-        f"python tool.py pack -j 12 --size {size} --max-size 200 --class-file data/training_packed/classes.txt "
-        "data/validation data/raw_data_validation",
+        f"python tool.py pack -j 12 --suffix {suffix} --size {size} --max-size 200 --class-file "
+        "data/training_packed/classes.txt data/validation data/raw_data_validation",
         echo=True,
         pty=True,
         warn=True,

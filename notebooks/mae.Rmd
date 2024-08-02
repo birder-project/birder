@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.16.3
+      jupytext_version: 1.16.4
   kernelspec:
     display_name: birder
     language: python
@@ -80,8 +80,8 @@ size = 224
 epoch_start = 1
 epoch_end = 400
 
-# image = "data/validation/Bluethroat/000013.jpeg"
-image = "data/training/African crake/000005.jpeg"
+image = "data/validation/Bluethroat/000013.jpeg"
+# image = "data/training/African crake/000005.jpeg"
 # image = "data/training/African swamphen/000001.jpeg"
 # image = "data/validation/Barn owl/000013.jpeg"
 # image = "data/validation/Zitting cisticola/000025.jpeg"

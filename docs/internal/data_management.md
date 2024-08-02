@@ -3,7 +3,7 @@
 ## Useful Commands
 
 Ensure no duplicated data exists
-`fdupes -r data/training data/validation data/testing data/raw_data`
+`fdupes -r data/training data/validation data/testing data/raw_data data/raw_data_validation data/raw_data_testing`
 
 Remove all metadata from JPEG files
 `exiftool -all:all= -overwrite_original -ext jpeg .`

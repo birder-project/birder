@@ -231,6 +231,8 @@ def train(args: argparse.Namespace) -> None:
             drop_last=True,
         )
 
+    last_batch_idx = (len(training_dataset) // batch_size) - 1  # no partial batches
+
     # Enable or disable the autograd anomaly detection
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
 
@@ -285,7 +287,7 @@ def train(args: argparse.Namespace) -> None:
             running_loss += loss.item() * inputs.size(0)
 
             # Write statistics
-            if i % 20 == 19:
+            if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
                 summary_writer.add_scalars(
                     "loss",
                     {f"training{args.rank}": running_loss / (i * batch_size)},
@@ -480,6 +482,7 @@ def main() -> None:
         help="load optimizer, scheduler and scaler states when resuming",
     )
     parser.add_argument("-t", "--tag", type=str, help="add training logs tag")
+    parser.add_argument("--log-interval", type=int, default=100, help="how many steps between summary writes")
     parser.add_argument(
         "-j",
         "--num-workers",

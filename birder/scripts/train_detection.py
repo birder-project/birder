@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import math
 import sys
 import time
 import typing
@@ -242,6 +243,8 @@ def train(args: argparse.Namespace) -> None:
         pin_memory=True,
     )
 
+    last_batch_idx = math.ceil(len(training_dataset) / batch_size) - 1
+
     # Enable or disable the autograd anomaly detection
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
 
@@ -308,7 +311,7 @@ def train(args: argparse.Namespace) -> None:
             running_loss += loss.item() * inputs.size(0)
 
             # Write statistics
-            if i % 20 == 19:
+            if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
                 summary_writer.add_scalars(
                     "loss",
                     {f"training{args.rank}": running_loss / (i * batch_size)},
@@ -561,6 +564,7 @@ def main() -> None:
     )
     parser.add_argument("--ra-reps", type=int, default=3, help="number of repetitions for Repeated Augmentation")
     parser.add_argument("-t", "--tag", type=str, help="add training logs tag")
+    parser.add_argument("--log-interval", type=int, default=20, help="how many steps between summary writes")
     parser.add_argument(
         "-j",
         "--num-workers",

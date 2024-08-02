@@ -158,6 +158,7 @@ def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> C
                     antialias=True,
                 ),
                 v2.AutoAugment(v2.AutoAugmentPolicy.IMAGENET, v2.InterpolationMode.BILINEAR),
+                v2.RandomHorizontalFlip(0.5),
                 v2.ToDtype(torch.float32, scale=True),
                 v2.Normalize(mean=mean, std=std),
             ]
@@ -242,16 +243,16 @@ def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> C
                 v2.RandomPosterize(6, p=0.2),
                 v2.RandomChoice(
                     [
+                        v2.RandomEqualize(0.25),
                         v2.RandomAutocontrast(0.5),
                         v2.ColorJitter(brightness=0.25, contrast=0.15, hue=0.04),
                     ]
                 ),
                 v2.RandomChoice(
                     [
-                        v2.RandomApply([v2.GaussianBlur(kernel_size=(7, 7), sigma=(0.1, 1.2))], p=0.5),
-                        v2.RandomAdjustSharpness(1.1, p=0.5),
-                        v2.RandomAdjustSharpness(1.2, p=0.5),
-                        v2.RandomAdjustSharpness(1.3, p=0.5),
+                        v2.RandomApply([v2.GaussianBlur(kernel_size=(5, 5), sigma=(0.5, 1.2))], p=0.5),
+                        v2.RandomAdjustSharpness(1.25, p=0.5),
+                        v2.RandomAdjustSharpness(1.5, p=0.5),
                     ]
                 ),
                 v2.RandomHorizontalFlip(0.5),
@@ -273,23 +274,23 @@ def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> C
                 ),
                 v2.RandomChoice(
                     [
-                        v2.RandomRotation(14, fill=0),
+                        v2.RandomRotation(15, fill=0),
                         v2.RandomAffine(degrees=0, translate=(0, 0), shear=(-22, 22, 0, 0), fill=0),
                     ]
                 ),
-                v2.RandomPosterize(6, p=0.2),
+                v2.RandomPosterize(6, p=0.25),
                 v2.RandomChoice(
                     [
+                        v2.RandomEqualize(0.25),
                         v2.RandomAutocontrast(0.5),
-                        v2.ColorJitter(brightness=0.27, contrast=0.16, hue=0.06),
+                        v2.ColorJitter(brightness=0.28, contrast=0.2, hue=0.07),
                     ]
                 ),
                 v2.RandomChoice(
                     [
-                        v2.RandomApply([v2.GaussianBlur(kernel_size=(7, 7), sigma=(0.1, 1.2))], p=0.55),
-                        v2.RandomAdjustSharpness(1.1, p=0.5),
-                        v2.RandomAdjustSharpness(1.2, p=0.5),
-                        v2.RandomAdjustSharpness(1.3, p=0.5),
+                        v2.RandomApply([v2.GaussianBlur(kernel_size=(7, 7), sigma=(0.8, 1.5))], p=0.5),
+                        v2.RandomAdjustSharpness(1.5, p=0.5),
+                        v2.RandomAdjustSharpness(2.0, p=0.5),
                     ]
                 ),
                 v2.RandomHorizontalFlip(0.5),

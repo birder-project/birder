@@ -31,6 +31,7 @@ class TestNet(unittest.TestCase):
             ("deit", 0, True),
             ("deit3", 0, True),
             ("densenet", 121),
+            ("edgenext", 0),
             ("edgevit", 1),
             ("efficientnet_v1", 0),
             ("efficientnet_v2", 0),

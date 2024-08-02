@@ -157,14 +157,14 @@ class ClassAttentionBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x_norm1 = self.norm1(x)
-        x_attn = torch.cat([self.attn(x_norm1), x_norm1[:, 1:]], dim=1)
+        x_attn = torch.concat([self.attn(x_norm1), x_norm1[:, 1:]], dim=1)
         x = x + self.drop_path(self.gamma1 * x_attn)
-        x = torch.cat([self.norm2(x[:, 0:1]), x[:, 1:]], dim=1)
+        x = torch.concat([self.norm2(x[:, 0:1]), x[:, 1:]], dim=1)
 
         x_res = x
         cls_token = x[:, 0:1]
         cls_token = self.gamma2 * self.mlp(cls_token)
-        x = torch.cat([cls_token, x[:, 1:]], dim=1)
+        x = torch.concat([cls_token, x[:, 1:]], dim=1)
         x = x_res + self.drop_path(x)
 
         return x

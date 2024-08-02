@@ -438,7 +438,7 @@ def train(args: argparse.Namespace, distillation_type: DistType) -> None:
             training_metrics(output, targets)
 
             # Write statistics
-            if i % 50 == 49:
+            if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
                 summary_writer.add_scalars(
                     "loss",
                     {f"training{args.rank}": running_loss / (i * batch_size)},

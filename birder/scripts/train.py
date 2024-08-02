@@ -402,7 +402,7 @@ def train(args: argparse.Namespace) -> None:
             training_metrics(outputs, targets)
 
             # Write statistics
-            if i % 50 == 49:
+            if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
                 summary_writer.add_scalars(
                     "loss",
                     {f"training{args.rank}": running_loss / (i * batch_size)},
@@ -678,6 +678,7 @@ def main() -> None:
     )
     parser.add_argument("--ra-reps", type=int, default=3, help="number of repetitions for Repeated Augmentation")
     parser.add_argument("-t", "--tag", type=str, help="add training logs tag")
+    parser.add_argument("--log-interval", type=int, default=50, help="how many steps between summary writes")
     parser.add_argument(
         "-j",
         "--num-workers",

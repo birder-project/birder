@@ -6,6 +6,7 @@
   "language": "en",
   // words - list of words to be always considered correct
   "words": [
+    "accum",
     "adamw",
     "addcmul",
     "allclose",
@@ -56,6 +57,7 @@
     "dtype",
     "dtypes",
     "dwconv",
+    "edgenext",
     "edgevit",
     "efficientnet",
     "eigen",
@@ -104,6 +106,7 @@
     "LLRD",
     "logit",
     "majorticklabels",
+    "matmul",
     "matplotlib",
     "maxvit",
     "meshgrid",
