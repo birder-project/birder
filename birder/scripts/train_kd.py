@@ -717,6 +717,7 @@ def main() -> None:
     )
     parser.add_argument("--ra-reps", type=int, default=3, help="number of repetitions for Repeated Augmentation")
     parser.add_argument("--student-tag", type=str, help="add student training logs tag")
+    parser.add_argument("--log-interval", type=int, default=50, help="how many steps between summary writes")
     parser.add_argument(
         "-j",
         "--num-workers",

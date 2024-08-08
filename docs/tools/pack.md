@@ -28,6 +28,8 @@ The pack tool provides several key features for dataset preparation:
 
 If no resize is specified, files are archived as-is. If resize is defined, all files are re-encoded to WebP format.
 
+When class file provided, only images from known classes will be packed.
+
 ## Output
 
 The tool creates a new directory with the name of the first input directory plus the specified suffix. This directory will contain:

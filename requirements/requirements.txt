@@ -13,8 +13,8 @@ rich~=13.7.1
 scikit-learn~=1.5.1
 scipy~=1.14.0
 torchinfo~=1.8.0
-torchmetrics~=1.4.0
-tqdm~=4.66.2
+torchmetrics~=1.4.1
+tqdm~=4.66.5
 webdataset~=0.2.86
 
 # TorchServe

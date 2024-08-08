@@ -41,7 +41,6 @@ class DeiT(BaseNet):
         image_size = self.size
         attention_dropout = 0.0
         dropout = 0.0
-        drop_path_rate = 0.1
         if net_param == 0:
             # Tiny 16 (t16)
             patch_size = 16
@@ -49,6 +48,7 @@ class DeiT(BaseNet):
             num_heads = 3
             hidden_dim = 192
             mlp_dim = 768
+            drop_path_rate = 0.0
 
         elif net_param == 1:
             # Small 16 (s16)
@@ -57,6 +57,7 @@ class DeiT(BaseNet):
             num_heads = 6
             hidden_dim = 384
             mlp_dim = 1536
+            drop_path_rate = 0.1
 
         elif net_param == 2:
             # Base 16 (b16)
@@ -65,6 +66,7 @@ class DeiT(BaseNet):
             num_heads = 12
             hidden_dim = 768
             mlp_dim = 3072
+            drop_path_rate = 0.1
 
         else:
             raise ValueError(f"net_param = {net_param} not supported")

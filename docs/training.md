@@ -627,19 +627,37 @@ torchrun --nproc_per_node=2 train.py --network regnet --net-param 8 --lr 0.4 --l
 At epoch 70 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network regnet --net-param 8 --lr 0.4 --lr-scheduler cosine --warmup-epochs 5 --batch-size 32 --size 384 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 70 --load-states --stop-epoch 90
+torchrun --nproc_per_node=2 train.py --network regnet --net-param 8 --lr 0.4 --lr-scheduler cosine --warmup-epochs 5 --batch-size 64 --size 384 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 70 --load-states --stop-epoch 90
 ```
 
 At epoch 90 increase resolution again
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network regnet --net-param 8 --lr 0.4 --lr-scheduler cosine --warmup-epochs 5 --batch-size 16 --size 448 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 90 --load-states
+torchrun --nproc_per_node=2 train.py --network regnet --net-param 8 --lr 0.4 --lr-scheduler cosine --warmup-epochs 5 --batch-size 32 --size 448 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 90 --load-states
 ```
 
 Optional intermediate training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network regnet --net-param 8 --tag intermediate --lr 0.4 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+```
+
+Optional intermediate training: at epoch 80 increase resolution
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regnet --net-param 8 --tag intermediate --lr 0.4 --lr-scheduler cosine --warmup-epochs 5 --batch-size 64 --size 384 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --amp --compile --resume-epoch 80 --load-states --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+```
+
+Optional intermediate training: linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regnet --net-param 8 --tag intermediate --lr 0.1 --lr-scheduler cosine --batch-size 128 --epochs 10 --size 384 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head
+```
+
+Optional intermediate training: fine-tuning
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regnet --net-param 8 --tag intermediate --lr 0.04 --lr-scheduler cosine --batch-size 32 --size 448 --epochs 30 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 10
 ```
 
 #### RegNet: 16 GF
