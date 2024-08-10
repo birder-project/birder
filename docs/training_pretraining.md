@@ -199,6 +199,12 @@ Fine-tuning, first stage - linear probing
 torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s --tag pretrained --opt adamw --lr 0.00005 --lr-scheduler cosine --batch-size 256 --size 256 --lr-cosine-min 1e-7 --epochs 10 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --clip-grad-norm 5 --amp --resume-epoch 0 --reset-head
 ```
 
+Next, full fine-tuning with layer-wise learning rate decay
+
+```sh
+torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s --tag pretrained --opt adamw --lr 0.0006 --lr-scheduler cosine --batch-size 64 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 110 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile --layer-decay 0.9 --resume-epoch 10
+```
+
 #### SimMIM: Swin Transformer v2 Base
 
 ```sh

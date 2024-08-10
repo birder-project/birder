@@ -468,7 +468,7 @@ def train(args: argparse.Namespace, distillation_type: DistType) -> None:
         logging.info(f"Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
 
         for metric, value in training_metrics.compute().items():
-            logging.info(f"Epoch {epoch}/{epochs-1} {metric}: {value:.3f}")
+            logging.info(f"Epoch {epoch}/{epochs-1} {metric}: {value:.4f}")
 
         # Validation
         eval_model.eval()
@@ -518,7 +518,7 @@ def train(args: argparse.Namespace, distillation_type: DistType) -> None:
             # Epoch validation metrics
             logging.info(f"Epoch {epoch}/{epochs-1} validation_loss (target only): {epoch_val_loss:.4f}")
             for metric, value in validation_metrics_dict.items():
-                logging.info(f"Epoch {epoch}/{epochs-1} {metric}: {value:.3f}")
+                logging.info(f"Epoch {epoch}/{epochs-1} {metric}: {value:.4f}")
 
             # Checkpoint model
             if epoch % args.save_frequency == 0:

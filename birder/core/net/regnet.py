@@ -312,6 +312,13 @@ class RegNet(DetectorBackbone):
             w_m = 2.19
             group_width = 56
 
+        elif self.net_param == 12:
+            depth = 19
+            w_0 = 168
+            w_a = 73.36
+            w_m = 2.37
+            group_width = 112
+
         elif self.net_param == 16:
             depth = 18
             w_0 = 200

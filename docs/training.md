@@ -202,6 +202,12 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_huge --opt adamw --lr
 
 ### DeiT
 
+#### DeiT: s16
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit_s16 --opt adamw --lr 0.0005 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 5 --epochs 300 --size 384 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile
+```
+
 #### DeiT: b16
 
 ```sh
