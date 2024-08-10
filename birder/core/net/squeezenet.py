@@ -79,14 +79,17 @@ class SqueezeNet(BaseNet):
         x = self.stem(x)
         return self.features(x)
 
-    def create_classifier(self) -> nn.Module:
+    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
         if self.num_classes == 0:
             return nn.Identity()
+
+        if embed_dim is None:
+            embed_dim = self.embedding_size
 
         return nn.Sequential(
             nn.Dropout(p=0.5, inplace=True),
             nn.Conv2d(
-                self.embedding_size,
+                embed_dim,
                 self.num_classes,
                 kernel_size=(1, 1),
                 stride=(1, 1),

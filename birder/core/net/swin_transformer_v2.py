@@ -4,6 +4,9 @@ https://github.com/pytorch/vision/blob/main/torchvision/models/swin_transformer.
 https://github.com/microsoft/Swin-Transformer/blob/main/models/swin_transformer_v2.py
 
 Paper "Swin Transformer V2: Scaling Up Capacity and Resolution", https://arxiv.org/abs/2111.09883
+
+Changes from original:
+* Window size based on image size (image size // 32)
 """
 
 # Reference license: BSD 3-Clause and MIT

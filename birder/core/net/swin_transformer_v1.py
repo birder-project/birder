@@ -4,6 +4,9 @@ https://github.com/pytorch/vision/blob/main/torchvision/models/swin_transformer.
 
 Paper "Swin Transformer: Hierarchical Vision Transformer using Shifted Windows",
 https://arxiv.org/abs/2103.14030
+
+Changes from original:
+* Window size based on image size (image size // 32)
 """
 
 # Reference license: BSD 3-Clause

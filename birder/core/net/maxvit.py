@@ -606,15 +606,18 @@ class MaxViT(BaseNet):
         x = self.body(x)
         return self.features(x)
 
-    def create_classifier(self) -> nn.Module:
+    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
         if self.num_classes == 0:
             return nn.Identity()
 
+        if embed_dim is None:
+            embed_dim = self.embedding_size
+
         return nn.Sequential(
-            nn.LayerNorm(self.embedding_size),
-            nn.Linear(self.embedding_size, self.embedding_size),
+            nn.LayerNorm(embed_dim),
+            nn.Linear(embed_dim, embed_dim),
             nn.Tanh(),
-            nn.Linear(self.embedding_size, self.num_classes, bias=False),
+            nn.Linear(embed_dim, self.num_classes, bias=False),
         )
 
     def adjust_size(self, new_size: int) -> None:

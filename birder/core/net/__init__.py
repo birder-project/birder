@@ -2,6 +2,7 @@ from birder.core.net.alexnet import AlexNet
 from birder.core.net.cait import CaiT
 from birder.core.net.convnext_v1 import ConvNeXt_v1
 from birder.core.net.convnext_v2 import ConvNeXt_v2
+from birder.core.net.crossvit import CrossViT
 from birder.core.net.deit import DeiT
 from birder.core.net.deit3 import DeiT3
 from birder.core.net.densenet import DenseNet
@@ -53,6 +54,7 @@ __all__ = [
     "CaiT",
     "ConvNeXt_v1",
     "ConvNeXt_v2",
+    "CrossViT",
     "DeiT",
     "DeiT3",
     "DenseNet",

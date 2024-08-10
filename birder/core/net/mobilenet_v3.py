@@ -234,12 +234,15 @@ class MobileNet_v3(DetectorBackbone):
         x = self.body(x)
         return self.features(x)
 
-    def create_classifier(self) -> nn.Module:
+    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
         if self.num_classes == 0:
             return nn.Identity()
 
+        if embed_dim is None:
+            embed_dim = self.embedding_size
+
         return nn.Sequential(
-            nn.Linear(self.embedding_size, self.last_channels),
+            nn.Linear(embed_dim, self.last_channels),
             nn.Hardswish(inplace=True),
             nn.Dropout(p=0.2, inplace=True),
             nn.Linear(self.last_channels, self.num_classes),

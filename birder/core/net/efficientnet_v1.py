@@ -305,11 +305,14 @@ class EfficientNet_v1(DetectorBackbone):
         x = self.body(x)
         return self.features(x)
 
-    def create_classifier(self) -> nn.Module:
+    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
         if self.num_classes == 0:
             return nn.Identity()
 
+        if embed_dim is None:
+            embed_dim = self.embedding_size
+
         return nn.Sequential(
             nn.Dropout(p=self.dropout_rate, inplace=True),
-            nn.Linear(self.embedding_size, self.num_classes),
+            nn.Linear(embed_dim, self.num_classes),
         )

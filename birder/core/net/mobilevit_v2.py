@@ -312,8 +312,11 @@ class MobileViT_v2(BaseNet):
         x = self.body(x)
         return self.features(x)
 
-    def create_classifier(self) -> nn.Module:
+    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
         if self.num_classes == 0:
             return nn.Identity()
 
-        return nn.Linear(self.embedding_size, self.num_classes, bias=False)
+        if embed_dim is None:
+            embed_dim = self.embedding_size
+
+        return nn.Linear(embed_dim, self.num_classes, bias=False)

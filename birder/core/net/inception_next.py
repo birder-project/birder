@@ -265,15 +265,18 @@ class Inception_NeXt(BaseNet):
         x = self.body(x)
         return self.features(x)
 
-    def create_classifier(self) -> nn.Module:
+    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
         if self.num_classes == 0:
             return nn.Identity()
 
+        if embed_dim is None:
+            embed_dim = self.embedding_size
+
         return nn.Sequential(
-            nn.Linear(self.embedding_size, self.last_mlp_ratio * self.embedding_size),
+            nn.Linear(embed_dim, self.last_mlp_ratio * embed_dim),
             nn.GELU(),
-            nn.LayerNorm(self.last_mlp_ratio * self.embedding_size, eps=1e-6),
-            nn.Linear(self.last_mlp_ratio * self.embedding_size, self.num_classes),
+            nn.LayerNorm(self.last_mlp_ratio * embed_dim, eps=1e-6),
+            nn.Linear(self.last_mlp_ratio * embed_dim, self.num_classes),
         )
 
 

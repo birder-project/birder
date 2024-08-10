@@ -28,6 +28,7 @@ class TestNet(unittest.TestCase):
             ("cait", 0),
             ("convnext_v1", 0),
             ("convnext_v2", 0),
+            ("crossvit", 0, True, 1, 48),
             ("deit", 0, True),
             ("deit3", 0, True),
             ("densenet", 121),
@@ -76,7 +77,12 @@ class TestNet(unittest.TestCase):
         ]
     )
     def test_net(
-        self, network_name: str, net_param: Optional[float], skip_embedding: bool = False, batch_size: int = 1
+        self,
+        network_name: str,
+        net_param: Optional[float],
+        skip_embedding: bool = False,
+        batch_size: int = 1,
+        size_step: int = 2**5,
     ) -> None:
         n = registry.net_factory(network_name, 3, 100, net_param=net_param)
         size = n.default_size
@@ -92,7 +98,7 @@ class TestNet(unittest.TestCase):
         torch.jit.script(n)
 
         # Adjust size
-        size += 2**5
+        size += size_step
         n.adjust_size(size)
         out = n(torch.rand((batch_size, 3, size, size)))
         self.assertEqual(out.numel(), 100 * batch_size)

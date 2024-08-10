@@ -40,6 +40,7 @@
     "colormaps",
     "convnext",
     "convolutional",
+    "crossvit",
     "cublas",
     "cuda",
     "cudart",

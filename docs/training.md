@@ -37,6 +37,7 @@ On fine-tuning phase
 * [CaiT](#cait)
 * [ConvNeXt v1](#convnext-v1)
 * [ConvNeXt v2](#convnext-v2)
+* [CrossViT](#crossvit)
 * [DeiT](#deit)
 * [DeiT3](#deit3)
 * [DenseNet](#densenet)
@@ -198,6 +199,20 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_large --opt adamw --l
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network convnext_v2_huge --opt adamw --lr 0.00125 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 10 --batch-size 4 --epochs 100 --size 384 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+### CrossViT
+
+#### CrossViT: 15 Dagger
+
+```sh
+torchrun --nproc_per_node=2 train.py --network crossvit_15d --opt adamw --lr 0.004 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 30 --epochs 300 --size 336 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile
+```
+
+#### CrossViT: 18
+
+```sh
+torchrun --nproc_per_node=2 train.py --network crossvit_18 --opt adamw --lr 0.004 --lr-scheduler cosine --batch-size 64 --lr-cosine-min 1e-7 --warmup-epochs 30 --epochs 300 --size 384 --wd 0.05 --norm-wd 0 --grad-accum-steps 16 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 ### DeiT
