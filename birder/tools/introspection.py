@@ -60,7 +60,7 @@ def show_guided_backprop(
     bp_img = guided_bp(input_tensor, target_category=target)
     bp_img = _deprocess_image(bp_img * rgb_img)
 
-    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))  # type: ignore[misc]
+    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
     ax1.imshow(bp_img)
     ax2.imshow(rgb_img)
     plt.show()
@@ -99,7 +99,7 @@ def show_grad_cam(
     grayscale_cam = grayscale_cam[0, :]
     visualization = gradcam.show_cam_on_image(rgb_img, grayscale_cam)
 
-    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))  # type: ignore[misc]
+    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
     ax1.imshow(visualization)
     ax2.imshow(rgb_img)
     plt.show()

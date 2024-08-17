@@ -402,7 +402,6 @@ class FastRCNNConvFCHead(nn.Sequential):
         fc_layers: list[int],
         norm_layer: Optional[Callable[..., nn.Module]] = None,
     ):
-        super().__init__()
         (in_channels, in_height, in_width) = input_size
 
         blocks = []
@@ -428,8 +427,9 @@ class FastRCNNConvFCHead(nn.Sequential):
             blocks.append(nn.ReLU(inplace=True))
             previous_channels = current_channels
 
-        # Weights initialization
         super().__init__(*blocks)
+
+        # Weights initialization
         for layer in self.modules():
             if isinstance(layer, nn.Conv2d) is True:
                 nn.init.kaiming_normal_(layer.weight, mode="fan_out", nonlinearity="relu")

@@ -1,16 +1,21 @@
 <resources>
     <string name="african_crake">African crake</string>
+    <string name="african_darter">African darter</string>
     <string name="african_swamphen">African swamphen</string>
+    <string name="alpine_chough">Alpine chough</string>
     <string name="alpine_swift">Alpine swift</string>
     <string name="american_wigeon">American wigeon</string>
     <string name="arabian_babbler">Arabian babbler</string>
     <string name="arabian_green_bee_eater">Arabian green bee-eater</string>
+    <string name="arabian_lark">Arabian lark</string>
     <string name="arabian_warbler">Arabian warbler</string>
     <string name="arctic_tern">Arctic tern</string>
     <string name="armenian_gull">Armenian gull</string>
     <string name="asian_crimson_winged_finch">Asian crimson-winged finch</string>
     <string name="asian_desert_warbler">Asian desert warbler</string>
+    <string name="atlantic_petrel">Atlantic petrel</string>
     <string name="baillons_crake">Baillons crake</string>
+    <string name="bar_tailed_godwit">Bar-tailed godwit</string>
     <string name="bar_tailed_lark">Bar-tailed lark</string>
     <string name="barn_owl">Barn owl</string>
     <string name="barn_swallow">Barn swallow</string>
@@ -28,6 +33,7 @@
     <string name="black_tern">Black tern</string>
     <string name="black_bellied_sandgrouse">Black-bellied sandgrouse</string>
     <string name="black_crowned_night_heron">Black-crowned night heron</string>
+    <string name="black_faced_bunting">Black-faced bunting</string>
     <string name="black_headed_bunting">Black-headed bunting</string>
     <string name="black_headed_gull">Black-headed gull</string>
     <string name="black_legged_kittiwake">Black-legged kittiwake</string>
@@ -57,6 +63,7 @@
     <string name="caspian_tern">Caspian tern</string>
     <string name="cattle_egret">Cattle egret</string>
     <string name="cettis_warbler">Cettis warbler</string>
+    <string name="chestnut_bunting">Chestnut bunting</string>
     <string name="chukar_partridge">Chukar partridge</string>
     <string name="cinereous_bunting">Cinereous bunting</string>
     <string name="cinereous_vulture">Cinereous vulture</string>
@@ -79,6 +86,7 @@
     <string name="common_moorhen">Common moorhen</string>
     <string name="common_myna">Common myna</string>
     <string name="common_nightingale">Common nightingale</string>
+    <string name="common_ostrich">Common ostrich</string>
     <string name="common_pochard">Common pochard</string>
     <string name="common_quail">Common quail</string>
     <string name="common_raven">Common raven</string>
@@ -118,6 +126,7 @@
     <string name="desert_wheatear">Desert wheatear</string>
     <string name="dunlin">Dunlin</string>
     <string name="dunnock">Dunnock</string>
+    <string name="dusky_warbler">Dusky warbler</string>
     <string name="eastern_bonellis_warbler">Eastern Bonellis warbler</string>
     <string name="eastern_orphean_warbler">Eastern Orphean warbler</string>
     <string name="eastern_black_eared_wheatear">Eastern black-eared wheatear</string>
@@ -148,6 +157,7 @@
     <string name="eurasian_spoonbill">Eurasian spoonbill</string>
     <string name="eurasian_stone_curlew">Eurasian stone-curlew</string>
     <string name="eurasian_teal">Eurasian teal</string>
+    <string name="eurasian_tree_sparrow">Eurasian tree sparrow</string>
     <string name="eurasian_whimbrel">Eurasian whimbrel</string>
     <string name="eurasian_wigeon">Eurasian wigeon</string>
     <string name="eurasian_woodcock">Eurasian woodcock</string>
@@ -213,12 +223,14 @@
     <string name="horned_lark">Horned lark</string>
     <string name="house_crow">House crow</string>
     <string name="house_sparrow">House sparrow</string>
+    <string name="humes_leaf_warbler">Humes leaf warbler</string>
     <string name="icterine_warbler">Icterine warbler</string>
     <string name="indian_silverbill">Indian silverbill</string>
     <string name="isabelline_shrike">Isabelline shrike</string>
     <string name="isabelline_wheatear">Isabelline wheatear</string>
     <string name="jack_snipe">Jack snipe</string>
     <string name="kentish_plover">Kentish plover</string>
+    <string name="kurdish_wheatear">Kurdish wheatear</string>
     <string name="lanner_falcon">Lanner falcon</string>
     <string name="lappet_faced_vulture">Lappet-faced vulture</string>
     <string name="laughing_dove">Laughing dove</string>
@@ -232,6 +244,7 @@
     <string name="levant_sparrowhawk">Levant sparrowhawk</string>
     <string name="lichtensteins_sandgrouse">Lichtensteins sandgrouse</string>
     <string name="little_bittern">Little bittern</string>
+    <string name="little_bunting">Little bunting</string>
     <string name="little_bustard">Little bustard</string>
     <string name="little_crake">Little crake</string>
     <string name="little_egret">Little egret</string>
@@ -256,6 +269,7 @@
     <string name="meadow_pipit">Meadow pipit</string>
     <string name="mediterranean_gull">Mediterranean gull</string>
     <string name="mediterranean_short_toed_lark">Mediterranean short-toed lark</string>
+    <string name="menetriess_warbler">Menetriess warbler</string>
     <string name="merlin">Merlin</string>
     <string name="mistle_thrush">Mistle thrush</string>
     <string name="monk_parakeet">Monk parakeet</string>
@@ -272,6 +286,8 @@
     <string name="northern_pintail">Northern pintail</string>
     <string name="northern_shoveler">Northern shoveler</string>
     <string name="northern_wheatear">Northern wheatear</string>
+    <string name="nubian_nightjar">Nubian nightjar</string>
+    <string name="olive_backed_pipit">Olive-backed pipit</string>
     <string name="olive_tree_warbler">Olive-tree warbler</string>
     <string name="oriental_skylark">Oriental skylark</string>
     <string name="ortolan_bunting">Ortolan bunting</string>
@@ -286,13 +302,18 @@
     <string name="pallid_swift">Pallid swift</string>
     <string name="parasitic_jaeger">Parasitic jaeger</string>
     <string name="peregrine_falcon">Peregrine falcon</string>
+    <string name="pharaoh_eagle_owl">Pharaoh eagle-owl</string>
     <string name="pied_avocet">Pied avocet</string>
     <string name="pied_kingfisher">Pied kingfisher</string>
+    <string name="pied_wheatear">Pied wheatear</string>
     <string name="pin_tailed_sandgrouse">Pin-tailed sandgrouse</string>
+    <string name="pin_tailed_snipe">Pin-tailed snipe</string>
+    <string name="pine_bunting">Pine bunting</string>
     <string name="pink_backed_pelican">Pink-backed pelican</string>
     <string name="pomarine_jaeger">Pomarine jaeger</string>
     <string name="purple_heron">Purple heron</string>
     <string name="pygmy_cormorant">Pygmy cormorant</string>
+    <string name="red_crossbill">Red crossbill</string>
     <string name="red_knot">Red knot</string>
     <string name="red_phalarope">Red phalarope</string>
     <string name="red_backed_shrike">Red-backed shrike</string>
@@ -325,6 +346,7 @@
     <string name="ruff">Ruff</string>
     <string name="rufous_tailed_scrub_robin">Rufous-tailed scrub robin</string>
     <string name="ruppells_warbler">Ruppells warbler</string>
+    <string name="rustic_bunting">Rustic bunting</string>
     <string name="saker_falcon">Saker falcon</string>
     <string name="sand_martin">Sand martin</string>
     <string name="sand_partridge">Sand partridge</string>
@@ -342,7 +364,9 @@
     <string name="sinai_rosefinch">Sinai rosefinch</string>
     <string name="slender_billed_gull">Slender-billed gull</string>
     <string name="smew">Smew</string>
+    <string name="snow_bunting">Snow bunting</string>
     <string name="sociable_lapwing">Sociable lapwing</string>
+    <string name="soft_plumaged_petrel">Soft-plumaged petrel</string>
     <string name="sombre_tit">Sombre tit</string>
     <string name="song_thrush">Song thrush</string>
     <string name="sooty_falcon">Sooty falcon</string>
@@ -368,6 +392,7 @@
     <string name="tawny_pipit">Tawny pipit</string>
     <string name="temmincks_lark">Temmincks lark</string>
     <string name="temmincks_stint">Temmincks stint</string>
+    <string name="terek_sandpiper">Terek sandpiper</string>
     <string name="thick_billed_lark">Thick-billed lark</string>
     <string name="thrush_nightingale">Thrush nightingale</string>
     <string name="tree_pipit">Tree pipit</string>
@@ -411,8 +436,10 @@
     <string name="woodlark">Woodlark</string>
     <string name="yelkouan_shearwater">Yelkouan shearwater</string>
     <string name="yellow_billed_stork">Yellow-billed stork</string>
+    <string name="yellow_breasted_bunting">Yellow-breasted bunting</string>
     <string name="yellow_browed_warbler">Yellow-browed warbler</string>
     <string name="yellow_legged_gull">Yellow-legged gull</string>
+    <string name="yellow_throated_sparrow">Yellow-throated sparrow</string>
     <string name="yellowhammer">Yellowhammer</string>
     <string name="zitting_cisticola">Zitting cisticola</string>
 </resources>

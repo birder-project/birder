@@ -47,7 +47,7 @@ def show_fgsm(args: argparse.Namespace) -> None:
     idx = np.argmax(prob)
     adv_idx = np.argmax(adv_prob)
 
-    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))  # type: ignore[misc]
+    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
     ax1.imshow(img)
     ax1.set_title(f"{label_names[idx]} {100 * prob[idx]:.2f}%")
     ax2.imshow(fgsm_img)

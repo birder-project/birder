@@ -1,6 +1,6 @@
 h5py~=3.11.0
 invoke~=2.2.0
-matplotlib~=3.9.1
+matplotlib~=3.9.2
 numpy~=1.26.4  # --no-binary numpy
 onnx~=1.16.2
 pandas[performance,plot,output-formatting,hdf5]~=2.2.2
@@ -15,7 +15,7 @@ scipy~=1.14.0
 torchinfo~=1.8.0
 torchmetrics~=1.4.1
 tqdm~=4.66.5
-webdataset~=0.2.86
+webdataset~=0.2.96
 
 # TorchServe
 torchserve~=0.11.1

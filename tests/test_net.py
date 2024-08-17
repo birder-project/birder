@@ -50,6 +50,7 @@ class TestNet(unittest.TestCase):
             ("mobilenet_v3", 1),
             ("mobilenet_v4", 0),
             ("mobilenet_v4_hybrid", 0),
+            ("mobileone", 0),
             ("mobilevit_v1", 1),
             ("mobilevit_v2", 1),
             ("nextvit", 1),

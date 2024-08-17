@@ -21,7 +21,7 @@ def make_wds_dataset(
     samples_names: bool,
     transform: Callable[..., torch.Tensor],
 ) -> torch.utils.data.IterableDataset:
-    dataset = wds.WebDataset(wds_path, shardshuffle=shuffle, nodesplitter=wds.split_by_node)
+    dataset = wds.WebDataset(wds_path, shardshuffle=shuffle, nodesplitter=wds.split_by_node, empty_check=False)
     if shuffle is True:
         dataset = dataset.shuffle(1000, initial=100)
 
@@ -41,7 +41,11 @@ def make_wds_dataset(
 
 def wds_size(wds_path: str, device: torch.device) -> int:
     dataset = wds.WebDataset(
-        wds_path, select_files=lambda key_name: key_name.endswith("cls"), nodesplitter=wds.split_by_node
+        wds_path,
+        shardshuffle=False,
+        select_files=lambda key_name: key_name.endswith("cls"),
+        nodesplitter=wds.split_by_node,
+        empty_check=False,
     ).batched(64, collation_fn=None, partial=True)
     dataloader = wds.WebLoader(dataset, batch_size=None, num_workers=8)
     size = 0

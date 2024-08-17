@@ -16,6 +16,7 @@ import logging
 from typing import Optional
 
 import torch
+import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import StochasticDepth
 
@@ -61,13 +62,13 @@ class CrossAttention(nn.Module):
     def __init__(self, dim: int, num_heads: int, qkv_bias: bool, attn_drop: float, proj_drop: float) -> None:
         super().__init__()
         self.num_heads = num_heads
+        self.attn_drop = attn_drop
         head_dim = dim // num_heads
         self.scale = head_dim**-0.5
 
         self.wq = nn.Linear(dim, dim, bias=qkv_bias)
         self.wk = nn.Linear(dim, dim, bias=qkv_bias)
         self.wv = nn.Linear(dim, dim, bias=qkv_bias)
-        self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
@@ -80,11 +81,10 @@ class CrossAttention(nn.Module):
         # BNC -> BNH(C/H) -> BHN(C/H)
         v = self.wv(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
 
-        attn = (q @ k.transpose(-2, -1)) * self.scale  # BH1(C/H) @ BH(C/H)N -> BH1N
-        attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
-
-        x = (attn @ v).transpose(1, 2).reshape(B, 1, C)  # (BH1N @ BHN(C/H)) -> BH1(C/H) -> B1H(C/H) -> B1C
+        x = F.scaled_dot_product_attention(  # pylint:disable=not-callable
+            q, k, v, dropout_p=self.attn_drop, scale=self.scale
+        )
+        x = x.transpose(1, 2).reshape(B, 1, C)  # (BH1N @ BHN(C/H)) -> BH1(C/H) -> B1H(C/H) -> B1C
         x = self.proj(x)
         x = self.proj_drop(x)
 

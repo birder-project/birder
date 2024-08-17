@@ -106,7 +106,7 @@ def similarity(args: argparse.Namespace) -> None:
         args.limit = len(distance_df)
 
     for idx, (_, pair) in enumerate(distance_df.iloc[: args.limit].iterrows()):
-        (fig, (ax1, ax2)) = plt.subplots(2, 1)  # type: ignore[misc]
+        (fig, (ax1, ax2)) = plt.subplots(2, 1)
         ax1.imshow(Image.open(pair["sample_1"]))
         ax1.set_title(pair["sample_1"])
         ax2.imshow(Image.open(pair["sample_2"]))
