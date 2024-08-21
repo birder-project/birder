@@ -13,6 +13,12 @@ Set `OMP_NUM_THREADS`.
 
 ### FCMAE
 
+#### FCMAE: ConvNeXt v2 Nano
+
+```sh
+torchrun --nproc_per_node=2 train_pretrain.py --network fcmae --encoder convnext_v2_nano --opt adamw --lr 0.00015 --lr-scheduler cosine --warmup-epochs 40 --batch-size 512 --wd 0.05 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
+
 #### FCMAE: ConvNeXt v2 Tiny
 
 ```sh

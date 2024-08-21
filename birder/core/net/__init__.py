@@ -29,6 +29,7 @@ from birder.core.net.mobilevit_v1 import MobileViT_v1
 from birder.core.net.mobilevit_v2 import MobileViT_v2
 from birder.core.net.nextvit import NextViT
 from birder.core.net.regnet import RegNet
+from birder.core.net.repvgg import RepVgg
 from birder.core.net.resnest import ResNeSt
 from birder.core.net.resnet_v2 import ResNet_v2
 from birder.core.net.resnext import ResNeXt
@@ -82,6 +83,7 @@ __all__ = [
     "MobileViT_v2",
     "NextViT",
     "RegNet",
+    "RepVgg",
     "ResNeSt",
     "ResNet_v2",
     "ResNeXt",

@@ -706,7 +706,7 @@ def main() -> None:
     parser.add_argument(
         "--model-ema-decay",
         type=float,
-        default=0.9998,
+        default=0.9999,
         help="decay factor for exponential moving average of model parameters",
     )
     parser.add_argument(

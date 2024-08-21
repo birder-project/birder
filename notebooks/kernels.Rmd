@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.14.5
+      jupytext_version: 1.16.4
   kernelspec:
     display_name: birder
     language: python
@@ -25,7 +25,7 @@ from PIL import Image
 ```
 
 ```{python}
-sys.path.append("..")
+# %cd ..
 ```
 
 ```{python}
@@ -36,21 +36,22 @@ from birder.core.transforms.classification import inference_preset
 ```
 
 ```{python}
-network = "efficientnet_v2"
-net_param = 0
-epoch = 0
-image = "../data/validation/Bluethroat/000013.jpeg"
+network = "convnext_v2_base"
+net_param = None
+epoch = 80
+tag = "intermediate"
+image = "data/validation/Eastern Bonellis warbler/000004.jpeg"
 ```
 
 ```{python}
 device = torch.device("cpu")
 (net, class_to_idx, signature, rgb_values) = cli.load_model(
-    device, network, net_param=net_param, epoch=epoch, inference=False
+    device, network, net_param=net_param, tag=tag, epoch=epoch, inference=False
 )
 idx_to_class = {v: k for k, v in class_to_idx.items()}
 
 net.eval()
-size = signature["inputs"][0]["data_shape"][3]
+size = signature["inputs"][0]["data_shape"][2:]
 transform = inference_preset(size, 1.0, rgb_values)
 ```
 
@@ -60,13 +61,14 @@ input_tensor = transform(img).unsqueeze(dim=0).to(device)
 ```
 
 ```{python}
-out = net.body(net.stem(input_tensor)).squeeze()
-#out = net.body[5](net.body[4](net.body[3](net.body[2](net.body[1](net.body[0](net.stem(input_tensor))))))).squeeze()
-#out = net.body[4](net.body[3](net.body[2](net.body[1](net.body[0](net.stem(input_tensor)))))).squeeze()
-#out = net.body[3](net.body[2](net.body[1](net.body[0](net.stem(input_tensor))))).squeeze()
-#out = net.body[2](net.body[1](net.body[0](net.stem(input_tensor)))).squeeze()
-#out = net.body[1](net.body[0](net.stem(input_tensor))).squeeze()
-#out = net.stem(input_tensor).squeeze()
+# out = net.body(net.stem(input_tensor)).squeeze()
+# out = net.body[5](net.body[4](net.body[3](net.body[2](net.body[1](net.body[0](net.stem(input_tensor))))))).squeeze()
+# out = net.body[4](net.body[3](net.body[2](net.body[1](net.body[0](net.stem(input_tensor)))))).squeeze()
+# out = net.body[3](net.body[2](net.body[1](net.body[0](net.stem(input_tensor))))).squeeze()
+# out = net.body[2](net.body[1](net.body[0](net.stem(input_tensor)))).squeeze()
+# out = net.body[1](net.body[0](net.stem(input_tensor))).squeeze()
+# out = net.body[0](net.stem(input_tensor)).squeeze()
+out = net.stem(input_tensor).squeeze()
 kernels = out.cpu().detach().numpy()
 ```
 
@@ -75,16 +77,24 @@ kernels.shape
 ```
 
 ```{python}
-(fig, axes) = plt.subplots(ncols=4, nrows=6, constrained_layout=True, figsize=(14, 18))
-axes = axes.ravel()
-for idx, kernel in enumerate(kernels):
-    axes[idx].matshow(kernel)
-    if idx >= 23:
-        break
+plt.matshow(kernels.mean(axis=0))
 ```
 
 ```{python}
-plt.matshow(kernels[5])
+(fig, axes) = plt.subplots(ncols=4, nrows=6, constrained_layout=True, figsize=(16, 28))
+axes = axes.ravel()
+count = 0
+start = 24
+for idx, kernel in enumerate(kernels, start):
+    axes[idx-start].matshow(kernel)
+    if count >= 23:
+        break
+
+    count += 1
+```
+
+```{python}
+plt.matshow(kernels[97])
 ```
 
 ```{python}

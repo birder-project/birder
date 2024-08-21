@@ -2,6 +2,7 @@ import argparse
 import logging
 import multiprocessing
 import time
+from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -54,7 +55,7 @@ def _save_classes(pack_path: Path, class_to_idx: dict[str, int]) -> None:
         handle.write(doc)
 
 
-def read_worker(q_in: Any, q_out: Any, size: Optional[int]) -> None:
+def read_worker(q_in: Any, q_out: Any, size: Optional[int], file_format: str) -> None:
     while True:
         deq: Optional[tuple[int, str, int]] = q_in.get()
         if deq is None:
@@ -67,7 +68,7 @@ def read_worker(q_in: Any, q_out: Any, size: Optional[int]) -> None:
                 sample = stream.read()
 
         else:
-            suffix = "webp"
+            suffix = file_format
             image: Image.Image = Image.open(path)
             if image.size[0] > image.size[1]:
                 ratio = image.size[0] / size
@@ -85,7 +86,7 @@ def read_worker(q_in: Any, q_out: Any, size: Optional[int]) -> None:
         q_out.put((idx, sample, suffix, target), block=True, timeout=None)
 
 
-def write_worker(q_out: Any, pack_path: Path, total: int, max_size: float) -> None:
+def wds_write_worker(q_out: Any, pack_path: Path, total: int, max_size: float, _: dict[int, str]) -> None:
     path_pattern = str(pack_path.joinpath("%06d.tar"))
     sink = wds.ShardWriter(path_pattern, maxsize=max_size, verbose=0)
 
@@ -120,6 +121,34 @@ def write_worker(q_out: Any, pack_path: Path, total: int, max_size: float) -> No
                 progress.update(n=1)
 
 
+def directory_write_worker(q_out: Any, pack_path: Path, total: int, _: float, idx_to_class: dict[int, str]) -> None:
+    count = 0
+    buf = {}
+    more = True
+    with tqdm(total=total, initial=0, unit="images", unit_scale=True, leave=False) as progress:
+        while more:
+            deq: Optional[tuple[int, bytes, str, int]] = q_out.get()
+            if deq is not None:
+                (idx, sample, suffix, target) = deq
+                buf[idx] = (sample, suffix, target)
+
+            else:
+                more = False
+
+            # Ensures ordered write
+            while count in buf:
+                (sample, suffix, target) = buf[count]
+                del buf[count]
+                with open(pack_path.joinpath(idx_to_class[target]).joinpath(f"{count:06d}.{suffix}"), "wb") as handle:
+                    handle.write(sample)
+
+                count += 1
+
+                # Update progress bar
+                progress.update(n=1)
+
+
+# pylint: disable=too-many-locals,too-many-branches
 def pack(args: argparse.Namespace, pack_path: Path) -> None:
     if args.class_file is not None:
         class_to_idx = cli.read_class_file(args.class_file)
@@ -127,6 +156,7 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
         class_to_idx = _get_class_to_idx(args.data_path)
 
     _save_classes(pack_path, class_to_idx)
+    idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
 
     datasets = []
     for path in args.data_path:
@@ -151,12 +181,25 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
 
     read_processes: list[multiprocessing.Process] = []
     for idx in range(args.jobs):
-        read_processes.append(multiprocessing.Process(target=read_worker, args=(q_in[idx], q_out, args.size)))
+        read_processes.append(
+            multiprocessing.Process(target=read_worker, args=(q_in[idx], q_out, args.size, args.format))
+        )
 
     for p in read_processes:
         p.start()
 
-    write_process = multiprocessing.Process(target=write_worker, args=(q_out, pack_path, len(dataset), args.max_size))
+    if args.type == "wds":
+        target_writer: Callable[..., None] = wds_write_worker
+    elif args.type == "directory":
+        target_writer = directory_write_worker
+        for c in class_to_idx.keys():
+            pack_path.joinpath(c).mkdir()
+    else:
+        raise ValueError("Unknown pack type")
+
+    write_process = multiprocessing.Process(
+        target=target_writer, args=(q_out, pack_path, len(dataset), args.max_size, idx_to_class)
+    )
     write_process.start()
 
     tic = time.time()
@@ -186,17 +229,20 @@ def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "pack",
         allow_abbrev=False,
-        help="pack training dataset into webdataset format",
-        description="pack training dataset into webdataset format",
+        help="pack image dataset",
+        description="pack image dataset",
         epilog=(
             "Usage examples:\n"
             "python -m birder.tools pack --size 512 data/training\n"
             "python -m birder.tools pack -j 8 --shuffle --size 384 data/training data/raw_data\n"
             "python -m birder.tools pack -j 2 --max-size 250 --class-file data/training_packed/classes.txt "
             "data/validation\n"
+            "python tool.py pack --type directory -j 8 --suffix il-common_packed --size 448 "
+            "--format jpeg --class-file data/il-common_classes.txt data/training\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
+    subparser.add_argument("--type", type=str, choices=["wds", "directory"], default="wds", help="pack type")
     subparser.add_argument("--max-size", type=int, default=500, help="maximum size of each shard in MB")
     subparser.add_argument(
         "-j",
@@ -207,6 +253,9 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--shuffle", default=False, action="store_true", help="shuffle the dataset during packing")
     subparser.add_argument("--size", type=int, default=None, help="resize image longest dimension to size")
+    subparser.add_argument(
+        "--format", type=str, choices=["webp", "png", "jpeg"], default="webp", help="file format (when resizing)"
+    )
     subparser.add_argument("--class-file", type=str, help="class list file")
     subparser.add_argument("--suffix", type=str, default=settings.PACK_PATH_SUFFIX, help="directory suffix")
     subparser.add_argument("data_path", nargs="+", help="image directories")

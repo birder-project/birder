@@ -26,7 +26,7 @@ The pack tool provides several key features for dataset preparation:
 * **Class list generation**: Automatically generates a class list file or uses an existing one
 * **Random shuffling**: Shuffles the dataset during packing for better training dynamics
 
-If no resize is specified, files are archived as-is. If resize is defined, all files are re-encoded to WebP format.
+If no resize is specified, files are archived as-is. If resize is defined, all files are re-encoded to specified format (WebP by default).
 
 When class file provided, only images from known classes will be packed.
 

@@ -38,7 +38,7 @@ class MobileOneBlock(nn.Module):
         self.num_conv_branches = num_conv_branches
 
         if use_se is True:
-            self.se = SqueezeExcitation(out_channels, int(out_channels * 0.0625))
+            self.se = SqueezeExcitation(out_channels, out_channels // 16)
         else:
             self.se = nn.Identity()
 
@@ -172,7 +172,7 @@ class MobileOneBlock(nn.Module):
         kernel_identity = 0
         bias_identity = 0
         if self.rbr_skip is not None:
-            kernel_identity, bias_identity = self._fuse_bn_tensor(self.rbr_skip)
+            (kernel_identity, bias_identity) = self._fuse_bn_tensor(self.rbr_skip)
 
         # Get weights and bias of conv branches
         kernel_conv = 0
@@ -355,7 +355,7 @@ class MobileOne(BaseNet):
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
-        self.embedding_size = int(512 * width_multipliers[3])
+        self.embedding_size = int(widths[-1] * width_multipliers[3])
         self.classifier = self.create_classifier()
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
@@ -363,7 +363,7 @@ class MobileOne(BaseNet):
         x = self.body(x)
         return self.features(x)
 
-    def reparameterize_model(self) -> nn.Module:
+    def reparameterize_model(self) -> None:
         for module in self.modules():
             if hasattr(module, "reparameterize") is True:
                 module.reparameterize()

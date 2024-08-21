@@ -55,6 +55,7 @@ class TestNet(unittest.TestCase):
             ("mobilevit_v2", 1),
             ("nextvit", 1),
             ("regnet", 0.8),
+            ("repvgg", 0),
             ("resnest", 50, False, 2),
             ("resnet_v2", 18),
             ("resnext", 50),
@@ -111,6 +112,12 @@ class TestNet(unittest.TestCase):
         n.reset_classifier(200)
         out = n(torch.rand((batch_size, 3, size, size)))
         self.assertEqual(out.numel(), 200 * batch_size)
+
+        # Reparameterize
+        if base.reparameterize_available(n) is True:
+            n.reparameterize_model()
+            out = n(torch.rand((batch_size, 3, size, size)))
+            self.assertEqual(out.numel(), 200 * batch_size)
 
     @parameterized.expand(  # type: ignore[misc]
         [

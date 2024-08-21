@@ -157,7 +157,7 @@ def train(args: argparse.Namespace) -> None:
     # Distributed
     net_without_ddp = net
     if args.distributed is True:
-        net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[args.gpu])
+        net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[args.gpu], find_unused_parameters=False)
         net_without_ddp = net.module
 
     model_to_save = net_without_ddp

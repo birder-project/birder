@@ -167,3 +167,7 @@ def pos_embedding_sin_cos_2d(
         pe = torch.concat([torch.zeros([num_special_tokens, dim]), pe], axis=0)
 
     return pe
+
+
+def reparameterize_available(net: nn.Module) -> bool:
+    return hasattr(net, "reparameterize_model")
