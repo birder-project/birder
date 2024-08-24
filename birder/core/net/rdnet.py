@@ -237,6 +237,14 @@ class RDNet(BaseNet):
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
+        # Weight initialization
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) is True:
+                nn.init.kaiming_normal_(m.weight)
+
+            elif isinstance(m, nn.Linear) is True:
+                nn.init.zeros_(m.bias)
+
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
         x = self.body(x)

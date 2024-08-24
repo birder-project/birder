@@ -128,7 +128,7 @@ torchrun --nproc_per_node=2 train.py --network convnext_v1_large --opt adamw --l
 #### ConvNeXt v2: Atto
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_atto --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 300 --size 256 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.2 --aug-level 3 --ra-sampler --ra-reps 2
+torchrun --nproc_per_node=2 train.py --network convnext_v2_atto --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 600 --size 256 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.2 --aug-level 3 --fast-matmul --compile
 ```
 
 #### ConvNeXt v2: Femto

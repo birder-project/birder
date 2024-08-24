@@ -312,20 +312,20 @@ def pack_intermediate(ctx, size=384, suffix=settings.PACK_PATH_SUFFIX):
 
 
 @task
-def pack_il_common(ctx):
+def pack_il_common(ctx, size=384):
     """
     Pack il-common dataset
     """
 
     ctx.run(
-        "python tool.py pack --type directory -j 8 --suffix il-common_packed --size 480 --format jpeg "
+        f"python tool.py pack --type directory -j 8 --suffix il-common_packed --size {size} --format jpeg "
         "--class-file data/il-common_classes.txt data/training",
         echo=True,
         pty=True,
         warn=True,
     )
     ctx.run(
-        "python tool.py pack --type directory -j 8 --suffix il-common_packed "
+        f"python tool.py pack --type directory -j 8 --suffix il-common_packed --size {size} --format jpeg "
         "--class-file data/il-common_classes.txt data/validation",
         echo=True,
         pty=True,

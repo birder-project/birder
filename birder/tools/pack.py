@@ -216,8 +216,11 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
     q_out.put(None, block=True, timeout=None)
     write_process.join()
 
-    (wds_path, num_shards) = cli.wds_braces_from_path(pack_path)
-    logging.info(f"Packed {len(dataset):,} samples into {num_shards} shards at {wds_path}")
+    if args.type == "wds":
+        (wds_path, num_shards) = cli.wds_braces_from_path(pack_path)
+        logging.info(f"Packed {len(dataset):,} samples into {num_shards} shards at {wds_path}")
+    elif args.type == "directory":
+        logging.info(f"Packed {len(dataset):,} samples")
 
     toc = time.time()
     rate = len(dataset) / (toc - tic)
