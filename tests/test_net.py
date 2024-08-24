@@ -54,6 +54,7 @@ class TestNet(unittest.TestCase):
             ("mobilevit_v1", 1),
             ("mobilevit_v2", 1),
             ("nextvit", 1),
+            ("rdnet", 0),
             ("regnet", 0.8),
             ("repvgg", 0),
             ("resnest", 50, False, 2),

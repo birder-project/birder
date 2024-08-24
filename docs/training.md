@@ -60,6 +60,7 @@ On fine-tuning phase
 * [MobileViT v1](#mobilevit-v1)
 * [MobileViT v2](#mobilevit-v2)
 * [Next-ViT](#next-vit)
+* [RDNet](#rdnet)
 * [RegNet](#regnet)
 * [ResNeSt](#resnest)
 * [ResNet v2](#resnet-v2)
@@ -662,6 +663,26 @@ When finished, run 30 more epochs at increased resolution
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network nextvit_b --opt adamw --lr 5e-6 --lr-scheduler cosine --batch-size 32 --size 448 --epochs 330 --wd 1e-8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 300
+```
+
+### RDNet
+
+#### RDNet: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network rdnet_t --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### RDNet: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network rdnet_s --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 128 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### RDNet: Base
+
+```sh
+torchrun --nproc_per_node=2 train.py --network rdnet_b --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 64 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 ### RegNet

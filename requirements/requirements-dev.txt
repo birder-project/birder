@@ -19,6 +19,7 @@ pylint~=3.2.6
 requests~=2.32.3
 setuptools
 tensorboard~=2.17.1
+torchprofile==0.0.4
 twine~=5.1.1
 types-requests~=2.32.0
 wheel
