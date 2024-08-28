@@ -231,7 +231,7 @@ class ViT(PreTrainEncoder):
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
         self.conv_proj = nn.Conv2d(
-            3,
+            self.input_channels,
             hidden_dim,
             kernel_size=(patch_size, patch_size),
             stride=(patch_size, patch_size),

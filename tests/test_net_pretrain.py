@@ -17,6 +17,7 @@ class TestNetPretrain(unittest.TestCase):
             ("fcmae", None, ("convnext_v2", 0)),
             ("mae_vit", None, ("vit", 0)),
             ("mae_vit", None, ("vitreg4", 1)),
+            ("simmim", None, ("maxvit", 0)),
             ("simmim", None, ("swin_transformer_v2", 0)),
             ("simmim", None, ("swin_transformer_v2_w2", 0)),
         ]

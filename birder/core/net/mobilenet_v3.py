@@ -3,6 +3,8 @@ MobileNet v3, adapted from
 https://github.com/pytorch/vision/blob/main/torchvision/models/mobilenetv3.py
 
 Paper "Searching for MobileNetV3", https://arxiv.org/abs/1905.02244
+
+Only the large variant implemented.
 """
 
 # Reference license: BSD 3-Clause

@@ -44,6 +44,10 @@ class TestNet(unittest.TestCase):
             ("inception_v3", None),
             ("inception_v4", None),
             ("maxvit", 0),
+            ("metaformer", 0),  # PoolFormer v1
+            ("metaformer", 10),  # PoolFormer v2
+            ("metaformer", 20),  # ConvFormer
+            ("metaformer", 30),  # CAFormer
             ("mnasnet", 0.5),
             ("mobilenet_v1", 1),
             ("mobilenet_v2", 1),
@@ -62,6 +66,7 @@ class TestNet(unittest.TestCase):
             ("resnext", 50),
             ("se_resnet_v2", 50),
             ("se_resnext", 50),
+            ("sequencer2d", 0),
             ("shufflenet_v1", 8),
             ("shufflenet_v2", 1),
             ("simple_vit", 1),
@@ -152,6 +157,7 @@ class TestNet(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
             ("convnext_v2", 0, False),
+            ("maxvit", 0, True),
             ("simple_vit", 0, False),
             ("swin_transformer_v2", 0, True),
             ("swin_transformer_v2_w2", 0, True),

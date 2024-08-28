@@ -15,6 +15,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from birder.core.net.base import PreTrainEncoder
+from birder.core.net.maxvit import MaxViT
 from birder.core.net.pretraining.base import PreTrainBaseNet
 from birder.core.net.swin_transformer_v2 import Swin_Transformer_v2
 
@@ -65,9 +66,9 @@ class SimMIM(PreTrainBaseNet):
         super().__init__(encoder, net_param, size)
         assert self.net_param is None, "net-param not supported"
         assert (
-            isinstance(self.encoder, Swin_Transformer_v2) is True
-        ), "Only Swin Transformer v2 is supported as an encoder for this network"
-        self.encoder: Swin_Transformer_v2
+            isinstance(self.encoder, (MaxViT, Swin_Transformer_v2)) is True
+        ), "Only MaxViT and Swin Transformer v2 are supported as an encoder for this network"
+        self.encoder: MaxViT | Swin_Transformer_v2
 
         self.mask_ratio = 0.6
         self.patch_size = 32

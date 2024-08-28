@@ -191,6 +191,18 @@ torchrun --nproc_per_node=2 train.py --network vitreg4_l16 --tag pretrained --lr
 
 ### SimMIM
 
+#### SimMIM: MaxViT Tiny
+
+```sh
+torchrun --nproc_per_node=2 train_pretrain.py --network simmim --encoder maxvit_t --opt adamw --lr 0.0001 --lr-scheduler cosine --warmup-epochs 10 --batch-size 128 --wd 0.05 --clip-grad-norm 1 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
+
+Fine-tuning, first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network maxvit_t --tag pretrained --opt adamw --lr 0.00005 --lr-scheduler cosine --batch-size 256 --size 256 --lr-cosine-min 1e-7 --epochs 10 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --clip-grad-norm 1 --amp --resume-epoch 0 --reset-head
+```
+
 #### SimMIM: Swin Transformer v2 Small
 
 ```sh

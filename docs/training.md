@@ -50,6 +50,7 @@ On fine-tuning phase
 * [Inception v3](#inception-v3)
 * [Inception v4](#inception-v4)
 * [MaxViT](#maxvit)
+* [MetaFormer](#metaformer)
 * [MnasNet](#mnasnet)
 * [Mobilenet v1](#mobilenet-v1)
 * [Mobilenet v2](#mobilenet-v2)
@@ -67,6 +68,7 @@ On fine-tuning phase
 * [ResNeXt](#resnext)
 * [SE ResNet v2](#se-resnet-v2)
 * [SE ResNeXt](#se-resnext)
+* [Sequencer2d](#sequencer2d)
 * [ShuffleNet v1](#shufflenet-v1)
 * [ShuffleNet v2](#shufflenet-v2)
 * [Simple ViT](#simple-vit)
@@ -128,25 +130,25 @@ torchrun --nproc_per_node=2 train.py --network convnext_v1_large --opt adamw --l
 #### ConvNeXt v2: Atto
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_atto --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 600 --size 256 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.2 --aug-level 3 --fast-matmul --compile
+torchrun --nproc_per_node=2 train.py --network convnext_v2_atto --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 600 --size 256 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.2 --aug-level 4 --ra-sampler --ra-reps 2 --fast-matmul --compile
 ```
 
 #### ConvNeXt v2: Femto
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_femto --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.2 --mixup-alpha 0.3 --cutmix --aug-level 3 --ra-sampler --ra-reps 2
+torchrun --nproc_per_node=2 train.py --network convnext_v2_femto --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.2 --mixup-alpha 0.3 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --fast-matmul --compile
 ```
 
 #### ConvNeXt v2: Pico
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_pico --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 300 --size 288 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.2 --mixup-alpha 0.3 --cutmix --aug-level 3 --ra-sampler --ra-reps 2
+torchrun --nproc_per_node=2 train.py --network convnext_v2_pico --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 300 --size 288 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.2 --mixup-alpha 0.3 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --fast-matmul --compile
 ```
 
 #### ConvNeXt v2: Nano
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_nano --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 300 --size 288 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.2 --mixup-alpha 0.5 --cutmix --aug-level 3 --ra-sampler --ra-reps 2
+torchrun --nproc_per_node=2 train.py --network convnext_v2_nano --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 300 --size 288 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.2 --mixup-alpha 0.5 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 #### ConvNeXt v2: Tiny
@@ -492,31 +494,57 @@ torchrun --nproc_per_node=2 train.py --network inception_v4 --lr-scheduler cosin
 #### MaxViT: Tiny
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network maxvit_t --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 64 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --clip-grad-norm 1 --amp --rgb-mode none
+torchrun --nproc_per_node=2 train.py --network maxvit_t --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 64 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --clip-grad-norm 1 --amp --compile --rgb-mode none
 ```
 
 #### MaxViT: Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network maxvit_s --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 64 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --rgb-mode none --stop-epoch 150
+torchrun --nproc_per_node=2 train.py --network maxvit_s --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 64 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --rgb-mode none --stop-epoch 150
 ```
 
 At epoch 150 increase resolution again
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network maxvit_s --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 16 --size 384 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --rgb-mode none --resume-epoch 140 --load-scheduler --stop-epoch 180
+torchrun --nproc_per_node=2 train.py --network maxvit_s --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 16 --size 384 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --rgb-mode none --resume-epoch 140 --load-scheduler --stop-epoch 180
 ```
 
 At epoch 180 increase resolution again
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network maxvit_s --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 16 --size 448 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --rgb-mode none --resume-epoch 180 --load-scheduler
+torchrun --nproc_per_node=2 train.py --network maxvit_s --opt adamw --lr 0.003 --lr-scheduler cosine --batch-size 16 --size 448 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --rgb-mode none --resume-epoch 180 --load-scheduler
 ```
 
 #### MaxViT: Base
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network maxvit_b --opt adamw --lr 0.0014 --lr-scheduler cosine --batch-size 32 --size 288 --lr-cosine-min 1e-7 --warmup-epochs 32 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --rgb-mode none
+torchrun --nproc_per_node=2 train.py --network maxvit_b --opt adamw --lr 0.0014 --lr-scheduler cosine --batch-size 32 --size 288 --lr-cosine-min 1e-7 --warmup-epochs 32 --epochs 200 --wd 0.05 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --rgb-mode none
+```
+
+### MetaFormer
+
+#### MetaFormer: PoolFormer v1 s24
+
+```sh
+torchrun --nproc_per_node=2 train.py --network poolformer_v1_s24 --opt adamw --lr 0.004 --lr-scheduler cosine --batch-size 128 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 5 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile
+```
+
+#### MetaFormer: PoolFormer v2 s24
+
+```sh
+torchrun --nproc_per_node=2 train.py --network poolformer_v2_s24 --opt adamw --lr 0.004 --lr-scheduler cosine --batch-size 128 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 5 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile
+```
+
+#### MetaFormer: ConvFormer s18
+
+```sh
+torchrun --nproc_per_node=2 train.py --network convformer_s18 --opt adamw --lr 0.004 --lr-scheduler cosine --batch-size 128 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile
+```
+
+#### MetaFormer: CAFormer s18
+
+```sh
+torchrun --nproc_per_node=2 train.py --network caformer_s18 --opt adamw --lr 0.004 --lr-scheduler cosine --batch-size 128 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile
 ```
 
 ### MnasNet
@@ -802,6 +830,32 @@ Same as ResNet v2
 ### SE ResNeXt
 
 Same as ResNeXt
+
+### Sequencer2d
+
+#### Sequencer2d: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network sequencer2d_s --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 20 --batch-size 128 --epochs 300 --size 252 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --stop-epoch 250
+```
+
+At epoch 250 increase resolution
+
+```sh
+torchrun --nproc_per_node=2 train.py --network sequencer2d_s --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 20 --batch-size 64 --epochs 300 --size 392 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 250 --load-states
+```
+
+#### Sequencer2d: Medium
+
+```sh
+torchrun --nproc_per_node=2 train.py --network sequencer2d_m --opt adamw --lr 0.0015 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 20 --batch-size 128 --epochs 300 --size 252 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### Sequencer2d: Large
+
+```sh
+torchrun --nproc_per_node=2 train.py --network sequencer2d_l --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 20 --batch-size 64 --epochs 300 --size 252 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
 
 ### ShuffleNet v1
 

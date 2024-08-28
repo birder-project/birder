@@ -18,6 +18,7 @@ from birder.core.net.inception_resnet_v2 import Inception_ResNet_v2
 from birder.core.net.inception_v3 import Inception_v3
 from birder.core.net.inception_v4 import Inception_v4
 from birder.core.net.maxvit import MaxViT
+from birder.core.net.metaformer import MetaFormer
 from birder.core.net.mnasnet import MNASNet
 from birder.core.net.mobilenet_v1 import MobileNet_v1
 from birder.core.net.mobilenet_v2 import MobileNet_v2
@@ -36,6 +37,7 @@ from birder.core.net.resnet_v2 import ResNet_v2
 from birder.core.net.resnext import ResNeXt
 from birder.core.net.se_resnet_v2 import SE_ResNet_v2
 from birder.core.net.se_resnext import SE_ResNeXt
+from birder.core.net.sequencer2d import Sequencer2d
 from birder.core.net.shufflenet_v1 import ShuffleNet_v1
 from birder.core.net.shufflenet_v2 import ShuffleNet_v2
 from birder.core.net.simple_vit import Simple_ViT
@@ -73,6 +75,7 @@ __all__ = [
     "Inception_v3",
     "Inception_v4",
     "MaxViT",
+    "MetaFormer",
     "MNASNet",
     "MobileNet_v1",
     "MobileNet_v2",
@@ -91,6 +94,7 @@ __all__ = [
     "ResNeXt",
     "SE_ResNet_v2",
     "SE_ResNeXt",
+    "Sequencer2d",
     "ShuffleNet_v1",
     "ShuffleNet_v2",
     "Simple_ViT",

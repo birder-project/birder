@@ -24,7 +24,7 @@ class EffectiveSEModule(nn.Module):
     From "CenterMask: Real-Time Anchor-Free Instance Segmentation" - https://arxiv.org/abs/1911.06667
     """
 
-    def __init__(self, channels: int, activation: Callable[..., torch.nn.Module] = torch.nn.Hardsigmoid) -> None:
+    def __init__(self, channels: int, activation: Callable[..., nn.Module] = nn.Hardsigmoid) -> None:
         super().__init__()
         self.fc = nn.Conv2d(channels, channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.gate = activation()

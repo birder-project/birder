@@ -3,6 +3,8 @@ RegNet, adapted from
 https://github.com/pytorch/vision/blob/main/torchvision/models/regnet.py
 
 Paper "Designing Network Design Spaces", https://arxiv.org/abs/2003.13678
+
+Only the Y variant implemented.
 """
 
 # Reference license: BSD 3-Clause
