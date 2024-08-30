@@ -18,6 +18,7 @@ from typing import Any
 from typing import Literal
 
 import torch
+import torch.amp
 import torch.nn.functional as F
 import torch.utils.data
 import torchinfo
@@ -380,7 +381,7 @@ def train(args: argparse.Namespace, distillation_type: DistType) -> None:
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
 
             # Forward, backward and optimize
-            with torch.cuda.amp.autocast(enabled=args.amp, dtype=amp_dtype):
+            with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
                 with torch.inference_mode():
                     teacher_outputs = teacher(inputs)
 
@@ -485,7 +486,7 @@ def train(args: argparse.Namespace, distillation_type: DistType) -> None:
             for inputs, targets in validation_loader:
                 inputs = inputs.to(device, non_blocking=True)
                 targets = targets.to(device, non_blocking=True)
-                with torch.cuda.amp.autocast(enabled=args.amp):
+                with torch.amp.autocast("cuda", enabled=args.amp):
                     outputs = eval_model(inputs)
                     val_loss = criterion(outputs, targets)
 
@@ -731,9 +732,7 @@ def main() -> None:
         default=None,
         help="number of batches loaded in advance by each worker",
     )
-    parser.add_argument(
-        "--amp", default=False, action="store_true", help="use torch.cuda.amp for mixed precision training"
-    )
+    parser.add_argument("--amp", default=False, action="store_true", help="use torch.amp for mixed precision training")
     parser.add_argument(
         "--amp-dtype",
         type=str,

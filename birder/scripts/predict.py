@@ -7,6 +7,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import torch
+import torch.amp
 from torch.utils.data import DataLoader
 from torchvision.datasets.folder import pil_loader
 from tqdm import tqdm
@@ -155,7 +156,7 @@ def predict(args: argparse.Namespace) -> None:
             # Predict
             inputs = inputs.to(device)
 
-            with torch.autocast(enabled=args.amp, device_type=device.type):
+            with torch.amp.autocast(device.type, enabled=args.amp):
                 (out, embedding) = inference.predict(net, inputs, return_embedding=args.save_embedding)
 
             outs.append(out)
@@ -271,7 +272,9 @@ def main() -> None:
     parser.add_argument("--pts", default=False, action="store_true", help="load torchscript network")
     parser.add_argument("--pt2", default=False, action="store_true", help="load standardized model")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
-    parser.add_argument("--amp", default=False, action="store_true", help="use torch.autocast")
+    parser.add_argument(
+        "--amp", default=False, action="store_true", help="use torch.amp.autocast for mixed precision inference"
+    )
     parser.add_argument(
         "--fast-matmul",
         default=False,

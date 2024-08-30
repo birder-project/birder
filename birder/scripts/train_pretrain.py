@@ -8,6 +8,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import torch
+import torch.amp
 import torch.utils.data
 import torchinfo
 from torch.utils.data import DataLoader
@@ -263,7 +264,7 @@ def train(args: argparse.Namespace) -> None:
             optimizer.zero_grad()
 
             # Forward, backward and optimize
-            with torch.cuda.amp.autocast(enabled=args.amp, dtype=amp_dtype):
+            with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
                 outputs: dict[str, torch.Tensor] = net(inputs)
                 loss = outputs["loss"]
 
@@ -496,9 +497,7 @@ def main() -> None:
         default=None,
         help="number of batches loaded in advance by each worker",
     )
-    parser.add_argument(
-        "--amp", default=False, action="store_true", help="use torch.cuda.amp for mixed precision training"
-    )
+    parser.add_argument("--amp", default=False, action="store_true", help="use torch.amp for mixed precision training")
     parser.add_argument(
         "--amp-dtype",
         type=str,

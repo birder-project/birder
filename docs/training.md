@@ -283,10 +283,16 @@ torchrun --nproc_per_node=2 train.py --network densenet --net-param 161 --lr-sch
 
 ### EdgeNeXt
 
+### EdgeNeXt: Extra Extra Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network edgenext_xxs --opt adamw --lr 0.006 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile
+```
+
 ### EdgeNeXt: Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network edgenext_s --opt adamw --lr 0.006 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile
+torchrun --nproc_per_node=2 train.py --network edgenext_s --opt adamw --lr 0.006 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile
 ```
 
 ### EdgeViT
@@ -898,13 +904,13 @@ torchrun --nproc_per_node=2 train.py --network simple_vit_l16 --lr 0.3 --lr-sche
 ### SqueezeNet
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network squeezenet --lr 0.01 --batch-size 512 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 2
+torchrun --nproc_per_node=2 train.py --network squeezenet --lr 0.04 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.95 --batch-size 512 --wd 0.0002 --smoothing-alpha 0.1 --aug-level 2
 ```
 
 ### SqueezeNext
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network squeezenext --net-param 2 --lr 0.1 --lr-scheduler step --lr-step-size 20 --lr-step-gamma 0.75 --batch-size 128 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3
+torchrun --nproc_per_node=2 train.py --network squeezenext --net-param 2 --lr 0.4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.8 --batch-size 128 --wd 0.0001 --warmup-epochs 5 --epochs 120 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --fast-matmul --compile
 ```
 
 ### Swin Transformer v1

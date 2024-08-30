@@ -10,6 +10,7 @@ from typing import Optional
 from typing import Sized
 
 import torch
+import torch.amp
 import torch.distributed as dist
 import torch.utils.data
 import torch.utils.data.distributed
@@ -318,9 +319,9 @@ def get_scheduler(
     return scheduler
 
 
-def get_amp_scaler(amp: bool, amp_dtype_str: str) -> tuple[Optional[torch.cuda.amp.GradScaler], Optional[torch.dtype]]:
+def get_amp_scaler(amp: bool, amp_dtype_str: str) -> tuple[Optional[torch.amp.GradScaler], Optional[torch.dtype]]:
     if amp is True:
-        scaler = torch.cuda.amp.GradScaler()
+        scaler = torch.amp.GradScaler("cuda")
         if amp_dtype_str == "float16":
             amp_dtype = torch.float16
         elif amp_dtype_str == "bfloat16":

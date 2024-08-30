@@ -8,6 +8,7 @@ from typing import Any
 from typing import Optional
 
 import torch
+import torch.amp
 from torchvision.datasets.folder import IMG_EXTENSIONS
 
 from birder.common import lib
@@ -107,7 +108,7 @@ def _checkpoint_states(
     states_path: Path,
     optimizer: Optional[torch.optim.Optimizer],
     scheduler: Optional[torch.optim.lr_scheduler._LRScheduler],
-    scaler: Optional[torch.cuda.amp.grad_scaler.GradScaler],
+    scaler: Optional[torch.amp.grad_scaler.GradScaler],
 ) -> None:
     if optimizer is None or scheduler is None:
         return
@@ -136,7 +137,7 @@ def checkpoint_model(
     rgb_values: RGBType,
     optimizer: Optional[torch.optim.Optimizer],
     scheduler: Optional[torch.optim.lr_scheduler._LRScheduler],
-    scaler: Optional[torch.cuda.amp.grad_scaler.GradScaler],
+    scaler: Optional[torch.amp.grad_scaler.GradScaler],
 ) -> None:
     path = model_path(network_name, epoch=epoch, pts=False)
     states_path = model_path(network_name, epoch=epoch, pts=False, states=True)

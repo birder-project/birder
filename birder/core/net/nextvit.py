@@ -11,6 +11,7 @@ https://arxiv.org/abs/2207.05501
 from typing import Optional
 
 import torch
+import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
@@ -167,14 +168,12 @@ class E_MHSA(nn.Module):
         x = x.transpose(1, 2)
 
         k = self.k(x)
-        k = k.reshape(B, -1, self.num_heads, int(C // self.num_heads)).permute(0, 2, 3, 1)
+        k = k.reshape(B, -1, self.num_heads, int(C // self.num_heads)).transpose(1, 2)
         v = self.v(x)
-        v = v.reshape(B, -1, self.num_heads, int(C // self.num_heads)).permute(0, 2, 1, 3)
+        v = v.reshape(B, -1, self.num_heads, int(C // self.num_heads)).transpose(1, 2)
 
-        attn = (q @ k) * self.scale
-        attn = attn.softmax(dim=-1)
-
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = F.scaled_dot_product_attention(q, k, v, scale=self.scale)  # pylint: disable=not-callable
+        x = x.transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
 
         return x
@@ -283,7 +282,7 @@ class NextViT(BaseNet):
             [768] * (depths[3] - 1) + [1024],
         ]
 
-        self.stage_block_types: list[list[nn.Module]] = [
+        self.stage_block_types = [
             [NCB] * depths[0],
             [NCB] * (depths[1] - 1) + [NTB],
             [NCB, NCB, NCB, NCB, NTB] * (depths[2] // 5),
@@ -299,8 +298,8 @@ class NextViT(BaseNet):
 
         input_channel = stem_chs[-1]
         idx = 0
-        layers: list[nn.Module] = []
-        dpr: list[float] = [x.item() for x in torch.linspace(0, path_dropout, sum(depths))]
+        layers = []
+        dpr = [x.item() for x in torch.linspace(0, path_dropout, sum(depths))]
         for stage_id, repeats in enumerate(depths):
             output_channels = self.stage_out_channels[stage_id]
             block_types = self.stage_block_types[stage_id]
@@ -311,7 +310,7 @@ class NextViT(BaseNet):
                     stride = (1, 1)
 
                 output_channel = output_channels[block_id]
-                block_type = block_types[block_id]
+                block_type = block_types[block_id]  # type: ignore[index]
                 if block_type is NCB:
                     layer = NCB(
                         input_channel,

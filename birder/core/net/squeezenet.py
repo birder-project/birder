@@ -37,7 +37,7 @@ class Fire(nn.Module):
 
 
 class SqueezeNet(BaseNet):
-    default_size = 224
+    default_size = 227
 
     def __init__(
         self,

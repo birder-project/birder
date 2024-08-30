@@ -142,20 +142,20 @@ class GroupNorm1(nn.GroupNorm):
     def __init__(self, num_channels: int) -> None:
         super().__init__(num_groups=1, num_channels=num_channels, eps=1e-6)
 
+    def forward(self, x: torch.Tensor) -> torch.Tensor:  # pylint: disable=arguments-renamed
+        return F.group_norm(x, self.num_groups, self.weight, self.bias, self.eps)
+
 
 class GroupNorm1NoBias(nn.GroupNorm):
     def __init__(self, num_channels: int) -> None:
         super().__init__(num_groups=1, num_channels=num_channels, eps=1e-6)
         self.bias = None
 
+    def forward(self, x: torch.Tensor) -> torch.Tensor:  # pylint: disable=arguments-renamed
+        return F.group_norm(x, self.num_groups, self.weight, self.bias, self.eps)
+
 
 class LayerNorm2dNoBias(LayerNorm2d):
-    def __init__(self, num_channels: int) -> None:
-        super().__init__(num_channels, eps=1e-6)
-        self.bias = None
-
-
-class LayerNormNoBias(nn.LayerNorm):
     def __init__(self, num_channels: int) -> None:
         super().__init__(num_channels, eps=1e-6)
         self.bias = None

@@ -9,6 +9,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import torch
+import torch.amp
 import torch.utils.data
 import torchinfo
 from torch.utils.data import DataLoader
@@ -280,7 +281,7 @@ def train(args: argparse.Namespace) -> None:
             optimizer.zero_grad()
 
             # Forward, backward and optimize
-            with torch.cuda.amp.autocast(enabled=args.amp, dtype=amp_dtype):
+            with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
                 (_detections, losses) = net(inputs, targets)
                 loss = sum(v for v in losses.values())
 
@@ -350,7 +351,7 @@ def train(args: argparse.Namespace) -> None:
                     for t in targets
                 ]
                 inputs = batch_images(inputs)
-                with torch.cuda.amp.autocast(enabled=args.amp):
+                with torch.amp.autocast("cuda", enabled=args.amp):
                     (detections, losses) = eval_model(inputs)
 
                 # Statistics
