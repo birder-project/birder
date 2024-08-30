@@ -158,7 +158,7 @@ def checkpoint_model(
 
 def _load_states(states_path: Path, device: torch.device) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     if states_path.exists() is True:
-        states_dict: dict[str, Any] = torch.load(states_path, map_location=device)
+        states_dict: dict[str, Any] = torch.load(states_path, map_location=device, weights_only=True)
         optimizer_state = states_dict["optimizer_state"]
         scheduler_state = states_dict["scheduler_state"]
         scaler_state = states_dict["scaler_state"]
@@ -186,7 +186,7 @@ def load_checkpoint(
     states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
     logging.info(f"Loading model from {path} on device {device}...")
 
-    model_dict: dict[str, Any] = torch.load(path, map_location=device)
+    model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=False)
 
     signature: SignatureType = model_dict["signature"]
     input_channels = signature["inputs"][0]["data_shape"][1]
@@ -221,7 +221,7 @@ def load_pretrain_checkpoint(
     states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
     logging.info(f"Loading model from {path} on device {device}...")
 
-    model_dict: dict[str, Any] = torch.load(path, map_location=device)
+    model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=False)
 
     signature: PreTrainSignatureType = model_dict["signature"]
     input_channels = signature["inputs"][0]["data_shape"][1]
@@ -260,7 +260,7 @@ def load_detection_checkpoint(
     states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
     logging.info(f"Loading model from {path} on device {device}...")
 
-    model_dict: dict[str, Any] = torch.load(path, map_location=device)
+    model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=False)
 
     signature: DetectionSignatureType = model_dict["signature"]
     input_channels = signature["inputs"][0]["data_shape"][1]
@@ -312,7 +312,7 @@ def load_model(
         rgb_values = json.loads(extra_files["rgb_values"])
 
     else:
-        model_dict: dict[str, Any] = torch.load(path, map_location=device)
+        model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=False)
         signature = model_dict["signature"]
         input_channels = signature["inputs"][0]["data_shape"][1]
         num_classes = signature["outputs"][0]["data_shape"][1]
@@ -372,7 +372,7 @@ def load_detection_model(
         rgb_values: RGBType = json.loads(extra_files["rgb_values"])
 
     else:
-        model_dict: dict[str, Any] = torch.load(path, map_location=device)
+        model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=False)
         signature = model_dict["signature"]
         input_channels = signature["inputs"][0]["data_shape"][1]
         num_classes = signature["num_labels"]

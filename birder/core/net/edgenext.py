@@ -152,7 +152,7 @@ class SDTA(nn.Module):
         self.conv_list = nn.ModuleList(conv_list)
 
         self.pos_embed = None
-        if use_pos_emb:
+        if use_pos_emb is True:
             self.pos_embed = PositionalEncodingFourier(hidden_dim=32, dim=dim)
 
         self.norm_xca = nn.LayerNorm(dim, eps=1e-6)
