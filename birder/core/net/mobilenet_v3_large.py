@@ -3,8 +3,6 @@ MobileNet v3, adapted from
 https://github.com/pytorch/vision/blob/main/torchvision/models/mobilenetv3.py
 
 Paper "Searching for MobileNetV3", https://arxiv.org/abs/1905.02244
-
-Only the large variant implemented.
 """
 
 # Reference license: BSD 3-Clause
@@ -113,7 +111,7 @@ class InvertedResidual(nn.Module):
 
 
 # pylint: disable=invalid-name
-class MobileNet_v3(DetectorBackbone):
+class MobileNet_v3_Large(DetectorBackbone):
     default_size = 224
 
     def __init__(
@@ -122,30 +120,47 @@ class MobileNet_v3(DetectorBackbone):
         num_classes: int,
         net_param: Optional[float] = None,
         size: Optional[int] = None,
+        large: bool = True,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param, size)
         alpha = net_param
         alpha_values = [0.25, 0.50, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
         assert alpha in alpha_values, f"alpha = {alpha} not supported"
 
-        last_channels = int(round(1280 * max(1.0, alpha)))
-        net_settings = [
-            InvertedResidualConfig(16, 16, 16, (3, 3), (1, 1), (1, 1), alpha, False, nn.ReLU),
-            InvertedResidualConfig(16, 24, 64, (3, 3), (2, 2), (1, 1), alpha, False, nn.ReLU),
-            InvertedResidualConfig(24, 24, 72, (3, 3), (1, 1), (1, 1), alpha, False, nn.ReLU),
-            InvertedResidualConfig(24, 40, 72, (5, 5), (2, 2), (2, 2), alpha, True, nn.ReLU),
-            InvertedResidualConfig(40, 40, 120, (5, 5), (1, 1), (2, 2), alpha, True, nn.ReLU),
-            InvertedResidualConfig(40, 40, 120, (5, 5), (1, 1), (2, 2), alpha, True, nn.ReLU),
-            InvertedResidualConfig(40, 80, 240, (3, 3), (2, 2), (1, 1), alpha, False, nn.Hardswish),
-            InvertedResidualConfig(80, 80, 200, (3, 3), (1, 1), (1, 1), alpha, False, nn.Hardswish),
-            InvertedResidualConfig(80, 80, 184, (3, 3), (1, 1), (1, 1), alpha, False, nn.Hardswish),
-            InvertedResidualConfig(80, 80, 184, (3, 3), (1, 1), (1, 1), alpha, False, nn.Hardswish),
-            InvertedResidualConfig(80, 112, 480, (3, 3), (1, 1), (1, 1), alpha, True, nn.Hardswish),
-            InvertedResidualConfig(112, 112, 672, (3, 3), (1, 1), (1, 1), alpha, True, nn.Hardswish),
-            InvertedResidualConfig(112, 160, 672, (5, 5), (2, 2), (2, 2), alpha, True, nn.Hardswish),
-            InvertedResidualConfig(160, 160, 960, (5, 5), (1, 1), (2, 2), alpha, True, nn.Hardswish),
-            InvertedResidualConfig(160, 160, 960, (5, 5), (1, 1), (2, 2), alpha, True, nn.Hardswish),
-        ]
+        if large is True:
+            last_channels = int(round(1280 * max(1.0, alpha)))
+            net_settings = [
+                InvertedResidualConfig(16, 16, 16, (3, 3), (1, 1), (1, 1), alpha, False, nn.ReLU),
+                InvertedResidualConfig(16, 24, 64, (3, 3), (2, 2), (1, 1), alpha, False, nn.ReLU),
+                InvertedResidualConfig(24, 24, 72, (3, 3), (1, 1), (1, 1), alpha, False, nn.ReLU),
+                InvertedResidualConfig(24, 40, 72, (5, 5), (2, 2), (2, 2), alpha, True, nn.ReLU),
+                InvertedResidualConfig(40, 40, 120, (5, 5), (1, 1), (2, 2), alpha, True, nn.ReLU),
+                InvertedResidualConfig(40, 40, 120, (5, 5), (1, 1), (2, 2), alpha, True, nn.ReLU),
+                InvertedResidualConfig(40, 80, 240, (3, 3), (2, 2), (1, 1), alpha, False, nn.Hardswish),
+                InvertedResidualConfig(80, 80, 200, (3, 3), (1, 1), (1, 1), alpha, False, nn.Hardswish),
+                InvertedResidualConfig(80, 80, 184, (3, 3), (1, 1), (1, 1), alpha, False, nn.Hardswish),
+                InvertedResidualConfig(80, 80, 184, (3, 3), (1, 1), (1, 1), alpha, False, nn.Hardswish),
+                InvertedResidualConfig(80, 112, 480, (3, 3), (1, 1), (1, 1), alpha, True, nn.Hardswish),
+                InvertedResidualConfig(112, 112, 672, (3, 3), (1, 1), (1, 1), alpha, True, nn.Hardswish),
+                InvertedResidualConfig(112, 160, 672, (5, 5), (2, 2), (2, 2), alpha, True, nn.Hardswish),
+                InvertedResidualConfig(160, 160, 960, (5, 5), (1, 1), (2, 2), alpha, True, nn.Hardswish),
+                InvertedResidualConfig(160, 160, 960, (5, 5), (1, 1), (2, 2), alpha, True, nn.Hardswish),
+            ]
+        else:
+            last_channels = int(round(1024 * max(1.0, alpha)))
+            net_settings = [
+                InvertedResidualConfig(16, 16, 16, (3, 3), (2, 2), (1, 1), alpha, True, nn.ReLU),
+                InvertedResidualConfig(16, 24, 72, (3, 3), (2, 2), (1, 1), alpha, False, nn.ReLU),
+                InvertedResidualConfig(24, 24, 88, (3, 3), (1, 1), (1, 1), alpha, False, nn.ReLU),
+                InvertedResidualConfig(24, 40, 96, (5, 5), (2, 2), (2, 2), alpha, True, nn.Hardswish),
+                InvertedResidualConfig(40, 40, 240, (5, 5), (1, 1), (2, 2), alpha, True, nn.Hardswish),
+                InvertedResidualConfig(40, 40, 240, (5, 5), (1, 1), (2, 2), alpha, True, nn.Hardswish),
+                InvertedResidualConfig(40, 48, 120, (5, 5), (1, 1), (2, 2), alpha, True, nn.Hardswish),
+                InvertedResidualConfig(48, 48, 144, (5, 5), (1, 1), (2, 2), alpha, True, nn.Hardswish),
+                InvertedResidualConfig(48, 96, 288, (5, 5), (2, 2), (2, 2), alpha, True, nn.Hardswish),
+                InvertedResidualConfig(96, 96, 576, (5, 5), (1, 1), (2, 2), alpha, True, nn.Hardswish),
+                InvertedResidualConfig(96, 96, 576, (5, 5), (1, 1), (2, 2), alpha, True, nn.Hardswish),
+            ]
 
         self.stem = Conv2dNormActivation(
             self.input_channels,

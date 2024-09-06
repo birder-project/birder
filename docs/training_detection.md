@@ -7,10 +7,10 @@ Training script and procedures adapted from PyTorch vision reference
 
 ### Faster R-CNN
 
-### Faster R-CNN: MobileNet v3 Backbone
+### Faster R-CNN: MobileNet v3 Large Backbone
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone mobilenet_v3 --backbone-param 1 --backbone-epoch 0 --freeze-backbone --lr 0.02 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.93 --batch-size 16 --epochs 100
+torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone mobilenet_v3_large --backbone-param 1 --backbone-epoch 0 --freeze-backbone --lr 0.02 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.93 --batch-size 16 --epochs 100
 ```
 
 ### Faster R-CNN: EfficientNet v2 Small Backbone
@@ -35,8 +35,8 @@ torchrun --nproc_per_node=2 train_detection.py --network retinanet --backbone re
 
 ### SSD
 
-### SSD: MobileNet v3 Backbone
+### SSD: MobileNet v3 Large Backbone
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network ssd --backbone mobilenet_v3 --backbone-param 1 --backbone-epoch 0 --freeze-backbone-stages 4 --lr 0.015 --lr-scheduler cosine --batch-size 128 --epochs 300 --wd 0.00002
+torchrun --nproc_per_node=2 train_detection.py --network ssd --backbone mobilenet_v3_large --backbone-param 1 --backbone-epoch 0 --freeze-backbone-stages 4 --lr 0.015 --lr-scheduler cosine --batch-size 128 --epochs 300 --wd 0.00002
 ```

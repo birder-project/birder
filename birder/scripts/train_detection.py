@@ -433,7 +433,7 @@ def main() -> None:
         description="Train object detection model",
         epilog=(
             "Usage examples:\n"
-            "python train_detection.py --network faster_rcnn --backbone mobilenet_v3 --backbone-param 1 "
+            "python train_detection.py --network faster_rcnn --backbone mobilenet_v3_large --backbone-param 1 "
             "--backbone-epoch 0 --lr 0.02 --batch-size 16\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,

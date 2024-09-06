@@ -5,7 +5,7 @@ from functools import partial
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-import pandas as pd
+import polars as pl
 from PIL import Image
 from sklearn.metrics import auc
 from sklearn.metrics import average_precision_score
@@ -64,14 +64,14 @@ class ConfusionMatrix:
         Save confusion matrix as a CSV file
         """
 
-        cnf = pd.DataFrame(
-            self.results.confusion_matrix,
-            index=self.results.label_names,
-            columns=self.results.label_names,
+        cnf_df = pl.DataFrame(
+            {
+                "": self.results.label_names,
+                **{name: self.results.confusion_matrix[:, i] for i, name in enumerate(self.results.label_names)},
+            }
         )
-
         logging.info(f"Saving confusion matrix at {path}")
-        cnf.to_csv(path, index=True)
+        cnf_df.write_csv(path)
 
     def show(self) -> None:
         """
@@ -274,11 +274,11 @@ class ProbabilityHistogram:
         results_df = self.results.get_as_df()
         hist = partial(np.histogram, bins=20, range=(0, 1), density=True)
 
-        cls_a_df = results_df[results_df["label_name"] == cls_a]
-        cls_b_df = results_df[results_df["label_name"] == cls_b]
+        cls_a_df = results_df.filter(pl.col("label_name") == cls_a)
+        cls_b_df = results_df.filter(pl.col("label_name") == cls_b)
 
-        (cls_a_prob_a_counts, cls_a_prob_a_bins) = hist(cls_a_df[self.results.label_names.index(cls_a)])
-        (cls_a_prob_b_counts, cls_a_prob_b_bins) = hist(cls_b_df[self.results.label_names.index(cls_a)])
+        (cls_a_prob_a_counts, cls_a_prob_a_bins) = hist(cls_a_df[str(self.results.label_names.index(cls_a))])
+        (cls_a_prob_b_counts, cls_a_prob_b_bins) = hist(cls_b_df[str(self.results.label_names.index(cls_a))])
         plt.subplot(2, 1, 1)
         plt.stairs(
             cls_a_prob_a_counts,
@@ -296,8 +296,8 @@ class ProbabilityHistogram:
         )
         plt.legend(loc="upper center")
 
-        (cls_b_prob_a_counts, cls_b_prob_a_bins) = hist(cls_a_df[self.results.label_names.index(cls_b)])
-        (cls_b_prob_b_counts, cls_b_prob_b_bins) = hist(cls_b_df[self.results.label_names.index(cls_b)])
+        (cls_b_prob_a_counts, cls_b_prob_a_bins) = hist(cls_a_df[str(self.results.label_names.index(cls_b))])
+        (cls_b_prob_b_counts, cls_b_prob_b_bins) = hist(cls_b_df[str(self.results.label_names.index(cls_b))])
         plt.subplot(2, 1, 2)
         plt.stairs(
             cls_b_prob_b_counts,

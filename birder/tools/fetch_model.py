@@ -71,7 +71,7 @@ def set_parser(subparsers: Any) -> None:
         description="download pretrained model",
         epilog=(
             "Usage examples:\n"
-            "python -m birder.tools fetch-model mobilenet_v3_1_0\n"
+            "python -m birder.tools fetch-model mobilenet_v3_large_1_0\n"
             "python -m birder.tools fetch-model convnext_v2_4_0 --force\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,

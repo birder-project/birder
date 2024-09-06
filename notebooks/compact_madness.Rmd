@@ -1,0 +1,105 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.16.4
+  kernelspec:
+    display_name: birder
+    language: python
+    name: birder
+---
+
+```{python}
+import sys
+from pathlib import Path
+
+import polars as pl
+```
+
+```{python}
+sys.path.append("..")
+```
+
+```{python}
+from birder.common import cli
+from birder.conf import settings
+from birder.core.results.classification import Results, compare_results
+from birder.model_registry import registry
+from birder.tools.model_info import get_model_info
+```
+
+```{python}
+# %cd ..
+```
+
+```{python}
+PATTERN = "il-common"
+```
+
+```{python}
+def get_num_parameters(file_name: str, pattern: str = PATTERN) -> int:
+    file_name = file_name.split("/")[-1]
+    num_classes = file_name[file_name.find(pattern) + len(pattern) + 1 :]
+    num_classes = int(num_classes.split("_")[0])
+    model_name = file_name[: file_name.find(pattern) - 1]
+    if model_name in registry.all_nets:
+        model = registry.net_factory(model_name, 3, num_classes=num_classes)
+    else:
+        (model_name, net_param) = model_name.rsplit("_", 1)
+        model = registry.net_factory(
+            model_name, 3, num_classes=num_classes, net_param=float(net_param)
+        )
+
+    info = get_model_info(model)
+
+    return info["num_params"]
+```
+
+```{python}
+results_dict = {}
+for result_file in settings.RESULTS_DIR.glob(f"*{PATTERN}*"):
+    results_dict[result_file.stem] = Results.load(result_file)
+```
+
+```{python}
+compare_results_df = compare_results(results_dict)
+```
+
+```{python}
+num_param = []
+model_names = []
+for file_name in compare_results_df["File name"]:
+    num_param.append(get_num_parameters(file_name) / 1e6)
+    model_names.append(file_name[: file_name.find(PATTERN) - 1])
+```
+
+```{python}
+compare_results_df = compare_results_df.with_columns(
+    pl.Series("Parameters (M)", num_param), pl.Series("Model name", model_names)
+)
+compare_results_df = compare_results_df.select(
+    "Model name", pl.all().exclude("File name", "Model name")
+)
+compare_results_df = compare_results_df.sort("Parameters (M)")
+```
+
+```{python}
+compare_results_df
+```
+
+```{python}
+base = compare_results_df.plot.point(
+    x="Parameters (M)", y="Accuracy", color="Model name"
+)
+text = base.mark_text(align="left", baseline="middle", dx=7).encode(text="Model name")
+chart = base + text
+chart.properties(width=600, height=400).configure_scale(zero=False)
+```
+
+```{python}
+
+```

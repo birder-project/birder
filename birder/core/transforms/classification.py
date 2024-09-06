@@ -180,7 +180,7 @@ def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> C
                 v2.PILToTensor(),
                 v2.RandomResizedCrop(
                     size,
-                    scale=(0.75, 1.0),
+                    scale=(0.7, 1.0),
                     ratio=(3 / 4, 4 / 3),
                     interpolation=v2.InterpolationMode.BICUBIC,
                     antialias=True,
@@ -199,7 +199,7 @@ def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> C
                 v2.PILToTensor(),
                 v2.RandomResizedCrop(
                     size,
-                    scale=(0.7, 1.0),
+                    scale=(0.65, 1.0),
                     ratio=(3 / 4, 4 / 3),
                     interpolation=v2.InterpolationMode.BICUBIC,
                     antialias=True,
@@ -229,7 +229,7 @@ def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> C
                 v2.PILToTensor(),
                 v2.RandomResizedCrop(
                     size,
-                    scale=(0.65, 1.0),
+                    scale=(0.6, 1.0),
                     ratio=(3 / 4, 4 / 3),
                     interpolation=v2.InterpolationMode.BICUBIC,
                     antialias=True,
@@ -243,7 +243,6 @@ def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> C
                 v2.RandomPosterize(6, p=0.2),
                 v2.RandomChoice(
                     [
-                        v2.RandomEqualize(0.25),
                         v2.RandomAutocontrast(0.5),
                         v2.ColorJitter(brightness=0.25, contrast=0.15, hue=0.04),
                     ]
@@ -267,21 +266,21 @@ def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> C
                 v2.PILToTensor(),
                 v2.RandomResizedCrop(
                     size,
-                    scale=(0.6, 1.0),
+                    scale=(0.5, 1.0),
                     ratio=(3 / 4, 4 / 3),
                     interpolation=v2.InterpolationMode.BICUBIC,
                     antialias=True,
                 ),
                 v2.RandomChoice(
                     [
-                        v2.RandomRotation(15, fill=0),
+                        v2.RandomRotation(16, fill=0),
                         v2.RandomAffine(degrees=0, translate=(0, 0), shear=(-22, 22, 0, 0), fill=0),
                     ]
                 ),
-                v2.RandomPosterize(6, p=0.25),
+                v2.RandomPosterize(5, p=0.25),
                 v2.RandomChoice(
                     [
-                        v2.RandomEqualize(0.25),
+                        # v2.RandomEqualize(0.25),
                         v2.RandomAutocontrast(0.5),
                         v2.ColorJitter(brightness=0.28, contrast=0.2, hue=0.07),
                     ]

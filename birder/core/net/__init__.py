@@ -22,7 +22,8 @@ from birder.core.net.metaformer import MetaFormer
 from birder.core.net.mnasnet import MNASNet
 from birder.core.net.mobilenet_v1 import MobileNet_v1
 from birder.core.net.mobilenet_v2 import MobileNet_v2
-from birder.core.net.mobilenet_v3 import MobileNet_v3
+from birder.core.net.mobilenet_v3_large import MobileNet_v3_Large
+from birder.core.net.mobilenet_v3_small import MobileNet_v3_Small
 from birder.core.net.mobilenet_v4 import MobileNet_v4
 from birder.core.net.mobilenet_v4_hybrid import MobileNet_v4_Hybrid
 from birder.core.net.mobileone import MobileOne
@@ -79,7 +80,8 @@ __all__ = [
     "MNASNet",
     "MobileNet_v1",
     "MobileNet_v2",
-    "MobileNet_v3",
+    "MobileNet_v3_Large",
+    "MobileNet_v3_Small",
     "MobileNet_v4",
     "MobileNet_v4_Hybrid",
     "MobileOne",

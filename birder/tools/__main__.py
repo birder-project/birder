@@ -32,7 +32,7 @@ def main() -> None:
             "python -m birder.tools avg-model --network resnet_v2 --net-param 50 --epochs 95 95 100\n"
             "python -m birder.tools convert-model --network convnext_v2_base --epoch 0 --pt2\n"
             "python -m birder.tools ensemble-model --network convnext_v2_4_0 focalnet_3_0 --pts\n"
-            "python -m birder.tools fetch-model mobilenet_v3_1_0\n"
+            "python -m birder.tools fetch-model mobilenet_v3_large_1_0\n"
             "python -m birder.tools introspection --method gradcam --network efficientnet_v2 --net-param 1 "
             "--epoch 200 --image 'data/validation/Mallard/000003.jpeg'\n"
             "python -m birder.tools labelme-to-coco data/detection_data\n"

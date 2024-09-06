@@ -23,7 +23,7 @@ class TestNetDetection(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
             ("faster_rcnn", None, ("resnet_v2", 50)),
-            ("retinanet", None, ("mobilenet_v3", 1)),
+            ("retinanet", None, ("mobilenet_v3_small", 1)),
             ("ssd", None, ("efficientnet_v2", 0)),
         ]
     )

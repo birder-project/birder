@@ -54,7 +54,8 @@ On fine-tuning phase
 * [MnasNet](#mnasnet)
 * [Mobilenet v1](#mobilenet-v1)
 * [Mobilenet v2](#mobilenet-v2)
-* [Mobilenet v3](#mobilenet-v3)
+* [Mobilenet v3 Large](#mobilenet-v3-large)
+* [Mobilenet v3 Small](#mobilenet-v3-small)
 * [Mobilenet v4](#mobilenet-v4)
 * [Mobilenet v4 Hybrid](#mobilenet-v4-hybrid)
 * [MobileOne](#mobileone)
@@ -317,16 +318,22 @@ torchrun --nproc_per_node=2 train.py --network edgevit_s --tag intermediate --op
 
 ### EfficientNet v1
 
+#### EfficientNet v1: B0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientnet_v1 --net-param 0 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 10 --batch-size 128 --epochs 300 --size 256 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile
+```
+
 #### EfficientNet v1: B3
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_v1 --net-param 3 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 10 --batch-size 64 --epochs 300 --size 288 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2
+torchrun --nproc_per_node=2 train.py --network efficientnet_v1 --net-param 3 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 10 --batch-size 64 --epochs 300 --size 288 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile
 ```
 
 #### EfficientNet v1: B4
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_v1 --net-param 4 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 10 --batch-size 32 --epochs 300 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2
+torchrun --nproc_per_node=2 train.py --network efficientnet_v1 --net-param 4 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 10 --batch-size 32 --epochs 300 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 #### EfficientNet v1: B5
@@ -556,39 +563,55 @@ torchrun --nproc_per_node=2 train.py --network caformer_s18 --opt adamw --lr 0.0
 ### MnasNet
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mnasnet --net-param 0.5 --opt rmsprop --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 256 --epochs 200 --wd 1e-5 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --model-ema
+torchrun --nproc_per_node=2 train.py --network mnasnet --net-param 0.5 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 5 --batch-size 256 --size 256 --epochs 200 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3
 ```
 
 ### Mobilenet v1
 
+#### Mobilenet v1: Original
+
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v1 --net-param 1 --lr-scheduler cosine --batch-size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3
+torchrun --nproc_per_node=2 train.py --network mobilenet_v1 --net-param 1 --opt rmsprop --lr 0.045 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.94 --batch-size 256 --aug-level 2
+```
+
+#### Mobilenet v1: v4 procedure
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mobilenet_v1 --net-param 1 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 5 --batch-size 256 --size 256 --epochs 600 --wd 0.01 --smoothing-alpha 0.1 --aug-level 3 --ra-sampler --ra-reps 2 --clip-grad-norm 5
 ```
 
 ### Mobilenet v2
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v2 --net-param 2 --lr 0.045 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --epochs 200 --wd 0.00004 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3
+torchrun --nproc_per_node=2 train.py --network mobilenet_v2 --net-param 2 --opt rmsprop --lr 0.045 --lr-scheduler step --lr-step-size 1 --lr-step-gamma 0.98 --batch-size 128 --size 256 --epochs 300 --wd 0.00004 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --fast-matmul --compile
 ```
 
-### Mobilenet v3
+### Mobilenet v3 Large
 
-#### Mobilenet v3: 1.5
+#### Mobilenet v3 Large: 1.5
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3 --net-param 1.5 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile --stop-epoch 320
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large --net-param 1.5 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile --stop-epoch 320
 ```
 
 At epoch 320 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3 --net-param 1.5 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 128 --size 384 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile --resume-epoch 320 --load-states
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large --net-param 1.5 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 128 --size 384 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile --resume-epoch 320 --load-states
 ```
 
 Optional intermediate training
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3 --net-param 1.5 --tag intermediate --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large --net-param 1.5 --tag intermediate --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+```
+
+### Mobilenet v3 Small
+
+#### Mobilenet v3 Small: 1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3_small --net-param 1 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --fast-matmul --compile --stop-epoch 320
 ```
 
 ### Mobilenet v4
@@ -721,10 +744,16 @@ torchrun --nproc_per_node=2 train.py --network rdnet_b --opt adamw --lr 0.001 --
 
 ### RegNet
 
+#### RegNet: 0.2 GF
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regnet --net-param 0.2 --lr 0.4 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3
+```
+
 #### RegNet: 1.6 GF
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network regnet --net-param 1.6 --lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3
+torchrun --nproc_per_node=2 train.py --network regnet --net-param 1.6 --lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4
 ```
 
 #### RegNet: 8 GF
@@ -1033,13 +1062,19 @@ torchrun --nproc_per_node=2 train.py --network xception --lr-scheduler cosine --
 
 ### XCiT
 
-### XCiT: small p8
+#### XCiT: nano p16
+
+```sh
+torchrun --nproc_per_node=2 train.py --network xcit_nano16 --opt adamw --lr 0.0005 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-7 --warmup-epochs 30 --epochs 400 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --fast-matmul --compile
+```
+
+#### XCiT: small p8
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network xcit_small8 --opt adamw --lr 0.0005 --lr-scheduler cosine --batch-size 64 --lr-cosine-min 1e-7 --warmup-epochs 30 --epochs 400 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
-### XCiT: medium p16
+#### XCiT: medium p16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network xcit_medium16 --opt adamw --lr 0.0005 --lr-scheduler cosine --batch-size 64 --lr-cosine-min 1e-7 --warmup-epochs 30 --epochs 400 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile

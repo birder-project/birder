@@ -2,8 +2,7 @@
 import pathlib
 import time
 
-import numpy as np
-import pandas as pd
+import polars as pl
 from invoke import Exit
 from invoke import task
 
@@ -192,37 +191,48 @@ def update_annotation_table(_ctx):
     (validation_detection_count, _) = detection_object_count(settings.VALIDATION_DETECTION_ANNOTATIONS_PATH)
 
     class_list = _class_list()
-    classes = pd.Series(class_list)
     column_class = "class"
+    classes = pl.Series(column_class, class_list)
 
-    annotations_status = pd.read_csv("annotations_status.csv")
-    new_classes = classes[~classes.isin(annotations_status[column_class])].values
+    annotations_status = pl.read_csv("annotations_status.csv")
+    new_classes = classes.filter(~classes.is_in(annotations_status[column_class]))
     if len(new_classes) == 0:
         echo("No new species")
     else:
-        new_annotations_status = pd.DataFrame(new_classes, columns=[column_class])
-        for column in annotations_status:
+        new_annotations_status = new_classes.to_frame()
+        for column in annotations_status.columns:
             if column == column_class:
                 continue
 
-            new_annotations_status[column] = np.zeros_like(new_classes)
+            new_annotations_status = new_annotations_status.with_columns(
+                pl.lit(0).cast(annotations_status[column].dtype).alias(column)
+            )
 
-        annotations_status = pd.concat([annotations_status, new_annotations_status])
-        annotations_status.sort_values(by=column_class, inplace=True)
-        annotations_status.reset_index(drop=True, inplace=True)
+        annotations_status = pl.concat([annotations_status, new_annotations_status])
+        annotations_status = annotations_status.sort(column_class, descending=False)
 
     # Update sample count
     training_count = directory_label_count(settings.TRAINING_DATA_PATH)
     validation_count = directory_label_count(settings.VALIDATION_DATA_PATH)
     testing_count = directory_label_count(settings.TESTING_DATA_PATH)
-    annotations_status["training_samples"] = annotations_status["class"].map(training_count)
-    annotations_status["validation_samples"] = annotations_status["class"].map(validation_count)
-    annotations_status["testing_samples"] = annotations_status["class"].map(testing_count)
-    annotations_status["training_detection_samples"] = annotations_status["class"].map(training_detection_count)
-    annotations_status["validation_detection_samples"] = annotations_status["class"].map(validation_detection_count)
+    annotations_status = annotations_status.with_columns(
+        pl.col(column_class).replace_strict(training_count, default=0).alias("training_samples")
+    )
+    annotations_status = annotations_status.with_columns(
+        pl.col(column_class).replace_strict(validation_count, default=0).alias("validation_samples")
+    )
+    annotations_status = annotations_status.with_columns(
+        pl.col(column_class).replace_strict(testing_count, default=0).alias("testing_samples")
+    )
+    annotations_status = annotations_status.with_columns(
+        pl.col(column_class).replace_strict(training_detection_count, default=0).alias("training_detection_samples")
+    )
+    annotations_status = annotations_status.with_columns(
+        pl.col(column_class).replace_strict(validation_detection_count, default=0).alias("validation_detection_samples")
+    )
 
     # Save
-    annotations_status.to_csv("annotations_status.csv", index=False)
+    annotations_status.write_csv("annotations_status.csv")
     echo(f"Done, added {len(new_classes)} new classes")
 
 

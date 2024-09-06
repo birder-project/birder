@@ -265,7 +265,7 @@ class AnyStage(nn.Module):
 class RegNet(DetectorBackbone):
     default_size = 224
 
-    # pylint: disable=too-many-statements
+    # pylint: disable=too-many-statements,too-many-branches
     def __init__(
         self,
         input_channels: int,
@@ -279,7 +279,14 @@ class RegNet(DetectorBackbone):
         stem_width = 32
         bottleneck_multiplier = 1.0
         se_ratio = 0.25
-        if self.net_param == 0.4:
+        if self.net_param == 0.2:
+            depth = 13
+            w_0 = 24
+            w_a = 36.44
+            w_m = 2.49
+            group_width = 8
+
+        elif self.net_param == 0.4:
             depth = 16
             w_0 = 48
             w_a = 27.89
@@ -306,6 +313,13 @@ class RegNet(DetectorBackbone):
             w_a = 42.63
             w_m = 2.66
             group_width = 24
+
+        elif self.net_param == 6.4:
+            depth = 25
+            w_0 = 112
+            w_a = 33.22
+            w_m = 2.27
+            group_width = 72
 
         elif self.net_param == 8:
             depth = 17

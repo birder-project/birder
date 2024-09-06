@@ -24,7 +24,7 @@ class ImageListDataset(torch.utils.data.Dataset):
         # see: https://ppwwyyxx.com/blog/2022/Demystify-RAM-Usage-in-Multiprocess-DataLoader/
         (paths, labels) = list(zip(*samples))
         self.labels = np.array(labels, dtype=np.int32)
-        self.paths = np.array(paths, dtype=np.string_)
+        self.paths = np.array(paths, dtype=np.bytes_)
 
     def __getitem__(self, index: int) -> tuple[str, torch.Tensor, Any]:
         path = self.paths[index].decode("utf-8")

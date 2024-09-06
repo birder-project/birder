@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import numpy.typing as npt
-import pandas as pd
+import polars as pl
 import torch
 import torch.amp
 from torch.utils.data import DataLoader
@@ -146,8 +146,8 @@ def predict(args: argparse.Namespace) -> None:
             num_workers=8,
         )
 
-    embeddings: list[npt.NDArray[np.float32]] = []
-    outs: list[npt.NDArray[np.float32]] = []
+    embedding_list: list[npt.NDArray[np.float32]] = []
+    out_list: list[npt.NDArray[np.float32]] = []
     labels: list[int] = []
     sample_paths: list[str] = []
     tic = time.time()
@@ -159,9 +159,9 @@ def predict(args: argparse.Namespace) -> None:
             with torch.amp.autocast(device.type, enabled=args.amp):
                 (out, embedding) = inference.predict(net, inputs, return_embedding=args.save_embedding)
 
-            outs.append(out)
+            out_list.append(out)
             if embedding is not None:
-                embeddings.append(embedding)
+                embedding_list.append(embedding)
 
             # Set labels and sample list
             batch_labels = list(targets.cpu().numpy())
@@ -182,7 +182,7 @@ def predict(args: argparse.Namespace) -> None:
             # Update progress bar
             progress.update(n=batch_size)
 
-    outs = list(np.concatenate(outs, axis=0))
+    outs = np.concatenate(out_list, axis=0)
 
     toc = time.time()
     rate = len(outs) / (toc - tic)
@@ -203,23 +203,32 @@ def predict(args: argparse.Namespace) -> None:
         base_output_path = f"{base_output_path}_{args.suffix}"
 
     if args.save_embedding is True:
-        embeddings = list(np.concatenate(embeddings, axis=0))
-        embeddings_df = pd.DataFrame(embeddings)
-        embeddings_df.insert(0, "sample", sample_paths)
-        embeddings_df = embeddings_df.sort_values(by="sample", ascending=True)
+        embeddings = np.concatenate(embedding_list, axis=0)
+        embeddings_df = pl.DataFrame(embeddings)
+        embeddings_df = pl.DataFrame(
+            {
+                "sample": sample_paths,
+                **{f"{i}": embeddings[:, i] for i in range(embeddings.shape[-1])},
+            }
+        )
+        embeddings_df = embeddings_df.sort("sample", descending=False)
         embeddings_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_embeddings.csv")
         logging.info(f"Saving results at {embeddings_path}")
-        embeddings_df.to_csv(embeddings_path, index=False)
+        embeddings_df.write_csv(embeddings_path)
 
     # Save output
     if args.save_output is True:
-        output_df = pd.DataFrame(outs, columns=label_names)
-        output_df.insert(0, "prediction", output_df.idxmax(axis=1))
-        output_df.insert(0, "sample", sample_paths)
-        output_df = output_df.sort_values(by="sample", ascending=True)
+        output_df = pl.DataFrame(
+            {
+                "sample": sample_paths,
+                "prediction": np.array(label_names)[outs.argmax(axis=1)],
+                **{name: outs[:, i] for i, name in enumerate(label_names)},
+            }
+        )
+        output_df = output_df.sort("sample", descending=False)
         output_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_output.csv")
         logging.info(f"Saving results at {output_path}")
-        output_df.to_csv(output_path, index=False)
+        output_df.write_csv(output_path)
 
     # Handle results
     results = Results(sample_paths, labels, label_names, output=outs)
@@ -234,9 +243,10 @@ def predict(args: argparse.Namespace) -> None:
 
     # Summary
     if args.summary is True:
-        summary = results.prediction_names.value_counts(sort=True).to_string()
-        for line in summary.splitlines():
-            logging.info(line)
+        summary_df = results.prediction_names.value_counts(sort=True)
+        indent_size = summary_df["prediction_names"].str.len_chars().max() + 2  # type: ignore[operator]
+        for specie_name, count in summary_df.iter_rows():
+            logging.info(f"{specie_name:<{indent_size}} {count}")
 
 
 def main() -> None:

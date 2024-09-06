@@ -19,7 +19,6 @@ import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn.functional as F
 from PIL import Image
@@ -57,15 +56,10 @@ def show_image(image, title=""):
 ```
 
 ```{python}
-# network = "mae_vit"
-# encoder = "vit"
-# encoder_param = 3
-# size = 224
-
-# network = "mae_vit"
-# encoder = "vitreg4_b16"
-# encoder_param = None
-# size = 224
+network = "mae_vit"
+encoder = "vitreg4_b16"
+encoder_param = None
+size = 224
 
 # network = "fcmae"
 # encoder = "convnext_v2"
@@ -77,18 +71,18 @@ def show_image(image, title=""):
 # encoder_param = None
 # size = 192
 
-network = "simmim"
-encoder = "maxvit_t"
-encoder_param = None
-size = 192
+# network = "simmim"
+# encoder = "maxvit_t"
+# encoder_param = None
+# size = 192
 
 epoch_start = 1
 epoch_end = 400
 
-# image = "data/validation/Bluethroat/000013.jpeg"
+image = "data/validation/Bluethroat/000013.jpeg"
 # image = "data/training/African crake/000005.jpeg"
 # image = "data/training/African swamphen/000001.jpeg"
-image = "data/validation/Barn owl/000013.jpeg"
+# image = "data/validation/Barn owl/000013.jpeg"
 # image = "data/validation/Zitting cisticola/000025.jpeg"
 # image = "data/validation/Great egret/000031.jpeg"
 img = Image.open(image)

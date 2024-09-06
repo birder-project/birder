@@ -29,21 +29,23 @@ class TestClassification(unittest.TestCase):
         sample_list = ["file1.jpeg", "file2.jpg", "file3.jpeg", "file4.jpeg", "file5.png", "file6.webp"]
         labels = [0, 0, 2, 1, 1, 3]
         label_names = ["l0", "l1", "l2", "l3"]
-        output = [
-            np.array([0.1, 0.25, 0.5, 0.15]),
-            np.array([0.25, 0.5, 0.15, 0.1]),
-            np.array([0.1, 0.25, 0.5, 0.15]),
-            np.array([0.1, 0.25, 0.5, 0.15]),
-            np.array([0.1, 0.15, 0.5, 0.25]),
-            np.array([0.1, 0.25, 0.5, 0.15]),
-        ]
+        output = np.array(
+            [
+                [0.1, 0.25, 0.5, 0.15],
+                [0.25, 0.5, 0.15, 0.1],
+                [0.1, 0.25, 0.5, 0.15],
+                [0.1, 0.25, 0.5, 0.15],
+                [0.1, 0.15, 0.5, 0.25],
+                [0.1, 0.25, 0.5, 0.15],
+            ]
+        )
 
         results = Results(sample_list, labels, label_names, output)
         self.assertFalse(results.missing_labels)
         self.assertAlmostEqual(results.accuracy, 1.0 / 6.0)
         self.assertAlmostEqual(results.top_k, 5.0 / 6.0)
         self.assertEqual(results.predictions.tolist(), [2, 1, 2, 2, 2, 2])
-        self.assertEqual(results.prediction_names.tolist(), ["l2", "l1", "l2", "l2", "l2", "l2"])
+        self.assertEqual(results.prediction_names.to_list(), ["l2", "l1", "l2", "l2", "l2", "l2"])
 
         report = results.detailed_report()
         self.assertSequenceEqual(report["Class"].to_list(), [0, 1, 2, 3])
@@ -55,14 +57,16 @@ class TestClassification(unittest.TestCase):
         sample_list = ["file1.jpeg", "file2.jpg", "file3.jpeg", "file4.jpeg", "file5.png", "file6.webp"]
         labels = [0, -1, 2, -1, 1, 3]
         label_names = ["l0", "l1", "l2", "l3"]
-        output = [
-            np.array([0.1, 0.25, 0.5, 0.15]),
-            np.array([0.25, 0.5, 0.15, 0.1]),
-            np.array([0.1, 0.25, 0.5, 0.15]),
-            np.array([0.1, 0.25, 0.5, 0.15]),
-            np.array([0.1, 0.15, 0.5, 0.25]),
-            np.array([0.1, 0.25, 0.5, 0.15]),
-        ]
+        output = np.array(
+            [
+                [0.1, 0.25, 0.5, 0.15],
+                [0.25, 0.5, 0.15, 0.1],
+                [0.1, 0.25, 0.5, 0.15],
+                [0.1, 0.25, 0.5, 0.15],
+                [0.1, 0.15, 0.5, 0.25],
+                [0.1, 0.25, 0.5, 0.15],
+            ]
+        )
 
         results = Results(sample_list, labels, label_names, output)
 
@@ -72,7 +76,7 @@ class TestClassification(unittest.TestCase):
         self.assertAlmostEqual(results.accuracy, 1.0 / 4.0)
         self.assertAlmostEqual(results.top_k, 3.0 / 4.0)
         self.assertEqual(results.predictions.tolist(), [2, 1, 2, 2, 2, 2])
-        self.assertEqual(results.prediction_names.tolist(), ["l2", "l1", "l2", "l2", "l2", "l2"])
+        self.assertEqual(results.prediction_names.to_list(), ["l2", "l1", "l2", "l2", "l2", "l2"])
 
         report = results.detailed_report()
         self.assertSequenceEqual(report["Class"].to_list(), [0, 1, 2, 3])

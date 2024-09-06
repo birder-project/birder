@@ -1,8 +1,11 @@
 """
-MnasNet, adapted from
+MnasNet (B variant), adapted from
 https://github.com/pytorch/vision/blob/main/torchvision/models/mnasnet.py
 
 Paper "MnasNet: Platform-Aware Neural Architecture Search for Mobile", https://arxiv.org/abs/1807.11626
+
+Changes from original:
+* Relaxed the paper suggestion of 0.9997 momentum (1.0 - 0.9997 for Pytorch), using 0.99
 """
 
 # Reference license: BSD 3-Clause
@@ -144,9 +147,7 @@ class MNASNet(BaseNet):
         alpha = self.net_param
 
         depths = _get_depths(alpha)
-
-        # Paper suggests 0.9997 momentum, for TensorFlow. Equivalent PyTorch momentum is 1.0 - tensorflow
-        norm_layer = partial(nn.BatchNorm2d, momentum=1 - 0.9997)
+        norm_layer = partial(nn.BatchNorm2d, momentum=1 - 0.99)
 
         self.stem = nn.Sequential(
             Conv2dNormActivation(
