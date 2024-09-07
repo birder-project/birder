@@ -41,11 +41,11 @@ PATTERN = "il-common"
 ```
 
 ```{python}
-def get_num_parameters(file_name: str, pattern: str = PATTERN) -> int:
+def get_num_parameters(file_name: str, tag: str = PATTERN) -> int:
     file_name = file_name.split("/")[-1]
-    num_classes = file_name[file_name.find(pattern) + len(pattern) + 1 :]
+    num_classes = file_name[file_name.find(tag) + len(tag) + 1 :]
     num_classes = int(num_classes.split("_")[0])
-    model_name = file_name[: file_name.find(pattern) - 1]
+    model_name = file_name[: file_name.find(tag) - 1]
     if model_name in registry.all_nets:
         model = registry.net_factory(model_name, 3, num_classes=num_classes)
     else:
@@ -57,6 +57,14 @@ def get_num_parameters(file_name: str, pattern: str = PATTERN) -> int:
     info = get_model_info(model)
 
     return info["num_params"]
+```
+
+```{python}
+def get_resolution(file_name: str) -> int:
+    file_name = file_name[: file_name.find("px")]
+    resolution = file_name.rsplit("_", 1)[1]
+
+    return int(resolution)
 ```
 
 ```{python}
@@ -72,14 +80,18 @@ compare_results_df = compare_results(results_dict)
 ```{python}
 num_param = []
 model_names = []
+resolution = []
 for file_name in compare_results_df["File name"]:
     num_param.append(get_num_parameters(file_name) / 1e6)
-    model_names.append(file_name[: file_name.find(PATTERN) - 1])
+    model_names.append(file_name[: file_name.find(PATTERN) - 1].replace("_", " "))
+    resolution.append(get_resolution(file_name))
 ```
 
 ```{python}
 compare_results_df = compare_results_df.with_columns(
-    pl.Series("Parameters (M)", num_param), pl.Series("Model name", model_names)
+    pl.Series("Parameters (M)", num_param),
+    pl.Series("Resolution", resolution),
+    pl.Series("Model name", model_names),
 )
 compare_results_df = compare_results_df.select(
     "Model name", pl.all().exclude("File name", "Model name")
@@ -93,11 +105,16 @@ compare_results_df
 
 ```{python}
 base = compare_results_df.plot.point(
-    x="Parameters (M)", y="Accuracy", color="Model name"
+    x="Parameters (M)",
+    y="Accuracy",
+    color="Model name",
+    shape="Resolution:N",
 )
-text = base.mark_text(align="left", baseline="middle", dx=7).encode(text="Model name")
+text = base.mark_text(align="center", baseline="middle", dy=-10).encode(
+    text="Model name"
+)
 chart = base + text
-chart.properties(width=600, height=400).configure_scale(zero=False)
+chart.properties(width=800, height=600).configure_scale(zero=False)
 ```
 
 ```{python}

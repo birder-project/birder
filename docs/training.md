@@ -557,7 +557,7 @@ torchrun --nproc_per_node=2 train.py --network convformer_s18 --opt adamw --lr 0
 #### MetaFormer: CAFormer s18
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network caformer_s18 --opt adamw --lr 0.004 --lr-scheduler cosine --batch-size 128 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile
+torchrun --nproc_per_node=2 train.py --network caformer_s18 --opt adamw --lr 0.004 --lr-scheduler cosine --batch-size 256 --size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile
 ```
 
 ### MnasNet

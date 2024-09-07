@@ -21,6 +21,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.core.net.base import DetectorBackbone
 from birder.core.net.base import make_divisible
+from birder.model_registry import registry
 
 
 def adjust_channels(channels: int, width: float, min_value: Optional[int] = None) -> int:
@@ -316,3 +317,13 @@ class EfficientNet_v1(DetectorBackbone):
             nn.Dropout(p=self.dropout_rate, inplace=True),
             nn.Linear(embed_dim, self.num_classes),
         )
+
+
+registry.register_alias("efficientnet_v1_b0", EfficientNet_v1, 0)
+registry.register_alias("efficientnet_v1_b1", EfficientNet_v1, 1)
+registry.register_alias("efficientnet_v1_b2", EfficientNet_v1, 2)
+registry.register_alias("efficientnet_v1_b3", EfficientNet_v1, 3)
+registry.register_alias("efficientnet_v1_b4", EfficientNet_v1, 4)
+registry.register_alias("efficientnet_v1_b5", EfficientNet_v1, 5)
+registry.register_alias("efficientnet_v1_b6", EfficientNet_v1, 6)
+registry.register_alias("efficientnet_v1_b7", EfficientNet_v1, 7)

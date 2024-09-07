@@ -127,7 +127,7 @@ class Attention(nn.Module):
         (q, k, v) = qkv.unbind(0)
 
         x = F.scaled_dot_product_attention(  # pylint:disable=not-callable
-            q, k, v, dropout_p=self.attn_drop.p, scale=self.scale
+            q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
         )
 
         x = x.transpose(1, 2).reshape(B, H, W, self.attention_dim)

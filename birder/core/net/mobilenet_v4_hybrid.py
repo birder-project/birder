@@ -67,8 +67,6 @@ class MultiQueryAttention(nn.Module):
         super().__init__()
         self.num_heads = num_heads
         self.key_dim = key_dim
-        self.value_dim = value_dim
-        self.head_dim = self.key_dim // self.num_heads
         self.query_strides = query_strides
 
         query_layers = []
@@ -108,7 +106,7 @@ class MultiQueryAttention(nn.Module):
             )
 
         key_layers.append(nn.Conv2d(in_channels, self.key_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)))
-        value_layers.append(nn.Conv2d(in_channels, self.value_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)))
+        value_layers.append(nn.Conv2d(in_channels, value_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)))
         self.key = nn.Sequential(*key_layers)
         self.value = nn.Sequential(*value_layers)
 
@@ -117,7 +115,7 @@ class MultiQueryAttention(nn.Module):
             output_layers.append(nn.Upsample(scale_factor=self.query_strides, mode="bilinear", align_corners=False))
 
         output_layers.append(
-            nn.Conv2d(self.num_heads * self.value_dim, in_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
+            nn.Conv2d(self.num_heads * value_dim, in_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         )
         output_layers.append(nn.Dropout(p=dropout))
         self.output = nn.Sequential(*output_layers)
