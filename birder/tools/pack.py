@@ -16,6 +16,7 @@ from torchvision.datasets import ImageFolder
 from tqdm import tqdm
 
 from birder.common import cli
+from birder.common import fs_ops
 from birder.conf import settings
 
 
@@ -151,7 +152,7 @@ def directory_write_worker(q_out: Any, pack_path: Path, total: int, _: float, id
 # pylint: disable=too-many-locals,too-many-branches
 def pack(args: argparse.Namespace, pack_path: Path) -> None:
     if args.class_file is not None:
-        class_to_idx = cli.read_class_file(args.class_file)
+        class_to_idx = fs_ops.read_class_file(args.class_file)
     else:
         class_to_idx = _get_class_to_idx(args.data_path)
 
@@ -217,7 +218,7 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
     write_process.join()
 
     if args.type == "wds":
-        (wds_path, num_shards) = cli.wds_braces_from_path(pack_path)
+        (wds_path, num_shards) = fs_ops.wds_braces_from_path(pack_path)
         logging.info(f"Packed {len(dataset):,} samples into {num_shards} shards at {wds_path}")
     elif args.type == "directory":
         logging.info(f"Packed {len(dataset):,} samples")

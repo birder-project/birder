@@ -11,6 +11,7 @@ from torchvision.datasets import wrap_dataset_for_transforms_v2
 from torchvision.utils import draw_bounding_boxes
 
 from birder.common import cli
+from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
 from birder.core.transforms.classification import get_rgb_values
@@ -31,7 +32,7 @@ def show_det_iterator(args: argparse.Namespace) -> None:
 
     batch_size = 2
 
-    class_to_idx = cli.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
+    class_to_idx = fs_ops.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
     class_to_idx = lib.detection_class_to_idx(class_to_idx)
     class_list = list(class_to_idx.keys())
     class_list.insert(0, "Background")

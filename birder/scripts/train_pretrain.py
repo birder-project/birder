@@ -16,6 +16,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from birder.common import cli
+from birder.common import fs_ops
 from birder.common import training_utils
 from birder.common.lib import get_network_name
 from birder.common.lib import get_pretrain_network_name
@@ -42,7 +43,7 @@ def train(args: argparse.Namespace) -> None:
 
     rgb_values = get_rgb_values(args.rgb_mode)
     if args.wds is True:
-        (wds_path, _) = cli.wds_braces_from_path(Path(args.data_path[0]))
+        (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.data_path[0]))
         if args.wds_train_size is not None:
             dataset_size = args.wds_train_size
 
@@ -60,7 +61,7 @@ def train(args: argparse.Namespace) -> None:
         input_idx = 0
 
     else:
-        samples = cli.samples_from_paths(args.data_path, class_to_idx={})
+        samples = fs_ops.samples_from_paths(args.data_path, class_to_idx={})
         training_dataset = ImageListDataset(
             samples, transforms=training_preset((args.size, args.size), args.aug_level, rgb_values)
         )
@@ -90,7 +91,7 @@ def train(args: argparse.Namespace) -> None:
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
-        (net, optimizer_state, scheduler_state, scaler_state) = cli.load_pretrain_checkpoint(
+        (net, optimizer_state, scheduler_state, scaler_state) = fs_ops.load_pretrain_checkpoint(
             device,
             args.network,
             net_param=args.net_param,
@@ -142,6 +143,12 @@ def train(args: argparse.Namespace) -> None:
         if scaler is not None:
             scaler.load_state_dict(scaler_state)  # pylint: disable=possibly-used-before-assignment
 
+    elif args.load_scheduler is True:
+        scheduler.load_state_dict(scheduler_state)
+        last_lr = scheduler.get_last_lr()[0]
+        for g in optimizer.param_groups:
+            g["lr"] = last_lr
+
     last_lr = scheduler.get_last_lr()[0]
     if args.plot_lr is True:
         logging.info("Fast forwarding scheduler...")
@@ -190,7 +197,7 @@ def train(args: argparse.Namespace) -> None:
     encoder_signature = get_signature(input_shape=sample_shape, num_outputs=0)
     if args.rank == 0:
         summary_writer.flush()
-        cli.write_signature(network_name, signature)
+        fs_ops.write_signature(network_name, signature)
         with open(training_log_path.joinpath("args.json"), "w", encoding="utf-8") as handle:
             json.dump({"cmdline": " ".join(sys.argv), **vars(args)}, handle, indent=2)
 
@@ -317,7 +324,7 @@ def train(args: argparse.Namespace) -> None:
         if args.rank == 0:
             # Checkpoint model
             if epoch % args.save_frequency == 0:
-                cli.checkpoint_model(
+                fs_ops.checkpoint_model(
                     network_name,
                     epoch,
                     model_to_save,
@@ -328,7 +335,7 @@ def train(args: argparse.Namespace) -> None:
                     scheduler,
                     scaler,
                 )
-                cli.checkpoint_model(
+                fs_ops.checkpoint_model(
                     encoder_name,
                     epoch,
                     model_to_save.encoder,
@@ -350,7 +357,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Checkpoint model
     if args.distributed is False or (args.distributed is True and args.rank == 0):
-        cli.checkpoint_model(
+        fs_ops.checkpoint_model(
             network_name,
             epoch,
             model_to_save,
@@ -361,7 +368,7 @@ def train(args: argparse.Namespace) -> None:
             scheduler,
             scaler,
         )
-        cli.checkpoint_model(
+        fs_ops.checkpoint_model(
             encoder_name,
             epoch,
             model_to_save.encoder,
@@ -482,6 +489,7 @@ def main() -> None:
         action="store_true",
         help="load optimizer, scheduler and scaler states when resuming",
     )
+    parser.add_argument("--load-scheduler", default=False, action="store_true", help="load scheduler only resuming")
     parser.add_argument("-t", "--tag", type=str, help="add training logs tag")
     parser.add_argument("--log-interval", type=int, default=100, help="how many steps between summary writes")
     parser.add_argument(
@@ -532,6 +540,9 @@ def main() -> None:
     assert args.load_states is False or (
         args.load_states is True and args.resume_epoch is not None
     ), "Load states must be from resumed training (--resume-epoch)"
+    assert (
+        args.load_scheduler is False or args.resume_epoch is not None
+    ), "Load scheduler must be from resumed training (--resume-epoch)"
     assert args.wds is False or len(args.data_path) == 1, "WDS must be a single directory"
     assert (
         registry.exists(args.network, task=Task.IMAGE_PRETRAINING) is True

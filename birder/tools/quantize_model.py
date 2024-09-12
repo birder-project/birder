@@ -15,6 +15,7 @@ from torchvision.datasets import ImageFolder
 from tqdm import tqdm
 
 from birder.common import cli
+from birder.common import fs_ops
 from birder.common.lib import get_network_name
 from birder.conf import settings
 from birder.core.transforms.classification import inference_preset
@@ -79,7 +80,7 @@ def main(args: argparse.Namespace) -> None:
         device = torch.device("cpu")
 
     # Load model
-    (net, class_to_idx, signature, rgb_values) = cli.load_model(
+    (net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
         device,
         args.network,
         net_param=args.net_param,
@@ -127,15 +128,15 @@ def main(args: argparse.Namespace) -> None:
     logging.info(f"{int(minutes):0>2}m{seconds:04.1f}s to quantize model")
 
     network_name = get_network_name(args.network, net_param=args.net_param, tag=args.tag)
-    model_path = cli.model_path(network_name, epoch=args.epoch, quantized=True, pts=True)
+    model_path = fs_ops.model_path(network_name, epoch=args.epoch, quantized=True, pts=True)
     logging.info(f"Saving quantized TorchScript model {model_path}...")
 
     # Convert to TorchScript
     scripted_module = torch.jit.script(net)
-    cli.save_pts(scripted_module, model_path, task, class_to_idx, signature, rgb_values)
+    fs_ops.save_pts(scripted_module, model_path, task, class_to_idx, signature, rgb_values)
 
     if args.qbackend == "qnnpack":
-        model_path = cli.model_path(network_name, epoch=args.epoch, quantized=True, lite=True)
+        model_path = fs_ops.model_path(network_name, epoch=args.epoch, quantized=True, lite=True)
         logging.info(f"Saving quantized TorchScript model {model_path}...")
         optimized_scripted_module = optimize_for_mobile(scripted_module)
         optimized_scripted_module._save_for_lite_interpreter(  # pylint: disable=protected-access

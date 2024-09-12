@@ -22,6 +22,7 @@ from torchvision.io import read_image
 from tqdm import tqdm
 
 from birder.common import cli
+from birder.common import fs_ops
 from birder.common import training_utils
 from birder.common.lib import get_network_name
 from birder.conf import settings
@@ -46,7 +47,7 @@ def train(args: argparse.Namespace) -> None:
 
     rgb_values = get_rgb_values(args.rgb_mode)
     if args.wds is True:
-        (wds_path, _) = cli.wds_braces_from_path(Path(args.data_path))
+        (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.data_path))
         if args.wds_train_size is not None:
             dataset_size = args.wds_train_size
 
@@ -61,7 +62,7 @@ def train(args: argparse.Namespace) -> None:
             samples_names=False,
             transform=training_preset((args.size, args.size), args.aug_level, rgb_values),
         )
-        (wds_path, _) = cli.wds_braces_from_path(Path(args.val_path))
+        (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.val_path))
         if args.wds_val_size is not None:
             dataset_size = args.wds_val_size
 
@@ -79,7 +80,7 @@ def train(args: argparse.Namespace) -> None:
         if args.wds_class_file is None:
             args.wds_class_file = str(Path(args.data_path).joinpath(settings.CLASS_LIST_NAME))
 
-        class_to_idx = cli.read_class_file(args.wds_class_file)
+        class_to_idx = fs_ops.read_class_file(args.wds_class_file)
 
     else:
         training_dataset = ImageFolder(
@@ -128,7 +129,7 @@ def train(args: argparse.Namespace) -> None:
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
-        (net, class_to_idx_saved, optimizer_state, scheduler_state, scaler_state) = cli.load_checkpoint(
+        (net, class_to_idx_saved, optimizer_state, scheduler_state, scaler_state) = fs_ops.load_checkpoint(
             device,
             args.network,
             net_param=args.net_param,
@@ -263,7 +264,7 @@ def train(args: argparse.Namespace) -> None:
             summary_writer.add_graph(net_for_info, torch.rand(sample_shape, device=device))
 
         summary_writer.flush()
-        cli.write_signature(network_name, signature)
+        fs_ops.write_signature(network_name, signature)
         with open(training_log_path.joinpath("args.json"), "w", encoding="utf-8") as handle:
             json.dump({"cmdline": " ".join(sys.argv), **vars(args)}, handle, indent=2)
 
@@ -487,7 +488,7 @@ def train(args: argparse.Namespace) -> None:
 
             # Checkpoint model
             if epoch % args.save_frequency == 0:
-                cli.checkpoint_model(
+                fs_ops.checkpoint_model(
                     network_name,
                     epoch,
                     model_to_save,
@@ -521,7 +522,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Checkpoint model
     if args.distributed is False or (args.distributed is True and args.rank == 0):
-        cli.checkpoint_model(
+        fs_ops.checkpoint_model(
             network_name,
             epoch,
             model_to_save,
@@ -652,7 +653,6 @@ def main() -> None:
         help="load optimizer, scheduler and scaler states when resuming",
     )
     parser.add_argument("--load-scheduler", default=False, action="store_true", help="load scheduler only resuming")
-
     parser.add_argument(
         "--model-ema",
         default=False,

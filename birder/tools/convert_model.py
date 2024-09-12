@@ -10,9 +10,11 @@ import torch.onnx
 from torch.utils.mobile_optimizer import optimize_for_mobile
 
 from birder.common import cli
+from birder.common import fs_ops
 from birder.common import lib
 from birder.core.net.base import DetectorBackbone
 from birder.core.net.base import SignatureType
+from birder.core.net.base import reparameterize_available
 from birder.core.net.detection.base import DetectionSignatureType
 from birder.model_registry import registry
 
@@ -56,6 +58,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
 
     format_group = subparser.add_mutually_exclusive_group(required=True)
+    format_group.add_argument("-r", "--reparameterize", default=False, action="store_true", help="reparameterize model")
     format_group.add_argument("--pts", default=False, action="store_true", help="convert to TorchScript model")
     format_group.add_argument(
         "--lite", default=False, action="store_true", help="convert to lite interpreter version model"
@@ -73,7 +76,7 @@ def main(args: argparse.Namespace) -> None:
     device = torch.device("cpu")
     signature: SignatureType | DetectionSignatureType
     if args.backbone is None:
-        (net, class_to_idx, signature, rgb_values) = cli.load_model(
+        (net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
             device,
             args.network,
             net_param=args.net_param,
@@ -85,7 +88,7 @@ def main(args: argparse.Namespace) -> None:
         network_name = lib.get_network_name(args.network, net_param=args.net_param, tag=args.tag)
 
     else:
-        (net, class_to_idx, signature, rgb_values) = cli.load_detection_model(
+        (net, class_to_idx, signature, rgb_values) = fs_ops.load_detection_model(
             device,
             args.network,
             net_param=args.net_param,
@@ -108,11 +111,29 @@ def main(args: argparse.Namespace) -> None:
 
     net.eval()
 
-    model_path = cli.model_path(
+    model_path = fs_ops.model_path(
         network_name, epoch=args.epoch, pts=args.pts, lite=args.lite, pt2=args.pt2, onnx=args.onnx
     )
     logging.info(f"Saving converted model {model_path}...")
-    if args.lite is True:
+    if args.reparameterize is True:
+        if reparameterize_available(net) is False:
+            logging.error("Reparameterize not supported for this network")
+        else:
+            net.reparameterize_model()
+            network_name = lib.get_network_name(network_name, net_param=None, tag="reparameterized")
+            fs_ops.checkpoint_model(
+                network_name,
+                args.epoch,
+                net,
+                signature=signature,
+                class_to_idx=class_to_idx,
+                rgb_values=rgb_values,
+                optimizer=None,
+                scheduler=None,
+                scaler=None,
+            )
+
+    elif args.lite is True:
         scripted_module = torch.jit.script(net)
         optimized_scripted_module = optimize_for_mobile(scripted_module)
         optimized_scripted_module._save_for_lite_interpreter(  # pylint: disable=protected-access
@@ -132,7 +153,7 @@ def main(args: argparse.Namespace) -> None:
         exported_net = torch.export.export(
             net, (torch.randn(*sample_shape, device=device),), dynamic_shapes={"x": {0: batch_dim}}
         )
-        cli.save_pt2(exported_net, model_path, net.task, class_to_idx, signature, rgb_values)
+        fs_ops.save_pt2(exported_net, model_path, net.task, class_to_idx, signature, rgb_values)
 
     elif args.onnx is True:
         signature["inputs"][0]["data_shape"][0] = 1  # Set batch size
@@ -164,4 +185,4 @@ def main(args: argparse.Namespace) -> None:
 
     elif args.pts is True:
         scripted_module = torch.jit.script(net)
-        cli.save_pts(scripted_module, model_path, net.task, class_to_idx, signature, rgb_values)
+        fs_ops.save_pts(scripted_module, model_path, net.task, class_to_idx, signature, rgb_values)

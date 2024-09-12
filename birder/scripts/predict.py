@@ -13,6 +13,7 @@ from torchvision.datasets.folder import pil_loader
 from tqdm import tqdm
 
 from birder.common import cli
+from birder.common import fs_ops
 from birder.common.lib import get_network_name
 from birder.conf import settings
 from birder.core.dataloader.webdataset import make_wds_loader
@@ -76,7 +77,7 @@ def predict(args: argparse.Namespace) -> None:
         logging.info(f"Using device {device}")
 
     network_name = get_network_name(args.network, net_param=args.net_param, tag=args.tag)
-    (net, class_to_idx, signature, rgb_values) = cli.load_model(
+    (net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
         device,
         args.network,
         net_param=args.net_param,
@@ -111,7 +112,7 @@ def predict(args: argparse.Namespace) -> None:
     batch_size = args.batch_size
     inference_transform = inference_preset((args.size, args.size), args.center_crop, rgb_values)
     if args.wds is True:
-        (wds_path, _) = cli.wds_braces_from_path(Path(args.data_path[0]))
+        (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.data_path[0]))
         dataset_size = wds_size(wds_path, device)
         num_samples = dataset_size
         dataset = make_wds_dataset(
@@ -134,7 +135,7 @@ def predict(args: argparse.Namespace) -> None:
         )
 
     else:
-        samples = cli.samples_from_paths(args.data_path, class_to_idx=class_to_idx)
+        samples = fs_ops.samples_from_paths(args.data_path, class_to_idx=class_to_idx)
         num_samples = len(samples)
         assert num_samples > 0, "Couldn't find any images"
 

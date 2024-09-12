@@ -1,0 +1,81 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.16.4
+  kernelspec:
+    display_name: birder
+    language: python
+    name: birder
+---
+
+```{python}
+import sys
+
+import torch
+from PIL import Image
+from torch.utils.data import DataLoader
+```
+
+```{python}
+sys.path.append("..")
+```
+
+```{python}
+import birder
+from birder.core.transforms.classification import inference_preset
+from birder.datahub.classification import CUB_200_2011
+```
+
+```{python}
+# %cd ..
+```
+
+```{python}
+
+```
+
+```{python}
+device = torch.device("cpu")
+(net, class_to_idx, _, rgb_valuse) = birder.load_pretrained_model(
+    "xcit_nano16_il-common", device=device
+)
+idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
+transform = inference_preset((256, 256), 1.0, rgb_valuse)
+```
+
+```{python}
+training_dataset = CUB_200_2011("data", download=True)
+validation_dataset = CUB_200_2011("data", split="validation")
+```
+
+```{python}
+training_dataloader = DataLoader(training_dataset)
+```
+
+```{python}
+training_dataloader
+```
+
+```{python}
+for img_path, cls in validation_dataset.imgs:
+    if cls == 45:  # Gadwell
+        img = Image.open(img_path)
+        break
+```
+
+```{python}
+input_tensor = transform(img).unsqueeze(dim=0).to(device)
+```
+
+```{python}
+idx_to_class[net(input_tensor).argmax().item()]
+```
+
+```{python}
+
+```

@@ -5,6 +5,7 @@ from typing import Any
 import torch
 
 from birder.common import cli
+from birder.common import fs_ops
 
 
 class Ensemble(torch.nn.Module):
@@ -55,7 +56,7 @@ def main(args: argparse.Namespace) -> None:
     signature_list = []
     rgb_values_list = []
     for network in args.networks:
-        (net, class_to_idx, signature, rgb_values) = cli.load_model(
+        (net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
             device, network, inference=True, pts=args.pts, pt2=args.pt2
         )
         nets.append(net)
@@ -79,7 +80,7 @@ def main(args: argparse.Namespace) -> None:
     ensemble = Ensemble(nets)
 
     network_name = "ensemble"
-    model_path = cli.model_path(network_name, pts=args.pts, pt2=args.pt2)
+    model_path = fs_ops.model_path(network_name, pts=args.pts, pt2=args.pt2)
     if model_path.exists() is True and args.force is False:
         logging.warning("Ensemble already exists... aborting")
         raise SystemExit(1)
@@ -94,10 +95,10 @@ def main(args: argparse.Namespace) -> None:
         )
 
         # Save model
-        cli.save_pt2(exported_net, model_path, nets[0].task, class_to_idx, signature, rgb_values)
+        fs_ops.save_pt2(exported_net, model_path, nets[0].task, class_to_idx, signature, rgb_values)
 
     elif args.pts is True:
         scripted_ensemble = torch.jit.script(ensemble)
 
         # Save model
-        cli.save_pts(scripted_ensemble, model_path, nets[0].task, class_to_idx, signature, rgb_values)
+        fs_ops.save_pts(scripted_ensemble, model_path, nets[0].task, class_to_idx, signature, rgb_values)

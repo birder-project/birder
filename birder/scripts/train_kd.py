@@ -31,6 +31,7 @@ from torchvision.io import read_image
 from tqdm import tqdm
 
 from birder.common import cli
+from birder.common import fs_ops
 from birder.common import training_utils
 from birder.common.lib import get_network_name
 from birder.conf import settings
@@ -54,7 +55,7 @@ def train(args: argparse.Namespace, distillation_type: DistType) -> None:
     torch.backends.cudnn.benchmark = True
 
     # Using the teacher rgb values for the student
-    (teacher, class_to_idx, signature, rgb_values) = cli.load_model(
+    (teacher, class_to_idx, signature, rgb_values) = fs_ops.load_model(
         device,
         args.teacher,
         net_param=args.teacher_param,
@@ -70,7 +71,7 @@ def train(args: argparse.Namespace, distillation_type: DistType) -> None:
         logging.debug(f"Using size={args.size}")
 
     if args.wds is True:
-        (wds_path, _) = cli.wds_braces_from_path(Path(args.data_path))
+        (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.data_path))
         if args.wds_train_size is not None:
             dataset_size = args.wds_train_size
 
@@ -85,7 +86,7 @@ def train(args: argparse.Namespace, distillation_type: DistType) -> None:
             samples_names=False,
             transform=training_preset((args.size, args.size), args.aug_level, rgb_values),
         )
-        (wds_path, _) = cli.wds_braces_from_path(Path(args.val_path))
+        (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.val_path))
         if args.wds_val_size is not None:
             dataset_size = args.wds_val_size
 
@@ -103,7 +104,7 @@ def train(args: argparse.Namespace, distillation_type: DistType) -> None:
         if args.wds_class_file is None:
             args.wds_class_file = str(Path(args.data_path).joinpath(settings.CLASS_LIST_NAME))
 
-        ds_class_to_idx = cli.read_class_file(args.wds_class_file)
+        ds_class_to_idx = fs_ops.read_class_file(args.wds_class_file)
         assert class_to_idx == ds_class_to_idx
 
     else:
@@ -154,7 +155,7 @@ def train(args: argparse.Namespace, distillation_type: DistType) -> None:
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
-        (student, class_to_idx_saved, optimizer_state, scheduler_state, scaler_state) = cli.load_checkpoint(
+        (student, class_to_idx_saved, optimizer_state, scheduler_state, scaler_state) = fs_ops.load_checkpoint(
             device,
             args.student,
             net_param=args.student_param,
@@ -223,6 +224,12 @@ def train(args: argparse.Namespace, distillation_type: DistType) -> None:
         if scaler is not None:
             scaler.load_state_dict(scaler_state)  # pylint: disable=possibly-used-before-assignment
 
+    elif args.load_scheduler is True:
+        scheduler.load_state_dict(scheduler_state)
+        last_lr = scheduler.get_last_lr()[0]
+        for g in optimizer.param_groups:
+            g["lr"] = last_lr
+
     last_lr = scheduler.get_last_lr()[0]
 
     # Distributed
@@ -283,7 +290,7 @@ def train(args: argparse.Namespace, distillation_type: DistType) -> None:
             summary_writer.add_graph(net_for_info, torch.rand(sample_shape, device=device))
 
         summary_writer.flush()
-        cli.write_signature(student_name, signature)
+        fs_ops.write_signature(student_name, signature)
         with open(training_log_path.joinpath("args.json"), "w", encoding="utf-8") as handle:
             json.dump({"cmdline": " ".join(sys.argv), **vars(args)}, handle, indent=2)
 
@@ -523,7 +530,7 @@ def train(args: argparse.Namespace, distillation_type: DistType) -> None:
 
             # Checkpoint model
             if epoch % args.save_frequency == 0:
-                cli.checkpoint_model(
+                fs_ops.checkpoint_model(
                     student_name,
                     epoch,
                     model_to_save,
@@ -557,7 +564,7 @@ def train(args: argparse.Namespace, distillation_type: DistType) -> None:
 
     # Checkpoint model
     if args.distributed is False or (args.distributed is True and args.rank == 0):
-        cli.checkpoint_model(
+        fs_ops.checkpoint_model(
             student_name,
             epoch,
             model_to_save,
@@ -692,6 +699,7 @@ def main() -> None:
         action="store_true",
         help="load optimizer, scheduler and scaler states when resuming",
     )
+    parser.add_argument("--load-scheduler", default=False, action="store_true", help="load scheduler only resuming")
     parser.add_argument(
         "--model-ema",
         default=False,
@@ -772,6 +780,9 @@ def main() -> None:
     assert args.load_states is False or (
         args.load_states is True and args.resume_epoch is not None
     ), "Load states must be from resumed training (--resume-epoch)"
+    assert (
+        args.load_scheduler is False or args.resume_epoch is not None
+    ), "Load scheduler must be from resumed training (--resume-epoch)"
     assert args.wds is False or args.ra_sampler is False, "Repeated Augmentation not currently supported with wds"
     assert (
         registry.exists(args.teacher, task=Task.IMAGE_CLASSIFICATION) is True

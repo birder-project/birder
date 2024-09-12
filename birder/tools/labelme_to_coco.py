@@ -8,6 +8,7 @@ from typing import Any
 from tqdm import tqdm
 
 from birder.common import cli
+from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
 
@@ -34,13 +35,13 @@ def _create_annotation(
 
 
 def labelme_to_coco(args: argparse.Namespace, target_path: Path) -> None:
-    class_to_idx = cli.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
+    class_to_idx = fs_ops.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
     class_to_idx = lib.detection_class_to_idx(class_to_idx)
 
     image_list = []
     annotation_list = []
     annotation_id = 0
-    for idx, json_path in tqdm(enumerate(cli.file_iter(args.data_path, extensions=[".json"])), leave=False):
+    for idx, json_path in tqdm(enumerate(fs_ops.file_iter(args.data_path, extensions=[".json"])), leave=False):
         with open(json_path, "r", encoding="utf-8") as handle:
             data = json.load(handle)
 

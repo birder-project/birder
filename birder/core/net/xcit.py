@@ -456,3 +456,22 @@ registry.register_alias("xcit_medium16", XCiT, 6)
 registry.register_alias("xcit_medium8", XCiT, 7)
 registry.register_alias("xcit_large16", XCiT, 8)
 registry.register_alias("xcit_large8", XCiT, 9)
+
+registry.register_weights(
+    "xcit_nano16_il-common",
+    {
+        "description": "XCiT nano patch16 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 11.5,
+                "sha256": "aa99df518dc40c657939a840f951598a8a0b5513e328c2f11e882bcb01b64ca5",
+            },
+            "pt2": {
+                "file_size": 14.3,
+                "sha256": "988a96e2ae63cc2f7dc663c1fa37f478b76034e4935d4384d5cb89dae359b145",
+            },
+        },
+        "net": {"network": "xcit_nano16", "tag": "il-common"},
+    },
+)

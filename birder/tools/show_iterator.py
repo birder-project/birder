@@ -12,6 +12,7 @@ from torch.utils.data.dataloader import default_collate
 from torchvision.datasets import ImageFolder
 
 from birder.common import cli
+from birder.common import fs_ops
 from birder.conf import settings
 from birder.core.dataloader.webdataset import make_wds_loader
 from birder.core.datasets.webdataset import make_wds_dataset
@@ -35,7 +36,7 @@ def show_iterator(args: argparse.Namespace) -> None:
 
     batch_size = 8
     if args.wds is True:
-        (wds_path, _) = cli.wds_braces_from_path(Path(args.data_path))
+        (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.data_path))
         if args.wds_size is not None:
             dataset_size = args.wds_size
 
@@ -54,7 +55,7 @@ def show_iterator(args: argparse.Namespace) -> None:
         if args.wds_class_file is None:
             args.wds_class_file = Path(args.data_path).joinpath(settings.CLASS_LIST_NAME)
 
-        class_to_idx = cli.read_class_file(args.wds_class_file)
+        class_to_idx = fs_ops.read_class_file(args.wds_class_file)
 
     else:
         dataset = ImageFolder(args.data_path, transform=transform)

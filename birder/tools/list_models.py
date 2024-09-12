@@ -82,17 +82,20 @@ def main(args: argparse.Namespace) -> None:
         if args.pretrained is True:
             table = Table(show_header=True, header_style="bold dark_magenta")
             table.add_column("Model name")
-            table.add_column("Formats", style="dim")
+            table.add_column("Format", style="dim")
             table.add_column("File size", justify="right")
+            table.add_column("Resolution", justify="right")
             table.add_column("Description")
             for model_name in model_list:
                 model_info = registry.get_pretrained_info(model_name)
-                table.add_row(
-                    model_name,
-                    ", ".join(model_info["formats"]),
-                    f"{model_info['file_size']}MB",
-                    model_info["description"],
-                )
+                for format_name, format_info in model_info["formats"].items():
+                    table.add_row(
+                        model_name,
+                        format_name,
+                        f"{format_info['file_size']}MB",
+                        "x".join(str(x) for x in model_info["resolution"]),
+                        model_info["description"],
+                    )
 
             console.print(table)
 

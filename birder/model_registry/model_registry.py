@@ -69,6 +69,19 @@ class ModelRegistry:
 
         self.aliases[alias] = type(alias, (net_type,), {"net_param": net_param})
 
+    def register_weights(self, name: str, weights_info: manifest.ModelInfoType) -> None:
+        """
+        Just by defining the `type(alias, (net_type,), ...) the network is registered
+        no further registration is needed.
+        The aliases dictionary is kept only for bookkeeping.
+        """
+
+        if name in self._pretrained_nets:
+            warnings.warn(f"Weights {name} is already registered", UserWarning)
+
+        manifest.REGISTRY_MANIFEST[name] = weights_info
+        self._pretrained_nets[name] = weights_info
+
     def _get_model_by_name(self, name: str) -> "BaseNetType":
         if name in self._nets:
             net = self._nets[name]

@@ -61,6 +61,11 @@ encoder = "vitreg4_b16"
 encoder_param = None
 size = 224
 
+# network = "mae_vit"
+# encoder = "vit_l16"
+# encoder_param = None
+# size = 224
+
 # network = "fcmae"
 # encoder = "convnext_v2"
 # encoder_param = 5

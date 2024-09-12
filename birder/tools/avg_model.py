@@ -6,6 +6,7 @@ from typing import Optional
 import torch
 
 from birder.common import cli
+from birder.common import fs_ops
 from birder.common.lib import get_network_name
 from birder.core.net.base import SignatureType
 from birder.model_registry import registry
@@ -17,7 +18,7 @@ def avg_models(network: str, net_param: Optional[float], tag: Optional[str], epo
     aux_data = {}
     for idx, epoch in enumerate(epochs):
         network_name = get_network_name(network, net_param, tag)
-        path = cli.model_path(network_name, epoch=epoch, pts=False)
+        path = fs_ops.model_path(network_name, epoch=epoch, pts=False)
         logging.info(f"Loading model from {path}...")
 
         model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=False)
@@ -54,7 +55,7 @@ def avg_models(network: str, net_param: Optional[float], tag: Optional[str], epo
     net.load_state_dict(avg_state)
 
     # Save model
-    model_path = cli.model_path(network_name, epoch=0)
+    model_path = fs_ops.model_path(network_name, epoch=0)
     if model_path.exists() is True and force is False:
         logging.warning("Averaged model already exists... aborting")
         raise SystemExit(1)

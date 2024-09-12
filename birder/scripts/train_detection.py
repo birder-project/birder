@@ -20,6 +20,7 @@ from torchvision.datasets import wrap_dataset_for_transforms_v2
 from tqdm import tqdm
 
 from birder.common import cli
+from birder.common import fs_ops
 from birder.common import lib
 from birder.common import training_utils
 from birder.conf import settings
@@ -48,7 +49,7 @@ def train(args: argparse.Namespace) -> None:
     training_dataset = wrap_dataset_for_transforms_v2(training_dataset)
     validation_dataset = CocoDetection(".", val_coco_path, transforms=inference_preset(args.size, rgb_values))
     validation_dataset = wrap_dataset_for_transforms_v2(validation_dataset)
-    class_to_idx = cli.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
+    class_to_idx = fs_ops.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
     class_to_idx = lib.detection_class_to_idx(class_to_idx)
 
     assert args.model_ema is False or args.model_ema_steps <= len(training_dataset) / args.batch_size
@@ -83,7 +84,7 @@ def train(args: argparse.Namespace) -> None:
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
-        (net, class_to_idx_saved, optimizer_state, scheduler_state, scaler_state) = cli.load_detection_checkpoint(
+        (net, class_to_idx_saved, optimizer_state, scheduler_state, scaler_state) = fs_ops.load_detection_checkpoint(
             device,
             args.network,
             net_param=args.net_param,
@@ -98,7 +99,7 @@ def train(args: argparse.Namespace) -> None:
     else:
         if args.backbone_epoch is not None:
             backbone: DetectorBackbone
-            (backbone, class_to_idx_saved, _, _, _) = cli.load_checkpoint(
+            (backbone, class_to_idx_saved, _, _, _) = fs_ops.load_checkpoint(
                 device,
                 args.backbone,
                 net_param=args.backbone_param,
@@ -209,7 +210,7 @@ def train(args: argparse.Namespace) -> None:
     signature = get_detection_signature(input_shape=sample_shape, num_outputs=num_outputs)
     if args.rank == 0:
         summary_writer.flush()
-        cli.write_signature(network_name, signature)
+        fs_ops.write_signature(network_name, signature)
         with open(training_log_path.joinpath("args.json"), "w", encoding="utf-8") as handle:
             json.dump({"cmdline": " ".join(sys.argv), **vars(args)}, handle, indent=2)
 
@@ -384,7 +385,7 @@ def train(args: argparse.Namespace) -> None:
 
             # Checkpoint model
             if epoch % args.save_frequency == 0:
-                cli.checkpoint_model(
+                fs_ops.checkpoint_model(
                     network_name,
                     epoch,
                     model_to_save,
@@ -414,7 +415,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Checkpoint model
     if args.distributed is False or (args.distributed is True and args.rank == 0):
-        cli.checkpoint_model(
+        fs_ops.checkpoint_model(
             network_name,
             epoch,
             model_to_save,

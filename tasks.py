@@ -6,7 +6,7 @@ import polars as pl
 from invoke import Exit
 from invoke import task
 
-from birder.common import cli
+from birder.common import fs_ops
 from birder.conf import settings
 from birder.tools.stats import detection_object_count
 from birder.tools.stats import directory_label_count
@@ -267,7 +267,7 @@ def gen_classes_file(_ctx):
         settings.DETECTION_DATA_PATH.mkdir(parents=True)
 
     class_list = _class_list()
-    class_to_idx = cli.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
+    class_to_idx = fs_ops.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
     if class_list == list(class_to_idx.keys()):
         echo("No new species")
     else:

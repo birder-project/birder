@@ -1,10 +1,13 @@
 import logging
 import typing
 import unittest
+from unittest.mock import mock_open
+from unittest.mock import patch
 
 import torch
 
 from birder.common import cli
+from birder.common import fs_ops
 from birder.common import lib
 from birder.common import training_utils
 from birder.conf import settings
@@ -49,26 +52,33 @@ class TestCommon(unittest.TestCase):
         self.assertEqual(detection_class_to_index["second"], 2)
 
     def test_cli(self) -> None:
+        m = mock_open(read_data=b"test data")
+        with patch("builtins.open", m):
+            hex_digest = cli.calc_sha256("some_file.tar.gz")
+            m.assert_called_with("some_file.tar.gz", "rb")
+            self.assertEqual(hex_digest, "916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9")
+
+    def test_fs_ops(self) -> None:
         # Test model paths
-        path = cli.model_path("net", states=True)
+        path = fs_ops.model_path("net", states=True)
         self.assertEqual(path, settings.MODELS_DIR.joinpath("net_states"))
 
-        path = cli.model_path("net")
+        path = fs_ops.model_path("net")
         self.assertEqual(path, settings.MODELS_DIR.joinpath("net.pt"))
 
-        path = cli.model_path("net", quantized=True)
+        path = fs_ops.model_path("net", quantized=True)
         self.assertEqual(path, settings.MODELS_DIR.joinpath("net_quantized.pt"))
 
-        path = cli.model_path("net", pts=True)
+        path = fs_ops.model_path("net", pts=True)
         self.assertEqual(path, settings.MODELS_DIR.joinpath("net.pts"))
 
-        path = cli.model_path("net", lite=True)
+        path = fs_ops.model_path("net", lite=True)
         self.assertEqual(path, settings.MODELS_DIR.joinpath("net.ptl"))
 
-        path = cli.model_path("net", pt2=True)
+        path = fs_ops.model_path("net", pt2=True)
         self.assertEqual(path, settings.MODELS_DIR.joinpath("net.pt2"))
 
-        path = cli.model_path("net", epoch=17)
+        path = fs_ops.model_path("net", epoch=17)
         self.assertEqual(path, settings.MODELS_DIR.joinpath("net_17.pt"))
 
     # pylint: disable=too-many-statements

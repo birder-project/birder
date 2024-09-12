@@ -18,6 +18,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from birder.common import cli
+from birder.common import fs_ops
 from birder.core.datasets.directory import ImageListDataset
 from birder.core.inference import inference
 from birder.core.transforms.classification import inference_preset
@@ -28,7 +29,7 @@ def similarity(args: argparse.Namespace) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f"Using device {device}")
 
-    (net, class_to_idx, signature, rgb_values) = cli.load_model(
+    (net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
         device,
         args.network,
         net_param=args.net_param,
@@ -38,7 +39,7 @@ def similarity(args: argparse.Namespace) -> None:
     )
 
     size = signature["inputs"][0]["data_shape"][2]
-    samples = cli.samples_from_paths(args.data_path, class_to_idx=class_to_idx)
+    samples = fs_ops.samples_from_paths(args.data_path, class_to_idx=class_to_idx)
     assert len(samples) > 0, "Couldn't find any images"
 
     batch_size = 32

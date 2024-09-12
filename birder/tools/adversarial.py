@@ -7,13 +7,14 @@ import torch
 from PIL import Image
 
 from birder.common import cli
+from birder.common import fs_ops
 from birder.core.adversarial.fgsm import FGSM
 from birder.core.transforms.classification import inference_preset
 
 
 def show_fgsm(args: argparse.Namespace) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    (net, class_to_idx, signature, rgb_values) = cli.load_model(
+    (net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
         device,
         args.network,
         net_param=args.net_param,

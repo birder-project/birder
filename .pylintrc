@@ -2,7 +2,7 @@
 # A comma-separated list of package or module names from where C extensions may
 # be loaded. Extensions are loading into the active Python interpreter and may
 # run arbitrary code.
-extension-pkg-whitelist=scipy,numpy,pydantic
+extension-pkg-whitelist=scipy,numpy
 
 # Add <file or directory> to the black list, it should be a base name, not a path
 ignore=.git,.svn,migrations,site-packages,data

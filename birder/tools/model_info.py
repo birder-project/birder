@@ -6,6 +6,7 @@ from rich.columns import Columns
 from rich.console import Console
 
 from birder.common import cli
+from birder.common import fs_ops
 from birder.core.net.base import DetectorBackbone
 from birder.core.net.base import SignatureType
 from birder.core.net.detection.base import DetectionSignatureType
@@ -71,7 +72,7 @@ def main(args: argparse.Namespace) -> None:
     device = torch.device("cpu")
     signature: SignatureType | DetectionSignatureType
     if args.backbone is None:
-        (net, class_to_idx, signature, rgb_values) = cli.load_model(
+        (net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
             device,
             args.network,
             net_param=args.net_param,
@@ -81,7 +82,7 @@ def main(args: argparse.Namespace) -> None:
         )
 
     else:
-        (net, class_to_idx, signature, rgb_values) = cli.load_detection_model(
+        (net, class_to_idx, signature, rgb_values) = fs_ops.load_detection_model(
             device,
             args.network,
             net_param=args.net_param,

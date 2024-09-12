@@ -1,19 +1,19 @@
 invoke~=2.2.0
 matplotlib~=3.9.2
-numpy~=2.0.2  # --no-binary numpy
+numpy~=2.1.1  # --no-binary numpy
 onnx~=1.16.2
 # pandas[performance,plot,output-formatting]~=2.2.2
 Pillow~=10.4.0
-polars~=1.6.0
+polars~=1.7.1
 pyarrow~=17.0.0
 pycocotools~=2.0.8
-pydantic~=2.8.2
-rich~=13.8.0
-scikit-learn~=1.5.1
+rich~=13.8.1
+scikit-learn~=1.5.2
 scipy~=1.14.1
 torchinfo~=1.8.0
 torchmetrics~=1.4.1
 tqdm~=4.66.5
+urllib3~=2.2.3
 webdataset~=0.2.100
 
 # TorchServe

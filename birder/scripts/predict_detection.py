@@ -11,6 +11,7 @@ from torchvision.utils import draw_bounding_boxes
 from tqdm import tqdm
 
 from birder.common import cli
+from birder.common import fs_ops
 from birder.conf import settings
 from birder.core.datasets.directory import ImageListDataset
 from birder.core.net.base import DetectorBackbone
@@ -31,7 +32,7 @@ def predict(args: argparse.Namespace) -> None:
     else:
         logging.info(f"Using device {device}")
 
-    (net, class_to_idx, signature, rgb_values) = cli.load_detection_model(
+    (net, class_to_idx, signature, rgb_values) = fs_ops.load_detection_model(
         device,
         args.network,
         net_param=args.net_param,
@@ -59,7 +60,7 @@ def predict(args: argparse.Namespace) -> None:
         args.size = signature["inputs"][0]["data_shape"][2]
         logging.debug(f"Using size={args.size}")
 
-    samples = cli.samples_from_paths(args.data_path, class_to_idx={})
+    samples = fs_ops.samples_from_paths(args.data_path, class_to_idx={})
     assert len(samples) > 0, "Couldn't find any images"
 
     score_threshold = args.min_score
