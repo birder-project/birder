@@ -14,44 +14,58 @@ jupyter:
 ---
 
 ```{python}
-import sys
+# Simulate birder installed from package
+# %cd ..
+```
 
+```{python}
 import torch
 import torch.nn.functional as F
 from PIL import Image
 ```
 
 ```{python}
-sys.path.append("..")
-```
-
-```{python}
 import birder
 from birder.core.results.gui import show_top_k
-from birder.datahub.classification import CUB_200_2011
 ```
 
 ```{python}
-# %cd ..
-```
-
-```{python}
-
-```
-
-```{python}
-device = torch.device("cpu")
-(net, class_to_idx, signature, rgb_valuse) = birder.load_pretrained_model(
-    "xcit_nano16_il-common", device=device, inference=True
-)
-idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
+(net, class_to_idx, signature, rgb_valuse) = birder.load_pretrained_model("xcit_nano16_il-common", inference=True)
 size = birder.get_size_from_signature(signature)
 transform = birder.classification_transform(size, rgb_valuse)
 ```
 
 ```{python}
-training_dataset = CUB_200_2011("data", download=True)
-validation_dataset = CUB_200_2011("data", split="validation")
+image_path = "data/example.jpeg"
+birder.common.cli.download_file("https://f000.backblazeb2.com/file/birder/data/img_001.jpeg", image_path)
+```
+
+```{python}
+img = Image.open(image_path)
+input_tensor = transform(img).unsqueeze(dim=0)
+out = F.softmax(net(input_tensor), dim=1).cpu().numpy()
+show_top_k(image_path, out.squeeze(), class_to_idx["Eurasian teal"], class_to_idx)
+```
+
+```{python}
+transform = birder.classification_transform(size, rgb_valuse, center_crop=0.5)
+
+input_tensor = transform(img).unsqueeze(dim=0)
+out = F.softmax(net(input_tensor), dim=1).cpu().numpy()
+show_top_k("data/example.jpeg", out.squeeze(), class_to_idx["Eurasian teal"], class_to_idx)
+```
+
+```{python}
+
+```
+
+```{python}
+from birder.datahub.classification import CUB_200_2011
+```
+
+```{python}
+training_dataset = CUB_200_2011(download=True)
+validation_dataset = CUB_200_2011(split="validation")
 ```
 
 ```{python}
@@ -67,53 +81,6 @@ input_tensor = transform(img).unsqueeze(dim=0).to(device)
 
 ```{python}
 idx_to_class[net(input_tensor).argmax().item()]
-```
-
-```{python}
-
-```
-
-```{python}
-out = F.softmax(net(input_tensor), dim=1).cpu().numpy()
-```
-
-```{python}
-show_top_k(img_path, out.squeeze(), class_to_idx["Gadwall"], class_to_idx)
-```
-
-```{python}
-birder.common.cli.download_file("https://f000.backblazeb2.com/file/birder/data/img_001.jpeg", "data/example.jpeg")
-```
-
-```{python}
-img = Image.open("data/example.jpeg")
-input_tensor = transform(img).unsqueeze(dim=0).to(device)
-out = F.softmax(net(input_tensor), dim=1).cpu().numpy()
-show_top_k("data/example.jpeg", out.squeeze(), class_to_idx["Eurasian teal"], class_to_idx)
-```
-
-```{python}
-transform = birder.classification_transform(size, rgb_valuse, center_crop=0.5)
-```
-
-```{python}
-input_tensor = transform(img).unsqueeze(dim=0).to(device)
-out = F.softmax(net(input_tensor), dim=1).cpu().numpy()
-show_top_k("data/example.jpeg", out.squeeze(), class_to_idx["Eurasian teal"], class_to_idx)
-```
-
-```{python}
-
-```
-
-```{python}
-transform = birder.classification_transform((512, 512), rgb_valuse)
-```
-
-```{python}
-input_tensor = transform(img).unsqueeze(dim=0).to(device)
-out = F.softmax(net(input_tensor), dim=1).cpu().numpy()
-show_top_k("data/example.jpeg", out.squeeze(), class_to_idx["Eurasian teal"], class_to_idx)
 ```
 
 ```{python}

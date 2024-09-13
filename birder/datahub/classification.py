@@ -9,6 +9,7 @@ import torch
 from torchvision.datasets import ImageFolder
 from torchvision.datasets.folder import default_loader
 
+from birder.conf import settings
 from birder.datahub._lib import download_url
 from birder.datahub._lib import extract_archive
 
@@ -36,7 +37,7 @@ class Flowers102(ImageFolder):
 
     def __init__(
         self,
-        target_dir: str | Path,
+        target_dir: Optional[str | Path] = None,
         download: bool = False,
         split: SplitType = "training",
         transform: Optional[Callable[..., torch.Tensor]] = None,
@@ -44,6 +45,9 @@ class Flowers102(ImageFolder):
         loader: Callable[[str], Any] = default_loader,
         is_valid_file: Optional[Callable[[str], bool]] = None,
     ) -> None:
+        if target_dir is None:
+            target_dir = settings.DATA_DIR
+
         if isinstance(target_dir, str) is True:
             target_dir = Path(target_dir)
 
@@ -81,7 +85,7 @@ class CUB_200_2011(ImageFolder):
 
     def __init__(
         self,
-        target_dir: str | Path,
+        target_dir: Optional[str | Path] = None,
         download: bool = False,
         split: SplitType = "training",
         transform: Optional[Callable[..., torch.Tensor]] = None,
@@ -89,6 +93,9 @@ class CUB_200_2011(ImageFolder):
         loader: Callable[[str], Any] = default_loader,
         is_valid_file: Optional[Callable[[str], bool]] = None,
     ) -> None:
+        if target_dir is None:
+            target_dir = settings.DATA_DIR
+
         if isinstance(target_dir, str) is True:
             target_dir = Path(target_dir)
 

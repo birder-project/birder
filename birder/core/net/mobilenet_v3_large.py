@@ -18,6 +18,7 @@ from torchvision.ops import SqueezeExcitation
 
 from birder.core.net.base import DetectorBackbone
 from birder.core.net.base import make_divisible
+from birder.model_registry import registry
 
 
 class InvertedResidualConfig:
@@ -264,3 +265,19 @@ class MobileNet_v3_Large(DetectorBackbone):
             nn.Dropout(p=0.2, inplace=True),
             nn.Linear(self.last_channels, self.num_classes),
         )
+
+
+registry.register_weights(
+    "mobilenet_v3_large_0.75_il-common",
+    {
+        "description": "MobileNet v3 large (0.75 multiplier) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 12.1,
+                "sha256": "5d38165ac772535e5d48f712c185e25482b4659d8dc88f1f00b0f81bdcc696d6",
+            }
+        },
+        "net": {"network": "mobilenet_v3_large", "net_param": 0.75, "tag": "il-common"},
+    },
+)

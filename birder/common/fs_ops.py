@@ -336,6 +336,10 @@ def load_model(
 def load_pretrained_model(
     weights: str, inference: bool = False, device: Optional[torch.device] = None
 ) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], SignatureType, RGBType]:
+    if settings.MODELS_DIR.exists() is False:
+        logging.info(f"Creating {settings.MODELS_DIR} directory...")
+        settings.MODELS_DIR.mkdir(parents=True)
+
     model_info = registry.get_pretrained_info(weights)
     assert "pt" in model_info["formats"], "Can only load pt type files"
 

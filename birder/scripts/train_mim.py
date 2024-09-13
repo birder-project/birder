@@ -37,6 +37,13 @@ from birder.model_registry import registry
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
+    training_utils.init_distributed_mode(args)
+    if args.size is None:
+        # Prefer mim size over encoder default size
+        args.size = registry.get_default_size(args.network)
+
+    logging.info(f"Using size={args.size}")
+
     device = torch.device("cuda")
     device_id = torch.cuda.current_device()
     torch.backends.cudnn.benchmark = True
@@ -381,7 +388,7 @@ def train(args: argparse.Namespace) -> None:
         )
 
 
-def main() -> None:
+def get_args_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         allow_abbrev=False,
         description="Pre-train model",
@@ -392,20 +399,9 @@ def main() -> None:
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
-    parser.add_argument(
-        "-n",
-        "--network",
-        type=str,
-        required=True,
-        help="the neural network to use",
-    )
+    parser.add_argument("-n", "--network", type=str, help="the neural network to use")
     parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required for most networks")
-    parser.add_argument(
-        "--encoder",
-        type=str,
-        required=True,
-        help="the neural network to used as encoder (network being pre-trained)",
-    )
+    parser.add_argument("--encoder", type=str, help="the neural network to used as encoder (network being pre-trained)")
     parser.add_argument(
         "--encoder-param",
         type=float,
@@ -535,6 +531,11 @@ def main() -> None:
     parser.add_argument("--data-path", nargs="+", help="training directories paths (directories and files)")
     parser.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
     parser.add_argument("--wds-train-size", type=int, help="size of the wds training set")
+
+    return parser
+
+
+def parse_and_validate(parser: argparse.ArgumentParser) -> argparse.Namespace:
     args = parser.parse_args()
 
     assert args.load_states is False or (
@@ -551,16 +552,17 @@ def main() -> None:
         registry.exists(args.encoder, net_type=PreTrainEncoder) is True
     ), "Unknown encoder, see list-models tool for available options"
 
+    return args
+
+
+def main() -> None:
+    parser = get_args_parser()
+    args = parse_and_validate(parser)
+
     if settings.MODELS_DIR.exists() is False:
         logging.info(f"Creating {settings.MODELS_DIR} directory...")
         settings.MODELS_DIR.mkdir(parents=True)
 
-    training_utils.init_distributed_mode(args)
-    if args.size is None:
-        # Prefer mim size over encoder default size
-        args.size = registry.get_default_size(args.network)
-
-    logging.info(f"Using size={args.size}")
     train(args)
 
 

@@ -50,7 +50,18 @@ DistType = Literal["soft", "hard", "deit"]
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
-def train(args: argparse.Namespace, distillation_type: DistType) -> None:
+def train(args: argparse.Namespace) -> None:
+    distillation_type: DistType = args.type
+
+    training_utils.init_distributed_mode(args)
+    if args.aa is True:
+        args.aug_level = -1
+
+    if args.type != "soft":
+        args.temperature = 1.0
+
+    logging.info(f"Using size={args.size}")
+
     device = torch.device("cuda")
     device_id = torch.cuda.current_device()
     torch.backends.cudnn.benchmark = True
@@ -578,7 +589,7 @@ def train(args: argparse.Namespace, distillation_type: DistType) -> None:
         )
 
 
-def main() -> None:
+def get_args_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         allow_abbrev=False,
         description="Train classification model using Knowledge Distillation",
@@ -594,23 +605,13 @@ def main() -> None:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("--type", type=str, choices=typing.get_args(DistType), help="type of distillation")
-    parser.add_argument(
-        "--teacher",
-        type=str,
-        required=True,
-        help="the teacher network",
-    )
+    parser.add_argument("--teacher", type=str, help="the teacher network")
     parser.add_argument("--teacher-param", type=float, help="network specific parameter (teacher)")
     parser.add_argument("--teacher-tag", type=str, help="teacher training log tag (loading only)")
     parser.add_argument("--pts", default=False, action="store_true", help="load torchscript teacher")
     parser.add_argument("--pt2", default=False, action="store_true", help="load pt2 teacher")
     parser.add_argument("--teacher-epoch", type=int, help="load teacher weights from selected epoch")
-    parser.add_argument(
-        "--student",
-        type=str,
-        required=True,
-        help="the student network to train",
-    )
+    parser.add_argument("--student", type=str, help="the student network to train")
     parser.add_argument("--student-param", type=float, help="network specific parameter (student)")
     parser.add_argument("--compile", default=False, action="store_true", help="enable teacher compilation")
     parser.add_argument(
@@ -775,6 +776,11 @@ def main() -> None:
     parser.add_argument("--wds-class-file", type=str, default=None, help="class list file")
     parser.add_argument("--wds-train-size", type=int, help="size of the wds training set")
     parser.add_argument("--wds-val-size", type=int, help="size of the wds validation set")
+
+    return parser
+
+
+def parse_and_validate(parser: argparse.ArgumentParser) -> argparse.Namespace:
     args = parser.parse_args()
 
     assert 0.5 > args.smoothing_alpha >= 0, "Smoothing alpha must be in range of [0, 0.5)"
@@ -792,19 +798,18 @@ def main() -> None:
         registry.exists(args.student, task=Task.IMAGE_CLASSIFICATION) is True
     ), "Unknown student network, see list-models tool for available options"
 
-    if args.type != "soft":
-        args.temperature = 1.0
+    return args
+
+
+def main() -> None:
+    parser = get_args_parser()
+    args = parse_and_validate(parser)
 
     if settings.MODELS_DIR.exists() is False:
         logging.info(f"Creating {settings.MODELS_DIR} directory...")
         settings.MODELS_DIR.mkdir(parents=True)
 
-    training_utils.init_distributed_mode(args)
-    if args.aa is True:
-        args.aug_level = -1
-
-    logging.info(f"Using size={args.size}")
-    train(args, args.type)
+    train(args)
 
 
 if __name__ == "__main__":

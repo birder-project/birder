@@ -100,6 +100,20 @@ torchrun --nproc_per_node=2 train.py --network regnet --net-param 0.2 --tag il-c
 torchrun --nproc_per_node=2 train.py --network shufflenet_v1 --net-param 4 --tag il-common --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --batch-size 256  --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### ShuffleNet v2
+
+#### ShuffleNet v2: Width 1.0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network shufflenet_v2 --net-param 1 --tag il-common --lr 0.5 --lr-scheduler cosine --warmup-epochs 5 --batch-size 256 --size 256 --epochs 300 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+#### ShuffleNet v2: Width 2.0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network shufflenet_v2 --net-param 2 --tag il-common --lr 0.5 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 300 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 #### ShuffleNet v1: Groups 8
 
 ```sh

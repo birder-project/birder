@@ -220,3 +220,18 @@ class DeiT(BaseNet):
 registry.register_alias("deit_t16", DeiT, 0)
 registry.register_alias("deit_s16", DeiT, 1)
 registry.register_alias("deit_b16", DeiT, 2)
+
+registry.register_weights(
+    "deit_t16_il-common",
+    {
+        "description": "DeiT tiny model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 21.7,
+                "sha256": "6b752b579cea28aaa351591bc9e17bb8c7cf946defa9f30f001f65f7cb5b3035",
+            }
+        },
+        "net": {"network": "deit_t16", "tag": "il-common"},
+    },
+)

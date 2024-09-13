@@ -148,7 +148,7 @@ def set_parser(subparsers: Any) -> None:
         description="show training / inference iterator output vs input",
         epilog=(
             "Usage examples:\n"
-            "python -m birder.tools show-iterator --mode training --size 224 --aug-level 3\n"
+            "python -m birder.tools show-iterator --mode training --aug-level 3\n"
             "python -m birder.tools show-iterator --mode training --size 224 --aug-level 2 --batch\n"
             "python -m birder.tools show-iterator --mode inference --size 320\n"
             "python -m birder.tools show-iterator --mode training --size 224 --batch --wds "
@@ -164,7 +164,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--mode", type=str, choices=["training", "inference"], default="training", help="iterator mode"
     )
-    subparser.add_argument("--size", type=int, required=True, help="image size")
+    subparser.add_argument("--size", type=int, default=224, help="image size")
     subparser.add_argument(
         "--aug-level",
         type=int,

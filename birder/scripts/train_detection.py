@@ -37,6 +37,16 @@ from birder.model_registry import registry
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
+    training_utils.init_distributed_mode(args)
+    if args.size is None:
+        args.size = registry.get_default_size(args.network)
+
+    logging.info(f"Using size={args.size}")
+
+    device = torch.device("cuda")
+    device_id = torch.cuda.current_device()
+    torch.backends.cudnn.benchmark = True
+
     rgb_values = get_rgb_values(args.rgb_mode)
     train_base_name = Path(args.data_path).stem
     train_coco_path = Path(args.data_path).parent.joinpath(f"{train_base_name}_coco.json")
@@ -53,10 +63,6 @@ def train(args: argparse.Namespace) -> None:
     class_to_idx = lib.detection_class_to_idx(class_to_idx)
 
     assert args.model_ema is False or args.model_ema_steps <= len(training_dataset) / args.batch_size
-
-    device = torch.device("cuda")
-    device_id = torch.cuda.current_device()
-    torch.backends.cudnn.benchmark = True
 
     logging.info(f"Using device {device}:{device_id}")
     logging.info(f"Training on {len(training_dataset):,} samples")
@@ -428,7 +434,7 @@ def train(args: argparse.Namespace) -> None:
         )
 
 
-def main() -> None:
+def get_args_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         allow_abbrev=False,
         description="Train object detection model",
@@ -439,20 +445,9 @@ def main() -> None:
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
-    parser.add_argument(
-        "-n",
-        "--network",
-        type=str,
-        required=True,
-        help="the neural network to use",
-    )
+    parser.add_argument("-n", "--network", type=str, help="the neural network to use")
     parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required for most networks")
-    parser.add_argument(
-        "--backbone",
-        type=str,
-        required=True,
-        help="the neural network to used as backbone",
-    )
+    parser.add_argument("--backbone", type=str, help="the neural network to used as backbone")
     parser.add_argument(
         "--backbone-param",
         type=float,
@@ -615,6 +610,11 @@ def main() -> None:
         default=str(settings.TRAINING_DETECTION_ANNOTATIONS_PATH),
         help="training directory path",
     )
+
+    return parser
+
+
+def parse_and_validate(parser: argparse.ArgumentParser) -> argparse.Namespace:
     args = parser.parse_args()
 
     assert args.load_states is False or (
@@ -628,15 +628,17 @@ def main() -> None:
         registry.exists(args.backbone, net_type=DetectorBackbone) is True
     ), "Unknown backbone, see list-models tool for available options"
 
+    return args
+
+
+def main() -> None:
+    parser = get_args_parser()
+    args = parse_and_validate(parser)
+
     if settings.MODELS_DIR.exists() is False:
         logging.info(f"Creating {settings.MODELS_DIR} directory...")
         settings.MODELS_DIR.mkdir(parents=True)
 
-    training_utils.init_distributed_mode(args)
-    if args.size is None:
-        args.size = registry.get_default_size(args.network)
-
-    logging.info(f"Using size={args.size}")
     train(args)
 
 
