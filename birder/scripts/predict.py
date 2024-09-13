@@ -9,11 +9,11 @@ import polars as pl
 import torch
 import torch.amp
 from torch.utils.data import DataLoader
-from torchvision.datasets.folder import pil_loader
 from tqdm import tqdm
 
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common import lib
 from birder.common.lib import get_network_name
 from birder.conf import settings
 from birder.core.dataloader.webdataset import make_wds_loader
@@ -35,30 +35,25 @@ def handle_show_flags(
 ) -> None:
     # Show prediction
     if args.show is True:
-        img = pil_loader(img_path)
-        show_top_k(img, img_path, prob, label, class_to_idx)
+        show_top_k(img_path, prob, label, class_to_idx)
 
     # Show mistake (if label exists)
     elif label != -1:
         if args.show_below is not None and args.show_below > prob[label]:
-            img = pil_loader(img_path)
-            show_top_k(img, img_path, prob, label, class_to_idx)
+            show_top_k(img_path, prob, label, class_to_idx)
 
         elif args.show_mistakes is True:
             if label != np.argmax(prob):
-                img = pil_loader(img_path)
-                show_top_k(img, img_path, prob, label, class_to_idx)
+                show_top_k(img_path, prob, label, class_to_idx)
 
         elif args.show_out_of_k is True:
             if label not in np.argsort(prob)[::-1][0 : settings.TOP_K]:
-                img = pil_loader(img_path)
-                show_top_k(img, img_path, prob, label, class_to_idx)
+                show_top_k(img_path, prob, label, class_to_idx)
 
         elif args.show_class is not None:
             idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
             if args.show_class == idx_to_class[np.argmax(prob)]:  # type: ignore
-                img = pil_loader(img_path)
-                show_top_k(img, img_path, prob, label, class_to_idx)
+                show_top_k(img_path, prob, label, class_to_idx)
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
@@ -106,11 +101,11 @@ def predict(args: argparse.Namespace) -> None:
         net = torch.nn.DataParallel(net)
 
     if args.size is None:
-        args.size = signature["inputs"][0]["data_shape"][2]
+        args.size = lib.get_size_from_signature(signature)[0]
         logging.debug(f"Using size={args.size}")
 
     batch_size = args.batch_size
-    inference_transform = inference_preset((args.size, args.size), args.center_crop, rgb_values)
+    inference_transform = inference_preset((args.size, args.size), rgb_values, args.center_crop)
     if args.wds is True:
         (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.data_path[0]))
         dataset_size = wds_size(wds_path, device)

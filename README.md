@@ -99,7 +99,7 @@ Architecture: The first part of the model name indicates the core neural network
 Training indicators:
 
 * intermediate: Signifies models that underwent a two-stage training process, beginning with a large-scale weakly labeled dataset before fine-tuning on the primary dataset
-* pretrained: Indicates models that leveraged self-supervised pre-training techniques, primarily Masked Autoencoder (MAE), prior to supervised training
+* mim: Indicates models that leveraged self-supervised pre-training techniques, primarily Masked Autoencoder (MAE), prior to supervised training
 
 Other tags:
 
@@ -109,7 +109,7 @@ Net Param: The number following the model name (e.g., 50, 1.0, 0.5), called the 
 
 Epoch Number (optional): The last part of the model name may include an underscore followed by a number (e.g., `_0`, `_200`), which represents the epoch.
 
-For instance, *convnext_v2_5_pretrained-intermediate_300* represents a ConvNeXt v2 model with a `net_param` of 5 that underwent both pre-training and intermediate training and is from epoch 300.
+For instance, *convnext_v2_5_mim-intermediate_300* represents a ConvNeXt v2 model with a `net_param` of 5 that underwent both pre-training and intermediate training and is from epoch 300.
 
 ### Self-supervised Image Pre-training
 

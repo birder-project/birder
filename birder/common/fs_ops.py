@@ -13,15 +13,15 @@ from torchvision.datasets.folder import IMG_EXTENSIONS
 from birder.common import cli
 from birder.common import lib
 from birder.common.lib import get_detection_network_name
+from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
-from birder.common.lib import get_pretrain_network_name
 from birder.conf import settings
 from birder.core.net.base import BaseNet
 from birder.core.net.base import SignatureType
 from birder.core.net.detection.base import DetectionBaseNet
 from birder.core.net.detection.base import DetectionSignatureType
-from birder.core.net.pretraining.base import PreTrainBaseNet
-from birder.core.net.pretraining.base import PreTrainSignatureType
+from birder.core.net.mim.base import MIMBaseNet
+from birder.core.net.mim.base import MIMSignatureType
 from birder.core.transforms.classification import RGBType
 from birder.model_registry import registry
 
@@ -128,7 +128,7 @@ def checkpoint_model(
     network_name: str,
     epoch: int,
     net: torch.nn.Module,
-    signature: SignatureType | DetectionSignatureType | PreTrainSignatureType,
+    signature: SignatureType | DetectionSignatureType | MIMSignatureType,
     class_to_idx: dict[str, int],
     rgb_values: RGBType,
     optimizer: Optional[torch.optim.Optimizer],
@@ -185,9 +185,9 @@ def load_checkpoint(
     model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=False)
 
     signature: SignatureType = model_dict["signature"]
-    input_channels = signature["inputs"][0]["data_shape"][1]
+    input_channels = lib.get_channels_from_signature(signature)
     num_classes = signature["outputs"][0]["data_shape"][1]
-    size = signature["inputs"][0]["data_shape"][2]
+    size = lib.get_size_from_signature(signature)[0]
     net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
     net.load_state_dict(model_dict["state"])
     if new_size is not None:
@@ -200,7 +200,7 @@ def load_checkpoint(
     return (net, class_to_idx, optimizer_state, scheduler_state, scaler_state)
 
 
-def load_pretrain_checkpoint(
+def load_mim_checkpoint(
     device: torch.device,
     network: str,
     *,
@@ -209,8 +209,8 @@ def load_pretrain_checkpoint(
     encoder_param: Optional[float],
     tag: Optional[str] = None,
     epoch: Optional[int] = None,
-) -> tuple[PreTrainBaseNet, dict[str, Any], dict[str, Any], dict[str, Any]]:
-    network_name = get_pretrain_network_name(
+) -> tuple[MIMBaseNet, dict[str, Any], dict[str, Any], dict[str, Any]]:
+    network_name = get_mim_network_name(
         network, net_param=net_param, encoder=encoder, encoder_param=encoder_param, tag=tag
     )
     path = model_path(network_name, epoch=epoch, pts=False)
@@ -219,12 +219,12 @@ def load_pretrain_checkpoint(
 
     model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=False)
 
-    signature: PreTrainSignatureType = model_dict["signature"]
-    input_channels = signature["inputs"][0]["data_shape"][1]
+    signature: MIMSignatureType = model_dict["signature"]
+    input_channels = lib.get_channels_from_signature(signature)
     num_classes = 0
-    size = signature["inputs"][0]["data_shape"][2]
+    size = lib.get_size_from_signature(signature)[0]
     net_encoder = registry.net_factory(encoder, input_channels, num_classes, net_param=encoder_param, size=size)
-    net = registry.pretrain_net_factory(network, net_encoder, net_param, size)
+    net = registry.mim_net_factory(network, net_encoder, net_param, size)
     net.load_state_dict(model_dict["state"])
     net.to(device)
 
@@ -259,9 +259,9 @@ def load_detection_checkpoint(
     model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=False)
 
     signature: DetectionSignatureType = model_dict["signature"]
-    input_channels = signature["inputs"][0]["data_shape"][1]
+    input_channels = lib.get_channels_from_signature(signature)
     num_classes = signature["num_labels"]
-    size = signature["inputs"][0]["data_shape"][2]
+    size = lib.get_size_from_signature(signature)[0]
     net_backbone = registry.net_factory(backbone, input_channels, num_classes, net_param=backbone_param, size=size)
     net = registry.detection_net_factory(network, num_classes, net_backbone, net_param, size)
     net.load_state_dict(model_dict["state"])
@@ -310,9 +310,9 @@ def load_model(
     else:
         model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=False)
         signature = model_dict["signature"]
-        input_channels = signature["inputs"][0]["data_shape"][1]
+        input_channels = lib.get_channels_from_signature(signature)
         num_classes = signature["outputs"][0]["data_shape"][1]
-        size = signature["inputs"][0]["data_shape"][2]
+        size = lib.get_size_from_signature(signature)[0]
 
         net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
         net.load_state_dict(model_dict["state"])
@@ -393,9 +393,9 @@ def load_detection_model(
     else:
         model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=False)
         signature = model_dict["signature"]
-        input_channels = signature["inputs"][0]["data_shape"][1]
+        input_channels = lib.get_channels_from_signature(signature)
         num_classes = signature["num_labels"]
-        size = signature["inputs"][0]["data_shape"][2]
+        size = lib.get_size_from_signature(signature)[0]
 
         net_backbone = registry.net_factory(backbone, input_channels, num_classes, net_param=backbone_param, size=size)
         net = registry.detection_net_factory(network, num_classes, net_backbone, net_param, size)

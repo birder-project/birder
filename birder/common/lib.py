@@ -1,6 +1,17 @@
 import os
 from typing import Optional
 
+from birder.core.net.base import SignatureType
+from birder.core.net.detection.base import DetectionSignatureType
+
+
+def get_size_from_signature(signature: SignatureType | DetectionSignatureType) -> tuple[int, ...]:
+    return tuple(signature["inputs"][0]["data_shape"][2:])
+
+
+def get_channels_from_signature(signature: SignatureType | DetectionSignatureType) -> int:
+    return signature["inputs"][0]["data_shape"][1]
+
 
 def get_label_from_path(path: str) -> str:
     """
@@ -28,7 +39,7 @@ def get_network_name(network: str, net_param: Optional[float], tag: Optional[str
     return network_name
 
 
-def get_pretrain_network_name(
+def get_mim_network_name(
     network: str,
     net_param: Optional[float],
     encoder: str,

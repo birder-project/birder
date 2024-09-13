@@ -30,7 +30,7 @@ def show_iterator(args: argparse.Namespace) -> None:
     if args.mode == "training":
         transform = training_preset((args.size, args.size), args.aug_level, get_rgb_values("calculated"))
     elif args.mode == "inference":
-        transform = inference_preset((args.size, args.size), args.center_crop, get_rgb_values("calculated"))
+        transform = inference_preset((args.size, args.size), get_rgb_values("calculated"), args.center_crop)
     else:
         raise ValueError(f"Unknown mode={args.mode}")
 

@@ -73,7 +73,7 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v2 --net-param 1 --tag 
 #### Mobilenet v3 Large: 0.75
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large --net-param 0.75 --tag il-common --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large --net-param 0.75 --tag il-common --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### Mobilenet v3 Small

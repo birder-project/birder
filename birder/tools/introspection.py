@@ -11,6 +11,7 @@ from PIL import Image
 
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common import lib
 from birder.core.introspection import gradcam
 from birder.core.introspection import guided_backprop
 from birder.core.net.base import BaseNet
@@ -157,12 +158,12 @@ def main(args: argparse.Namespace) -> None:
         inference=False,
     )
     if args.size is None:
-        args.size = signature["inputs"][0]["data_shape"][3]
+        args.size = lib.get_size_from_signature(signature)[0]
 
     else:
         net.adjust_size(args.size)
 
-    transform = inference_preset((args.size, args.size), 1.0, rgb_values)
+    transform = inference_preset((args.size, args.size), rgb_values, 1.0)
 
     if args.method == "gradcam":
         show_grad_cam(args, net, class_to_idx, transform, device)

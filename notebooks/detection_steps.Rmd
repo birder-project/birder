@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.16.1
+      jupytext_version: 1.16.4
   kernelspec:
     display_name: birder
     language: python
@@ -30,16 +30,18 @@ sys.path.append("..")
 ```
 
 ```{python}
-from birder.common import cli
+from birder.common import fs_ops
 from birder.common.lib import get_label_from_path
 from birder.conf import settings
-from birder.core.net.base import net_factory
 from birder.core.net.detection.base import ImageList
 from birder.core.net.detection.faster_rcnn import concat_box_prediction_layers
-from birder.core.net.pretraining.base import pretrain_net_factory
 from birder.core.transforms.classification import get_rgb_values, reverse_preset
 from birder.core.transforms.detection import inference_preset
 from torchvision.ops import boxes as box_ops
+```
+
+```{python}
+# %cd ..
 ```
 
 ```{python}
@@ -53,7 +55,7 @@ reverse_transform = reverse_preset(get_rgb_values("calculated"))
 
 ```{python}
 device = torch.device("cpu")
-(net, class_to_idx, _, _, _) = cli.load_detection_checkpoint(
+(net, class_to_idx, _, _, _) = fs_ops.load_detection_checkpoint(
     device,
     "faster_rcnn",
     net_param=None,

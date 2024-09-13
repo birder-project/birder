@@ -75,7 +75,7 @@ def train(args: argparse.Namespace) -> None:
             dataset_size=dataset_size,
             shuffle=False,
             samples_names=False,
-            transform=inference_preset((args.size, args.size), 1.0, rgb_values),
+            transform=inference_preset((args.size, args.size), rgb_values, 1.0),
         )
         if args.wds_class_file is None:
             args.wds_class_file = str(Path(args.data_path).joinpath(settings.CLASS_LIST_NAME))
@@ -90,7 +90,7 @@ def train(args: argparse.Namespace) -> None:
         )
         validation_dataset = ImageFolder(
             args.val_path,
-            transform=inference_preset((args.size, args.size), 1.0, rgb_values),
+            transform=inference_preset((args.size, args.size), rgb_values, 1.0),
             loader=read_image,
             allow_empty=True,
         )

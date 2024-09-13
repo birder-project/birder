@@ -16,7 +16,7 @@ from torch import nn
 
 from birder.core.net.base import PreTrainEncoder
 from birder.core.net.maxvit import MaxViT
-from birder.core.net.pretraining.base import PreTrainBaseNet
+from birder.core.net.mim.base import MIMBaseNet
 from birder.core.net.swin_transformer_v2 import Swin_Transformer_v2
 
 
@@ -54,7 +54,7 @@ def norm_targets(targets: torch.Tensor, patch_size: int) -> torch.Tensor:
     return (targets - targets_mean) / (targets_var + 1.0e-6) ** 0.5
 
 
-class SimMIM(PreTrainBaseNet):
+class SimMIM(MIMBaseNet):
     default_size = 192
 
     def __init__(

@@ -12,6 +12,7 @@ from tqdm import tqdm
 
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common import lib
 from birder.conf import settings
 from birder.core.datasets.directory import ImageListDataset
 from birder.core.net.base import DetectorBackbone
@@ -57,7 +58,7 @@ def predict(args: argparse.Namespace) -> None:
         net = torch.nn.DataParallel(net)
 
     if args.size is None:
-        args.size = signature["inputs"][0]["data_shape"][2]
+        args.size = lib.get_size_from_signature(signature)[0]
         logging.debug(f"Using size={args.size}")
 
     samples = fs_ops.samples_from_paths(args.data_path, class_to_idx={})

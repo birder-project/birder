@@ -8,7 +8,7 @@ import requests
 from birder.conf import settings
 from birder.core.net.base import BaseNet
 from birder.core.net.detection.base import DetectionBaseNet
-from birder.core.net.pretraining.base import PreTrainBaseNet
+from birder.core.net.mim.base import MIMBaseNet
 from birder.model_registry import registry
 from birder.model_registry.model_registry import ModelRegistry
 from birder.model_registry.model_registry import Task
@@ -25,8 +25,8 @@ class TestRegistry(unittest.TestCase):
         for net in registry._detection_nets.values():
             self.assertTrue(issubclass(net, DetectionBaseNet))
 
-        for net in registry._pretrain_nets.values():
-            self.assertTrue(issubclass(net, PreTrainBaseNet))
+        for net in registry._mim_nets.values():
+            self.assertTrue(issubclass(net, MIMBaseNet))
 
     def test_no_duplicates(self) -> None:
         all_names = []
@@ -36,7 +36,7 @@ class TestRegistry(unittest.TestCase):
         for net_name in registry._detection_nets:
             all_names.append(net_name)
 
-        for net_name in registry._pretrain_nets:
+        for net_name in registry._mim_nets:
             all_names.append(net_name)
 
         self.assertEqual(len(all_names), len(set(all_names)))
@@ -58,13 +58,13 @@ class TestModelRegistry(unittest.TestCase):
         model_registry.register_model("net1", BaseNet)
         model_registry.register_model("net2", BaseNet)
         model_registry.register_model("net3", DetectionBaseNet)
-        model_registry.register_model("net4", PreTrainBaseNet)
+        model_registry.register_model("net4", MIMBaseNet)
 
         self.assertListEqual(list(model_registry.all_nets.keys()), ["net1", "net2", "net3", "net4"])
         self.assertListEqual(list(model_registry._nets.keys()), ["net1", "net2"])
         self.assertListEqual(list(model_registry._detection_nets.keys()), ["net3"])
-        self.assertListEqual(list(model_registry._pretrain_nets.keys()), ["net4"])
-        self.assertListEqual(model_registry.list_models(task=Task.IMAGE_PRETRAINING), ["net4"])
+        self.assertListEqual(list(model_registry._mim_nets.keys()), ["net4"])
+        self.assertListEqual(model_registry.list_models(task=Task.MASKED_IMAGE_MODELING), ["net4"])
 
         with warnings.catch_warnings(record=True) as w:
             # Cause all warnings to always be triggered.

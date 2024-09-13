@@ -7,6 +7,7 @@ import torch
 
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common import lib
 from birder.common.lib import get_network_name
 from birder.core.net.base import SignatureType
 from birder.model_registry import registry
@@ -34,9 +35,9 @@ def avg_models(network: str, net_param: Optional[float], tag: Optional[str], epo
                 logging.info(f"Copying {key} from epoch {epoch}")
 
             signature: SignatureType = model_dict["signature"]
-            input_channels = signature["inputs"][0]["data_shape"][1]
+            input_channels = lib.get_channels_from_signature(signature)
             num_classes = signature["outputs"][0]["data_shape"][1]
-            size = signature["inputs"][0]["data_shape"][2]
+            size = lib.get_size_from_signature(signature)[0]
 
             net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
             net.to(device)

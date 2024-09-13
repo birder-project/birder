@@ -13,9 +13,9 @@ from birder.service import classification  # noqa: E402 # pylint: disable=wrong-
 class TestService(unittest.TestCase):
     def test_classification(self) -> None:
         service_preset: v2.Compose = classification.inference_preset(
-            (224, 224), 1.0, get_rgb_values("none")  # type: ignore
+            (224, 224), get_rgb_values("none"), 1.0  # type: ignore
         )
-        core_preset: v2.Compose = inference_preset((224, 224), 1.0, get_rgb_values("none"))
+        core_preset: v2.Compose = inference_preset((224, 224), get_rgb_values("none"), 1.0)
 
         self.assertIsInstance(service_preset, v2.Compose)
         self.assertIsInstance(core_preset, v2.Compose)

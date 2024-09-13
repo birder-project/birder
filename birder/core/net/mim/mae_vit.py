@@ -17,13 +17,13 @@ from torch import nn
 
 from birder.core.net.base import PreTrainEncoder
 from birder.core.net.base import pos_embedding_sin_cos_2d
-from birder.core.net.pretraining.base import PreTrainBaseNet
+from birder.core.net.mim.base import MIMBaseNet
 from birder.core.net.simple_vit import Simple_ViT
 from birder.core.net.vit import ViT
 
 
 # pylint: disable=invalid-name
-class MAE_ViT(PreTrainBaseNet):
+class MAE_ViT(MIMBaseNet):
     default_size = 224
 
     def __init__(

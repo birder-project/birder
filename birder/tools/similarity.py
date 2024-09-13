@@ -19,6 +19,7 @@ from tqdm import tqdm
 
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common import lib
 from birder.core.datasets.directory import ImageListDataset
 from birder.core.inference import inference
 from birder.core.transforms.classification import inference_preset
@@ -38,12 +39,12 @@ def similarity(args: argparse.Namespace) -> None:
         inference=True,
     )
 
-    size = signature["inputs"][0]["data_shape"][2]
+    size = lib.get_size_from_signature(signature)[0]
     samples = fs_ops.samples_from_paths(args.data_path, class_to_idx=class_to_idx)
     assert len(samples) > 0, "Couldn't find any images"
 
     batch_size = 32
-    dataset = ImageListDataset(samples, transforms=inference_preset((size, size), 1.0, rgb_values))
+    dataset = ImageListDataset(samples, transforms=inference_preset((size, size), rgb_values, 1.0))
     inference_loader = DataLoader(
         dataset,
         batch_size=batch_size,

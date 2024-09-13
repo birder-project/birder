@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.16.1
+      jupytext_version: 1.16.4
   kernelspec:
     display_name: birder
     language: python
@@ -31,10 +31,14 @@ sys.path.append("..")
 ```
 
 ```{python}
-from birder.common import cli
+from birder.common import fs_ops, lib
 from birder.common.lib import get_label_from_path
 from birder.conf import settings
 from birder.core.transforms.classification import inference_preset
+```
+
+```{python}
+# %cd ..
 ```
 
 ```{python}
@@ -52,13 +56,12 @@ epoch = 0
 
 ```{python}
 device = torch.device("cpu")
-(net, class_to_idx, signature, rgb_values) = cli.load_model(
+(net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
     device, network, net_param=net_param, epoch=epoch, inference=True
 )
 idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
-size = signature["inputs"][0]["data_shape"][3]
-input_shape = [1] + signature["inputs"][0]["data_shape"][1:]
-transform = inference_preset(size, 1.0, rgb_values)
+size = lib.get_size_from_signature(signature)[0]
+transform = inference_preset(size, rgb_values, 1.0)
 ```
 
 ```{python}

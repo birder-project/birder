@@ -16,6 +16,7 @@ from tqdm import tqdm
 
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common import lib
 from birder.common.lib import get_network_name
 from birder.conf import settings
 from birder.core.transforms.classification import inference_preset
@@ -91,10 +92,10 @@ def main(args: argparse.Namespace) -> None:
     )
     net.eval()
     task = net.task
-    size = signature["inputs"][0]["data_shape"][2]
+    size = lib.get_size_from_signature(signature)[0]
 
     # Set calibration data
-    full_dataset = ImageFolder(args.data_path, transform=inference_preset((size, size), 1.0, rgb_values))
+    full_dataset = ImageFolder(args.data_path, transform=inference_preset((size, size), rgb_values, 1.0))
     calibration_dataset = Subset(full_dataset, indices=list(range(args.batch_size * args.num_calibration_batches)))
     calibration_data_loader = DataLoader(
         calibration_dataset,

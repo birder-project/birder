@@ -6,20 +6,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import polars as pl
-from PIL import Image
 from sklearn.metrics import auc
 from sklearn.metrics import average_precision_score
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import roc_curve
 from sklearn.preprocessing import label_binarize
+from torchvision.datasets.folder import pil_loader
 
 from birder.conf import settings
 from birder.core.results.classification import Results
 
 
-def show_top_k(
-    img: Image.Image, image_path: str, out: npt.NDArray[np.float32], label: int, class_to_idx: dict[str, int]
-) -> None:
+def show_top_k(image_path: str, out: npt.NDArray[np.float32], label: int, class_to_idx: dict[str, int]) -> None:
+    img = pil_loader(image_path)
+
     idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
     probabilities: list[float] = []
     predicted_class_names: list[str] = []

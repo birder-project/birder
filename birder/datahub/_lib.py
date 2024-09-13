@@ -9,7 +9,7 @@ def download_url(url: str, target: str | Path, sha256: str) -> bool:
     if isinstance(target, str) is True:
         target = Path(target)
 
-    if target.exists() is True:  # type: ignore
+    if target.exists() is True:  # type: ignore[union-attr]
         if cli.calc_sha256(target) == sha256:
             logging.debug("File already downloaded and verified")
             return False
@@ -18,7 +18,7 @@ def download_url(url: str, target: str | Path, sha256: str) -> bool:
 
     target.parent.mkdir(parents=True, exist_ok=True)  # type: ignore[union-attr]
     logging.info(f"Downloading {url} to {target}")
-    cli.download_file(url, target, sha256)  # type: ignore[arg-type]
+    cli.download_file(url, target, sha256)
     return True
 
 

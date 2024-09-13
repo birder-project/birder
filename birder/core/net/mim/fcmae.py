@@ -14,10 +14,10 @@ import torch
 from torch import nn
 
 from birder.core.net.base import PreTrainEncoder
-from birder.core.net.pretraining.base import PreTrainBaseNet
+from birder.core.net.mim.base import MIMBaseNet
 
 
-class FCMAE(PreTrainBaseNet):
+class FCMAE(MIMBaseNet):
     default_size = 224
 
     def __init__(

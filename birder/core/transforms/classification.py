@@ -302,7 +302,9 @@ def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> C
     raise ValueError("Unsupported level")
 
 
-def inference_preset(size: tuple[int, int], center_crop: float, rgv_values: RGBType) -> Callable[..., torch.Tensor]:
+def inference_preset(
+    size: tuple[int, int], rgv_values: RGBType, center_crop: float = 1.0
+) -> Callable[..., torch.Tensor]:
     mean = rgv_values["mean"]
     std = rgv_values["std"]
 

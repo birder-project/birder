@@ -18,8 +18,8 @@ from tqdm import tqdm
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import training_utils
+from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
-from birder.common.lib import get_pretrain_network_name
 from birder.conf import settings
 from birder.core.dataloader.webdataset import make_wds_loader
 from birder.core.datasets.directory import ImageListDataset
@@ -27,7 +27,7 @@ from birder.core.datasets.webdataset import make_wds_dataset
 from birder.core.datasets.webdataset import wds_size
 from birder.core.net.base import PreTrainEncoder
 from birder.core.net.base import get_signature
-from birder.core.net.pretraining.base import get_pretrain_signature
+from birder.core.net.mim.base import get_mim_signature
 from birder.core.transforms.classification import RGBMode
 from birder.core.transforms.classification import get_rgb_values
 from birder.core.transforms.classification import training_preset
@@ -80,8 +80,8 @@ def train(args: argparse.Namespace) -> None:
 
     # Initialize network
     sample_shape = (batch_size,) + (args.channels, args.size, args.size)  # B, C, H, W
-    encoder_name = get_network_name(args.encoder, net_param=args.encoder_param, tag="pretrained")
-    network_name = get_pretrain_network_name(
+    encoder_name = get_network_name(args.encoder, net_param=args.encoder_param, tag="mim")
+    network_name = get_mim_network_name(
         args.network,
         net_param=args.net_param,
         encoder=args.encoder,
@@ -91,7 +91,7 @@ def train(args: argparse.Namespace) -> None:
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
-        (net, optimizer_state, scheduler_state, scaler_state) = fs_ops.load_pretrain_checkpoint(
+        (net, optimizer_state, scheduler_state, scaler_state) = fs_ops.load_mim_checkpoint(
             device,
             args.network,
             net_param=args.net_param,
@@ -103,7 +103,7 @@ def train(args: argparse.Namespace) -> None:
 
     else:
         encoder = registry.net_factory(args.encoder, sample_shape[1], 0, args.encoder_param, args.size)
-        net = registry.pretrain_net_factory(args.network, encoder, args.net_param, args.size).to(device)
+        net = registry.mim_net_factory(args.network, encoder, args.net_param, args.size).to(device)
 
     if args.fast_matmul is True:
         torch.set_float32_matmul_precision("high")
@@ -193,7 +193,7 @@ def train(args: argparse.Namespace) -> None:
     logging.info(f"Logging training run at {training_log_path}")
     summary_writer = SummaryWriter(training_log_path)
 
-    signature = get_pretrain_signature(input_shape=sample_shape)
+    signature = get_mim_signature(input_shape=sample_shape)
     encoder_signature = get_signature(input_shape=sample_shape, num_outputs=0)
     if args.rank == 0:
         summary_writer.flush()
@@ -387,7 +387,7 @@ def main() -> None:
         description="Pre-train model",
         epilog=(
             "Usage examples:\n"
-            "python train_pretrain.py --network mae_vit --encoder vit_b16 "
+            "python train_mim.py --network mae_vit --encoder vit_b16 "
             "--batch-size 32 --opt adamw --lr 0.0001\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
@@ -545,7 +545,7 @@ def main() -> None:
     ), "Load scheduler must be from resumed training (--resume-epoch)"
     assert args.wds is False or len(args.data_path) == 1, "WDS must be a single directory"
     assert (
-        registry.exists(args.network, task=Task.IMAGE_PRETRAINING) is True
+        registry.exists(args.network, task=Task.MASKED_IMAGE_MODELING) is True
     ), "Unknown network, see list-models tool for available options"
     assert (
         registry.exists(args.encoder, net_type=PreTrainEncoder) is True
@@ -557,7 +557,7 @@ def main() -> None:
 
     training_utils.init_distributed_mode(args)
     if args.size is None:
-        # Prefer pretrain size over encoder default size
+        # Prefer mim size over encoder default size
         args.size = registry.get_default_size(args.network)
 
     logging.info(f"Using size={args.size}")

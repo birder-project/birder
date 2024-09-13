@@ -30,7 +30,7 @@ birder-predict_detection = "birder.scripts.predict_detection:main"
 birder-train = "birder.scripts.train:main"
 birder-train_detection = "birder.scripts.train_detection:main"
 birder-train_kd = "birder.scripts.train_kd:main"
-birder-train_pretrain = "birder.scripts.train_pretrain:main"
+birder-train_mim = "birder.scripts.train_mim:main"
 
 [build-system]
 requires = ["setuptools>=64"]

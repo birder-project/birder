@@ -8,6 +8,7 @@ from PIL import Image
 
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common import lib
 from birder.core.adversarial.fgsm import FGSM
 from birder.core.transforms.classification import inference_preset
 
@@ -24,8 +25,8 @@ def show_fgsm(args: argparse.Namespace) -> None:
         pts=False,
     )
     label_names = list(class_to_idx.keys())
-    size = signature["inputs"][0]["data_shape"][3]
-    transform = inference_preset((size, size), 1.0, rgb_values)
+    size = lib.get_size_from_signature(signature)[0]
+    transform = inference_preset((size, size), rgb_values, 1.0)
 
     img: Image.Image = Image.open(args.image)
     input_tensor = transform(img).unsqueeze(dim=0).to(device)

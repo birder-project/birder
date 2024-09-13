@@ -10,15 +10,15 @@ if TYPE_CHECKING is True:
     from birder.core.net.base import DetectorBackbone  # pylint: disable=cyclic-import
     from birder.core.net.base import PreTrainEncoder  # pylint: disable=cyclic-import
     from birder.core.net.detection.base import DetectionBaseNet  # pylint: disable=cyclic-import
-    from birder.core.net.pretraining.base import PreTrainBaseNet  # pylint: disable=cyclic-import
+    from birder.core.net.mim.base import MIMBaseNet  # pylint: disable=cyclic-import
 
-    BaseNetType = type[BaseNet] | type[DetectionBaseNet] | type[PreTrainBaseNet]
+    BaseNetType = type[BaseNet] | type[DetectionBaseNet] | type[MIMBaseNet]
 
 
 class Task(str, Enum):
     IMAGE_CLASSIFICATION = "image_classification"
     OBJECT_DETECTION = "object_detection"
-    IMAGE_PRETRAINING = "image_pretraining"
+    MASKED_IMAGE_MODELING = "masked_image_modeling"
 
     __str__ = str.__str__
 
@@ -28,12 +28,12 @@ class ModelRegistry:
         self.aliases: dict[str, BaseNetType] = {}
         self._nets: dict[str, type["BaseNet"]] = {}
         self._detection_nets: dict[str, type["DetectionBaseNet"]] = {}
-        self._pretrain_nets: dict[str, type["PreTrainBaseNet"]] = {}
+        self._mim_nets: dict[str, type["MIMBaseNet"]] = {}
         self._pretrained_nets = manifest.REGISTRY_MANIFEST
 
     @property
     def all_nets(self) -> dict[str, "BaseNetType"]:
-        return {**self._nets, **self._detection_nets, **self._pretrain_nets}
+        return {**self._nets, **self._detection_nets, **self._mim_nets}
 
     def register_model(self, name: str, net_type: "BaseNetType") -> None:
         if net_type.task == Task.IMAGE_CLASSIFICATION:
@@ -48,11 +48,11 @@ class ModelRegistry:
 
             self._detection_nets[name] = net_type
 
-        elif net_type.task == Task.IMAGE_PRETRAINING:
-            if name in self._pretrain_nets:
-                warnings.warn(f"Pretrain network named {name} is already registered", UserWarning)
+        elif net_type.task == Task.MASKED_IMAGE_MODELING:
+            if name in self._mim_nets:
+                warnings.warn(f"MIM network named {name} is already registered", UserWarning)
 
-            self._pretrain_nets[name] = net_type
+            self._mim_nets[name] = net_type
 
         else:
             raise ValueError(f"Unsupported model task: {net_type.task}")
@@ -87,8 +87,8 @@ class ModelRegistry:
             net = self._nets[name]
         elif name in self._detection_nets:
             net = self._detection_nets[name]
-        elif name in self._pretrain_nets:
-            net = self._pretrain_nets[name]
+        elif name in self._mim_nets:
+            net = self._mim_nets[name]
         else:
             raise ValueError(f"Network with name: {name} not found")
 
@@ -99,8 +99,8 @@ class ModelRegistry:
             nets = self._nets
         elif task == Task.OBJECT_DETECTION:
             nets = self._detection_nets
-        elif task == Task.IMAGE_PRETRAINING:
-            nets = self._pretrain_nets
+        elif task == Task.MASKED_IMAGE_MODELING:
+            nets = self._mim_nets
         else:
             raise ValueError(f"Unsupported model task: {task}")
 
@@ -156,14 +156,14 @@ class ModelRegistry:
     ) -> "DetectorBackbone":
         return self._detection_nets[name](num_classes, backbone, net_param, size)
 
-    def pretrain_net_factory(
+    def mim_net_factory(
         self,
         name: str,
         encoder: "PreTrainEncoder",
         net_param: Optional[float] = None,
         size: Optional[int] = None,
-    ) -> "PreTrainBaseNet":
-        return self._pretrain_nets[name](encoder, net_param, size)
+    ) -> "MIMBaseNet":
+        return self._mim_nets[name](encoder, net_param, size)
 
 
 registry = ModelRegistry()

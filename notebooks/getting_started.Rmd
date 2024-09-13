@@ -17,8 +17,8 @@ jupyter:
 import sys
 
 import torch
+import torch.nn.functional as F
 from PIL import Image
-from torch.utils.data import DataLoader
 ```
 
 ```{python}
@@ -27,7 +27,7 @@ sys.path.append("..")
 
 ```{python}
 import birder
-from birder.core.transforms.classification import inference_preset
+from birder.core.results.gui import show_top_k
 from birder.datahub.classification import CUB_200_2011
 ```
 
@@ -41,24 +41,17 @@ from birder.datahub.classification import CUB_200_2011
 
 ```{python}
 device = torch.device("cpu")
-(net, class_to_idx, _, rgb_valuse) = birder.load_pretrained_model(
-    "xcit_nano16_il-common", device=device
+(net, class_to_idx, signature, rgb_valuse) = birder.load_pretrained_model(
+    "xcit_nano16_il-common", device=device, inference=True
 )
 idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
-transform = inference_preset((256, 256), 1.0, rgb_valuse)
+size = birder.get_size_from_signature(signature)
+transform = birder.classification_transform(size, rgb_valuse)
 ```
 
 ```{python}
 training_dataset = CUB_200_2011("data", download=True)
 validation_dataset = CUB_200_2011("data", split="validation")
-```
-
-```{python}
-training_dataloader = DataLoader(training_dataset)
-```
-
-```{python}
-training_dataloader
 ```
 
 ```{python}
@@ -74,6 +67,53 @@ input_tensor = transform(img).unsqueeze(dim=0).to(device)
 
 ```{python}
 idx_to_class[net(input_tensor).argmax().item()]
+```
+
+```{python}
+
+```
+
+```{python}
+out = F.softmax(net(input_tensor), dim=1).cpu().numpy()
+```
+
+```{python}
+show_top_k(img_path, out.squeeze(), class_to_idx["Gadwall"], class_to_idx)
+```
+
+```{python}
+birder.common.cli.download_file("https://f000.backblazeb2.com/file/birder/data/img_001.jpeg", "data/example.jpeg")
+```
+
+```{python}
+img = Image.open("data/example.jpeg")
+input_tensor = transform(img).unsqueeze(dim=0).to(device)
+out = F.softmax(net(input_tensor), dim=1).cpu().numpy()
+show_top_k("data/example.jpeg", out.squeeze(), class_to_idx["Eurasian teal"], class_to_idx)
+```
+
+```{python}
+transform = birder.classification_transform(size, rgb_valuse, center_crop=0.5)
+```
+
+```{python}
+input_tensor = transform(img).unsqueeze(dim=0).to(device)
+out = F.softmax(net(input_tensor), dim=1).cpu().numpy()
+show_top_k("data/example.jpeg", out.squeeze(), class_to_idx["Eurasian teal"], class_to_idx)
+```
+
+```{python}
+
+```
+
+```{python}
+transform = birder.classification_transform((512, 512), rgb_valuse)
+```
+
+```{python}
+input_tensor = transform(img).unsqueeze(dim=0).to(device)
+out = F.softmax(net(input_tensor), dim=1).cpu().numpy()
+show_top_k("data/example.jpeg", out.squeeze(), class_to_idx["Eurasian teal"], class_to_idx)
 ```
 
 ```{python}

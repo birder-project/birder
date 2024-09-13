@@ -29,7 +29,7 @@ sys.path.append("..")
 ```
 
 ```{python}
-from birder.common import cli
+from birder.common import fs_ops
 from birder.common.lib import get_label_from_path
 from birder.conf import settings
 from birder.core.transforms.classification import get_rgb_values, inference_preset
@@ -98,7 +98,7 @@ logging.disable(logging.INFO)
 device = torch.device("cpu")
 for e in range(epoch_start, epoch_end + 1):
     try:
-        (net, _, _, _) = cli.load_pretrain_checkpoint(
+        (net, _, _, _) = fs_ops.load_mim_checkpoint(
             device,
             network,
             net_param=None,
@@ -111,7 +111,7 @@ for e in range(epoch_start, epoch_end + 1):
     except FileNotFoundError:
         continue
 
-    transform = inference_preset((size, size), 1.0, get_rgb_values("calculated"))
+    transform = inference_preset((size, size), get_rgb_values("calculated"), 1.0)
     input_tensor = transform(img).unsqueeze(dim=0).to(device)
 
     torch.manual_seed(0)

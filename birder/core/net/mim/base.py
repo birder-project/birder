@@ -9,8 +9,8 @@ from birder.core.net.base import PreTrainEncoder
 from birder.model_registry import Task
 from birder.model_registry import registry
 
-PreTrainSignatureType = TypedDict(
-    "PreTrainSignatureType",
+MIMSignatureType = TypedDict(
+    "MIMSignatureType",
     {
         "inputs": list[DataShapeType],
         "outputs": list[DataShapeType],
@@ -18,16 +18,16 @@ PreTrainSignatureType = TypedDict(
 )
 
 
-def get_pretrain_signature(input_shape: tuple[int, ...]) -> PreTrainSignatureType:
+def get_mim_signature(input_shape: tuple[int, ...]) -> MIMSignatureType:
     return {
         "inputs": [{"data_shape": [0, *input_shape[1:]]}],
         "outputs": [{"data_shape": [0, *input_shape[1:]]}],
     }
 
 
-class PreTrainBaseNet(nn.Module):
+class MIMBaseNet(nn.Module):
     default_size: int
-    task = Task.IMAGE_PRETRAINING
+    task = Task.MASKED_IMAGE_MODELING
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()

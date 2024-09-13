@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Must be in sync with birder.core.transforms.classification.inference_preset
 def inference_preset(
-    size: tuple[int, int], center_crop: float, rgv_values: dict[str, list[float]]
+    size: tuple[int, int], rgv_values: dict[str, list[float]], center_crop: float = 1.0
 ) -> Callable[..., torch.Tensor]:
     mean = rgv_values["mean"]
     std = rgv_values["std"]
@@ -94,7 +94,7 @@ class BirdClassifier(BaseHandler):
         rgb_values = json.loads(extra_files["rgb_values"])
 
         size = signature["inputs"][0]["data_shape"][2]
-        transforms = inference_preset((size, size), 1.0, rgb_values)
+        transforms = inference_preset((size, size), rgb_values, 1.0)
 
         idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
 

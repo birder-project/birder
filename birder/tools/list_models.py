@@ -34,7 +34,7 @@ def set_parser(subparsers: Any) -> None:
     task_group = subparser.add_mutually_exclusive_group(required=False)
     task_group.add_argument("--classification", default=False, action="store_true", help="list classification models")
     task_group.add_argument("--detection", default=False, action="store_true", help="list detection models")
-    task_group.add_argument("--pretrain", default=False, action="store_true", help="list pretrain models")
+    task_group.add_argument("--mim", default=False, action="store_true", help="list MIM models")
     task_group.add_argument("--pretrained", default=False, action="store_true", help="list pretrained models")
 
     type_group = subparser.add_mutually_exclusive_group(required=False)
@@ -66,8 +66,8 @@ def main(args: argparse.Namespace) -> None:
         model_list = registry.list_models(task=Task.IMAGE_CLASSIFICATION, net_type=t)
     elif args.detection is True:
         model_list = registry.list_models(task=Task.OBJECT_DETECTION, net_type=t)
-    elif args.pretrain is True:
-        model_list = registry.list_models(task=Task.IMAGE_PRETRAINING, net_type=t)
+    elif args.mim is True:
+        model_list = registry.list_models(task=Task.MASKED_IMAGE_MODELING, net_type=t)
     elif args.pretrained is True:
         model_list = registry.list_pretrained_models()
     else:

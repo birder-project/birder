@@ -5,6 +5,7 @@ import os
 import shutil
 import uuid
 from pathlib import Path
+from typing import Optional
 from urllib.request import Request
 from urllib.request import urlopen
 
@@ -27,14 +28,17 @@ def calc_sha256(file_path: str | Path) -> str:
     return sha256.hexdigest()
 
 
-def download_file(url: str, dst: Path, expected_sha256: str) -> None:
+def download_file(url: str, dst: str | Path, expected_sha256: Optional[str] = None) -> None:
     # Adapted from torch.hub download_url_to_file function
 
     chunk_size = 128 * 1024
 
+    if isinstance(dst, str) is True:
+        dst = Path(dst)
+
     # If file by the same name exists, check sha256 before overriding
-    if dst.exists() is True:
-        if calc_sha256(dst) == expected_sha256:
+    if dst.exists() is True:  # type: ignore[union-attr]
+        if expected_sha256 is None or calc_sha256(dst) == expected_sha256:
             return
 
         logging.warning("Overriding existing file with different SHA256")
@@ -68,11 +72,11 @@ def download_file(url: str, dst: Path, expected_sha256: str) -> None:
                 progress.update(len(buffer))
 
         digest = sha256.hexdigest()
-        if digest != expected_sha256:
+        if expected_sha256 is not None and digest != expected_sha256:
             raise RuntimeError(f'invalid hash value (expected "{expected_sha256}", got "{digest}")')
 
         shutil.move(f.name, dst)
-        logging.info(f"Finished, model saved at {dst}")
+        logging.info(f"Finished, file saved at {dst}")
 
     finally:
         f.close()

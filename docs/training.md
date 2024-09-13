@@ -603,19 +603,19 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v2 --net-param 2 --opt 
 #### Mobilenet v3 Large: 1.5
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large --net-param 1.5 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile --stop-epoch 320
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large --net-param 1.5 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --amp --compile --stop-epoch 320
 ```
 
 At epoch 320 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large --net-param 1.5 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 128 --size 384 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile --resume-epoch 320 --load-states
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large --net-param 1.5 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 128 --size 384 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --amp --compile --resume-epoch 320 --load-states
 ```
 
 Optional intermediate training
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large --net-param 1.5 --tag intermediate --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large --net-param 1.5 --tag intermediate --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 ### Mobilenet v3 Small

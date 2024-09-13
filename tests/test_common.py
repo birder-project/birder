@@ -32,8 +32,8 @@ class TestCommon(unittest.TestCase):
         net_name = lib.get_network_name("net", net_param=None, tag="exp")
         self.assertEqual(net_name, "net_exp")
 
-        # Pretrained network name
-        net_name = lib.get_pretrain_network_name("net", net_param=None, encoder="encoder", encoder_param=3, tag="exp")
+        # MIM network name
+        net_name = lib.get_mim_network_name("net", net_param=None, encoder="encoder", encoder_param=3, tag="exp")
         self.assertEqual(net_name, "net_encoder_3_exp")
 
         # Detection network name
