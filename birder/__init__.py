@@ -3,7 +3,7 @@ from birder.common.lib import get_channels_from_signature
 from birder.common.lib import get_size_from_signature
 from birder.core.transforms.classification import inference_preset as classification_transform
 
-__version__ = "v0.0.5a25"
+__version__ = "v0.0.5a26"
 
 __all__ = [
     "classification_transform",
