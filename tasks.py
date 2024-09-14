@@ -194,7 +194,7 @@ def update_annotation_table(_ctx):
     column_class = "class"
     classes = pl.Series(column_class, class_list)
 
-    annotations_status = pl.read_csv("annotations_status.csv")
+    annotations_status = pl.read_csv(settings.DATA_DIR.joinpath("annotations_status.csv"))
     new_classes = classes.filter(~classes.is_in(annotations_status[column_class]))
     if len(new_classes) == 0:
         echo("No new species")
@@ -232,7 +232,7 @@ def update_annotation_table(_ctx):
     )
 
     # Save
-    annotations_status.write_csv("annotations_status.csv")
+    annotations_status.write_csv(settings.DATA_DIR.joinpath("annotations_status.csv"))
     echo(f"Done, added {len(new_classes)} new classes")
 
 

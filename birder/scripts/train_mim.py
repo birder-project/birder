@@ -5,6 +5,7 @@ import sys
 import time
 import typing
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import torch
@@ -535,9 +536,8 @@ def get_args_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_and_validate(parser: argparse.ArgumentParser) -> argparse.Namespace:
-    args = parser.parse_args()
-
+def validate_args(args: argparse.Namespace) -> None:
+    assert args.network is not None
     assert args.load_states is False or (
         args.load_states is True and args.resume_epoch is not None
     ), "Load states must be from resumed training (--resume-epoch)"
@@ -552,12 +552,20 @@ def parse_and_validate(parser: argparse.ArgumentParser) -> argparse.Namespace:
         registry.exists(args.encoder, net_type=PreTrainEncoder) is True
     ), "Unknown encoder, see list-models tool for available options"
 
+
+def args_from_dict(**kwargs: Any) -> argparse.Namespace:
+    parser = get_args_parser()
+    args = argparse.Namespace(**kwargs)
+    args = parser.parse_args([], args)
+    validate_args(args)
+
     return args
 
 
 def main() -> None:
     parser = get_args_parser()
-    args = parse_and_validate(parser)
+    args = parser.parse_args()
+    validate_args(args)
 
     if settings.MODELS_DIR.exists() is False:
         logging.info(f"Creating {settings.MODELS_DIR} directory...")

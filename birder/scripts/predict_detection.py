@@ -1,6 +1,7 @@
 import argparse
 import logging
 import time
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -142,7 +143,7 @@ def predict(args: argparse.Namespace) -> None:
     logging.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {len(samples):,} samples ({rate:.2f} samples/sec)")
 
 
-def main() -> None:
+def get_args_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         allow_abbrev=False,
         description="Run detection prediction on directories and/or files",
@@ -157,13 +158,12 @@ def main() -> None:
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
-    parser.add_argument("-n", "--network", type=str, required=True, help="the neural network to use (i.e. faster_rcnn)")
+    parser.add_argument("-n", "--network", type=str, help="the neural network to use (i.e. faster_rcnn)")
     parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required for most networks")
     parser.add_argument(
         "--backbone",
         type=str,
         choices=registry.list_models(net_type=DetectorBackbone),
-        required=True,
         help="the neural network to used as backbone",
     )
     parser.add_argument(
@@ -190,10 +190,30 @@ def main() -> None:
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
     parser.add_argument("--parallel", default=False, action="store_true", help="use multiple gpu's")
     parser.add_argument("data_path", nargs="+", help="data files path (directories and files)")
-    args = parser.parse_args()
 
+    return parser
+
+
+def validate_args(args: argparse.Namespace) -> None:
+    assert args.network is not None
+    assert args.backbone is not None
     assert args.parallel is False or (args.parallel is True and args.gpu is True)
     assert args.parallel is False or args.compile is False
+
+
+def args_from_dict(**kwargs: Any) -> argparse.Namespace:
+    parser = get_args_parser()
+    args = argparse.Namespace(**kwargs)
+    args = parser.parse_args([], args)
+    validate_args(args)
+
+    return args
+
+
+def main() -> None:
+    parser = get_args_parser()
+    args = parser.parse_args()
+    validate_args(args)
 
     if settings.RESULTS_DIR.exists() is False:
         logging.info(f"Creating {settings.RESULTS_DIR} directory...")

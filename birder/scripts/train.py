@@ -737,9 +737,8 @@ def get_args_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_and_validate(parser: argparse.ArgumentParser) -> argparse.Namespace:
-    args = parser.parse_args()
-
+def validate_args(args: argparse.Namespace) -> None:
+    assert args.network is not None
     assert (
         args.stop_epoch is None or args.stop_epoch < args.epochs
     ), "Stop epoch must be smaller than total number of epochs"
@@ -755,12 +754,20 @@ def parse_and_validate(parser: argparse.ArgumentParser) -> argparse.Namespace:
         registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION) is True
     ), "Unknown network, see list-models tool for available options"
 
+
+def args_from_dict(**kwargs: Any) -> argparse.Namespace:
+    parser = get_args_parser()
+    args = argparse.Namespace(**kwargs)
+    args = parser.parse_args([], args)
+    validate_args(args)
+
     return args
 
 
 def main() -> None:
     parser = get_args_parser()
-    args = parse_and_validate(parser)
+    args = parser.parse_args()
+    validate_args(args)
 
     if settings.MODELS_DIR.exists() is False:
         logging.info(f"Creating {settings.MODELS_DIR} directory...")

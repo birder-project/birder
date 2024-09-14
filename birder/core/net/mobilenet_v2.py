@@ -7,6 +7,7 @@ Paper "MobileNetV2: Inverted Residuals and Linear Bottlenecks", https://arxiv.or
 
 # Reference license: BSD 3-Clause
 
+from collections import OrderedDict
 from collections.abc import Callable
 from typing import Optional
 
@@ -14,7 +15,7 @@ import torch
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
-from birder.core.net.base import BaseNet
+from birder.core.net.base import DetectorBackbone
 from birder.core.net.base import make_divisible
 
 
@@ -73,7 +74,7 @@ class InvertedResidual(nn.Module):
 
 
 # pylint: disable=invalid-name
-class MobileNet_v2(BaseNet):
+class MobileNet_v2(DetectorBackbone):
     default_size = 224
 
     def __init__(
@@ -114,8 +115,17 @@ class MobileNet_v2(BaseNet):
             activation_layer=nn.ReLU6,
         )
 
-        layers = []
+        layers: list[nn.Module] = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
+        i = 0
         for t, c, n, s in inverted_residual_setting:
+            if s > 1:
+                stages[f"stage{i}"] = nn.Sequential(*layers)
+                return_channels.append(base)
+                layers = []
+                i += 1
+
             c = make_divisible(c * alpha, 8)
             layers.append(
                 InvertedResidual(
@@ -156,11 +166,15 @@ class MobileNet_v2(BaseNet):
             )
         )
 
-        self.body = nn.Sequential(*layers)
+        stages[f"stage{i}"] = nn.Sequential(*layers)
+        return_channels.append(last_channels)
+
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels[1:5]
         self.embedding_size = last_channels
         self.classifier = self.create_classifier()
 
@@ -178,6 +192,28 @@ class MobileNet_v2(BaseNet):
             elif isinstance(m, nn.Linear) is True:
                 nn.init.normal_(m.weight, 0, 0.01)
                 nn.init.zeros_(m.bias)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

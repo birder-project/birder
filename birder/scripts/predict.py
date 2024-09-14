@@ -2,6 +2,7 @@ import argparse
 import logging
 import time
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
@@ -245,7 +246,7 @@ def predict(args: argparse.Namespace) -> None:
             logging.info(f"{specie_name:<{indent_size}} {count}")
 
 
-def main() -> None:
+def get_args_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         allow_abbrev=False,
         description="Run prediction on directories and/or files",
@@ -270,7 +271,7 @@ def main() -> None:
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
-    parser.add_argument("-n", "--network", type=str, required=True, help="the neural network to use (i.e. resnet_v2)")
+    parser.add_argument("-n", "--network", type=str, help="the neural network to use (i.e. resnet_v2)")
     parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required for most networks")
     parser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
     parser.add_argument("--quantized", default=False, action="store_true", help="load quantized model")
@@ -310,8 +311,12 @@ def main() -> None:
     parser.add_argument("--parallel", default=False, action="store_true", help="use multiple gpu's")
     parser.add_argument("--wds", default=False, action="store_true", help="predict a webdataset directory")
     parser.add_argument("data_path", nargs="+", help="data files path (directories and files)")
-    args = parser.parse_args()
 
+    return parser
+
+
+def validate_args(args: argparse.Namespace) -> None:
+    assert args.network is not None
     assert args.center_crop <= 1 and args.center_crop > 0, "Center crop ratio must be between 0 and 1"
     assert args.parallel is False or args.gpu is True
     assert args.save_embedding is False or args.parallel is False
@@ -320,6 +325,21 @@ def main() -> None:
     assert args.wds is False or (
         args.show is False and args.show_mistakes is False and args.show_out_of_k is False and args.show_class is False
     )
+
+
+def args_from_dict(**kwargs: Any) -> argparse.Namespace:
+    parser = get_args_parser()
+    args = argparse.Namespace(**kwargs)
+    args = parser.parse_args([], args)
+    validate_args(args)
+
+    return args
+
+
+def main() -> None:
+    parser = get_args_parser()
+    args = parser.parse_args()
+    validate_args(args)
 
     if settings.RESULTS_DIR.exists() is False:
         logging.info(f"Creating {settings.RESULTS_DIR} directory...")

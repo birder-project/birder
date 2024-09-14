@@ -130,6 +130,7 @@ class TestNet(unittest.TestCase):
         [
             ("efficientnet_v1", 0),
             ("efficientnet_v2", 0),
+            ("mobilenet_v2", 1),
             ("mobilenet_v3_large", 1),
             ("mobilenet_v3_small", 1),
             ("mobilenet_v4", 0),

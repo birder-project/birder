@@ -30,6 +30,10 @@ from birder.core.results.gui import show_top_k
 ```
 
 ```{python}
+birder.list_pretrained_models("mobile*il-common*")
+```
+
+```{python}
 (net, class_to_idx, signature, rgb_valuse) = birder.load_pretrained_model("xcit_nano16_il-common", inference=True)
 size = birder.get_size_from_signature(signature)
 transform = birder.classification_transform(size, rgb_valuse)

@@ -10,6 +10,7 @@ from birder.core.net.base import DetectorBackbone
 from birder.core.net.base import PreTrainEncoder
 from birder.model_registry import Task
 from birder.model_registry import registry
+from birder.model_registry.model_registry import group_sort
 
 
 def set_parser(subparsers: Any) -> None:
@@ -73,9 +74,7 @@ def main(args: argparse.Namespace) -> None:
     else:
         model_list = registry.list_models(net_type=t)
 
-    # Sort by model group for visibility
-    index_map = {item: index for index, item in enumerate(model_list)}
-    model_list = sorted(model_list, key=lambda x: (x.split("_")[0], index_map[x]))
+    model_list = group_sort(model_list)
 
     console = Console()
     if args.verbose is True:

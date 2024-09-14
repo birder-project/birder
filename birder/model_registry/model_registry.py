@@ -1,3 +1,4 @@
+import fnmatch
 import warnings
 from enum import Enum
 from typing import TYPE_CHECKING
@@ -13,6 +14,13 @@ if TYPE_CHECKING is True:
     from birder.core.net.mim.base import MIMBaseNet  # pylint: disable=cyclic-import
 
     BaseNetType = type[BaseNet] | type[DetectionBaseNet] | type[MIMBaseNet]
+
+
+def group_sort(model_list: list[str]) -> list[str]:
+    # Sort by model group for visibility
+    index_map = {item: index for index, item in enumerate(model_list)}
+    model_list = sorted(model_list, key=lambda x: (x.split("_")[0], index_map[x]))
+    return model_list
 
 
 class Task(str, Enum):
@@ -126,8 +134,24 @@ class ModelRegistry:
 
         return name in nets
 
-    def list_pretrained_models(self) -> list[str]:
-        return list(self._pretrained_nets.keys())
+    def list_pretrained_models(self, include_filter: Optional[str] = None) -> list[str]:
+        """
+        Parameters
+        ----------
+        include_filter
+            Filter string that goes into fnmatch
+
+        Returns
+        -------
+            Sorted models list (by model group) of pretrained networks.
+        """
+
+        model_list = list(self._pretrained_nets.keys())
+
+        if include_filter is not None:
+            model_list = fnmatch.filter(model_list, include_filter)
+
+        return group_sort(model_list)
 
     def get_default_size(self, model_name: str) -> int:
         net = self._get_model_by_name(model_name)
@@ -167,3 +191,4 @@ class ModelRegistry:
 
 
 registry = ModelRegistry()
+list_pretrained_models = registry.list_pretrained_models

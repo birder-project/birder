@@ -780,9 +780,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_and_validate(parser: argparse.ArgumentParser) -> argparse.Namespace:
-    args = parser.parse_args()
-
+def validate_args(args: argparse.Namespace) -> None:
+    assert args.teacher is not None
+    assert args.student is not None
     assert 0.5 > args.smoothing_alpha >= 0, "Smoothing alpha must be in range of [0, 0.5)"
     assert args.load_states is False or (
         args.load_states is True and args.resume_epoch is not None
@@ -798,12 +798,20 @@ def parse_and_validate(parser: argparse.ArgumentParser) -> argparse.Namespace:
         registry.exists(args.student, task=Task.IMAGE_CLASSIFICATION) is True
     ), "Unknown student network, see list-models tool for available options"
 
+
+def args_from_dict(**kwargs: Any) -> argparse.Namespace:
+    parser = get_args_parser()
+    args = argparse.Namespace(**kwargs)
+    args = parser.parse_args([], args)
+    validate_args(args)
+
     return args
 
 
 def main() -> None:
     parser = get_args_parser()
-    args = parse_and_validate(parser)
+    args = parser.parse_args()
+    validate_args(args)
 
     if settings.MODELS_DIR.exists() is False:
         logging.info(f"Creating {settings.MODELS_DIR} directory...")

@@ -84,6 +84,14 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large --net-param 0.
 torchrun --nproc_per_node=2 train.py --network mobilenet_v3_small --net-param 1 --tag il-common --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### MobileOne
+
+#### MobileOne: s0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mobileone_s0 --tag il-common --lr 0.1 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 10 --batch-size 256 --epochs 300 --size 256 --wd 0.0001 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### RegNet
 
 #### RegNet: 0.2 GF

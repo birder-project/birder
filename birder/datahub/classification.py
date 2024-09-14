@@ -16,18 +16,6 @@ from birder.datahub._lib import extract_archive
 SplitType = Literal["training", "validation", "testing"]
 
 
-class Caltech256:
-    """
-    Name: Caltech 256
-    Link: https://data.caltech.edu/records/20087
-    License: Creative Commons Attribution 4.0 International
-    Size: 256 object categories containing a total of 30607 images (1.2GB)
-    """
-
-    def __init__(self) -> None:
-        raise NotImplementedError
-
-
 class Flowers102(ImageFolder):
     """
     Name: 102 Flowers

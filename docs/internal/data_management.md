@@ -24,7 +24,10 @@ Count code lines of the project
 `cloc --fullpath --not-match-d='data/' --exclude-dir=.mypy_cache,.venv .`
 
 Examine the annotations status
-`cat annotations_status.csv | column -t -s, --table-noextreme 8`
+`cat data/annotations_status.csv | column -t -s, --table-noextreme 8`
+
+Remove all json files in all tar files
+`for f in *.tar; do tar -vf "$f" --wildcards --delete "*.json"; done`
 
 ## Useful Websites
 

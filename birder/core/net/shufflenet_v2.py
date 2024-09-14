@@ -16,6 +16,7 @@ from torchvision.ops import Conv2dNormActivation
 
 from birder.core.net.base import BaseNet
 from birder.core.net.shufflenet_v1 import channel_shuffle
+from birder.model_registry import registry
 
 
 class ShuffleUnit(nn.Module):
@@ -164,3 +165,19 @@ class ShuffleNet_v2(BaseNet):
         x = self.stem(x)
         x = self.body(x)
         return self.features(x)
+
+
+registry.register_weights(
+    "shufflenet_v2_1_il-common",
+    {
+        "description": "ShuffleNet v2 1.0x output channels model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 6.4,
+                "sha256": "6ba3e78ff5311802ada11852fbad625acfde4d87fd335b1741c2f89aaaa12b41",
+            }
+        },
+        "net": {"network": "shufflenet_v2", "net_param": 1, "tag": "il-common"},
+    },
+)

@@ -15,6 +15,7 @@ from torch import nn
 from torchvision.ops import SqueezeExcitation
 
 from birder.core.net.base import BaseNet
+from birder.model_registry import registry
 
 
 class MobileOneBlock(nn.Module):
@@ -369,3 +370,10 @@ class MobileOne(BaseNet):
                 module.reparameterize()
 
         self.reparameterized = True
+
+
+registry.register_alias("mobileone_s0", MobileOne, 0)
+registry.register_alias("mobileone_s1", MobileOne, 1)
+registry.register_alias("mobileone_s2", MobileOne, 2)
+registry.register_alias("mobileone_s3", MobileOne, 3)
+registry.register_alias("mobileone_s4", MobileOne, 4)

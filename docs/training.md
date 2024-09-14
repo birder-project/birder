@@ -662,10 +662,10 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v4_hybrid_l --opt adamw
 
 ### MobileOne
 
-### MobileOne: s2
+#### MobileOne: s2
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobileone --net-param 2 --lr 0.1 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 10 --batch-size 128 --epochs 300 --size 256 --wd 0.0001 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2
+torchrun --nproc_per_node=2 train.py --network mobileone_s2 --lr 0.1 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 10 --batch-size 128 --epochs 300 --size 256 --wd 0.0001 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 ### MobileViT v1
@@ -847,7 +847,7 @@ torchrun --nproc_per_node=2 train.py --network resnet_v2 --net-param 50 --lr-sch
 #### ResNet v2: 50, ResNet strikes back procedure
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network resnet_v2 --net-param 50 --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 128 --epochs 200 --size 256 --wd 0.01 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2
+torchrun --nproc_per_node=2 train.py --network resnet_v2 --net-param 50 --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 128 --epochs 200 --size 256 --wd 0.01 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2
 ```
 
 ### ResNeXt
@@ -1096,16 +1096,22 @@ torchrun --nproc_per_node=2 train.py --network xcit_medium16 --opt adamw --lr 0.
 
 ### ImageNet
 
-#### ResNet v2: 50 ImageNet 1K Example
+#### ResNet v2: 50 ImageNet 1K example
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network resnet_v2 --net-param 50 --tag imagenet1k --lr-scheduler step --lr-step-size 30 --lr-step-gamma 0.1 --batch-size 256 --epochs 90 --smoothing-alpha 0.1 --aa --rgb-mode imagenet --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
+torchrun --nproc_per_node=2 train.py --network resnet_v2 --net-param 50 --tag imagenet1k --lr-scheduler step --lr-step-size 30 --lr-step-gamma 0.1 --batch-size 256 --epochs 90 --smoothing-alpha 0.1 --aa --rgb-mode imagenet --fast-matmul --compile --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
+```
+
+#### ResNet v2: 50 ImageNet 1K example, ResNet strikes back procedure
+
+```sh
+torchrun --nproc_per_node=2 train.py --network resnet_v2 --net-param 50 --tag imagenet1k --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 128 --epochs 200 --size 256 --wd 0.01 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --rgb-mode imagenet --fast-matmul --compile --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
 ```
 
 ### ImageNet 21K
 
-#### ResNet v2: 50 ImageNet 21K Example
+#### ResNet v2: 50 ImageNet 21K example
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network resnet_v2 --net-param 50 --tag imagenet21k --lr-scheduler step --lr-step-size 30 --lr-step-gamma 0.1 --batch-size 256 --epochs 90 --smoothing-alpha 0.1 --aa --rgb-mode imagenet --wds --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-train-size 13087061 --data-path ~/Datasets/imagenet-w21-webp-wds/training --wds-val-size 64215 --val-path ~/Datasets/imagenet-w21-webp-wds/validation
+torchrun --nproc_per_node=2 train.py --network resnet_v2 --net-param 50 --tag imagenet21k --lr-scheduler step --lr-step-size 30 --lr-step-gamma 0.1 --batch-size 256 --epochs 90 --smoothing-alpha 0.1 --aa --rgb-mode imagenet --fast-matmul --compile --wds --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-train-size 13087061 --data-path ~/Datasets/imagenet-w21-webp-wds/training --wds-val-size 64215 --val-path ~/Datasets/imagenet-w21-webp-wds/validation
 ```

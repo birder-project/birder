@@ -30,7 +30,6 @@ class PositionalEncodingFourier(nn.Module):
         self.scale = 2 * math.pi
         self.temperature = temperature
         self.hidden_dim = hidden_dim
-        self.dim = dim
 
     def forward(self, B: int, H: int, W: int) -> torch.Tensor:
         mask = torch.ones(B, H, W).to(self.token_projection.weight.device)

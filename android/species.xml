@@ -204,9 +204,11 @@
     <string name="ferruginous_duck">Ferruginous duck</string>
     <string name="fieldfare">Fieldfare</string>
     <string name="finschs_wheatear">Finschs wheatear</string>
+    <string name="franklins_gull">Franklins gull</string>
     <string name="gadwall">Gadwall</string>
     <string name="garden_warbler">Garden warbler</string>
     <string name="garganey">Garganey</string>
+    <string name="glaucous_gull">Glaucous gull</string>
     <string name="glossy_ibis">Glossy ibis</string>
     <string name="goldcrest">Goldcrest</string>
     <string name="golden_eagle">Golden eagle</string>
@@ -383,6 +385,7 @@
     <string name="rock_sparrow">Rock sparrow</string>
     <string name="rook">Rook</string>
     <string name="rose_ringed_parakeet">Rose-ringed parakeet</string>
+    <string name="roseate_tern">Roseate tern</string>
     <string name="rosy_starling">Rosy starling</string>
     <string name="rough_legged_buzzard">Rough-legged buzzard</string>
     <string name="ruddy_shelduck">Ruddy shelduck</string>
@@ -414,6 +417,7 @@
     <string name="sombre_tit">Sombre tit</string>
     <string name="song_thrush">Song thrush</string>
     <string name="sooty_falcon">Sooty falcon</string>
+    <string name="sooty_gull">Sooty gull</string>
     <string name="sooty_shearwater">Sooty shearwater</string>
     <string name="sooty_tern">Sooty tern</string>
     <string name="spanish_sparrow">Spanish sparrow</string>
