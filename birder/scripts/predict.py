@@ -36,25 +36,25 @@ def handle_show_flags(
 ) -> None:
     # Show prediction
     if args.show is True:
-        show_top_k(img_path, prob, label, class_to_idx)
+        show_top_k(img_path, prob, class_to_idx, label)
 
     # Show mistake (if label exists)
     elif label != -1:
         if args.show_below is not None and args.show_below > prob[label]:
-            show_top_k(img_path, prob, label, class_to_idx)
+            show_top_k(img_path, prob, class_to_idx, label)
 
         elif args.show_mistakes is True:
             if label != np.argmax(prob):
-                show_top_k(img_path, prob, label, class_to_idx)
+                show_top_k(img_path, prob, class_to_idx, label)
 
         elif args.show_out_of_k is True:
             if label not in np.argsort(prob)[::-1][0 : settings.TOP_K]:
-                show_top_k(img_path, prob, label, class_to_idx)
+                show_top_k(img_path, prob, class_to_idx, label)
 
         elif args.show_class is not None:
             idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
             if args.show_class == idx_to_class[np.argmax(prob)]:  # type: ignore
-                show_top_k(img_path, prob, label, class_to_idx)
+                show_top_k(img_path, prob, class_to_idx, label)
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements

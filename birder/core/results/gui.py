@@ -1,6 +1,7 @@
 import itertools
 import logging
 from functools import partial
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,7 +18,9 @@ from birder.conf import settings
 from birder.core.results.classification import Results
 
 
-def show_top_k(image_path: str, out: npt.NDArray[np.float32], label: int, class_to_idx: dict[str, int]) -> None:
+def show_top_k(
+    image_path: str, out: npt.NDArray[np.float32], class_to_idx: dict[str, int], label: Optional[int | str] = None
+) -> None:
     img = pil_loader(image_path)
 
     idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
@@ -46,9 +49,13 @@ def show_top_k(image_path: str, out: npt.NDArray[np.float32], label: int, class_
     ax.invert_yaxis()
     ax.set_xlim(0, 1)
 
-    if label != -1:
+    if label is not None and label != -1:
+        # 'label' could be any int-like object like NumPy, Torch, etc.
+        if isinstance(label, str) is False:
+            label = idx_to_class[label]  # type: ignore[index]
+
         for idx, class_name in enumerate(predicted_class_names):
-            if idx_to_class[label] == class_name:
+            if label == class_name:
                 bars[idx].set_color("green")
 
     plt.tight_layout()
