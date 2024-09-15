@@ -377,3 +377,32 @@ registry.register_alias("mobileone_s1", MobileOne, 1)
 registry.register_alias("mobileone_s2", MobileOne, 2)
 registry.register_alias("mobileone_s3", MobileOne, 3)
 registry.register_alias("mobileone_s4", MobileOne, 4)
+
+registry.register_weights(
+    "mobileone_s0_il-common",
+    {
+        "description": "MobileOne S0 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 18.5,
+                "sha256": "57576873c88bb9dbdfeb4f89c9250c589e8ffbfe5c24f9c119bf5f4df40198db",
+            }
+        },
+        "net": {"network": "mobileone_s0", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "mobileone_s0_il-common_reparameterized",
+    {
+        "description": "MobileOne S0 (reparameterized) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 5.5,
+                "sha256": "43995722d2a7fcfacb837cf2fb595e16a6b55b91b996c5bd59b3105be3470d2b",
+            }
+        },
+        "net": {"network": "mobileone_s0", "tag": "il-common_reparameterized", "reparameterized": True},
+    },
+)

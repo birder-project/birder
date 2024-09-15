@@ -283,6 +283,7 @@ def load_model(
     new_size: Optional[int] = None,
     quantized: bool = False,
     inference: bool,
+    reparameterized: bool = False,
     pts: bool = False,
     pt2: bool = False,
 ) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], SignatureType, RGBType]:
@@ -315,6 +316,9 @@ def load_model(
         size = lib.get_size_from_signature(signature)[0]
 
         net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
+        if reparameterized is True:
+            net.reparameterize_model()
+
         net.load_state_dict(model_dict["state"])
         if new_size is not None:
             net.adjust_size(new_size)
@@ -356,6 +360,7 @@ def load_pretrained_model(
         model_info["net"]["network"],
         net_param=model_info["net"].get("net_param", None),
         tag=model_info["net"].get("tag", None),
+        reparameterized=model_info["net"].get("reparameterized", False),
         inference=inference,
     )
 

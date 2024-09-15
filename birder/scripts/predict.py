@@ -10,7 +10,6 @@ import polars as pl
 import torch
 import torch.amp
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 
 from birder.common import cli
 from birder.common import fs_ops
@@ -21,7 +20,7 @@ from birder.core.dataloader.webdataset import make_wds_loader
 from birder.core.datasets.directory import ImageListDataset
 from birder.core.datasets.webdataset import make_wds_dataset
 from birder.core.datasets.webdataset import wds_size
-from birder.core.inference import inference
+from birder.core.inference import classification
 from birder.core.results.classification import Results
 from birder.core.results.gui import show_top_k
 from birder.core.transforms.classification import inference_preset
@@ -82,6 +81,7 @@ def predict(args: argparse.Namespace) -> None:
         new_size=args.size,
         quantized=args.quantized,
         inference=True,
+        reparameterized=args.reparameterized,
         pts=args.pts,
         pt2=args.pt2,
     )
@@ -143,44 +143,22 @@ def predict(args: argparse.Namespace) -> None:
             num_workers=8,
         )
 
-    embedding_list: list[npt.NDArray[np.float32]] = []
-    out_list: list[npt.NDArray[np.float32]] = []
-    labels: list[int] = []
-    sample_paths: list[str] = []
+    def batch_callback(file_paths: list[str], out: npt.NDArray[np.float32], batch_labels: list[int]) -> None:
+        # Show flags
+        if (
+            args.show is True
+            or args.show_below is not None
+            or args.show_mistakes is True
+            or args.show_out_of_k is True
+            or args.show_class is not None
+        ):
+            for img_path, prob, label in zip(file_paths, out, batch_labels):
+                handle_show_flags(args, img_path, prob, label, class_to_idx)
+
     tic = time.time()
-    with tqdm(total=num_samples, initial=0, unit="images", unit_scale=True, leave=False) as progress:
-        for file_paths, inputs, targets in inference_loader:
-            # Predict
-            inputs = inputs.to(device)
-
-            with torch.amp.autocast(device.type, enabled=args.amp):
-                (out, embedding) = inference.predict(net, inputs, return_embedding=args.save_embedding)
-
-            out_list.append(out)
-            if embedding is not None:
-                embedding_list.append(embedding)
-
-            # Set labels and sample list
-            batch_labels = list(targets.cpu().numpy())
-            labels.extend(batch_labels)
-            sample_paths.extend(file_paths)
-
-            # Show flags
-            if (
-                args.show is True
-                or args.show_below is not None
-                or args.show_mistakes is True
-                or args.show_out_of_k is True
-                or args.show_class is not None
-            ):
-                for img_path, prob, label in zip(file_paths, out, batch_labels):
-                    handle_show_flags(args, img_path, prob, label, class_to_idx)
-
-            # Update progress bar
-            progress.update(n=batch_size)
-
-    outs = np.concatenate(out_list, axis=0)
-
+    (sample_paths, outs, labels, embedding_list) = classification.infer_dataloader(
+        device, net, inference_loader, args.save_embedding, args.amp, num_samples, batch_callback=batch_callback
+    )
     toc = time.time()
     rate = len(outs) / (toc - tic)
     (minutes, seconds) = divmod(toc - tic, 60)
@@ -276,6 +254,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
     parser.add_argument("--quantized", default=False, action="store_true", help="load quantized model")
     parser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
+    parser.add_argument(
+        "-r", "--reparameterized", default=False, action="store_true", help="load reparameterized model"
+    )
     parser.add_argument("--pts", default=False, action="store_true", help="load torchscript network")
     parser.add_argument("--pt2", default=False, action="store_true", help="load standardized model")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")

@@ -21,7 +21,7 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.core.datasets.directory import ImageListDataset
-from birder.core.inference import inference
+from birder.core.inference import classification
 from birder.core.transforms.classification import inference_preset
 
 
@@ -59,8 +59,8 @@ def similarity(args: argparse.Namespace) -> None:
         for file_paths, inputs, _targets in inference_loader:
             # Predict
             inputs = inputs.to(device)
-            (_out, embedding) = inference.predict(net, inputs, return_embedding=True)
-            embedding_list.append(embedding)  # type: ignore
+            (_out, embedding) = classification.infer_batch(net, inputs, return_embedding=True)
+            embedding_list.append(embedding)  # type: ignore[arg-type]
             sample_paths.extend(file_paths)
 
             # Update progress bar
