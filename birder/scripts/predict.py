@@ -17,7 +17,7 @@ from birder.common import lib
 from birder.common.lib import get_network_name
 from birder.conf import settings
 from birder.core.dataloader.webdataset import make_wds_loader
-from birder.core.datasets.directory import ImageListDataset
+from birder.core.datasets.directory import make_image_dataset
 from birder.core.datasets.webdataset import make_wds_dataset
 from birder.core.datasets.webdataset import wds_size
 from birder.core.inference import classification
@@ -131,11 +131,8 @@ def predict(args: argparse.Namespace) -> None:
         )
 
     else:
-        samples = fs_ops.samples_from_paths(args.data_path, class_to_idx=class_to_idx)
-        num_samples = len(samples)
-        assert num_samples > 0, "Couldn't find any images"
-
-        dataset = ImageListDataset(samples, transforms=inference_transform)
+        dataset = make_image_dataset(args.data_path, class_to_idx, transforms=inference_transform)
+        num_samples = len(dataset)
         inference_loader = DataLoader(
             dataset,
             batch_size=batch_size,

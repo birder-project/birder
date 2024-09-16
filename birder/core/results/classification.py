@@ -36,6 +36,7 @@ def top_k_accuracy_score(y_true: npt.NDArray[Any], y_pred: npt.NDArray[np.float6
     return indices
 
 
+# pylint: disable=too-many-public-methods
 class Results:
     """
     Classification result analysis class
@@ -189,6 +190,29 @@ class Results:
     def confusion_matrix(self) -> npt.NDArray[np.int_]:
         return self._confusion_matrix  # type: ignore
 
+    def most_confused(self, n: int = 10) -> pl.DataFrame:
+        cnf_matrix = self.confusion_matrix.copy()
+        np.fill_diagonal(cnf_matrix, -1)
+        top_indices = np.argsort(cnf_matrix.ravel())[-n:][::-1]
+        class_names = [self.label_names[label_idx] for label_idx in self.unique_labels]
+
+        data = []
+        for flat_idx in top_indices:
+            idx = np.unravel_index(flat_idx, cnf_matrix.shape)
+            if cnf_matrix[idx] == 0:
+                break
+
+            data.append(
+                {
+                    "predicted": class_names[idx[1]],
+                    "actual": class_names[idx[0]],
+                    "amount": cnf_matrix[idx],
+                    "reverse": cnf_matrix[idx] + cnf_matrix[idx[::-1]],
+                }
+            )
+
+        return pl.DataFrame(data)
+
     def get_as_df(self) -> pl.DataFrame:
         return self._results_df.clone()
 
@@ -337,11 +361,6 @@ class Results:
                 fp_msg,
             )
 
-        console.print("'False negative' is a simple mistake in the context of multi-class classification")
-        console.print(
-            "Per-class 'recall' is the equivalent of 'per-class accuracy' "
-            "in the context of multi-class classification"
-        )
         console.print(table)
 
         accuracy_text = Text()

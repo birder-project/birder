@@ -101,32 +101,20 @@ def print_report(results_dict: dict[str, Results]) -> None:
     console.print("\n")
 
 
-def print_pairs(results: Results) -> None:
-    top_n = 14
-    cnf_matrix = results.confusion_matrix.copy()
-    np.fill_diagonal(cnf_matrix, -1)
-    top_indices = np.argsort(cnf_matrix.ravel())[-top_n:][::-1]
-    class_names = [results.label_names[label_idx] for label_idx in results.unique_labels]
+def print_most_confused_pairs(results: Results) -> None:
+    most_confused_df = results.most_confused(n=14)
 
     console = Console()
 
     table = Table(show_header=True, header_style="bold dark_magenta")
-    table.add_column("Predicted")
-    table.add_column("Actual")
-    table.add_column("#", justify="right")
-    table.add_column("Double sided", justify="right")
+    for column in most_confused_df.columns:
+        if isinstance(most_confused_df[column].dtype, polars.datatypes.classes.NumericType) is True:
+            table.add_column(column.capitalize(), justify="right")
+        else:
+            table.add_column(column.capitalize())
 
-    for flat_idx in top_indices:
-        idx = np.unravel_index(flat_idx, cnf_matrix.shape)
-        if cnf_matrix[idx] == 0:
-            break
-
-        table.add_row(
-            class_names[idx[1]],
-            class_names[idx[0]],
-            str(cnf_matrix[idx]),
-            str(cnf_matrix[idx] + cnf_matrix[idx[::-1]]),
-        )
+    for row in most_confused_df.iter_rows():
+        table.add_row(row[0], row[1], str(row[2]), str(row[3]))
 
     console.print(table)
 
@@ -293,4 +281,4 @@ def main(args: argparse.Namespace) -> None:
             logging.warning("Cannot compare, processing only the first file")
 
         results = next(iter(results_dict.values()))
-        print_pairs(results)
+        print_most_confused_pairs(results)

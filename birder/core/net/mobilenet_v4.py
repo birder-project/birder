@@ -470,3 +470,18 @@ class MobileNet_v4(DetectorBackbone):
 registry.register_alias("mobilenet_v4_s", MobileNet_v4, 0)
 registry.register_alias("mobilenet_v4_m", MobileNet_v4, 1)
 registry.register_alias("mobilenet_v4_l", MobileNet_v4, 2)
+
+registry.register_weights(
+    "mobilenet_v4_s_il-common",
+    {
+        "description": "MobileNet v4 small model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 11.5,
+                "sha256": "3d438abc0de5d1aecb3dc3cb0a564083478aa3e0bb3f49a9816d42e0fb6c2943",
+            }
+        },
+        "net": {"network": "mobilenet_v4_s", "tag": "il-common"},
+    },
+)

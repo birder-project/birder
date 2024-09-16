@@ -62,6 +62,16 @@ class Flowers102(ImageFolder):
 
         super().__init__(self._root.joinpath(split), transform, target_transform, loader, is_valid_file)
 
+    def __getitem__(self, index: int) -> tuple[str, torch.Tensor, Any]:
+        (path, target) = self.samples[index]
+        sample = self.loader(path)
+        if self.transform is not None:
+            sample = self.transform(sample)
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        return (path, sample, target)
+
 
 # pylint: disable=invalid-name
 class CUB_200_2011(ImageFolder):
@@ -109,3 +119,13 @@ class CUB_200_2011(ImageFolder):
                     raise RuntimeError("Dataset seems corrupted")
 
         super().__init__(self._root.joinpath(split), transform, target_transform, loader, is_valid_file)
+
+    def __getitem__(self, index: int) -> tuple[str, torch.Tensor, Any]:
+        (path, target) = self.samples[index]
+        sample = self.loader(path)
+        if self.transform is not None:
+            sample = self.transform(sample)
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        return (path, sample, target)

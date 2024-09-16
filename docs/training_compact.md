@@ -10,6 +10,14 @@
 torchrun --nproc_per_node=2 train.py --network convnext_v2_atto --tag il-common --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 600 --size 256 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.2 --aug-level 4 --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### CrossViT
+
+#### CrossViT: 9 Dagger
+
+```sh
+torchrun --nproc_per_node=2 train.py --network crossvit_9d --tag il-common --opt adamw --lr 0.004 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-7 --warmup-epochs 30 --epochs 300 --size 240 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --amp --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### DeiT
 
 #### DeiT: t16
@@ -89,7 +97,13 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v3_small --net-param 1 
 #### Mobilenet v4: Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v4_s --tag il-common --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 5 --batch-size 512 --size 256 --epochs 600 --wd 0.01 --smoothing-alpha 0.1 --aug-level 3 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+torchrun --nproc_per_node=2 train.py --network mobilenet_v4_s --tag il-common --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 5 --batch-size 512 --size 256 --epochs 800 --wd 0.01 --smoothing-alpha 0.1 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+#### Mobilenet v4: Medium
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mobilenet_v4_m --tag il-common --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 5 --batch-size 512 --size 256 --epochs 500 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### MobileOne

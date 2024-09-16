@@ -41,10 +41,10 @@ class BalancedPositiveNegativeSampler:
         """
         Parameters
         ----------
-            matched_idxs
-                list of tensors containing -1, 0 or positive values.
-                Each tensor corresponds to a specific image.
-                -1 values are ignored, 0 are considered as negatives and > 0 as positives
+        matched_idxs
+            list of tensors containing -1, 0 or positive values.
+            Each tensor corresponds to a specific image.
+            -1 values are ignored, 0 are considered as negatives and > 0 as positives
 
         Returns
         -------

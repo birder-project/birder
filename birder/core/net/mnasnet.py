@@ -10,6 +10,7 @@ Changes from original:
 
 # Reference license: BSD 3-Clause
 
+from collections import OrderedDict
 from collections.abc import Callable
 from functools import partial
 from typing import Optional
@@ -18,7 +19,7 @@ import torch
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
-from birder.core.net.base import BaseNet
+from birder.core.net.base import DetectorBackbone
 
 
 def _round_to_multiple_of(val: float, divisor: int, round_up_bias: float = 0.9) -> int:
@@ -131,7 +132,7 @@ class InvertedResidualBlock(nn.Module):
         return self.layers(x)
 
 
-class MNASNet(BaseNet):
+class MNASNet(DetectorBackbone):
     default_size = 224
 
     def __init__(
@@ -181,12 +182,26 @@ class MNASNet(BaseNet):
             ),
         )
 
-        self.body = nn.Sequential(
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
+        stages["stage0"] = nn.Sequential(
             InvertedResidualBlock(depths[1], depths[2], (3, 3), (2, 2), (1, 1), 3, 3, norm_layer),
+        )
+        return_channels.append(depths[2])
+        stages["stage1"] = nn.Sequential(
             InvertedResidualBlock(depths[2], depths[3], (5, 5), (2, 2), (2, 2), 3, 3, norm_layer),
+        )
+        return_channels.append(depths[3])
+        stages["stage2"] = nn.Sequential(
             InvertedResidualBlock(depths[3], depths[4], (5, 5), (2, 2), (2, 2), 6, 3, norm_layer),
+        )
+        return_channels.append(depths[4])
+        stages["stage3"] = nn.Sequential(
             InvertedResidualBlock(depths[4], depths[5], (3, 3), (1, 1), (1, 1), 6, 2, norm_layer),
             InvertedResidualBlock(depths[5], depths[6], (5, 5), (2, 2), (2, 2), 6, 4, norm_layer),
+        )
+        return_channels.append(depths[6])
+        stages["stage4"] = nn.Sequential(
             InvertedResidualBlock(depths[6], depths[7], (3, 3), (1, 1), (1, 1), 6, 1, norm_layer),
             Conv2dNormActivation(
                 depths[7],
@@ -198,11 +213,14 @@ class MNASNet(BaseNet):
                 norm_layer=norm_layer,
             ),
         )
+        return_channels.append(1280)
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
             nn.Dropout(p=0.2),
         )
+        self.return_channels = return_channels[1:5]
         self.embedding_size = 1280
         self.classifier = self.create_classifier()
 
@@ -221,6 +239,28 @@ class MNASNet(BaseNet):
                 nn.init.kaiming_uniform_(m.weight, mode="fan_out", nonlinearity="sigmoid")
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

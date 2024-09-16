@@ -8,6 +8,8 @@ import torch.utils.data
 from torchvision.datasets.folder import pil_loader
 from torchvision.transforms.v2.functional import pil_to_tensor
 
+from birder.common import fs_ops
+
 
 class ImageListDataset(torch.utils.data.Dataset):
     def __init__(
@@ -50,3 +52,14 @@ class ImageListDataset(torch.utils.data.Dataset):
         lines = [head] + ["    " + line for line in body]
 
         return "\n".join(lines)
+
+
+def make_image_dataset(
+    paths: list[str],
+    class_to_idx: dict[str, int],
+    transforms: Optional[Callable[..., torch.Tensor]] = None,
+) -> ImageListDataset:
+    samples = fs_ops.samples_from_paths(paths, class_to_idx=class_to_idx)
+    dataset = ImageListDataset(samples, transforms=transforms)
+
+    return dataset

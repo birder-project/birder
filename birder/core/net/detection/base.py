@@ -364,16 +364,16 @@ class Matcher(nn.Module):
         """
         Parameters
         ----------
-            high_threshold
-                quality values greater than or equal to this value are candidate matches
-            low_threshold
-                a lower quality threshold used to stratify matches into three levels:
-                1) matches >= high_threshold
-                2) BETWEEN_THRESHOLDS matches in [low_threshold, high_threshold)
-                3) BELOW_LOW_THRESHOLD matches in [0, low_threshold)
-            allow_low_quality_matches
-                if True, produce additional matches
-                for predictions that have only low-quality match candidates.
+        high_threshold
+            quality values greater than or equal to this value are candidate matches
+        low_threshold
+            a lower quality threshold used to stratify matches into three levels:
+            1) matches >= high_threshold
+            2) BETWEEN_THRESHOLDS matches in [low_threshold, high_threshold)
+            3) BELOW_LOW_THRESHOLD matches in [0, low_threshold)
+        allow_low_quality_matches
+            if True, produce additional matches
+            for predictions that have only low-quality match candidates.
         """
 
         super().__init__()
@@ -388,9 +388,9 @@ class Matcher(nn.Module):
         """
         Parameters
         ----------
-            match_quality_matrix
-                an MxN tensor, containing the pairwise quality
-                between M ground-truth elements and N predicted elements
+        match_quality_matrix
+            an MxN tensor, containing the pairwise quality
+            between M ground-truth elements and N predicted elements
 
         Returns
         -------
