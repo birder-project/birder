@@ -440,3 +440,18 @@ registry.register_alias("crossvit_15d", CrossViT, 5)
 registry.register_alias("crossvit_b", CrossViT, 6)
 registry.register_alias("crossvit_18", CrossViT, 7)
 registry.register_alias("crossvit_18d", CrossViT, 8)
+
+registry.register_weights(
+    "crossvit_9d_il-common",
+    {
+        "description": "CrossViT 9 dagger model trained on the il-common dataset",
+        "resolution": (240, 240),
+        "formats": {
+            "pt": {
+                "file_size": 32.7,
+                "sha256": "207531ae2140b459c6c70841985ff45b208c1a453ab7a5095cec6ca9bb537169",
+            }
+        },
+        "net": {"network": "crossvit_9d", "tag": "il-common"},
+    },
+)

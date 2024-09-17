@@ -1,5 +1,5 @@
 """
-MaxViT, adapted from
+EdgeViT, adapted from
 https://github.com/saic-fi/edgevit/blob/master/src/edgevit.py
 
 Paper "EdgeViTs: Competing Light-weight CNNs on Mobile Devices with Vision Transformers",
@@ -400,3 +400,18 @@ class EdgeViT(BaseNet):
 registry.register_alias("edgevit_xxs", EdgeViT, 0)
 registry.register_alias("edgevit_xs", EdgeViT, 1)
 registry.register_alias("edgevit_s", EdgeViT, 2)
+
+registry.register_weights(
+    "edgevit_xxs_il-common",
+    {
+        "description": "EdgeViT XXS model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 14.9,
+                "sha256": "295f034ccbaa6025ddd2b0edeea09a2987a5af40c01741e4f89d266e78dd5359",
+            }
+        },
+        "net": {"network": "edgevit_xxs", "tag": "il-common"},
+    },
+)

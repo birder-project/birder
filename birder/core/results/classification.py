@@ -207,7 +207,7 @@ class Results:
                     "predicted": class_names[idx[1]],
                     "actual": class_names[idx[0]],
                     "amount": cnf_matrix[idx],
-                    "reverse": cnf_matrix[idx] + cnf_matrix[idx[::-1]],
+                    "reverse": cnf_matrix[idx[::-1]],
                 }
             )
 

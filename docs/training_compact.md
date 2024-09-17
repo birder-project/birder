@@ -34,6 +34,20 @@ torchrun --nproc_per_node=2 train.py --network deit_t16 --tag il-common --opt ad
 torchrun --nproc_per_node=2 train.py --network edgenext_xxs --tag il-common --opt adamw --lr 0.006 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### EdgeViT
+
+#### EdgeViT: Extra Extra small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network edgevit_xxs --tag il-common --opt adamw --lr 5e-4 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 5 --batch-size 256 --epochs 200 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+#### EdgeViT: Extra small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network edgevit_xs --tag il-common --opt adamw --lr 5e-4 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 5 --batch-size 256 --epochs 200 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### EfficientNet v1
 
 #### EfficientNet v1: B0

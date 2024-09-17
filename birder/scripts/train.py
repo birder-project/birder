@@ -154,6 +154,19 @@ def train(args: argparse.Namespace) -> None:
         else:
             assert class_to_idx == class_to_idx_saved
 
+    elif args.pretrained is True:
+        (net, class_to_idx_saved, optimizer_state, scheduler_state, scaler_state) = fs_ops.load_checkpoint(
+            device,
+            args.network,
+            net_param=args.net_param,
+            tag=args.tag,
+            epoch=None,
+            new_size=args.size,
+        )
+        net.reset_classifier(len(class_to_idx))
+        net.to(device)
+        net.freeze(freeze_classifier=False)
+
     else:
         net = registry.net_factory(args.network, sample_shape[1], num_outputs, args.net_param, args.size).to(device)
 
@@ -567,6 +580,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("-n", "--network", type=str, help="the neural network to use")
     parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required for most networks")
     parser.add_argument(
+        "--pretrained", default=False, action="store_true", help="start with pretrained version of specified network"
+    )
+    parser.add_argument(
         "--reset-head",
         default=False,
         action="store_true",
@@ -739,6 +755,9 @@ def get_args_parser() -> argparse.ArgumentParser:
 
 def validate_args(args: argparse.Namespace) -> None:
     assert args.network is not None
+    assert (
+        args.pretrained is False or args.resume_epoch is None
+    ), "Cannot set resume epoch while starting from a pretrained network"
     assert (
         args.stop_epoch is None or args.stop_epoch < args.epochs
     ), "Stop epoch must be smaller than total number of epochs"
