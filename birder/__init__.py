@@ -5,7 +5,7 @@ from birder.inference.classification import evaluate as evaluate_classification
 from birder.model_registry.model_registry import list_pretrained_models
 from birder.transforms.classification import inference_preset as classification_transform
 
-__version__ = "v0.0.5a32"
+__version__ = "v0.0.5a33"
 
 __all__ = [
     "classification_transform",
