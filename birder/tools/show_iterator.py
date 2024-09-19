@@ -14,14 +14,14 @@ from torchvision.datasets import ImageFolder
 from birder.common import cli
 from birder.common import fs_ops
 from birder.conf import settings
-from birder.core.dataloader.webdataset import make_wds_loader
-from birder.core.datasets.webdataset import make_wds_dataset
-from birder.core.datasets.webdataset import wds_size
-from birder.core.transforms.classification import get_mixup_cutmix
-from birder.core.transforms.classification import get_rgb_values
-from birder.core.transforms.classification import inference_preset
-from birder.core.transforms.classification import reverse_preset
-from birder.core.transforms.classification import training_preset
+from birder.dataloader.webdataset import make_wds_loader
+from birder.datasets.webdataset import make_wds_dataset
+from birder.datasets.webdataset import wds_size
+from birder.transforms.classification import get_mixup_cutmix
+from birder.transforms.classification import get_rgb_values
+from birder.transforms.classification import inference_preset
+from birder.transforms.classification import reverse_preset
+from birder.transforms.classification import training_preset
 
 
 # pylint: disable=too-many-locals,too-many-branches

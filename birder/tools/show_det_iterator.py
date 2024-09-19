@@ -14,10 +14,10 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
-from birder.core.transforms.classification import get_rgb_values
-from birder.core.transforms.classification import reverse_preset
-from birder.core.transforms.detection import inference_preset
-from birder.core.transforms.detection import training_preset
+from birder.transforms.classification import get_rgb_values
+from birder.transforms.classification import reverse_preset
+from birder.transforms.detection import inference_preset
+from birder.transforms.detection import training_preset
 
 
 # pylint: disable=too-many-locals

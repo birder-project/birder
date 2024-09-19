@@ -7,11 +7,11 @@ from typing import Optional
 from birder.model_registry import manifest
 
 if TYPE_CHECKING is True:
-    from birder.core.net.base import BaseNet  # pylint: disable=cyclic-import
-    from birder.core.net.base import DetectorBackbone  # pylint: disable=cyclic-import
-    from birder.core.net.base import PreTrainEncoder  # pylint: disable=cyclic-import
-    from birder.core.net.detection.base import DetectionBaseNet  # pylint: disable=cyclic-import
-    from birder.core.net.mim.base import MIMBaseNet  # pylint: disable=cyclic-import
+    from birder.net.base import BaseNet  # pylint: disable=cyclic-import
+    from birder.net.base import DetectorBackbone  # pylint: disable=cyclic-import
+    from birder.net.base import PreTrainEncoder  # pylint: disable=cyclic-import
+    from birder.net.detection.base import DetectionBaseNet  # pylint: disable=cyclic-import
+    from birder.net.mim.base import MIMBaseNet  # pylint: disable=cyclic-import
 
     BaseNetType = type[BaseNet] | type[DetectionBaseNet] | type[MIMBaseNet]
 

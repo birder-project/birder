@@ -76,16 +76,16 @@ notes=FIXME,TODO
 
 [DESIGN]
 # Maximum number of arguments for function / method.
-max-args=12
+max-args=14
 
 # Maximum number of locals for function / method body.
-max-locals=24
+max-locals=25
 
 # Maximum number of branch for function / method body
 max-branches=15
 
 # Maximum number of statements in function / method body.
-max-statements=70
+max-statements=100
 
 # Maximum number of attributes for a class (see R0902).
 max-attributes=15

@@ -6,11 +6,11 @@ import numpy as np
 import torch
 from PIL import Image
 
+from birder.adversarial.fgsm import FGSM
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
-from birder.core.adversarial.fgsm import FGSM
-from birder.core.transforms.classification import inference_preset
+from birder.transforms.classification import inference_preset
 
 
 def show_fgsm(args: argparse.Namespace) -> None:

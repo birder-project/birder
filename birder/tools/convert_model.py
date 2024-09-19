@@ -12,11 +12,11 @@ from torch.utils.mobile_optimizer import optimize_for_mobile
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
-from birder.core.net.base import DetectorBackbone
-from birder.core.net.base import SignatureType
-from birder.core.net.base import reparameterize_available
-from birder.core.net.detection.base import DetectionSignatureType
 from birder.model_registry import registry
+from birder.net.base import DetectorBackbone
+from birder.net.base import SignatureType
+from birder.net.base import reparameterize_available
+from birder.net.detection.base import DetectionSignatureType
 
 
 def set_parser(subparsers: Any) -> None:

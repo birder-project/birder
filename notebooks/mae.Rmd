@@ -32,9 +32,9 @@ sys.path.append("..")
 from birder.common import fs_ops
 from birder.common.lib import get_label_from_path
 from birder.conf import settings
-from birder.core.transforms.classification import get_rgb_values
-from birder.core.transforms.classification import inference_preset
 from birder.model_registry import registry
+from birder.transforms.classification import get_rgb_values
+from birder.transforms.classification import inference_preset
 ```
 
 ```{python}

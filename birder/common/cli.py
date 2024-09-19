@@ -28,7 +28,7 @@ def calc_sha256(file_path: str | Path) -> str:
     return sha256.hexdigest()
 
 
-def download_file(url: str, dst: str | Path, expected_sha256: Optional[str] = None) -> None:
+def download_file(url: str, dst: str | Path, expected_sha256: Optional[str] = None, override: bool = False) -> None:
     # Adapted from torch.hub download_url_to_file function
 
     chunk_size = 128 * 1024
@@ -40,6 +40,9 @@ def download_file(url: str, dst: str | Path, expected_sha256: Optional[str] = No
     if dst.exists() is True:  # type: ignore[union-attr]
         if expected_sha256 is None or calc_sha256(dst) == expected_sha256:
             return
+
+        if override is False:
+            logging.warning("Found existing file with different SHA256, aborting...")
 
         logging.warning("Overriding existing file with different SHA256")
 

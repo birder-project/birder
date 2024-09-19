@@ -6,12 +6,12 @@ import warnings
 import requests
 
 from birder.conf import settings
-from birder.core.net.base import BaseNet
-from birder.core.net.detection.base import DetectionBaseNet
-from birder.core.net.mim.base import MIMBaseNet
 from birder.model_registry import registry
 from birder.model_registry.model_registry import ModelRegistry
 from birder.model_registry.model_registry import Task
+from birder.net.base import BaseNet
+from birder.net.detection.base import DetectionBaseNet
+from birder.net.mim.base import MIMBaseNet
 
 logging.disable(logging.CRITICAL)
 

@@ -5,8 +5,8 @@ from typing import Optional
 import torch
 from parameterized import parameterized
 
-from birder.core.net.detection import base
 from birder.model_registry import registry
+from birder.net.detection import base
 
 logging.disable(logging.CRITICAL)
 

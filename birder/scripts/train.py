@@ -26,17 +26,17 @@ from birder.common import fs_ops
 from birder.common import training_utils
 from birder.common.lib import get_network_name
 from birder.conf import settings
-from birder.core.dataloader.webdataset import make_wds_loader
-from birder.core.datasets.webdataset import make_wds_dataset
-from birder.core.datasets.webdataset import wds_size
-from birder.core.net.base import get_signature
-from birder.core.transforms.classification import RGBMode
-from birder.core.transforms.classification import get_mixup_cutmix
-from birder.core.transforms.classification import get_rgb_values
-from birder.core.transforms.classification import inference_preset
-from birder.core.transforms.classification import training_preset
+from birder.dataloader.webdataset import make_wds_loader
+from birder.datasets.webdataset import make_wds_dataset
+from birder.datasets.webdataset import wds_size
 from birder.model_registry import Task
 from birder.model_registry import registry
+from birder.net.base import get_signature
+from birder.transforms.classification import RGBMode
+from birder.transforms.classification import get_mixup_cutmix
+from birder.transforms.classification import get_rgb_values
+from birder.transforms.classification import inference_preset
+from birder.transforms.classification import training_preset
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements

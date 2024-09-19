@@ -16,14 +16,14 @@ from birder.common.lib import get_detection_network_name
 from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
 from birder.conf import settings
-from birder.core.net.base import BaseNet
-from birder.core.net.base import SignatureType
-from birder.core.net.detection.base import DetectionBaseNet
-from birder.core.net.detection.base import DetectionSignatureType
-from birder.core.net.mim.base import MIMBaseNet
-from birder.core.net.mim.base import MIMSignatureType
-from birder.core.transforms.classification import RGBType
 from birder.model_registry import registry
+from birder.net.base import BaseNet
+from birder.net.base import SignatureType
+from birder.net.detection.base import DetectionBaseNet
+from birder.net.detection.base import DetectionSignatureType
+from birder.net.mim.base import MIMBaseNet
+from birder.net.mim.base import MIMSignatureType
+from birder.transforms.classification import RGBType
 
 
 def write_signature(network_name: str, signature: SignatureType | DetectionSignatureType) -> None:
@@ -365,7 +365,6 @@ def load_pretrained_model(
     )
 
 
-# pylint:disable=too-many-locals
 def load_detection_model(
     device: torch.device,
     network: str,

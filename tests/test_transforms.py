@@ -5,8 +5,8 @@ import unittest
 import torch
 from torchvision.transforms import v2
 
-from birder.core.transforms import classification
-from birder.core.transforms import detection
+from birder.transforms import classification
+from birder.transforms import detection
 
 logging.disable(logging.CRITICAL)
 

@@ -5,8 +5,8 @@ from typing import Optional
 import torch
 from parameterized import parameterized
 
-from birder.core.net import base
 from birder.model_registry import registry
+from birder.net import base
 
 logging.disable(logging.CRITICAL)
 
@@ -34,6 +34,8 @@ class TestNet(unittest.TestCase):
             ("densenet", 121),
             ("edgenext", 0),
             ("edgevit", 1),
+            ("efficientformer_v1", 0),
+            ("efficientformer_v2", 0),
             ("efficientnet_v1", 0),
             ("efficientnet_v2", 0),
             ("focalnet", 0),

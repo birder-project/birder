@@ -1,8 +1,8 @@
 import os
 from typing import Optional
 
-from birder.core.net.base import SignatureType
-from birder.core.net.detection.base import DetectionSignatureType
+from birder.net.base import SignatureType
+from birder.net.detection.base import DetectionSignatureType
 
 
 def get_size_from_signature(signature: SignatureType | DetectionSignatureType) -> tuple[int, ...]:

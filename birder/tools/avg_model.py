@@ -9,8 +9,8 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.common.lib import get_network_name
-from birder.core.net.base import SignatureType
 from birder.model_registry import registry
+from birder.net.base import SignatureType
 
 
 def avg_models(network: str, net_param: Optional[float], tag: Optional[str], epochs: list[int], force: bool) -> None:

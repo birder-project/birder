@@ -16,14 +16,14 @@ from birder.common import fs_ops
 from birder.common import lib
 from birder.common.lib import get_network_name
 from birder.conf import settings
-from birder.core.dataloader.webdataset import make_wds_loader
-from birder.core.datasets.directory import make_image_dataset
-from birder.core.datasets.webdataset import make_wds_dataset
-from birder.core.datasets.webdataset import wds_size
-from birder.core.inference import classification
-from birder.core.results.classification import Results
-from birder.core.results.gui import show_top_k
-from birder.core.transforms.classification import inference_preset
+from birder.dataloader.webdataset import make_wds_loader
+from birder.datasets.directory import make_image_dataset
+from birder.datasets.webdataset import make_wds_dataset
+from birder.datasets.webdataset import wds_size
+from birder.inference import classification
+from birder.results.classification import Results
+from birder.results.gui import show_top_k
+from birder.transforms.classification import inference_preset
 
 
 def handle_show_flags(
@@ -56,7 +56,7 @@ def handle_show_flags(
                 show_top_k(img_path, prob, class_to_idx, label)
 
 
-# pylint: disable=too-many-locals,too-many-branches,too-many-statements
+# pylint: disable=too-many-locals,too-many-branches
 def predict(args: argparse.Namespace) -> None:
     if args.gpu is True:
         device = torch.device("cuda")
@@ -169,7 +169,7 @@ def predict(args: argparse.Namespace) -> None:
         epoch_str = f"_e{args.epoch}"
 
     base_output_path = (
-        f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size}px_" f"crop{args.center_crop}_{num_samples}"
+        f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size}px_crop{args.center_crop}_{num_samples}"
     )
     if args.suffix is not None:
         base_output_path = f"{base_output_path}_{args.suffix}"

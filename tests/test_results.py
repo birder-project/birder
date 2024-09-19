@@ -3,8 +3,8 @@ import unittest
 
 import numpy as np
 
-from birder.core.results.classification import Results
-from birder.core.results.classification import top_k_accuracy_score
+from birder.results.classification import Results
+from birder.results.classification import top_k_accuracy_score
 
 logging.disable(logging.CRITICAL)
 

@@ -12,10 +12,10 @@ from PIL import Image
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
-from birder.core.introspection import gradcam
-from birder.core.introspection import guided_backprop
-from birder.core.net.base import BaseNet
-from birder.core.transforms.classification import inference_preset
+from birder.introspection import gradcam
+from birder.introspection import guided_backprop
+from birder.net.base import BaseNet
+from birder.transforms.classification import inference_preset
 
 
 def _swin_reshape_transform(tensor: torch.Tensor, height: int, width: int) -> torch.Tensor:

@@ -43,6 +43,8 @@ On fine-tuning phase
 * [DenseNet](#densenet)
 * [EdgeNeXt](#edgenext)
 * [EdgeViT](#edgevit)
+* [EfficientFormer v1](#efficientformer-v1)
+* [EfficientFormer v2](#efficientformer-v2)
 * [EfficientNet v1](#efficientnet-v1)
 * [EfficientNet v2](#efficientnet-v2)
 * [InceptionNeXt](#inceptionnext)
@@ -326,6 +328,34 @@ Optional intermediate training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network edgevit_s --tag intermediate --opt adamw --lr 5e-4 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 5 --batch-size 256 --epochs 100 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+```
+
+### EfficientFormer v1
+
+#### EfficientFormer v1: L1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientformer_v1_l1 --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-7 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --fast-matmul --compile
+```
+
+#### EfficientFormer v1: L3
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientformer_v1_l3 --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 5 --epochs 300 --size 288 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+#### EfficientFormer v1: L7
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientformer_v1_l7 --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 64 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --size 288 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+### EfficientFormer v2
+
+#### EfficientFormer v2: S1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientformer_v2_s1 --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-7 --warmup-epochs 5 --epochs 300 --size 288 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 ### EfficientNet v1

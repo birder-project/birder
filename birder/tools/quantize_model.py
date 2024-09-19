@@ -19,7 +19,7 @@ from birder.common import fs_ops
 from birder.common import lib
 from birder.common.lib import get_network_name
 from birder.conf import settings
-from birder.core.transforms.classification import inference_preset
+from birder.transforms.classification import inference_preset
 
 
 def set_parser(subparsers: Any) -> None:
@@ -73,7 +73,6 @@ def set_parser(subparsers: Any) -> None:
     subparser.set_defaults(func=main)
 
 
-# pylint: disable=too-many-locals
 def main(args: argparse.Namespace) -> None:
     if args.gpu is True:
         device = torch.device("cuda")

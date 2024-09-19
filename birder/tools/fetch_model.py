@@ -45,4 +45,4 @@ def main(args: argparse.Namespace) -> None:
         raise SystemExit(1)
 
     url = f"{settings.REGISTRY_BASE_UTL}/{model_file}"
-    cli.download_file(url, dst, model_info["formats"][args.format]["sha256"])
+    cli.download_file(url, dst, model_info["formats"][args.format]["sha256"], override=args.force)

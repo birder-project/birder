@@ -15,11 +15,11 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
-from birder.core.datasets.directory import ImageListDataset
-from birder.core.net.base import DetectorBackbone
-from birder.core.transforms.detection import batch_images
-from birder.core.transforms.detection import inference_preset
+from birder.datasets.directory import ImageListDataset
 from birder.model_registry import registry
+from birder.net.base import DetectorBackbone
+from birder.transforms.detection import batch_images
+from birder.transforms.detection import inference_preset
 
 
 # pylint: disable=too-many-locals

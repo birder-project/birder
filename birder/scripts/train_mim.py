@@ -22,18 +22,18 @@ from birder.common import training_utils
 from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
 from birder.conf import settings
-from birder.core.dataloader.webdataset import make_wds_loader
-from birder.core.datasets.directory import ImageListDataset
-from birder.core.datasets.webdataset import make_wds_dataset
-from birder.core.datasets.webdataset import wds_size
-from birder.core.net.base import PreTrainEncoder
-from birder.core.net.base import get_signature
-from birder.core.net.mim.base import get_mim_signature
-from birder.core.transforms.classification import RGBMode
-from birder.core.transforms.classification import get_rgb_values
-from birder.core.transforms.classification import training_preset
+from birder.dataloader.webdataset import make_wds_loader
+from birder.datasets.directory import ImageListDataset
+from birder.datasets.webdataset import make_wds_dataset
+from birder.datasets.webdataset import wds_size
 from birder.model_registry import Task
 from birder.model_registry import registry
+from birder.net.base import PreTrainEncoder
+from birder.net.base import get_signature
+from birder.net.mim.base import get_mim_signature
+from birder.transforms.classification import RGBMode
+from birder.transforms.classification import get_rgb_values
+from birder.transforms.classification import training_preset
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements

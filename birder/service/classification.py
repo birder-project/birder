@@ -16,7 +16,7 @@ from ts.torch_handler.base_handler import BaseHandler
 logger = logging.getLogger(__name__)
 
 
-# Must be in sync with birder.core.transforms.classification.inference_preset
+# Must be in sync with birder.transforms.classification.inference_preset
 def inference_preset(
     size: tuple[int, int], rgv_values: dict[str, list[float]], center_crop: float = 1.0
 ) -> Callable[..., torch.Tensor]:

@@ -34,7 +34,7 @@ sys.path.append("..")
 from birder.common import fs_ops, lib
 from birder.common.lib import get_label_from_path
 from birder.conf import settings
-from birder.core.transforms.classification import inference_preset
+from birder.transforms.classification import inference_preset
 ```
 
 ```{python}

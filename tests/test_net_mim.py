@@ -5,8 +5,8 @@ from typing import Optional
 import torch
 from parameterized import parameterized
 
-from birder.core.net.mim import base  # pylint: disable=unused-import # noqa: F401
 from birder.model_registry import registry
+from birder.net.mim import base  # pylint: disable=unused-import # noqa: F401
 
 logging.disable(logging.CRITICAL)
 

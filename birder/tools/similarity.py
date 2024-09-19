@@ -20,9 +20,9 @@ from tqdm import tqdm
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
-from birder.core.datasets.directory import ImageListDataset
-from birder.core.inference import classification
-from birder.core.transforms.classification import inference_preset
+from birder.datasets.directory import ImageListDataset
+from birder.inference import classification
+from birder.transforms.classification import inference_preset
 
 
 # pylint: disable=too-many-locals

@@ -7,10 +7,10 @@ from rich.console import Console
 
 from birder.common import cli
 from birder.common import fs_ops
-from birder.core.net.base import DetectorBackbone
-from birder.core.net.base import SignatureType
-from birder.core.net.detection.base import DetectionSignatureType
 from birder.model_registry import registry
+from birder.net.base import DetectorBackbone
+from birder.net.base import SignatureType
+from birder.net.detection.base import DetectionSignatureType
 
 
 def get_model_info(net: torch.nn.Module) -> dict[str, float]:

@@ -33,10 +33,10 @@ sys.path.append("..")
 from birder.common import fs_ops
 from birder.common.lib import get_label_from_path
 from birder.conf import settings
-from birder.core.net.detection.base import ImageList
-from birder.core.net.detection.faster_rcnn import concat_box_prediction_layers
-from birder.core.transforms.classification import get_rgb_values, reverse_preset
-from birder.core.transforms.detection import inference_preset
+from birder.net.detection.base import ImageList
+from birder.net.detection.faster_rcnn import concat_box_prediction_layers
+from birder.transforms.classification import get_rgb_values, reverse_preset
+from birder.transforms.detection import inference_preset
 from torchvision.ops import boxes as box_ops
 ```
 

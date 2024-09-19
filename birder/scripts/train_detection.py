@@ -25,15 +25,15 @@ from birder.common import fs_ops
 from birder.common import lib
 from birder.common import training_utils
 from birder.conf import settings
-from birder.core.net.base import DetectorBackbone
-from birder.core.net.detection.base import get_detection_signature
-from birder.core.transforms.classification import RGBMode
-from birder.core.transforms.classification import get_rgb_values
-from birder.core.transforms.detection import batch_images
-from birder.core.transforms.detection import inference_preset
-from birder.core.transforms.detection import training_preset
 from birder.model_registry import Task
 from birder.model_registry import registry
+from birder.net.base import DetectorBackbone
+from birder.net.detection.base import get_detection_signature
+from birder.transforms.classification import RGBMode
+from birder.transforms.classification import get_rgb_values
+from birder.transforms.detection import batch_images
+from birder.transforms.detection import inference_preset
+from birder.transforms.detection import training_preset
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements

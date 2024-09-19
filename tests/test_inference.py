@@ -3,8 +3,8 @@ import unittest
 
 import torch
 
-from birder.core import net
-from birder.core.inference import classification
+from birder import net
+from birder.inference import classification
 
 logging.disable(logging.CRITICAL)
 

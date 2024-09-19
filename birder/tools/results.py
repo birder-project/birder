@@ -11,12 +11,12 @@ from rich.console import Console
 from rich.table import Table
 
 from birder.common import cli
-from birder.core.results.classification import Results
-from birder.core.results.classification import compare_results
-from birder.core.results.gui import ROC
-from birder.core.results.gui import ConfusionMatrix
-from birder.core.results.gui import PrecisionRecall
-from birder.core.results.gui import ProbabilityHistogram
+from birder.results.classification import Results
+from birder.results.classification import compare_results
+from birder.results.gui import ROC
+from birder.results.gui import ConfusionMatrix
+from birder.results.gui import PrecisionRecall
+from birder.results.gui import ProbabilityHistogram
 
 
 def print_per_class_report(results_dict: dict[str, Results], classes: list[str]) -> None:

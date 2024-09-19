@@ -6,11 +6,11 @@ from rich.console import Console
 from rich.table import Table
 
 from birder.common import cli
-from birder.core.net.base import DetectorBackbone
-from birder.core.net.base import PreTrainEncoder
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.model_registry.model_registry import group_sort
+from birder.net.base import DetectorBackbone
+from birder.net.base import PreTrainEncoder
 
 
 def set_parser(subparsers: Any) -> None:

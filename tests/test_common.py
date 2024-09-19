@@ -11,8 +11,8 @@ from birder.common import fs_ops
 from birder.common import lib
 from birder.common import training_utils
 from birder.conf import settings
-from birder.core.net.resnext import ResNeXt
-from birder.core.net.vit import ViT
+from birder.net.resnext import ResNeXt
+from birder.net.vit import ViT
 
 logging.disable(logging.CRITICAL)
 
@@ -81,7 +81,6 @@ class TestCommon(unittest.TestCase):
         path = fs_ops.model_path("net", epoch=17)
         self.assertEqual(path, settings.MODELS_DIR.joinpath("net_17.pt"))
 
-    # pylint: disable=too-many-statements
     def test_training_util(self) -> None:
         # Test RA Sampler
         dataset = list(range(512))
