@@ -56,6 +56,14 @@ torchrun --nproc_per_node=2 train.py --network edgevit_xs --tag il-common --opt 
 torchrun --nproc_per_node=2 train.py --network efficientformer_v1_l1 --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-7 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### EfficientFormer v2
+
+#### EfficientFormer v2: S0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientformer_v2_s0 --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-7 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### EfficientNet v1
 
 #### EfficientNet v1: B0

@@ -181,7 +181,7 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag intermedia
 Optional intermediate training: linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag intermediate --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 448 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag intermediate --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 448 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
 ```
 
 Optional intermediate training: fine-tuning
@@ -211,7 +211,7 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag intermedia
 Optional intermediate training: linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag intermediate --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 384 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --amp --compile --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag intermediate --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 384 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --amp --compile --resume-epoch 0 --reset-head --freeze-body
 ```
 
 Optional intermediate training: fine-tuning
@@ -413,7 +413,7 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag intermedi
 Optional intermediate training: linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag intermediate --lr 0.1 --lr-scheduler cosine --batch-size 128 --epochs 10 --size 448 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag intermediate --lr 0.1 --lr-scheduler cosine --batch-size 128 --epochs 10 --size 448 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body
 ```
 
 Optional intermediate training: fine-tuning
@@ -437,7 +437,7 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --tag intermedi
 Optional intermediate training: linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --tag intermediate --lr 0.1 --lr-scheduler cosine --batch-size 128 --epochs 10 --size 448 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --tag intermediate --lr 0.1 --lr-scheduler cosine --batch-size 128 --epochs 10 --size 448 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body
 ```
 
 Optional intermediate training: fine-tuning
@@ -843,7 +843,7 @@ torchrun --nproc_per_node=2 train.py --network regnet --net-param 8 --tag interm
 Optional intermediate training: linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network regnet --net-param 8 --tag intermediate --lr 0.1 --lr-scheduler cosine --batch-size 128 --epochs 10 --size 384 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network regnet --net-param 8 --tag intermediate --lr 0.1 --lr-scheduler cosine --batch-size 128 --epochs 10 --size 384 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
 ```
 
 Optional intermediate training: fine-tuning

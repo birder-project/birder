@@ -28,7 +28,7 @@ torchrun --nproc_per_node=2 train_mim.py --network fcmae --encoder convnext_v2_t
 Optional intermediate training: first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag mim --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag mim --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 Optional intermediate training: next, full fine-tuning with layer-wise learning rate decay
@@ -40,7 +40,7 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag mim --opt 
 Optional intermediate training: fine-tuning, second stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag mim-intermediate --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 384 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag mim-intermediate --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 384 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body
 ```
 
 Optional intermediate training: full fine-tuning with layer-wise learning rate decay
@@ -52,7 +52,7 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag mim-interm
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag mim --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 320 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag mim --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 320 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body
 ```
 
 Next, full fine-tuning with layer-wise learning rate decay
@@ -82,7 +82,7 @@ torchrun --nproc_per_node=2 train_mim.py --network fcmae --encoder convnext_v2_b
 Optional intermediate training: first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag mim --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag mim --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 Optional intermediate training: next, full fine-tuning with layer-wise learning rate decay
@@ -94,7 +94,7 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag mim --opt 
 Optional intermediate training: fine-tuning, second stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag mim-intermediate --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 384 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag mim-intermediate --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 384 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
 ```
 
 Optional intermediate training: full fine-tuning with layer-wise learning rate decay
@@ -106,7 +106,7 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag mim-interm
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag mim --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 320 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag mim --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 320 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
 ```
 
 ### MAE ViT
@@ -126,13 +126,13 @@ torchrun --nproc_per_node=2 train_mim.py --network mae_vit --encoder vitreg4_b16
 Optional intermediate training: first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vitreg4_b16 --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 512 --lr-cosine-min 1e-7 --epochs 10 --size 256 --wd 0.3 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network vitreg4_b16 --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 512 --lr-cosine-min 1e-7 --epochs 10 --size 256 --wd 0.3 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vitreg4_b16 --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-7 --epochs 10 --size 320 --wd 0.3 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network vitreg4_b16 --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-7 --epochs 10 --size 320 --wd 0.3 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body
 ```
 
 Next, full fine-tuning with layer-wise learning rate decay
@@ -162,13 +162,13 @@ torchrun --nproc_per_node=2 train_mim.py --network mae_vit --encoder vitreg4_l16
 Optional intermediate training: first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vitreg4_l16 --tag mim --lr 0.3 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-6 --epochs 10 --size 256 --wd 0.00002 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network vitreg4_l16 --tag mim --lr 0.3 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-6 --epochs 10 --size 256 --wd 0.00002 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vitreg4_l16 --tag mim --lr 0.3 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-6 --epochs 10 --size 320 --wd 0.00002 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network vitreg4_l16 --tag mim --lr 0.3 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-6 --epochs 10 --size 320 --wd 0.00002 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
 ```
 
 Next, full fine-tuning with layer-wise learning rate decay
@@ -200,7 +200,7 @@ torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder maxvit_t --o
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network maxvit_t --tag mim --opt adamw --lr 0.00005 --lr-scheduler cosine --batch-size 256 --size 256 --lr-cosine-min 1e-7 --epochs 10 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --clip-grad-norm 1 --amp --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network maxvit_t --tag mim --opt adamw --lr 0.00005 --lr-scheduler cosine --batch-size 256 --size 256 --lr-cosine-min 1e-7 --epochs 10 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --clip-grad-norm 1 --amp --resume-epoch 0 --reset-head --freeze-body
 ```
 
 #### SimMIM: Swin Transformer v2 Small
@@ -214,7 +214,7 @@ After N epochs, switch to float16
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s --tag mim --opt adamw --lr 0.00005 --lr-scheduler cosine --batch-size 256 --size 256 --lr-cosine-min 1e-7 --epochs 10 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --clip-grad-norm 5 --amp --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s --tag mim --opt adamw --lr 0.00005 --lr-scheduler cosine --batch-size 256 --size 256 --lr-cosine-min 1e-7 --epochs 10 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --clip-grad-norm 5 --amp --resume-epoch 0 --reset-head --freeze-body
 ```
 
 Next, full fine-tuning with layer-wise learning rate decay
@@ -242,5 +242,5 @@ After N epochs, switch to float16
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_w2_b --tag mim --opt adamw --lr 0.00005 --lr-scheduler cosine --batch-size 128 --size 256 --lr-cosine-min 1e-7 --epochs 10 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --clip-grad-norm 5 --amp --resume-epoch 0 --reset-head
+torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_w2_b --tag mim --opt adamw --lr 0.00005 --lr-scheduler cosine --batch-size 128 --size 256 --lr-cosine-min 1e-7 --epochs 10 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --clip-grad-norm 5 --amp --resume-epoch 0 --reset-head --freeze-body
 ```

@@ -149,7 +149,6 @@ def train(args: argparse.Namespace) -> None:
         if args.reset_head is True:
             net.reset_classifier(len(class_to_idx))
             net.to(device)
-            net.freeze(freeze_classifier=False)
 
         else:
             assert class_to_idx == class_to_idx_saved
@@ -165,10 +164,12 @@ def train(args: argparse.Namespace) -> None:
         )
         net.reset_classifier(len(class_to_idx))
         net.to(device)
-        net.freeze(freeze_classifier=False)
 
     else:
         net = registry.net_factory(args.network, sample_shape[1], num_outputs, args.net_param, args.size).to(device)
+
+    if args.freeze_body is True:
+        net.freeze(freeze_classifier=False)
 
     if args.fast_matmul is True:
         torch.set_float32_matmul_precision("high")
@@ -582,11 +583,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--pretrained", default=False, action="store_true", help="start with pretrained version of specified network"
     )
+    parser.add_argument("--reset-head", default=False, action="store_true", help="reset the classification head")
     parser.add_argument(
-        "--reset-head",
+        "--freeze-body",
         default=False,
         action="store_true",
-        help="reset classification head and freeze all other layers",
+        help="freeze all layers of the model except the classification head",
     )
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(

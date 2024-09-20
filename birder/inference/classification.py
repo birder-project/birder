@@ -6,10 +6,44 @@ import numpy.typing as npt
 import torch
 import torch.amp
 import torch.nn.functional as F
+from PIL import Image
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from birder.results.classification import Results
+
+
+def infer_image(
+    net: torch.nn.Module | torch.ScriptModule,
+    sample: Image.Image | str,
+    transform: Callable[..., torch.Tensor],
+    return_embedding: bool = False,
+    device: Optional[torch.device] = None,
+) -> tuple[npt.NDArray[np.float32], Optional[npt.NDArray[np.float32]]]:
+    """
+    Perform inference on a single image
+
+    This convenience function allows for quick, one-off classification of an image.
+
+    Raises
+    ------
+    TypeError
+        If the sample is neither a string nor a PIL Image object.
+    """
+
+    image: Image.Image
+    if isinstance(sample, str) is True:
+        image = Image.open(sample)  # type: ignore[arg-type]
+    elif isinstance(sample, Image.Image):
+        image = sample
+    else:
+        raise TypeError("Unknown sample type")
+
+    if device is None:
+        device = torch.device("cpu")
+
+    input_tensor = transform(image).unsqueeze(dim=0).to(device)
+    return infer_batch(net, input_tensor, return_embedding=return_embedding)
 
 
 def infer_batch(
@@ -89,7 +123,7 @@ def infer_dataloader(
     batch_size = dataloader.batch_size
     with tqdm(total=num_samples, initial=0, unit="images", unit_scale=True, leave=False) as progress:
         for file_paths, inputs, targets in dataloader:
-            # Predict
+            # Inference
             inputs = inputs.to(device)
 
             with torch.amp.autocast(device.type, enabled=amp):

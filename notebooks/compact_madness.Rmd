@@ -147,17 +147,20 @@ compare_results_df = compare_results_df.with_columns(
 
 ```{python}
 benchmark_df = pl.read_csv(settings.RESULTS_DIR.joinpath(f"benchmark_cpu_{PATTERN}.csv"))
-compare_results_df = compare_results_df.join(benchmark_df, left_on="Pretrained name", right_on="model_name")
+compare_results_df = compare_results_df.join(benchmark_df, left_on="Pretrained name", right_on="model_name", how="left")
 compare_results_df = compare_results_df.with_columns(
     (1000 * (1 / pl.col("samples_per_sec"))).alias("ms / sample"),
 )
 
 # Filter relevant benchmark data
 compare_results_df = compare_results_df.filter(
-    (pl.col("device") == "cpu")
-    & (pl.col("compile") == True)
-    & (pl.col("Resolution") == pl.col("size"))
-    & (pl.col("batch_size") == 1)
+    (
+        (pl.col("device") == "cpu")
+        & (pl.col("compile") == True)
+        & (pl.col("Resolution") == pl.col("size"))
+        & (pl.col("batch_size") == 1)
+    )
+    | (pl.col("ms / sample").is_null())  # Not benchmarked yet
 )
 ```
 

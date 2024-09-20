@@ -5,8 +5,8 @@ from birder.net.base import SignatureType
 from birder.net.detection.base import DetectionSignatureType
 
 
-def get_size_from_signature(signature: SignatureType | DetectionSignatureType) -> tuple[int, ...]:
-    return tuple(signature["inputs"][0]["data_shape"][2:])
+def get_size_from_signature(signature: SignatureType | DetectionSignatureType) -> tuple[int, int]:
+    return tuple(signature["inputs"][0]["data_shape"][2:4])  # type: ignore[return-value]
 
 
 def get_channels_from_signature(signature: SignatureType | DetectionSignatureType) -> int:

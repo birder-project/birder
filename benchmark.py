@@ -10,6 +10,7 @@ import torch.amp
 import birder
 from birder.common import cli
 from birder.conf import settings
+from birder.model_registry import registry
 
 
 def dummy(arg: Any) -> None:
@@ -30,39 +31,52 @@ def benchmark(args: argparse.Namespace) -> None:
     if args.fast_matmul is True:
         torch.set_float32_matmul_precision("high")
 
+    input_channels = 3
+    num_classes = 500
     results = []
     model_list = birder.list_pretrained_models(args.filter)
     for model_name in model_list:
-        (net, _, signature, _) = birder.load_pretrained_model(model_name, inference=True, device=device)
-        if args.compile is True:
-            net = torch.compile(net)
-
+        model_info = registry.get_pretrained_info(model_name)
+        network = model_info["net"]["network"]
+        net_param = model_info["net"].get("net_param", None)
         if args.size is None:
-            size = birder.get_size_from_signature(signature)
+            size = model_info["resolution"]
         else:
             size = (args.size, args.size)
 
-        sample_shape = (args.batch_size, signature["inputs"][0]["data_shape"][1]) + size
+        net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, size=size[0])
+        net.to(device)
+        for param in net.parameters():
+            param.requires_grad = False
+
+        net.eval()
+        if args.compile is True:
+            net = torch.compile(net)
+
+        sample_shape = (args.batch_size, input_channels) + size
 
         # Warmup
         logging.info(f"Starting warmup for {model_name}")
-        with torch.amp.autocast(device.type, enabled=args.amp):
-            for _ in range(args.warmup):
-                output = net(torch.randn(sample_shape, device=device))
+        with torch.inference_mode():
+            with torch.amp.autocast(device.type, enabled=args.amp):
+                for _ in range(args.warmup):
+                    output = net(torch.randn(sample_shape, device=device))
 
         # Benchmark
         logging.info(f"Starting benchmark for {model_name}")
-        with torch.amp.autocast(device.type, enabled=args.amp):
-            t_start = time.perf_counter()
-            for _ in range(args.bench_iter):
-                output = net(torch.randn(sample_shape, device=device))
+        with torch.inference_mode():
+            with torch.amp.autocast(device.type, enabled=args.amp):
+                t_start = time.perf_counter()
+                for _ in range(args.repeats):
+                    for _ in range(args.bench_iter):
+                        output = net(torch.randn(sample_shape, device=device))
 
-            t_end = time.perf_counter()
-            t_elapsed = t_end - t_start
+                t_end = time.perf_counter()
+                t_elapsed = t_end - t_start
 
         dummy(output)
 
-        num_samples = args.bench_iter * args.batch_size
+        num_samples = args.repeats * args.bench_iter * args.batch_size
         samples_per_sec = num_samples / t_elapsed
         results.append(
             {
@@ -94,8 +108,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         description="Benchmark pretrained models",
         epilog=(
             "Usage example:\n"
-            "python benchmark.py --compile --suffix all"
+            "python benchmark.py --compile --suffix all\n"
             "python benchmark.py --filter '*il-common*' --compile --suffix il-common\n"
+            "python benchmark.py --filter '*il-common*' --suffix il-common\n"
             "python benchmark.py --filter '*il-common*' --batch-size 512 --gpu\n"
             "python benchmark.py --filter '*il-common*' --batch-size 512 --gpu --warmup 20\n"
             "python benchmark.py --filter '*il-common*' --batch-size 512 --gpu --fast-matmul --compile "
@@ -119,8 +134,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
     parser.add_argument("--gpu-id", type=int, help="gpu id to use (ignored in parallel mode)")
-    parser.add_argument("--warmup", type=int, default=10, help="number of warmup iterations")
-    parser.add_argument("--bench-iter", type=int, default=100, help="number of benchmark iterations")
+    parser.add_argument("--warmup", type=int, default=20, help="number of warmup iterations")
+    parser.add_argument("--repeats", type=int, default=4, help="number of repetitions")
+    parser.add_argument("--bench-iter", type=int, default=500, help="number of benchmark iterations")
 
     return parser
 

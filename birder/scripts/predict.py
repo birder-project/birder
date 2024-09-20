@@ -153,9 +153,11 @@ def predict(args: argparse.Namespace) -> None:
                 handle_show_flags(args, img_path, prob, label, class_to_idx)
 
     tic = time.time()
-    (sample_paths, outs, labels, embedding_list) = classification.infer_dataloader(
-        device, net, inference_loader, args.save_embedding, args.amp, num_samples, batch_callback=batch_callback
-    )
+    with torch.inference_mode():
+        (sample_paths, outs, labels, embedding_list) = classification.infer_dataloader(
+            device, net, inference_loader, args.save_embedding, args.amp, num_samples, batch_callback=batch_callback
+        )
+
     toc = time.time()
     rate = len(outs) / (toc - tic)
     (minutes, seconds) = divmod(toc - tic, 60)

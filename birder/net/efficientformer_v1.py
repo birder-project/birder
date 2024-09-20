@@ -415,3 +415,18 @@ class EfficientFormer_v1(BaseNet):
 registry.register_alias("efficientformer_v1_l1", EfficientFormer_v1, 0)
 registry.register_alias("efficientformer_v1_l3", EfficientFormer_v1, 1)
 registry.register_alias("efficientformer_v1_l7", EfficientFormer_v1, 2)
+
+registry.register_weights(
+    "efficientformer_v1_l1_il-common",
+    {
+        "description": "EfficientFormer v1 L1 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 45,
+                "sha256": "77c6d2c0c1596aaa682f5b023a52f99fcc61fdfc7a6a79bce83042ce995cfe4b",
+            }
+        },
+        "net": {"network": "efficientformer_v1_l1", "tag": "il-common"},
+    },
+)

@@ -382,21 +382,21 @@ class Results:
                 f"{self._valid_length} out of total {len(self)} samples"
             )
 
-    def save(self, path: str) -> None:
+    def save(self, name: str) -> None:
         """
         Save results object to file
 
         Parameters
         ----------
-        path
-            file output path.
+        name
+            output file name.
         """
 
         if settings.RESULTS_DIR.exists() is False:
             logging.info(f"Creating {settings.RESULTS_DIR} directory...")
             settings.RESULTS_DIR.mkdir(parents=True)
 
-        results_path = settings.RESULTS_DIR.joinpath(path)
+        results_path = settings.RESULTS_DIR.joinpath(name)
         logging.info(f"Saving results at {results_path}")
 
         # Write label names list
