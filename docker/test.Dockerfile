@@ -19,6 +19,7 @@ COPY . .
 RUN pip install --no-cache-dir --upgrade pip wheel build twine && \
     pip install --no-cache-dir -r requirements/requirements-pytorch-cpu.txt
 
+ENV NETWORK_TESTS=1
 
 # Build, check and install the birder package
 CMD ["sh", "-c", "python -m build && twine check dist/* && pip install dist/birder*.whl  && \

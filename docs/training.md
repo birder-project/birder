@@ -373,6 +373,8 @@ torchrun --nproc_per_node=2 train.py --network efficientformer_v1_l7 --opt adamw
 
 ### EfficientFormer v2
 
+Must increase resolution gradually due to the nature of the down-sampling layers.
+
 #### EfficientFormer v2: S1
 
 ```sh
