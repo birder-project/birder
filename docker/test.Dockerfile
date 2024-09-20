@@ -15,16 +15,17 @@ RUN sed -i -e's/ main/ main contrib non-free/g' /etc/apt/sources.list.d/debian.s
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements ./requirements
+COPY . .
 RUN pip install --no-cache-dir --upgrade pip wheel build twine && \
     pip install --no-cache-dir -r requirements/requirements-pytorch-cpu.txt
 
-
-COPY . .
 
 # Build, check and install the birder package
 CMD ["sh", "-c", "python -m build && twine check dist/* && pip install dist/birder*.whl  && \
     # Make sure it's importable
     env --chdir=/ python -c \"import birder; print(birder.__version__)\" && \
     # Install test dependencis and run tests
-    pip install --no-cache-dir -r requirements/requirements-dev.txt && inv ci"]
+    pip install --no-cache-dir -r requirements/requirements-dev.txt && inv ci && \
+    # Ensure the getting started notebook runs succesfully
+    pip install --no-cache-dir -r requirements/requirements-notebooks.txt && \
+    jupyter execute --kernel_name=python3 notebooks/getting_started.ipynb"]

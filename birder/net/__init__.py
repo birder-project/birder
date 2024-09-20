@@ -1,5 +1,6 @@
 from birder.net.alexnet import AlexNet
 from birder.net.cait import CaiT
+from birder.net.convmixer import ConvMixer
 from birder.net.convnext_v1 import ConvNeXt_v1
 from birder.net.convnext_v2 import ConvNeXt_v2
 from birder.net.crossvit import CrossViT
@@ -60,6 +61,7 @@ from birder.net.xcit import XCiT
 __all__ = [
     "AlexNet",
     "CaiT",
+    "ConvMixer",
     "ConvNeXt_v1",
     "ConvNeXt_v2",
     "CrossViT",

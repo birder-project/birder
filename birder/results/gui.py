@@ -157,16 +157,21 @@ class ConfusionMatrix:
 
 
 class ROC:
-    def __init__(self) -> None:
+    def __init__(self, result: Optional[Results] = None) -> None:
         self.results_dict: dict[str, Results] = {}
+        if result is not None:
+            self.results_dict["result"] = result
 
     def add_result(self, name: str, result: Results) -> None:
         self.results_dict[name] = result
 
-    def show(self, roc_classes: list[str]) -> None:
+    def show(self, roc_classes: Optional[list[str]] = None) -> None:
         """
         Show roc curve as matplotlib figure
         """
+
+        if roc_classes is None:
+            roc_classes = []
 
         # Define figure and axes
         fig = plt.figure(figsize=(12, 10))
@@ -215,16 +220,21 @@ class ROC:
 
 
 class PrecisionRecall:
-    def __init__(self) -> None:
+    def __init__(self, result: Optional[Results] = None) -> None:
         self.results_dict: dict[str, Results] = {}
+        if result is not None:
+            self.results_dict["result"] = result
 
     def add_result(self, name: str, result: Results) -> None:
         self.results_dict[name] = result
 
-    def show(self, pr_classes: list[str]) -> None:
+    def show(self, pr_classes: Optional[list[str]] = None) -> None:
         """
         Show precision recall curve as matplotlib figure
         """
+
+        if pr_classes is None:
+            pr_classes = []
 
         # Define figure and axes
         fig = plt.figure(figsize=(12, 10))
@@ -268,7 +278,7 @@ class PrecisionRecall:
         ax.set_ylim((0.0, 1.05))
         ax.set_xlim((0.0, 1.0))
         ax.set_title("Precision Recall Curves")
-        plt.legend(legend_lines, legend_labels)
+        plt.legend(legend_lines, legend_labels, loc="lower left")
         plt.tight_layout()
         plt.show()
 

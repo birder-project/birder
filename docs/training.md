@@ -35,6 +35,7 @@ On fine-tuning phase
 
 * [AlexNet](#alexnet)
 * [CaiT](#cait)
+* [ConvMixer](#convmixer)
 * [ConvNeXt v1](#convnext-v1)
 * [ConvNeXt v2](#convnext-v2)
 * [CrossViT](#crossvit)
@@ -100,6 +101,26 @@ torchrun --nproc_per_node=2 train.py --network alexnet --lr 0.01 --batch-size 12
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network cait_s24 --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 64 --lr-cosine-min 1e-7 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+### ConvMixer
+
+#### ConvMixer: 768 / 32
+
+```sh
+torchrun --nproc_per_node=2 train.py --network convmixer_768_32 --opt adamw --lr 0.01 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --epochs 300 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.5 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+#### ConvMixer: 1024 / 20
+
+```sh
+torchrun --nproc_per_node=2 train.py --network convmixer_1024_20 --opt adamw --lr 0.01 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --epochs 150 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.5 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+#### ConvMixer: 1536 / 20
+
+```sh
+torchrun --nproc_per_node=2 train.py --network convmixer_1536_20 --opt adamw --lr 0.01 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --epochs 150 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.5 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 ### ConvNeXt v1

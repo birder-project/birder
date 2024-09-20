@@ -2,6 +2,7 @@ import logging
 import os
 from functools import cached_property
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import numpy as np
@@ -313,7 +314,12 @@ class Results:
                 f"{self._valid_length} out of total {len(self)} samples"
             )
 
-    def pretty_print(self) -> None:
+    def pretty_print(
+        self,
+        sort_by: Literal["class", "precision", "recall", "f1-score"] = "class",
+        order: Literal["ascending", "descending"] = "ascending",
+        n: Optional[int] = None,
+    ) -> None:
         console = Console()
 
         table = Table(show_header=True, header_style="bold dark_magenta")
@@ -327,6 +333,10 @@ class Results:
         table.add_column("False positive", justify="right")
 
         report_df = self.detailed_report()
+        report_df = report_df.sort(sort_by.capitalize(), descending=order == "descending")
+        if n is not None:
+            report_df = report_df[:n]
+
         fn_cutoff = report_df["False negative"].quantile(0.95)
         fp_cutoff = report_df["False positive"].quantile(0.95)
 

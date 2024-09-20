@@ -26,6 +26,7 @@ class TestNet(unittest.TestCase):
         [
             ("alexnet", None),
             ("cait", 0),
+            ("convmixer", 0),
             ("convnext_v1", 0),
             ("convnext_v2", 0),
             ("crossvit", 0, True, 1, 48),
