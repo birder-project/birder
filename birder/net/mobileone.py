@@ -38,9 +38,12 @@ class MobileOneBlock(nn.Module):
         super().__init__()
         self.id_tensor = None
         self.reparameterized = reparameterized
-        self.groups = groups
-        self.kernel_size = kernel_size
         self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.groups = groups
         self.num_conv_branches = num_conv_branches
 
         if use_se is True:
@@ -140,13 +143,12 @@ class MobileOneBlock(nn.Module):
 
         (kernel, bias) = self._get_kernel_bias()
         self.reparam_conv = nn.Conv2d(
-            in_channels=self.rbr_conv[0].conv.in_channels,
-            out_channels=self.rbr_conv[0].conv.out_channels,
-            kernel_size=self.rbr_conv[0].conv.kernel_size,
-            stride=self.rbr_conv[0].conv.stride,
-            padding=self.rbr_conv[0].conv.padding,
-            dilation=self.rbr_conv[0].conv.dilation,
-            groups=self.rbr_conv[0].conv.groups,
+            in_channels=self.in_channels,
+            out_channels=self.out_channels,
+            kernel_size=self.kernel_size,
+            stride=self.stride,
+            padding=self.padding,
+            groups=self.groups,
             bias=True,
         )
         self.reparam_conv.weight.data = kernel

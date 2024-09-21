@@ -853,6 +853,13 @@ class FastViT(BaseNet):
         x = self.body(x)
         return self.features(x)
 
+    def reparameterize_model(self) -> None:
+        for module in self.modules():
+            if hasattr(module, "reparameterize") is True:
+                module.reparameterize()
+
+        self.reparameterized = True
+
 
 registry.register_alias("fastvit_t8", FastViT, 0)
 registry.register_alias("fastvit_t12", FastViT, 1)
