@@ -338,7 +338,7 @@ def load_model(
 
 
 def load_pretrained_model(
-    weights: str, inference: bool = False, device: Optional[torch.device] = None
+    weights: str, inference: bool = False, device: Optional[torch.device] = None, progress_bar: bool = True
 ) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], SignatureType, RGBType]:
     if settings.MODELS_DIR.exists() is False:
         logging.info(f"Creating {settings.MODELS_DIR} directory...")
@@ -350,7 +350,7 @@ def load_pretrained_model(
     model_file = f"{weights}.pt"
     dst = settings.MODELS_DIR.joinpath(model_file)
     url = f"{settings.REGISTRY_BASE_UTL}/{model_file}"
-    cli.download_file(url, dst, model_info["formats"]["pt"]["sha256"])
+    cli.download_file(url, dst, model_info["formats"]["pt"]["sha256"], progress_bar=progress_bar)
 
     if device is None:
         device = torch.device("cpu")

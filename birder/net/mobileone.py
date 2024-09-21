@@ -8,6 +8,7 @@ https://arxiv.org/abs/2206.04040
 
 # Reference license: Apple MIT License
 
+from collections.abc import Callable
 from typing import Optional
 
 import torch
@@ -28,10 +29,14 @@ class MobileOneBlock(nn.Module):
         padding: int,
         groups: int,
         use_se: bool,
+        use_act: bool,
+        use_scale_branch: bool,
         num_conv_branches: int,
         reparameterized: bool,
+        activation_layer: Callable[..., nn.Module] = nn.ReLU,
     ) -> None:
         super().__init__()
+        self.id_tensor = None
         self.reparameterized = reparameterized
         self.groups = groups
         self.kernel_size = kernel_size
@@ -43,7 +48,10 @@ class MobileOneBlock(nn.Module):
         else:
             self.se = nn.Identity()
 
-        self.activation = nn.ReLU()
+        if use_act is True:
+            self.activation = activation_layer()
+        else:
+            self.activation = nn.Identity()
 
         if reparameterized is True:
             self.reparam_conv = nn.Conv2d(
@@ -84,7 +92,7 @@ class MobileOneBlock(nn.Module):
 
             # Re-parameterizable scale branch
             self.rbr_scale = None
-            if kernel_size > 1:
+            if kernel_size > 1 and use_scale_branch is True:
                 self.rbr_scale = nn.Sequential()
                 self.rbr_scale.add_module(
                     "conv",
@@ -165,7 +173,7 @@ class MobileOneBlock(nn.Module):
         kernel_scale = 0
         bias_scale = 0
         if self.rbr_scale is not None:
-            kernel_scale, bias_scale = self._fuse_bn_tensor(self.rbr_scale)
+            (kernel_scale, bias_scale) = self._fuse_bn_tensor(self.rbr_scale)
             pad = self.kernel_size // 2
             kernel_scale = torch.nn.functional.pad(kernel_scale, [pad, pad, pad, pad])
 
@@ -213,6 +221,8 @@ class MobileOneBlock(nn.Module):
             for i in range(self.in_channels):
                 kernel_value[i, i % input_dim, self.kernel_size // 2, self.kernel_size // 2] = 1
 
+            self.id_tensor = kernel_value
+
             running_mean = branch.running_mean
             running_var = branch.running_var
             gamma = branch.weight
@@ -252,6 +262,8 @@ class MobileOneStage(nn.Sequential):
                     padding=1,
                     groups=in_planes,
                     use_se=use_se,
+                    use_act=True,
+                    use_scale_branch=True,
                     num_conv_branches=num_conv_branches,
                     reparameterized=reparameterized,
                 )
@@ -266,6 +278,8 @@ class MobileOneStage(nn.Sequential):
                     padding=0,
                     groups=1,
                     use_se=use_se,
+                    use_act=True,
+                    use_scale_branch=True,
                     num_conv_branches=num_conv_branches,
                     reparameterized=reparameterized,
                 )
@@ -332,6 +346,8 @@ class MobileOne(BaseNet):
             padding=1,
             groups=1,
             use_se=False,
+            use_act=True,
+            use_scale_branch=True,
             num_conv_branches=1,
             reparameterized=self.reparameterized,
         )

@@ -28,7 +28,9 @@ def calc_sha256(file_path: str | Path) -> str:
     return sha256.hexdigest()
 
 
-def download_file(url: str, dst: str | Path, expected_sha256: Optional[str] = None, override: bool = False) -> None:
+def download_file(
+    url: str, dst: str | Path, expected_sha256: Optional[str] = None, override: bool = False, progress_bar: bool = True
+) -> None:
     # Adapted from torch.hub download_url_to_file function
 
     chunk_size = 128 * 1024
@@ -64,7 +66,7 @@ def download_file(url: str, dst: str | Path, expected_sha256: Optional[str] = No
     try:
         f = open(tmp_dst, "w+b")  # pylint: disable=consider-using-with
         sha256 = hashlib.sha256()
-        with tqdm(total=file_size, unit="B", unit_scale=True, unit_divisor=1024) as progress:
+        with tqdm(total=file_size, unit="B", unit_scale=True, unit_divisor=1024, disable=not progress_bar) as progress:
             while True:
                 buffer = u.read(chunk_size)
                 if len(buffer) == 0:

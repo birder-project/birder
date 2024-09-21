@@ -48,6 +48,8 @@ On fine-tuning phase
 * [EfficientFormer v2](#efficientformer-v2)
 * [EfficientNet v1](#efficientnet-v1)
 * [EfficientNet v2](#efficientnet-v2)
+* [FastViT](#fastvit)
+* [FocalNet](#focalnet)
 * [InceptionNeXt](#inceptionnext)
 * [Inception-ResNet v2](#inception-resnet-v2)
 * [Inception v3](#inception-v3)
@@ -108,19 +110,19 @@ torchrun --nproc_per_node=2 train.py --network cait_s24 --opt adamw --lr 0.001 -
 #### ConvMixer: 768 / 32
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convmixer_768_32 --opt adamw --lr 0.01 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --epochs 300 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.5 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network convmixer_768_32 --opt adamw --lr 0.01 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --epochs 300 --smoothing-alpha 0.1 --mixup-alpha 0.5 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 #### ConvMixer: 1024 / 20
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convmixer_1024_20 --opt adamw --lr 0.01 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --epochs 150 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.5 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network convmixer_1024_20 --opt adamw --lr 0.01 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --epochs 150 --smoothing-alpha 0.1 --mixup-alpha 0.5 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 #### ConvMixer: 1536 / 20
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convmixer_1536_20 --opt adamw --lr 0.01 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --epochs 150 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.5 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network convmixer_1536_20 --opt adamw --lr 0.01 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --epochs 150 --smoothing-alpha 0.1 --mixup-alpha 0.5 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 ### ConvNeXt v1
@@ -474,6 +476,16 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --tag intermedi
 ```sh
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_l --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 16 --epochs 300 --size 384 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
 ```
+
+### FastViT
+
+#### FastViT: SA24
+
+```sh
+torchrun --nproc_per_node=2 train.py --network fastvit_sa24 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 64 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+### FocalNet
 
 #### FocalNet: Tiny SRF
 

@@ -1,4 +1,5 @@
 import argparse
+import logging
 from collections.abc import Callable
 from functools import partial
 from typing import Any
@@ -87,7 +88,8 @@ def show_grad_cam(
     img = Image.open(args.image)
     rgb_img = np.array(img.resize((args.size, args.size))).astype(np.float32) / 255.0
 
-    target_layer = net.body[args.layer_num]
+    block = getattr(net, args.block_name)
+    target_layer = block[args.layer_num]
     input_tensor = transform(img).unsqueeze(dim=0).to(device)
 
     grad_cam = gradcam.GradCAM(net, target_layer, reshape_transform=reshape_transform)
@@ -135,12 +137,15 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
+    subparser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
+    subparser.add_argument("--gpu-id", type=int, help="gpu id to use")
     subparser.add_argument(
         "--size", type=int, default=None, help="image size for inference (defaults to model signature)"
     )
     subparser.add_argument("--target", type=str, help="target class, leave empty to use predicted class")
+    subparser.add_argument("--block-name", type=str, default="body", help="target block (gradcam only)")
     subparser.add_argument(
-        "--layer-num", type=int, default=-1, help="target layer, index for body block (gradcam only)"
+        "--layer-num", type=int, default=-1, help="target layer, index for target block (gradcam only)"
     )
     subparser.add_argument("--reshape-size", type=int, help="2d projection for transformer models (layer dependant)")
     subparser.add_argument("--image", type=str, required=True, help="input image")
@@ -148,7 +153,16 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if args.gpu is True:
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+
+    if args.gpu_id is not None:
+        torch.cuda.set_device(args.gpu_id)
+
+    logging.info(f"Using device {device}")
+
     (net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
         device,
         args.network,
@@ -167,6 +181,5 @@ def main(args: argparse.Namespace) -> None:
 
     if args.method == "gradcam":
         show_grad_cam(args, net, class_to_idx, transform, device)
-
-    if args.method == "guided-backprop":
+    elif args.method == "guided-backprop":
         show_guided_backprop(args, net, class_to_idx, transform, device)

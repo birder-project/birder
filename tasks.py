@@ -77,7 +77,7 @@ def pylint(ctx):
 
     # pylint
     result = ctx.run(
-        f"python -m pylint *.py tests {PROJECT_DIR}",
+        f"python -m pylint *.py tests tests_flow {PROJECT_DIR}",
         echo=True,
         pty=True,
         warn=True,

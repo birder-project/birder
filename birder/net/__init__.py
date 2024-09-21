@@ -13,6 +13,7 @@ from birder.net.efficientformer_v1 import EfficientFormer_v1
 from birder.net.efficientformer_v2 import EfficientFormer_v2
 from birder.net.efficientnet_v1 import EfficientNet_v1
 from birder.net.efficientnet_v2 import EfficientNet_v2
+from birder.net.fastvit import FastViT
 from birder.net.focalnet import FocalNet
 from birder.net.ghostnet_v1 import GhostNet_v1
 from birder.net.ghostnet_v2 import GhostNet_v2
@@ -74,6 +75,7 @@ __all__ = [
     "EfficientFormer_v2",
     "EfficientNet_v1",
     "EfficientNet_v2",
+    "FastViT",
     "FocalNet",
     "GhostNet_v1",
     "GhostNet_v2",

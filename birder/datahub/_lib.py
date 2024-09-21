@@ -5,7 +5,7 @@ from pathlib import Path
 from birder.common import cli
 
 
-def download_url(url: str, target: str | Path, sha256: str) -> bool:
+def download_url(url: str, target: str | Path, sha256: str, progress_bar: bool = True) -> bool:
     if isinstance(target, str) is True:
         target = Path(target)
 
@@ -18,7 +18,7 @@ def download_url(url: str, target: str | Path, sha256: str) -> bool:
 
     target.parent.mkdir(parents=True, exist_ok=True)  # type: ignore[union-attr]
     logging.info(f"Downloading {url} to {target}")
-    cli.download_file(url, target, sha256)
+    cli.download_file(url, target, sha256, progress_bar=progress_bar)
     return True
 
 

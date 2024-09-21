@@ -16,6 +16,63 @@ from birder.datahub._lib import extract_archive
 SplitType = Literal["training", "validation", "testing"]
 
 
+class TestDataset(ImageFolder):
+    """
+    Name: Birder TestDataset
+    """
+
+    def __init__(
+        self,
+        target_dir: Optional[str | Path] = None,
+        download: bool = False,
+        split: SplitType = "training",
+        transform: Optional[Callable[..., torch.Tensor]] = None,
+        target_transform: Optional[Callable[..., Any]] = None,
+        loader: Callable[[str], Any] = default_loader,
+        is_valid_file: Optional[Callable[[str], bool]] = None,
+        progress_bar: bool = True,
+    ) -> None:
+        if target_dir is None:
+            target_dir = settings.DATA_DIR
+
+        if isinstance(target_dir, str) is True:
+            target_dir = Path(target_dir)
+
+        self._target_dir: Path = target_dir  # type: ignore[assignment]
+        self._root = self._target_dir.joinpath("TestDataset")
+        if download is True:
+            src = self._target_dir.joinpath("TestDataset.tar")
+            downloaded = download_url(
+                "https://f000.backblazeb2.com/file/birder/data/TestDataset.tar",
+                src,
+                sha256="785cff9454f3ecbf46e55d54df44a7c169d522dce25976e54a451a877c3f08ca",
+                progress_bar=progress_bar,
+            )
+            if downloaded is True or self._root.exists() is False:
+                extract_archive(src, self._root)
+
+        else:
+            # Some sanity checks
+            if self._root.exists() is False or self._root.is_dir() is False:
+                raise RuntimeError("Dataset not found, try download=True to download it")
+
+            for split_name in ["training", "validation"]:
+                if self._root.joinpath(split_name).exists() is False:
+                    raise RuntimeError("Dataset seems corrupted")
+
+        super().__init__(self._root.joinpath(split), transform, target_transform, loader, is_valid_file)
+
+    def __getitem__(self, index: int) -> tuple[str, torch.Tensor, Any]:
+        (path, target) = self.samples[index]
+        sample = self.loader(path)
+        if self.transform is not None:
+            sample = self.transform(sample)
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        return (path, sample, target)
+
+
 class Flowers102(ImageFolder):
     """
     Name: 102 Flowers
@@ -32,6 +89,7 @@ class Flowers102(ImageFolder):
         target_transform: Optional[Callable[..., Any]] = None,
         loader: Callable[[str], Any] = default_loader,
         is_valid_file: Optional[Callable[[str], bool]] = None,
+        progress_bar: bool = True,
     ) -> None:
         if target_dir is None:
             target_dir = settings.DATA_DIR
@@ -46,7 +104,8 @@ class Flowers102(ImageFolder):
             downloaded = download_url(
                 "https://f000.backblazeb2.com/file/birder/data/Flowers102.tar",
                 src,
-                sha256="a585173c9ae604f3129d00a9aafc4d1851351e2590c20e3cbfe87f6d4ee41fb2",
+                sha256="6e7cf83821ed267e178dbabdb66cb4e23643aaf9d6180c3d93929f11cfbc4582",
+                progress_bar=progress_bar,
             )
             if downloaded is True or self._root.exists() is False:
                 extract_archive(src, self._root)
@@ -90,6 +149,7 @@ class CUB_200_2011(ImageFolder):
         target_transform: Optional[Callable[..., Any]] = None,
         loader: Callable[[str], Any] = default_loader,
         is_valid_file: Optional[Callable[[str], bool]] = None,
+        progress_bar: bool = True,
     ) -> None:
         if target_dir is None:
             target_dir = settings.DATA_DIR
@@ -105,6 +165,7 @@ class CUB_200_2011(ImageFolder):
                 "https://f000.backblazeb2.com/file/birder/data/CUB_200_2011.tar",
                 src,
                 sha256="acb58211efa4253d59935572b6d1d3b9f6990c569d1cd318e2e1613d0a065916",
+                progress_bar=progress_bar,
             )
             if downloaded is True or self._root.exists() is False:
                 extract_archive(src, self._root)

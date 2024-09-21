@@ -1,4 +1,5 @@
 import argparse
+import logging
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -14,7 +15,16 @@ from birder.transforms.classification import inference_preset
 
 
 def show_fgsm(args: argparse.Namespace) -> None:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if args.gpu is True:
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+
+    if args.gpu_id is not None:
+        torch.cuda.set_device(args.gpu_id)
+
+    logging.info(f"Using device {device}")
+
     (net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
         device,
         args.network,
@@ -81,6 +91,8 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
+    subparser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
+    subparser.add_argument("--gpu-id", type=int, help="gpu id to use")
     subparser.add_argument("--eps", type=float, default=0.007, help="fgsm epsilon")
     subparser.add_argument("--target", type=str, help="target class, leave empty to use predicted class")
     subparser.add_argument("--image", type=str, required=True, help="input image")

@@ -39,6 +39,7 @@ class TestNet(unittest.TestCase):
             ("efficientformer_v2", 0),
             ("efficientnet_v1", 0),
             ("efficientnet_v2", 0),
+            ("fastvit", 3),
             ("focalnet", 0),
             ("ghostnet_v1", 0),
             ("ghostnet_v2", 0),

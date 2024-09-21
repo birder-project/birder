@@ -84,7 +84,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--dir", type=str, default="evaluate", help="place all outputs in a sub-directory (relative to results)"
     )
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
-    parser.add_argument("--gpu-id", type=int, help="gpu id to use (ignored in parallel mode)")
+    parser.add_argument("--gpu-id", type=int, help="gpu id to use")
     parser.add_argument("data_path", nargs="+", help="data files path (directories and files)")
 
     return parser

@@ -50,9 +50,13 @@ def train(args: argparse.Namespace) -> None:
 
     logging.info(f"Using size={args.size}")
 
-    device = torch.device("cuda")
-    device_id = torch.cuda.current_device()
-    torch.backends.cudnn.benchmark = True
+    if args.cpu is True:
+        device = torch.device("cpu")
+        device_id = 0
+    else:
+        device = torch.device("cuda")
+        device_id = torch.cuda.current_device()
+        torch.backends.cudnn.benchmark = True
 
     rgb_values = get_rgb_values(args.rgb_mode)
     if args.wds is True:
@@ -738,6 +742,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
     parser.add_argument("--clip-grad-norm", type=float, default=None, help="the maximum gradient norm")
     parser.add_argument("--gpu", type=int, help="gpu id to use (ignored in distributed mode)")
+    parser.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")
     parser.add_argument(
         "--plot-lr", default=False, action="store_true", help="plot learning rate and exit (skip training)"
     )

@@ -16,7 +16,7 @@ mkdocs~=1.6.1
 MonkeyType~=23.3.0
 mypy~=1.11.2
 parameterized~=0.9.0
-pylint~=3.2.7
+pylint~=3.3.0
 requests~=2.32.3
 setuptools
 tensorboard~=2.17.1

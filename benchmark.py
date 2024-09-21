@@ -133,7 +133,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch-size", type=int, default=1, help="the batch size")
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
-    parser.add_argument("--gpu-id", type=int, help="gpu id to use (ignored in parallel mode)")
+    parser.add_argument("--gpu-id", type=int, help="gpu id to use")
     parser.add_argument("--warmup", type=int, default=20, help="number of warmup iterations")
     parser.add_argument("--repeats", type=int, default=4, help="number of repetitions")
     parser.add_argument("--bench-iter", type=int, default=500, help="number of benchmark iterations")

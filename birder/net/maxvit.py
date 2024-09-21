@@ -321,7 +321,7 @@ class PartitionAttentionLayer(nn.Module):
 
 
 class MaxVitLayer(nn.Module):
-    # pylint: disable=too-many-arguments
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         in_channels: int,
@@ -385,7 +385,7 @@ class MaxVitLayer(nn.Module):
 
 
 class MaxVitBlock(nn.Module):
-    # pylint: disable=too-many-arguments
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         # Conv parameters

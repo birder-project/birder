@@ -24,6 +24,7 @@ Compare compact models on multiple Birder data sets.
 import sys
 from pathlib import Path
 
+import altair as alt
 import polars as pl
 ```
 
@@ -202,6 +203,11 @@ frontier = compare_results_df.plot.line(x="Parameters (M)", y="Pareto frontier (
 )
 
 chart = base + text + frontier
+chart.properties(width=800, height=600).configure_scale(zero=False)
+```
+
+```{python}
+chart.layer[0].encoding.x.scale = alt.Scale(domain=[0.5, 7])
 chart.properties(width=800, height=600).configure_scale(zero=False)
 ```
 

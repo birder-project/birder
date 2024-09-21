@@ -27,6 +27,5 @@ CMD ["sh", "-c", "python -m build && twine check dist/* && pip install dist/bird
     env --chdir=/ python -c \"import birder; print(birder.__version__)\" && \
     # Install test dependencis and run tests
     pip install --no-cache-dir -r requirements/requirements-dev.txt && inv ci && \
-    # Ensure the getting started notebook runs succesfully
-    pip install --no-cache-dir -r requirements/requirements-notebooks.txt && \
-    jupyter execute --kernel_name=python3 notebooks/getting_started.ipynb"]
+    # Run full flow tests
+    python3 -m unittest discover -s tests_flow -v"]

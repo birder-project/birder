@@ -654,3 +654,18 @@ registry.register_alias("efficientformer_v2_s0", EfficientFormer_v2, 0)
 registry.register_alias("efficientformer_v2_s1", EfficientFormer_v2, 1)
 registry.register_alias("efficientformer_v2_s2", EfficientFormer_v2, 2)
 registry.register_alias("efficientformer_v2_l", EfficientFormer_v2, 3)
+
+registry.register_weights(
+    "efficientformer_v2_s0_il-common",
+    {
+        "description": "EfficientFormer v2 S0 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 13.2,
+                "sha256": "af3fb7d6b19f8975b3c1ab2d5476bc6076a25051e0c6e2644a2f5cbc5274b4e3",
+            }
+        },
+        "net": {"network": "efficientformer_v2_s0", "tag": "il-common"},
+    },
+)
