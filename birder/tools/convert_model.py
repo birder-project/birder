@@ -56,12 +56,19 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--backbone-tag", type=str, help="backbone training log tag (loading only)")
     subparser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
+    subparser.add_argument(
+        "--trace",
+        default=False,
+        action="store_true",
+        help="trace instead of script (applies only to TorchScript conversions)",
+    )
+    subparser.add_argument("--force", action="store_true", help="override existing model")
 
     format_group = subparser.add_mutually_exclusive_group(required=True)
     format_group.add_argument("-r", "--reparameterize", default=False, action="store_true", help="reparameterize model")
     format_group.add_argument("--pts", default=False, action="store_true", help="convert to TorchScript model")
     format_group.add_argument(
-        "--lite", default=False, action="store_true", help="convert to lite interpreter version model"
+        "--lite", default=False, action="store_true", help="convert to lite TorchScript interpreter version model"
     )
     format_group.add_argument(
         "--pt2", default=False, action="store_true", help="convert to standardized model representation"
@@ -72,11 +79,13 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
+    assert args.trace is False or (args.trace is True and (args.pts is True or args.lite is True))
+
     # Load model
     device = torch.device("cpu")
     signature: SignatureType | DetectionSignatureType
     if args.backbone is None:
-        (net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
+        (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
             device,
             args.network,
             net_param=args.net_param,
@@ -88,7 +97,7 @@ def main(args: argparse.Namespace) -> None:
         network_name = lib.get_network_name(args.network, net_param=args.net_param, tag=args.tag)
 
     else:
-        (net, class_to_idx, signature, rgb_values) = fs_ops.load_detection_model(
+        (net, class_to_idx, signature, rgb_stats) = fs_ops.load_detection_model(
             device,
             args.network,
             net_param=args.net_param,
@@ -114,6 +123,10 @@ def main(args: argparse.Namespace) -> None:
     model_path = fs_ops.model_path(
         network_name, epoch=args.epoch, pts=args.pts, lite=args.lite, pt2=args.pt2, onnx=args.onnx
     )
+    if model_path.exists() is True and args.force is False and args.reparameterize is False:
+        logging.warning("Converted model already exists... aborting")
+        raise SystemExit(1)
+
     logging.info(f"Saving converted model {model_path}...")
     if args.reparameterize is True:
         if reparameterize_available(net) is False:
@@ -127,14 +140,19 @@ def main(args: argparse.Namespace) -> None:
                 net,
                 signature=signature,
                 class_to_idx=class_to_idx,
-                rgb_values=rgb_values,
+                rgb_stats=rgb_stats,
                 optimizer=None,
                 scheduler=None,
                 scaler=None,
             )
 
     elif args.lite is True:
-        scripted_module = torch.jit.script(net)
+        if args.trace is True:
+            sample_shape = [1] + signature["inputs"][0]["data_shape"][1:]  # C, H, W
+            scripted_module = torch.jit.trace(net, example_inputs=torch.randn(sample_shape))
+        else:
+            scripted_module = torch.jit.script(net)
+
         optimized_scripted_module = optimize_for_mobile(scripted_module)
         optimized_scripted_module._save_for_lite_interpreter(  # pylint: disable=protected-access
             str(model_path),
@@ -142,7 +160,7 @@ def main(args: argparse.Namespace) -> None:
                 "task": net.task,
                 "class_to_idx": json.dumps(class_to_idx),
                 "signature": json.dumps(signature),
-                "rgb_values": json.dumps(rgb_values),
+                "rgb_stats": json.dumps(rgb_stats),
             },
         )
 
@@ -153,7 +171,7 @@ def main(args: argparse.Namespace) -> None:
         exported_net = torch.export.export(
             net, (torch.randn(*sample_shape, device=device),), dynamic_shapes={"x": {0: batch_dim}}
         )
-        fs_ops.save_pt2(exported_net, model_path, net.task, class_to_idx, signature, rgb_values)
+        fs_ops.save_pt2(exported_net, model_path, net.task, class_to_idx, signature, rgb_stats)
 
     elif args.onnx is True:
         signature["inputs"][0]["data_shape"][0] = 1  # Set batch size
@@ -176,13 +194,18 @@ def main(args: argparse.Namespace) -> None:
         with open(f"{model_path}_signature.json", "w", encoding="utf-8") as handle:
             json.dump(signature, handle, indent=2)
 
-        with open(f"{model_path}_rgb_values.json", "w", encoding="utf-8") as handle:
-            json.dump(rgb_values, handle, indent=2)
+        with open(f"{model_path}_rgb_stats.json", "w", encoding="utf-8") as handle:
+            json.dump(rgb_stats, handle, indent=2)
 
         # Test exported model
         onnx_model = onnx.load(str(model_path))
         onnx.checker.check_model(onnx_model, full_check=True)
 
     elif args.pts is True:
-        scripted_module = torch.jit.script(net)
-        fs_ops.save_pts(scripted_module, model_path, net.task, class_to_idx, signature, rgb_values)
+        if args.trace is True:
+            sample_shape = [1] + signature["inputs"][0]["data_shape"][1:]  # C, H, W
+            scripted_module = torch.jit.trace(net, example_inputs=torch.randn(sample_shape))
+        else:
+            scripted_module = torch.jit.script(net)
+
+        fs_ops.save_pts(scripted_module, model_path, net.task, class_to_idx, signature, rgb_stats)

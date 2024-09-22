@@ -54,15 +54,15 @@ def main(args: argparse.Namespace) -> None:
     nets = torch.nn.ModuleList()
     class_to_idx_list = []
     signature_list = []
-    rgb_values_list = []
+    rgb_stats_list = []
     for network in args.networks:
-        (net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
+        (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
             device, network, inference=True, pts=args.pts, pt2=args.pt2
         )
         nets.append(net)
         class_to_idx_list.append(class_to_idx)
         signature_list.append(signature)
-        rgb_values_list.append(rgb_values)
+        rgb_stats_list.append(rgb_stats)
 
     # Ensure all have the same class to index definitions
     if [class_to_idx_list[0]] * len(class_to_idx_list) != class_to_idx_list:
@@ -71,12 +71,12 @@ def main(args: argparse.Namespace) -> None:
     if [signature_list[0]] * len(signature_list) != signature_list:
         logging.warning(f"Networks signatures differ, using signature={signature_list[0]}")
 
-    if [rgb_values_list[0]] * len(rgb_values_list) != rgb_values_list:
-        logging.warning(f"Networks rgb values differ, using rgb values of {rgb_values_list[0]}")
+    if [rgb_stats_list[0]] * len(rgb_stats_list) != rgb_stats_list:
+        logging.warning(f"Networks rgb values differ, using rgb values of {rgb_stats_list[0]}")
 
     signature = signature_list[0]
     class_to_idx = class_to_idx_list[0]
-    rgb_values = rgb_values_list[0]
+    rgb_stats = rgb_stats_list[0]
     ensemble = Ensemble(nets)
 
     network_name = "ensemble"
@@ -95,10 +95,10 @@ def main(args: argparse.Namespace) -> None:
         )
 
         # Save model
-        fs_ops.save_pt2(exported_net, model_path, nets[0].task, class_to_idx, signature, rgb_values)
+        fs_ops.save_pt2(exported_net, model_path, nets[0].task, class_to_idx, signature, rgb_stats)
 
     elif args.pts is True:
         scripted_ensemble = torch.jit.script(ensemble)
 
         # Save model
-        fs_ops.save_pts(scripted_ensemble, model_path, nets[0].task, class_to_idx, signature, rgb_values)
+        fs_ops.save_pts(scripted_ensemble, model_path, nets[0].task, class_to_idx, signature, rgb_stats)

@@ -19,10 +19,10 @@ def avg_models(network: str, net_param: Optional[float], tag: Optional[str], epo
     aux_data = {}
     for idx, epoch in enumerate(epochs):
         network_name = get_network_name(network, net_param, tag)
-        path = fs_ops.model_path(network_name, epoch=epoch, pts=False)
+        path = fs_ops.model_path(network_name, epoch=epoch)
         logging.info(f"Loading model from {path}...")
 
-        model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=False)
+        model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)
         state_list.append(model_dict["state"])
 
         if idx == 0:

@@ -464,11 +464,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 11.5,
-                "sha256": "aa99df518dc40c657939a840f951598a8a0b5513e328c2f11e882bcb01b64ca5",
-            },
-            "pt2": {
-                "file_size": 14.3,
-                "sha256": "988a96e2ae63cc2f7dc663c1fa37f478b76034e4935d4384d5cb89dae359b145",
+                "sha256": "624aac6ffc5024f2138f10d1f5bff8575e19ed683f85bd1623ac39484d0f242a",
             },
         },
         "net": {"network": "xcit_nano16", "tag": "il-common"},

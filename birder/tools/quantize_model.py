@@ -80,7 +80,7 @@ def main(args: argparse.Namespace) -> None:
         device = torch.device("cpu")
 
     # Load model
-    (net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
+    (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
         device,
         args.network,
         net_param=args.net_param,
@@ -94,7 +94,7 @@ def main(args: argparse.Namespace) -> None:
     size = lib.get_size_from_signature(signature)[0]
 
     # Set calibration data
-    full_dataset = ImageFolder(args.data_path, transform=inference_preset((size, size), rgb_values, 1.0))
+    full_dataset = ImageFolder(args.data_path, transform=inference_preset((size, size), rgb_stats, 1.0))
     calibration_dataset = Subset(full_dataset, indices=list(range(args.batch_size * args.num_calibration_batches)))
     calibration_data_loader = DataLoader(
         calibration_dataset,
@@ -133,7 +133,7 @@ def main(args: argparse.Namespace) -> None:
 
     # Convert to TorchScript
     scripted_module = torch.jit.script(net)
-    fs_ops.save_pts(scripted_module, model_path, task, class_to_idx, signature, rgb_values)
+    fs_ops.save_pts(scripted_module, model_path, task, class_to_idx, signature, rgb_stats)
 
     if args.qbackend == "qnnpack":
         model_path = fs_ops.model_path(network_name, epoch=args.epoch, quantized=True, lite=True)
@@ -145,6 +145,6 @@ def main(args: argparse.Namespace) -> None:
                 "task": task,
                 "class_to_idx": json.dumps(class_to_idx),
                 "signature": json.dumps(signature),
-                "rgb_values": json.dumps(rgb_values),
+                "rgb_stats": json.dumps(rgb_stats),
             },
         )

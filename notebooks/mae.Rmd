@@ -33,7 +33,7 @@ from birder.common import fs_ops
 from birder.common.lib import get_label_from_path
 from birder.conf import settings
 from birder.model_registry import registry
-from birder.transforms.classification import get_rgb_values
+from birder.transforms.classification import get_rgb_stats
 from birder.transforms.classification import inference_preset
 ```
 
@@ -112,7 +112,7 @@ for e in range(epoch_start, epoch_end + 1):
     except FileNotFoundError:
         continue
 
-    transform = inference_preset((size, size), get_rgb_values("calculated"), 1.0)
+    transform = inference_preset((size, size), get_rgb_stats("birder"), 1.0)
     input_tensor = transform(img).unsqueeze(dim=0).to(device)
 
     torch.manual_seed(0)

@@ -35,7 +35,7 @@ from birder.common.lib import get_label_from_path
 from birder.conf import settings
 from birder.net.detection.base import ImageList
 from birder.net.detection.faster_rcnn import concat_box_prediction_layers
-from birder.transforms.classification import get_rgb_values, reverse_preset
+from birder.transforms.classification import get_rgb_stats, reverse_preset
 from birder.transforms.detection import inference_preset
 from torchvision.ops import boxes as box_ops
 ```
@@ -49,8 +49,8 @@ plt.rcParams["figure.figsize"] = [15, 15]
 ```
 
 ```{python}
-transform = inference_preset(size=640, rgv_values=get_rgb_values("calculated"))
-reverse_transform = reverse_preset(get_rgb_values("calculated"))
+transform = inference_preset(size=640, rgv_values=get_rgb_stats("birder"))
+reverse_transform = reverse_preset(get_rgb_stats("birder"))
 ```
 
 ```{python}

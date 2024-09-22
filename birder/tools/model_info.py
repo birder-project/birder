@@ -72,7 +72,7 @@ def main(args: argparse.Namespace) -> None:
     device = torch.device("cpu")
     signature: SignatureType | DetectionSignatureType
     if args.backbone is None:
-        (net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
+        (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
             device,
             args.network,
             net_param=args.net_param,
@@ -82,7 +82,7 @@ def main(args: argparse.Namespace) -> None:
         )
 
     else:
-        (net, class_to_idx, signature, rgb_values) = fs_ops.load_detection_model(
+        (net, class_to_idx, signature, rgb_stats) = fs_ops.load_detection_model(
             device,
             args.network,
             net_param=args.net_param,
@@ -100,7 +100,7 @@ def main(args: argparse.Namespace) -> None:
     console = Console()
     console.print(f"Network type: [bold]{type(net).__name__}[/bold], with task={net.task}")
     console.print(f"Network signature: {signature}")
-    console.print(f"Network rgb values: {rgb_values}")
+    console.print(f"Network rgb values: {rgb_stats}")
     console.print(f"Number of parameters: {model_info['num_params']:,}")
     console.print(f"Model size (inc. buffers): {(model_info['model_size']) / 1024**2:,.2f} [bold]MB[/bold]")
     console.print()

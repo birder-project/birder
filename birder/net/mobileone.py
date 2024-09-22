@@ -404,7 +404,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 18.5,
-                "sha256": "57576873c88bb9dbdfeb4f89c9250c589e8ffbfe5c24f9c119bf5f4df40198db",
+                "sha256": "7cabf95ac545e3fa9eb08cc6b2f3bb49d7e3a09f2f637a03531b35b86170475f",
             }
         },
         "net": {"network": "mobileone_s0", "tag": "il-common"},
@@ -418,9 +418,37 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 5.5,
-                "sha256": "43995722d2a7fcfacb837cf2fb595e16a6b55b91b996c5bd59b3105be3470d2b",
+                "sha256": "51009e23ebf889448d47c3932ca510f004c52bc98d504410d3d696dfbe9772ea",
             }
         },
         "net": {"network": "mobileone_s0", "tag": "il-common_reparameterized", "reparameterized": True},
+    },
+)
+registry.register_weights(
+    "mobileone_s1_il-common",
+    {
+        "description": "MobileOne S1 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 15.8,
+                "sha256": "57829e685975ca595e50743e06159082ed3fc6179a3db25af8cabe804fa4df00",
+            }
+        },
+        "net": {"network": "mobileone_s1", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "mobileone_s1_il-common_reparameterized",
+    {
+        "description": "MobileOne S1 (reparameterized) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 15.1,
+                "sha256": "22de63275dc5547b0c095284a9f80b5bd33cb38291872daf85cf3bbb69ee5dfd",
+            }
+        },
+        "net": {"network": "mobileone_s1", "tag": "il-common_reparameterized", "reparameterized": True},
     },
 )

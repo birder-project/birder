@@ -449,7 +449,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 32.7,
-                "sha256": "207531ae2140b459c6c70841985ff45b208c1a453ab7a5095cec6ca9bb537169",
+                "sha256": "515265ed725adce09464bfd23ce612b1d1178bc22a57960db089d7148556149a",
             }
         },
         "net": {"network": "crossvit_9d", "tag": "il-common"},

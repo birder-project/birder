@@ -130,13 +130,13 @@ def checkpoint_model(
     net: torch.nn.Module,
     signature: SignatureType | DetectionSignatureType | MIMSignatureType,
     class_to_idx: dict[str, int],
-    rgb_values: RGBType,
+    rgb_stats: RGBType,
     optimizer: Optional[torch.optim.Optimizer],
     scheduler: Optional[torch.optim.lr_scheduler._LRScheduler],
     scaler: Optional[torch.amp.grad_scaler.GradScaler],
 ) -> None:
-    path = model_path(network_name, epoch=epoch, pts=False)
-    states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
+    path = model_path(network_name, epoch=epoch)
+    states_path = model_path(network_name, epoch=epoch, states=True)
     logging.info(f"Saving model checkpoint {path}...")
     torch.save(
         {
@@ -144,7 +144,7 @@ def checkpoint_model(
             "task": net.task,
             "signature": signature,
             "class_to_idx": class_to_idx,
-            "rgb_values": rgb_values,
+            "rgb_stats": rgb_stats,
         },
         path,
     )
@@ -182,7 +182,7 @@ def load_checkpoint(
     states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
     logging.info(f"Loading model from {path} on device {device}...")
 
-    model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=False)
+    model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)
 
     signature: SignatureType = model_dict["signature"]
     input_channels = lib.get_channels_from_signature(signature)
@@ -217,7 +217,7 @@ def load_mim_checkpoint(
     states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
     logging.info(f"Loading model from {path} on device {device}...")
 
-    model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=False)
+    model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)
 
     signature: MIMSignatureType = model_dict["signature"]
     input_channels = lib.get_channels_from_signature(signature)
@@ -256,7 +256,7 @@ def load_detection_checkpoint(
     states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
     logging.info(f"Loading model from {path} on device {device}...")
 
-    model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=False)
+    model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)
 
     signature: DetectionSignatureType = model_dict["signature"]
     input_channels = lib.get_channels_from_signature(signature)
@@ -292,24 +292,24 @@ def load_model(
     logging.info(f"Loading model from {path} on device {device}...")
 
     if pts is True:
-        extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_values": ""}
+        extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_stats": ""}
         net = torch.jit.load(path, map_location=device, _extra_files=extra_files)
         net.task = extra_files["task"]
         class_to_idx: dict[str, int] = json.loads(extra_files["class_to_idx"])
         signature: SignatureType = json.loads(extra_files["signature"])
-        rgb_values: RGBType = json.loads(extra_files["rgb_values"])
+        rgb_stats: RGBType = json.loads(extra_files["rgb_stats"])
 
     elif pt2 is True:
-        extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_values": ""}
+        extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_stats": ""}
         net = torch.export.load(path, extra_files=extra_files).module()
         net.to(device)
         net.task = extra_files["task"]
         class_to_idx = json.loads(extra_files["class_to_idx"])
         signature = json.loads(extra_files["signature"])
-        rgb_values = json.loads(extra_files["rgb_values"])
+        rgb_stats = json.loads(extra_files["rgb_stats"])
 
     else:
-        model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=False)
+        model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)
         signature = model_dict["signature"]
         input_channels = lib.get_channels_from_signature(signature)
         num_classes = signature["outputs"][0]["data_shape"][1]
@@ -325,7 +325,7 @@ def load_model(
 
         net.to(device)
         class_to_idx = model_dict["class_to_idx"]
-        rgb_values = model_dict["rgb_values"]
+        rgb_stats = model_dict["rgb_stats"]
 
     if inference is True:
         for param in net.parameters():
@@ -334,7 +334,7 @@ def load_model(
         if pt2 is False:  # Remove when GraphModule add support for 'eval'
             net.eval()
 
-    return (net, class_to_idx, signature, rgb_values)
+    return (net, class_to_idx, signature, rgb_stats)
 
 
 def load_pretrained_model(
@@ -392,14 +392,14 @@ def load_detection_model(
     logging.info(f"Loading model from {path} on device {device}...")
 
     if pts is True:
-        extra_files = {"class_to_idx": "", "signature": "", "rgb_values": ""}
+        extra_files = {"class_to_idx": "", "signature": "", "rgb_stats": ""}
         net = torch.jit.load(path, map_location=device, _extra_files=extra_files)
         class_to_idx: dict[str, int] = json.loads(extra_files["class_to_idx"])
         signature: DetectionSignatureType = json.loads(extra_files["signature"])
-        rgb_values: RGBType = json.loads(extra_files["rgb_values"])
+        rgb_stats: RGBType = json.loads(extra_files["rgb_stats"])
 
     else:
-        model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=False)
+        model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)
         signature = model_dict["signature"]
         input_channels = lib.get_channels_from_signature(signature)
         num_classes = signature["num_labels"]
@@ -413,7 +413,7 @@ def load_detection_model(
 
         net.to(device)
         class_to_idx = model_dict["class_to_idx"]
-        rgb_values = model_dict["rgb_values"]
+        rgb_stats = model_dict["rgb_stats"]
 
     if inference is True:
         for param in net.parameters():
@@ -421,7 +421,7 @@ def load_detection_model(
 
         net.eval()
 
-    return (net, class_to_idx, signature, rgb_values)
+    return (net, class_to_idx, signature, rgb_stats)
 
 
 def save_pts(
@@ -430,7 +430,7 @@ def save_pts(
     task: str,
     class_to_idx: dict[str, int],
     signature: SignatureType | DetectionSignatureType,
-    rgb_values: RGBType,
+    rgb_stats: RGBType,
 ) -> None:
     torch.jit.save(
         scripted_module,
@@ -439,7 +439,7 @@ def save_pts(
             "task": task,
             "class_to_idx": json.dumps(class_to_idx),
             "signature": json.dumps(signature),
-            "rgb_values": json.dumps(rgb_values),
+            "rgb_stats": json.dumps(rgb_stats),
         },
     )
 
@@ -450,7 +450,7 @@ def save_pt2(
     task: str,
     class_to_idx: dict[str, int],
     signature: SignatureType | DetectionSignatureType,
-    rgb_values: RGBType,
+    rgb_stats: RGBType,
 ) -> None:
     torch.export.save(
         exported_net,
@@ -459,7 +459,7 @@ def save_pt2(
             "task": task,
             "class_to_idx": json.dumps(class_to_idx),
             "signature": json.dumps(signature),
-            "rgb_values": json.dumps(rgb_values),
+            "rgb_stats": json.dumps(rgb_stats),
         },
     )
 

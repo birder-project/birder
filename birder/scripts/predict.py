@@ -72,7 +72,7 @@ def predict(args: argparse.Namespace) -> None:
         logging.info(f"Using device {device}")
 
     network_name = get_network_name(args.network, net_param=args.net_param, tag=args.tag)
-    (net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
+    (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
         device,
         args.network,
         net_param=args.net_param,
@@ -106,7 +106,7 @@ def predict(args: argparse.Namespace) -> None:
         logging.debug(f"Using size={args.size}")
 
     batch_size = args.batch_size
-    inference_transform = inference_preset((args.size, args.size), rgb_values, args.center_crop)
+    inference_transform = inference_preset((args.size, args.size), rgb_stats, args.center_crop)
     if args.wds is True:
         (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.data_path[0]))
         dataset_size = wds_size(wds_path, device)

@@ -175,7 +175,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 6.4,
-                "sha256": "6ba3e78ff5311802ada11852fbad625acfde4d87fd335b1741c2f89aaaa12b41",
+                "sha256": "f70a03b4f5a10576bd68987c0ccdc41f19c2365fbde3322577189a92c1b7ed1f",
             }
         },
         "net": {"network": "shufflenet_v2", "net_param": 1, "tag": "il-common"},

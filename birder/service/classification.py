@@ -72,7 +72,7 @@ class BirdClassifier(BaseHandler):
     def _load_model(
         self, path: str, device: torch.device, model_yaml_config: dict[str, Any]
     ) -> tuple[torch.ScriptModule | torch.nn.Module, dict[int, str], Callable[..., torch.Tensor]]:
-        extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_values": ""}
+        extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_stats": ""}
         if path.endswith("pts") is True:
             model = torch.jit.load(path, map_location=device, _extra_files=extra_files)
             model.eval()
@@ -91,10 +91,10 @@ class BirdClassifier(BaseHandler):
 
         class_to_idx: dict[str, int] = json.loads(extra_files["class_to_idx"])
         signature = json.loads(extra_files["signature"])
-        rgb_values = json.loads(extra_files["rgb_values"])
+        rgb_stats = json.loads(extra_files["rgb_stats"])
 
         size = signature["inputs"][0]["data_shape"][2]
-        transforms = inference_preset((size, size), rgb_values, 1.0)
+        transforms = inference_preset((size, size), rgb_stats, 1.0)
 
         idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
 

@@ -163,7 +163,7 @@ def main(args: argparse.Namespace) -> None:
 
     logging.info(f"Using device {device}")
 
-    (net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
+    (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
         device,
         args.network,
         net_param=args.net_param,
@@ -177,7 +177,7 @@ def main(args: argparse.Namespace) -> None:
     else:
         net.adjust_size(args.size)
 
-    transform = inference_preset((args.size, args.size), rgb_values, 1.0)
+    transform = inference_preset((args.size, args.size), rgb_stats, 1.0)
 
     if args.method == "gradcam":
         show_grad_cam(args, net, class_to_idx, transform, device)

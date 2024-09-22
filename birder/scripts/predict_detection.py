@@ -34,7 +34,7 @@ def predict(args: argparse.Namespace) -> None:
     else:
         logging.info(f"Using device {device}")
 
-    (net, class_to_idx, signature, rgb_values) = fs_ops.load_detection_model(
+    (net, class_to_idx, signature, rgb_stats) = fs_ops.load_detection_model(
         device,
         args.network,
         net_param=args.net_param,
@@ -78,7 +78,7 @@ def predict(args: argparse.Namespace) -> None:
         color_list.append(rgb)
 
     batch_size = 4
-    dataset = ImageListDataset(samples, transforms=inference_preset(args.size, rgb_values))
+    dataset = ImageListDataset(samples, transforms=inference_preset(args.size, rgb_stats))
     inference_loader = DataLoader(
         dataset,
         batch_size=batch_size,

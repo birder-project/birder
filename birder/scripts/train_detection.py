@@ -30,7 +30,7 @@ from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import get_detection_signature
 from birder.transforms.classification import RGBMode
-from birder.transforms.classification import get_rgb_values
+from birder.transforms.classification import get_rgb_stats
 from birder.transforms.detection import batch_images
 from birder.transforms.detection import inference_preset
 from birder.transforms.detection import training_preset
@@ -48,17 +48,17 @@ def train(args: argparse.Namespace) -> None:
     device_id = torch.cuda.current_device()
     torch.backends.cudnn.benchmark = True
 
-    rgb_values = get_rgb_values(args.rgb_mode)
+    rgb_stats = get_rgb_stats(args.rgb_mode)
     train_base_name = Path(args.data_path).stem
     train_coco_path = Path(args.data_path).parent.joinpath(f"{train_base_name}_coco.json")
     val_base_name = Path(args.val_path).stem
     val_coco_path = Path(args.val_path).parent.joinpath(f"{val_base_name}_coco.json")
 
     training_dataset = CocoDetection(
-        ".", train_coco_path, transforms=training_preset(args.size, args.aug_level, rgb_values)
+        ".", train_coco_path, transforms=training_preset(args.size, args.aug_level, rgb_stats)
     )
     training_dataset = wrap_dataset_for_transforms_v2(training_dataset)
-    validation_dataset = CocoDetection(".", val_coco_path, transforms=inference_preset(args.size, rgb_values))
+    validation_dataset = CocoDetection(".", val_coco_path, transforms=inference_preset(args.size, rgb_stats))
     validation_dataset = wrap_dataset_for_transforms_v2(validation_dataset)
     class_to_idx = fs_ops.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
     class_to_idx = lib.detection_class_to_idx(class_to_idx)
@@ -398,7 +398,7 @@ def train(args: argparse.Namespace) -> None:
                     model_to_save,
                     signature,
                     class_to_idx,
-                    rgb_values,
+                    rgb_stats,
                     optimizer,
                     scheduler,
                     scaler,
@@ -428,7 +428,7 @@ def train(args: argparse.Namespace) -> None:
             model_to_save,
             signature,
             class_to_idx,
-            rgb_values,
+            rgb_stats,
             optimizer,
             scheduler,
             scaler,
@@ -521,7 +521,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--rgb-mode",
         type=str,
         choices=list(typing.get_args(RGBMode)),
-        default="calculated",
+        default="birder",
         help="rgb mean and std to use for normalization",
     )
     parser.add_argument("--epochs", type=int, default=50, help="number of training epochs")

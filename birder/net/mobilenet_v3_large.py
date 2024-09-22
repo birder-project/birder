@@ -275,7 +275,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 12.1,
-                "sha256": "5d38165ac772535e5d48f712c185e25482b4659d8dc88f1f00b0f81bdcc696d6",
+                "sha256": "45ab21e80fe8a7ed71af7ca87a38e40f2955bdc0c3f4dc67bdcdb289d6472df7",
             }
         },
         "net": {"network": "mobilenet_v3_large", "net_param": 0.75, "tag": "il-common"},

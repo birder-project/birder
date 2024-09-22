@@ -663,9 +663,23 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 13.2,
-                "sha256": "af3fb7d6b19f8975b3c1ab2d5476bc6076a25051e0c6e2644a2f5cbc5274b4e3",
+                "sha256": "bd7738b31ecfde3210b75b136a8824949a11dc2cd94c15ccbeea7eb2274f414b",
             }
         },
         "net": {"network": "efficientformer_v2_s0", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "efficientformer_v2_s1_il-common",
+    {
+        "description": "EfficientFormer v2 S1 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 22.9,
+                "sha256": "a95bc36f2fee7b07b1a428aedc21fe93091fdada795686f50e8d64a25b505bef",
+            }
+        },
+        "net": {"network": "efficientformer_v2_s1", "tag": "il-common"},
     },
 )

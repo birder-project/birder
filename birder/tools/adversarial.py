@@ -25,7 +25,7 @@ def show_fgsm(args: argparse.Namespace) -> None:
 
     logging.info(f"Using device {device}")
 
-    (net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
+    (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
         device,
         args.network,
         net_param=args.net_param,
@@ -36,7 +36,7 @@ def show_fgsm(args: argparse.Namespace) -> None:
     )
     label_names = list(class_to_idx.keys())
     size = lib.get_size_from_signature(signature)[0]
-    transform = inference_preset((size, size), rgb_values, 1.0)
+    transform = inference_preset((size, size), rgb_stats, 1.0)
 
     img: Image.Image = Image.open(args.image)
     input_tensor = transform(img).unsqueeze(dim=0).to(device)

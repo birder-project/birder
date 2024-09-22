@@ -28,7 +28,7 @@ def evaluate(args: argparse.Namespace) -> None:
 
     model_list = birder.list_pretrained_models(args.filter)
     for model_name in model_list:
-        (net, class_to_idx, signature, rgb_values) = birder.load_pretrained_model(
+        (net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model(
             model_name, inference=True, device=device
         )
         if args.compile is True:
@@ -39,7 +39,7 @@ def evaluate(args: argparse.Namespace) -> None:
         else:
             size = (args.size, args.size)
 
-        transform = birder.classification_transform(size, rgb_values, args.center_crop)
+        transform = birder.classification_transform(size, rgb_stats, args.center_crop)
         dataset = make_image_dataset(args.data_path, class_to_idx, transforms=transform)
         num_samples = len(dataset)
         inference_loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=8)

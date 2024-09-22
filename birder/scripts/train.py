@@ -34,7 +34,7 @@ from birder.model_registry import registry
 from birder.net.base import get_signature
 from birder.transforms.classification import RGBMode
 from birder.transforms.classification import get_mixup_cutmix
-from birder.transforms.classification import get_rgb_values
+from birder.transforms.classification import get_rgb_stats
 from birder.transforms.classification import inference_preset
 from birder.transforms.classification import training_preset
 
@@ -58,7 +58,7 @@ def train(args: argparse.Namespace) -> None:
         device_id = torch.cuda.current_device()
         torch.backends.cudnn.benchmark = True
 
-    rgb_values = get_rgb_values(args.rgb_mode)
+    rgb_stats = get_rgb_stats(args.rgb_mode)
     if args.wds is True:
         (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.data_path))
         if args.wds_train_size is not None:
@@ -73,7 +73,7 @@ def train(args: argparse.Namespace) -> None:
             dataset_size=dataset_size,
             shuffle=True,
             samples_names=False,
-            transform=training_preset((args.size, args.size), args.aug_level, rgb_values),
+            transform=training_preset((args.size, args.size), args.aug_level, rgb_stats),
         )
         (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.val_path))
         if args.wds_val_size is not None:
@@ -88,7 +88,7 @@ def train(args: argparse.Namespace) -> None:
             dataset_size=dataset_size,
             shuffle=False,
             samples_names=False,
-            transform=inference_preset((args.size, args.size), rgb_values, 1.0),
+            transform=inference_preset((args.size, args.size), rgb_stats, 1.0),
         )
         if args.wds_class_file is None:
             args.wds_class_file = str(Path(args.data_path).joinpath(settings.CLASS_LIST_NAME))
@@ -98,12 +98,12 @@ def train(args: argparse.Namespace) -> None:
     else:
         training_dataset = ImageFolder(
             args.data_path,
-            transform=training_preset((args.size, args.size), args.aug_level, rgb_values),
+            transform=training_preset((args.size, args.size), args.aug_level, rgb_stats),
             loader=read_image,
         )
         validation_dataset = ImageFolder(
             args.val_path,
-            transform=inference_preset((args.size, args.size), rgb_values, 1.0),
+            transform=inference_preset((args.size, args.size), rgb_stats, 1.0),
             loader=read_image,
             allow_empty=True,
         )
@@ -521,7 +521,7 @@ def train(args: argparse.Namespace) -> None:
                     model_to_save,
                     signature,
                     class_to_idx,
-                    rgb_values,
+                    rgb_stats,
                     optimizer,
                     scheduler,
                     scaler,
@@ -555,7 +555,7 @@ def train(args: argparse.Namespace) -> None:
             model_to_save,
             signature,
             class_to_idx,
-            rgb_values,
+            rgb_stats,
             optimizer,
             scheduler,
             scaler,
@@ -662,7 +662,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--rgb-mode",
         type=str,
         choices=list(typing.get_args(RGBMode)),
-        default="calculated",
+        default="birder",
         help="rgb mean and std to use for normalization",
     )
     parser.add_argument("--epochs", type=int, default=100, help="number of training epochs")

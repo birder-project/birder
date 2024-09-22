@@ -18,7 +18,7 @@ from birder.dataloader.webdataset import make_wds_loader
 from birder.datasets.webdataset import make_wds_dataset
 from birder.datasets.webdataset import wds_size
 from birder.transforms.classification import get_mixup_cutmix
-from birder.transforms.classification import get_rgb_values
+from birder.transforms.classification import get_rgb_stats
 from birder.transforms.classification import inference_preset
 from birder.transforms.classification import reverse_preset
 from birder.transforms.classification import training_preset
@@ -26,11 +26,11 @@ from birder.transforms.classification import training_preset
 
 # pylint: disable=too-many-locals,too-many-branches
 def show_iterator(args: argparse.Namespace) -> None:
-    reverse_transform = reverse_preset(get_rgb_values("calculated"))
+    reverse_transform = reverse_preset(get_rgb_stats("birder"))
     if args.mode == "training":
-        transform = training_preset((args.size, args.size), args.aug_level, get_rgb_values("calculated"))
+        transform = training_preset((args.size, args.size), args.aug_level, get_rgb_stats("birder"))
     elif args.mode == "inference":
-        transform = inference_preset((args.size, args.size), get_rgb_values("calculated"), args.center_crop)
+        transform = inference_preset((args.size, args.size), get_rgb_stats("birder"), args.center_crop)
     else:
         raise ValueError(f"Unknown mode={args.mode}")
 

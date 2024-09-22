@@ -15,12 +15,12 @@ class TestTransforms(unittest.TestCase):
     def test_classification(self) -> None:
         # Get rgb
         for rgb_mode in typing.get_args(classification.RGBMode):
-            rgb_values = classification.get_rgb_values(rgb_mode)
-            self.assertIsInstance(rgb_values, dict)
-            self.assertIn("mean", rgb_values)
-            self.assertIn("std", rgb_values)
-            self.assertEqual(len(rgb_values["mean"]), 3)
-            self.assertEqual(len(rgb_values["std"]), 3)
+            rgb_stats = classification.get_rgb_stats(rgb_mode)
+            self.assertIsInstance(rgb_stats, dict)
+            self.assertIn("mean", rgb_stats)
+            self.assertIn("std", rgb_stats)
+            self.assertEqual(len(rgb_stats["mean"]), 3)
+            self.assertEqual(len(rgb_stats["std"]), 3)
 
         # Get mixup / cutmix
         mixup_cutmix: v2.Transform = classification.get_mixup_cutmix(0.5, 5, True)
@@ -41,9 +41,9 @@ class TestTransforms(unittest.TestCase):
         repr(mixup)
 
         # Presets
-        classification.training_preset((256, 256), 0, classification.get_rgb_values("none"))
-        classification.training_preset((256, 256), 3, classification.get_rgb_values("none"))
-        classification.inference_preset((256, 256), classification.get_rgb_values("none"), 0.9)
+        classification.training_preset((256, 256), 0, classification.get_rgb_stats("none"))
+        classification.training_preset((256, 256), 3, classification.get_rgb_stats("none"))
+        classification.inference_preset((256, 256), classification.get_rgb_stats("none"), 0.9)
 
     def test_detection(self) -> None:
         images = detection.batch_images(
@@ -60,5 +60,5 @@ class TestTransforms(unittest.TestCase):
         self.assertEqual(images[0][0][9][9].item(), 1)
 
         # Presets
-        detection.training_preset(256, 0, classification.get_rgb_values("none"))
-        detection.inference_preset(256, classification.get_rgb_values("none"))
+        detection.training_preset(256, 0, classification.get_rgb_stats("none"))
+        detection.inference_preset(256, classification.get_rgb_stats("none"))

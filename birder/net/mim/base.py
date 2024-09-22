@@ -27,7 +27,7 @@ def get_mim_signature(input_shape: tuple[int, ...]) -> MIMSignatureType:
 
 class MIMBaseNet(nn.Module):
     default_size: int
-    task = Task.MASKED_IMAGE_MODELING
+    task = str(Task.MASKED_IMAGE_MODELING)
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()

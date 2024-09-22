@@ -30,7 +30,7 @@ def similarity(args: argparse.Namespace) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f"Using device {device}")
 
-    (net, class_to_idx, signature, rgb_values) = fs_ops.load_model(
+    (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
         device,
         args.network,
         net_param=args.net_param,
@@ -44,7 +44,7 @@ def similarity(args: argparse.Namespace) -> None:
     assert len(samples) > 0, "Couldn't find any images"
 
     batch_size = 32
-    dataset = ImageListDataset(samples, transforms=inference_preset((size, size), rgb_values, 1.0))
+    dataset = ImageListDataset(samples, transforms=inference_preset((size, size), rgb_stats, 1.0))
     inference_loader = DataLoader(
         dataset,
         batch_size=batch_size,

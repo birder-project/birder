@@ -14,7 +14,7 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
-from birder.transforms.classification import get_rgb_values
+from birder.transforms.classification import get_rgb_stats
 from birder.transforms.classification import reverse_preset
 from birder.transforms.detection import inference_preset
 from birder.transforms.detection import training_preset
@@ -22,11 +22,11 @@ from birder.transforms.detection import training_preset
 
 # pylint: disable=too-many-locals
 def show_det_iterator(args: argparse.Namespace) -> None:
-    reverse_transform = reverse_preset(get_rgb_values("calculated"))
+    reverse_transform = reverse_preset(get_rgb_stats("birder"))
     if args.mode == "training":
-        transform = training_preset(args.size, args.aug_level, get_rgb_values("calculated"))
+        transform = training_preset(args.size, args.aug_level, get_rgb_stats("birder"))
     elif args.mode == "inference":
-        transform = inference_preset(args.size, get_rgb_values("calculated"))
+        transform = inference_preset(args.size, get_rgb_stats("birder"))
     else:
         raise ValueError(f"Unknown mode={args.mode}")
 

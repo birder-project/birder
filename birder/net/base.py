@@ -41,7 +41,7 @@ def make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> i
 
 class BaseNet(nn.Module):
     default_size: int
-    task = Task.IMAGE_CLASSIFICATION
+    task = str(Task.IMAGE_CLASSIFICATION)
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()

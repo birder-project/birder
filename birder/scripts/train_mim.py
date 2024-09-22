@@ -32,7 +32,7 @@ from birder.net.base import PreTrainEncoder
 from birder.net.base import get_signature
 from birder.net.mim.base import get_mim_signature
 from birder.transforms.classification import RGBMode
-from birder.transforms.classification import get_rgb_values
+from birder.transforms.classification import get_rgb_stats
 from birder.transforms.classification import training_preset
 
 
@@ -49,7 +49,7 @@ def train(args: argparse.Namespace) -> None:
     device_id = torch.cuda.current_device()
     torch.backends.cudnn.benchmark = True
 
-    rgb_values = get_rgb_values(args.rgb_mode)
+    rgb_stats = get_rgb_stats(args.rgb_mode)
     if args.wds is True:
         (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.data_path[0]))
         if args.wds_train_size is not None:
@@ -64,14 +64,14 @@ def train(args: argparse.Namespace) -> None:
             dataset_size=dataset_size,
             shuffle=True,
             samples_names=False,
-            transform=training_preset((args.size, args.size), args.aug_level, rgb_values),
+            transform=training_preset((args.size, args.size), args.aug_level, rgb_stats),
         )
         input_idx = 0
 
     else:
         samples = fs_ops.samples_from_paths(args.data_path, class_to_idx={})
         training_dataset = ImageListDataset(
-            samples, transforms=training_preset((args.size, args.size), args.aug_level, rgb_values)
+            samples, transforms=training_preset((args.size, args.size), args.aug_level, rgb_stats)
         )
         input_idx = 1
 
@@ -338,7 +338,7 @@ def train(args: argparse.Namespace) -> None:
                     model_to_save,
                     signature,
                     {},
-                    rgb_values,
+                    rgb_stats,
                     optimizer,
                     scheduler,
                     scaler,
@@ -349,7 +349,7 @@ def train(args: argparse.Namespace) -> None:
                     model_to_save.encoder,
                     encoder_signature,
                     {},
-                    rgb_values,
+                    rgb_stats,
                     optimizer=None,
                     scheduler=None,
                     scaler=None,
@@ -371,7 +371,7 @@ def train(args: argparse.Namespace) -> None:
             model_to_save,
             signature,
             {},
-            rgb_values,
+            rgb_stats,
             optimizer,
             scheduler,
             scaler,
@@ -382,7 +382,7 @@ def train(args: argparse.Namespace) -> None:
             model_to_save.encoder,
             encoder_signature,
             {},
-            rgb_values,
+            rgb_stats,
             optimizer,
             scheduler,
             scaler,
@@ -471,7 +471,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--rgb-mode",
         type=str,
         choices=list(typing.get_args(RGBMode)),
-        default="calculated",
+        default="birder",
         help="rgb mean and std to use for normalization",
     )
     parser.add_argument("--epochs", type=int, default=800, help="number of training epochs")
