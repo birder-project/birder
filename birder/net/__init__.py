@@ -51,6 +51,7 @@ from birder.net.squeezenext import SqueezeNext
 from birder.net.swin_transformer_v1 import Swin_Transformer_v1
 from birder.net.swin_transformer_v2 import Swin_Transformer_v2
 from birder.net.swin_transformer_v2_w2 import Swin_Transformer_v2_w2
+from birder.net.uniformer import UniFormer
 from birder.net.vgg import Vgg
 from birder.net.vgg_reduced import Vgg_Reduced
 from birder.net.vit import ViT
@@ -113,6 +114,7 @@ __all__ = [
     "Swin_Transformer_v1",
     "Swin_Transformer_v2",
     "Swin_Transformer_v2_w2",
+    "UniFormer",
     "Vgg",
     "Vgg_Reduced",
     "ViT",

@@ -60,7 +60,7 @@ class ReparamLargeKernelConv(nn.Module):
                 kernel_size=kernel_size,
                 stride=stride,
                 padding=self.padding,
-                groups=groups,
+                groups=self.groups,
                 bias=True,
             )
         else:
@@ -105,7 +105,7 @@ class ReparamLargeKernelConv(nn.Module):
 
         # Multi-branched train-time forward pass
         x = self.lkb_origin(x) + self.small_conv(x)
-        self.activation(x)
+        x = self.activation(x)
 
         return x
 
@@ -141,7 +141,7 @@ class ReparamLargeKernelConv(nn.Module):
 
         (small_k, small_b) = self._fuse_bn_tensor(self.small_conv.conv, self.small_conv.bn)
         eq_b += small_b
-        eq_k += nn.functional.pad(small_k, [(self.kernel_size - self.small_kernel) // 2] * 4)
+        eq_k += F.pad(small_k, [(self.kernel_size - self.small_kernel) // 2] * 4)
 
         return (eq_k, eq_b)
 

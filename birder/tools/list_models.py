@@ -1,4 +1,5 @@
 import argparse
+import fnmatch
 from typing import Any
 
 from rich.columns import Columns
@@ -24,10 +25,11 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools list-models\n"
             "python -m birder.tools list-models --classification\n"
             "python -m birder.tools list-models --classification --detector-backbone\n"
+            "python -m birder.tools list-models --pretrain-encoder\n"
             "python -m birder.tools list-models --detection\n"
             "python -m birder.tools list-models --pretrained\n"
             "python -m birder.tools list-models --pretrained --verbose\n"
-            "python -m birder.tools list-models --pretrain-encoder\n"
+            "python tool.py list-models --pretrained --verbose --filter '*mobile*'\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -46,6 +48,7 @@ def set_parser(subparsers: Any) -> None:
         "--pretrain-encoder", default=False, action="store_true", help="list models that support pretraining"
     )
 
+    subparser.add_argument("--filter", type=str, help="filter results with a fnmatch type filter)")
     subparser.add_argument(
         "-v",
         "--verbose",
@@ -75,6 +78,8 @@ def main(args: argparse.Namespace) -> None:
         model_list = registry.list_models(net_type=t)
 
     model_list = group_sort(model_list)
+    if args.filter is not None:
+        model_list = fnmatch.filter(model_list, args.filter)
 
     console = Console()
     if args.verbose is True:

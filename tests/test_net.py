@@ -80,6 +80,7 @@ class TestNet(unittest.TestCase):
             ("swin_transformer_v1", 0),
             ("swin_transformer_v2", 0),
             ("swin_transformer_v2_w2", 0),
+            ("uniformer", 0),
             ("vgg", 11),
             ("vgg_reduced", 11),
             ("vit", 0),
@@ -166,6 +167,7 @@ class TestNet(unittest.TestCase):
         [
             ("convnext_v2", 0, False),
             ("maxvit", 0, True),
+            ("nextvit", 0, True),
             ("simple_vit", 0, False),
             ("swin_transformer_v2", 0, True),
             ("swin_transformer_v2_w2", 0, True),

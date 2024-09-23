@@ -66,7 +66,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
-    parser.add_argument("--filter", type=str, help="models to benchmark (fnmatch type filter)")
+    parser.add_argument("--filter", type=str, help="models to evaluate (fnmatch type filter)")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
         "--amp", default=False, action="store_true", help="use torch.amp.autocast for mixed precision inference"

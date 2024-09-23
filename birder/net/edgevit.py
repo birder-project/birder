@@ -212,12 +212,8 @@ class LGLBlock(nn.Module):
 
 
 class PatchEmbed(nn.Module):
-    def __init__(self, img_size: int, patch_size: int, in_channels: int, embed_dim: int) -> None:
+    def __init__(self, patch_size: int, in_channels: int, embed_dim: int) -> None:
         super().__init__()
-        num_patches = (img_size // patch_size) * (img_size // patch_size)
-        self.img_size = img_size
-        self.patch_size = patch_size
-        self.num_patches = num_patches
         self.proj = nn.Conv2d(
             in_channels,
             embed_dim,
@@ -250,10 +246,8 @@ class EdgeViT(BaseNet):
     ) -> None:
         super().__init__(input_channels, num_classes, net_param, size)
         assert self.net_param is not None, "must set net-param"
-        assert self.size is not None, "must set size"
         net_param = int(self.net_param)
 
-        image_size = self.size
         mlp_ratio = [4.0, 4.0, 4.0, 4.0]
         sr_ratios = [4, 2, 2, 1]
         drop_path_rate = 0.1
@@ -278,18 +272,10 @@ class EdgeViT(BaseNet):
         else:
             raise ValueError(f"net_param = {net_param} not supported")
 
-        self.patch_embed1 = PatchEmbed(
-            img_size=image_size, patch_size=4, in_channels=self.input_channels, embed_dim=embed_dim[0]
-        )
-        self.patch_embed2 = PatchEmbed(
-            img_size=image_size // 4, patch_size=2, in_channels=embed_dim[0], embed_dim=embed_dim[1]
-        )
-        self.patch_embed3 = PatchEmbed(
-            img_size=image_size // 8, patch_size=2, in_channels=embed_dim[1], embed_dim=embed_dim[2]
-        )
-        self.patch_embed4 = PatchEmbed(
-            img_size=image_size // 16, patch_size=2, in_channels=embed_dim[2], embed_dim=embed_dim[3]
-        )
+        self.patch_embed1 = PatchEmbed(patch_size=4, in_channels=self.input_channels, embed_dim=embed_dim[0])
+        self.patch_embed2 = PatchEmbed(patch_size=2, in_channels=embed_dim[0], embed_dim=embed_dim[1])
+        self.patch_embed3 = PatchEmbed(patch_size=2, in_channels=embed_dim[1], embed_dim=embed_dim[2])
+        self.patch_embed4 = PatchEmbed(patch_size=2, in_channels=embed_dim[2], embed_dim=embed_dim[3])
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depth))]  # Stochastic depth decay rule
         num_heads = [dim // head_dim for dim in embed_dim]
@@ -367,7 +353,7 @@ class EdgeViT(BaseNet):
         for m in self.modules():
             if isinstance(m, nn.Linear) is True:
                 nn.init.trunc_normal_(m.weight, std=0.02)
-                if isinstance(m, nn.Linear) is True and m.bias is not None:
+                if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
             elif isinstance(m, nn.LayerNorm) is True:

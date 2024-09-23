@@ -96,10 +96,9 @@ class Pooling(nn.Module):
 class ConvMLP(nn.Module):
     def __init__(self, in_features: int, hidden_features: int, drop: float) -> None:
         super().__init__()
-        hidden_features = hidden_features or in_features
-        self.fc1 = nn.Conv2d(in_features, hidden_features, 1)
+        self.fc1 = nn.Conv2d(in_features, hidden_features, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.act = nn.GELU()
-        self.fc2 = nn.Conv2d(hidden_features, in_features, 1)
+        self.fc2 = nn.Conv2d(hidden_features, in_features, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.drop = nn.Dropout(drop)
         self.norm1 = nn.BatchNorm2d(hidden_features)
         self.norm2 = nn.BatchNorm2d(in_features)

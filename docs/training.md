@@ -83,6 +83,7 @@ On fine-tuning phase
 * [Swin Transformer v1](#swin-transformer-v1)
 * [Swin Transformer v2](#swin-transformer-v2)
 * [Swin Transformer v2 w2](#swin-transformer-v2-w2)
+* [UniFormer](#uniformer)
 * [VGG](#vgg)
 * [VGG Reduced](#vgg-reduced)
 * [ViT](#vit)
@@ -1092,6 +1093,14 @@ torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_l --opt adamw
 ### Swin Transformer v2 w2
 
 Same as Swin Transformer v2
+
+### UniFormer
+
+#### UniFormer: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network uniformer_s --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 64 --epochs 300 --size 320 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
 
 ### VGG
 

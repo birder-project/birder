@@ -126,9 +126,9 @@ The pre-training dataset comprises:
 * NABirds (~48K)
 * Birdsnap v1.1 (~44K)
 * CUB-200 2011 (~18K)
-* The Birder dataset (~2.5M)
+* The Birder dataset (~3.5M)
 
-Total: ~8.5M images
+Total: ~9.5M images
 
 This carefully curated mix of datasets balances general visual knowledge with domain-specific bird imagery, enhancing the model's overall performance.
 
