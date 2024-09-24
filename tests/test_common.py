@@ -1,3 +1,4 @@
+import argparse
 import logging
 import typing
 import unittest
@@ -175,11 +176,19 @@ class TestCommon(unittest.TestCase):
 
         # Get optimizer
         for opt_type in typing.get_args(training_utils.OptimizerType):
-            opt = training_utils.get_optimizer(opt_type, [{"params": []}], 0.0, 0.0, 0.0, nesterov=False)
+            args = argparse.Namespace(opt=opt_type, lr=0.1, momentum=0.9, wd=0, nesterov=False)
+            opt = training_utils.get_optimizer([{"params": []}], args)
             self.assertIsInstance(opt, torch.optim.Optimizer)
 
         with self.assertRaises(ValueError):
-            training_utils.get_optimizer("unknown", [{"params": []}], 0.0, 0.0, 0.0, nesterov=False)  # type: ignore
+            args = argparse.Namespace(opt="unknown")
+            training_utils.get_optimizer([{"params": []}], args)
+
+        # Check custom params
+        args = argparse.Namespace(opt="adamw", lr=0.1, wd=0.1, opt_eps=1e-6, opt_betas=[0.1, 0.2])
+        opt = training_utils.get_optimizer([{"params": []}], args)
+        self.assertEqual(opt.defaults["eps"], 1e-6)
+        self.assertEqual(opt.defaults["betas"], [0.1, 0.2])
 
         # Get scheduler
         for scheduler_type in typing.get_args(training_utils.SchedulerType):

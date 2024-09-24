@@ -234,6 +234,44 @@ class PatchEmbed(nn.Module):
         return x
 
 
+class EdgeViTSage(nn.Module):
+    def __init__(
+        self,
+        patch_size: int,
+        in_channels: int,
+        embed_dim: int,
+        depth: int,
+        num_heads: int,
+        mlp_ratio: float,
+        act_layer: Callable[..., nn.Module],
+        norm_layer: Callable[..., nn.Module],
+        drop_path: list[float],
+        sr_ratio: int,
+    ) -> None:
+        super().__init__()
+        self.patch_embed = PatchEmbed(patch_size=patch_size, in_channels=in_channels, embed_dim=embed_dim)
+        layers = []
+        for i in range(depth):
+            layers.append(
+                LGLBlock(
+                    dim=embed_dim,
+                    num_heads=num_heads,
+                    mlp_ratio=mlp_ratio,
+                    act_layer=act_layer,
+                    norm_layer=norm_layer,
+                    drop_path=drop_path[i],
+                    sr_ratio=sr_ratio,
+                )
+            )
+        self.blocks = nn.Sequential(*layers)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.patch_embed(x)
+        x = self.blocks(x)
+
+        return x
+
+
 class EdgeViT(BaseNet):
     default_size = 224
 
@@ -248,6 +286,7 @@ class EdgeViT(BaseNet):
         assert self.net_param is not None, "must set net-param"
         net_param = int(self.net_param)
 
+        patch_size = [4, 2, 2, 2]
         mlp_ratio = [4.0, 4.0, 4.0, 4.0]
         sr_ratios = [4, 2, 2, 1]
         drop_path_rate = 0.1
@@ -272,76 +311,31 @@ class EdgeViT(BaseNet):
         else:
             raise ValueError(f"net_param = {net_param} not supported")
 
-        self.patch_embed1 = PatchEmbed(patch_size=4, in_channels=self.input_channels, embed_dim=embed_dim[0])
-        self.patch_embed2 = PatchEmbed(patch_size=2, in_channels=embed_dim[0], embed_dim=embed_dim[1])
-        self.patch_embed3 = PatchEmbed(patch_size=2, in_channels=embed_dim[1], embed_dim=embed_dim[2])
-        self.patch_embed4 = PatchEmbed(patch_size=2, in_channels=embed_dim[2], embed_dim=embed_dim[3])
-
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depth))]  # Stochastic depth decay rule
+        num_stages = len(depth)
+        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depth)).split(depth)]
         num_heads = [dim // head_dim for dim in embed_dim]
         norm_layer = partial(nn.LayerNorm, eps=1e-6)
 
-        layers = []
-        for i in range(depth[0]):
-            layers.append(
-                LGLBlock(
-                    dim=embed_dim[0],
-                    num_heads=num_heads[0],
-                    mlp_ratio=mlp_ratio[0],
-                    act_layer=nn.GELU,
-                    norm_layer=norm_layer,
-                    drop_path=dpr[i],
-                    sr_ratio=sr_ratios[0],
-                )
+        prev_dim = self.input_channels
+        stages = []
+        for i in range(num_stages):
+            stage = EdgeViTSage(
+                patch_size=patch_size[i],
+                in_channels=prev_dim,
+                embed_dim=embed_dim[i],
+                depth=depth[i],
+                num_heads=num_heads[i],
+                mlp_ratio=mlp_ratio[i],
+                act_layer=nn.GELU,
+                norm_layer=norm_layer,
+                drop_path=dpr[i],
+                sr_ratio=sr_ratios[i],
             )
-        self.blocks1 = nn.Sequential(*layers)
+            stages.append(stage)
+            prev_dim = embed_dim[i]
 
-        layers = []
-        for i in range(depth[1]):
-            layers.append(
-                LGLBlock(
-                    dim=embed_dim[1],
-                    num_heads=num_heads[1],
-                    mlp_ratio=mlp_ratio[1],
-                    act_layer=nn.GELU,
-                    norm_layer=norm_layer,
-                    drop_path=dpr[i + depth[0]],
-                    sr_ratio=sr_ratios[1],
-                )
-            )
-        self.blocks2 = nn.Sequential(*layers)
-
-        layers = []
-        for i in range(depth[2]):
-            layers.append(
-                LGLBlock(
-                    dim=embed_dim[2],
-                    num_heads=num_heads[2],
-                    mlp_ratio=mlp_ratio[2],
-                    act_layer=nn.GELU,
-                    norm_layer=norm_layer,
-                    drop_path=dpr[i + depth[0] + depth[1]],
-                    sr_ratio=sr_ratios[2],
-                )
-            )
-        self.blocks3 = nn.Sequential(*layers)
-
-        layers = []
-        for i in range(depth[3]):
-            layers.append(
-                LGLBlock(
-                    dim=embed_dim[3],
-                    num_heads=num_heads[3],
-                    mlp_ratio=mlp_ratio[3],
-                    act_layer=nn.GELU,
-                    norm_layer=norm_layer,
-                    drop_path=dpr[i + depth[0] + depth[1] + depth[2]],
-                    sr_ratio=sr_ratios[3],
-                )
-            )
-        self.blocks4 = nn.Sequential(*layers)
-        self.norm = nn.BatchNorm2d(embed_dim[-1])
-
+        stages.append(nn.BatchNorm2d(embed_dim[-1]))
+        self.body = nn.Sequential(*stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
@@ -361,16 +355,7 @@ class EdgeViT(BaseNet):
                 nn.init.constant_(m.weight, 1.0)
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.patch_embed1(x)
-        x = self.blocks1(x)
-        x = self.patch_embed2(x)
-        x = self.blocks2(x)
-        x = self.patch_embed3(x)
-        x = self.blocks3(x)
-        x = self.patch_embed4(x)
-        x = self.blocks4(x)
-        x = self.norm(x)
-
+        x = self.body(x)
         return self.features(x)
 
     def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
@@ -395,7 +380,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 14.9,
-                "sha256": "f09fa503ecad9a211c34488b8803584bf6bcbaa9f139ca3c9f065a62ae5ea920",
+                "sha256": "de086c3f4bf2a9a65f613c8b94b0a6781676e7f68039fe9356b5797fb72adfb9",
             }
         },
         "net": {"network": "edgevit_xxs", "tag": "il-common"},
@@ -409,7 +394,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 25,
-                "sha256": "8f8dfbfca02afa87089692fe71ae9b6bf8814487900db7d6ad4bd538841fa9d0",
+                "sha256": "5c9bf97102aae477420d6fde4a638b6f331f2c6df8611591d4796a1d5c1c6092",
             }
         },
         "net": {"network": "edgevit_xs", "tag": "il-common"},

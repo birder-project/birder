@@ -37,6 +37,7 @@ def similarity(args: argparse.Namespace) -> None:
         tag=args.tag,
         epoch=args.epoch,
         inference=True,
+        reparameterized=args.reparameterized,
     )
 
     size = lib.get_size_from_signature(signature)[0]
@@ -136,6 +137,9 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--cosine", default=False, action="store_true", help="use cosine distance")
     subparser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
+    subparser.add_argument(
+        "-r", "--reparameterized", default=False, action="store_true", help="load reparameterized model"
+    )
     subparser.add_argument("--limit", type=int, help="limit number of pairs to show")
     subparser.add_argument("--reverse", default=False, action="store_true", help="start from most distinct pairs")
     subparser.add_argument("data_path", nargs="+", help="data files path (directories and files)")

@@ -137,6 +137,9 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
+    subparser.add_argument(
+        "-r", "--reparameterized", default=False, action="store_true", help="load reparameterized model"
+    )
     subparser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
     subparser.add_argument("--gpu-id", type=int, help="gpu id to use")
     subparser.add_argument(
@@ -170,6 +173,7 @@ def main(args: argparse.Namespace) -> None:
         tag=args.tag,
         epoch=args.epoch,
         inference=False,
+        reparameterized=args.reparameterized,
     )
     if args.size is None:
         args.size = lib.get_size_from_signature(signature)[0]

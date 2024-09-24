@@ -258,20 +258,22 @@ def get_wd_custom_keys(args: argparse.Namespace) -> list[tuple[str, float]]:
     return custom_keys_weight_decay
 
 
-def get_optimizer(
-    opt: OptimizerType,
-    parameters: list[dict[str, Any]],
-    lr: float,
-    wd: float,
-    momentum: float,
-    nesterov: bool,
-) -> torch.optim.Optimizer:
+def get_optimizer(parameters: list[dict[str, Any]], args: argparse.Namespace) -> torch.optim.Optimizer:
+    opt: OptimizerType = args.opt
+    kwargs = {}
+    if getattr(args, "opt_eps", None) is not None:
+        kwargs["eps"] = args.opt_eps
+    if getattr(args, "opt_betas", None) is not None:
+        kwargs["betas"] = args.opt_betas
+
     if opt == "sgd":
-        optimizer = torch.optim.SGD(parameters, lr=lr, momentum=momentum, nesterov=nesterov, weight_decay=wd)
+        optimizer = torch.optim.SGD(
+            parameters, lr=args.lr, momentum=args.momentum, nesterov=args.nesterov, weight_decay=args.wd
+        )
     elif opt == "rmsprop":
-        optimizer = torch.optim.RMSprop(parameters, lr=lr, momentum=momentum, weight_decay=wd, eps=0.0316, alpha=0.9)
+        optimizer = torch.optim.RMSprop(parameters, lr=args.lr, momentum=args.momentum, weight_decay=args.wd, **kwargs)
     elif opt == "adamw":
-        optimizer = torch.optim.AdamW(parameters, lr=lr, weight_decay=wd)
+        optimizer = torch.optim.AdamW(parameters, lr=args.lr, weight_decay=args.wd, **kwargs)
     else:
         raise ValueError("Unknown optimizer")
 

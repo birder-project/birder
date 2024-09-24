@@ -57,6 +57,9 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
     subparser.add_argument(
+        "-r", "--reparameterized", default=False, action="store_true", help="load reparameterized model"
+    )
+    subparser.add_argument(
         "--trace",
         default=False,
         action="store_true",
@@ -65,7 +68,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--force", action="store_true", help="override existing model")
 
     format_group = subparser.add_mutually_exclusive_group(required=True)
-    format_group.add_argument("-r", "--reparameterize", default=False, action="store_true", help="reparameterize model")
+    format_group.add_argument("--reparameterize", default=False, action="store_true", help="reparameterize model")
     format_group.add_argument("--pts", default=False, action="store_true", help="convert to TorchScript model")
     format_group.add_argument(
         "--lite", default=False, action="store_true", help="convert to lite TorchScript interpreter version model"
@@ -92,7 +95,7 @@ def main(args: argparse.Namespace) -> None:
             tag=args.tag,
             epoch=args.epoch,
             inference=True,
-            pts=False,
+            reparameterized=args.reparameterized,
         )
         network_name = lib.get_network_name(args.network, net_param=args.net_param, tag=args.tag)
 

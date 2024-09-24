@@ -129,7 +129,7 @@ def train(args: argparse.Namespace) -> None:
         custom_keys_weight_decay=custom_keys_weight_decay,
         layer_decay=args.layer_decay,
     )
-    optimizer = training_utils.get_optimizer(args.opt, parameters, args.lr, args.wd, args.momentum, args.nesterov)
+    optimizer = training_utils.get_optimizer(parameters, args)
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
         optimizer,
@@ -431,6 +431,10 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="weight decay for embedding parameters for vision transformer models",
     )
     parser.add_argument("--layer-decay", type=float, default=None, help="layer-wise learning rate decay (LLRD)")
+    parser.add_argument("--opt-eps", type=float, help="optimizer epsilon (None to use the optimizer default)")
+    parser.add_argument(
+        "--opt-betas", type=float, nargs="+", help="optimizer betas (None to use the optimizer default)"
+    )
     parser.add_argument(
         "--lr-scheduler",
         type=str,

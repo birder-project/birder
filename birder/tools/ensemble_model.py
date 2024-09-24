@@ -28,8 +28,8 @@ def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "ensemble-model",
         allow_abbrev=False,
-        help="create an ensemble model from multiple torchscript models",
-        description="create an ensemble model from multiple torchscript models",
+        help="create an ensemble model from multiple models",
+        description="create an ensemble model from multiple models",
         epilog=(
             "Usage examples:\n"
             "python -m birder.tools ensemble-model --networks convnext_v2_4_0 focalnet_3_0 "

@@ -4,6 +4,9 @@ https://github.com/apple/ml-fastvit/blob/main/models/fastvit.py
 
 Paper "FastViT: A Fast Hybrid Vision Transformer using Structural Reparameterization",
 https://arxiv.org/abs/2303.14189
+
+Changes from original:
+* Fixed ReparamLargeKernelConv activation (a forward)
 """
 
 # Reference license: Apple MIT License

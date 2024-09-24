@@ -7,6 +7,7 @@ Paper "UniFormer: Unifying Convolution and Self-attention for Visual Recognition
 
 # Reference license: Apache-2.0
 
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -172,6 +173,52 @@ class PatchEmbed(nn.Module):
         return x
 
 
+class UniFormerStage(nn.Module):
+    def __init__(
+        self,
+        block_type: Literal["conv", "attn"],
+        patch_size: tuple[int, int],
+        in_channels: int,
+        embed_dim: int,
+        depth: int,
+        num_heads: int,
+        mlp_ratio: float,
+        layer_scale_init_value: Optional[float],
+        drop: float,
+        drop_path: list[float],
+    ) -> None:
+        super().__init__()
+        self.patch_embed = PatchEmbed(patch_size=patch_size, in_channels=in_channels, embed_dim=embed_dim)
+
+        layers = []
+        for i in range(depth):
+            if block_type == "conv":
+                layers.append(ConvBlock(embed_dim, mlp_ratio=mlp_ratio, drop=drop, drop_path=drop_path[i]))
+            elif block_type == "attn":
+                layers.append(
+                    AttentionBlock(
+                        embed_dim,
+                        num_heads=num_heads,
+                        mlp_ratio=mlp_ratio,
+                        qkv_bias=True,
+                        layer_scale_init_value=layer_scale_init_value,
+                        drop=0.0,
+                        attn_drop=0.0,
+                        drop_path=drop_path[i],
+                    )
+                )
+            else:
+                raise ValueError(f"Block type: {block_type} not supported")
+
+        self.blocks = nn.Sequential(*layers)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.patch_embed(x)
+        x = self.blocks(x)
+
+        return x
+
+
 class UniFormer(BaseNet):
     default_size = 224
 
@@ -186,6 +233,8 @@ class UniFormer(BaseNet):
         assert self.net_param is not None, "must set net-param"
         net_param = int(self.net_param)
 
+        block_type = ["conv", "conv", "attn", "attn"]
+        patch_size = [4, 2, 2, 2]
         if net_param == 0:
             # Small
             depth = [3, 4, 8, 3]
@@ -216,59 +265,30 @@ class UniFormer(BaseNet):
         else:
             raise ValueError(f"net_param = {net_param} not supported")
 
-        self.patch_embed1 = PatchEmbed(patch_size=(4, 4), in_channels=self.input_channels, embed_dim=embed_dim[0])
-        self.patch_embed2 = PatchEmbed(patch_size=(2, 2), in_channels=embed_dim[0], embed_dim=embed_dim[1])
-        self.patch_embed3 = PatchEmbed(patch_size=(2, 2), in_channels=embed_dim[1], embed_dim=embed_dim[2])
-        self.patch_embed4 = PatchEmbed(patch_size=(2, 2), in_channels=embed_dim[2], embed_dim=embed_dim[3])
-
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depth))]  # Stochastic depth decay rule
+        num_stages = len(depth)
+        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depth)).split(depth)]
         num_heads = [dim // head_dim for dim in embed_dim]
 
-        layers = []
-        for i in range(depth[0]):
-            layers.append(ConvBlock(embed_dim[0], mlp_ratio=mlp_ratio[0], drop=0.0, drop_path=dpr[i]))
-
-        self.blocks1 = nn.Sequential(*layers)
-
-        layers = []
-        for i in range(depth[1]):
-            layers.append(ConvBlock(embed_dim[1], mlp_ratio=mlp_ratio[1], drop=0.0, drop_path=dpr[i + depth[0]]))
-
-        self.blocks2 = nn.Sequential(*layers)
-
-        layers = []
-        for i in range(depth[2]):
-            layers.append(
-                AttentionBlock(
-                    embed_dim[2],
-                    num_heads=num_heads[2],
-                    mlp_ratio=mlp_ratio[2],
-                    qkv_bias=True,
-                    layer_scale_init_value=layer_scale_init_value,
-                    drop=0.0,
-                    attn_drop=0.0,
-                    drop_path=dpr[i + depth[0] + depth[1]],
-                )
+        prev_dim = self.input_channels
+        stages = []
+        for i in range(num_stages):
+            stage = UniFormerStage(
+                block_type=block_type[i],  # type: ignore[arg-type]
+                patch_size=(patch_size[i], patch_size[i]),
+                in_channels=prev_dim,
+                embed_dim=embed_dim[i],
+                depth=depth[i],
+                num_heads=num_heads[i],
+                mlp_ratio=mlp_ratio[i],
+                layer_scale_init_value=layer_scale_init_value,
+                drop=0.0,
+                drop_path=dpr[i],
             )
-        self.blocks3 = nn.Sequential(*layers)
+            stages.append(stage)
+            prev_dim = embed_dim[i]
 
-        layers = []
-        for i in range(depth[3]):
-            layers.append(
-                AttentionBlock(
-                    embed_dim[3],
-                    num_heads=num_heads[3],
-                    mlp_ratio=mlp_ratio[3],
-                    qkv_bias=True,
-                    layer_scale_init_value=layer_scale_init_value,
-                    drop=0.0,
-                    attn_drop=0.0,
-                    drop_path=dpr[i + depth[0] + depth[1] + depth[2]],
-                )
-            )
-        self.blocks4 = nn.Sequential(*layers)
-        self.norm = nn.BatchNorm2d(embed_dim[-1])
-
+        stages.append(nn.BatchNorm2d(embed_dim[-1]))
+        self.body = nn.Sequential(*stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
@@ -288,16 +308,7 @@ class UniFormer(BaseNet):
                 nn.init.constant_(m.weight, 1.0)
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.patch_embed1(x)
-        x = self.blocks1(x)
-        x = self.patch_embed2(x)
-        x = self.blocks2(x)
-        x = self.patch_embed3(x)
-        x = self.blocks3(x)
-        x = self.patch_embed4(x)
-        x = self.blocks4(x)
-        x = self.norm(x)
-
+        x = self.body(x)
         return self.features(x)
 
 

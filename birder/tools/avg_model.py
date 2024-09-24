@@ -13,7 +13,9 @@ from birder.model_registry import registry
 from birder.net.base import SignatureType
 
 
-def avg_models(network: str, net_param: Optional[float], tag: Optional[str], epochs: list[int], force: bool) -> None:
+def avg_models(
+    network: str, net_param: Optional[float], tag: Optional[str], reparameterized: bool, epochs: list[int], force: bool
+) -> None:
     device = torch.device("cpu")
     state_list = []
     aux_data = {}
@@ -40,6 +42,9 @@ def avg_models(network: str, net_param: Optional[float], tag: Optional[str], epo
             size = lib.get_size_from_signature(signature)[0]
 
             net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
+            if reparameterized is True:
+                net.reparameterize_model()
+
             net.to(device)
 
     # Average state
@@ -93,9 +98,12 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--epochs", type=int, nargs="+", help="epochs to average")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
+    subparser.add_argument(
+        "-r", "--reparameterized", default=False, action="store_true", help="load reparameterized model"
+    )
     subparser.add_argument("--force", action="store_true", help="override existing model")
     subparser.set_defaults(func=main)
 
 
 def main(args: argparse.Namespace) -> None:
-    avg_models(args.network, args.net_param, args.tag, args.epochs, args.force)
+    avg_models(args.network, args.net_param, args.tag, args.reparameterized, args.epochs, args.force)

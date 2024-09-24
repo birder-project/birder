@@ -16,13 +16,13 @@ Set `OMP_NUM_THREADS`.
 #### FCMAE: ConvNeXt v2 Nano
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network fcmae --encoder convnext_v2_nano --opt adamw --lr 0.00015 --lr-scheduler cosine --warmup-epochs 40 --batch-size 512 --wd 0.05 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network fcmae --encoder convnext_v2_nano --opt adamw --lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --batch-size 512 --wd 0.05 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 #### FCMAE: ConvNeXt v2 Tiny
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network fcmae --encoder convnext_v2_tiny --opt adamw --lr 0.00015 --lr-scheduler cosine --warmup-epochs 40 --batch-size 256 --wd 0.05 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network fcmae --encoder convnext_v2_tiny --opt adamw --lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --batch-size 256 --wd 0.05 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Optional intermediate training: first stage - linear probing
@@ -76,7 +76,7 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag mim --opt 
 #### FCMAE: ConvNeXt v2 Base
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network fcmae --encoder convnext_v2_base --opt adamw --lr 0.00015 --lr-scheduler cosine --warmup-epochs 40 --batch-size 128 --wd 0.05 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network fcmae --encoder convnext_v2_base --opt adamw --lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --batch-size 128 --wd 0.05 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Optional intermediate training: first stage - linear probing
@@ -114,13 +114,13 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag mim --opt 
 #### MAE ViT: Simple ViT b16
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network mae_vit --encoder simple_vit_b16 --opt adamw --lr 0.00015 --lr-scheduler cosine --warmup-epochs 40 --batch-size 256 --wd 0.0001 --clip-grad-norm 1 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network mae_vit --encoder simple_vit_b16 --opt adamw --lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --batch-size 256 --wd 0.0001 --clip-grad-norm 1 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 #### MAE ViT: ViTReg4 b16
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network mae_vit --encoder vitreg4_b16 --opt adamw --lr 0.00015 --lr-scheduler cosine --warmup-epochs 40 --batch-size 256 --wd 0.05 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network mae_vit --encoder vitreg4_b16 --opt adamw --lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --batch-size 256 --wd 0.05 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Optional intermediate training: first stage - linear probing
@@ -156,7 +156,7 @@ torchrun --nproc_per_node=2 train.py --network vitreg4_b16 --tag mim --opt adamw
 #### MAE ViT: ViTReg4 l16
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network mae_vit --encoder vitreg4_l16 --opt adamw --lr 0.00015 --lr-scheduler cosine --warmup-epochs 40 --batch-size 128 --wd 0.05 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network mae_vit --encoder vitreg4_l16 --opt adamw --lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --batch-size 128 --wd 0.05 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Optional intermediate training: first stage - linear probing
