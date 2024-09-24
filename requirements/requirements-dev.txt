@@ -1,7 +1,7 @@
 -r requirements.txt
 
 altair~=5.4.1
-bandit~=1.7.9
+bandit~=1.7.10
 black~=24.8.0
 build~=1.2.2
 bumpver~=2023.1129
@@ -16,7 +16,7 @@ mkdocs~=1.6.1
 MonkeyType~=23.3.0
 mypy~=1.11.2
 parameterized~=0.9.0
-pylint~=3.3.0
+pylint~=3.3.1
 requests~=2.32.3
 setuptools
 tensorboard~=2.17.1

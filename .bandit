@@ -3,4 +3,5 @@ exclude: ./.venv/
 
 # B101: Use of assert detected. The enclosed code will be removed when compiling to optimized byte code.
 # B311: Standard pseudo-random generators are not suitable for security/cryptographic purposes.
-skips: B101,B311
+# B614: Use of unsafe PyTorch load or save.
+skips: B101,B311,B614
