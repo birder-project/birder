@@ -17,6 +17,7 @@ def dummy(arg: Any) -> None:
     type(arg)
 
 
+# pylint: disable=too-many-locals
 def benchmark(args: argparse.Namespace) -> None:
     if args.gpu is True:
         device = torch.device("cuda")
