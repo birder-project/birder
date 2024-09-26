@@ -9,6 +9,7 @@ https://arxiv.org/abs/2206.04040
 # Reference license: Apple MIT License
 
 from collections.abc import Callable
+from typing import Any
 from typing import Optional
 
 import torch
@@ -296,48 +297,21 @@ class MobileOne(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         self.reparameterized = False
         num_blocks_per_stage = [2, 8, 10, 1]
         widths = [64, 128, 256, 512]
-        if net_param == 0:
-            # s0
-            width_multipliers = [0.75, 1.0, 1.0, 2.0]
-            num_conv_branches = 4
-            num_se_blocks = [0, 0, 0, 0]
-
-        elif net_param == 1:
-            # s1
-            width_multipliers = [1.5, 1.5, 2.0, 2.5]
-            num_conv_branches = 1
-            num_se_blocks = [0, 0, 0, 0]
-
-        elif net_param == 2:
-            # s2
-            width_multipliers = [1.5, 2.0, 2.5, 4.0]
-            num_conv_branches = 1
-            num_se_blocks = [0, 0, 0, 0]
-
-        elif net_param == 3:
-            # s3
-            width_multipliers = [2.0, 2.5, 3.0, 4.0]
-            num_conv_branches = 1
-            num_se_blocks = [0, 0, 0, 0]
-
-        elif net_param == 4:
-            # s4
-            width_multipliers = [3.0, 3.5, 3.5, 4.0]
-            num_conv_branches = 1
-            num_se_blocks = [0, 0, 5, 1]
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        width_multipliers: list[float] = self.config["width_multipliers"]
+        num_conv_branches: int = self.config["num_conv_branches"]
+        num_se_blocks: list[int] = self.config["num_se_blocks"]
 
         in_planes = min(64, int(widths[0] * width_multipliers[0]))
         self.stem = MobileOneBlock(
@@ -390,11 +364,31 @@ class MobileOne(BaseNet):
         self.reparameterized = True
 
 
-registry.register_alias("mobileone_s0", MobileOne, 0)
-registry.register_alias("mobileone_s1", MobileOne, 1)
-registry.register_alias("mobileone_s2", MobileOne, 2)
-registry.register_alias("mobileone_s3", MobileOne, 3)
-registry.register_alias("mobileone_s4", MobileOne, 4)
+registry.register_alias(
+    "mobileone_s0",
+    MobileOne,
+    config={"width_multipliers": [0.75, 1.0, 1.0, 2.0], "num_conv_branches": 4, "num_se_blocks": [0, 0, 0, 0]},
+)
+registry.register_alias(
+    "mobileone_s1",
+    MobileOne,
+    config={"width_multipliers": [1.5, 1.5, 2.0, 2.5], "num_conv_branches": 1, "num_se_blocks": [0, 0, 0, 0]},
+)
+registry.register_alias(
+    "mobileone_s2",
+    MobileOne,
+    config={"width_multipliers": [1.5, 2.0, 2.5, 4.0], "num_conv_branches": 1, "num_se_blocks": [0, 0, 0, 0]},
+)
+registry.register_alias(
+    "mobileone_s3",
+    MobileOne,
+    config={"width_multipliers": [2.0, 2.5, 3.0, 4.0], "num_conv_branches": 1, "num_se_blocks": [0, 0, 0, 0]},
+)
+registry.register_alias(
+    "mobileone_s4",
+    MobileOne,
+    config={"width_multipliers": [3.0, 3.5, 3.5, 4.0], "num_conv_branches": 1, "num_se_blocks": [0, 0, 5, 1]},
+)
 
 registry.register_weights(
     "mobileone_s0_il-common",

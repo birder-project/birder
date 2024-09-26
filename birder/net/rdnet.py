@@ -8,6 +8,7 @@ Paper "DenseNets Reloaded: Paradigm Shift Beyond ResNets and ViTs", https://arxi
 # Reference license: Apache-2.0
 
 from collections.abc import Callable
+from typing import Any
 from typing import Optional
 
 import torch
@@ -133,61 +134,24 @@ class RDNet(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         bottleneck_width_ratio = 4.0
         ls_init_value = 1e-6
-        if net_param == 0:
-            # Tiny
-            n_layer = 7
-            num_init_features = 64
-            growth_rates = [64] + [104] + [128] * 4 + [224]
-            num_blocks_list = [3] * 7
-            is_downsample_block = [False, True, True, False, False, False, True]
-            transition_compression_ratio = 0.5
-            block_type = [Block] + [Block] + [BlockESE] * 4 + [BlockESE]
-            drop_path_rate = 0.15
-
-        elif net_param == 1:
-            # Small
-            n_layer = 11
-            num_init_features = 72
-            growth_rates = [64] + [128] + [128] * (n_layer - 4) + [240] * 2
-            num_blocks_list = [3] * n_layer
-            is_downsample_block = [False, True, True, False, False, False, False, False, False, True, False]
-            transition_compression_ratio = 0.5
-            block_type = [Block] + [Block] + [BlockESE] * (n_layer - 4) + [BlockESE] * 2
-            drop_path_rate = 0.35
-
-        elif net_param == 2:
-            # Base
-            n_layer = 11
-            num_init_features = 120
-            growth_rates = [96] + [128] + [168] * (n_layer - 4) + [336] * 2
-            num_blocks_list = [3] * n_layer
-            is_downsample_block = [False, True, True, False, False, False, False, False, False, True, False]
-            transition_compression_ratio = 0.5
-            block_type = [Block] + [Block] + [BlockESE] * (n_layer - 4) + [BlockESE] * 2
-            drop_path_rate = 0.4
-
-        elif net_param == 3:
-            # Large
-            n_layer = 12
-            num_init_features = 144
-            growth_rates = [128] + [192] + [256] * (n_layer - 4) + [360] * 2
-            num_blocks_list = [3] * n_layer
-            is_downsample_block = [False, True, True, False, False, False, False, False, False, False, True, False]
-            transition_compression_ratio = 0.5
-            block_type = [Block] + [Block] + [BlockESE] * (n_layer - 4) + [BlockESE] * 2
-            drop_path_rate = 0.5
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        num_init_features: int = self.config["num_init_features"]
+        growth_rates = self.config["growth_rates"]
+        num_blocks_list: list[int] = self.config["num_blocks_list"]
+        is_downsample_block: list[bool] = self.config["is_downsample_block"]
+        transition_compression_ratio: float = self.config["transition_compression_ratio"]
+        block_type: list[type[Block] | type[BlockESE]] = self.config["block_type"]
+        drop_path_rate: float = self.config["drop_path_rate"]
 
         self.stem = nn.Sequential(
             nn.Conv2d(self.input_channels, num_init_features, kernel_size=(4, 4), stride=(4, 4), padding=(0, 0)),
@@ -251,7 +215,59 @@ class RDNet(BaseNet):
         return self.features(x)
 
 
-registry.register_alias("rdnet_t", RDNet, 0)
-registry.register_alias("rdnet_s", RDNet, 1)
-registry.register_alias("rdnet_b", RDNet, 2)
-registry.register_alias("rdnet_l", RDNet, 3)
+registry.register_alias(
+    "rdnet_t",
+    RDNet,
+    config={
+        # n_layer = 7
+        "num_init_features": 64,
+        "growth_rates": [64] + [104] + [128] * 4 + [224],
+        "num_blocks_list": [3] * 7,
+        "is_downsample_block": [False, True, True, False, False, False, True],
+        "transition_compression_ratio": 0.5,
+        "block_type": [Block] + [Block] + [BlockESE] * 4 + [BlockESE],
+        "drop_path_rate": 0.15,
+    },
+)
+registry.register_alias(
+    "rdnet_s",
+    RDNet,
+    config={
+        # n_layer = 11
+        "num_init_features": 72,
+        "growth_rates": [64] + [128] + [128] * (11 - 4) + [240] * 2,
+        "num_blocks_list": [3] * 11,
+        "is_downsample_block": [False, True, True, False, False, False, False, False, False, True, False],
+        "transition_compression_ratio": 0.5,
+        "block_type": [Block] + [Block] + [BlockESE] * (11 - 4) + [BlockESE] * 2,
+        "drop_path_rate": 0.35,
+    },
+)
+registry.register_alias(
+    "rdnet_b",
+    RDNet,
+    config={
+        # n_layer = 11
+        "num_init_features": 120,
+        "growth_rates": [96] + [128] + [168] * (11 - 4) + [336] * 2,
+        "num_blocks_list": [3] * 11,
+        "is_downsample_block": [False, True, True, False, False, False, False, False, False, True, False],
+        "transition_compression_ratio": 0.5,
+        "block_type": [Block] + [Block] + [BlockESE] * (11 - 4) + [BlockESE] * 2,
+        "drop_path_rate": 0.4,
+    },
+)
+registry.register_alias(
+    "rdnet_l",
+    RDNet,
+    config={
+        # n_layer = 12
+        "num_init_features": 144,
+        "growth_rates": [128] + [192] + [256] * (12 - 4) + [360] * 2,
+        "num_blocks_list": [3] * 12,
+        "is_downsample_block": [False, True, True, False, False, False, False, False, False, False, True, False],
+        "transition_compression_ratio": 0.5,
+        "block_type": [Block] + [Block] + [BlockESE] * (12 - 4) + [BlockESE] * 2,
+        "drop_path_rate": 0.5,
+    },
+)

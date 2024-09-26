@@ -149,17 +149,17 @@ def get_args_parser() -> argparse.ArgumentParser:
         description="Run detection prediction on directories and/or files",
         epilog=(
             "Usage example:\n"
-            "python predict_detection.py --network faster_rcnn --backbone resnext --backbone-param 101 "
+            "python predict_detection.py --network faster_rcnn --backbone resnext_101 "
             "-e 0 data/detection_data/validation\n"
-            "python predict_detection.py --network retinanet --backbone resnext --backbone-param 101 "
+            "python predict_detection.py --network retinanet --backbone resnext_101 "
             "-e 0 --show --gpu --compile data/detection_data/training\n"
-            "python predict_detection.py --network faster_rcnn --backbone resnext --backbone-param 101 "
+            "python predict_detection.py --network faster_rcnn --backbone resnext_101 "
             "-e 0 --min-score 0.25 --gpu --show --shuffle data/detection_data/validation\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("-n", "--network", type=str, help="the neural network to use (i.e. faster_rcnn)")
-    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required for most networks")
+    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
     parser.add_argument(
         "--backbone",
         type=str,
@@ -169,7 +169,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--backbone-param",
         type=float,
-        help="network specific parameter, required by most networks (for the backbone)",
+        help="network specific parameter, required by some networks (for the backbone)",
     )
     parser.add_argument("--backbone-tag", type=str, help="backbone training log tag (loading only)")
     parser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")

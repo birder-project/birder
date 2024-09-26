@@ -123,7 +123,7 @@ def set_parser(subparsers: Any) -> None:
         description="show most similar images",
         epilog=(
             "Usage examples:\n"
-            "python -m birder.tools similarity -n efficientnet_v1 -p 4 -e 300 data/*/Alpine\\ swift\n"
+            "python -m birder.tools similarity -n efficientnet_v1_b4 -e 300 data/*/Alpine\\ swift\n"
             "python -m birder.tools similarity -n efficientnet_v2_s -e 200 --limit 3 data/*/Arabian\\ babbler\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
@@ -132,7 +132,7 @@ def set_parser(subparsers: Any) -> None:
         "-n", "--network", type=str, required=True, help="the neural network to use (i.e. resnet_v2)"
     )
     subparser.add_argument(
-        "-p", "--net-param", type=float, help="network specific parameter, required for most networks"
+        "-p", "--net-param", type=float, help="network specific parameter, required by some networks"
     )
     subparser.add_argument("--cosine", default=False, action="store_true", help="use cosine distance")
     subparser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")

@@ -2,6 +2,7 @@
 Paper "DeiT III: Revenge of the ViT", https://arxiv.org/abs/2204.07118
 """
 
+from typing import Any
 from typing import Optional
 
 from birder.model_registry import registry
@@ -13,15 +14,52 @@ class DeiT3(DeiT):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size, pos_embed_class=False)
+        super().__init__(
+            input_channels, num_classes, net_param=net_param, size=size, config=config, pos_embed_class=False
+        )
 
 
-registry.register_alias("deit3_t16", DeiT3, 0)
-registry.register_alias("deit3_s16", DeiT3, 1)
-registry.register_alias("deit3_b16", DeiT3, 2)
+registry.register_alias(
+    "deit3_t16",
+    DeiT3,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 3,
+        "hidden_dim": 192,
+        "mlp_dim": 768,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "deit3_s16",
+    DeiT3,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "deit3_b16",
+    DeiT3,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 12,
+        "hidden_dim": 768,
+        "mlp_dim": 3072,
+        "drop_path_rate": 0.1,
+    },
+)
 
 registry.register_weights(
     "deit3_t16_il-common",

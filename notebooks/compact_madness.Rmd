@@ -147,7 +147,7 @@ compare_results_df = compare_results_df.with_columns(
 ### Join Benchmark Data
 
 ```{python}
-benchmark_df = pl.read_csv(settings.RESULTS_DIR.joinpath(f"benchmark_cpu_{PATTERN}.csv"))
+benchmark_df = pl.read_csv(settings.RESULTS_DIR.joinpath(f"benchmark_{PATTERN}.csv"))
 compare_results_df = compare_results_df.join(benchmark_df, left_on="Pretrained name", right_on="model_name", how="left")
 compare_results_df = compare_results_df.with_columns(
     (1000 * (1 / pl.col("samples_per_sec"))).alias("ms / sample"),
@@ -155,12 +155,7 @@ compare_results_df = compare_results_df.with_columns(
 
 # Filter relevant benchmark data
 compare_results_df = compare_results_df.filter(
-    (
-        (pl.col("device") == "cpu")
-        & (pl.col("compile") == True)
-        & (pl.col("Resolution") == pl.col("size"))
-        & (pl.col("batch_size") == 1)
-    )
+    ((pl.col("compile") == True) & (pl.col("Resolution") == pl.col("size")))
     | (pl.col("ms / sample").is_null())  # Not benchmarked yet
 )
 ```
@@ -172,57 +167,87 @@ compare_results_df = compare_results_df.select(
     pl.all().exclude("File name", "Model name", "Pretrained name", "Parameters (M)", *benchmark_df.columns),
     "Parameters (M)",
     "samples_per_sec",
+    "device",
 )
 compare_results_df = compare_results_df.rename({"samples_per_sec": "Samples / sec"})
 ```
 
 ```{python}
 # Calculate Pareto frontiers
-compare_results_df = compare_results_df.sort("ms / sample", descending=False)
-compare_results_df = compare_results_df.with_columns(pl.col("Accuracy").cum_max().alias("Pareto frontier (cpu-ms)"))
-compare_results_df = compare_results_df.sort("Parameters (M)", descending=False)
-compare_results_df = compare_results_df.with_columns(pl.col("Accuracy").cum_max().alias("Pareto frontier (p)"))
+
+# Parameter count
+param_compare_results_df = compare_results_df.unique(subset=["Model name"]).sort("Parameters (M)", descending=False)
+param_compare_results_df = param_compare_results_df.with_columns(
+    pl.col("Accuracy").cum_max().alias("Pareto frontier (p)")
+)
+
+# CPU rate
+cpu_compare_results_df = compare_results_df.filter(pl.col("device") == "cpu").sort("ms / sample", descending=False)
+cpu_compare_results_df = cpu_compare_results_df.with_columns(
+    pl.col("Accuracy").cum_max().alias("Pareto frontier (cpu-ms)")
+)
+
+# CUDA rate
+cuda_compare_results_df = compare_results_df.filter(pl.col("device") == "cuda").sort("ms / sample", descending=False)
+cuda_compare_results_df = cuda_compare_results_df.with_columns(
+    pl.col("Accuracy").cum_max().alias("Pareto frontier (cuda-ms)")
+)
 ```
 
 ## Visualize Results
 
 ```{python}
-compare_results_df
-```
-
-```{python}
-base = compare_results_df.plot.point(
+# Parameter count
+base = param_compare_results_df.plot.point(
     x="Parameters (M)",
     y="Accuracy",
     color="Model name",
     shape="Resolution:N",
 )
 text = base.mark_text(align="center", baseline="middle", dy=-10).encode(text="Model name")
-frontier = compare_results_df.plot.line(x="Parameters (M)", y="Pareto frontier (p)").mark_line(
+frontier = param_compare_results_df.plot.line(x="Parameters (M)", y="Pareto frontier (p)").mark_line(
     interpolate="step-after", color="red", strokeWidth=0.3, strokeDash=(2, 2)
 )
 
 chart = base + text + frontier
-chart.properties(width=800, height=600).configure_scale(zero=False)
+chart.properties(title="Accuray vs Parameter Count", width=960, height=640).configure_scale(zero=False)
 ```
 
 ```{python}
 chart.layer[0].encoding.x.scale = alt.Scale(domain=[0.5, 7])
-chart.properties(width=800, height=600).configure_scale(zero=False)
+chart.properties(title="Accuray vs Parameter Count", width=960, height=640).configure_scale(zero=False)
 ```
 
 ```{python}
-base = compare_results_df.plot.point(
+# CPU rate
+base = cpu_compare_results_df.plot.point(
     x="ms / sample",
     y="Accuracy",
     color="Model name",
     shape="Resolution:N",
 )
 text = base.mark_text(align="center", baseline="middle", dy=-10).encode(text="Model name")
-frontier = compare_results_df.plot.line(x="ms / sample", y="Pareto frontier (cpu-ms)").mark_line(
+frontier = cpu_compare_results_df.plot.line(x="ms / sample", y="Pareto frontier (cpu-ms)").mark_line(
     interpolate="step-after", color="red", strokeWidth=0.3, strokeDash=(2, 2)
 )
 
 chart = base + text + frontier
-chart.properties(width=800, height=600).configure_scale(zero=False)
+chart.properties(title="Accuray vs CPU Rate", width=960, height=640).configure_scale(zero=False)
+```
+
+```{python}
+# CUDA rate
+base = cuda_compare_results_df.plot.point(
+    x="ms / sample",
+    y="Accuracy",
+    color="Model name",
+    shape="Resolution:N",
+)
+text = base.mark_text(align="center", baseline="middle", dy=-10).encode(text="Model name")
+frontier = cuda_compare_results_df.plot.line(x="ms / sample", y="Pareto frontier (cuda-ms)").mark_line(
+    interpolate="step-after", color="red", strokeWidth=0.3, strokeDash=(2, 2)
+)
+
+chart = base + text + frontier
+chart.properties(title="Accuray vs CUDA Rate", width=960, height=640).configure_scale(zero=False)
 ```

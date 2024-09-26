@@ -11,6 +11,7 @@ https://arxiv.org/abs/2110.02178
 # Reference license: Apache-2.0 and MIT
 
 import math
+from typing import Any
 from typing import Optional
 
 import torch
@@ -141,43 +142,24 @@ class MobileViT_v1(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         patch_size = (2, 2)
         attn_drop = 0.1
         depths = [2, 4, 3]
         strides = [1, 2, 1, 1]
-        if net_param == 0:
-            # xxs
-            dims = [64, 80, 96]
-            channels_a = [16, 16, 24, 24, 24]
-            channels_b = [48, 48, 64, 64, 80, 80]
-            last_dim = 320
-            expansion = 2
-
-        elif net_param == 1:
-            # xs
-            dims = [96, 120, 144]
-            channels_a = [16, 32, 48, 48, 48]
-            channels_b = [64, 64, 80, 80, 96, 96]
-            last_dim = 384
-            expansion = 4
-
-        elif net_param == 2:
-            # s
-            dims = [144, 192, 240]
-            channels_a = [16, 32, 64, 64, 64]
-            channels_b = [96, 96, 128, 128, 160, 160]
-            last_dim = 640
-            expansion = 4
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        dims: list[int] = self.config["dims"]
+        channels_a: list[int] = self.config["channels_a"]
+        channels_b: list[int] = self.config["channels_b"]
+        last_dim: int = self.config["last_dim"]
+        expansion: int = self.config["expansion"]
 
         self.stem = Conv2dNormActivation(
             self.input_channels,
@@ -277,6 +259,36 @@ class MobileViT_v1(BaseNet):
         return nn.Linear(embed_dim, self.num_classes, bias=False)
 
 
-registry.register_alias("mobilevit_v1_xxs", MobileViT_v1, 0)
-registry.register_alias("mobilevit_v1_xs", MobileViT_v1, 1)
-registry.register_alias("mobilevit_v1_s", MobileViT_v1, 2)
+registry.register_alias(
+    "mobilevit_v1_xxs",
+    MobileViT_v1,
+    config={
+        "dims": [64, 80, 96],
+        "channels_a": [16, 16, 24, 24, 24],
+        "channels_b": [48, 48, 64, 64, 80, 80],
+        "last_dim": 320,
+        "expansion": 2,
+    },
+)
+registry.register_alias(
+    "mobilevit_v1_xs",
+    MobileViT_v1,
+    config={
+        "dims": [96, 120, 144],
+        "channels_a": [16, 32, 48, 48, 48],
+        "channels_b": [64, 64, 80, 80, 96, 96],
+        "last_dim": 384,
+        "expansion": 4,
+    },
+)
+registry.register_alias(
+    "mobilevit_v1_s",
+    MobileViT_v1,
+    config={
+        "dims": [144, 192, 240],
+        "channels_a": [16, 32, 64, 64, 64],
+        "channels_b": [96, 96, 128, 128, 160, 160],
+        "last_dim": 640,
+        "expansion": 4,
+    },
+)

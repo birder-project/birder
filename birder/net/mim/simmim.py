@@ -8,6 +8,7 @@ https://arxiv.org/abs/2111.09886
 
 # Reference license: MIT
 
+from typing import Any
 from typing import Optional
 
 import torch
@@ -61,10 +62,12 @@ class SimMIM(MIMBaseNet):
     def __init__(
         self,
         encoder: PreTrainEncoder,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(encoder, net_param, size)
+        super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
         assert (
             isinstance(self.encoder, (MaxViT, NextViT, Swin_Transformer_v2)) is True

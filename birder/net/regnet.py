@@ -3,8 +3,6 @@ RegNet, adapted from
 https://github.com/pytorch/vision/blob/main/torchvision/models/regnet.py
 
 Paper "Designing Network Design Spaces", https://arxiv.org/abs/2003.13678
-
-Only the Y variant implemented.
 """
 
 # Reference license: BSD 3-Clause
@@ -12,6 +10,7 @@ Only the Y variant implemented.
 import math
 from collections import OrderedDict
 from collections.abc import Iterator
+from typing import Any
 from typing import Optional
 
 import torch
@@ -19,6 +18,7 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import SqueezeExcitation
 
+from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import make_divisible
 
@@ -143,6 +143,11 @@ class BottleneckTransform(nn.Module):
         g = w_b // group_width
         width_se_out = int(round(se_ratio * width_in))
 
+        if width_se_out == 0:
+            se_block = nn.Identity()
+        else:
+            se_block = SqueezeExcitation(input_channels=w_b, squeeze_channels=width_se_out)
+
         self.block = nn.Sequential(
             Conv2dNormActivation(
                 width_in,
@@ -161,10 +166,7 @@ class BottleneckTransform(nn.Module):
                 groups=g,
                 bias=False,
             ),
-            SqueezeExcitation(
-                input_channels=w_b,
-                squeeze_channels=width_se_out,
-            ),
+            se_block,
             Conv2dNormActivation(
                 w_b,
                 width_out,
@@ -265,99 +267,27 @@ class AnyStage(nn.Module):
 class RegNet(DetectorBackbone):
     default_size = 224
 
-    # pylint: disable=too-many-branches
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         stem_width = 32
         bottleneck_multiplier = 1.0
-        se_ratio = 0.25
-        if self.net_param == 0.2:
-            depth = 13
-            w_0 = 24
-            w_a = 36.44
-            w_m = 2.49
-            group_width = 8
-
-        elif self.net_param == 0.4:
-            depth = 16
-            w_0 = 48
-            w_a = 27.89
-            w_m = 2.09
-            group_width = 8
-
-        elif self.net_param == 0.8:
-            depth = 14
-            w_0 = 56
-            w_a = 38.84
-            w_m = 2.4
-            group_width = 16
-
-        elif self.net_param == 1.6:
-            depth = 27
-            w_0 = 48
-            w_a = 20.71
-            w_m = 2.65
-            group_width = 24
-
-        elif self.net_param == 3.2:
-            depth = 21
-            w_0 = 80
-            w_a = 42.63
-            w_m = 2.66
-            group_width = 24
-
-        elif self.net_param == 6.4:
-            depth = 25
-            w_0 = 112
-            w_a = 33.22
-            w_m = 2.27
-            group_width = 72
-
-        elif self.net_param == 8:
-            depth = 17
-            w_0 = 192
-            w_a = 76.82
-            w_m = 2.19
-            group_width = 56
-
-        elif self.net_param == 12:
-            depth = 19
-            w_0 = 168
-            w_a = 73.36
-            w_m = 2.37
-            group_width = 112
-
-        elif self.net_param == 16:
-            depth = 18
-            w_0 = 200
-            w_a = 106.23
-            w_m = 2.48
-            group_width = 112
-
-        elif self.net_param == 32:
-            depth = 20
-            w_0 = 232
-            w_a = 115.89
-            w_m = 2.53
-            group_width = 232
-
-        elif self.net_param == 128:
-            depth = 27
-            w_0 = 456
-            w_a = 160.83
-            w_m = 2.52
-            group_width = 264
-
-        else:
-            raise ValueError(f"net_param = {self.net_param} not supported")
+        depth: int = self.config["depth"]
+        w_0: int = self.config["w_0"]
+        w_a: float = self.config["w_a"]
+        w_m: float = self.config["w_m"]
+        group_width: int = self.config["group_width"]
+        se_ratio: float = self.config["se_ratio"]
 
         block_params = BlockParams.from_init_params(depth, w_0, w_a, w_m, group_width, bottleneck_multiplier, se_ratio)
 
@@ -433,3 +363,138 @@ class RegNet(DetectorBackbone):
         x = self.stem(x)
         x = self.body(x)
         return self.features(x)
+
+
+# RegNet X
+registry.register_alias(
+    "regnet_x_200m",
+    RegNet,
+    config={"depth": 13, "w_0": 24, "w_a": 36.44, "w_m": 2.49, "group_width": 8, "se_ratio": 0.0},
+)
+registry.register_alias(
+    "regnet_x_400m",
+    RegNet,
+    config={"depth": 22, "w_0": 24, "w_a": 24.48, "w_m": 2.54, "group_width": 16, "se_ratio": 0.0},
+)
+registry.register_alias(
+    "regnet_x_600m",
+    RegNet,
+    config={"depth": 16, "w_0": 48, "w_a": 36.97, "w_m": 2.24, "group_width": 24, "se_ratio": 0.0},
+)
+registry.register_alias(
+    "regnet_x_800m",
+    RegNet,
+    config={"depth": 16, "w_0": 56, "w_a": 35.73, "w_m": 2.28, "group_width": 16, "se_ratio": 0.0},
+)
+registry.register_alias(
+    "regnet_x_1600m",
+    RegNet,
+    config={"depth": 18, "w_0": 80, "w_a": 34.01, "w_m": 2.25, "group_width": 24, "se_ratio": 0.0},
+)
+registry.register_alias(
+    "regnet_x_3200m",
+    RegNet,
+    config={"depth": 25, "w_0": 88, "w_a": 26.31, "w_m": 2.25, "group_width": 48, "se_ratio": 0.0},
+)
+registry.register_alias(
+    "regnet_x_4000m",
+    RegNet,
+    config={"depth": 23, "w_0": 96, "w_a": 38.65, "w_m": 2.43, "group_width": 40, "se_ratio": 0.0},
+)
+registry.register_alias(
+    "regnet_x_6400m",
+    RegNet,
+    config={"depth": 17, "w_0": 184, "w_a": 60.83, "w_m": 2.07, "group_width": 56, "se_ratio": 0.0},
+)
+registry.register_alias(
+    "regnet_x_8g",
+    RegNet,
+    config={"depth": 23, "w_0": 80, "w_a": 49.56, "w_m": 2.88, "group_width": 120, "se_ratio": 0.0},
+)
+registry.register_alias(
+    "regnet_x_12g",
+    RegNet,
+    config={"depth": 19, "w_0": 168, "w_a": 73.36, "w_m": 2.37, "group_width": 112, "se_ratio": 0.0},
+)
+registry.register_alias(
+    "regnet_x_16g",
+    RegNet,
+    config={"depth": 22, "w_0": 216, "w_a": 55.59, "w_m": 2.1, "group_width": 128, "se_ratio": 0.0},
+)
+registry.register_alias(
+    "regnet_x_32g",
+    RegNet,
+    config={"depth": 23, "w_0": 320, "w_a": 69.86, "w_m": 2.0, "group_width": 168, "se_ratio": 0.0},
+)
+
+# RegNet Y
+registry.register_alias(
+    "regnet_y_200m",
+    RegNet,
+    config={"depth": 13, "w_0": 24, "w_a": 36.44, "w_m": 2.49, "group_width": 8, "se_ratio": 0.25},
+)
+registry.register_alias(
+    "regnet_y_400m",
+    RegNet,
+    config={"depth": 16, "w_0": 48, "w_a": 27.89, "w_m": 2.09, "group_width": 8, "se_ratio": 0.25},
+)
+registry.register_alias(
+    "regnet_y_600m",
+    RegNet,
+    config={"depth": 15, "w_0": 48, "w_a": 32.54, "w_m": 2.32, "group_width": 16, "se_ratio": 0.25},
+)
+registry.register_alias(
+    "regnet_y_800m",
+    RegNet,
+    config={"depth": 14, "w_0": 56, "w_a": 38.84, "w_m": 2.4, "group_width": 16, "se_ratio": 0.25},
+)
+registry.register_alias(
+    "regnet_y_1600m",
+    RegNet,
+    config={"depth": 27, "w_0": 48, "w_a": 20.71, "w_m": 2.65, "group_width": 24, "se_ratio": 0.25},
+)
+registry.register_alias(
+    "regnet_y_3200m",
+    RegNet,
+    config={"depth": 21, "w_0": 80, "w_a": 42.63, "w_m": 2.66, "group_width": 24, "se_ratio": 0.25},
+)
+registry.register_alias(
+    "regnet_y_4000m",
+    RegNet,
+    config={"depth": 22, "w_0": 96, "w_a": 31.41, "w_m": 2.24, "group_width": 64, "se_ratio": 0.25},
+)
+registry.register_alias(
+    "regnet_y_6400m",
+    RegNet,
+    config={"depth": 25, "w_0": 112, "w_a": 33.22, "w_m": 2.27, "group_width": 72, "se_ratio": 0.25},
+)
+registry.register_alias(
+    "regnet_y_8g",
+    RegNet,
+    config={"depth": 17, "w_0": 192, "w_a": 76.82, "w_m": 2.19, "group_width": 56, "se_ratio": 0.25},
+)
+registry.register_alias(
+    "regnet_y_12g",
+    RegNet,
+    config={"depth": 19, "w_0": 168, "w_a": 73.36, "w_m": 2.37, "group_width": 112, "se_ratio": 0.25},
+)
+registry.register_alias(
+    "regnet_y_16g",
+    RegNet,
+    config={"depth": 18, "w_0": 200, "w_a": 106.23, "w_m": 2.48, "group_width": 112, "se_ratio": 0.25},
+)
+registry.register_alias(
+    "regnet_y_32g",
+    RegNet,
+    config={"depth": 20, "w_0": 232, "w_a": 115.89, "w_m": 2.53, "group_width": 232, "se_ratio": 0.25},
+)
+registry.register_alias(
+    "regnet_y_64g",
+    RegNet,
+    config={"depth": 20, "w_0": 352, "w_a": 147.48, "w_m": 2.4, "group_width": 328, "se_ratio": 0.25},
+)
+registry.register_alias(
+    "regnet_y_128g",
+    RegNet,
+    config={"depth": 27, "w_0": 456, "w_a": 160.83, "w_m": 2.52, "group_width": 264, "se_ratio": 0.25},
+)

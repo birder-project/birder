@@ -10,6 +10,7 @@ https://arxiv.org/abs/2012.12877
 
 import logging
 import math
+from typing import Any
 from typing import Optional
 
 import torch
@@ -30,46 +31,25 @@ class DeiT(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
         pos_embed_class: bool = True,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         image_size = self.size
         attention_dropout = 0.0
         dropout = 0.0
-        if net_param == 0:
-            # Tiny 16 (t16)
-            patch_size = 16
-            num_layers = 12
-            num_heads = 3
-            hidden_dim = 192
-            mlp_dim = 768
-            drop_path_rate = 0.0
-
-        elif net_param == 1:
-            # Small 16 (s16)
-            patch_size = 16
-            num_layers = 12
-            num_heads = 6
-            hidden_dim = 384
-            mlp_dim = 1536
-            drop_path_rate = 0.1
-
-        elif net_param == 2:
-            # Base 16 (b16)
-            patch_size = 16
-            num_layers = 12
-            num_heads = 12
-            hidden_dim = 768
-            mlp_dim = 3072
-            drop_path_rate = 0.1
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        patch_size: int = self.config["patch_size"]
+        num_layers: int = self.config["num_layers"]
+        num_heads: int = self.config["num_heads"]
+        hidden_dim: int = self.config["hidden_dim"]
+        mlp_dim: int = self.config["mlp_dim"]
+        drop_path_rate: float = self.config["drop_path_rate"]
 
         torch._assert(image_size % patch_size == 0, "Input shape indivisible by patch size!")
         self.image_size = image_size
@@ -217,9 +197,42 @@ class DeiT(BaseNet):
         logging.info(f"Resized position embedding: {num_pos_tokens} to {num_new_tokens}")
 
 
-registry.register_alias("deit_t16", DeiT, 0)
-registry.register_alias("deit_s16", DeiT, 1)
-registry.register_alias("deit_b16", DeiT, 2)
+registry.register_alias(
+    "deit_t16",
+    DeiT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 3,
+        "hidden_dim": 192,
+        "mlp_dim": 768,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "deit_s16",
+    DeiT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "deit_b16",
+    DeiT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 12,
+        "hidden_dim": 768,
+        "mlp_dim": 3072,
+        "drop_path_rate": 0.1,
+    },
+)
 
 registry.register_weights(
     "deit_t16_il-common",

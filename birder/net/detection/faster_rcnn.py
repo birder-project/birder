@@ -9,6 +9,7 @@ https://arxiv.org/abs/1506.01497
 # Reference license: BSD 3-Clause
 
 from collections.abc import Callable
+from typing import Any
 from typing import Optional
 
 import torch
@@ -748,10 +749,12 @@ class Faster_RCNN(DetectionBaseNet):
         self,
         num_classes: int,
         backbone: DetectorBackbone,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(num_classes, backbone, net_param, size)
+        super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
 
         fpn_width = 256

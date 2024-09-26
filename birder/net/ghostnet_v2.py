@@ -8,6 +8,7 @@ Paper "GhostNetV2: Enhance Cheap Operation with Long-Range Attention", https://a
 # Reference license: Apache-2.0
 
 import math
+from typing import Any
 from typing import Literal
 from typing import Optional
 
@@ -197,20 +198,24 @@ class GhostBottleneck(nn.Module):
 
 # pylint: disable=invalid-name
 class GhostNet_v2(BaseNet):
+    auto_register = True
     default_size = 224
 
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is not None, "must set net-param"
+        assert self.config is None, "config not supported"
         width = self.net_param
 
-        config: list[list[tuple[int, int, int, float, int]]] = [
+        block_config: list[list[tuple[int, int, int, float, int]]] = [
             # kernel, expansion, channels, se ratio, stride
             # Stage 1
             [(3, 16, 16, 0, 1)],
@@ -247,7 +252,7 @@ class GhostNet_v2(BaseNet):
         stages = []
         prev_channels = stem_channels
         layer_idx = 0
-        for cfg in config:
+        for cfg in block_config:
             layers = []
             for k, exp_size, c, se_ratio, s in cfg:
                 out_channels = make_divisible(c * width, 4)

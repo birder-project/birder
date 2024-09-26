@@ -224,7 +224,7 @@ def load_mim_checkpoint(
     num_classes = 0
     size = lib.get_size_from_signature(signature)[0]
     net_encoder = registry.net_factory(encoder, input_channels, num_classes, net_param=encoder_param, size=size)
-    net = registry.mim_net_factory(network, net_encoder, net_param, size)
+    net = registry.mim_net_factory(network, net_encoder, net_param=net_param, size=size)
     net.load_state_dict(model_dict["state"])
     net.to(device)
 
@@ -263,7 +263,7 @@ def load_detection_checkpoint(
     num_classes = signature["num_labels"]
     size = lib.get_size_from_signature(signature)[0]
     net_backbone = registry.net_factory(backbone, input_channels, num_classes, net_param=backbone_param, size=size)
-    net = registry.detection_net_factory(network, num_classes, net_backbone, net_param, size)
+    net = registry.detection_net_factory(network, num_classes, net_backbone, net_param=net_param, size=size)
     net.load_state_dict(model_dict["state"])
     net.to(device)
 
@@ -406,7 +406,7 @@ def load_detection_model(
         size = lib.get_size_from_signature(signature)[0]
 
         net_backbone = registry.net_factory(backbone, input_channels, num_classes, net_param=backbone_param, size=size)
-        net = registry.detection_net_factory(network, num_classes, net_backbone, net_param, size)
+        net = registry.detection_net_factory(network, num_classes, net_backbone, net_param=net_param, size=size)
         net.load_state_dict(model_dict["state"])
         if new_size is not None:
             net.adjust_size(new_size)

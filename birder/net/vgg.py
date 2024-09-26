@@ -3,11 +3,13 @@ Paper "Very Deep Convolutional Networks for Large-Scale Image Recognition", http
 """
 
 from collections import OrderedDict
+from typing import Any
 from typing import Optional
 
 import torch
 from torch import nn
 
+from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 
 
@@ -18,28 +20,17 @@ class Vgg(DetectorBackbone):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        num_layers = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         filters = [64, 128, 256, 512, 512]
-        if num_layers == 11:
-            repeats = [1, 1, 2, 2, 2]
-
-        elif num_layers == 13:
-            repeats = [2, 2, 2, 2, 2]
-
-        elif num_layers == 16:
-            repeats = [2, 2, 3, 3, 3]
-
-        elif num_layers == 19:
-            repeats = [2, 2, 4, 4, 4]
-
-        else:
-            raise ValueError(f"num_layers = {num_layers} not supported")
+        repeats: list[int] = self.config["repeats"]
 
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
@@ -104,3 +95,9 @@ class Vgg(DetectorBackbone):
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.body(x)
         return self.features(x)
+
+
+registry.register_alias("vgg_11", Vgg, config={"repeats": [1, 1, 2, 2, 2]})
+registry.register_alias("vgg_13", Vgg, config={"repeats": [2, 2, 2, 2, 2]})
+registry.register_alias("vgg_16", Vgg, config={"repeats": [2, 2, 3, 3, 3]})
+registry.register_alias("vgg_19", Vgg, config={"repeats": [2, 2, 4, 4, 4]})

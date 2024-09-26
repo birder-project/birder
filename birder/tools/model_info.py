@@ -19,10 +19,10 @@ def get_model_info(net: torch.nn.Module) -> dict[str, float]:
     buffer_size = 0
     for param in net.parameters():
         num_params += param.numel()
-        param_size += param.nelement() * param.element_size()
+        param_size += param.numel() * param.element_size()
 
     for buffer in net.buffers():
-        buffer_size += buffer.nelement() * buffer.element_size()
+        buffer_size += buffer.numel() * buffer.element_size()
 
     return {"num_params": num_params, "model_size": param_size + buffer_size}
 
@@ -37,10 +37,9 @@ def set_parser(subparsers: Any) -> None:
             "Usage examples:\n"
             "python -m birder.tools model-info -n deit_b16 -t intermediate -e 0\n"
             "python -m birder.tools model-info --network squeezenet --epoch 100\n"
-            "python -m birder.tools model-info --network densenet -p 121 -e 100 --pt2\n"
-            "python -m birder.tools model-info -n efficientnet_v2 -p 1 -e 200 --lite\n"
-            "python -m birder.tools model-info --network faster_rcnn --backbone resnext "
-            "--backbone-param 101 -e 0\n"
+            "python -m birder.tools model-info --network densenet_121 -e 100 --pt2\n"
+            "python -m birder.tools model-info -n efficientnet_v2_m -e 200 --lite\n"
+            "python -m birder.tools model-info --network faster_rcnn --backbone resnext_101 -e 0\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -48,7 +47,7 @@ def set_parser(subparsers: Any) -> None:
         "-n", "--network", type=str, required=True, help="the neural network to load (i.e. resnet_v2_50)"
     )
     subparser.add_argument(
-        "-p", "--net-param", type=float, help="network specific parameter, required for most networks"
+        "-p", "--net-param", type=float, help="network specific parameter, required by some networks"
     )
     subparser.add_argument(
         "--backbone",
@@ -59,7 +58,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--backbone-param",
         type=float,
-        help="network specific parameter, required by most networks (for the backbone)",
+        help="network specific parameter, required by some networks (for the backbone)",
     )
     subparser.add_argument("--backbone-tag", type=str, help="backbone training log tag (loading only)")
     subparser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")

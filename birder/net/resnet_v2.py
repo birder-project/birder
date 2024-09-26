@@ -8,6 +8,7 @@ Paper "Deep Residual Learning for Image Recognition", https://arxiv.org/abs/1512
 # Reference license: BSD 3-Clause
 
 from collections import OrderedDict
+from typing import Any
 from typing import Optional
 
 import torch
@@ -15,6 +16,7 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import SqueezeExcitation
 
+from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 
 
@@ -94,47 +96,19 @@ class ResNet_v2(DetectorBackbone):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
         squeeze_excitation: bool = False,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        num_layers = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
-        filter_list = [64, 256, 512, 1024, 2048]
-        if num_layers == 18:
-            bottle_neck = False
-            filter_list = [64, 64, 128, 256, 512]
-            units = [2, 2, 2, 2]
-
-        elif num_layers == 34:
-            bottle_neck = False
-            filter_list = [64, 64, 128, 256, 512]
-            units = [3, 4, 6, 3]
-
-        elif num_layers == 50:
-            bottle_neck = True
-            units = [3, 4, 6, 3]
-
-        elif num_layers == 101:
-            bottle_neck = True
-            units = [3, 4, 23, 3]
-
-        elif num_layers == 152:
-            bottle_neck = True
-            units = [3, 8, 36, 3]
-
-        elif num_layers == 200:
-            bottle_neck = True
-            units = [3, 24, 36, 3]
-
-        elif num_layers == 269:
-            bottle_neck = True
-            units = [3, 30, 48, 8]
-
-        else:
-            raise ValueError(f"num_layers = {num_layers} not supported")
+        bottle_neck: bool = self.config["bottle_neck"]
+        filter_list: list[int] = self.config["filter_list"]
+        units: list[int] = self.config["units"]
 
         assert len(units) + 1 == len(filter_list)
         num_unit = len(units)
@@ -219,3 +193,40 @@ class ResNet_v2(DetectorBackbone):
         x = self.stem(x)
         x = self.body(x)
         return self.features(x)
+
+
+registry.register_alias(
+    "resnet_v2_18",
+    ResNet_v2,
+    config={"bottle_neck": False, "filter_list": [64, 64, 128, 256, 512], "units": [2, 2, 2, 2]},
+)
+registry.register_alias(
+    "resnet_v2_34",
+    ResNet_v2,
+    config={"bottle_neck": False, "filter_list": [64, 64, 128, 256, 512], "units": [3, 4, 6, 3]},
+)
+registry.register_alias(
+    "resnet_v2_50",
+    ResNet_v2,
+    config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 4, 6, 3]},
+)
+registry.register_alias(
+    "resnet_v2_101",
+    ResNet_v2,
+    config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 4, 23, 3]},
+)
+registry.register_alias(
+    "resnet_v2_152",
+    ResNet_v2,
+    config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 8, 36, 3]},
+)
+registry.register_alias(
+    "resnet_v2_200",
+    ResNet_v2,
+    config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 24, 36, 3]},
+)
+registry.register_alias(
+    "resnet_v2_269",
+    ResNet_v2,
+    config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 30, 48, 8]},
+)

@@ -117,11 +117,11 @@ def set_parser(subparsers: Any) -> None:
         description="computer vision introspection and explainability",
         epilog=(
             "Usage examples:\n"
-            "python -m birder.tools introspection --method gradcam --network efficientnet_v2 --net-param 1 "
+            "python -m birder.tools introspection --method gradcam --network efficientnet_v2_m "
             "--epoch 200 --image 'data/training/European goldfinch/000300.jpeg'\n"
-            "python -m birder.tools introspection --method gradcam -n resnest --net-param 50 --epoch 300 "
+            "python -m birder.tools introspection --method gradcam -n resnest_50 --epoch 300 "
             "--image data/index5.jpeg --target 'Grey heron'\n"
-            "python -m birder.tools introspection --method guided-backprop -n efficientnet_v2 -p 0 "
+            "python -m birder.tools introspection --method guided-backprop -n efficientnet_v2_s "
             "-e 0 --image 'data/training/European goldfinch/000300.jpeg'\n"
             "python -m birder.tools introspection --method gradcam -n swin_transformer_v1_b -e 85 --layer-num -4 "
             "--reshape-size 20 --image data/training/Fieldfare/000002.jpeg\n"
@@ -133,7 +133,7 @@ def set_parser(subparsers: Any) -> None:
         "-n", "--network", type=str, required=True, help="the neural network to use (i.e. resnet_v2)"
     )
     subparser.add_argument(
-        "-p", "--net-param", type=float, help="network specific parameter, required for most networks"
+        "-p", "--net-param", type=float, help="network specific parameter, required by some networks"
     )
     subparser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")

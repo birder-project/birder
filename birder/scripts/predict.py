@@ -229,17 +229,14 @@ def get_args_parser() -> argparse.ArgumentParser:
         description="Run prediction on directories and/or files",
         epilog=(
             "Usage example:\n"
-            "python predict.py --network resnet_v2 --net-param 50 --epoch 0 --pts --gpu "
-            "--save-output data/Unknown\n"
-            "python predict.py --network maxvit --net-param 1 --epoch 0 --pts --gpu "
-            "--summary data/*.jpeg\n"
-            "python predict.py --network densenet -p 121 -e 90 --shuffle --gpu --show data/validation\n"
+            "python predict.py --network resnet_v2_50 --pts --gpu --save-output data/Unknown\n"
+            "python predict.py -n fastvit_t8 -t il-common_reparameterized -e 0 --batch-size 256 --reparameterized "
+            "--gpu --save-results data/validation_il-common_packed\n"
             "python predict.py --network inception_resnet_v2 -e 100 --gpu --show-out-of-k data/validation\n"
-            "python predict.py --network inception_v3 -e 200 --gpu --save-results data/validation/*crane\n"
-            "python predict.py -n efficientnet_v2_m -e 200 --gpu --save-embedding data/validation\n"
-            "python predict.py -n efficientnet_v1 -p 4 -e 300 --gpu --save-embedding "
+            "python predict.py --network inception_v3 --gpu --batch-size 256 --save-results data/validation/*crane\n"
+            "python predict.py -n efficientnet_v2_m -e 0 --gpu --save-embedding data/testing\n"
+            "python predict.py -n efficientnet_v1_b4 -e 300 --gpu --save-embedding "
             "data/*/Alpine\\ swift --suffix alpine_swift\n"
-            "python predict.py -n convnext_v1 -p 2 -e 0 --gpu --parallel data/testing\n"
             "python predict.py -n mobilevit_v2 -p 1.5 -t intermediate -e 80 --gpu --save-results "
             "--wds data/validation_packed\n"
             "python predict.py -n efficientnet_v2_m -t intermediate --show-class Unknown data/raw_data\n"
@@ -249,7 +246,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("-n", "--network", type=str, help="the neural network to use (i.e. resnet_v2)")
-    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required for most networks")
+    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
     parser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
     parser.add_argument("--quantized", default=False, action="store_true", help="load quantized model")
     parser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")

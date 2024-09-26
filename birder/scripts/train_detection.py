@@ -116,9 +116,13 @@ def train(args: argparse.Namespace) -> None:
             )
 
         else:
-            backbone = registry.net_factory(args.backbone, sample_shape[1], num_outputs, args.backbone_param, args.size)
+            backbone = registry.net_factory(
+                args.backbone, sample_shape[1], num_outputs, net_param=args.backbone_param, size=args.size
+            )
 
-        net = registry.detection_net_factory(args.network, num_outputs, backbone, args.net_param, args.size).to(device)
+        net = registry.detection_net_factory(
+            args.network, num_outputs, backbone, net_param=args.net_param, size=args.size
+        ).to(device)
 
     # Freeze backbone
     if args.freeze_backbone is True:
@@ -412,6 +416,14 @@ def train(args: argparse.Namespace) -> None:
 
     # Save model hyperparameters with metrics
     if args.rank == 0:
+        # Replace list based args
+        if args.betas is not None:
+            for idx, beta in enumerate(args.opt_betas):
+                setattr(args, f"opt_betas_{idx}", beta)
+
+            del args.opt_betas
+
+        # Save all args
         val_metrics = validation_metrics.compute()
         summary_writer.add_hparams(
             {**vars(args), "training_samples": len(training_dataset)},
@@ -447,12 +459,12 @@ def get_args_parser() -> argparse.ArgumentParser:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("-n", "--network", type=str, help="the neural network to use")
-    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required for most networks")
+    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
     parser.add_argument("--backbone", type=str, help="the neural network to used as backbone")
     parser.add_argument(
         "--backbone-param",
         type=float,
-        help="network specific parameter, required by most networks (for the backbone)",
+        help="network specific parameter, required by some networks (for the backbone)",
     )
     parser.add_argument("--backbone-tag", type=str, help="backbone training log tag (loading only)")
     parser.add_argument("--backbone-epoch", type=int, help="load backbone weights from selected epoch")

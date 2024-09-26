@@ -3,6 +3,7 @@ Paper "ImageNet Classification with Deep Convolutional Neural Networks",
 https://papers.nips.cc/paper/2012/hash/c399862d3b9d6b76c8436e924a68c45b-Abstract.html
 """
 
+from typing import Any
 from typing import Optional
 
 import torch
@@ -12,17 +13,21 @@ from birder.net.base import BaseNet
 
 
 class AlexNet(BaseNet):
+    auto_register = True
     default_size = 224
 
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
+        assert self.config is None, "config not supported"
 
         self.body = nn.Sequential(
             nn.Conv2d(self.input_channels, 64, kernel_size=(11, 11), stride=(4, 4), padding=(2, 2), bias=True),

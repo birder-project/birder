@@ -7,6 +7,7 @@ Paper "A ConvNet for the 2020s", https://arxiv.org/abs/2201.03545
 
 # Reference license: BSD 3-Clause
 
+from typing import Any
 from typing import Optional
 
 import torch
@@ -74,45 +75,20 @@ class ConvNeXt_v1(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         layer_scale = 1e-6
-
-        # 0 = tiny
-        # 1 = small
-        # 2 = base
-        # 3 = large
-        if net_param == 0:
-            in_channels = [96, 192, 384, 768]
-            out_channels = [192, 384, 768, -1]
-            num_layers = [3, 3, 9, 3]
-            stochastic_depth_prob = 0.1
-
-        elif net_param == 1:
-            in_channels = [96, 192, 384, 768]
-            out_channels = [192, 384, 768, -1]
-            num_layers = [3, 3, 27, 3]
-            stochastic_depth_prob = 0.4
-
-        elif net_param == 2:
-            in_channels = [128, 256, 512, 1024]
-            out_channels = [256, 512, 1024, -1]
-            num_layers = [3, 3, 27, 3]
-            stochastic_depth_prob = 0.5
-
-        elif net_param == 3:
-            in_channels = [192, 384, 768, 1536]
-            out_channels = [384, 768, 1536, -1]
-            num_layers = [3, 3, 27, 3]
-            stochastic_depth_prob = 0.5
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        in_channels: list[int] = self.config["in_channels"]
+        num_layers: list[int] = self.config["num_layers"]
+        stochastic_depth_prob: float = self.config["stochastic_depth_prob"]
+        out_channels = in_channels[1:] + [-1]
 
         self.stem = Conv2dNormActivation(
             self.input_channels,
@@ -170,7 +146,23 @@ class ConvNeXt_v1(BaseNet):
         return self.features(x)
 
 
-registry.register_alias("convnext_v1_tiny", ConvNeXt_v1, 0)
-registry.register_alias("convnext_v1_small", ConvNeXt_v1, 1)
-registry.register_alias("convnext_v1_base", ConvNeXt_v1, 2)
-registry.register_alias("convnext_v1_large", ConvNeXt_v1, 3)
+registry.register_alias(
+    "convnext_v1_tiny",
+    ConvNeXt_v1,
+    config={"in_channels": [96, 192, 384, 768], "num_layers": [3, 3, 9, 3], "stochastic_depth_prob": 0.1},
+)
+registry.register_alias(
+    "convnext_v1_small",
+    ConvNeXt_v1,
+    config={"in_channels": [96, 192, 384, 768], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.4},
+)
+registry.register_alias(
+    "convnext_v1_base",
+    ConvNeXt_v1,
+    config={"in_channels": [128, 256, 512, 1024], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.5},
+)
+registry.register_alias(
+    "convnext_v1_large",
+    ConvNeXt_v1,
+    config={"in_channels": [192, 384, 768, 1536], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.5},
+)

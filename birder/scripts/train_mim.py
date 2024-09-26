@@ -110,8 +110,8 @@ def train(args: argparse.Namespace) -> None:
         )
 
     else:
-        encoder = registry.net_factory(args.encoder, sample_shape[1], 0, args.encoder_param, args.size)
-        net = registry.mim_net_factory(args.network, encoder, args.net_param, args.size).to(device)
+        encoder = registry.net_factory(args.encoder, sample_shape[1], 0, net_param=args.encoder_param, size=args.size)
+        net = registry.mim_net_factory(args.network, encoder, net_param=args.net_param, size=args.size).to(device)
 
     if args.fast_matmul is True:
         torch.set_float32_matmul_precision("high")
@@ -173,7 +173,9 @@ def train(args: argparse.Namespace) -> None:
     # Distributed
     net_without_ddp = net
     if args.distributed is True:
-        net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[args.gpu], find_unused_parameters=False)
+        net = torch.nn.parallel.DistributedDataParallel(
+            net, device_ids=[args.gpu], find_unused_parameters=args.find_unused_parameters
+        )
         net_without_ddp = net.module
 
     model_to_save = net_without_ddp
@@ -397,16 +399,19 @@ def get_args_parser() -> argparse.ArgumentParser:
             "Usage examples:\n"
             "python train_mim.py --network mae_vit --encoder vit_b16 "
             "--batch-size 32 --opt adamw --lr 0.0001\n"
+            "torchrun --nproc_per_node=2 train_mim.py --network fcmae --encoder convnext_v2_nano --opt adamw "
+            "--lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --batch-size 512 --wd 0.05 "
+            "--amp --compile --find-unused-parameters --data-path data/training data/raw_data\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("-n", "--network", type=str, help="the neural network to use")
-    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required for most networks")
+    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
     parser.add_argument("--encoder", type=str, help="the neural network to used as encoder (network being pre-trained)")
     parser.add_argument(
         "--encoder-param",
         type=float,
-        help="network specific parameter, required by most networks (for the encoder)",
+        help="network specific parameter, required by some networks (for the encoder)",
     )
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
@@ -528,6 +533,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--world-size", type=int, default=1, help="number of distributed processes")
     parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
+    parser.add_argument(
+        "--find-unused-parameters",
+        default=False,
+        action="store_true",
+        help="enable searching for unused parameters in DistributedDataParallel (may impact performance)",
+    )
     parser.add_argument("--clip-grad-norm", type=float, default=None, help="the maximum gradient norm")
     parser.add_argument("--gpu", type=int, help="gpu id to use (ignored in distributed mode)")
     parser.add_argument(

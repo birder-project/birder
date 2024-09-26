@@ -8,6 +8,7 @@ https://arxiv.org/abs/1602.07360
 
 # Reference license: BSD 3-Clause
 
+from typing import Any
 from typing import Optional
 
 import torch
@@ -37,17 +38,21 @@ class Fire(nn.Module):
 
 
 class SqueezeNet(BaseNet):
+    auto_register = True
     default_size = 227
 
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
+        assert self.config is None, "config not supported"
 
         self.stem = nn.Sequential(
             nn.Conv2d(self.input_channels, 64, kernel_size=(3, 3), stride=(2, 2), padding=(0, 0), bias=False),

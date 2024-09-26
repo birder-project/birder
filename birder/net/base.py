@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import Any
 from typing import Optional
 from typing import TypedDict
 
@@ -40,6 +41,7 @@ def make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> i
 
 
 class BaseNet(nn.Module):
+    auto_register = False
     default_size: int
     task = str(Task.IMAGE_CLASSIFICATION)
 
@@ -49,13 +51,19 @@ class BaseNet(nn.Module):
             # Exclude all other base classes here
             return
 
+        if cls.auto_register is False:
+            # Exclude networks with custom config (initialized only with aliases)
+            return
+
         registry.register_model(cls.__name__.lower(), cls)
 
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
         super().__init__()
@@ -63,6 +71,8 @@ class BaseNet(nn.Module):
         self.num_classes = num_classes
         if hasattr(self, "net_param") is False:  # Avoid overriding aliases
             self.net_param = net_param
+        if hasattr(self, "config") is False:  # Avoid overriding aliases
+            self.config = config
 
         if size is not None:
             self.size = size
@@ -118,10 +128,12 @@ class PreTrainEncoder(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         self.encoding_size: int
         self.decoder_block: Callable[[int], nn.Module]
 
@@ -136,10 +148,12 @@ class DetectorBackbone(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         self.return_stages = ["stage1", "stage2", "stage3", "stage4"]
         self.return_channels: list[int]
 

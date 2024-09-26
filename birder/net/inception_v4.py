@@ -8,6 +8,7 @@ https://arxiv.org/abs/1602.07261
 
 # Reference license: Apache-2.0
 
+from typing import Any
 from typing import Optional
 
 import torch
@@ -220,17 +221,21 @@ class InceptionBlockC(nn.Module):
 
 # pylint: disable=invalid-name
 class Inception_v4(BaseNet):
+    auto_register = True
     default_size = 299
 
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
+        assert self.config is None, "config not supported"
 
         self.stem = nn.Sequential(
             Conv2dNormActivation(

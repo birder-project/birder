@@ -14,6 +14,7 @@ Changes from original:
 # Reference license: Apache-2.0 (both)
 
 import logging
+from typing import Any
 from typing import Optional
 
 import torch
@@ -264,38 +265,21 @@ class EfficientFormer_v1(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         resolution = int(self.size / (2**5))
         layer_scale_init_value = 1e-5
-        if net_param == 0:
-            # L1
-            embed_dims = (48, 96, 224, 448)
-            depths = (3, 2, 6, 4)
-            drop_path_rate = 0.0
-            num_vit = 1
-
-        elif net_param == 1:
-            # L3
-            embed_dims = (64, 128, 320, 512)
-            depths = (4, 4, 12, 6)
-            drop_path_rate = 0.1
-            num_vit = 4
-
-        elif net_param == 2:
-            # L7
-            embed_dims = (96, 192, 384, 768)
-            depths = (6, 6, 18, 8)
-            drop_path_rate = 0.1
-            num_vit = 8
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        embed_dims: tuple[int, int, int, int] = self.config["embed_dims"]
+        depths: tuple[int, int, int, int] = (3, 2, 6, 4)
+        drop_path_rate: float = 0.0
+        num_vit: int = 1
 
         self.stem = nn.Sequential(
             Conv2dNormActivation(
@@ -411,9 +395,21 @@ class EfficientFormer_v1(BaseNet):
         logging.info(f"Resized attention resolution: {resolution} to {old_res}")
 
 
-registry.register_alias("efficientformer_v1_l1", EfficientFormer_v1, 0)
-registry.register_alias("efficientformer_v1_l3", EfficientFormer_v1, 1)
-registry.register_alias("efficientformer_v1_l7", EfficientFormer_v1, 2)
+registry.register_alias(
+    "efficientformer_v1_l1",
+    EfficientFormer_v1,
+    config={"embed_dims": (48, 96, 224, 448), "depths": (3, 2, 6, 4), "drop_path_rate": 0.0, "num_vit": 1},
+)
+registry.register_alias(
+    "efficientformer_v1_l3",
+    EfficientFormer_v1,
+    config={"embed_dims": (64, 128, 320, 512), "depths": (4, 4, 12, 6), "drop_path_rate": 0.1, "num_vit": 4},
+)
+registry.register_alias(
+    "efficientformer_v1_l7",
+    EfficientFormer_v1,
+    config={"embed_dims": (96, 192, 384, 768), "depths": (6, 6, 18, 8), "drop_path_rate": 0.1, "num_vit": 8},
+)
 
 registry.register_weights(
     "efficientformer_v1_l1_il-common",

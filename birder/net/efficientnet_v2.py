@@ -10,6 +10,7 @@ https://arxiv.org/abs/2104.00298
 
 import math
 from collections import OrderedDict
+from typing import Any
 from typing import Optional
 
 import torch
@@ -105,7 +106,7 @@ class FusedMBConv(nn.Module):
         return branch
 
 
-# pylint: disable=invalid-name,too-many-locals,too-many-branches
+# pylint: disable=invalid-name,too-many-locals
 class EfficientNet_v2(DetectorBackbone):
     default_size = 320
 
@@ -113,64 +114,26 @@ class EfficientNet_v2(DetectorBackbone):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         stochastic_depth_prob = 0.2
         last_channels = 1280
         width_coefficient = 1.0
         depth_coefficient = 1.0
-
-        # 0 = s = small
-        # 1 = m = medium
-        # 2 = l = large
-        # 3 = xl = xlarge
-        if net_param == 0:
-            expand_ratio = [1, 4, 4, 4, 6, 6]
-            kernel_size = [(3, 3), (3, 3), (3, 3), (3, 3), (3, 3), (3, 3)]
-            strides = [(1, 1), (2, 2), (2, 2), (2, 2), (1, 1), (2, 2)]
-            in_channels = [24, 24, 48, 64, 128, 160]
-            out_channels = [24, 48, 64, 128, 160, 256]
-            repeats = [2, 4, 4, 6, 9, 15]
-            # input_resolution = 300 / 384 (train / eval)
-            dropout_rate = 0.2
-
-        elif net_param == 1:
-            expand_ratio = [1, 4, 4, 4, 6, 6, 6]
-            kernel_size = [(3, 3), (3, 3), (3, 3), (3, 3), (3, 3), (3, 3), (3, 3)]
-            strides = [(1, 1), (2, 2), (2, 2), (2, 2), (1, 1), (2, 2), (1, 1)]
-            in_channels = [24, 24, 48, 80, 160, 176, 304]
-            out_channels = [24, 48, 80, 160, 176, 304, 512]
-            repeats = [3, 5, 5, 7, 14, 18, 5]
-            # input_resolution = 384 / 480 (train / eval)
-            dropout_rate = 0.3
-
-        elif net_param == 2:
-            expand_ratio = [1, 4, 4, 4, 6, 6, 6]
-            kernel_size = [(3, 3), (3, 3), (3, 3), (3, 3), (3, 3), (3, 3), (3, 3)]
-            strides = [(1, 1), (2, 2), (2, 2), (2, 2), (1, 1), (2, 2), (1, 1)]
-            in_channels = [32, 32, 64, 96, 192, 224, 384]
-            out_channels = [32, 64, 96, 192, 224, 384, 640]
-            repeats = [4, 7, 7, 10, 19, 25, 7]
-            # input_resolution = 384 / 480 (train / eval)
-            dropout_rate = 0.4
-
-        elif net_param == 3:
-            expand_ratio = [1, 4, 4, 4, 6, 6, 6]
-            kernel_size = [(3, 3), (3, 3), (3, 3), (3, 3), (3, 3), (3, 3), (3, 3)]
-            strides = [(1, 1), (2, 2), (2, 2), (2, 2), (1, 1), (2, 2), (1, 1)]
-            in_channels = [32, 32, 64, 96, 192, 256, 512]
-            out_channels = [32, 64, 96, 192, 256, 512, 640]
-            repeats = [4, 8, 8, 16, 24, 32, 8]
-            # input_resolution = 384 / 512 (train / eval)
-            dropout_rate = 0.4
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        expand_ratio: list[int] = self.config["expand_ratio"]
+        kernel_size: list[tuple[int, int]] = self.config["kernel_size"]
+        strides: list[tuple[int, int]] = self.config["strides"]
+        in_channels: list[int] = self.config["in_channels"]
+        out_channels: list[int] = self.config["out_channels"]
+        repeats: list[int] = self.config["repeats"]
+        dropout_rate: float = self.config["dropout_rate"]
 
         in_channels = [adjust_channels(ch, width_coefficient) for ch in in_channels]
         out_channels = [adjust_channels(ch, width_coefficient) for ch in out_channels]
@@ -318,7 +281,55 @@ class EfficientNet_v2(DetectorBackbone):
         )
 
 
-registry.register_alias("efficientnet_v2_s", EfficientNet_v2, 0)
-registry.register_alias("efficientnet_v2_m", EfficientNet_v2, 1)
-registry.register_alias("efficientnet_v2_l", EfficientNet_v2, 2)
-registry.register_alias("efficientnet_v2_xl", EfficientNet_v2, 3)
+registry.register_alias(
+    "efficientnet_v2_s",
+    EfficientNet_v2,  # input_resolution = 300 / 384 (train / eval)
+    config={
+        "expand_ratio": [1, 4, 4, 4, 6, 6],
+        "kernel_size": [(3, 3), (3, 3), (3, 3), (3, 3), (3, 3), (3, 3)],
+        "strides": [(1, 1), (2, 2), (2, 2), (2, 2), (1, 1), (2, 2)],
+        "in_channels": [24, 24, 48, 64, 128, 160],
+        "out_channels": [24, 48, 64, 128, 160, 256],
+        "repeats": [2, 4, 4, 6, 9, 15],
+        "dropout_rate": 0.2,
+    },
+)
+registry.register_alias(
+    "efficientnet_v2_m",
+    EfficientNet_v2,  # input_resolution = 384 / 480 (train / eval)
+    config={
+        "expand_ratio": [1, 4, 4, 4, 6, 6, 6],
+        "kernel_size": [(3, 3), (3, 3), (3, 3), (3, 3), (3, 3), (3, 3), (3, 3)],
+        "strides": [(1, 1), (2, 2), (2, 2), (2, 2), (1, 1), (2, 2), (1, 1)],
+        "in_channels": [24, 24, 48, 80, 160, 176, 304],
+        "out_channels": [24, 48, 80, 160, 176, 304, 512],
+        "repeats": [3, 5, 5, 7, 14, 18, 5],
+        "dropout_rate": 0.3,
+    },
+)
+registry.register_alias(
+    "efficientnet_v2_l",
+    EfficientNet_v2,  # input_resolution = 384 / 480 (train / eval)
+    config={
+        "expand_ratio": [1, 4, 4, 4, 6, 6, 6],
+        "kernel_size": [(3, 3), (3, 3), (3, 3), (3, 3), (3, 3), (3, 3), (3, 3)],
+        "strides": [(1, 1), (2, 2), (2, 2), (2, 2), (1, 1), (2, 2), (1, 1)],
+        "in_channels": [32, 32, 64, 96, 192, 224, 384],
+        "out_channels": [32, 64, 96, 192, 224, 384, 640],
+        "repeats": [4, 7, 7, 10, 19, 25, 7],
+        "dropout_rate": 0.4,
+    },
+)
+registry.register_alias(
+    "efficientnet_v2_xl",
+    EfficientNet_v2,  # input_resolution = 384 / 512 (train / eval)
+    config={
+        "expand_ratio": [1, 4, 4, 4, 6, 6, 6],
+        "kernel_size": [(3, 3), (3, 3), (3, 3), (3, 3), (3, 3), (3, 3), (3, 3)],
+        "strides": [(1, 1), (2, 2), (2, 2), (2, 2), (1, 1), (2, 2), (1, 1)],
+        "in_channels": [32, 32, 64, 96, 192, 256, 512],
+        "out_channels": [32, 64, 96, 192, 256, 512, 640],
+        "repeats": [4, 8, 8, 16, 24, 32, 8],
+        "dropout_rate": 0.4,
+    },
+)

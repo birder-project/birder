@@ -9,6 +9,7 @@ Paper "Searching for MobileNetV3", https://arxiv.org/abs/1905.02244
 
 from collections import OrderedDict
 from collections.abc import Callable
+from typing import Any
 from typing import Optional
 
 import torch
@@ -113,17 +114,22 @@ class InvertedResidual(nn.Module):
 
 # pylint: disable=invalid-name
 class MobileNet_v3_Large(DetectorBackbone):
+    auto_register = True
     default_size = 224
 
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
         large: bool = True,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is not None, "must set net-param"
+        assert self.config is None, "config not supported"
         alpha = net_param
         alpha_values = [0.25, 0.50, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
         assert alpha in alpha_values, f"alpha = {alpha} not supported"

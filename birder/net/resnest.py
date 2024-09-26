@@ -7,6 +7,7 @@ Paper "ResNeSt: Split-Attention Networks", https://arxiv.org/abs/2004.08955
 
 # Reference license: Apache-2.0
 
+from typing import Any
 from typing import Optional
 
 import torch
@@ -14,6 +15,7 @@ import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
+from birder.model_registry import registry
 from birder.net.base import BaseNet
 from birder.net.base import make_divisible
 
@@ -202,42 +204,20 @@ class ResNeSt(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        num_layers = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         radix = 2
         expansion = 4
         filter_list = [64, 128, 256, 512]
-        if num_layers == 14:
-            stem_width = 32
-            units = [1, 1, 1, 1]
-
-        elif num_layers == 26:
-            stem_width = 32
-            units = [2, 2, 2, 2]
-
-        elif num_layers == 50:
-            stem_width = 32
-            units = [3, 4, 6, 3]
-
-        elif num_layers == 101:
-            stem_width = 64
-            units = [3, 4, 23, 3]
-
-        elif num_layers == 200:
-            stem_width = 64
-            units = [3, 24, 36, 3]
-
-        elif num_layers == 269:
-            stem_width = 64
-            units = [3, 30, 48, 8]
-
-        else:
-            raise ValueError(f"num_layers = {num_layers} not supported")
+        stem_width: int = self.config["stem_width"]
+        units: list[int] = self.config["units"]
 
         in_channels = stem_width * 2
         self.stem = nn.Sequential(
@@ -277,3 +257,11 @@ class ResNeSt(BaseNet):
         x = self.stem(x)
         x = self.body(x)
         return self.features(x)
+
+
+registry.register_alias("resnest_14", ResNeSt, config={"stem_width": 32, "units": [1, 1, 1, 1]})
+registry.register_alias("resnest_26", ResNeSt, config={"stem_width": 32, "units": [2, 2, 2, 2]})
+registry.register_alias("resnest_50", ResNeSt, config={"stem_width": 32, "units": [3, 4, 6, 3]})
+registry.register_alias("resnest_101", ResNeSt, config={"stem_width": 64, "units": [3, 4, 23, 3]})
+registry.register_alias("resnest_200", ResNeSt, config={"stem_width": 64, "units": [3, 24, 36, 3]})
+registry.register_alias("resnest_269", ResNeSt, config={"stem_width": 64, "units": [3, 30, 48, 8]})

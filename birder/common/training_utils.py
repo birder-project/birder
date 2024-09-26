@@ -114,6 +114,40 @@ def ema_model(args: argparse.Namespace, net: torch.nn.Module, device: torch.devi
     return model_ema
 
 
+# def group_by_regex(strings: list[str], pattern: str) -> list[list[str]]:
+#     groups = []
+#     current_group = []
+#     current_block = None
+
+#     for s in strings:
+#         match = re.search(pattern, s)
+#         if match is not None:
+#             block_num = match.group(1)
+#             if block_num != current_block:
+#                 if current_group:
+#                     groups.append(current_group)
+
+#                 current_group = []
+#                 current_block = block_num
+
+#         elif current_block is not None:
+#             if current_group:
+#                 groups.append(current_group)
+
+#             current_group = []
+#             current_block = None
+
+#         current_group.append(s)
+
+#     if len(current_group) > 0:
+#         groups.append(current_group)
+
+#     return groups
+
+# pattern = r"encoder\.block\.(\d+)"
+# grouped = group_by_regex(names, pattern)
+
+
 # pylint: disable=protected-access,too-many-locals,too-many-branches
 def optimizer_parameter_groups(
     model: torch.nn.Module,

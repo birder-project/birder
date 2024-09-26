@@ -162,13 +162,24 @@ class TestCommon(unittest.TestCase):
         self.assertEqual(params[3]["lr_scale"], 0.1)
         self.assertEqual(params[4]["lr_scale"], 1.0)
 
-        model = ResNeXt(3, 2, net_param=50)
+        model = ResNeXt(3, 2, config={"units": [3, 4, 6, 3]})
         params = training_utils.optimizer_parameter_groups(model, 0, layer_decay=0.1)
         self.assertEqual(params[-1]["lr_scale"], 1.0)
         self.assertEqual(params[-2]["lr_scale"], 1.0)
         self.assertEqual(params[-3]["lr_scale"], 0.1)
 
-        model = ViT(3, 2, net_param=0)
+        model = ViT(
+            3,
+            2,
+            config={
+                "patch_size": 32,
+                "num_layers": 12,
+                "num_heads": 12,
+                "hidden_dim": 768,
+                "mlp_dim": 3072,
+                "drop_path_rate": 0.0,
+            },
+        )
         params = training_utils.optimizer_parameter_groups(model, 0, layer_decay=0.1)
         self.assertEqual(params[-1]["lr_scale"], 1.0)
         self.assertEqual(params[-2]["lr_scale"], 1.0)

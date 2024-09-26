@@ -15,6 +15,7 @@ Changes from original:
 
 import logging
 import math
+from typing import Any
 from typing import Optional
 
 import torch
@@ -395,68 +396,21 @@ class EfficientFormer_v2(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         layer_scale_init_value = 1e-5
-        if net_param == 0:
-            # S0
-            embed_dims = (32, 48, 96, 176)
-            depths = (2, 2, 6, 4)
-            drop_path_rate = 0.0
-            num_vit = 2
-            mlp_ratios = [
-                [4, 4],
-                [4, 4],
-                [4, 3, 3, 3, 4, 4],
-                [4, 3, 3, 4],
-            ]
-
-        elif net_param == 1:
-            # S1
-            embed_dims = (32, 48, 120, 224)
-            depths = (3, 3, 9, 6)
-            drop_path_rate = 0.0
-            num_vit = 2
-            mlp_ratios = [
-                [4, 4, 4],
-                [4, 4, 4],
-                [4, 4, 3, 3, 3, 3, 4, 4, 4],
-                [4, 4, 3, 3, 4, 4],
-            ]
-
-        elif net_param == 2:
-            # S2
-            embed_dims = (32, 64, 144, 288)
-            depths = (4, 4, 12, 8)
-            drop_path_rate = 0.02
-            num_vit = 4
-            mlp_ratios = [
-                [4, 4, 4, 4],
-                [4, 4, 4, 4],
-                [4, 4, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4],
-                [4, 4, 3, 3, 3, 3, 4, 4],
-            ]
-
-        elif net_param == 3:
-            # L
-            embed_dims = (40, 80, 192, 384)
-            depths = (5, 5, 15, 10)
-            drop_path_rate = 0.1
-            num_vit = 6
-            mlp_ratios = [
-                [4, 4, 4, 4, 4],
-                [4, 4, 4, 4, 4],
-                [4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4],
-                [4, 4, 4, 3, 3, 3, 3, 4, 4, 4],
-            ]
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        embed_dims: tuple[int, int, int, int] = self.config["embed_dims"]
+        depths: tuple[int, int, int, int] = self.config["depths"]
+        drop_path_rate: float = self.config["drop_path_rate"]
+        num_vit: int = self.config["num_vit"]
+        mlp_ratios: list[list[int]] = self.config["mlp_ratios"]
 
         self.stem = nn.Sequential(
             Conv2dNormActivation(
@@ -650,10 +604,70 @@ class EfficientFormer_v2(BaseNet):
         logging.info(f"Resized attention base resolution: {old_base} to {new_base}")
 
 
-registry.register_alias("efficientformer_v2_s0", EfficientFormer_v2, 0)
-registry.register_alias("efficientformer_v2_s1", EfficientFormer_v2, 1)
-registry.register_alias("efficientformer_v2_s2", EfficientFormer_v2, 2)
-registry.register_alias("efficientformer_v2_l", EfficientFormer_v2, 3)
+registry.register_alias(
+    "efficientformer_v2_s0",
+    EfficientFormer_v2,
+    config={
+        "embed_dims": (32, 48, 96, 176),
+        "depths": (2, 2, 6, 4),
+        "drop_path_rate": 0.0,
+        "num_vit": 2,
+        "mlp_ratios": [
+            [4, 4],
+            [4, 4],
+            [4, 3, 3, 3, 4, 4],
+            [4, 3, 3, 4],
+        ],
+    },
+)
+registry.register_alias(
+    "efficientformer_v2_s1",
+    EfficientFormer_v2,
+    config={
+        "embed_dims": (32, 48, 120, 224),
+        "depths": (3, 3, 9, 6),
+        "drop_path_rate": 0.0,
+        "num_vit": 2,
+        "mlp_ratios": [
+            [4, 4, 4],
+            [4, 4, 4],
+            [4, 4, 3, 3, 3, 3, 4, 4, 4],
+            [4, 4, 3, 3, 4, 4],
+        ],
+    },
+)
+registry.register_alias(
+    "efficientformer_v2_s2",
+    EfficientFormer_v2,
+    config={
+        "embed_dims": (32, 64, 144, 288),
+        "depths": (4, 4, 12, 8),
+        "drop_path_rate": 0.02,
+        "num_vit": 4,
+        "mlp_ratios": [
+            [4, 4, 4, 4],
+            [4, 4, 4, 4],
+            [4, 4, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4],
+            [4, 4, 3, 3, 3, 3, 4, 4],
+        ],
+    },
+)
+registry.register_alias(
+    "efficientformer_v2_l",
+    EfficientFormer_v2,
+    config={
+        "embed_dims": (40, 80, 192, 384),
+        "depths": (5, 5, 15, 10),
+        "drop_path_rate": 0.1,
+        "num_vit": 6,
+        "mlp_ratios": [
+            [4, 4, 4, 4, 4],
+            [4, 4, 4, 4, 4],
+            [4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4],
+            [4, 4, 4, 3, 3, 3, 3, 4, 4, 4],
+        ],
+    },
+)
 
 registry.register_weights(
     "efficientformer_v2_s0_il-common",

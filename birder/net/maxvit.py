@@ -11,6 +11,7 @@ import logging
 import math
 from collections.abc import Callable
 from functools import partial
+from typing import Any
 from typing import Optional
 
 import numpy as np
@@ -456,13 +457,15 @@ class MaxViT(PreTrainEncoder):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
         assert self.size is not None, "must set size"
-        net_param = int(self.net_param)
 
         image_size = (self.size, self.size)
         squeeze_ratio = 0.25
@@ -471,40 +474,11 @@ class MaxViT(PreTrainEncoder):
         mlp_dropout = 0.0
         attention_dropout = 0.0
         partition_size = int(self.size / (2**5))
-        if net_param == 0:
-            # Tiny
-            block_channels = [64, 128, 256, 512]
-            block_layers = [2, 2, 5, 2]
-            stem_channels = 64
-            head_dim = 32
-            stochastic_depth_prob = 0.2
-
-        elif net_param == 1:
-            # Small
-            block_channels = [96, 128, 256, 512]
-            block_layers = [2, 2, 5, 2]
-            stem_channels = 64
-            head_dim = 32
-            stochastic_depth_prob = 0.3
-
-        elif net_param == 2:
-            # Base
-            block_channels = [96, 192, 384, 768]
-            block_layers = [2, 6, 14, 2]
-            stem_channels = 64
-            head_dim = 32
-            stochastic_depth_prob = 0.4
-
-        elif net_param == 3:
-            # Large
-            block_channels = [128, 256, 512, 1024]
-            block_layers = [2, 6, 14, 2]
-            stem_channels = 128
-            head_dim = 32
-            stochastic_depth_prob = 0.5
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        block_channels: list[int] = self.config["block_channels"]
+        block_layers: list[int] = self.config["block_layers"]
+        stem_channels: int = self.config["stem_channels"]
+        head_dim: int = self.config["head_dim"]
+        stochastic_depth_prob: float = self.config["stochastic_depth_prob"]
 
         # Make sure input size will be divisible by the partition size in all blocks
         # Undefined behavior if H or W are not divisible by p
@@ -766,7 +740,47 @@ class MaxViT(PreTrainEncoder):
                 new_grid_size = m.grid_size
 
 
-registry.register_alias("maxvit_t", MaxViT, 0)
-registry.register_alias("maxvit_s", MaxViT, 1)
-registry.register_alias("maxvit_b", MaxViT, 2)
-registry.register_alias("maxvit_l", MaxViT, 3)
+registry.register_alias(
+    "maxvit_t",
+    MaxViT,
+    config={
+        "block_channels": [64, 128, 256, 512],
+        "block_layers": [2, 2, 5, 2],
+        "stem_channels": 64,
+        "head_dim": 32,
+        "stochastic_depth_prob": 0.2,
+    },
+)
+registry.register_alias(
+    "maxvit_s",
+    MaxViT,
+    config={
+        "block_channels": [96, 128, 256, 512],
+        "block_layers": [2, 2, 5, 2],
+        "stem_channels": 64,
+        "head_dim": 32,
+        "stochastic_depth_prob": 0.3,
+    },
+)
+registry.register_alias(
+    "maxvit_b",
+    MaxViT,
+    config={
+        "block_channels": [96, 192, 384, 768],
+        "block_layers": [2, 6, 14, 2],
+        "stem_channels": 64,
+        "head_dim": 32,
+        "stochastic_depth_prob": 0.4,
+    },
+)
+registry.register_alias(
+    "maxvit_l",
+    MaxViT,
+    config={
+        "block_channels": [128, 256, 512, 1024],
+        "block_layers": [2, 6, 14, 2],
+        "stem_channels": 128,
+        "head_dim": 32,
+        "stochastic_depth_prob": 0.5,
+    },
+)

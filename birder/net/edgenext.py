@@ -9,6 +9,7 @@ https://arxiv.org/abs/2206.10589
 # Reference license: MIT
 
 import math
+from typing import Any
 from typing import Optional
 
 import torch
@@ -20,38 +21,7 @@ from torchvision.ops import StochasticDepth
 from birder.model_registry import registry
 from birder.net.base import BaseNet
 from birder.net.convnext_v1 import LayerNorm2d
-
-
-class PositionalEncodingFourier(nn.Module):
-    def __init__(self, hidden_dim: int, dim: int, temperature: int = 10000) -> None:
-        super().__init__()
-        self.token_projection = nn.Conv2d(hidden_dim * 2, dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
-        self.scale = 2 * math.pi
-        self.temperature = temperature
-        self.hidden_dim = hidden_dim
-        self.dim = dim
-
-    def forward(self, shape: tuple[int, int, int]) -> torch.Tensor:
-        device = self.token_projection.weight.device
-        dtype = self.token_projection.weight.dtype
-        inv_mask = ~torch.zeros(shape).to(device=device, dtype=torch.bool)
-        y_embed = inv_mask.cumsum(1, dtype=torch.float32)
-        x_embed = inv_mask.cumsum(2, dtype=torch.float32)
-        eps = 1e-6
-        y_embed = y_embed / (y_embed[:, -1:, :] + eps) * self.scale
-        x_embed = x_embed / (x_embed[:, :, -1:] + eps) * self.scale
-
-        dim_t = torch.arange(self.hidden_dim, dtype=torch.int64, device=device).to(torch.float32)
-        dim_t = self.temperature ** (2 * torch.div(dim_t, 2, rounding_mode="floor") / self.hidden_dim)
-
-        pos_x = x_embed[:, :, :, None] / dim_t
-        pos_y = y_embed[:, :, :, None] / dim_t
-        pos_x = torch.stack((pos_x[:, :, :, 0::2].sin(), pos_x[:, :, :, 1::2].cos()), dim=4).flatten(3)
-        pos_y = torch.stack((pos_y[:, :, :, 0::2].sin(), pos_y[:, :, :, 1::2].cos()), dim=4).flatten(3)
-        pos = torch.concat((pos_y, pos_x), dim=3).permute(0, 3, 1, 2)
-        pos = self.token_projection(pos.to(dtype))
-
-        return pos
+from birder.net.xcit import PositionalEncodingFourier
 
 
 class ConvBlock(nn.Module):
@@ -96,9 +66,7 @@ class ConvBlock(nn.Module):
 
 
 class CrossCovarianceAttn(nn.Module):
-    def __init__(
-        self, dim: int, num_heads: int = 8, qkv_bias: bool = False, attn_drop: float = 0.0, proj_drop: float = 0.0
-    ) -> None:
+    def __init__(self, dim: int, num_heads: int, qkv_bias: bool, attn_drop: float, proj_drop: float) -> None:
         super().__init__()
         self.num_heads = num_heads
         self.temperature = nn.Parameter(torch.ones(self.num_heads, 1, 1))
@@ -110,14 +78,15 @@ class CrossCovarianceAttn(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         (B, N, C) = x.shape
-        qkv = self.qkv(x)
-        qkv = qkv.reshape(B, N, 3, self.num_heads, -1).permute(2, 0, 3, 4, 1)
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, -1)
+        qkv = qkv.permute(2, 0, 3, 4, 1)
         (q, k, v) = qkv.unbind(0)
 
-        attn = (F.normalize(q, dim=-1) @ F.normalize(k, dim=-1).transpose(-2, -1)) * self.temperature
-        attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
-        x = attn @ v
+        q = F.normalize(q, dim=-1) * self.temperature
+        k = F.normalize(k, dim=-1)
+        x = F.scaled_dot_product_attention(  # pylint:disable=not-callable
+            q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, scale=1.0
+        )
 
         x = x.permute(0, 3, 1, 2).reshape(B, N, C)
         x = self.proj(x)
@@ -188,7 +157,7 @@ class SDTA(nn.Module):
         (B, C, H, W) = x.shape
         x = x.reshape(B, C, H * W).permute(0, 2, 1)
         if self.pos_embed is not None:
-            pos_encoding = self.pos_embed((B, H, W)).reshape(B, -1, x.shape[1]).permute(0, 2, 1)
+            pos_encoding = self.pos_embed(B, H, W).reshape(B, -1, x.shape[1]).permute(0, 2, 1)
             x = x + pos_encoding
 
         x = x + self.drop_path(self.gamma_xca * self.xca(self.norm_xca(x)))
@@ -277,16 +246,19 @@ class EdgeNeXtStage(nn.Module):
 class EdgeNeXt(BaseNet):
     default_size = 256
 
+    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         global_block_counts = [0, 1, 1, 1]
         d2_scales = [2, 2, 3, 4]
@@ -294,36 +266,10 @@ class EdgeNeXt(BaseNet):
         kernel_sizes = [(3, 3), (5, 5), (7, 7), (9, 9)]
         use_pos_emb = [False, True, False, False]
         layer_scale_init_value = 1e-6
-        if net_param == 0:
-            # XXS - extra-extra-small
-            depths = [2, 2, 6, 2]
-            dims = [24, 48, 88, 168]
-            heads = [4, 4, 4, 4]
-            drop_path_rate = 0.0
-
-        elif net_param == 1:
-            # XS - extra-small
-            depths = [3, 3, 9, 3]
-            dims = [32, 64, 100, 192]
-            heads = [4, 4, 4, 4]
-            drop_path_rate = 0.0
-
-        elif net_param == 2:
-            # S - small
-            depths = [3, 3, 9, 3]
-            dims = [48, 96, 160, 304]
-            heads = [8, 8, 8, 8]
-            drop_path_rate = 0.1
-
-        elif net_param == 3:
-            # B - base
-            depths = [3, 3, 9, 3]
-            dims = [80, 160, 288, 584]
-            heads = [8, 8, 8, 8]
-            drop_path_rate = 0.1
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        depths: list[int] = self.config["depths"]
+        dims: list[int] = self.config["dims"]
+        heads: list[int] = self.config["heads"]
+        drop_path_rate: float = self.config["drop_path_rate"]
 
         self.stem = Conv2dNormActivation(
             self.input_channels,
@@ -383,7 +329,38 @@ class EdgeNeXt(BaseNet):
         return self.features(x)
 
 
-registry.register_alias("edgenext_xxs", EdgeNeXt, 0)
-registry.register_alias("edgenext_xs", EdgeNeXt, 1)
-registry.register_alias("edgenext_s", EdgeNeXt, 2)
-registry.register_alias("edgenext_b", EdgeNeXt, 3)
+registry.register_alias(
+    "edgenext_xxs",
+    EdgeNeXt,
+    config={"depths": [2, 2, 6, 2], "dims": [24, 48, 88, 168], "heads": [4, 4, 4, 4], "drop_path_rate": 0.0},
+)
+registry.register_alias(
+    "edgenext_xs",
+    EdgeNeXt,
+    config={"depths": [3, 3, 9, 3], "dims": [32, 64, 100, 192], "heads": [4, 4, 4, 4], "drop_path_rate": 0.0},
+)
+registry.register_alias(
+    "edgenext_s",
+    EdgeNeXt,
+    config={"depths": [3, 3, 9, 3], "dims": [48, 96, 160, 304], "heads": [8, 8, 8, 8], "drop_path_rate": 0.1},
+)
+registry.register_alias(
+    "edgenext_b",
+    EdgeNeXt,
+    config={"depths": [3, 3, 9, 3], "dims": [80, 160, 288, 584], "heads": [8, 8, 8, 8], "drop_path_rate": 0.1},
+)
+
+registry.register_weights(
+    "edgenext_xxs_il-common",
+    {
+        "description": "EdgeNeXt extra extra small model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 4.7,
+                "sha256": "ae35035139c4ac027fe50c02c909bbad4c999565872efef17372822820ecae79",
+            }
+        },
+        "net": {"network": "edgenext_xxs", "tag": "il-common"},
+    },
+)

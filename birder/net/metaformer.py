@@ -317,294 +317,31 @@ class MetaFormerStage(nn.Module):
 class MetaFormer(BaseNet):
     default_size = 224
 
-    # pylint: disable=too-many-statements,too-many-branches
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
-        # PoolFormer v1
-        if net_param == 0:
-            # s 12
-            depths = [2, 2, 6, 2]
-            dims = [64, 128, 320, 512]
-            token_mixers: list[type[nn.Module]] = [Pooling, Pooling, Pooling, Pooling]
-            mlp_act = nn.GELU
-            mlp_bias = True
-            layer_scale_init_values: list[Optional[float]] = [1e-5, 1e-5, 1e-5, 1e-5]
-            res_scale_init_values: list[Optional[float]] = [None, None, None, None]
-            norm_layers = [GroupNorm1, GroupNorm1, GroupNorm1, GroupNorm1]
-            downsample_norm = nn.Identity
-            drop_path_rate = 0.1
-            use_mlp_head = False
-            mlp_head_dropout = 0.0
-
-        elif net_param == 1:
-            # s 24
-            depths = [4, 4, 12, 4]
-            dims = [64, 128, 320, 512]
-            token_mixers = [Pooling, Pooling, Pooling, Pooling]
-            mlp_act = nn.GELU
-            mlp_bias = True
-            layer_scale_init_values = [1e-5, 1e-5, 1e-5, 1e-5]
-            res_scale_init_values = [None, None, None, None]
-            norm_layers = [GroupNorm1, GroupNorm1, GroupNorm1, GroupNorm1]
-            downsample_norm = nn.Identity
-            drop_path_rate = 0.1
-            use_mlp_head = False
-            mlp_head_dropout = 0.0
-
-        elif net_param == 2:
-            # s 36
-            depths = [6, 6, 18, 6]
-            dims = [64, 128, 320, 512]
-            token_mixers = [Pooling, Pooling, Pooling, Pooling]
-            mlp_act = nn.GELU
-            mlp_bias = True
-            layer_scale_init_values = [1e-6, 1e-6, 1e-6, 1e-6]
-            res_scale_init_values = [None, None, None, None]
-            norm_layers = [GroupNorm1, GroupNorm1, GroupNorm1, GroupNorm1]
-            downsample_norm = nn.Identity
-            drop_path_rate = 0.2
-            use_mlp_head = False
-            mlp_head_dropout = 0.0
-
-        elif net_param == 3:
-            # m 36
-            depths = [6, 6, 18, 6]
-            dims = [96, 192, 384, 768]
-            token_mixers = [Pooling, Pooling, Pooling, Pooling]
-            mlp_act = nn.GELU
-            mlp_bias = True
-            layer_scale_init_values = [1e-6, 1e-6, 1e-6, 1e-6]
-            res_scale_init_values = [None, None, None, None]
-            norm_layers = [GroupNorm1, GroupNorm1, GroupNorm1, GroupNorm1]
-            downsample_norm = nn.Identity
-            drop_path_rate = 0.3
-            use_mlp_head = False
-            mlp_head_dropout = 0.0
-
-        elif net_param == 4:
-            # m 48
-            depths = [8, 8, 24, 8]
-            dims = [96, 192, 384, 768]
-            token_mixers = [Pooling, Pooling, Pooling, Pooling]
-            mlp_act = nn.GELU
-            mlp_bias = True
-            layer_scale_init_values = [1e-6, 1e-6, 1e-6, 1e-6]
-            res_scale_init_values = [None, None, None, None]
-            norm_layers = [GroupNorm1, GroupNorm1, GroupNorm1, GroupNorm1]
-            downsample_norm = nn.Identity
-            drop_path_rate = 0.4
-            use_mlp_head = False
-            mlp_head_dropout = 0.0
-
-        # PoolFormer v2
-        elif net_param == 10:
-            # s 12
-            depths = [2, 2, 6, 2]
-            dims = [64, 128, 320, 512]
-            token_mixers = [Pooling, Pooling, Pooling, Pooling]
-            mlp_act = StarReLU
-            mlp_bias = False
-            layer_scale_init_values = [None, None, None, None]
-            res_scale_init_values = [None, None, 1.0, 1.0]
-            norm_layers = [GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias]
-            downsample_norm = LayerNorm2dNoBias
-            drop_path_rate = 0.1
-            use_mlp_head = False
-            mlp_head_dropout = 0.0
-
-        elif net_param == 11:
-            # s 24
-            depths = [4, 4, 12, 4]
-            dims = [64, 128, 320, 512]
-            token_mixers = [Pooling, Pooling, Pooling, Pooling]
-            mlp_act = StarReLU
-            mlp_bias = False
-            layer_scale_init_values = [None, None, None, None]
-            res_scale_init_values = [None, None, 1.0, 1.0]
-            norm_layers = [GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias]
-            downsample_norm = LayerNorm2dNoBias
-            drop_path_rate = 0.1
-            use_mlp_head = False
-            mlp_head_dropout = 0.0
-
-        elif net_param == 12:
-            # s 36
-            depths = [6, 6, 18, 6]
-            dims = [64, 128, 320, 512]
-            token_mixers = [Pooling, Pooling, Pooling, Pooling]
-            mlp_act = StarReLU
-            mlp_bias = False
-            layer_scale_init_values = [None, None, None, None]
-            res_scale_init_values = [None, None, 1.0, 1.0]
-            norm_layers = [GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias]
-            downsample_norm = LayerNorm2dNoBias
-            drop_path_rate = 0.2
-            use_mlp_head = False
-            mlp_head_dropout = 0.0
-
-        elif net_param == 13:
-            # m 36
-            depths = [6, 6, 18, 6]
-            dims = [96, 192, 384, 768]
-            token_mixers = [Pooling, Pooling, Pooling, Pooling]
-            mlp_act = StarReLU
-            mlp_bias = False
-            layer_scale_init_values = [None, None, None, None]
-            res_scale_init_values = [None, None, 1.0, 1.0]
-            norm_layers = [GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias]
-            downsample_norm = LayerNorm2dNoBias
-            drop_path_rate = 0.3
-            use_mlp_head = False
-            mlp_head_dropout = 0.0
-
-        elif net_param == 14:
-            # m 48
-            depths = [8, 8, 24, 8]
-            dims = [96, 192, 384, 768]
-            token_mixers = [Pooling, Pooling, Pooling, Pooling]
-            mlp_act = StarReLU
-            mlp_bias = False
-            layer_scale_init_values = [None, None, None, None]
-            res_scale_init_values = [None, None, 1.0, 1.0]
-            norm_layers = [GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias]
-            downsample_norm = LayerNorm2dNoBias
-            drop_path_rate = 0.4
-            use_mlp_head = False
-            mlp_head_dropout = 0.0
-
-        # ConvFormer
-        elif net_param == 20:
-            # s 18
-            depths = [3, 3, 9, 3]
-            dims = [64, 128, 320, 512]
-            token_mixers = [SepConv, SepConv, SepConv, SepConv]
-            mlp_act = StarReLU
-            mlp_bias = False
-            layer_scale_init_values = [None, None, None, None]
-            res_scale_init_values = [None, None, 1.0, 1.0]
-            norm_layers = [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias]
-            downsample_norm = LayerNorm2dNoBias
-            drop_path_rate = 0.2
-            use_mlp_head = True
-            mlp_head_dropout = 0.0
-
-        elif net_param == 21:
-            # s 36
-            depths = [3, 12, 18, 3]
-            dims = [64, 128, 320, 512]
-            token_mixers = [SepConv, SepConv, SepConv, SepConv]
-            mlp_act = StarReLU
-            mlp_bias = False
-            layer_scale_init_values = [None, None, None, None]
-            res_scale_init_values = [None, None, 1.0, 1.0]
-            norm_layers = [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias]
-            downsample_norm = LayerNorm2dNoBias
-            drop_path_rate = 0.3
-            use_mlp_head = True
-            mlp_head_dropout = 0.0
-
-        elif net_param == 22:
-            # m 36
-            depths = [3, 12, 18, 3]
-            dims = [96, 192, 384, 576]
-            token_mixers = [SepConv, SepConv, SepConv, SepConv]
-            mlp_act = StarReLU
-            mlp_bias = False
-            layer_scale_init_values = [None, None, None, None]
-            res_scale_init_values = [None, None, 1.0, 1.0]
-            norm_layers = [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias]
-            downsample_norm = LayerNorm2dNoBias
-            drop_path_rate = 0.4
-            use_mlp_head = True
-            mlp_head_dropout = 0.0
-
-        elif net_param == 23:
-            # b 36
-            depths = [3, 12, 18, 3]
-            dims = [128, 256, 512, 768]
-            token_mixers = [SepConv, SepConv, SepConv, SepConv]
-            mlp_act = StarReLU
-            mlp_bias = False
-            layer_scale_init_values = [None, None, None, None]
-            res_scale_init_values = [None, None, 1.0, 1.0]
-            norm_layers = [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias]
-            downsample_norm = LayerNorm2dNoBias
-            drop_path_rate = 0.6
-            use_mlp_head = True
-            mlp_head_dropout = 0.0
-
-        # CAFormer
-        elif net_param == 30:
-            # s 18
-            depths = [3, 3, 9, 3]
-            dims = [64, 128, 320, 512]
-            token_mixers = [SepConv, SepConv, Attention, Attention]
-            mlp_act = StarReLU
-            mlp_bias = False
-            layer_scale_init_values = [None, None, None, None]
-            res_scale_init_values = [None, None, 1.0, 1.0]
-            norm_layers = [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias]
-            downsample_norm = LayerNorm2dNoBias
-            drop_path_rate = 0.15
-            use_mlp_head = True
-            mlp_head_dropout = 0.0
-
-        elif net_param == 31:
-            # s 36
-            depths = [3, 12, 18, 3]
-            dims = [64, 128, 320, 512]
-            token_mixers = [SepConv, SepConv, Attention, Attention]
-            mlp_act = StarReLU
-            mlp_bias = False
-            layer_scale_init_values = [None, None, None, None]
-            res_scale_init_values = [None, None, 1.0, 1.0]
-            norm_layers = [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias]
-            downsample_norm = LayerNorm2dNoBias
-            drop_path_rate = 0.3
-            use_mlp_head = True
-            mlp_head_dropout = 0.4
-
-        elif net_param == 32:
-            # m 36
-            depths = [3, 12, 18, 3]
-            dims = [96, 192, 384, 576]
-            token_mixers = [SepConv, SepConv, Attention, Attention]
-            mlp_act = StarReLU
-            mlp_bias = False
-            layer_scale_init_values = [None, None, None, None]
-            res_scale_init_values = [None, None, 1.0, 1.0]
-            norm_layers = [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias]
-            downsample_norm = LayerNorm2dNoBias
-            drop_path_rate = 0.4
-            use_mlp_head = True
-            mlp_head_dropout = 0.4
-
-        elif net_param == 33:
-            # b 36
-            depths = [3, 12, 18, 3]
-            dims = [128, 256, 512, 768]
-            token_mixers = [SepConv, SepConv, Attention, Attention]
-            mlp_act = StarReLU
-            mlp_bias = False
-            layer_scale_init_values = [None, None, None, None]
-            res_scale_init_values = [None, None, 1.0, 1.0]
-            norm_layers = [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias]
-            downsample_norm = LayerNorm2dNoBias
-            drop_path_rate = 0.6
-            use_mlp_head = True
-            mlp_head_dropout = 0.5
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        depths: list[int] = self.config["depths"]
+        dims: list[int] = self.config["dims"]
+        token_mixers: list[type[nn.Module]] = self.config["token_mixers"]
+        mlp_act: Callable[..., nn.Module] = self.config["mlp_act"]
+        mlp_bias: bool = self.config["mlp_bias"]
+        layer_scale_init_values: list[Optional[float]] = self.config["layer_scale_init_values"]
+        res_scale_init_values: list[Optional[float]] = self.config["res_scale_init_values"]
+        norm_layers: list[type[nn.Module]] = self.config["norm_layers"]
+        downsample_norm: type[nn.Module] = self.config["downsample_norm"]
+        drop_path_rate: float = self.config["drop_path_rate"]
+        use_mlp_head: bool = self.config["use_mlp_head"]
+        mlp_head_dropout: float = self.config["mlp_head_dropout"]
 
         self.use_mlp_head = use_mlp_head
         self.mlp_head_dropout = mlp_head_dropout
@@ -679,24 +416,334 @@ class MetaFormer(BaseNet):
         )
 
 
-registry.register_alias("poolformer_v1_s12", MetaFormer, 0)
-registry.register_alias("poolformer_v1_s24", MetaFormer, 1)
-registry.register_alias("poolformer_v1_s36", MetaFormer, 2)
-registry.register_alias("poolformer_v1_m36", MetaFormer, 3)
-registry.register_alias("poolformer_v1_m48", MetaFormer, 4)
+# PoolFormer v1
+registry.register_alias(
+    "poolformer_v1_s12",
+    MetaFormer,
+    config={
+        "depths": [2, 2, 6, 2],
+        "dims": [64, 128, 320, 512],
+        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
+        "mlp_act": nn.GELU,
+        "mlp_bias": True,
+        "layer_scale_init_values": [1e-5, 1e-5, 1e-5, 1e-5],
+        "res_scale_init_values": [None, None, None, None],
+        "norm_layers": [GroupNorm1, GroupNorm1, GroupNorm1, GroupNorm1],
+        "downsample_norm": nn.Identity,
+        "drop_path_rate": 0.1,
+        "use_mlp_head": False,
+        "mlp_head_dropout": 0.0,
+    },
+)
+registry.register_alias(
+    "poolformer_v1_s24",
+    MetaFormer,
+    config={
+        "depths": [4, 4, 12, 4],
+        "dims": [64, 128, 320, 512],
+        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
+        "mlp_act": nn.GELU,
+        "mlp_bias": True,
+        "layer_scale_init_values": [1e-5, 1e-5, 1e-5, 1e-5],
+        "res_scale_init_values": [None, None, None, None],
+        "norm_layers": [GroupNorm1, GroupNorm1, GroupNorm1, GroupNorm1],
+        "downsample_norm": nn.Identity,
+        "drop_path_rate": 0.1,
+        "use_mlp_head": False,
+        "mlp_head_dropout": 0.0,
+    },
+)
+registry.register_alias(
+    "poolformer_v1_s36",
+    MetaFormer,
+    config={
+        "depths": [6, 6, 18, 6],
+        "dims": [64, 128, 320, 512],
+        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
+        "mlp_act": nn.GELU,
+        "mlp_bias": True,
+        "layer_scale_init_values": [1e-6, 1e-6, 1e-6, 1e-6],
+        "res_scale_init_values": [None, None, None, None],
+        "norm_layers": [GroupNorm1, GroupNorm1, GroupNorm1, GroupNorm1],
+        "downsample_norm": nn.Identity,
+        "drop_path_rate": 0.2,
+        "use_mlp_head": False,
+        "mlp_head_dropout": 0.0,
+    },
+)
+registry.register_alias(
+    "poolformer_v1_m36",
+    MetaFormer,
+    config={
+        "depths": [6, 6, 18, 6],
+        "dims": [96, 192, 384, 768],
+        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
+        "mlp_act": nn.GELU,
+        "mlp_bias": True,
+        "layer_scale_init_values": [1e-6, 1e-6, 1e-6, 1e-6],
+        "res_scale_init_values": [None, None, None, None],
+        "norm_layers": [GroupNorm1, GroupNorm1, GroupNorm1, GroupNorm1],
+        "downsample_norm": nn.Identity,
+        "drop_path_rate": 0.3,
+        "use_mlp_head": False,
+        "mlp_head_dropout": 0.0,
+    },
+)
+registry.register_alias(
+    "poolformer_v1_m48",
+    MetaFormer,
+    config={
+        "depths": [8, 8, 24, 8],
+        "dims": [96, 192, 384, 768],
+        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
+        "mlp_act": nn.GELU,
+        "mlp_bias": True,
+        "layer_scale_init_values": [1e-6, 1e-6, 1e-6, 1e-6],
+        "res_scale_init_values": [None, None, None, None],
+        "norm_layers": [GroupNorm1, GroupNorm1, GroupNorm1, GroupNorm1],
+        "downsample_norm": nn.Identity,
+        "drop_path_rate": 0.4,
+        "use_mlp_head": False,
+        "mlp_head_dropout": 0.0,
+    },
+)
 
-registry.register_alias("poolformer_v2_s12", MetaFormer, 10)
-registry.register_alias("poolformer_v2_s24", MetaFormer, 11)
-registry.register_alias("poolformer_v2_s36", MetaFormer, 12)
-registry.register_alias("poolformer_v2_m36", MetaFormer, 13)
-registry.register_alias("poolformer_v2_m48", MetaFormer, 14)
+# PoolFormer v2
+registry.register_alias(
+    "poolformer_v2_s12",
+    MetaFormer,
+    config={
+        "depths": [2, 2, 6, 2],
+        "dims": [64, 128, 320, 512],
+        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
+        "mlp_act": StarReLU,
+        "mlp_bias": False,
+        "layer_scale_init_values": [None, None, None, None],
+        "res_scale_init_values": [None, None, 1.0, 1.0],
+        "norm_layers": [GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias],
+        "downsample_norm": LayerNorm2dNoBias,
+        "drop_path_rate": 0.1,
+        "use_mlp_head": False,
+        "mlp_head_dropout": 0.0,
+    },
+)
+registry.register_alias(
+    "poolformer_v2_s24",
+    MetaFormer,
+    config={
+        "depths": [4, 4, 12, 4],
+        "dims": [64, 128, 320, 512],
+        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
+        "mlp_act": StarReLU,
+        "mlp_bias": False,
+        "layer_scale_init_values": [None, None, None, None],
+        "res_scale_init_values": [None, None, 1.0, 1.0],
+        "norm_layers": [GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias],
+        "downsample_norm": LayerNorm2dNoBias,
+        "drop_path_rate": 0.1,
+        "use_mlp_head": False,
+        "mlp_head_dropout": 0.0,
+    },
+)
+registry.register_alias(
+    "poolformer_v2_s36",
+    MetaFormer,
+    config={
+        "depths": [6, 6, 18, 6],
+        "dims": [64, 128, 320, 512],
+        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
+        "mlp_act": StarReLU,
+        "mlp_bias": False,
+        "layer_scale_init_values": [None, None, None, None],
+        "res_scale_init_values": [None, None, 1.0, 1.0],
+        "norm_layers": [GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias],
+        "downsample_norm": LayerNorm2dNoBias,
+        "drop_path_rate": 0.2,
+        "use_mlp_head": False,
+        "mlp_head_dropout": 0.0,
+    },
+)
+registry.register_alias(
+    "poolformer_v2_m36",
+    MetaFormer,
+    config={
+        "depths": [6, 6, 18, 6],
+        "dims": [96, 192, 384, 768],
+        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
+        "mlp_act": StarReLU,
+        "mlp_bias": False,
+        "layer_scale_init_values": [None, None, None, None],
+        "res_scale_init_values": [None, None, 1.0, 1.0],
+        "norm_layers": [GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias],
+        "downsample_norm": LayerNorm2dNoBias,
+        "drop_path_rate": 0.3,
+        "use_mlp_head": False,
+        "mlp_head_dropout": 0.0,
+    },
+)
+registry.register_alias(
+    "poolformer_v2_m48",
+    MetaFormer,
+    config={
+        "depths": [8, 8, 24, 8],
+        "dims": [96, 192, 384, 768],
+        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
+        "mlp_act": StarReLU,
+        "mlp_bias": False,
+        "layer_scale_init_values": [None, None, None, None],
+        "res_scale_init_values": [None, None, 1.0, 1.0],
+        "norm_layers": [GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias],
+        "downsample_norm": LayerNorm2dNoBias,
+        "drop_path_rate": 0.4,
+        "use_mlp_head": False,
+        "mlp_head_dropout": 0.0,
+    },
+)
 
-registry.register_alias("convformer_s18", MetaFormer, 20)
-registry.register_alias("convformer_s36", MetaFormer, 21)
-registry.register_alias("convformer_m36", MetaFormer, 22)
-registry.register_alias("convformer_b36", MetaFormer, 23)
+# ConvFormer
+registry.register_alias(
+    "convformer_s18",
+    MetaFormer,
+    config={
+        "depths": [3, 3, 9, 3],
+        "dims": [64, 128, 320, 512],
+        "token_mixers": [SepConv, SepConv, SepConv, SepConv],
+        "mlp_act": StarReLU,
+        "mlp_bias": False,
+        "layer_scale_init_values": [None, None, None, None],
+        "res_scale_init_values": [None, None, 1.0, 1.0],
+        "norm_layers": [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias],
+        "downsample_norm": LayerNorm2dNoBias,
+        "drop_path_rate": 0.2,
+        "use_mlp_head": True,
+        "mlp_head_dropout": 0.0,
+    },
+)
+registry.register_alias(
+    "convformer_s36",
+    MetaFormer,
+    config={
+        "depths": [3, 12, 18, 3],
+        "dims": [64, 128, 320, 512],
+        "token_mixers": [SepConv, SepConv, SepConv, SepConv],
+        "mlp_act": StarReLU,
+        "mlp_bias": False,
+        "layer_scale_init_values": [None, None, None, None],
+        "res_scale_init_values": [None, None, 1.0, 1.0],
+        "norm_layers": [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias],
+        "downsample_norm": LayerNorm2dNoBias,
+        "drop_path_rate": 0.3,
+        "use_mlp_head": True,
+        "mlp_head_dropout": 0.0,
+    },
+)
+registry.register_alias(
+    "convformer_m36",
+    MetaFormer,
+    config={
+        "depths": [3, 12, 18, 3],
+        "dims": [96, 192, 384, 576],
+        "token_mixers": [SepConv, SepConv, SepConv, SepConv],
+        "mlp_act": StarReLU,
+        "mlp_bias": False,
+        "layer_scale_init_values": [None, None, None, None],
+        "res_scale_init_values": [None, None, 1.0, 1.0],
+        "norm_layers": [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias],
+        "downsample_norm": LayerNorm2dNoBias,
+        "drop_path_rate": 0.4,
+        "use_mlp_head": True,
+        "mlp_head_dropout": 0.0,
+    },
+)
+registry.register_alias(
+    "convformer_b36",
+    MetaFormer,
+    config={
+        "depths": [3, 12, 18, 3],
+        "dims": [128, 256, 512, 768],
+        "token_mixers": [SepConv, SepConv, SepConv, SepConv],
+        "mlp_act": StarReLU,
+        "mlp_bias": False,
+        "layer_scale_init_values": [None, None, None, None],
+        "res_scale_init_values": [None, None, 1.0, 1.0],
+        "norm_layers": [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias],
+        "downsample_norm": LayerNorm2dNoBias,
+        "drop_path_rate": 0.6,
+        "use_mlp_head": True,
+        "mlp_head_dropout": 0.0,
+    },
+)
 
-registry.register_alias("caformer_s18", MetaFormer, 30)
-registry.register_alias("caformer_s36", MetaFormer, 31)
-registry.register_alias("caformer_m36", MetaFormer, 32)
-registry.register_alias("caformer_b36", MetaFormer, 33)
+# CAFormer
+registry.register_alias(
+    "caformer_s18",
+    MetaFormer,
+    config={
+        "depths": [3, 3, 9, 3],
+        "dims": [64, 128, 320, 512],
+        "token_mixers": [SepConv, SepConv, Attention, Attention],
+        "mlp_act": StarReLU,
+        "mlp_bias": False,
+        "layer_scale_init_values": [None, None, None, None],
+        "res_scale_init_values": [None, None, 1.0, 1.0],
+        "norm_layers": [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias],
+        "downsample_norm": LayerNorm2dNoBias,
+        "drop_path_rate": 0.15,
+        "use_mlp_head": True,
+        "mlp_head_dropout": 0.0,
+    },
+)
+registry.register_alias(
+    "caformer_s36",
+    MetaFormer,
+    config={
+        "depths": [3, 12, 18, 3],
+        "dims": [64, 128, 320, 512],
+        "token_mixers": [SepConv, SepConv, Attention, Attention],
+        "mlp_act": StarReLU,
+        "mlp_bias": False,
+        "layer_scale_init_values": [None, None, None, None],
+        "res_scale_init_values": [None, None, 1.0, 1.0],
+        "norm_layers": [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias],
+        "downsample_norm": LayerNorm2dNoBias,
+        "drop_path_rate": 0.3,
+        "use_mlp_head": True,
+        "mlp_head_dropout": 0.4,
+    },
+)
+registry.register_alias(
+    "caformer_m36",
+    MetaFormer,
+    config={
+        "depths": [3, 12, 18, 3],
+        "dims": [96, 192, 384, 576],
+        "token_mixers": [SepConv, SepConv, Attention, Attention],
+        "mlp_act": StarReLU,
+        "mlp_bias": False,
+        "layer_scale_init_values": [None, None, None, None],
+        "res_scale_init_values": [None, None, 1.0, 1.0],
+        "norm_layers": [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias],
+        "downsample_norm": LayerNorm2dNoBias,
+        "drop_path_rate": 0.4,
+        "use_mlp_head": True,
+        "mlp_head_dropout": 0.4,
+    },
+)
+registry.register_alias(
+    "caformer_b36",
+    MetaFormer,
+    config={
+        "depths": [3, 12, 18, 3],
+        "dims": [128, 256, 512, 768],
+        "token_mixers": [SepConv, SepConv, Attention, Attention],
+        "mlp_act": StarReLU,
+        "mlp_bias": False,
+        "layer_scale_init_values": [None, None, None, None],
+        "res_scale_init_values": [None, None, 1.0, 1.0],
+        "norm_layers": [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias],
+        "downsample_norm": LayerNorm2dNoBias,
+        "drop_path_rate": 0.6,
+        "use_mlp_head": True,
+        "mlp_head_dropout": 0.5,
+    },
+)

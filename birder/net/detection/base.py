@@ -1,4 +1,5 @@
 import math
+from typing import Any
 from typing import Optional
 from typing import TypedDict
 
@@ -45,7 +46,9 @@ class DetectionBaseNet(nn.Module):
         self,
         num_classes: int,
         backbone: DetectorBackbone,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
         super().__init__()
@@ -55,6 +58,8 @@ class DetectionBaseNet(nn.Module):
         self.backbone.classifier = nn.Identity()
         if hasattr(self, "net_param") is False:  # Avoid overriding aliases
             self.net_param = net_param
+        if hasattr(self, "config") is False:  # Avoid overriding aliases
+            self.config = config
 
         if size is not None:
             self.size = size

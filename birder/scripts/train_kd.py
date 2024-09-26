@@ -182,8 +182,8 @@ def train(args: argparse.Namespace) -> None:
             args.student,
             sample_shape[1],
             num_outputs,
-            args.student_param,
-            args.size,
+            net_param=args.student_param,
+            size=args.size,
         ).to(device)
 
     if args.fast_matmul is True:
@@ -562,6 +562,14 @@ def train(args: argparse.Namespace) -> None:
 
     # Save model hyperparameters with metrics
     if args.rank == 0:
+        # Replace list based args
+        if args.betas is not None:
+            for idx, beta in enumerate(args.opt_betas):
+                setattr(args, f"opt_betas_{idx}", beta)
+
+            del args.opt_betas
+
+        # Save all args
         metrics = training_metrics.compute()
         val_metrics = validation_metrics.compute()
         summary_writer.add_hparams(
@@ -595,8 +603,8 @@ def get_args_parser() -> argparse.ArgumentParser:
         description="Train classification model using Knowledge Distillation",
         epilog=(
             "Usage examples:\n"
-            "python train_kd.py --type soft --teacher convnext_v2_tiny --teacher-epoch 0 --student regnet "
-            "--student-param 1.6 --lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 "
+            "python train_kd.py --type soft --teacher convnext_v2_tiny --teacher-epoch 0 --student regnet_y_1600m "
+            "--lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 "
             "--size 256 --epochs 100 --wd 0.00005 --mixup-alpha 0.2 --aug-level 3\n"
             "python train_kd.py --type hard --teacher convnext_v2_base --student mobilenet_v4_m --lr 0.8 "
             "--lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 100 "

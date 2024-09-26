@@ -8,6 +8,7 @@ Paper "SSD: Single Shot MultiBox Detector", https://arxiv.org/abs/1512.02325
 """
 
 import math
+from typing import Any
 from typing import Optional
 
 import torch
@@ -278,10 +279,12 @@ class SSD(DetectionBaseNet):
         self,
         num_classes: int,
         backbone: DetectorBackbone,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(num_classes, backbone, net_param, size)
+        super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
 
         iou_thresh = 0.5

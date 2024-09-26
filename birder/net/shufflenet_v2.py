@@ -8,6 +8,7 @@ https://arxiv.org/abs/1807.11164
 
 # Reference license: BSD 3-Clause
 
+from typing import Any
 from typing import Optional
 
 import torch
@@ -94,17 +95,22 @@ class ShuffleUnit(nn.Module):
 
 # pylint: disable=invalid-name
 class ShuffleNet_v2(BaseNet):
+    auto_register = True
     default_size = 224
 
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        multiplier = net_param
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is not None, "must set net-param"
+        assert self.config is None, "config not supported"
+        multiplier = self.net_param
         if multiplier == 0.5:
             stage_repeats = [3, 7, 3]
             out_channels = [24, 48, 96, 192, 1024]

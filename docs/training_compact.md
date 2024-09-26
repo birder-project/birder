@@ -34,6 +34,12 @@ torchrun --nproc_per_node=2 train.py --network deit_t16 --tag il-common --opt ad
 torchrun --nproc_per_node=2 train.py --network edgenext_xxs --tag il-common --opt adamw --lr 0.006 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+#### EdgeNeXt: Extra Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network edgenext_xs --tag il-common --opt adamw --lr 0.006 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### EdgeViT
 
 #### EdgeViT: Extra Extra small
@@ -172,10 +178,10 @@ torchrun --nproc_per_node=2 train.py --network mobileone_s1 --tag il-common --lr
 
 ### RegNet
 
-#### RegNet: 0.2 GF
+#### RegNet: Y 200 MF
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network regnet --net-param 0.2 --tag il-common --lr 0.4 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+torchrun --nproc_per_node=2 train.py --network regnet_y_200m --tag il-common --lr 0.4 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### ShuffleNet v1

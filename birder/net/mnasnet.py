@@ -13,6 +13,7 @@ Changes from original:
 from collections import OrderedDict
 from collections.abc import Callable
 from functools import partial
+from typing import Any
 from typing import Optional
 
 import torch
@@ -133,17 +134,21 @@ class InvertedResidualBlock(nn.Module):
 
 
 class MNASNet(DetectorBackbone):
+    auto_register = True
     default_size = 224
 
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is not None, "must set net-param"
+        assert self.config is None, "config not supported"
         assert self.net_param > 0.0, "alpha should be greater than 0"
         alpha = self.net_param
 

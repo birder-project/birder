@@ -7,6 +7,7 @@ Paper "RepVGG: Making VGG-style ConvNets Great Again", https://arxiv.org/abs/210
 
 # Reference license: MIT
 
+from typing import Any
 from typing import Optional
 
 import torch
@@ -230,94 +231,21 @@ class RepVgg(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         self.reparameterized = False
         widths = [64, 128, 256, 512]
-        if net_param == 0:
-            # A0
-            width_multipliers = [0.75, 0.75, 0.75, 2.5]
-            num_blocks_per_stage = [2, 4, 14, 1]
-            groups = 1
-            use_se = False
-
-        elif net_param == 1:
-            # A1
-            width_multipliers = [1, 1, 1, 2.5]
-            num_blocks_per_stage = [2, 4, 14, 1]
-            groups = 1
-            use_se = False
-
-        elif net_param == 2:
-            # A2
-            width_multipliers = [1.5, 1.5, 1.5, 2.75]
-            num_blocks_per_stage = [2, 4, 14, 1]
-            groups = 1
-            use_se = False
-
-        elif net_param == 3:
-            # B0
-            width_multipliers = [1, 1, 1, 2.5]
-            num_blocks_per_stage = [4, 6, 16, 1]
-            groups = 1
-            use_se = False
-
-        elif net_param == 4:
-            # B1
-            width_multipliers = [2, 2, 2, 4]
-            num_blocks_per_stage = [4, 6, 16, 1]
-            groups = 1
-            use_se = False
-
-        elif net_param == 5:
-            # B1 G4
-            width_multipliers = [2, 2, 2, 4]
-            num_blocks_per_stage = [4, 6, 16, 1]
-            groups = 4
-            use_se = False
-
-        elif net_param == 6:
-            # B2
-            width_multipliers = [2.5, 2.5, 2.5, 5]
-            num_blocks_per_stage = [4, 6, 16, 1]
-            groups = 1
-            use_se = False
-
-        elif net_param == 7:
-            # B2 G4
-            width_multipliers = [2.5, 2.5, 2.5, 5]
-            num_blocks_per_stage = [4, 6, 16, 1]
-            groups = 4
-            use_se = False
-
-        elif net_param == 8:
-            # B3
-            width_multipliers = [3, 3, 3, 5]
-            num_blocks_per_stage = [4, 6, 16, 1]
-            groups = 1
-            use_se = False
-
-        elif net_param == 9:
-            # B3 G4
-            width_multipliers = [3, 3, 3, 5]
-            num_blocks_per_stage = [4, 6, 16, 1]
-            groups = 4
-            use_se = False
-
-        elif net_param == 10:
-            # D2 SE
-            width_multipliers = [2.5, 2.5, 2.5, 5]
-            num_blocks_per_stage = [8, 14, 24, 1]
-            groups = 1
-            use_se = True
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        width_multipliers: list[float] = self.config["width_multipliers"]
+        num_blocks_per_stage: list[int] = self.config["num_blocks_per_stage"]
+        groups: int = self.config["groups"]
+        use_se: bool = self.config["use_se"]
 
         in_planes = min(64, int(widths[0] * width_multipliers[0]))
 
@@ -371,14 +299,83 @@ class RepVgg(BaseNet):
         self.reparameterized = True
 
 
-registry.register_alias("repvgg_a0", RepVgg, 0)
-registry.register_alias("repvgg_a1", RepVgg, 1)
-registry.register_alias("repvgg_a2", RepVgg, 2)
-registry.register_alias("repvgg_b0", RepVgg, 3)
-registry.register_alias("repvgg_b1", RepVgg, 4)
-registry.register_alias("repvgg_b1g4", RepVgg, 5)
-registry.register_alias("repvgg_b2", RepVgg, 6)
-registry.register_alias("repvgg_b2g4", RepVgg, 7)
-registry.register_alias("repvgg_b3", RepVgg, 8)
-registry.register_alias("repvgg_b3g4", RepVgg, 9)
-registry.register_alias("repvgg_d2se", RepVgg, 10)
+registry.register_alias(
+    "repvgg_a0",
+    RepVgg,
+    config={
+        "width_multipliers": [0.75, 0.75, 0.75, 2.5],
+        "num_blocks_per_stage": [2, 4, 14, 1],
+        "groups": 1,
+        "use_se": False,
+    },
+)
+registry.register_alias(
+    "repvgg_a1",
+    RepVgg,
+    config={"width_multipliers": [1, 1, 1, 2.5], "num_blocks_per_stage": [2, 4, 14, 1], "groups": 1, "use_se": False},
+)
+registry.register_alias(
+    "repvgg_a2",
+    RepVgg,
+    config={
+        "width_multipliers": [1.5, 1.5, 1.5, 2.75],
+        "num_blocks_per_stage": [2, 4, 14, 1],
+        "groups": 1,
+        "use_se": False,
+    },
+)
+registry.register_alias(
+    "repvgg_b0",
+    RepVgg,
+    config={"width_multipliers": [1, 1, 1, 2.5], "num_blocks_per_stage": [4, 6, 16, 1], "groups": 1, "use_se": False},
+)
+registry.register_alias(
+    "repvgg_b1",
+    RepVgg,
+    config={"width_multipliers": [2, 2, 2, 4], "num_blocks_per_stage": [4, 6, 16, 1], "groups": 1, "use_se": False},
+)
+registry.register_alias(
+    "repvgg_b1g4",
+    RepVgg,
+    config={"width_multipliers": [2, 2, 2, 4], "num_blocks_per_stage": [4, 6, 16, 1], "groups": 4, "use_se": False},
+)
+registry.register_alias(
+    "repvgg_b2",
+    RepVgg,
+    config={
+        "width_multipliers": [2.5, 2.5, 2.5, 5],
+        "num_blocks_per_stage": [4, 6, 16, 1],
+        "groups": 1,
+        "use_se": False,
+    },
+)
+registry.register_alias(
+    "repvgg_b2g4",
+    RepVgg,
+    config={
+        "width_multipliers": [2.5, 2.5, 2.5, 5],
+        "num_blocks_per_stage": [4, 6, 16, 1],
+        "groups": 4,
+        "use_se": False,
+    },
+)
+registry.register_alias(
+    "repvgg_b3",
+    RepVgg,
+    config={"width_multipliers": [3, 3, 3, 5], "num_blocks_per_stage": [4, 6, 16, 1], "groups": 1, "use_se": False},
+)
+registry.register_alias(
+    "repvgg_b3g4",
+    RepVgg,
+    config={"width_multipliers": [3, 3, 3, 5], "num_blocks_per_stage": [4, 6, 16, 1], "groups": 4, "use_se": False},
+)
+registry.register_alias(
+    "repvgg_d2se",
+    RepVgg,
+    config={
+        "width_multipliers": [2.5, 2.5, 2.5, 5],
+        "num_blocks_per_stage": [8, 14, 24, 1],
+        "groups": 1,
+        "use_se": True,
+    },
+)

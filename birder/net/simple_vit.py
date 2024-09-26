@@ -13,6 +13,7 @@ https://arxiv.org/abs/2205.01580
 import logging
 import math
 from functools import partial
+from typing import Any
 from typing import Optional
 
 import torch
@@ -34,57 +35,22 @@ class Simple_ViT(PreTrainEncoder):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         image_size = self.size
         drop_path_rate = 0.0
-        if net_param == 0:
-            # Base 32 (b32)
-            patch_size = 32
-            num_layers = 12
-            num_heads = 12
-            hidden_dim = 768
-            mlp_dim = 3072
-
-        elif net_param == 1:
-            # Base 16 (b16)
-            patch_size = 16
-            num_layers = 12
-            num_heads = 12
-            hidden_dim = 768
-            mlp_dim = 3072
-
-        elif net_param == 2:
-            # Large 32 (l32)
-            patch_size = 32
-            num_layers = 24
-            num_heads = 16
-            hidden_dim = 1024
-            mlp_dim = 4096
-
-        elif net_param == 3:
-            # Large 16 (l16)
-            patch_size = 16
-            num_layers = 24
-            num_heads = 16
-            hidden_dim = 1024
-            mlp_dim = 4096
-
-        elif net_param == 4:
-            # Huge 14 (h14)
-            patch_size = 14
-            num_layers = 32
-            num_heads = 16
-            hidden_dim = 1280
-            mlp_dim = 5120
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        patch_size: int = self.config["patch_size"]
+        num_layers: int = self.config["num_layers"]
+        num_heads: int = self.config["num_heads"]
+        hidden_dim: int = self.config["hidden_dim"]
+        mlp_dim: int = self.config["mlp_dim"]
 
         torch._assert(image_size % patch_size == 0, "Input shape indivisible by patch size!")
         self.image_size = image_size
@@ -214,8 +180,28 @@ class Simple_ViT(PreTrainEncoder):
         logging.info(f"Resized position embedding: {num_pos_tokens} to {num_new_tokens}")
 
 
-registry.register_alias("simple_vit_b32", Simple_ViT, 0)
-registry.register_alias("simple_vit_b16", Simple_ViT, 1)
-registry.register_alias("simple_vit_l32", Simple_ViT, 2)
-registry.register_alias("simple_vit_l16", Simple_ViT, 3)
-registry.register_alias("simple_vit_h14", Simple_ViT, 4)
+registry.register_alias(
+    "simple_vit_b32",
+    Simple_ViT,
+    config={"patch_size": 32, "num_layers": 12, "num_heads": 12, "hidden_dim": 768, "mlp_dim": 3072},
+)
+registry.register_alias(
+    "simple_vit_b16",
+    Simple_ViT,
+    config={"patch_size": 16, "num_layers": 12, "num_heads": 12, "hidden_dim": 768, "mlp_dim": 3072},
+)
+registry.register_alias(
+    "simple_vit_l32",
+    Simple_ViT,
+    config={"patch_size": 32, "num_layers": 24, "num_heads": 16, "hidden_dim": 1024, "mlp_dim": 4096},
+)
+registry.register_alias(
+    "simple_vit_l16",
+    Simple_ViT,
+    config={"patch_size": 16, "num_layers": 24, "num_heads": 16, "hidden_dim": 1024, "mlp_dim": 4096},
+)
+registry.register_alias(
+    "simple_vit_h14",
+    Simple_ViT,
+    config={"patch_size": 14, "num_layers": 32, "num_heads": 16, "hidden_dim": 1280, "mlp_dim": 5120},
+)

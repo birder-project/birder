@@ -8,6 +8,7 @@ Paper "Aggregated Residual Transformations for Deep Neural Networks", https://ar
 # Reference license: BSD 3-Clause
 
 from collections import OrderedDict
+from typing import Any
 from typing import Optional
 
 import torch
@@ -15,6 +16,7 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import SqueezeExcitation
 
+from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 
 
@@ -99,29 +101,21 @@ class ResNeXt(DetectorBackbone):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
         squeeze_excitation: bool = False,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        num_layers = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         groups = 32
         base_width = 4
         expansion = 4
         filter_list = [64, 128, 256, 512]
-        if num_layers == 50:
-            units = [3, 4, 6, 3]
-
-        elif num_layers == 101:
-            units = [3, 4, 23, 3]
-
-        elif num_layers == 152:
-            units = [3, 8, 36, 3]
-
-        else:
-            raise ValueError(f"num_layers = {num_layers} not supported")
+        units: list[int] = self.config["units"]
 
         self.stem = nn.Sequential(
             Conv2dNormActivation(
@@ -211,3 +205,8 @@ class ResNeXt(DetectorBackbone):
         x = self.stem(x)
         x = self.body(x)
         return self.features(x)
+
+
+registry.register_alias("resnext_50", ResNeXt, config={"units": [3, 4, 6, 3]})
+registry.register_alias("resnext_101", ResNeXt, config={"units": [3, 4, 23, 3]})
+registry.register_alias("resnext_152", ResNeXt, config={"units": [3, 8, 36, 3]})

@@ -12,6 +12,7 @@ Changes from original:
 
 # Reference license: Apache-2.0 (both)
 
+from typing import Any
 from typing import Optional
 
 import torch
@@ -163,40 +164,23 @@ class Sequencer2d(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         hidden_sizes = [48, 96, 96, 96]
         mlp_ratios = [3.0, 3.0, 3.0, 3.0]
         num_rnn_layers = 1
         drop_rate = 0.0
-        if net_param == 0:
-            # Small
-            layers = [4, 3, 8, 3]
-            patch_sizes = [7, 2, 1, 1]
-            embed_dims = [192, 384, 384, 384]
-            drop_path_rate = 0.0
-
-        elif net_param == 1:
-            # Medium
-            layers = [4, 3, 14, 3]
-            patch_sizes = [7, 2, 1, 1]
-            embed_dims = [192, 384, 384, 384]
-            drop_path_rate = 0.0
-
-        elif net_param == 2:
-            # Large
-            layers = [8, 8, 16, 4]
-            patch_sizes = [7, 2, 1, 1]
-            embed_dims = [192, 384, 384, 384]
-            drop_path_rate = 0.0
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        layers: list[int] = self.config["layers"]
+        patch_sizes: list[int] = self.config["patch_sizes"]
+        embed_dims: list[int] = self.config["embed_dims"]
+        drop_path_rate: float = self.config["drop_path_rate"]
 
         assert len(layers) == len(patch_sizes) == len(embed_dims) == len(hidden_sizes) == len(mlp_ratios)
 
@@ -253,6 +237,33 @@ class Sequencer2d(BaseNet):
         return self.features(x)
 
 
-registry.register_alias("sequencer2d_s", Sequencer2d, 0)
-registry.register_alias("sequencer2d_m", Sequencer2d, 1)
-registry.register_alias("sequencer2d_l", Sequencer2d, 2)
+registry.register_alias(
+    "sequencer2d_s",
+    Sequencer2d,
+    config={
+        "layers": [4, 3, 8, 3],
+        "patch_sizes": [7, 2, 1, 1],
+        "embed_dims": [192, 384, 384, 384],
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "sequencer2d_m",
+    Sequencer2d,
+    config={
+        "layers": [4, 3, 14, 3],
+        "patch_sizes": [7, 2, 1, 1],
+        "embed_dims": [192, 384, 384, 384],
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "sequencer2d_l",
+    Sequencer2d,
+    config={
+        "layers": [8, 8, 16, 4],
+        "patch_sizes": [7, 2, 1, 1],
+        "embed_dims": [192, 384, 384, 384],
+        "drop_path_rate": 0.0,
+    },
+)

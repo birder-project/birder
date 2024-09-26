@@ -10,6 +10,7 @@ https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/cait.p
 # Reference license: Apache-2.0 and Apache-2.0
 
 import logging
+from typing import Any
 from typing import Optional
 
 import torch
@@ -162,83 +163,26 @@ class CaiT(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         drop_rate = 0.0
         attn_drop = 0.0
         cls_attn_layers = 2
         mlp_ratio = 4.0
         qkv_bias = True
-        if net_param == 0:
-            # xxs 24
-            patch_size = (16, 16)
-            embed_dim = 192
-            depth = 24
-            num_heads = 4
-            init_values = 1e-5
-            drop_path_rate = 0.05
-
-        elif net_param == 1:
-            # xxs 36
-            patch_size = (16, 16)
-            embed_dim = 192
-            depth = 36
-            num_heads = 4
-            init_values = 1e-5
-            drop_path_rate = 0.1
-
-        elif net_param == 2:
-            # xs 24
-            patch_size = (16, 16)
-            embed_dim = 288
-            depth = 24
-            num_heads = 6
-            init_values = 1e-5
-            drop_path_rate = 0.05
-
-        elif net_param == 3:
-            # s 24
-            patch_size = (16, 16)
-            embed_dim = 384
-            depth = 24
-            num_heads = 8
-            init_values = 1e-5
-            drop_path_rate = 0.1
-
-        elif net_param == 4:
-            # s 36
-            patch_size = (16, 16)
-            embed_dim = 384
-            depth = 36
-            num_heads = 8
-            init_values = 1e-6
-            drop_path_rate = 0.2
-
-        elif net_param == 5:
-            # m 36
-            patch_size = (16, 16)
-            embed_dim = 768
-            depth = 36
-            num_heads = 16
-            init_values = 1e-6
-            drop_path_rate = 0.3
-
-        elif net_param == 6:
-            # m 48
-            patch_size = (16, 16)
-            embed_dim = 768
-            depth = 48
-            num_heads = 16
-            init_values = 1e-6
-            drop_path_rate = 0.4
-
-        else:
-            raise ValueError(f"net_param = {self.net_param} not supported")
+        patch_size = (16, 16)
+        embed_dim: int = self.config["embed_dim"]
+        depth: int = self.config["depth"]
+        num_heads: int = self.config["num_heads"]
+        init_values: float = self.config["init_values"]
+        drop_path_rate: float = self.config["drop_path_rate"]
 
         self.patch_size = patch_size = (16, 16)
         self.patch_embed = PatchEmbed(self.input_channels, embed_dim, patch_size)
@@ -330,10 +274,38 @@ class CaiT(BaseNet):
         logging.info(f"Resized position embedding: {num_pos_tokens} to {num_new_tokens}")
 
 
-registry.register_alias("cait_xxs24", CaiT, 0)
-registry.register_alias("cait_xxs36", CaiT, 1)
-registry.register_alias("cait_xs24", CaiT, 2)
-registry.register_alias("cait_s24", CaiT, 3)
-registry.register_alias("cait_s36", CaiT, 4)
-registry.register_alias("cait_m36", CaiT, 5)
-registry.register_alias("cait_m48", CaiT, 6)
+registry.register_alias(
+    "cait_xxs24",
+    CaiT,
+    config={"embed_dim": 192, "depth": 24, "num_heads": 4, "init_values": 1e-5, "drop_path_rate": 0.05},
+)
+registry.register_alias(
+    "cait_xxs36",
+    CaiT,
+    config={"embed_dim": 192, "depth": 36, "num_heads": 4, "init_values": 1e-5, "drop_path_rate": 0.1},
+)
+registry.register_alias(
+    "cait_xs24",
+    CaiT,
+    config={"embed_dim": 288, "depth": 24, "num_heads": 6, "init_values": 1e-5, "drop_path_rate": 0.05},
+)
+registry.register_alias(
+    "cait_s24",
+    CaiT,
+    config={"embed_dim": 384, "depth": 24, "num_heads": 8, "init_values": 1e-5, "drop_path_rate": 0.1},
+)
+registry.register_alias(
+    "cait_s36",
+    CaiT,
+    config={"embed_dim": 384, "depth": 36, "num_heads": 8, "init_values": 1e-6, "drop_path_rate": 0.2},
+)
+registry.register_alias(
+    "cait_m36",
+    CaiT,
+    config={"embed_dim": 768, "depth": 36, "num_heads": 16, "init_values": 1e-6, "drop_path_rate": 0.3},
+)
+registry.register_alias(
+    "cait_m48",
+    CaiT,
+    config={"embed_dim": 768, "depth": 48, "num_heads": 16, "init_values": 1e-6, "drop_path_rate": 0.4},
+)

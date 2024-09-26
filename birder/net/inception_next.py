@@ -8,6 +8,7 @@ Paper "InceptionNeXt: When Inception Meets ConvNeXt", https://arxiv.org/abs/2303
 # Reference license: Apache-2.0
 
 from collections.abc import Callable
+from typing import Any
 from typing import Optional
 
 import torch
@@ -172,42 +173,20 @@ class Inception_NeXt(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         layer_scale = 1e-6
         mlp_ratios = [4, 4, 4, 3]
-
-        if net_param == 0:
-            # Tiny
-            channels = [96, 192, 384, 768]
-            num_layers = [3, 3, 9, 3]
-            stochastic_depth_prob = 0.1
-
-        elif net_param == 1:
-            # Small
-            channels = [96, 192, 384, 768]
-            num_layers = [3, 3, 27, 3]
-            stochastic_depth_prob = 0.3
-
-        elif net_param == 2:
-            # Base
-            channels = [128, 256, 512, 1024]
-            num_layers = [3, 3, 27, 3]
-            stochastic_depth_prob = 0.4
-
-        elif net_param == 3:
-            # Large
-            channels = [192, 384, 768, 1536]
-            num_layers = [3, 3, 27, 3]
-            stochastic_depth_prob = 0.5
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        channels: list[int] = self.config["channels"]
+        num_layers: list[int] = self.config["num_layers"]
+        stochastic_depth_prob: float = self.config["stochastic_depth_prob"]
 
         self.stem = Conv2dNormActivation(
             self.input_channels,
@@ -280,7 +259,23 @@ class Inception_NeXt(BaseNet):
         )
 
 
-registry.register_alias("inception_next_t", Inception_NeXt, 0)
-registry.register_alias("inception_next_s", Inception_NeXt, 1)
-registry.register_alias("inception_next_b", Inception_NeXt, 2)
-registry.register_alias("inception_next_l", Inception_NeXt, 3)
+registry.register_alias(
+    "inception_next_t",
+    Inception_NeXt,
+    config={"channels": [96, 192, 384, 768], "num_layers": [3, 3, 9, 3], "stochastic_depth_prob": 0.1},
+)
+registry.register_alias(
+    "inception_next_s",
+    Inception_NeXt,
+    config={"channels": [96, 192, 384, 768], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.3},
+)
+registry.register_alias(
+    "inception_next_b",
+    Inception_NeXt,
+    config={"channels": [128, 256, 512, 1024], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.4},
+)
+registry.register_alias(
+    "inception_next_l",
+    Inception_NeXt,
+    config={"channels": [192, 384, 768, 1536], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.5},
+)

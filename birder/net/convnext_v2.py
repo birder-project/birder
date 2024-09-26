@@ -11,6 +11,7 @@ https://arxiv.org/abs/2301.00808
 # Reference license: BSD 3-Clause and Apache-2.0
 
 from functools import partial
+from typing import Any
 from typing import Optional
 
 import torch
@@ -77,7 +78,7 @@ class ConvNeXtBlock(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name,too-many-branches
+# pylint: disable=invalid-name
 class ConvNeXt_v2(PreTrainEncoder):
     default_size = 224
 
@@ -85,71 +86,19 @@ class ConvNeXt_v2(PreTrainEncoder):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
-        if net_param == 0:
-            # Atto
-            in_channels = [40, 80, 160, 320]
-            out_channels = [80, 160, 320, -1]
-            num_layers = [2, 2, 6, 2]
-            stochastic_depth_prob = 0.0
-
-        elif net_param == 1:
-            # Femto
-            in_channels = [48, 96, 192, 384]
-            out_channels = [96, 192, 384, -1]
-            num_layers = [2, 2, 6, 2]
-            stochastic_depth_prob = 0.0
-
-        elif net_param == 2:
-            # Pico
-            in_channels = [64, 128, 256, 512]
-            out_channels = [128, 256, 512, -1]
-            num_layers = [2, 2, 6, 2]
-            stochastic_depth_prob = 0.0
-
-        elif net_param == 3:
-            # Nano
-            in_channels = [80, 160, 320, 640]
-            out_channels = [160, 320, 640, -1]
-            num_layers = [2, 2, 8, 2]
-            stochastic_depth_prob = 0.1
-
-        elif net_param == 4:
-            # Tiny
-            in_channels = [96, 192, 384, 768]
-            out_channels = [192, 384, 768, -1]
-            num_layers = [3, 3, 9, 3]
-            stochastic_depth_prob = 0.2
-
-        elif net_param == 5:
-            # Base
-            in_channels = [128, 256, 512, 1024]
-            out_channels = [256, 512, 1024, -1]
-            num_layers = [3, 3, 27, 3]
-            stochastic_depth_prob = 0.1
-
-        elif net_param == 6:
-            # Large
-            in_channels = [192, 384, 768, 1536]
-            out_channels = [384, 768, 1536, -1]
-            num_layers = [3, 3, 27, 3]
-            stochastic_depth_prob = 0.2
-
-        elif net_param == 7:
-            # Huge
-            in_channels = [352, 704, 1408, 2816]
-            out_channels = [704, 1408, 2816, -1]
-            num_layers = [3, 3, 27, 3]
-            stochastic_depth_prob = 0.3
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        in_channels: list[int] = self.config["in_channels"]
+        num_layers: list[int] = self.config["num_layers"]
+        stochastic_depth_prob: float = self.config["stochastic_depth_prob"]
+        out_channels = in_channels[1:] + [-1]
 
         self.stem = Conv2dNormActivation(
             self.input_channels,
@@ -248,11 +197,58 @@ class ConvNeXt_v2(PreTrainEncoder):
         return self.features(x)
 
 
-registry.register_alias("convnext_v2_atto", ConvNeXt_v2, 0)
-registry.register_alias("convnext_v2_femto", ConvNeXt_v2, 1)
-registry.register_alias("convnext_v2_pico", ConvNeXt_v2, 2)
-registry.register_alias("convnext_v2_nano", ConvNeXt_v2, 3)
-registry.register_alias("convnext_v2_tiny", ConvNeXt_v2, 4)
-registry.register_alias("convnext_v2_base", ConvNeXt_v2, 5)
-registry.register_alias("convnext_v2_large", ConvNeXt_v2, 6)
-registry.register_alias("convnext_v2_huge", ConvNeXt_v2, 7)
+registry.register_alias(
+    "convnext_v2_atto",
+    ConvNeXt_v2,
+    config={"in_channels": [40, 80, 160, 320], "num_layers": [2, 2, 6, 2], "stochastic_depth_prob": 0.0},
+)
+registry.register_alias(
+    "convnext_v2_femto",
+    ConvNeXt_v2,
+    config={"in_channels": [48, 96, 192, 384], "num_layers": [2, 2, 6, 2], "stochastic_depth_prob": 0.0},
+)
+registry.register_alias(
+    "convnext_v2_pico",
+    ConvNeXt_v2,
+    config={"in_channels": [64, 128, 256, 512], "num_layers": [2, 2, 6, 2], "stochastic_depth_prob": 0.0},
+)
+registry.register_alias(
+    "convnext_v2_nano",
+    ConvNeXt_v2,
+    config={"in_channels": [80, 160, 320, 640], "num_layers": [2, 2, 8, 2], "stochastic_depth_prob": 0.1},
+)
+registry.register_alias(
+    "convnext_v2_tiny",
+    ConvNeXt_v2,
+    config={"in_channels": [96, 192, 384, 768], "num_layers": [3, 3, 9, 3], "stochastic_depth_prob": 0.2},
+)
+registry.register_alias(
+    "convnext_v2_base",
+    ConvNeXt_v2,
+    config={"in_channels": [128, 256, 512, 1024], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.1},
+)
+registry.register_alias(
+    "convnext_v2_large",
+    ConvNeXt_v2,
+    config={"in_channels": [192, 384, 768, 1536], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.2},
+)
+registry.register_alias(
+    "convnext_v2_huge",
+    ConvNeXt_v2,
+    config={"in_channels": [352, 704, 1408, 2816], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.3},
+)
+
+registry.register_weights(
+    "convnext_v2_atto_il-common",
+    {
+        "description": "ConvNeXt v2 nano model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 13.4,
+                "sha256": "0dcea4fb31622c6f6efd16de920de92b8475bf5d236ada5ace494065a9c0e8af",
+            }
+        },
+        "net": {"network": "convnext_v2_atto", "tag": "il-common"},
+    },
+)

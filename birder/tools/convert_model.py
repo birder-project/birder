@@ -30,7 +30,7 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools convert-model --network shufflenet_v2 --net-param 2 --epoch 200 --pts\n"
             "python -m birder.tools convert-model --network squeezenet --epoch 100 --onnx\n"
             "python -m birder.tools convert-model -n mobilevit_v2 -p 1.5 -t intermediate -e 80 --pt2\n"
-            "python -m birder.tools convert-model -n efficientnet_v2 -p 1 -e 0 --lite\n"
+            "python -m birder.tools convert-model -n efficientnet_v2_m -e 0 --lite\n"
             "python -m birder.tools convert-model --network faster_rcnn --backbone resnext "
             "--backbone-param 101 -e 0 --pts\n"
         ),
@@ -40,7 +40,7 @@ def set_parser(subparsers: Any) -> None:
         "-n", "--network", type=str, required=True, help="the neural network to load (i.e. resnet_v2_50)"
     )
     subparser.add_argument(
-        "-p", "--net-param", type=float, help="network specific parameter, required for most networks"
+        "-p", "--net-param", type=float, help="network specific parameter, required by some networks"
     )
     subparser.add_argument(
         "--backbone",
@@ -51,7 +51,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--backbone-param",
         type=float,
-        help="network specific parameter, required by most networks (for the backbone)",
+        help="network specific parameter, required by some networks (for the backbone)",
     )
     subparser.add_argument("--backbone-tag", type=str, help="backbone training log tag (loading only)")
     subparser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")

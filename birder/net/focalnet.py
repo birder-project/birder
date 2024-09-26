@@ -9,6 +9,7 @@ Paper "Focal Modulation Networks", https://arxiv.org/abs/2203.11926
 
 from collections.abc import Callable
 from functools import partial
+from typing import Any
 from typing import Optional
 
 import torch
@@ -324,155 +325,30 @@ class FocalNetStage(nn.Module):
 class FocalNet(BaseNet):
     default_size = 224
 
-    # pylint: disable=too-many-statements
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
-
-        if net_param == 0:
-            # Tiny SRF (small receptive field)
-            depths = [2, 2, 6, 2]
-            embed_dim = 96
-            focal_levels = (2, 2, 2, 2)
-            focal_windows = (3, 3, 3, 3)
-            layer_scale_value = None
-            use_post_norm = False
-            use_overlap_down = False
-            use_post_norm_in_modulation = False
-
-        elif net_param == 1:
-            # Tiny LRF (large receptive field)
-            depths = [2, 2, 6, 2]
-            embed_dim = 96
-            focal_levels = (3, 3, 3, 3)
-            focal_windows = (3, 3, 3, 3)
-            layer_scale_value = None
-            use_post_norm = False
-            use_overlap_down = False
-            use_post_norm_in_modulation = False
-
-        elif net_param == 2:
-            # Small SRF (small receptive field)
-            depths = [2, 2, 18, 2]
-            embed_dim = 96
-            focal_levels = (2, 2, 2, 2)
-            focal_windows = (3, 3, 3, 3)
-            layer_scale_value = None
-            use_post_norm = False
-            use_overlap_down = False
-            use_post_norm_in_modulation = False
-
-        elif net_param == 3:
-            # Small LRF (large receptive field)
-            depths = [2, 2, 18, 2]
-            embed_dim = 96
-            focal_levels = (3, 3, 3, 3)
-            focal_windows = (3, 3, 3, 3)
-            layer_scale_value = None
-            use_post_norm = False
-            use_overlap_down = False
-            use_post_norm_in_modulation = False
-
-        elif net_param == 4:
-            # Base SRF (small receptive field)
-            depths = [2, 2, 18, 2]
-            embed_dim = 128
-            focal_levels = (2, 2, 2, 2)
-            focal_windows = (3, 3, 3, 3)
-            layer_scale_value = None
-            use_post_norm = False
-            use_overlap_down = False
-            use_post_norm_in_modulation = False
-
-        elif net_param == 5:
-            # Base LRF (large receptive field)
-            depths = [2, 2, 18, 2]
-            embed_dim = 128
-            focal_levels = (3, 3, 3, 3)
-            focal_windows = (3, 3, 3, 3)
-            layer_scale_value = None
-            use_post_norm = False
-            use_overlap_down = False
-            use_post_norm_in_modulation = False
-
-        elif net_param == 6:
-            # Large 3
-            depths = [2, 2, 18, 2]
-            embed_dim = 192
-            focal_levels = (3, 3, 3, 3)
-            focal_windows = (5, 5, 5, 5)
-            layer_scale_value = 1e-4
-            use_post_norm = True
-            use_overlap_down = True
-            use_post_norm_in_modulation = False
-
-        elif net_param == 7:
-            # Large 4
-            depths = [2, 2, 18, 2]
-            embed_dim = 192
-            focal_levels = (4, 4, 4, 4)
-            focal_windows = (3, 3, 3, 3)
-            layer_scale_value = 1e-4
-            use_post_norm = True
-            use_overlap_down = True
-            use_post_norm_in_modulation = False
-
-        elif net_param == 8:
-            # X-Large 3
-            depths = [2, 2, 18, 2]
-            embed_dim = 256
-            focal_levels = (3, 3, 3, 3)
-            focal_windows = (5, 5, 5, 5)
-            layer_scale_value = 1e-4
-            use_post_norm = True
-            use_overlap_down = True
-            use_post_norm_in_modulation = False
-
-        elif net_param == 9:
-            # X-Large 4
-            depths = [2, 2, 18, 2]
-            embed_dim = 256
-            focal_levels = (4, 4, 4, 4)
-            focal_windows = (3, 3, 3, 3)
-            layer_scale_value = 1e-4
-            use_post_norm = True
-            use_overlap_down = True
-            use_post_norm_in_modulation = False
-
-        elif net_param == 10:
-            # Huge 3
-            depths = [2, 2, 18, 2]
-            embed_dim = 352
-            focal_levels = (3, 3, 3, 3)
-            focal_windows = (5, 5, 5, 5)
-            layer_scale_value = 1e-4
-            use_post_norm = True
-            use_overlap_down = True
-            use_post_norm_in_modulation = True
-
-        elif net_param == 11:
-            # Huge 4
-            depths = [2, 2, 18, 2]
-            embed_dim = 352
-            focal_levels = (4, 4, 4, 4)
-            focal_windows = (3, 3, 3, 3)
-            layer_scale_value = 1e-4
-            use_post_norm = True
-            use_overlap_down = True
-            use_post_norm_in_modulation = True
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         drop_path_rate = 0.1
         proj_drop_rate = 0.0
+        depths: list[int] = self.config["depths"]
+        embed_dim: int = self.config["embed_dim"]
+        focal_levels: tuple[int, int, int, int] = self.config["focal_levels"]
+        focal_windows: tuple[int, int, int, int] = self.config["focal_windows"]
+        layer_scale_value: Optional[float] = self.config["layer_scale_value"]
+        use_post_norm: bool = self.config["use_post_norm"]
+        use_overlap_down: bool = self.config["use_overlap_down"]
+        use_post_norm_in_modulation: bool = self.config["use_post_norm_in_modulation"]
+
         num_layers = len(depths)
         embed_dims = [embed_dim * (2**i) for i in range(num_layers)]
         num_features = embed_dims[-1]
@@ -528,15 +404,171 @@ class FocalNet(BaseNet):
         return self.features(x)
 
 
-registry.register_alias("focalnet_t_srf", FocalNet, 0)
-registry.register_alias("focalnet_t_lrf", FocalNet, 1)
-registry.register_alias("focalnet_s_srf", FocalNet, 2)
-registry.register_alias("focalnet_s_lrf", FocalNet, 3)
-registry.register_alias("focalnet_b_srf", FocalNet, 4)
-registry.register_alias("focalnet_b_lrf", FocalNet, 5)
-registry.register_alias("focalnet_l3", FocalNet, 6)
-registry.register_alias("focalnet_l4", FocalNet, 7)
-registry.register_alias("focalnet_xl3", FocalNet, 8)
-registry.register_alias("focalnet_xl4", FocalNet, 9)
-registry.register_alias("focalnet_h3", FocalNet, 10)
-registry.register_alias("focalnet_h4", FocalNet, 11)
+registry.register_alias(
+    "focalnet_t_srf",
+    FocalNet,
+    config={
+        "depths": [2, 2, 6, 2],
+        "embed_dim": 96,
+        "focal_levels": (2, 2, 2, 2),
+        "focal_windows": (3, 3, 3, 3),
+        "layer_scale_value": None,
+        "use_post_norm": False,
+        "use_overlap_down": False,
+        "use_post_norm_in_modulation": False,
+    },
+)
+registry.register_alias(
+    "focalnet_t_lrf",
+    FocalNet,
+    config={
+        "depths": [2, 2, 6, 2],
+        "embed_dim": 96,
+        "focal_levels": (3, 3, 3, 3),
+        "focal_windows": (3, 3, 3, 3),
+        "layer_scale_value": None,
+        "use_post_norm": False,
+        "use_overlap_down": False,
+        "use_post_norm_in_modulation": False,
+    },
+)
+registry.register_alias(
+    "focalnet_s_srf",
+    FocalNet,
+    config={
+        "depths": [2, 2, 18, 2],
+        "embed_dim": 96,
+        "focal_levels": (2, 2, 2, 2),
+        "focal_windows": (3, 3, 3, 3),
+        "layer_scale_value": None,
+        "use_post_norm": False,
+        "use_overlap_down": False,
+        "use_post_norm_in_modulation": False,
+    },
+)
+registry.register_alias(
+    "focalnet_s_lrf",
+    FocalNet,
+    config={
+        "depths": [2, 2, 18, 2],
+        "embed_dim": 96,
+        "focal_levels": (3, 3, 3, 3),
+        "focal_windows": (3, 3, 3, 3),
+        "layer_scale_value": None,
+        "use_post_norm": False,
+        "use_overlap_down": False,
+        "use_post_norm_in_modulation": False,
+    },
+)
+registry.register_alias(
+    "focalnet_b_srf",
+    FocalNet,
+    config={
+        "depths": [2, 2, 18, 2],
+        "embed_dim": 128,
+        "focal_levels": (2, 2, 2, 2),
+        "focal_windows": (3, 3, 3, 3),
+        "layer_scale_value": None,
+        "use_post_norm": False,
+        "use_overlap_down": False,
+        "use_post_norm_in_modulation": False,
+    },
+)
+registry.register_alias(
+    "focalnet_b_lrf",
+    FocalNet,
+    config={
+        "depths": [2, 2, 18, 2],
+        "embed_dim": 128,
+        "focal_levels": (3, 3, 3, 3),
+        "focal_windows": (3, 3, 3, 3),
+        "layer_scale_value": None,
+        "use_post_norm": False,
+        "use_overlap_down": False,
+        "use_post_norm_in_modulation": False,
+    },
+)
+registry.register_alias(
+    "focalnet_l3",
+    FocalNet,
+    config={
+        "depths": [2, 2, 18, 2],
+        "embed_dim": 192,
+        "focal_levels": (3, 3, 3, 3),
+        "focal_windows": (5, 5, 5, 5),
+        "layer_scale_value": 1e-4,
+        "use_post_norm": True,
+        "use_overlap_down": True,
+        "use_post_norm_in_modulation": False,
+    },
+)
+registry.register_alias(
+    "focalnet_l4",
+    FocalNet,
+    config={
+        "depths": [2, 2, 18, 2],
+        "embed_dim": 192,
+        "focal_levels": (4, 4, 4, 4),
+        "focal_windows": (3, 3, 3, 3),
+        "layer_scale_value": 1e-4,
+        "use_post_norm": True,
+        "use_overlap_down": True,
+        "use_post_norm_in_modulation": False,
+    },
+)
+registry.register_alias(
+    "focalnet_xl3",
+    FocalNet,
+    config={
+        "depths": [2, 2, 18, 2],
+        "embed_dim": 256,
+        "focal_levels": (3, 3, 3, 3),
+        "focal_windows": (5, 5, 5, 5),
+        "layer_scale_value": 1e-4,
+        "use_post_norm": True,
+        "use_overlap_down": True,
+        "use_post_norm_in_modulation": False,
+    },
+)
+registry.register_alias(
+    "focalnet_xl4",
+    FocalNet,
+    config={
+        "depths": [2, 2, 18, 2],
+        "embed_dim": 256,
+        "focal_levels": (4, 4, 4, 4),
+        "focal_windows": (3, 3, 3, 3),
+        "layer_scale_value": 1e-4,
+        "use_post_norm": True,
+        "use_overlap_down": True,
+        "use_post_norm_in_modulation": False,
+    },
+)
+registry.register_alias(
+    "focalnet_h3",
+    FocalNet,
+    config={
+        "depths": [2, 2, 18, 2],
+        "embed_dim": 352,
+        "focal_levels": (3, 3, 3, 3),
+        "focal_windows": (5, 5, 5, 5),
+        "layer_scale_value": 1e-4,
+        "use_post_norm": True,
+        "use_overlap_down": True,
+        "use_post_norm_in_modulation": True,
+    },
+)
+registry.register_alias(
+    "focalnet_h4",
+    FocalNet,
+    config={
+        "depths": [2, 2, 18, 2],
+        "embed_dim": 352,
+        "focal_levels": (4, 4, 4, 4),
+        "focal_windows": (3, 3, 3, 3),
+        "layer_scale_value": 1e-4,
+        "use_post_norm": True,
+        "use_overlap_down": True,
+        "use_post_norm_in_modulation": True,
+    },
+)

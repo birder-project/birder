@@ -3,6 +3,7 @@ import random
 import unittest
 
 import torch
+from torch.utils.data import DataLoader
 
 import birder
 from birder.common.fs_ops import load_model
@@ -48,7 +49,23 @@ class TestTrainFlow(unittest.TestCase):
 
         # Check checkpoint is valid
         device = torch.device("cpu")
-        (_, class_to_idx, signature, _) = load_model(
+        (net, class_to_idx, signature, rgb_stats) = load_model(
             device, network, net_param=net_param, tag=tag, epoch=1, inference=True
         )
         self.assertEqual(len(class_to_idx), signature["outputs"][0]["data_shape"][1])
+
+        # Prepare dataloader
+        size = birder.get_size_from_signature(signature)
+        transform = birder.classification_transform(size, rgb_stats)
+        dataset = TestDataset(download=True, split="validation", transform=transform, progress_bar=False)
+        inference_loader = DataLoader(
+            dataset,
+            batch_size=1,
+            num_workers=0,
+        )
+
+        # Run evaluation
+        results = birder.evaluate_classification(device, net, inference_loader, class_to_idx)
+
+        # Ensure valid results object
+        self.assertFalse(results.missing_labels)

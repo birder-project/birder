@@ -8,6 +8,7 @@ https://github.com/facebookresearch/xcit/blob/main/xcit.py
 # Reference license: Apache-2.0
 
 import math
+from typing import Any
 from typing import Literal
 from typing import Optional
 
@@ -221,9 +222,7 @@ class XCA(nn.Module):
         (B, N, C) = x.shape
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads)
         qkv = qkv.permute(2, 0, 3, 1, 4)
-        q = qkv[0]
-        k = qkv[1]
-        v = qkv[2]
+        (q, k, v) = qkv.unbind(0)
 
         q = F.normalize(q, dim=-1) * self.temperature
         k = F.normalize(k, dim=-1)
@@ -266,117 +265,31 @@ class XCABlock(nn.Module):
 class XCiT(BaseNet):
     default_size = 224
 
-    # pylint: disable=too-many-branches
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         drop_rate = 0.0
         cls_attn_layers = 2
         mlp_ratio = 4.0
         qkv_bias = True
-        if net_param == 0:
-            # Nano, patch 16
-            patch_size: Literal[8, 16] = 16
-            embed_dim = 128
-            depth = 12
-            num_heads = 4
-            eta = 1.0
-            drop_path_rate = 0.0
-
-        elif net_param == 1:
-            # Nano, patch 8
-            patch_size = 8
-            embed_dim = 128
-            depth = 12
-            num_heads = 4
-            eta = 1.0
-            drop_path_rate = 0.0
-
-        elif net_param == 2:
-            # Tiny, patch 16
-            patch_size = 16
-            embed_dim = 192
-            depth = 12
-            num_heads = 4
-            eta = 1.0
-            drop_path_rate = 0.0
-
-        elif net_param == 3:
-            # Tiny, patch 8
-            patch_size = 8
-            embed_dim = 192
-            depth = 12
-            num_heads = 4
-            eta = 1.0
-            drop_path_rate = 0.0
-
-        elif net_param == 4:
-            # Small, patch 16
-            patch_size = 16
-            embed_dim = 384
-            depth = 12
-            num_heads = 8
-            eta = 1.0
-            drop_path_rate = 0.05
-
-        elif net_param == 5:
-            # Small, patch 8
-            patch_size = 8
-            embed_dim = 384
-            depth = 12
-            num_heads = 8
-            eta = 1.0
-            drop_path_rate = 0.05
-
-        elif net_param == 6:
-            # Medium, patch 16
-            patch_size = 16
-            embed_dim = 512
-            depth = 24
-            num_heads = 8
-            eta = 1e-5
-            drop_path_rate = 0.15
-
-        elif net_param == 7:
-            # Medium, patch 8
-            patch_size = 8
-            embed_dim = 512
-            depth = 24
-            num_heads = 8
-            eta = 1e-5
-            drop_path_rate = 0.15
-
-        elif net_param == 8:
-            # Large, patch 16
-            patch_size = 16
-            embed_dim = 768
-            depth = 24
-            num_heads = 16
-            eta = 1e-5
-            drop_path_rate = 0.25
-
-        elif net_param == 9:
-            # Large, patch 8
-            patch_size = 8
-            embed_dim = 768
-            depth = 24
-            num_heads = 16
-            eta = 1e-5
-            drop_path_rate = 0.3
-
-        else:
-            raise ValueError(f"net_param = {self.net_param} not supported")
+        patch_size: Literal[8, 16] = self.config["patch_size"]
+        embed_dim: int = self.config["embed_dim"]
+        depth: int = self.config["depth"]
+        num_heads: int = self.config["num_heads"]
+        eta: float = self.config["eta"]
+        drop_path_rate: float = self.config["drop_path_rate"]
 
         self.patch_embed = ConvPatchEmbed(patch_size=patch_size, dim=embed_dim)
-
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # Stochastic depth decay rule
 
@@ -445,16 +358,56 @@ class XCiT(BaseNet):
         return x[:, 0]
 
 
-registry.register_alias("xcit_nano16", XCiT, 0)
-registry.register_alias("xcit_nano8", XCiT, 1)
-registry.register_alias("xcit_tiny16", XCiT, 2)
-registry.register_alias("xcit_tiny8", XCiT, 3)
-registry.register_alias("xcit_small16", XCiT, 4)
-registry.register_alias("xcit_small8", XCiT, 5)
-registry.register_alias("xcit_medium16", XCiT, 6)
-registry.register_alias("xcit_medium8", XCiT, 7)
-registry.register_alias("xcit_large16", XCiT, 8)
-registry.register_alias("xcit_large8", XCiT, 9)
+registry.register_alias(
+    "xcit_nano16",
+    XCiT,
+    config={"patch_size": 16, "embed_dim": 128, "depth": 12, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.0},
+)
+registry.register_alias(
+    "xcit_nano8",
+    XCiT,
+    config={"patch_size": 8, "embed_dim": 128, "depth": 12, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.0},
+)
+registry.register_alias(
+    "xcit_tiny16",
+    XCiT,
+    config={"patch_size": 16, "embed_dim": 192, "depth": 12, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.0},
+)
+registry.register_alias(
+    "xcit_tiny8",
+    XCiT,
+    config={"patch_size": 8, "embed_dim": 192, "depth": 12, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.0},
+)
+registry.register_alias(
+    "xcit_small16",
+    XCiT,
+    config={"patch_size": 16, "embed_dim": 384, "depth": 12, "num_heads": 8, "eta": 1.0, "drop_path_rate": 0.05},
+)
+registry.register_alias(
+    "xcit_small8",
+    XCiT,
+    config={"patch_size": 8, "embed_dim": 384, "depth": 12, "num_heads": 8, "eta": 1.0, "drop_path_rate": 0.05},
+)
+registry.register_alias(
+    "xcit_medium16",
+    XCiT,
+    config={"patch_size": 16, "embed_dim": 512, "depth": 24, "num_heads": 8, "eta": 1e-5, "drop_path_rate": 0.15},
+)
+registry.register_alias(
+    "xcit_medium8",
+    XCiT,
+    config={"patch_size": 8, "embed_dim": 512, "depth": 24, "num_heads": 8, "eta": 1e-5, "drop_path_rate": 0.15},
+)
+registry.register_alias(
+    "xcit_large16",
+    XCiT,
+    config={"patch_size": 16, "embed_dim": 768, "depth": 24, "num_heads": 16, "eta": 1e-5, "drop_path_rate": 0.25},
+)
+registry.register_alias(
+    "xcit_large8",
+    XCiT,
+    config={"patch_size": 8, "embed_dim": 768, "depth": 24, "num_heads": 16, "eta": 1e-5, "drop_path_rate": 0.3},
+)
 
 registry.register_weights(
     "xcit_nano16_il-common",

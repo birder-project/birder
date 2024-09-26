@@ -10,6 +10,7 @@ https://arxiv.org/abs/2111.06377
 
 # Reference license: MIT and Attribution-NonCommercial 4.0 International
 
+from typing import Any
 from typing import Optional
 
 import torch
@@ -29,10 +30,12 @@ class MAE_ViT(MIMBaseNet):
     def __init__(
         self,
         encoder: PreTrainEncoder,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(encoder, net_param, size)
+        super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
         assert isinstance(self.encoder, (ViT, Simple_ViT)) is True
         self.encoder: ViT | Simple_ViT

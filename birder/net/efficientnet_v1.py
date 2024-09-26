@@ -11,6 +11,7 @@ https://arxiv.org/abs/1905.11946
 import math
 from collections import OrderedDict
 from functools import partial
+from typing import Any
 from typing import Optional
 
 import torch
@@ -111,7 +112,7 @@ class MBConv(nn.Module):
         return branch
 
 
-# pylint: disable=invalid-name,too-many-branches,too-many-locals
+# pylint: disable=invalid-name,too-many-locals
 class EfficientNet_v1(DetectorBackbone):
     default_size = 224
 
@@ -119,72 +120,25 @@ class EfficientNet_v1(DetectorBackbone):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         stochastic_depth_prob = 0.2
-
         repeats = [1, 2, 2, 3, 3, 4, 1]
         in_channels = [32, 16, 24, 40, 80, 112, 192]
         out_channels = [16, 24, 40, 80, 112, 192, 320]
         kernel_size = [(3, 3), (3, 3), (5, 5), (3, 3), (5, 5), (5, 5), (3, 3)]
         expand_ratio = [1, 6, 6, 6, 6, 6, 6]
         strides = [(1, 1), (2, 2), (2, 2), (2, 2), (1, 1), (2, 2), (1, 1)]
-
-        if net_param == 0:
-            width_coefficient = 1.0
-            depth_coefficient = 1.0
-            # input_resolution = 224
-            dropout_rate = 0.2
-
-        elif net_param == 1:
-            width_coefficient = 1.0
-            depth_coefficient = 1.1
-            # input_resolution = 240
-            dropout_rate = 0.2
-
-        elif net_param == 2:
-            width_coefficient = 1.1
-            depth_coefficient = 1.2
-            # input_resolution = 260
-            dropout_rate = 0.3
-
-        elif net_param == 3:
-            width_coefficient = 1.2
-            depth_coefficient = 1.4
-            # input_resolution = 300
-            dropout_rate = 0.3
-
-        elif net_param == 4:
-            width_coefficient = 1.4
-            depth_coefficient = 1.8
-            # input_resolution = 380
-            dropout_rate = 0.4
-
-        elif net_param == 5:
-            width_coefficient = 1.6
-            depth_coefficient = 2.2
-            # input_resolution = 456
-            dropout_rate = 0.4
-
-        elif net_param == 6:
-            width_coefficient = 1.8
-            depth_coefficient = 2.6
-            # input_resolution = 528
-            dropout_rate = 0.5
-
-        elif net_param == 7:
-            width_coefficient = 2.0
-            depth_coefficient = 3.1
-            # input_resolution = 600
-            dropout_rate = 0.5
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        width_coefficient: float = self.config["width_coefficient"]
+        depth_coefficient: float = self.config["depth_coefficient"]
+        dropout_rate: float = self.config["dropout_rate"]
 
         in_channels = [adjust_channels(ch, width_coefficient) for ch in in_channels]
         out_channels = [adjust_channels(ch, width_coefficient) for ch in out_channels]
@@ -319,14 +273,46 @@ class EfficientNet_v1(DetectorBackbone):
         )
 
 
-registry.register_alias("efficientnet_v1_b0", EfficientNet_v1, 0)
-registry.register_alias("efficientnet_v1_b1", EfficientNet_v1, 1)
-registry.register_alias("efficientnet_v1_b2", EfficientNet_v1, 2)
-registry.register_alias("efficientnet_v1_b3", EfficientNet_v1, 3)
-registry.register_alias("efficientnet_v1_b4", EfficientNet_v1, 4)
-registry.register_alias("efficientnet_v1_b5", EfficientNet_v1, 5)
-registry.register_alias("efficientnet_v1_b6", EfficientNet_v1, 6)
-registry.register_alias("efficientnet_v1_b7", EfficientNet_v1, 7)
+registry.register_alias(
+    "efficientnet_v1_b0",
+    EfficientNet_v1,  # input_resolution = 224
+    config={"width_coefficient": 1.0, "depth_coefficient": 1.0, "dropout_rate": 0.2},
+)
+registry.register_alias(
+    "efficientnet_v1_b1",
+    EfficientNet_v1,  # input_resolution = 240
+    config={"width_coefficient": 1.0, "depth_coefficient": 1.1, "dropout_rate": 0.2},
+)
+registry.register_alias(
+    "efficientnet_v1_b2",
+    EfficientNet_v1,  # input_resolution = 260
+    config={"width_coefficient": 1.1, "depth_coefficient": 1.2, "dropout_rate": 0.3},
+)
+registry.register_alias(
+    "efficientnet_v1_b3",
+    EfficientNet_v1,  # input_resolution = 300
+    config={"width_coefficient": 1.2, "depth_coefficient": 1.4, "dropout_rate": 0.3},
+)
+registry.register_alias(
+    "efficientnet_v1_b4",
+    EfficientNet_v1,  # input_resolution = 380
+    config={"width_coefficient": 1.4, "depth_coefficient": 1.8, "dropout_rate": 0.4},
+)
+registry.register_alias(
+    "efficientnet_v1_b5",
+    EfficientNet_v1,  # input_resolution = 456
+    config={"width_coefficient": 1.6, "depth_coefficient": 2.2, "dropout_rate": 0.4},
+)
+registry.register_alias(
+    "efficientnet_v1_b6",
+    EfficientNet_v1,  # input_resolution = 528
+    config={"width_coefficient": 1.8, "depth_coefficient": 2.6, "dropout_rate": 0.5},
+)
+registry.register_alias(
+    "efficientnet_v1_b7",
+    EfficientNet_v1,  # input_resolution = 600
+    config={"width_coefficient": 2.0, "depth_coefficient": 3.1, "dropout_rate": 0.5},
+)
 
 registry.register_weights(
     "efficientnet_v1_b0_il-common",

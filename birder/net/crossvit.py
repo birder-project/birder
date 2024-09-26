@@ -13,6 +13,7 @@ Changes from original:
 # Reference license: Apache-2.0
 
 import logging
+from typing import Any
 from typing import Optional
 
 import torch
@@ -220,106 +221,31 @@ def _compute_num_patches(img_size: list[int], patches: list[int]) -> list[int]:
 class CrossViT(BaseNet):
     default_size = 240
 
-    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         qkv_bias = True
         pos_drop_rate = 0.0
         proj_drop_rate = 0.0
         attn_drop_rate = 0.0
         patch_size = [12, 16]
-        if net_param == 0:
-            # Tiny
-            embed_dim = [96, 192]
-            depths = [[1, 4, 0], [1, 4, 0], [1, 4, 0]]
-            num_heads = [3, 3]
-            mlp_ratio = [4.0, 4.0, 1.0]
-            multi_conv = False
-            drop_path_rate = 0.0
-
-        elif net_param == 1:
-            # 9
-            embed_dim = [128, 256]
-            depths = [[1, 3, 0], [1, 3, 0], [1, 3, 0]]
-            num_heads = [4, 4]
-            mlp_ratio = [3.0, 3.0, 1.0]
-            multi_conv = False
-            drop_path_rate = 0.0
-
-        elif net_param == 2:
-            # 9 dagger
-            embed_dim = [128, 256]
-            depths = [[1, 3, 0], [1, 3, 0], [1, 3, 0]]
-            num_heads = [4, 4]
-            mlp_ratio = [3.0, 3.0, 1.0]
-            multi_conv = True
-            drop_path_rate = 0.0
-
-        elif net_param == 3:
-            # Small
-            embed_dim = [192, 384]
-            depths = [[1, 4, 0], [1, 4, 0], [1, 4, 0]]
-            num_heads = [6, 6]
-            mlp_ratio = [4.0, 4.0, 1.0]
-            multi_conv = False
-            drop_path_rate = 0.1
-
-        elif net_param == 4:
-            # 15
-            embed_dim = [192, 384]
-            depths = [[1, 5, 0], [1, 5, 0], [1, 5, 0]]
-            num_heads = [6, 6]
-            mlp_ratio = [3.0, 3.0, 1.0]
-            multi_conv = False
-            drop_path_rate = 0.1
-
-        elif net_param == 5:
-            # 15 dagger
-            embed_dim = [192, 384]
-            depths = [[1, 5, 0], [1, 5, 0], [1, 5, 0]]
-            num_heads = [6, 6]
-            mlp_ratio = [3.0, 3.0, 1.0]
-            multi_conv = True
-            drop_path_rate = 0.1
-
-        elif net_param == 6:
-            # Base
-            embed_dim = [384, 768]
-            depths = [[1, 4, 0], [1, 4, 0], [1, 4, 0]]
-            num_heads = [12, 12]
-            mlp_ratio = [4.0, 4.0, 1.0]
-            multi_conv = False
-            drop_path_rate = 0.1
-
-        elif net_param == 7:
-            # 18
-            embed_dim = [224, 448]
-            depths = [[1, 6, 0], [1, 6, 0], [1, 6, 0]]
-            num_heads = [7, 7]
-            mlp_ratio = [3.0, 3.0, 1.0]
-            multi_conv = False
-            drop_path_rate = 0.1
-
-        elif net_param == 8:
-            # 18 dagger
-            embed_dim = [224, 448]
-            depths = [[1, 6, 0], [1, 6, 0], [1, 6, 0]]
-            num_heads = [7, 7]
-            mlp_ratio = [3.0, 3.0, 1.0]
-            multi_conv = True
-            drop_path_rate = 0.1
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        embed_dim: list[int] = self.config["embed_dim"]
+        depths: list[list[int]] = self.config["depths"]
+        num_heads: list[int] = self.config["num_heads"]
+        mlp_ratio: list[float] = self.config["mlp_ratio"]
+        multi_conv: bool = self.config["multi_conv"]
+        drop_path_rate: float = self.config["drop_path_rate"]
 
         image_size = [self.size] * len(patch_size)
         num_patches = _compute_num_patches(image_size, patch_size)
@@ -431,15 +357,114 @@ class CrossViT(BaseNet):
             logging.info(f"Resized position embedding: {num_pos_tokens} to {num_new_tokens}")
 
 
-registry.register_alias("crossvit_t", CrossViT, 0)
-registry.register_alias("crossvit_9", CrossViT, 1)
-registry.register_alias("crossvit_9d", CrossViT, 2)
-registry.register_alias("crossvit_s", CrossViT, 3)
-registry.register_alias("crossvit_15", CrossViT, 4)
-registry.register_alias("crossvit_15d", CrossViT, 5)
-registry.register_alias("crossvit_b", CrossViT, 6)
-registry.register_alias("crossvit_18", CrossViT, 7)
-registry.register_alias("crossvit_18d", CrossViT, 8)
+registry.register_alias(
+    "crossvit_t",
+    CrossViT,
+    config={
+        "embed_dim": [96, 192],
+        "depths": [[1, 4, 0], [1, 4, 0], [1, 4, 0]],
+        "num_heads": [3, 3],
+        "mlp_ratio": [4.0, 4.0, 1.0],
+        "multi_conv": False,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "crossvit_9",
+    CrossViT,
+    config={
+        "embed_dim": [128, 256],
+        "depths": [[1, 3, 0], [1, 3, 0], [1, 3, 0]],
+        "num_heads": [4, 4],
+        "mlp_ratio": [3.0, 3.0, 1.0],
+        "multi_conv": False,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "crossvit_9d",
+    CrossViT,
+    config={
+        "embed_dim": [128, 256],
+        "depths": [[1, 3, 0], [1, 3, 0], [1, 3, 0]],
+        "num_heads": [4, 4],
+        "mlp_ratio": [3.0, 3.0, 1.0],
+        "multi_conv": True,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "crossvit_s",
+    CrossViT,
+    config={
+        "embed_dim": [192, 384],
+        "depths": [[1, 4, 0], [1, 4, 0], [1, 4, 0]],
+        "num_heads": [6, 6],
+        "mlp_ratio": [4.0, 4.0, 1.0],
+        "multi_conv": False,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "crossvit_15",
+    CrossViT,
+    config={
+        "embed_dim": [192, 384],
+        "depths": [[1, 5, 0], [1, 5, 0], [1, 5, 0]],
+        "num_heads": [6, 6],
+        "mlp_ratio": [3.0, 3.0, 1.0],
+        "multi_conv": False,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "crossvit_15d",
+    CrossViT,
+    config={
+        "embed_dim": [192, 384],
+        "depths": [[1, 5, 0], [1, 5, 0], [1, 5, 0]],
+        "num_heads": [6, 6],
+        "mlp_ratio": [3.0, 3.0, 1.0],
+        "multi_conv": True,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "crossvit_b",
+    CrossViT,
+    config={
+        "embed_dim": [384, 768],
+        "depths": [[1, 4, 0], [1, 4, 0], [1, 4, 0]],
+        "num_heads": [12, 12],
+        "mlp_ratio": [4.0, 4.0, 1.0],
+        "multi_conv": False,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "crossvit_18",
+    CrossViT,
+    config={
+        "embed_dim": [224, 448],
+        "depths": [[1, 6, 0], [1, 6, 0], [1, 6, 0]],
+        "num_heads": [7, 7],
+        "mlp_ratio": [3.0, 3.0, 1.0],
+        "multi_conv": False,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "crossvit_18d",
+    CrossViT,
+    config={
+        "embed_dim": [224, 448],
+        "depths": [[1, 6, 0], [1, 6, 0], [1, 6, 0]],
+        "num_heads": [7, 7],
+        "mlp_ratio": [3.0, 3.0, 1.0],
+        "multi_conv": True,
+        "drop_path_rate": 0.1,
+    },
+)
 
 registry.register_weights(
     "crossvit_9d_il-common",

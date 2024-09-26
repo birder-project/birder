@@ -11,6 +11,7 @@ Changes from original:
 
 # Reference license: Apple MIT License
 
+from typing import Any
 from typing import Literal
 from typing import Optional
 
@@ -667,87 +668,24 @@ class FastViT(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         self.reparameterized = False
         cls_ratio = 2.0
-        if net_param == 0:
-            # T8
-            layers = (2, 2, 4, 2)
-            embed_dims = (48, 96, 192, 384)
-            mlp_ratios = (3, 3, 3, 3)
-            use_cpe = (False, False, False, False)
-            token_mixers = ("repmixer", "repmixer", "repmixer", "repmixer")
-            layer_scale_init_value = 1e-5
-            drop_path_rate = 0.0
-
-        elif net_param == 1:
-            # T12
-            layers = (2, 2, 6, 2)
-            embed_dims = (64, 128, 256, 512)
-            mlp_ratios = (3, 3, 3, 3)
-            use_cpe = (False, False, False, False)
-            token_mixers = ("repmixer", "repmixer", "repmixer", "repmixer")
-            layer_scale_init_value = 1e-5
-            drop_path_rate = 0.0
-
-        elif net_param == 2:
-            # S12
-            layers = (2, 2, 6, 2)
-            embed_dims = (64, 128, 256, 512)
-            mlp_ratios = (4, 4, 4, 4)
-            use_cpe = (False, False, False, False)
-            token_mixers = ("repmixer", "repmixer", "repmixer", "repmixer")
-            layer_scale_init_value = 1e-5
-            drop_path_rate = 0.0
-
-        elif net_param == 3:
-            # SA12
-            layers = (2, 2, 6, 2)
-            embed_dims = (64, 128, 256, 512)
-            mlp_ratios = (4, 4, 4, 4)
-            use_cpe = (False, False, False, True)
-            token_mixers = ("repmixer", "repmixer", "repmixer", "attention")
-            layer_scale_init_value = 1e-5
-            drop_path_rate = 0.1
-
-        elif net_param == 4:
-            # SA24
-            layers = (4, 4, 12, 4)
-            embed_dims = (64, 128, 256, 512)
-            mlp_ratios = (4, 4, 4, 4)
-            use_cpe = (False, False, False, True)
-            token_mixers = ("repmixer", "repmixer", "repmixer", "attention")
-            layer_scale_init_value = 1e-5
-            drop_path_rate = 0.1
-
-        elif net_param == 5:
-            # SA36
-            layers = (6, 6, 18, 6)
-            embed_dims = (64, 128, 256, 512)
-            mlp_ratios = (4, 4, 4, 4)
-            use_cpe = (False, False, False, True)
-            token_mixers = ("repmixer", "repmixer", "repmixer", "attention")
-            layer_scale_init_value = 1e-6
-            drop_path_rate = 0.2
-
-        elif net_param == 6:
-            # MA36
-            layers = (6, 6, 18, 6)
-            embed_dims = (76, 152, 304, 608)
-            mlp_ratios = (4, 4, 4, 4)
-            use_cpe = (False, False, False, True)
-            token_mixers = ("repmixer", "repmixer", "repmixer", "attention")
-            layer_scale_init_value = 1e-6
-            drop_path_rate = 0.35
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        layers: tuple[int, int, int, int] = self.config["layers"]
+        embed_dims: tuple[int, int, int, int] = self.config["embed_dims"]
+        mlp_ratios: tuple[int, int, int, int] = self.config["mlp_ratios"]
+        use_cpe: tuple[bool, bool, bool, bool] = self.config["use_cpe"]
+        token_mixers: tuple[str, str, str, str] = self.config["token_mixers"]
+        layer_scale_init_value: float = self.config["layer_scale_init_value"]
+        drop_path_rate: float = self.config["drop_path_rate"]
 
         self.stem = nn.Sequential(
             MobileOneBlock(
@@ -864,10 +802,123 @@ class FastViT(BaseNet):
         self.reparameterized = True
 
 
-registry.register_alias("fastvit_t8", FastViT, 0)
-registry.register_alias("fastvit_t12", FastViT, 1)
-registry.register_alias("fastvit_s12", FastViT, 2)
-registry.register_alias("fastvit_sa12", FastViT, 3)
-registry.register_alias("fastvit_sa24", FastViT, 4)
-registry.register_alias("fastvit_sa36", FastViT, 5)
-registry.register_alias("fastvit_ma36", FastViT, 6)
+registry.register_alias(
+    "fastvit_t8",
+    FastViT,
+    config={
+        "layers": (2, 2, 4, 2),
+        "embed_dims": (48, 96, 192, 384),
+        "mlp_ratios": (3, 3, 3, 3),
+        "use_cpe": (False, False, False, False),
+        "token_mixers": ("repmixer", "repmixer", "repmixer", "repmixer"),
+        "layer_scale_init_value": 1e-5,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "fastvit_t12",
+    FastViT,
+    config={
+        "layers": (2, 2, 6, 2),
+        "embed_dims": (64, 128, 256, 512),
+        "mlp_ratios": (3, 3, 3, 3),
+        "use_cpe": (False, False, False, False),
+        "token_mixers": ("repmixer", "repmixer", "repmixer", "repmixer"),
+        "layer_scale_init_value": 1e-5,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "fastvit_s12",
+    FastViT,
+    config={
+        "layers": (2, 2, 6, 2),
+        "embed_dims": (64, 128, 256, 512),
+        "mlp_ratios": (4, 4, 4, 4),
+        "use_cpe": (False, False, False, False),
+        "token_mixers": ("repmixer", "repmixer", "repmixer", "repmixer"),
+        "layer_scale_init_value": 1e-5,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "fastvit_sa12",
+    FastViT,
+    config={
+        "layers": (2, 2, 6, 2),
+        "embed_dims": (64, 128, 256, 512),
+        "mlp_ratios": (4, 4, 4, 4),
+        "use_cpe": (False, False, False, True),
+        "token_mixers": ("repmixer", "repmixer", "repmixer", "attention"),
+        "layer_scale_init_value": 1e-5,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "fastvit_sa24",
+    FastViT,
+    config={
+        "layers": (4, 4, 12, 4),
+        "embed_dims": (64, 128, 256, 512),
+        "mlp_ratios": (4, 4, 4, 4),
+        "use_cpe": (False, False, False, True),
+        "token_mixers": ("repmixer", "repmixer", "repmixer", "attention"),
+        "layer_scale_init_value": 1e-5,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "fastvit_sa36",
+    FastViT,
+    config={
+        "layers": (6, 6, 18, 6),
+        "embed_dims": (64, 128, 256, 512),
+        "mlp_ratios": (4, 4, 4, 4),
+        "use_cpe": (False, False, False, True),
+        "token_mixers": ("repmixer", "repmixer", "repmixer", "attention"),
+        "layer_scale_init_value": 1e-6,
+        "drop_path_rate": 0.2,
+    },
+)
+registry.register_alias(
+    "fastvit_ma36",
+    FastViT,
+    config={
+        "layers": (6, 6, 18, 6),
+        "embed_dims": (76, 152, 304, 608),
+        "mlp_ratios": (4, 4, 4, 4),
+        "use_cpe": (False, False, False, True),
+        "token_mixers": ("repmixer", "repmixer", "repmixer", "attention"),
+        "layer_scale_init_value": 1e-6,
+        "drop_path_rate": 0.35,
+    },
+)
+
+registry.register_weights(
+    "fastvit_t8_il-common",
+    {
+        "description": "FastViT Tiny-8 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 13.8,
+                "sha256": "a49846e618af34bc4094003f92740693d7b0819ed4b258a82c3826ab344e673f",
+            }
+        },
+        "net": {"network": "fastvit_t8", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "fastvit_t8_il-common_reparameterized",
+    {
+        "description": "FastViT T-8 (reparameterized) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 13.5,
+                "sha256": "05ac92ae3ee90f5e451141447beb4596f54516d7f68b573eec353ed40bb024e2",
+            }
+        },
+        "net": {"network": "fastvit_t8", "tag": "il-common_reparameterized", "reparameterized": True},
+    },
+)

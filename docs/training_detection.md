@@ -22,7 +22,7 @@ torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone 
 ### Faster R-CNN: ResNeXt 101 Backbone
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone resnext --backbone-param 101 --backbone-epoch 0 --freeze-backbone --lr 0.02 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.93 --batch-size 16 --epochs 100
+torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone resnext_101 --backbone-epoch 0 --freeze-backbone --lr 0.02 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.93 --batch-size 16 --epochs 100
 ```
 
 ### RetinaNet
@@ -30,7 +30,7 @@ torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone 
 ### RetinaNet: ResNeXt 101 Backbone
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network retinanet --backbone resnext --backbone-param 101 --backbone-epoch 0 --freeze-backbone --lr 0.01 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.93 --batch-size 16 --epochs 100
+torchrun --nproc_per_node=2 train_detection.py --network retinanet --backbone resnext_101 --backbone-epoch 0 --freeze-backbone --lr 0.01 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.93 --batch-size 16 --epochs 100
 ```
 
 ### SSD

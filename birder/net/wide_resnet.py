@@ -7,12 +7,14 @@ Paper "Wide Residual Networks", https://arxiv.org/abs/1605.07146
 
 # Reference license: BSD 3-Clause
 
+from typing import Any
 from typing import Optional
 
 import torch
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
+from birder.model_registry import registry
 from birder.net.base import BaseNet
 
 
@@ -85,32 +87,18 @@ class Wide_ResNet(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        num_layers = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         bottle_neck = True
         filter_list = [64, 256, 512, 1024, 2048]
-        if num_layers == 50:
-            units = [3, 4, 6, 3]
-
-        elif num_layers == 101:
-            units = [3, 4, 23, 3]
-
-        elif num_layers == 152:
-            units = [3, 8, 36, 3]
-
-        elif num_layers == 200:
-            units = [3, 24, 36, 3]
-
-        elif num_layers == 269:
-            units = [3, 30, 48, 8]
-
-        else:
-            raise ValueError(f"num_layers = {num_layers} not supported")
+        units: list[int] = self.config["units"]
 
         assert len(units) + 1 == len(filter_list)
         num_unit = len(units)
@@ -153,3 +141,10 @@ class Wide_ResNet(BaseNet):
         x = self.stem(x)
         x = self.body(x)
         return self.features(x)
+
+
+registry.register_alias("wide_resnet_50", Wide_ResNet, config={"units": [3, 4, 6, 3]})
+registry.register_alias("wide_resnet_101", Wide_ResNet, config={"units": [3, 4, 23, 3]})
+registry.register_alias("wide_resnet_152", Wide_ResNet, config={"units": [3, 8, 36, 3]})
+registry.register_alias("wide_resnet_200", Wide_ResNet, config={"units": [3, 24, 36, 3]})
+registry.register_alias("wide_resnet_269", Wide_ResNet, config={"units": [3, 30, 48, 8]})

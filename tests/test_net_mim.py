@@ -14,18 +14,18 @@ logging.disable(logging.CRITICAL)
 class TestNetMIM(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
-            ("fcmae", None, ("convnext_v2", 0)),
-            ("mae_vit", None, ("simple_vit", 0)),
-            ("mae_vit", None, ("vit", 0)),
-            ("mae_vit", None, ("vitreg4", 1)),
-            ("simmim", None, ("maxvit", 0)),
-            ("simmim", None, ("nextvit", 0)),
-            ("simmim", None, ("swin_transformer_v2", 0)),
-            ("simmim", None, ("swin_transformer_v2_w2", 0)),
+            ("fcmae", None, ("convnext_v2_atto", 0)),
+            ("mae_vit", None, ("simple_vit_b32", 0)),
+            ("mae_vit", None, ("vit_b32", 0)),
+            ("mae_vit", None, ("vitreg4_b32", 1)),
+            ("simmim", None, ("maxvit_t", 0)),
+            ("simmim", None, ("nextvit_s", 0)),
+            ("simmim", None, ("swin_transformer_v2_t", 0)),
+            ("simmim", None, ("swin_transformer_v2_w2_t", 0)),
         ]
     )
     def test_net_mim(self, network_name: str, net_param: Optional[float], encoder_params: tuple[str, float]) -> None:
-        encoder = registry.net_factory(encoder_params[0], 3, 10, encoder_params[1])
+        encoder = registry.net_factory(encoder_params[0], 3, 10, net_param=encoder_params[1])
         n = registry.mim_net_factory(network_name, encoder, net_param=net_param)
         size = n.default_size
         encoder.adjust_size(size)

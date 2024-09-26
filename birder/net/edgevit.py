@@ -10,6 +10,7 @@ https://arxiv.org/abs/2205.03436
 
 from collections.abc import Callable
 from functools import partial
+from typing import Any
 from typing import Optional
 
 import torch
@@ -279,37 +280,22 @@ class EdgeViT(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         patch_size = [4, 2, 2, 2]
         mlp_ratio = [4.0, 4.0, 4.0, 4.0]
         sr_ratios = [4, 2, 2, 1]
         drop_path_rate = 0.1
-        if net_param == 0:
-            # XXS - extra-extra-small
-            depth = [1, 1, 3, 2]
-            embed_dim = [36, 72, 144, 288]
-            head_dim = 36
-
-        elif net_param == 1:
-            # XS - extra-small
-            depth = [1, 1, 3, 1]
-            embed_dim = [48, 96, 240, 384]
-            head_dim = 48
-
-        elif net_param == 2:
-            # S - small
-            depth = [1, 2, 5, 3]
-            embed_dim = [48, 96, 240, 384]
-            head_dim = 48
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        depth: list[int] = self.config["depth"]
+        embed_dim: list[int] = self.config["embed_dim"]
+        head_dim: int = self.config["head_dim"]
 
         num_stages = len(depth)
         dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depth)).split(depth)]
@@ -368,9 +354,15 @@ class EdgeViT(BaseNet):
         return nn.Linear(embed_dim, self.num_classes, bias=False)
 
 
-registry.register_alias("edgevit_xxs", EdgeViT, 0)
-registry.register_alias("edgevit_xs", EdgeViT, 1)
-registry.register_alias("edgevit_s", EdgeViT, 2)
+registry.register_alias(
+    "edgevit_xxs", EdgeViT, config={"depth": [1, 1, 3, 2], "embed_dim": [36, 72, 144, 288], "head_dim": 36}
+)
+registry.register_alias(
+    "edgevit_xs", EdgeViT, config={"depth": [1, 1, 3, 1], "embed_dim": [48, 96, 240, 384], "head_dim": 48}
+)
+registry.register_alias(
+    "edgevit_s", EdgeViT, config={"depth": [1, 2, 5, 3], "embed_dim": [48, 96, 240, 384], "head_dim": 48}
+)
 
 registry.register_weights(
     "edgevit_xxs_il-common",

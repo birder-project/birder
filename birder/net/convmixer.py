@@ -11,6 +11,7 @@ Changes from original:
 # Reference license: MIT
 
 from collections.abc import Callable
+from typing import Any
 from typing import Optional
 
 import torch
@@ -37,36 +38,19 @@ class ConvMixer(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
-        if net_param == 0:
-            # 768 / 32
-            dim = 768
-            depth = 32
-            kernel_size = (7, 7)
-            patch_size = (7, 7)
-
-        elif net_param == 1:
-            # 1024 / 20
-            dim = 1024
-            depth = 20
-            kernel_size = (9, 9)
-            patch_size = (14, 14)
-
-        elif net_param == 2:
-            # 1536 / 20
-            dim = 1536
-            depth = 20
-            kernel_size = (9, 9)
-            patch_size = (7, 7)
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        dim: int = self.config["dim"]
+        depth: int = self.config["depth"]
+        kernel_size: tuple[int, int] = self.config["kernel_size"]
+        patch_size: tuple[int, int] = self.config["patch_size"]
 
         self.stem = Conv2dNormActivation(
             self.input_channels,
@@ -121,6 +105,12 @@ class ConvMixer(BaseNet):
         return self.features(x)
 
 
-registry.register_alias("convmixer_768_32", ConvMixer, 0)
-registry.register_alias("convmixer_1024_20", ConvMixer, 1)
-registry.register_alias("convmixer_1536_20", ConvMixer, 2)
+registry.register_alias(
+    "convmixer_768_32", ConvMixer, config={"dim": 768, "depth": 32, "kernel_size": (7, 7), "patch_size": (7, 7)}
+)
+registry.register_alias(
+    "convmixer_1024_20", ConvMixer, config={"dim": 1024, "depth": 20, "kernel_size": (9, 9), "patch_size": (14, 14)}
+)
+registry.register_alias(
+    "convmixer_1536_20", ConvMixer, config={"dim": 1536, "depth": 20, "kernel_size": (9, 9), "patch_size": (7, 7)}
+)

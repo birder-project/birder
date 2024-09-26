@@ -11,8 +11,8 @@ logging.disable(logging.CRITICAL)
 
 class TestInference(unittest.TestCase):
     def test_predict(self) -> None:
-        size = net.ResNet_v2.default_size
-        n = net.ResNet_v2(3, 10, 18)
+        size = net.GhostNet_v2.default_size
+        n = net.GhostNet_v2(3, 10, net_param=1)
 
         with self.assertRaises(RuntimeError):
             classification.infer_batch(n, torch.rand((1, 3, size, size)))

@@ -1,3 +1,4 @@
+from typing import Any
 from typing import Optional
 from typing import TypedDict
 
@@ -36,7 +37,9 @@ class MIMBaseNet(nn.Module):
     def __init__(
         self,
         encoder: PreTrainEncoder,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
         super().__init__()
@@ -44,6 +47,8 @@ class MIMBaseNet(nn.Module):
         self.encoder = encoder
         if hasattr(self, "net_param") is False:  # Avoid overriding aliases
             self.net_param = net_param
+        if hasattr(self, "config") is False:  # Avoid overriding aliases
+            self.config = config
 
         if size is not None:
             self.size = size

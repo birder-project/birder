@@ -7,6 +7,7 @@ Paper "UniFormer: Unifying Convolution and Self-attention for Visual Recognition
 
 # Reference license: Apache-2.0
 
+from typing import Any
 from typing import Literal
 from typing import Optional
 
@@ -226,44 +227,23 @@ class UniFormer(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         block_type = ["conv", "conv", "attn", "attn"]
         patch_size = [4, 2, 2, 2]
-        if net_param == 0:
-            # Small
-            depth = [3, 4, 8, 3]
-            embed_dim = [64, 128, 320, 512]
-            mlp_ratio = [4.0, 4.0, 4.0, 4.0]
-            head_dim = 64
-            drop_path_rate = 0.1
-            layer_scale_init_value = None
-
-        elif net_param == 1:
-            # Base
-            depth = [5, 8, 20, 7]
-            embed_dim = [64, 128, 320, 512]
-            mlp_ratio = [4.0, 4.0, 4.0, 4.0]
-            head_dim = 64
-            drop_path_rate = 0.3
-            layer_scale_init_value = None
-
-        elif net_param == 2:
-            # Large
-            depth = [5, 10, 24, 7]
-            embed_dim = [128, 192, 448, 640]
-            mlp_ratio = [4.0, 4.0, 4.0, 4.0]
-            head_dim = 64
-            drop_path_rate = 0.4
-            layer_scale_init_value = 1e-6
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        depth: list[int] = self.config["depth"]
+        embed_dim: list[int] = self.config["embed_dim"]
+        mlp_ratio: list[float] = self.config["mlp_ratio"]
+        head_dim: int = self.config["head_dim"]
+        drop_path_rate: float = self.config["drop_path_rate"]
+        layer_scale_init_value: Optional[float] = self.config["layer_scale_init_value"]
 
         num_stages = len(depth)
         dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depth)).split(depth)]
@@ -312,6 +292,39 @@ class UniFormer(BaseNet):
         return self.features(x)
 
 
-registry.register_alias("uniformer_s", UniFormer, 0)
-registry.register_alias("uniformer_b", UniFormer, 1)
-registry.register_alias("uniformer_l", UniFormer, 2)
+registry.register_alias(
+    "uniformer_s",
+    UniFormer,
+    config={
+        "depth": [3, 4, 8, 3],
+        "embed_dim": [64, 128, 320, 512],
+        "mlp_ratio": [4.0, 4.0, 4.0, 4.0],
+        "head_dim": 64,
+        "drop_path_rate": 0.1,
+        "layer_scale_init_value": None,
+    },
+)
+registry.register_alias(
+    "uniformer_b",
+    UniFormer,
+    config={
+        "depth": [5, 8, 20, 7],
+        "embed_dim": [64, 128, 320, 512],
+        "mlp_ratio": [4.0, 4.0, 4.0, 4.0],
+        "head_dim": 64,
+        "drop_path_rate": 0.3,
+        "layer_scale_init_value": None,
+    },
+)
+registry.register_alias(
+    "uniformer_l",
+    UniFormer,
+    config={
+        "depth": [5, 10, 24, 7],
+        "embed_dim": [128, 192, 448, 640],
+        "mlp_ratio": [4.0, 4.0, 4.0, 4.0],
+        "head_dim": 64,
+        "drop_path_rate": 0.4,
+        "layer_scale_init_value": 1e-6,
+    },
+)

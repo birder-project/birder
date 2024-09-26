@@ -90,16 +90,25 @@ def benchmark(args: argparse.Namespace) -> None:
                 "samples_per_sec": samples_per_sec,
             }
         )
+        logging.info(f"{model_name} ran at {samples_per_sec:.2f} samples / sec")
 
     results_df = pl.DataFrame(results)
 
-    output_path = f"benchmark_{device.type}"
+    output_path = "benchmark"
     if args.suffix is not None:
         output_path = f"{output_path}_{args.suffix}"
 
+    if args.append is True:
+        include_header = False
+        mode = "a"
+    else:
+        include_header = True
+        mode = "w"
+
     benchmark_path = settings.RESULTS_DIR.joinpath(f"{output_path}.csv")
     logging.info(f"Saving results at {benchmark_path}")
-    results_df.write_csv(benchmark_path)
+    with open(benchmark_path, mode=mode, encoding="utf-8") as handle:
+        results_df.write_csv(handle, include_header=include_header)
 
 
 def get_args_parser() -> argparse.ArgumentParser:
@@ -114,7 +123,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "python benchmark.py --filter '*il-common*' --batch-size 512 --gpu\n"
             "python benchmark.py --filter '*il-common*' --batch-size 512 --gpu --warmup 20\n"
             "python benchmark.py --filter '*il-common*' --batch-size 512 --gpu --fast-matmul --compile "
-            "--suffix il-common\n"
+            "--suffix il-common --append\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -137,6 +146,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--warmup", type=int, default=20, help="number of warmup iterations")
     parser.add_argument("--repeats", type=int, default=4, help="number of repetitions")
     parser.add_argument("--bench-iter", type=int, default=500, help="number of benchmark iterations")
+    parser.add_argument("--append", default=False, action="store_true", help="append to existing output file")
 
     return parser
 

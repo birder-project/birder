@@ -22,13 +22,13 @@ class TestBase(unittest.TestCase):
 class TestNetDetection(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
-            ("faster_rcnn", None, ("resnet_v2", 50)),
+            ("faster_rcnn", None, ("resnet_v2_18", None)),
             ("retinanet", None, ("mobilenet_v3_small", 1)),
-            ("ssd", None, ("efficientnet_v2", 0)),
+            ("ssd", None, ("efficientnet_v2_s", None)),
         ]
     )
     def test_net_detection(self, network_name: str, net_param: Optional[float], encoder: tuple[str, float]) -> None:
-        backbone = registry.net_factory(encoder[0], 3, 10, encoder[1])
+        backbone = registry.net_factory(encoder[0], 3, 10, net_param=encoder[1])
         n = registry.detection_net_factory(network_name, 10, backbone, net_param=net_param)
         size = n.default_size
         backbone.adjust_size(size)

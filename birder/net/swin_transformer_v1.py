@@ -13,6 +13,7 @@ Changes from original:
 
 import logging
 import math
+from typing import Any
 from typing import Optional
 
 import torch
@@ -278,50 +279,23 @@ class Swin_Transformer_v1(BaseNet):
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         mlp_ratio = 4.0
         base_window_size = int(self.size / (2**5))
         window_size = (base_window_size, base_window_size)
-        if net_param == 0:
-            # Swin tiny
-            patch_size = (4, 4)
-            embed_dim = 96
-            depths = [2, 2, 6, 2]
-            num_heads = [3, 6, 12, 24]
-            stochastic_depth_prob = 0.2
-
-        elif net_param == 1:
-            # Swin small
-            patch_size = (4, 4)
-            embed_dim = 96
-            depths = [2, 2, 18, 2]
-            num_heads = [3, 6, 12, 24]
-            stochastic_depth_prob = 0.3
-
-        elif net_param == 2:
-            # Swin base
-            patch_size = (4, 4)
-            embed_dim = 128
-            depths = [2, 2, 18, 2]
-            num_heads = [4, 8, 16, 32]
-            stochastic_depth_prob = 0.5
-
-        elif net_param == 3:
-            # Swin large
-            patch_size = (4, 4)
-            embed_dim = 192
-            depths = [2, 2, 18, 2]
-            num_heads = [6, 12, 24, 48]
-            stochastic_depth_prob = 0.5
-
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        patch_size: tuple[int, int] = self.config["patch_size"]
+        embed_dim: int = self.config["embed_dim"]
+        depths: list[int] = self.config["depths"]
+        num_heads: list[int] = self.config["num_heads"]
+        stochastic_depth_prob: float = self.config["stochastic_depth_prob"]
 
         self.stem = nn.Sequential(
             nn.Conv2d(
@@ -470,7 +444,47 @@ class Swin_Transformer_v1(BaseNet):
                     log_flag = True
 
 
-registry.register_alias("swin_transformer_v1_t", Swin_Transformer_v1, 0)
-registry.register_alias("swin_transformer_v1_s", Swin_Transformer_v1, 1)
-registry.register_alias("swin_transformer_v1_b", Swin_Transformer_v1, 2)
-registry.register_alias("swin_transformer_v1_l", Swin_Transformer_v1, 3)
+registry.register_alias(
+    "swin_transformer_v1_t",
+    Swin_Transformer_v1,
+    config={
+        "patch_size": (4, 4),
+        "embed_dim": 96,
+        "depths": [2, 2, 6, 2],
+        "num_heads": [3, 6, 12, 24],
+        "stochastic_depth_prob": 0.2,
+    },
+)
+registry.register_alias(
+    "swin_transformer_v1_s",
+    Swin_Transformer_v1,
+    config={
+        "patch_size": (4, 4),
+        "embed_dim": 96,
+        "depths": [2, 2, 18, 2],
+        "num_heads": [3, 6, 12, 24],
+        "stochastic_depth_prob": 0.3,
+    },
+)
+registry.register_alias(
+    "swin_transformer_v1_b",
+    Swin_Transformer_v1,
+    config={
+        "patch_size": (4, 4),
+        "embed_dim": 128,
+        "depths": [2, 2, 18, 2],
+        "num_heads": [4, 8, 16, 32],
+        "stochastic_depth_prob": 0.5,
+    },
+)
+registry.register_alias(
+    "swin_transformer_v1_l",
+    Swin_Transformer_v1,
+    config={
+        "patch_size": (4, 4),
+        "embed_dim": 192,
+        "depths": [2, 2, 18, 2],
+        "num_heads": [6, 12, 24, 48],
+        "stochastic_depth_prob": 0.5,
+    },
+)

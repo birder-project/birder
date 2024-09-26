@@ -2,6 +2,7 @@ import fnmatch
 import warnings
 from enum import Enum
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Optional
 
 from birder.model_registry import manifest
@@ -65,25 +66,30 @@ class ModelRegistry:
         else:
             raise ValueError(f"Unsupported model task: {net_type.task}")
 
-    def register_alias(self, alias: str, net_type: "BaseNetType", net_param: float) -> None:
+    def register_alias(
+        self,
+        alias: str,
+        net_type: "BaseNetType",
+        *,
+        net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
+    ) -> None:
         """
         Just by defining the `type(alias, (net_type,), ...) the network is registered
         no further registration is needed.
         The aliases dictionary is kept only for bookkeeping.
         """
+
+        if net_type.auto_register is False:
+            # Register the model manually, as the base class doesn't take care of that for us
+            registry.register_model(alias, type(alias, (net_type,), {"net_param": net_param, "config": config}))
 
         if alias in self.aliases:
             warnings.warn(f"Alias {alias} is already registered", UserWarning)
 
-        self.aliases[alias] = type(alias, (net_type,), {"net_param": net_param})
+        self.aliases[alias] = type(alias, (net_type,), {"net_param": net_param, "config": config})
 
     def register_weights(self, name: str, weights_info: manifest.ModelInfoType) -> None:
-        """
-        Just by defining the `type(alias, (net_type,), ...) the network is registered
-        no further registration is needed.
-        The aliases dictionary is kept only for bookkeeping.
-        """
-
         if name in self._pretrained_nets:
             warnings.warn(f"Weights {name} is already registered", UserWarning)
 
@@ -165,29 +171,35 @@ class ModelRegistry:
         name: str,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> "BaseNet":
-        return self._nets[name](input_channels, num_classes, net_param, size)
+        return self._nets[name](input_channels, num_classes, net_param=net_param, config=config, size=size)
 
     def detection_net_factory(
         self,
         name: str,
         num_classes: int,
         backbone: "DetectorBackbone",
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> "DetectorBackbone":
-        return self._detection_nets[name](num_classes, backbone, net_param, size)
+        return self._detection_nets[name](num_classes, backbone, net_param=net_param, config=config, size=size)
 
     def mim_net_factory(
         self,
         name: str,
         encoder: "PreTrainEncoder",
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> "MIMBaseNet":
-        return self._mim_nets[name](encoder, net_param, size)
+        return self._mim_nets[name](encoder, net_param=net_param, config=config, size=size)
 
 
 registry = ModelRegistry()

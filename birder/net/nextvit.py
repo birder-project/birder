@@ -8,6 +8,7 @@ https://arxiv.org/abs/2207.05501
 
 # Reference license: Apache-2.0
 
+from typing import Any
 from typing import Optional
 
 import torch
@@ -240,40 +241,27 @@ class NTB(nn.Module):
 class NextViT(PreTrainEncoder):
     default_size = 224
 
-    # pylint: disable=too-many-locals,too-many-branches
+    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
+        *,
         net_param: Optional[float] = None,
+        config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param, size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
         stem_chs = [64, 32, 64]
         strides = [1, 2, 2, 2]
         head_dim = 32
         mix_block_ratio = 0.75
         sr_ratios = [8, 4, 2, 1]
-        if net_param == 0:
-            # Small
-            depths = [3, 4, 10, 3]
-            path_dropout = 0.1
-
-        elif net_param == 1:
-            # Base
-            depths = [3, 4, 20, 3]
-            path_dropout = 0.2
-
-        elif net_param == 2:
-            # Large
-            depths = [3, 4, 30, 3]
-            path_dropout = 0.2
-
-        else:
-            raise ValueError(f"net_param = {self.net_param} not supported")
+        depths: list[int] = self.config["depths"]
+        path_dropout: float = self.config["path_dropout"]
 
         self.stage_out_channels = [
             [96] * (depths[0]),
@@ -414,6 +402,6 @@ class NextViT(PreTrainEncoder):
         return self.features(x)
 
 
-registry.register_alias("nextvit_s", NextViT, 0)
-registry.register_alias("nextvit_b", NextViT, 1)
-registry.register_alias("nextvit_l", NextViT, 2)
+registry.register_alias("nextvit_s", NextViT, config={"depths": [3, 4, 10, 3], "path_dropout": 0.1})
+registry.register_alias("nextvit_b", NextViT, config={"depths": [3, 4, 20, 3], "path_dropout": 0.2})
+registry.register_alias("nextvit_l", NextViT, config={"depths": [3, 4, 30, 3], "path_dropout": 0.2})
