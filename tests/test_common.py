@@ -181,9 +181,14 @@ class TestCommon(unittest.TestCase):
             },
         )
         params = training_utils.optimizer_parameter_groups(model, 0, layer_decay=0.1)
-        self.assertEqual(params[-1]["lr_scale"], 1.0)
-        self.assertEqual(params[-2]["lr_scale"], 1.0)
-        self.assertEqual(params[-3]["lr_scale"], 0.1)
+        for param in params[-4:]:  # Head + norm
+            self.assertEqual(param["lr_scale"], 1.0)
+        for param in params[-16:-4]:  # Block 12
+            self.assertAlmostEqual(param["lr_scale"], 0.1)
+        for param in params[-28:-16]:  # Block 12
+            self.assertAlmostEqual(param["lr_scale"], 0.01)
+        for param in params[:4]:  # CLS token, positional encoding and conv_proj
+            self.assertAlmostEqual(param["lr_scale"], 1e-13)
 
         # Get optimizer
         for opt_type in typing.get_args(training_utils.OptimizerType):

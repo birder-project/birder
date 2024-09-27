@@ -97,8 +97,8 @@ class SqnxtUnit(nn.Module):
 
 
 class SqueezeNext(BaseNet):
-    auto_register = True
     default_size = 227
+    auto_register = True
 
     def __init__(
         self,

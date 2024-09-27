@@ -202,8 +202,8 @@ class MobileVitBlock(nn.Module):
 
 # pylint: disable=invalid-name
 class MobileViT_v2(BaseNet):
-    auto_register = True
     default_size = 256
+    auto_register = True
 
     def __init__(
         self,

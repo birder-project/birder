@@ -47,8 +47,8 @@ class DepthwiseSeparableNormConv2d(nn.Module):
 
 # pylint: disable=invalid-name
 class MobileNet_v1(BaseNet):
-    auto_register = True
     default_size = 224
+    auto_register = True
 
     def __init__(
         self,

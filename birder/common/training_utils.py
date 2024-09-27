@@ -2,6 +2,7 @@ import argparse
 import logging
 import math
 import os
+import re
 from collections.abc import Iterator
 from datetime import datetime
 from typing import Any
@@ -114,38 +115,62 @@ def ema_model(args: argparse.Namespace, net: torch.nn.Module, device: torch.devi
     return model_ema
 
 
-# def group_by_regex(strings: list[str], pattern: str) -> list[list[str]]:
-#     groups = []
-#     current_group = []
-#     current_block = None
+def group_by_regex(strings: list[str], pattern: str) -> list[list[str]]:
+    groups: list[list[str]] = []
+    current_group: list[str] = []
+    current_block: Optional[str] = None
 
-#     for s in strings:
-#         match = re.search(pattern, s)
-#         if match is not None:
-#             block_num = match.group(1)
-#             if block_num != current_block:
-#                 if current_group:
-#                     groups.append(current_group)
+    for s in strings:
+        match = re.search(pattern, s)
+        if match is not None:
+            block_num = match.group(1)
+            if block_num != current_block:
+                if len(current_group) > 0:
+                    groups.append(current_group)
 
-#                 current_group = []
-#                 current_block = block_num
+                current_group = []
+                current_block = block_num
 
-#         elif current_block is not None:
-#             if current_group:
-#                 groups.append(current_group)
+        elif current_block is not None:
+            if len(current_group) > 0:
+                groups.append(current_group)
 
-#             current_group = []
-#             current_block = None
+            current_group = []
+            current_block = None
 
-#         current_group.append(s)
+        current_group.append(s)
 
-#     if len(current_group) > 0:
-#         groups.append(current_group)
+    if len(current_group) > 0:
+        groups.append(current_group)
 
-#     return groups
+    return groups
 
-# pattern = r"encoder\.block\.(\d+)"
-# grouped = group_by_regex(names, pattern)
+
+def count_layers(model: torch.nn.Module) -> int:
+    num_layers = 0
+    module_stack = [model]
+    visited_modules: list[int] = []
+    while len(module_stack) > 0:
+        skip_module = False
+        module = module_stack.pop()
+        if id(module) in visited_modules:
+            skip_module = True
+
+        visited_modules.append(id(module))
+        parameters_found = False
+        for _, _ in module.named_parameters(recurse=False):
+            if skip_module is True:
+                break
+
+            parameters_found = True
+
+        if parameters_found is True:
+            num_layers += 1
+
+        for _, child_module in reversed(list(module.named_children())):
+            module_stack.append(child_module)
+
+    return num_layers
 
 
 # pylint: disable=protected-access,too-many-locals,too-many-branches
@@ -171,29 +196,17 @@ def optimizer_parameter_groups(
         torch.nn.LocalResponseNorm,
     )
 
-    # Count layers
-    num_layers = 0
-    module_stack = [model]
-    visited_modules: list[int] = []
-    while len(module_stack) > 0:
-        skip_module = False
-        module = module_stack.pop()
-        if id(module) in visited_modules:
-            skip_module = True
-
-        visited_modules.append(id(module))
-        parameters_found = False
-        for _, _ in module.named_parameters(recurse=False):
-            if skip_module is True:
-                break
-
-            parameters_found = True
-
-        if parameters_found is True:
-            num_layers += 1
-
-        for _, child_module in reversed(list(module.named_children())):
-            module_stack.append(child_module)
+    block_group_regex = getattr(model, "block_group_regex", None)
+    if block_group_regex is not None:
+        names = [n for n, _ in model.named_parameters()]
+        groups = group_by_regex(names, block_group_regex)
+        group_map = {item: index for index, sublist in enumerate(groups) for item in sublist}
+        num_layers = len(groups)
+    else:
+        group_map = {}
+        num_layers = count_layers(model)
+        if layer_decay is not None:
+            logging.warning("Assigning lr scaling (layer decay) without a block group map")
 
     # Build layer scale
     layer_scales = []
@@ -220,6 +233,8 @@ def optimizer_parameter_groups(
         visited_modules.append(id(module))
         parameters_found = False
         for name, p in module.named_parameters(recurse=False):
+            target_name = f"{prefix}.{name}" if prefix != "" else name
+            idx = group_map.get(target_name, idx)
             if skip_module is True:
                 break
 
@@ -230,8 +245,8 @@ def optimizer_parameter_groups(
             is_custom_key = False
             if custom_keys_weight_decay is not None:
                 for key, custom_wd in custom_keys_weight_decay:
-                    target_name = f"{prefix}.{name}" if prefix != "" and "." in key else name
-                    if key == target_name:
+                    target_name_for_custom_key = f"{prefix}.{name}" if prefix != "" and "." in key else name
+                    if key == target_name_for_custom_key:
                         params.append(
                             {
                                 "params": p,

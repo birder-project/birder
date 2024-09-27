@@ -100,8 +100,8 @@ class XceptionBlock(nn.Module):
 
 
 class Xception(BaseNet):
-    auto_register = True
     default_size = 299
+    auto_register = True
 
     def __init__(
         self,

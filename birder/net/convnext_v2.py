@@ -81,6 +81,7 @@ class ConvNeXtBlock(nn.Module):
 # pylint: disable=invalid-name
 class ConvNeXt_v2(PreTrainEncoder):
     default_size = 224
+    block_group_regex = r"body\.(\d+)"
 
     def __init__(
         self,

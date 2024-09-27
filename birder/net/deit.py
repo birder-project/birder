@@ -26,6 +26,7 @@ from birder.net.vit import adjust_position_embedding
 # pylint: disable=too-many-instance-attributes
 class DeiT(BaseNet):
     default_size = 224
+    block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
         self,
@@ -95,6 +96,7 @@ class DeiT(BaseNet):
             attention_dropout,
             dpr,
         )
+        self.norm = nn.LayerNorm(hidden_dim, eps=1e-6)
 
         self.embedding_size = hidden_dim
         self.dist_classifier = self.create_classifier()
@@ -150,6 +152,7 @@ class DeiT(BaseNet):
             x = torch.concat([batch_class_token, batch_dist_token, x], dim=1)
 
         x = self.encoder(x)
+        x = self.norm(x)
         x = x[:, 0:2]
 
         return x
@@ -242,7 +245,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 21.7,
-                "sha256": "dd1065f854b25f765a24cb004848d8ab7a7b0a74664d01c9412101533f8faffa",
+                "sha256": "ac124122dec9f1bceff383a6a555ca375ca1b613caf486dac3f29d87afac03b3",
             }
         },
         "net": {"network": "deit_t16", "tag": "il-common"},

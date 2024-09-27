@@ -95,8 +95,8 @@ class ShuffleUnit(nn.Module):
 
 # pylint: disable=invalid-name
 class ShuffleNet_v2(BaseNet):
-    auto_register = True
     default_size = 224
+    auto_register = True
 
     def __init__(
         self,

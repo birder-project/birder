@@ -238,7 +238,6 @@ class WindowDepartition(nn.Module):
         return x
 
 
-# pylint: disable=too-many-instance-attributes
 class PartitionAttentionLayer(nn.Module):
     """
     Layer for partitioning the input tensor into non-overlapping windows and applying attention to each window
@@ -451,6 +450,7 @@ class MaxVitBlock(nn.Module):
 
 class MaxViT(PreTrainEncoder):
     default_size = 224
+    block_group_regex = r"body\.\d+\.block\.(\d+)"
 
     # pylint: disable=too-many-locals
     def __init__(

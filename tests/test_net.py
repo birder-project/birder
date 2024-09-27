@@ -187,3 +187,5 @@ class TestNet(unittest.TestCase):
         outs = n.masked_encoding(torch.rand((1, 3, size, size)), 0.6, mt)
         for out in outs:
             self.assertFalse(torch.isnan(out).any())
+
+        self.assertTrue(hasattr(n, "block_group_regex"))

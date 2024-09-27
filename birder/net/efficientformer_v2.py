@@ -28,7 +28,6 @@ from birder.model_registry import registry
 from birder.net.base import BaseNet
 
 
-# pylint: disable=too-many-instance-attributes
 class Attention2d(nn.Module):
     def __init__(
         self,

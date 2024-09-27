@@ -30,6 +30,7 @@ from birder.net.vit import PatchEmbed
 # pylint: disable=invalid-name
 class Simple_ViT(PreTrainEncoder):
     default_size = 224
+    block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
         self,
@@ -81,6 +82,7 @@ class Simple_ViT(PreTrainEncoder):
         self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=False)
 
         self.encoder = Encoder(num_layers, num_heads, hidden_dim, mlp_dim, dropout=0.0, attention_dropout=0.0, dpr=dpr)
+        self.norm = nn.LayerNorm(hidden_dim, eps=1e-6)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool1d(1),
             nn.Flatten(1),
@@ -149,6 +151,7 @@ class Simple_ViT(PreTrainEncoder):
 
         # Apply transformer
         x = self.encoder(x)
+        x = self.norm(x)
 
         return (x, mask, ids_restore)
 
@@ -157,6 +160,7 @@ class Simple_ViT(PreTrainEncoder):
         x = self.patch_embed(x)
         x = x + self.pos_embedding
         x = self.encoder(x)
+        x = self.norm(x)
         x = x.permute(0, 2, 1)
         return self.features(x)
 

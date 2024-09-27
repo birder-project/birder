@@ -324,6 +324,7 @@ class FocalNetStage(nn.Module):
 
 class FocalNet(BaseNet):
     default_size = 224
+    block_group_regex = r"body\.\d+\.blocks\.(\d+)"
 
     def __init__(
         self,

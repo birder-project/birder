@@ -221,8 +221,8 @@ class InceptionBlockC(nn.Module):
 
 # pylint: disable=invalid-name
 class Inception_v4(BaseNet):
-    auto_register = True
     default_size = 299
+    auto_register = True
 
     def __init__(
         self,

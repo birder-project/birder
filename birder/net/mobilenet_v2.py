@@ -76,8 +76,8 @@ class InvertedResidual(nn.Module):
 
 # pylint: disable=invalid-name
 class MobileNet_v2(DetectorBackbone):
-    auto_register = True
     default_size = 224
+    auto_register = True
 
     def __init__(
         self,

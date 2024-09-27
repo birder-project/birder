@@ -240,6 +240,7 @@ class NTB(nn.Module):
 
 class NextViT(PreTrainEncoder):
     default_size = 224
+    block_group_regex = r"body\.(\d+)"
 
     # pylint: disable=too-many-locals
     def __init__(

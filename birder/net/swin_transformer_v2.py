@@ -187,6 +187,7 @@ class SwinTransformerBlock(nn.Module):
 # pylint: disable=invalid-name
 class Swin_Transformer_v2(PreTrainEncoder):
     default_size = 256
+    block_group_regex = r"body\.(\d+)"
 
     # pylint: disable=too-many-locals
     def __init__(

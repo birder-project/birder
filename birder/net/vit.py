@@ -143,7 +143,6 @@ class Encoder(nn.Module):
                 )
             )
 
-        layers.append(nn.LayerNorm(hidden_dim, eps=1e-6))
         self.block = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -156,6 +155,7 @@ class Encoder(nn.Module):
 # pylint: disable=too-many-instance-attributes
 class ViT(PreTrainEncoder):
     default_size = 224
+    block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
         self,
@@ -227,6 +227,7 @@ class ViT(PreTrainEncoder):
             attention_dropout,
             dpr,
         )
+        self.norm = nn.LayerNorm(hidden_dim, eps=1e-6)
 
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
@@ -301,6 +302,7 @@ class ViT(PreTrainEncoder):
 
         # Apply transformer
         x = self.encoder(x)
+        x = self.norm(x)
 
         return (x, mask, ids_restore)
 
@@ -320,6 +322,7 @@ class ViT(PreTrainEncoder):
 
         x = x + self.pos_embedding
         x = self.encoder(x)
+        x = self.norm(x)
 
         # Classifier "token" as used by standard language architectures
         return x[:, self.num_reg_tokens]

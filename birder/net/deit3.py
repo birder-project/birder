@@ -69,7 +69,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 21.7,
-                "sha256": "26636f54c67962d2a0f8f8fca92c7619112776bf404910a89528b03323b4506a",
+                "sha256": "a883c5240cd3f8b6b003218e6016e18d01f8a5243481acbeeb3cbc3bf68a76af",
             }
         },
         "net": {"network": "deit_t16", "tag": "il-common"},
