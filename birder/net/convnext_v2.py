@@ -10,6 +10,7 @@ https://arxiv.org/abs/2301.00808
 
 # Reference license: BSD 3-Clause and Apache-2.0
 
+from collections import OrderedDict
 from functools import partial
 from typing import Any
 from typing import Optional
@@ -21,6 +22,7 @@ from torchvision.ops import Permute
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
+from birder.net.base import DetectorBackbone
 from birder.net.base import PreTrainEncoder
 from birder.net.convnext_v1 import LayerNorm2d
 
@@ -79,9 +81,9 @@ class ConvNeXtBlock(nn.Module):
 
 
 # pylint: disable=invalid-name
-class ConvNeXt_v2(PreTrainEncoder):
+class ConvNeXt_v2(DetectorBackbone, PreTrainEncoder):
     default_size = 224
-    block_group_regex = r"body\.(\d+)"
+    block_group_regex = r"body\.stage\d+\.(\d+)"
 
     def __init__(
         self,
@@ -112,19 +114,19 @@ class ConvNeXt_v2(PreTrainEncoder):
             activation_layer=None,
         )
 
-        layers = []
         total_stage_blocks = sum(num_layers)
         stage_block_id = 0
-        for i, out, n in zip(in_channels, out_channels, num_layers):
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
+        for idx, (i, out, n) in enumerate(zip(in_channels, out_channels, num_layers)):
+            layers = []
+
             # Bottlenecks
-            stage = []
             for _ in range(n):
                 # Adjust stochastic depth probability based on the depth of the stage block
                 sd_prob = stochastic_depth_prob * stage_block_id / (total_stage_blocks - 1.0)
-                stage.append(ConvNeXtBlock(i, sd_prob))
+                layers.append(ConvNeXtBlock(i, sd_prob))
                 stage_block_id += 1
-
-            layers.append(nn.Sequential(*stage))
 
             # Down sampling
             if out != -1:
@@ -135,12 +137,16 @@ class ConvNeXt_v2(PreTrainEncoder):
                     )
                 )
 
-        self.body = nn.Sequential(*layers)
+            stages[f"stage{idx+1}"] = nn.Sequential(*layers)
+            return_channels.append(out if out != -1 else i)
+
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             LayerNorm2d(in_channels[-1], eps=1e-6),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = in_channels[-1]
         self.classifier = self.create_classifier()
 
@@ -157,6 +163,28 @@ class ConvNeXt_v2(PreTrainEncoder):
         if isinstance(self.classifier, nn.Linear) is True:
             self.classifier.weight.data.mul_(0.001)
             self.classifier.bias.data.mul_(0.001)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def masked_encoding(
         self, x: torch.Tensor, mask_ratio: float, _mask_token: Optional[torch.Tensor] = None
@@ -247,7 +275,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 13.4,
-                "sha256": "0dcea4fb31622c6f6efd16de920de92b8475bf5d236ada5ace494065a9c0e8af",
+                "sha256": "2bf74e6f11a04f4e60970c7a8b2bbb239c5ddb7070f6c8b4978c310137023244",
             }
         },
         "net": {"network": "convnext_v2_atto", "tag": "il-common"},

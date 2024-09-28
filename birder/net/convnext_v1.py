@@ -7,6 +7,7 @@ Paper "A ConvNet for the 2020s", https://arxiv.org/abs/2201.03545
 
 # Reference license: BSD 3-Clause
 
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -18,7 +19,7 @@ from torchvision.ops import Permute
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 
 
 class LayerNorm2d(nn.LayerNorm):
@@ -68,9 +69,9 @@ class ConvNeXtBlock(nn.Module):
 
 
 # pylint: disable=invalid-name
-class ConvNeXt_v1(BaseNet):
+class ConvNeXt_v1(DetectorBackbone):
     default_size = 224
-    block_group_regex = r"body\.(\d+)"
+    block_group_regex = r"body\.stage\d+\.(\d+)"
 
     def __init__(
         self,
@@ -102,19 +103,19 @@ class ConvNeXt_v1(BaseNet):
             activation_layer=None,
         )
 
-        layers = []
         total_stage_blocks = sum(num_layers)
         stage_block_id = 0
-        for i, out, n in zip(in_channels, out_channels, num_layers):
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
+        for idx, (i, out, n) in enumerate(zip(in_channels, out_channels, num_layers)):
+            layers = []
+
             # Bottlenecks
-            stage = []
             for _ in range(n):
                 # Adjust stochastic depth probability based on the depth of the stage block
                 sd_prob = stochastic_depth_prob * stage_block_id / (total_stage_blocks - 1.0)
-                stage.append(ConvNeXtBlock(i, layer_scale, sd_prob))
+                layers.append(ConvNeXtBlock(i, layer_scale, sd_prob))
                 stage_block_id += 1
-
-            layers.append(nn.Sequential(*stage))
 
             # Down sampling
             if out != -1:
@@ -125,12 +126,16 @@ class ConvNeXt_v1(BaseNet):
                     )
                 )
 
-        self.body = nn.Sequential(*layers)
+            stages[f"stage{idx+1}"] = nn.Sequential(*layers)
+            return_channels.append(out if out != -1 else i)
+
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             LayerNorm2d(in_channels[-1], eps=1e-6),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = in_channels[-1]
         self.classifier = self.create_classifier()
 
@@ -140,6 +145,28 @@ class ConvNeXt_v1(BaseNet):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

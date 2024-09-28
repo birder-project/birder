@@ -417,7 +417,7 @@ def train(args: argparse.Namespace) -> None:
     # Save model hyperparameters with metrics
     if args.rank == 0:
         # Replace list based args
-        if args.betas is not None:
+        if args.opt_betas is not None:
             for idx, beta in enumerate(args.opt_betas):
                 setattr(args, f"opt_betas_{idx}", beta)
 

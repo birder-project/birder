@@ -134,6 +134,8 @@ class TestNet(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[misc]
         [
+            ("convnext_v1_tiny"),
+            ("convnext_v2_tiny"),
             ("efficientnet_v1_b0"),
             ("efficientnet_v2_s"),
             ("mnasnet", 0.75),

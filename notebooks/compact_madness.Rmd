@@ -54,7 +54,7 @@ RESULTS_PATH = "il-common-v1"
 ## Helper Functions
 
 ```{python}
-def get_num_parameters(file_name: str, tag: str = PATTERN) -> int:
+def get_model_name_and_num_parameters(file_name: str, tag: str = PATTERN) -> tuple[str, str, int]:
     reparameterized = False
     if file_name.find("reparameterized") != -1:
         reparameterized = True
@@ -65,17 +65,24 @@ def get_num_parameters(file_name: str, tag: str = PATTERN) -> int:
     num_classes = int(num_classes.split("_")[0])
     model_name = file_name[: file_name.find(tag) - 1]
     if model_name in registry.all_nets:
+        net_param = None
         model = registry.net_factory(model_name, 3, num_classes=num_classes)
     else:
         (model_name, net_param) = model_name.rsplit("_", 1)
         model = registry.net_factory(model_name, 3, num_classes=num_classes, net_param=float(net_param))
+        model_name += f"_{net_param}"
 
     if reparameterize_available(model) is True and reparameterized is True:
         model.reparameterize_model()
+        model_name += " (r)"
 
     info = get_model_info(model)
+    if "model_registry.model_registry" in model.__class__.__module__:
+        model_type = model.__class__.__bases__[0].__name__
+    else:
+        model_type = model.__class__.__name__
 
-    return info["num_params"]
+    return (model_name.replace("_", " "), model_type.replace("_", " "), info["num_params"])
 ```
 
 ```{python}
@@ -84,20 +91,6 @@ def get_resolution(file_name: str) -> int:
     resolution = file_name.rsplit("_", 1)[1]
 
     return int(resolution)
-```
-
-```{python}
-def get_model_name(file_name: str) -> int:
-    reparameterized = False
-    if file_name.find("reparameterized") != -1:
-        reparameterized = True
-        file_name = file_name.replace("_reparameterized", "")
-
-    model_name = file_name[: file_name.find(PATTERN) - 1].replace("_", " ")
-    if reparameterized is True:
-        model_name += " (r)"
-
-    return model_name
 ```
 
 ```{python}
@@ -128,11 +121,14 @@ compare_results_df = compare_results(results_dict)
 
 num_param = []
 model_names = []
+model_types = []
 pretrained_names = []
 resolution = []
 for file_name in compare_results_df["File name"]:
-    num_param.append(get_num_parameters(file_name) / 1e6)
-    model_names.append(get_model_name(file_name))
+    (model_name, model_type, count) = get_model_name_and_num_parameters(file_name)
+    num_param.append(count / 1e6)
+    model_names.append(model_name)
+    model_types.append(model_type)
     pretrained_names.append(get_pretrained_name(file_name))
     resolution.append(get_resolution(file_name))
 
@@ -140,6 +136,7 @@ compare_results_df = compare_results_df.with_columns(
     pl.Series("Parameters (M)", num_param),
     pl.Series("Resolution", resolution),
     pl.Series("Model name", model_names),
+    pl.Series("Model type", model_types),
     pl.Series("Pretrained name", pretrained_names),
 )
 ```
@@ -164,7 +161,10 @@ compare_results_df = compare_results_df.filter(
 # Rearrange columns
 compare_results_df = compare_results_df.select(
     "Model name",
-    pl.all().exclude("File name", "Model name", "Pretrained name", "Parameters (M)", *benchmark_df.columns),
+    "Model type",
+    pl.all().exclude(
+        "File name", "Model name", "Model type", "Pretrained name", "Parameters (M)", *benchmark_df.columns
+    ),
     "Parameters (M)",
     "samples_per_sec",
     "device",
@@ -201,8 +201,9 @@ cuda_compare_results_df = cuda_compare_results_df.with_columns(
 base = param_compare_results_df.plot.point(
     x="Parameters (M)",
     y="Accuracy",
-    color="Model name",
+    color="Model type",
     shape="Resolution:N",
+    tooltip=["Parameters (M)", "Accuracy", "Top-3 accuracy", "Model name", "Model type", "Resolution"],
 )
 text = base.mark_text(align="center", baseline="middle", dy=-10).encode(text="Model name")
 frontier = param_compare_results_df.plot.line(x="Parameters (M)", y="Pareto frontier (p)").mark_line(
@@ -223,8 +224,9 @@ chart.properties(title="Accuray vs Parameter Count", width=960, height=640).conf
 base = cpu_compare_results_df.plot.point(
     x="ms / sample",
     y="Accuracy",
-    color="Model name",
+    color="Model type",
     shape="Resolution:N",
+    tooltip=["ms / sample", "Parameters (M)", "Accuracy", "Top-3 accuracy", "Model name", "Model type", "Resolution"],
 )
 text = base.mark_text(align="center", baseline="middle", dy=-10).encode(text="Model name")
 frontier = cpu_compare_results_df.plot.line(x="ms / sample", y="Pareto frontier (cpu-ms)").mark_line(
@@ -240,8 +242,9 @@ chart.properties(title="Accuray vs CPU Rate", width=960, height=640).configure_s
 base = cuda_compare_results_df.plot.point(
     x="ms / sample",
     y="Accuracy",
-    color="Model name",
+    color="Model type",
     shape="Resolution:N",
+    tooltip=["ms / sample", "Parameters (M)", "Accuracy", "Top-3 accuracy", "Model name", "Model type", "Resolution"],
 )
 text = base.mark_text(align="center", baseline="middle", dy=-10).encode(text="Model name")
 frontier = cuda_compare_results_df.plot.line(x="ms / sample", y="Pareto frontier (cuda-ms)").mark_line(

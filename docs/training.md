@@ -721,7 +721,7 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v4_s --opt adamw --lr 0
 #### Mobilenet v4: Medium
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v4_m --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 5 --batch-size 512 --size 256 --epochs 500 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+torchrun --nproc_per_node=2 train.py --network mobilenet_v4_m --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 5 --batch-size 256 --size 256 --epochs 500 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --fast-matmul --compile
 ```
 
 #### Mobilenet v4: Large

@@ -159,7 +159,7 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v4_s --tag il-common --
 #### Mobilenet v4: Medium
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v4_m --tag il-common --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 5 --batch-size 512 --size 256 --epochs 500 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+torchrun --nproc_per_node=2 train.py --network mobilenet_v4_m --tag il-common --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 5 --batch-size 256 --size 256 --epochs 500 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### MobileOne
@@ -192,6 +192,12 @@ torchrun --nproc_per_node=2 train.py --network regnet_y_200m --tag il-common --l
 torchrun --nproc_per_node=2 train.py --network shufflenet_v1 --net-param 4 --tag il-common --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --batch-size 256  --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+#### ShuffleNet v1: Groups 8
+
+```sh
+torchrun --nproc_per_node=2 train.py --network shufflenet_v1 --net-param 8 --tag il-common --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --batch-size 256  --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### ShuffleNet v2
 
 #### ShuffleNet v2: Width 1.0
@@ -204,12 +210,6 @@ torchrun --nproc_per_node=2 train.py --network shufflenet_v2 --net-param 1 --tag
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network shufflenet_v2 --net-param 2 --tag il-common --lr 0.5 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 300 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
-```
-
-#### ShuffleNet v1: Groups 8
-
-```sh
-torchrun --nproc_per_node=2 train.py --network shufflenet_v1 --net-param 8 --tag il-common --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --batch-size 256  --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### SqueezeNet

@@ -264,6 +264,7 @@ class XCABlock(nn.Module):
 
 class XCiT(BaseNet):
     default_size = 224
+    block_group_regex = r"block1\.(\d+)"  # ClassAttentionBlock combined with the head
 
     def __init__(
         self,
