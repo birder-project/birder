@@ -88,7 +88,7 @@ class TestNet(unittest.TestCase):
             ("vitreg4_b32"),
             ("wide_resnet_50"),
             ("xception"),
-            ("xcit_nano16"),
+            ("xcit_nano12_p16"),
         ]
     )
     def test_net(
