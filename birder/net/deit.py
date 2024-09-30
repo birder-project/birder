@@ -57,6 +57,7 @@ class DeiT(BaseNet):
         self.patch_size = patch_size
         self.hidden_dim = hidden_dim
         self.mlp_dim = mlp_dim
+        self.num_special_tokens = 2
         self.attention_dropout = attention_dropout
         self.dropout = dropout
         self.pos_embed_class = pos_embed_class

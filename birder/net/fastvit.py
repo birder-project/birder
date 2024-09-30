@@ -897,7 +897,7 @@ registry.register_alias(
 registry.register_weights(
     "fastvit_t8_il-common",
     {
-        "description": "FastViT Tiny-8 model trained on the il-common dataset",
+        "description": "FastViT T-8 model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -920,5 +920,33 @@ registry.register_weights(
             }
         },
         "net": {"network": "fastvit_t8", "tag": "il-common_reparameterized", "reparameterized": True},
+    },
+)
+registry.register_weights(
+    "fastvit_sa12_il-common",
+    {
+        "description": "FastViT SA-12 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 42.0,
+                "sha256": "a2a1933d1490fd571370eb12a687ae0888abc8aa9723c9bedb5053e17a459dc0",
+            }
+        },
+        "net": {"network": "fastvit_sa12", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "fastvit_sa12_il-common_reparameterized",
+    {
+        "description": "FastViT SA-12 (reparameterized) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 41.7,
+                "sha256": "13e817a017e15efa494b2a5b186db6c64b319cbfc1edbda155f0e466c777676a",
+            }
+        },
+        "net": {"network": "fastvit_sa12", "tag": "il-common_reparameterized", "reparameterized": True},
     },
 )

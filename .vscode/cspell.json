@@ -117,6 +117,7 @@
     "majorticklabels",
     "matmul",
     "matplotlib",
+    "matshow",
     "maxvit",
     "meshgrid",
     "metaformer",

@@ -84,6 +84,7 @@ class EncoderBlock(nn.Module):
         activation_layer: Callable[..., nn.Module],
     ) -> None:
         super().__init__()
+        self.need_attn = False
 
         if mlp_dim is None:
             mlp_dim = hidden_dim * 4
@@ -103,7 +104,9 @@ class EncoderBlock(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # torch._assert(x.dim() == 3, f"Expected (batch_size, seq_length, hidden_dim) got {x.size()}")
         branch1 = self.ln1(x)
-        (branch1, _) = self.self_attention(branch1, branch1, branch1, need_weights=False)
+        (branch1, _) = self.self_attention(
+            branch1, branch1, branch1, need_weights=self.need_attn, average_attn_weights=False
+        )
         branch1 = self.drop_path1(branch1) + x
 
         branch2 = self.ln2(branch1)
@@ -112,6 +115,9 @@ class EncoderBlock(nn.Module):
         x = self.drop_path2(branch2) + branch1
 
         return x
+
+    def set_need_attn(self) -> None:
+        self.need_attn = True
 
 
 class Encoder(nn.Module):
@@ -150,6 +156,10 @@ class Encoder(nn.Module):
         x = self.block(x)
 
         return x
+
+    def set_need_attn(self) -> None:
+        for b in self.block:
+            b.set_need_attn()
 
 
 # pylint: disable=too-many-instance-attributes

@@ -13,6 +13,7 @@ from PIL import Image
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
+from birder.introspection import attention_rollout
 from birder.introspection import gradcam
 from birder.introspection import guided_backprop
 from birder.net.base import BaseNet
@@ -42,6 +43,28 @@ def _deprocess_image(img: npt.NDArray[np.float32]) -> npt.NDArray[np.uint8]:
     return np.array(img * 255).astype(np.uint8)
 
 
+def show_attn_rollout(
+    args: argparse.Namespace,
+    net: BaseNet,
+    _class_to_idx: dict[str, int],
+    transform: Callable[..., torch.Tensor],
+    device: torch.device,
+) -> None:
+    img = Image.open(args.image_path)
+    input_tensor = transform(img).unsqueeze(dim=0).to(device)
+
+    ar_net = attention_rollout.AttentionRollout(net, args.attn_layer_name)
+    attn_rollout = ar_net(input_tensor, args.discard_ratio, args.head_fusion)
+    mask = Image.fromarray(attn_rollout.numpy())
+
+    _, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 8))
+    ax1.imshow(img.resize((args.size, args.size)))
+    ax2.matshow(np.array(mask.resize((args.size, args.size))))
+    ax3.matshow(np.array(mask.resize((args.size, args.size))))
+    ax3.imshow(img.resize((args.size, args.size)), alpha=0.4)
+    plt.show()
+
+
 def show_guided_backprop(
     args: argparse.Namespace,
     net: BaseNet,
@@ -49,7 +72,7 @@ def show_guided_backprop(
     transform: Callable[..., torch.Tensor],
     device: torch.device,
 ) -> None:
-    img = Image.open(args.image)
+    img = Image.open(args.image_path)
     rgb_img = np.array(img.resize((args.size, args.size))).astype(np.float32) / 255.0
 
     input_tensor = transform(img).unsqueeze(dim=0).to(device)
@@ -85,7 +108,7 @@ def show_grad_cam(
     else:
         reshape_transform = None
 
-    img = Image.open(args.image)
+    img = Image.open(args.image_path)
     rgb_img = np.array(img.resize((args.size, args.size))).astype(np.float32) / 255.0
 
     block = getattr(net, args.block_name)
@@ -118,17 +141,21 @@ def set_parser(subparsers: Any) -> None:
         epilog=(
             "Usage examples:\n"
             "python -m birder.tools introspection --method gradcam --network efficientnet_v2_m "
-            "--epoch 200 --image 'data/training/European goldfinch/000300.jpeg'\n"
+            "--epoch 200 'data/training/European goldfinch/000300.jpeg'\n"
             "python -m birder.tools introspection --method gradcam -n resnest_50 --epoch 300 "
-            "--image data/index5.jpeg --target 'Grey heron'\n"
+            "data/index5.jpeg --target 'Grey heron'\n"
             "python -m birder.tools introspection --method guided-backprop -n efficientnet_v2_s "
-            "-e 0 --image 'data/training/European goldfinch/000300.jpeg'\n"
+            "-e 0 'data/training/European goldfinch/000300.jpeg'\n"
             "python -m birder.tools introspection --method gradcam -n swin_transformer_v1_b -e 85 --layer-num -4 "
-            "--reshape-size 20 --image data/training/Fieldfare/000002.jpeg\n"
+            "--reshape-size 20 data/training/Fieldfare/000002.jpeg\n"
+            "python -m birder.tools introspection --method attn-rollout -n vitreg4_b16 -t mim -e 100 "
+            " data/validation/Bluethroat/000013.jpeg\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
-    subparser.add_argument("--method", type=str, choices=["gradcam", "guided-backprop"], help="introspection method")
+    subparser.add_argument(
+        "--method", type=str, choices=["gradcam", "guided-backprop", "attn-rollout"], help="introspection method"
+    )
     subparser.add_argument(
         "-n", "--network", type=str, required=True, help="the neural network to use (i.e. resnet_v2)"
     )
@@ -145,13 +172,31 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--size", type=int, default=None, help="image size for inference (defaults to model signature)"
     )
-    subparser.add_argument("--target", type=str, help="target class, leave empty to use predicted class")
+    subparser.add_argument(
+        "--target", type=str, help="target class, leave empty to use predicted class (gradcam and guided-backprop only)"
+    )
     subparser.add_argument("--block-name", type=str, default="body", help="target block (gradcam only)")
     subparser.add_argument(
         "--layer-num", type=int, default=-1, help="target layer, index for target block (gradcam only)"
     )
-    subparser.add_argument("--reshape-size", type=int, help="2d projection for transformer models (layer dependant)")
-    subparser.add_argument("--image", type=str, required=True, help="input image")
+    subparser.add_argument("--reshape-size", type=int, help="2d projection for transformer models (gradcam only)")
+    subparser.add_argument(
+        "--attn-layer-name", type=str, default="self_attention", help="attention layer name (attn-rollout only)"
+    )
+    subparser.add_argument(
+        "--head-fusion",
+        type=str,
+        choices=["mean", "max", "min"],
+        default="max",
+        help="how to fuse the attention heads for attention rollout (attn-rollout only)",
+    )
+    subparser.add_argument(
+        "--discard-ratio",
+        type=float,
+        default=0.9,
+        help="how many of the lowest attention paths should be discarded (attn-rollout only)",
+    )
+    subparser.add_argument("image_path", type=str, help="input image path")
     subparser.set_defaults(func=main)
 
 
@@ -187,3 +232,5 @@ def main(args: argparse.Namespace) -> None:
         show_grad_cam(args, net, class_to_idx, transform, device)
     elif args.method == "guided-backprop":
         show_guided_backprop(args, net, class_to_idx, transform, device)
+    elif args.method == "attn-rollout":
+        show_attn_rollout(args, net, class_to_idx, transform, device)

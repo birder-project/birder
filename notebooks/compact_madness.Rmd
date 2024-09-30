@@ -180,6 +180,7 @@ param_compare_results_df = compare_results_df.unique(subset=["Model name"]).sort
 param_compare_results_df = param_compare_results_df.with_columns(
     pl.col("Accuracy").cum_max().alias("Pareto frontier (p)")
 )
+param_compare_results_df = param_compare_results_df.select(pl.all().exclude("Samples / sec", "device", "ms / sample"))
 
 # CPU rate
 cpu_compare_results_df = compare_results_df.filter(pl.col("device") == "cpu").sort("ms / sample", descending=False)

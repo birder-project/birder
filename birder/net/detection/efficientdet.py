@@ -62,7 +62,7 @@ class ResampleFeatureMap(nn.Sequential):
         output_size: tuple[int, int],
         downsample: Literal["max", "bilinear"],
         upsample: Literal["nearest", "bilinear"],
-        norm_layer: Optional[Callable[..., nn.Module]] = nn.BatchNorm2d,
+        norm_layer: Optional[Callable[..., nn.Module]],
     ) -> None:
         super().__init__()
         self.in_channels = in_channels
@@ -107,6 +107,66 @@ class ResampleFeatureMap(nn.Sequential):
         else:
             if input_size[0] < output_size[0] or input_size[1] < output_size[1]:
                 self.add_module("upsample", Interpolate2d(size=output_size, mode=upsample))
+
+
+class FpnCombine(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        fpn_channels: int,
+        inputs_offsets: list[int],
+        input_size: tuple[int, int],
+        output_size: tuple[int, int],
+        downsample: Literal["max", "bilinear"],
+        upsample: Literal["nearest", "bilinear"],
+        norm_layer: Optional[Callable[..., nn.Module]] = nn.BatchNorm2d,
+        weight_method: Literal["attn", "fastattn", "sum"] = "attn",
+    ):
+        super().__init__()
+        self.inputs_offsets = inputs_offsets
+        self.weight_method = weight_method
+
+        self.resample = nn.ModuleDict()
+        for offset in inputs_offsets:
+            self.resample[str(offset)] = ResampleFeatureMap(
+                in_channels,
+                fpn_channels,
+                input_size=input_size,
+                output_size=output_size,
+                downsample=downsample,
+                upsample=upsample,
+                norm_layer=norm_layer,
+            )
+
+        if weight_method in {"attn", "fastattn"}:
+            self.edge_weights = nn.Parameter(torch.ones(len(inputs_offsets)), requires_grad=True)  # WSM
+        else:
+            self.edge_weights = None
+
+    def forward(self, x: list[torch.Tensor]) -> torch.Tensor:
+        dtype = x[0].dtype
+        nodes = []
+        for offset, resample in zip(self.inputs_offsets, self.resample.values()):
+            input_node = x[offset]
+            input_node = resample(input_node)
+            nodes.append(input_node)
+
+        if self.weight_method == "attn":
+            normalized_weights = torch.softmax(self.edge_weights.to(dtype=dtype), dim=0)
+            out = torch.stack(nodes, dim=-1) * normalized_weights
+        elif self.weight_method == "fastattn":
+            edge_weights = F.relu(self.edge_weights.to(dtype=dtype))
+            weights_sum = torch.sum(edge_weights)
+            out = torch.stack(
+                [(nodes[i] * edge_weights[i]) / (weights_sum + 0.0001) for i in range(len(nodes))], dim=-1
+            )
+        elif self.weight_method == "sum":
+            out = torch.stack(nodes, dim=-1)
+        else:
+            raise ValueError(f"unknown weight_method {self.weight_method}")
+
+        out = torch.sum(out, dim=-1)
+        return out
 
 
 class FNode(nn.Module):

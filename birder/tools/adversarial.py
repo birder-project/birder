@@ -38,7 +38,7 @@ def show_fgsm(args: argparse.Namespace) -> None:
     size = lib.get_size_from_signature(signature)[0]
     transform = inference_preset((size, size), rgb_stats, 1.0)
 
-    img: Image.Image = Image.open(args.image)
+    img: Image.Image = Image.open(args.image_path)
     input_tensor = transform(img).unsqueeze(dim=0).to(device)
 
     fgsm = FGSM(net, eps=args.eps)
@@ -76,9 +76,9 @@ def set_parser(subparsers: Any) -> None:
         epilog=(
             "Usage examples:\n"
             "python -m birder.tools adversarial --method fgsm --network efficientnet_v2_s "
-            "--epoch 0 --target Bluethroat --image 'data/training/Mallard/000117.jpeg'\n"
+            "--epoch 0 --target Bluethroat 'data/training/Mallard/000117.jpeg'\n"
             "python -m birder.tools adversarial --method fgsm --network efficientnet_v2_m "
-            "--epoch 0 --eps 0.02 --target Mallard --image 'data/validation/White-tailed eagle/000006.jpeg'\n"
+            "--epoch 0 --eps 0.02 --target Mallard 'data/validation/White-tailed eagle/000006.jpeg'\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -98,7 +98,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--gpu-id", type=int, help="gpu id to use")
     subparser.add_argument("--eps", type=float, default=0.007, help="fgsm epsilon")
     subparser.add_argument("--target", type=str, help="target class, leave empty to use predicted class")
-    subparser.add_argument("--image", type=str, required=True, help="input image")
+    subparser.add_argument("image_path", type=str, help="input image path")
     subparser.set_defaults(func=main)
 
 

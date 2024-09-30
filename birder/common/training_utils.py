@@ -314,6 +314,8 @@ def get_optimizer(parameters: list[dict[str, Any]], args: argparse.Namespace) ->
         kwargs["eps"] = args.opt_eps
     if getattr(args, "opt_betas", None) is not None:
         kwargs["betas"] = args.opt_betas
+    if getattr(args, "opt_alpha", None) is not None:
+        kwargs["alpha"] = args.opt_alpha
 
     if opt == "sgd":
         optimizer = torch.optim.SGD(

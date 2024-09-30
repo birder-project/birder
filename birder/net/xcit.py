@@ -54,12 +54,12 @@ class PositionalEncodingFourier(nn.Module):
 
 
 class ConvPatchEmbed(nn.Module):
-    def __init__(self, patch_size: Literal[8, 16], dim: int) -> None:
+    def __init__(self, patch_size: Literal[8, 16], in_channels: int, dim: int) -> None:
         super().__init__()
         if patch_size == 16:
             self.proj = nn.Sequential(
                 Conv2dNormActivation(
-                    3,
+                    in_channels,
                     dim // 8,
                     kernel_size=(3, 3),
                     stride=(2, 2),
@@ -290,7 +290,7 @@ class XCiT(BaseNet):
         eta: float = self.config["eta"]
         drop_path_rate: float = self.config["drop_path_rate"]
 
-        self.patch_embed = ConvPatchEmbed(patch_size=patch_size, dim=embed_dim)
+        self.patch_embed = ConvPatchEmbed(patch_size, self.input_channels, dim=embed_dim)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # Stochastic depth decay rule
 
@@ -360,60 +360,80 @@ class XCiT(BaseNet):
 
 
 registry.register_alias(
-    "xcit_nano16",
+    "xcit_nano12_p16",
     XCiT,
     config={"patch_size": 16, "embed_dim": 128, "depth": 12, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.0},
 )
 registry.register_alias(
-    "xcit_nano8",
+    "xcit_nano12_p8",
     XCiT,
     config={"patch_size": 8, "embed_dim": 128, "depth": 12, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.0},
 )
 registry.register_alias(
-    "xcit_tiny16",
+    "xcit_tiny12_p16",
     XCiT,
     config={"patch_size": 16, "embed_dim": 192, "depth": 12, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.0},
 )
 registry.register_alias(
-    "xcit_tiny8",
+    "xcit_tiny12_p8",
     XCiT,
     config={"patch_size": 8, "embed_dim": 192, "depth": 12, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.0},
 )
 registry.register_alias(
-    "xcit_small16",
+    "xcit_tiny24_p16",
+    XCiT,
+    config={"patch_size": 16, "embed_dim": 192, "depth": 24, "num_heads": 4, "eta": 1e-5, "drop_path_rate": 0.05},
+)
+registry.register_alias(
+    "xcit_tiny24_p8",
+    XCiT,
+    config={"patch_size": 8, "embed_dim": 192, "depth": 24, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.05},
+)
+registry.register_alias(
+    "xcit_small12_p16",
     XCiT,
     config={"patch_size": 16, "embed_dim": 384, "depth": 12, "num_heads": 8, "eta": 1.0, "drop_path_rate": 0.05},
 )
 registry.register_alias(
-    "xcit_small8",
+    "xcit_small12_p8",
     XCiT,
     config={"patch_size": 8, "embed_dim": 384, "depth": 12, "num_heads": 8, "eta": 1.0, "drop_path_rate": 0.05},
 )
 registry.register_alias(
-    "xcit_medium16",
+    "xcit_small24_p16",
+    XCiT,
+    config={"patch_size": 16, "embed_dim": 384, "depth": 24, "num_heads": 8, "eta": 1e-5, "drop_path_rate": 0.1},
+)
+registry.register_alias(
+    "xcit_small24_p8",
+    XCiT,
+    config={"patch_size": 8, "embed_dim": 384, "depth": 24, "num_heads": 8, "eta": 1e-5, "drop_path_rate": 0.1},
+)
+registry.register_alias(
+    "xcit_medium24_p16",
     XCiT,
     config={"patch_size": 16, "embed_dim": 512, "depth": 24, "num_heads": 8, "eta": 1e-5, "drop_path_rate": 0.15},
 )
 registry.register_alias(
-    "xcit_medium8",
+    "xcit_medium24_p8",
     XCiT,
     config={"patch_size": 8, "embed_dim": 512, "depth": 24, "num_heads": 8, "eta": 1e-5, "drop_path_rate": 0.15},
 )
 registry.register_alias(
-    "xcit_large16",
+    "xcit_large24_16",
     XCiT,
     config={"patch_size": 16, "embed_dim": 768, "depth": 24, "num_heads": 16, "eta": 1e-5, "drop_path_rate": 0.25},
 )
 registry.register_alias(
-    "xcit_large8",
+    "xcit_large24_8",
     XCiT,
     config={"patch_size": 8, "embed_dim": 768, "depth": 24, "num_heads": 16, "eta": 1e-5, "drop_path_rate": 0.3},
 )
 
 registry.register_weights(
-    "xcit_nano16_il-common",
+    "xcit_nano12_p16_il-common",
     {
-        "description": "XCiT nano patch16 model trained on the il-common dataset",
+        "description": "XCiT nano d12 patch16 model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -421,6 +441,6 @@ registry.register_weights(
                 "sha256": "624aac6ffc5024f2138f10d1f5bff8575e19ed683f85bd1623ac39484d0f242a",
             },
         },
-        "net": {"network": "xcit_nano16", "tag": "il-common"},
+        "net": {"network": "xcit_nano12_p16", "tag": "il-common"},
     },
 )

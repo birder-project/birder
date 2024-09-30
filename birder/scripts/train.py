@@ -631,6 +631,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--opt-betas", type=float, nargs="+", help="optimizer betas (None to use the optimizer default)"
     )
+    parser.add_argument("--opt-alpha", type=float, help="optimizer alpha (None to use the optimizer default)")
     parser.add_argument(
         "--lr-scheduler",
         type=str,
