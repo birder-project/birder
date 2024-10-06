@@ -22,6 +22,7 @@ dynamic = ["dependencies", "version"]
 
 [project.urls]
 Homepage = "https://gitlab.com/birder/birder"
+Documentation = "https://birder.gitlab.io/birder/"
 Issues = "https://gitlab.com/birder/birder/-/issues"
 
 [project.scripts]

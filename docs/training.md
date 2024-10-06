@@ -831,10 +831,40 @@ torchrun --nproc_per_node=2 train.py --network mobilevit_v2 --net-param 2 --opt 
 
 ### MogaNet
 
-#### MogaNet: XT
+#### MogaNet: X-Tiny
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network moganet_xt --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 128 --size 256 --epochs 300 --wd 0.03 --smoothing-alpha 0.1 --mixup-alpha 0.1 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+torchrun --nproc_per_node=2 train.py --network moganet_xt --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 5 --batch-size 128 --size 256 --epochs 300 --wd 0.03 --smoothing-alpha 0.1 --mixup-alpha 0.1 --cutmix --aug-level 3 --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### MogaNet: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network moganet_t --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 5 --batch-size 128 --size 256 --epochs 300 --wd 0.04 --smoothing-alpha 0.1 --mixup-alpha 0.1 --cutmix --aug-level 3 --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### MogaNet: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network moganet_s --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 5 --batch-size 128 --size 256 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### MogaNet: Base
+
+```sh
+torchrun --nproc_per_node=2 train.py --network moganet_b --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 5 --batch-size 128 --size 256 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### MogaNet: Large
+
+```sh
+torchrun --nproc_per_node=2 train.py --network moganet_l --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 5 --batch-size 128 --size 256 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### MogaNet: X-Large
+
+```sh
+torchrun --nproc_per_node=2 train.py --network moganet_xl --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 5 --batch-size 64 --size 256 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 ### Next-ViT
