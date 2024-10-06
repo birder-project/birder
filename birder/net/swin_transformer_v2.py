@@ -172,7 +172,7 @@ class SwinTransformerBlock(nn.Module):
         self.mlp = MLP(dim, [int(dim * mlp_ratio), dim], activation_layer=nn.GELU, inplace=None)
 
         for m in self.mlp.modules():
-            if isinstance(m, nn.Linear) is True:
+            if isinstance(m, nn.Linear):
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
                     nn.init.normal_(m.bias, std=1e-6)
@@ -281,7 +281,7 @@ class Swin_Transformer_v2(PreTrainEncoder):
 
         # Weight initialization
         for m in self.modules():
-            if isinstance(m, nn.Linear) is True:
+            if isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, mean=0.0, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
@@ -335,7 +335,7 @@ class Swin_Transformer_v2(PreTrainEncoder):
 
         log_flag = False
         for m in self.body.modules():
-            if isinstance(m, SwinTransformerBlock) is True:
+            if isinstance(m, SwinTransformerBlock):
                 base_window_size = int(new_size / (2**5)) * self.window_scale_factor
                 new_window_size = (base_window_size, base_window_size)
 

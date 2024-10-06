@@ -254,14 +254,14 @@ class ViT(PreTrainEncoder):
         )
 
         # Weight initialization
-        if isinstance(self.conv_proj, nn.Conv2d) is True:
+        if isinstance(self.conv_proj, nn.Conv2d):
             # Init the patchify stem
             fan_in = self.conv_proj.in_channels * self.conv_proj.kernel_size[0] * self.conv_proj.kernel_size[1]
             nn.init.trunc_normal_(self.conv_proj.weight, std=math.sqrt(1 / fan_in))
             if self.conv_proj.bias is not None:
                 nn.init.zeros_(self.conv_proj.bias)
 
-        if isinstance(self.classifier, nn.Linear) is True:
+        if isinstance(self.classifier, nn.Linear):
             nn.init.zeros_(self.classifier.weight)
             nn.init.zeros_(self.classifier.bias)
 

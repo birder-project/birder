@@ -324,16 +324,16 @@ class RegNet(DetectorBackbone):
 
         # Weight initialization
         for m in self.modules():
-            if isinstance(m, nn.Conv2d) is True:
+            if isinstance(m, nn.Conv2d):
                 # Note that there is no bias due to BN
                 fan_out = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 nn.init.normal_(m.weight, mean=0.0, std=math.sqrt(2.0 / fan_out))
 
-            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)) is True:
+            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
 
-            elif isinstance(m, nn.Linear) is True:
+            elif isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, mean=0.0, std=0.01)
                 nn.init.zeros_(m.bias)
 
@@ -497,4 +497,33 @@ registry.register_alias(
     "regnet_y_128g",
     RegNet,
     config={"depth": 27, "w_0": 456, "w_a": 160.83, "w_m": 2.52, "group_width": 264, "se_ratio": 0.25},
+)
+
+registry.register_weights(
+    "regnet_y_200m_il-common",
+    {
+        "description": "RegNet Y 200m model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 11.4,
+                "sha256": "0761351fc6624e476b59828efb88859f3667943aca918f732817b2d35a108884",
+            }
+        },
+        "net": {"network": "regnet_y_200m", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "regnet_y_400m_il-common",
+    {
+        "description": "RegNet Y 400m model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 15.8,
+                "sha256": "20cd73f54aff3fddff410cba7686da8e4768f74c7a4981cfde4217e7e58eb71b",
+            }
+        },
+        "net": {"network": "regnet_y_400m", "tag": "il-common"},
+    },
 )

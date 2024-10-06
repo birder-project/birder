@@ -51,8 +51,8 @@ def show_top_k(
 
     if label is not None and label != -1:
         # 'label' could be any int-like object like NumPy, Torch, etc.
-        if isinstance(label, str) is False:
-            label = idx_to_class[label]  # type: ignore[index]
+        if not isinstance(label, str):
+            label = idx_to_class[label]
 
         for idx, class_name in enumerate(predicted_class_names):
             if label == class_name:

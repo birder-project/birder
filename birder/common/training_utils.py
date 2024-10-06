@@ -258,7 +258,7 @@ def optimizer_parameter_groups(
                         break
 
             if is_custom_key is False:
-                if norm_weight_decay is not None and isinstance(module, norm_classes) is True:
+                if norm_weight_decay is not None and isinstance(module, norm_classes):
                     params.append(
                         {
                             "params": p,
@@ -322,6 +322,11 @@ def get_optimizer(parameters: list[dict[str, Any]], args: argparse.Namespace) ->
             parameters, lr=args.lr, momentum=args.momentum, nesterov=args.nesterov, weight_decay=args.wd
         )
     elif opt == "rmsprop":
+        if "alpha" not in kwargs:
+            kwargs["alpha"] = 0.9
+        if "eps" not in kwargs:
+            kwargs["eps"] = 0.0316
+
         optimizer = torch.optim.RMSprop(parameters, lr=args.lr, momentum=args.momentum, weight_decay=args.wd, **kwargs)
     elif opt == "adamw":
         optimizer = torch.optim.AdamW(parameters, lr=args.lr, weight_decay=args.wd, **kwargs)

@@ -74,7 +74,7 @@ If the service is running, you should receive a response indicating that the ser
 To perform inference on an image using your deployed model, use the following curl command:
 
 ```sh
-curl http://localhost:8080/predictions/convnext_v2_4 -F "data=@data/validation/African crake/000001.jpeg"
+curl http://localhost:8080/predictions/convnext_v2_tiny -F "data=@data/validation/African crake/000001.jpeg"
 ```
 
 Replace the image path with the path to your test image.
@@ -84,7 +84,7 @@ Replace the image path with the path to your test image.
 For containerized deployment, you can use the official PyTorch TorchServe Docker image:
 
 ```sh
-docker run --rm -it -p 127.0.0.1:8080:8080 -p 127.0.0.1:8081:8081 -p 127.0.0.1:8082:8082 -v $(pwd)/ts:/home/model-server/model-store:ro pytorch/torchserve:0.11.0-cpu torchserve --model-store /home/model-server/model-store --models convnext_v2_4.mar
+docker run --rm -it -p 127.0.0.1:8080:8080 -p 127.0.0.1:8081:8081 -p 127.0.0.1:8082:8082 -v $(pwd)/ts:/home/model-server/model-store:ro pytorch/torchserve:0.12.0-cpu torchserve --model-store /home/model-server/model-store --models convnext_v2_tiny.mar
 ```
 
 This command:

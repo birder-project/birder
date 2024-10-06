@@ -110,7 +110,7 @@ class BirdClassifier(BaseHandler):
             # Compat layer: normally the envelope should just return the data
             # directly, but older versions of Torchserve didn't have envelope
             image = row.get("data") or row.get("body")
-            if isinstance(image, str) is True:
+            if isinstance(image, str):
                 # if the image is a string of bytesarray
                 image = base64.b64decode(image)
 

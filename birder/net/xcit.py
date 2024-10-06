@@ -331,13 +331,13 @@ class XCiT(BaseNet):
 
         # Weights initialization
         for m in self.modules():
-            if isinstance(m, nn.Linear) is True:
+            if isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
 
-            if isinstance(m, nn.Linear) is True and m.bias is not None:
+            if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-            elif isinstance(m, nn.LayerNorm) is True:
+            elif isinstance(m, nn.LayerNorm):
                 nn.init.constant_(m.bias, 0)
                 nn.init.constant_(m.weight, 1.0)
 
@@ -442,5 +442,19 @@ registry.register_weights(
             },
         },
         "net": {"network": "xcit_nano12_p16", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "xcit_nano12_p8_il-common",
+    {
+        "description": "XCiT nano d12 patch8 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 11.5,
+                "sha256": "fcd67b884999a3c6135d995706256382c8d2f966ef1bce22911abc56160a95c1",
+            },
+        },
+        "net": {"network": "xcit_nano12_p8", "tag": "il-common"},
     },
 )

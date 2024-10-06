@@ -53,7 +53,7 @@ def rollout(
 
 class AttentionRollout:
     def __init__(self, net: torch.nn.Module, attention_layer_name: str) -> None:
-        assert hasattr(net, "encoder") is True and isinstance(net.encoder, Encoder) is True
+        assert hasattr(net, "encoder") is True and isinstance(net.encoder, Encoder)
         net.encoder.set_need_attn()
         self.net = net
         for name, module in self.net.named_modules():

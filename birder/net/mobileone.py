@@ -205,7 +205,7 @@ class MobileOneBlock(nn.Module):
         Reference: https://github.com/DingXiaoH/RepVGG/blob/main/repvgg.py#L95
         """
 
-        if isinstance(branch, nn.Sequential) is True:
+        if isinstance(branch, nn.Sequential):
             kernel_value = branch.conv.weight
             running_mean = branch.bn.running_mean
             running_var = branch.bn.running_var

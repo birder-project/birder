@@ -318,7 +318,7 @@ class EdgeNeXt(BaseNet):
 
         # Weights initialization
         for m in self.modules():
-            if isinstance(m, (nn.Conv2d, nn.Linear)) is True:
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)

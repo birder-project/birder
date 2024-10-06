@@ -114,7 +114,7 @@ class RPNHead(nn.Module):
 
         # Weights initialization
         for layer in self.modules():
-            if isinstance(layer, nn.Conv2d) is True:
+            if isinstance(layer, nn.Conv2d):
                 torch.nn.init.normal_(layer.weight, std=0.01)
                 if layer.bias is not None:
                     torch.nn.init.constant_(layer.bias, 0)
@@ -432,7 +432,7 @@ class FastRCNNConvFCHead(nn.Sequential):
 
         # Weights initialization
         for layer in self.modules():
-            if isinstance(layer, nn.Conv2d) is True:
+            if isinstance(layer, nn.Conv2d):
                 nn.init.kaiming_normal_(layer.weight, mode="fan_out", nonlinearity="relu")
                 if layer.bias is not None:
                     nn.init.zeros_(layer.bias)
@@ -842,7 +842,7 @@ class Faster_RCNN(DetectionBaseNet):
             else:
                 for target in targets:
                     boxes = target["boxes"]
-                    if isinstance(boxes, torch.Tensor) is True:
+                    if isinstance(boxes, torch.Tensor):
                         torch._assert(
                             len(boxes.shape) == 2 and boxes.shape[-1] == 4,
                             f"Expected target boxes to be a tensor of shape [N, 4], got {boxes.shape}.",

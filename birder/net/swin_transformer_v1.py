@@ -259,7 +259,7 @@ class SwinTransformerBlock(nn.Module):
         self.mlp = MLP(dim, [int(dim * mlp_ratio), dim], activation_layer=nn.GELU, inplace=None)
 
         for m in self.mlp.modules():
-            if isinstance(m, nn.Linear) is True:
+            if isinstance(m, nn.Linear):
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
                     nn.init.normal_(m.bias, std=1e-6)
@@ -356,7 +356,7 @@ class Swin_Transformer_v1(BaseNet):
 
         # Weight initialization
         for m in self.modules():
-            if isinstance(m, nn.Linear) is True:
+            if isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
@@ -371,8 +371,8 @@ class Swin_Transformer_v1(BaseNet):
 
         log_flag = False
         for m in self.body.modules():
-            if isinstance(m, SwinTransformerBlock) is True:
-                new_window_size = [new_size // (2**5), new_size // (2**5)]
+            if isinstance(m, SwinTransformerBlock):
+                new_window_size = (new_size // (2**5), new_size // (2**5))
                 if m.attn.window_size[0] == new_window_size[0] and m.attn.window_size[1] == new_window_size[1]:
                     return
 

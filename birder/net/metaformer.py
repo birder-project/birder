@@ -387,10 +387,10 @@ class MetaFormer(BaseNet):
 
         # Weight initialization
         for m in self.modules():
-            if isinstance(m, nn.Conv2d) is True:
+            if isinstance(m, nn.Conv2d):
                 nn.init.trunc_normal_(m.weight, std=0.02)
 
-            elif isinstance(m, nn.Linear) is True:
+            elif isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:

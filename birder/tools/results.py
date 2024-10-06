@@ -87,7 +87,7 @@ def print_report(results_dict: dict[str, Results]) -> None:
         else:
             table.add_column(column, justify="right")
 
-        if isinstance(results_df[column].dtype, polars.datatypes.classes.FloatType) is True:
+        if isinstance(results_df[column].dtype, polars.datatypes.classes.FloatType):
             results_df = results_df.with_columns(
                 pl.col(column).map_elements(lambda x: f"{x:.3f}", return_dtype=pl.String)
             )
@@ -108,7 +108,7 @@ def print_most_confused_pairs(results: Results) -> None:
 
     table = Table(show_header=True, header_style="bold dark_magenta")
     for column in most_confused_df.columns:
-        if isinstance(most_confused_df[column].dtype, polars.datatypes.classes.NumericType) is True:
+        if isinstance(most_confused_df[column].dtype, polars.datatypes.classes.NumericType):
             table.add_column(column.capitalize(), justify="right")
         else:
             table.add_column(column.capitalize())

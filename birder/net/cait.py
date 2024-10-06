@@ -232,13 +232,13 @@ class CaiT(BaseNet):
 
         # Weights initialization
         for m in self.modules():
-            if isinstance(m, nn.Linear) is True:
+            if isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
 
-            if isinstance(m, nn.Linear) is True and m.bias is not None:
+            if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-            elif isinstance(m, nn.LayerNorm) is True:
+            elif isinstance(m, nn.LayerNorm):
                 nn.init.constant_(m.bias, 0)
                 nn.init.constant_(m.weight, 1.0)
 

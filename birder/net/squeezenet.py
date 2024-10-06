@@ -75,7 +75,7 @@ class SqueezeNet(BaseNet):
         self.classifier = self.create_classifier()
 
         for m in self.modules():
-            if isinstance(m, nn.Conv2d) is True:
+            if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_uniform_(m.weight)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)

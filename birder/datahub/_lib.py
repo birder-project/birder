@@ -6,17 +6,17 @@ from birder.common import cli
 
 
 def download_url(url: str, target: str | Path, sha256: str, progress_bar: bool = True) -> bool:
-    if isinstance(target, str) is True:
+    if isinstance(target, str):
         target = Path(target)
 
-    if target.exists() is True:  # type: ignore[union-attr]
+    if target.exists() is True:
         if cli.calc_sha256(target) == sha256:
             logging.debug("File already downloaded and verified")
             return False
 
         raise RuntimeError("Downloaded file is corrupted")
 
-    target.parent.mkdir(parents=True, exist_ok=True)  # type: ignore[union-attr]
+    target.parent.mkdir(parents=True, exist_ok=True)
     logging.info(f"Downloading {url} to {target}")
     cli.download_file(url, target, sha256, progress_bar=progress_bar)
     return True

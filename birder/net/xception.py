@@ -152,10 +152,10 @@ class Xception(BaseNet):
         self.classifier = self.create_classifier()
 
         for m in self.modules():
-            if isinstance(m, nn.Conv2d) is True:
+            if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
 
-            elif isinstance(m, nn.BatchNorm2d) is True:
+            elif isinstance(m, nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 

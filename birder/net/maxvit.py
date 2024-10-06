@@ -563,16 +563,16 @@ class MaxViT(PreTrainEncoder):
 
         # Weights initialization
         for m in self.modules():
-            if isinstance(m, nn.Conv2d) is True:
+            if isinstance(m, nn.Conv2d):
                 nn.init.normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-            elif isinstance(m, nn.BatchNorm2d) is True:
+            elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-            elif isinstance(m, nn.Linear) is True:
+            elif isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
@@ -644,7 +644,7 @@ class MaxViT(PreTrainEncoder):
         new_grid_size = _get_conv_output_shape(new_grid_size, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
         self.partition_size = int(new_size / (2**5))
         for m in self.body.modules():
-            if isinstance(m, MaxVitBlock) is True:
+            if isinstance(m, MaxVitBlock):
                 grid_size = m.grid_size
                 if new_grid_size == grid_size:
                     return

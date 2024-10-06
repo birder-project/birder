@@ -227,16 +227,16 @@ class EfficientNet_v2(DetectorBackbone):
 
         # Weights initialization
         for m in self.modules():
-            if isinstance(m, nn.Conv2d) is True:
+            if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode="fan_out")
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)) is True:
+            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
 
-            elif isinstance(m, nn.Linear) is True:
+            elif isinstance(m, nn.Linear):
                 init_range = 1.0 / math.sqrt(m.out_features)
                 nn.init.uniform_(m.weight, -init_range, init_range)
                 nn.init.zeros_(m.bias)

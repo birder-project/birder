@@ -18,7 +18,7 @@ from torch.autograd import Function
 # pylint: disable=protected-access
 def replace_all_layer_type_recursive(model: nn.Module, old_layer_type: nn.Module, new_layer: nn.Module) -> None:
     for name, layer in model._modules.items():
-        if isinstance(layer, old_layer_type) is True:
+        if isinstance(layer, old_layer_type):
             model._modules[name] = new_layer
 
         replace_all_layer_type_recursive(layer, old_layer_type, new_layer)

@@ -65,12 +65,12 @@ class FCMAE(MIMBaseNet):
 
         # Weights initialization
         for m in self.modules():
-            if isinstance(m, (nn.Conv2d, nn.Linear)) is True:
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-            if isinstance(m, nn.LayerNorm) is True:
+            if isinstance(m, nn.LayerNorm):
                 nn.init.constant_(m.bias, 0)
                 nn.init.constant_(m.weight, 1.0)
 

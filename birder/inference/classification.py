@@ -32,8 +32,8 @@ def infer_image(
     """
 
     image: Image.Image
-    if isinstance(sample, str) is True:
-        image = Image.open(sample)  # type: ignore[arg-type]
+    if isinstance(sample, str):
+        image = Image.open(sample)
     elif isinstance(sample, Image.Image):
         image = sample
     else:

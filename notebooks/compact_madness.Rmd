@@ -180,7 +180,7 @@ param_compare_results_df = compare_results_df.unique(subset=["Model name"]).sort
 param_compare_results_df = param_compare_results_df.with_columns(
     pl.col("Accuracy").cum_max().alias("Pareto frontier (p)")
 )
-param_compare_results_df = param_compare_results_df.select(pl.all().exclude("Samples / sec", "device", "ms / sample"))
+param_compare_results_df = param_compare_results_df.drop("Samples / sec", "device", "ms / sample")
 
 # CPU rate
 cpu_compare_results_df = compare_results_df.filter(pl.col("device") == "cpu").sort("ms / sample", descending=False)
@@ -198,60 +198,102 @@ cuda_compare_results_df = cuda_compare_results_df.with_columns(
 ## Visualize Results
 
 ```{python}
-# Parameter count
-base = param_compare_results_df.plot.point(
-    x="Parameters (M)",
-    y="Accuracy",
-    color="Model type",
-    shape="Resolution:N",
-    tooltip=["Parameters (M)", "Accuracy", "Top-3 accuracy", "Model name", "Model type", "Resolution"],
-)
-text = base.mark_text(align="center", baseline="middle", dy=-10).encode(text="Model name")
-frontier = param_compare_results_df.plot.line(x="Parameters (M)", y="Pareto frontier (p)").mark_line(
-    interpolate="step-after", color="red", strokeWidth=0.3, strokeDash=(2, 2)
-)
+def plot_acc_param(param_compare_results_df: pl.DataFrame, width: int = 900, height: int = 640) -> alt.LayerChart:
+    df = param_compare_results_df.select(
+        "Model name", "Model type", "Accuracy", "Top-3 accuracy", "Resolution", "Parameters (M)", "Pareto frontier (p)"
+    )
+    base = df.plot.point(
+        x="Parameters (M)",
+        y="Accuracy",
+        color="Model type",
+        shape="Resolution:N",
+        tooltip=["Parameters (M)", "Accuracy", "Top-3 accuracy", "Model name", "Model type", "Resolution"],
+    )
+    text = base.mark_text(align="center", baseline="middle", dy=-10).encode(text="Model name")
+    frontier = df.plot.line(x="Parameters (M)", y="Pareto frontier (p)").mark_line(
+        interpolate="step-after", color="red", strokeWidth=0.3, strokeDash=(2, 2)
+    )
 
-chart = base + text + frontier
-chart.properties(title="Accuray vs Parameter Count", width=960, height=640).configure_scale(zero=False)
+    chart = base + text + frontier
+    return chart.properties(title="Accuray vs Parameter Count", width=width, height=height).configure_scale(zero=False)
 ```
 
 ```{python}
-chart.layer[0].encoding.x.scale = alt.Scale(domain=[0.5, 7])
-chart.properties(title="Accuray vs Parameter Count", width=960, height=640).configure_scale(zero=False)
+def plot_acc_rate(rate_compare_results_df: pl.DataFrame, width: int = 900, height: int = 640) -> alt.LayerChart:
+    device = rate_compare_results_df["device"][0]
+    df = rate_compare_results_df.select(
+        "Model name",
+        "Model type",
+        "Accuracy",
+        "Top-3 accuracy",
+        "Resolution",
+        "ms / sample",
+        "Parameters (M)",
+        f"Pareto frontier ({device}-ms)",
+    )
+    base = df.plot.point(
+        x="ms / sample",
+        y="Accuracy",
+        color="Model type",
+        shape="Resolution:N",
+        tooltip=[
+            "ms / sample",
+            "Parameters (M)",
+            "Accuracy",
+            "Top-3 accuracy",
+            "Model name",
+            "Model type",
+            "Resolution",
+        ],
+    )
+    text = base.mark_text(align="center", baseline="middle", dy=-10).encode(text="Model name")
+    frontier = df.plot.line(x="ms / sample", y=f"Pareto frontier ({device}-ms)").mark_line(
+        interpolate="step-after", color="red", strokeWidth=0.3, strokeDash=(2, 2)
+    )
+
+    chart = base + text + frontier
+    return chart.properties(title=f"Accuray vs {device.upper()} Rate", width=width, height=height).configure_scale(
+        zero=False
+    )
+```
+
+```{python}
+plot_acc_param(param_compare_results_df)
+```
+
+```{python}
+chart = plot_acc_param(param_compare_results_df)
+chart.layer[0].encoding.x.scale = alt.Scale(domain=[0.5, 7.5])
+chart
+```
+
+```{python}
+# Parameter count (filtered)
+filtered_param_compare_results_df = param_compare_results_df.filter(~pl.col("Model name").str.contains(r"xcit.*p8"))
+filtered_param_compare_results_df = filtered_param_compare_results_df.with_columns(
+    pl.col("Accuracy").cum_max().alias("Pareto frontier (p)")
+)
+plot_acc_param(filtered_param_compare_results_df)
 ```
 
 ```{python}
 # CPU rate
-base = cpu_compare_results_df.plot.point(
-    x="ms / sample",
-    y="Accuracy",
-    color="Model type",
-    shape="Resolution:N",
-    tooltip=["ms / sample", "Parameters (M)", "Accuracy", "Top-3 accuracy", "Model name", "Model type", "Resolution"],
-)
-text = base.mark_text(align="center", baseline="middle", dy=-10).encode(text="Model name")
-frontier = cpu_compare_results_df.plot.line(x="ms / sample", y="Pareto frontier (cpu-ms)").mark_line(
-    interpolate="step-after", color="red", strokeWidth=0.3, strokeDash=(2, 2)
-)
+plot_acc_rate(cpu_compare_results_df)
+```
 
-chart = base + text + frontier
-chart.properties(title="Accuray vs CPU Rate", width=960, height=640).configure_scale(zero=False)
+```{python}
+chart = plot_acc_rate(cpu_compare_results_df)
+chart.layer[0].encoding.x.scale = alt.Scale(domain=[2.0, 13.0])
+chart
 ```
 
 ```{python}
 # CUDA rate
-base = cuda_compare_results_df.plot.point(
-    x="ms / sample",
-    y="Accuracy",
-    color="Model type",
-    shape="Resolution:N",
-    tooltip=["ms / sample", "Parameters (M)", "Accuracy", "Top-3 accuracy", "Model name", "Model type", "Resolution"],
-)
-text = base.mark_text(align="center", baseline="middle", dy=-10).encode(text="Model name")
-frontier = cuda_compare_results_df.plot.line(x="ms / sample", y="Pareto frontier (cuda-ms)").mark_line(
-    interpolate="step-after", color="red", strokeWidth=0.3, strokeDash=(2, 2)
-)
+plot_acc_rate(cuda_compare_results_df)
+```
 
-chart = base + text + frontier
-chart.properties(title="Accuray vs CUDA Rate", width=960, height=640).configure_scale(zero=False)
+```{python}
+chart = plot_acc_rate(cuda_compare_results_df)
+chart.layer[0].encoding.x.scale = alt.Scale(domain=[0.0, 0.7])
+chart
 ```

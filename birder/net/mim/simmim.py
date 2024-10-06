@@ -69,8 +69,8 @@ class SimMIM(MIMBaseNet):
     ) -> None:
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
-        assert (
-            isinstance(self.encoder, (MaxViT, NextViT, Swin_Transformer_v2)) is True
+        assert isinstance(
+            self.encoder, (MaxViT, NextViT, Swin_Transformer_v2)
         ), "Only MaxViT and Swin Transformer v2 are supported as an encoder for this network"
         self.encoder: MaxViT | NextViT | Swin_Transformer_v2
 

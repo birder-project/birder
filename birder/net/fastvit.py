@@ -330,13 +330,15 @@ class RepMixer(nn.Module):
         self.mixer.reparameterize()
         self.norm.reparameterize()
 
-        if isinstance(self.layer_scale, LayerScale2d) is True:
+        if isinstance(self.layer_scale, LayerScale2d):
             w = self.mixer.id_tensor + self.layer_scale.gamma.unsqueeze(-1) * (
                 self.mixer.reparam_conv.weight - self.norm.reparam_conv.weight
             )
             b = torch.squeeze(self.layer_scale.gamma) * (self.mixer.reparam_conv.bias - self.norm.reparam_conv.bias)
         else:
-            w = self.mixer.id_tensor + self.mixer.reparam_conv.weight - self.norm.reparam_conv.weight
+            w = (  # type: ignore[unreachable]
+                self.mixer.id_tensor + self.mixer.reparam_conv.weight - self.norm.reparam_conv.weight
+            )
             b = self.mixer.reparam_conv.bias - self.norm.reparam_conv.bias
 
         self.reparam_conv = nn.Conv2d(
@@ -391,7 +393,7 @@ class ConvMLP(nn.Module):
 
         # Weights initialization
         for m in self.modules():
-            if isinstance(m, nn.Conv2d) is True:
+            if isinstance(m, nn.Conv2d):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
@@ -784,7 +786,7 @@ class FastViT(BaseNet):
 
         # Weights initialization
         for m in self.modules():
-            if isinstance(m, nn.Linear) is True:
+            if isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)

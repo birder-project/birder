@@ -327,7 +327,7 @@ class EfficientFormer_v1(BaseNet):
 
         # Weight initialization
         for m in self.modules():
-            if isinstance(m, nn.Linear) is True:
+            if isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
 
     def reset_classifier(self, num_classes: int) -> None:
@@ -372,7 +372,7 @@ class EfficientFormer_v1(BaseNet):
 
         resolution = int(new_size / (2**5))
         for m in self.body.modules():
-            if isinstance(m, Attention) is True:
+            if isinstance(m, Attention):
                 pos = torch.stack(
                     torch.meshgrid(torch.arange(resolution), torch.arange(resolution), indexing="ij")
                 ).flatten(1)

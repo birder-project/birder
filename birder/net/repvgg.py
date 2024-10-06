@@ -157,7 +157,7 @@ class RepVggBlock(nn.Module):
         return (kernel_final, bias_final)
 
     def _fuse_bn_tensor(self, branch: nn.Module) -> tuple[torch.Tensor, torch.Tensor]:
-        if isinstance(branch, nn.Sequential) is True:
+        if isinstance(branch, nn.Sequential):
             kernel = branch.conv.weight
             running_mean = branch.bn.running_mean
             running_var = branch.bn.running_var

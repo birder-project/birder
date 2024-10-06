@@ -225,7 +225,7 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
                 layers = []
                 i += 1
 
-            if isinstance(block_settings, ConvNormActConfig) is True:
+            if isinstance(block_settings, ConvNormActConfig):
                 layers.append(
                     Conv2dNormActivation(
                         block_settings.in_channels,
@@ -236,13 +236,13 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
                     )
                 )
 
-            elif isinstance(block_settings, InvertedResidualConfig) is True:
+            elif isinstance(block_settings, InvertedResidualConfig):
                 layers.append(InvertedResidual(block_settings, sd_prob))
 
-            elif isinstance(block_settings, UniversalInvertedBottleneckConfig) is True:
+            elif isinstance(block_settings, UniversalInvertedBottleneckConfig):
                 layers.append(UniversalInvertedBottleneck(block_settings, sd_prob))
 
-            elif isinstance(block_settings, MultiQueryAttentionBlockConfig) is True:
+            elif isinstance(block_settings, MultiQueryAttentionBlockConfig):
                 layers.append(MultiQueryAttentionBlock(block_settings))
 
             else:
@@ -277,16 +277,16 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
 
         # Weight initialization
         for m in self.modules():
-            if isinstance(m, nn.Conv2d) is True:
+            if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode="fan_out")
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)) is True:
+            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
 
-            elif isinstance(m, nn.Linear) is True:
+            elif isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, 0, 0.01)
                 nn.init.zeros_(m.bias)
 

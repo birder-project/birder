@@ -8,10 +8,65 @@ import torch
 from PIL import Image
 
 from birder.adversarial.fgsm import FGSM
+from birder.adversarial.pgd import PGD
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.transforms.classification import inference_preset
+from birder.transforms.classification import reverse_preset
+
+
+def show_pgd(args: argparse.Namespace) -> None:
+    if args.gpu is True:
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+
+    if args.gpu_id is not None:
+        torch.cuda.set_device(args.gpu_id)
+
+    logging.info(f"Using device {device}")
+
+    (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+        device,
+        args.network,
+        net_param=args.net_param,
+        tag=args.tag,
+        epoch=args.epoch,
+        inference=True,
+        reparameterized=args.reparameterized,
+    )
+    label_names = list(class_to_idx.keys())
+    size = lib.get_size_from_signature(signature)[0]
+    transform = inference_preset((size, size), rgb_stats, 1.0)
+    reverse_transform = reverse_preset(rgb_stats)
+
+    img: Image.Image = Image.open(args.image_path)
+    input_tensor = transform(img).unsqueeze(dim=0).to(device)
+
+    pgd = PGD(net, eps=args.eps, max_delta=0.012, steps=10, random_start=True)
+    if args.target is not None:
+        target = torch.tensor(class_to_idx[args.target]).unsqueeze(dim=0).to(device)
+    else:
+        target = None
+
+    img = img.resize((size, size))
+    pgd_response = pgd(input_tensor, target=target)
+    perturbation = reverse_transform(pgd_response.adv_img).cpu().detach().numpy().squeeze()
+    pgd_img = np.moveaxis(perturbation, 0, 2)
+
+    # Get predictions and probabilities
+    prob = pgd_response.out.cpu().detach().numpy().squeeze()
+    adv_prob = pgd_response.adv_out.cpu().detach().numpy().squeeze()
+    idx = np.argmax(prob)
+    adv_idx = np.argmax(adv_prob)
+
+    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
+    ax1.imshow(img)
+    ax1.set_title(f"{label_names[idx]} {100 * prob[idx]:.2f}%")
+    ax2.imshow(pgd_img)
+    ax2.set_title(f"{label_names[adv_idx]} {100 * adv_prob[adv_idx]:.2f}%")
+    plt.show()
 
 
 def show_fgsm(args: argparse.Namespace) -> None:
@@ -79,10 +134,12 @@ def set_parser(subparsers: Any) -> None:
             "--epoch 0 --target Bluethroat 'data/training/Mallard/000117.jpeg'\n"
             "python -m birder.tools adversarial --method fgsm --network efficientnet_v2_m "
             "--epoch 0 --eps 0.02 --target Mallard 'data/validation/White-tailed eagle/000006.jpeg'\n"
+            "python tool.py adversarial --method pgd --network caformer_s18 -e 0 "
+            "data/validation/Arabian babbler/000001.jpeg\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
-    subparser.add_argument("--method", type=str, choices=["fgsm"], help="introspection method")
+    subparser.add_argument("--method", type=str, choices=["fgsm", "pgd"], help="introspection method")
     subparser.add_argument(
         "-n", "--network", type=str, required=True, help="the neural network to use (i.e. resnet_v2)"
     )
@@ -105,3 +162,5 @@ def set_parser(subparsers: Any) -> None:
 def main(args: argparse.Namespace) -> None:
     if args.method == "fgsm":
         show_fgsm(args)
+    elif args.method == "pgd":
+        show_pgd(args)

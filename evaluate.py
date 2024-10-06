@@ -48,6 +48,7 @@ def evaluate(args: argparse.Namespace) -> None:
                 device, net, inference_loader, class_to_idx, args.amp, num_samples=num_samples
             )
 
+        logging.info(f"{model_name}: accuracy={results.accuracy:.3f}")
         base_output_path = (
             f"{args.dir}/{model_name}_{len(class_to_idx)}_{size[0]}px_crop{args.center_crop}_{num_samples}"
         )

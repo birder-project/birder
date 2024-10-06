@@ -203,10 +203,10 @@ class RDNet(BaseNet):
 
         # Weight initialization
         for m in self.modules():
-            if isinstance(m, nn.Conv2d) is True:
+            if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight)
 
-            elif isinstance(m, nn.Linear) is True:
+            elif isinstance(m, nn.Linear):
                 nn.init.zeros_(m.bias)
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:

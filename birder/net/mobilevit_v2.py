@@ -20,6 +20,7 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
+from birder.model_registry import registry
 from birder.net.base import BaseNet
 from birder.net.mobilenet_v2 import InvertedResidual
 
@@ -326,3 +327,19 @@ class MobileViT_v2(BaseNet):
             embed_dim = self.embedding_size
 
         return nn.Linear(embed_dim, self.num_classes, bias=False)
+
+
+registry.register_weights(
+    "mobilevit_v2_1_il-common",
+    {
+        "description": "MobileViT v2 with width multiplier of 1.0 trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 17.6,
+                "sha256": "b535e6e6ce5bc9417c7e925586aa54ba7170e57b6154845021281203b8f33d16",
+            }
+        },
+        "net": {"network": "mobilevit_v2", "net_param": 1, "tag": "il-common"},
+    },
+)

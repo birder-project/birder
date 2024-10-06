@@ -7,6 +7,7 @@ from birder.net.crossvit import CrossViT
 from birder.net.deit import DeiT
 from birder.net.deit3 import DeiT3
 from birder.net.densenet import DenseNet
+from birder.net.dpn import DPN
 from birder.net.edgenext import EdgeNeXt
 from birder.net.edgevit import EdgeViT
 from birder.net.efficientformer_v1 import EfficientFormer_v1
@@ -33,7 +34,9 @@ from birder.net.mobilenet_v4_hybrid import MobileNet_v4_Hybrid
 from birder.net.mobileone import MobileOne
 from birder.net.mobilevit_v1 import MobileViT_v1
 from birder.net.mobilevit_v2 import MobileViT_v2
+from birder.net.moganet import MogaNet
 from birder.net.nextvit import NextViT
+from birder.net.nfnet import NFNet
 from birder.net.rdnet import RDNet
 from birder.net.regnet import RegNet
 from birder.net.repvgg import RepVgg
@@ -69,6 +72,7 @@ __all__ = [
     "DeiT",
     "DeiT3",
     "DenseNet",
+    "DPN",
     "EdgeNeXt",
     "EdgeViT",
     "EfficientFormer_v1",
@@ -95,7 +99,9 @@ __all__ = [
     "MobileOne",
     "MobileViT_v1",
     "MobileViT_v2",
+    "MogaNet",
     "NextViT",
+    "NFNet",
     "RDNet",
     "RegNet",
     "RepVgg",

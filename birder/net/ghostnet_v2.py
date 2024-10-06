@@ -18,6 +18,7 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import SqueezeExcitation
 
+from birder.model_registry import registry
 from birder.net.base import BaseNet
 from birder.net.base import make_divisible
 from birder.net.ghostnet_v1 import GhostModule
@@ -302,3 +303,19 @@ class GhostNet_v2(BaseNet):
         x = self.stem(x)
         x = self.body(x)
         return self.features(x)
+
+
+registry.register_weights(
+    "ghostnet_v2_1_il-common",
+    {
+        "description": "GhostNet v2 1.0x model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 20.9,
+                "sha256": "4f982ea3b218c1d63c7fd053add7ba3e9c8383e49fddfe056e14a8fb9a6e5282",
+            }
+        },
+        "net": {"network": "ghostnet_v2", "net_param": 1, "tag": "il-common"},
+    },
+)

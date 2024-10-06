@@ -476,7 +476,7 @@ class EfficientFormer_v2(BaseNet):
 
         # Weight initialization
         for m in self.modules():
-            if isinstance(m, nn.Linear) is True:
+            if isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
 
     def reset_classifier(self, num_classes: int) -> None:
@@ -522,7 +522,7 @@ class EfficientFormer_v2(BaseNet):
         old_base = old_size // 4
         new_base = new_size // 4
         for stage in self.body.modules():
-            if isinstance(stage, EfficientFormerStage) is True:
+            if isinstance(stage, EfficientFormerStage):
                 if stage.downsample is True:
                     if stage.downsample_block.attn is not None:
                         attn = stage.downsample_block.attn
@@ -565,7 +565,7 @@ class EfficientFormer_v2(BaseNet):
                     new_base = new_base // 2
 
                 for m in stage.modules():
-                    if isinstance(m, EfficientFormerBlock) is True:
+                    if isinstance(m, EfficientFormerBlock):
                         if m.resolution[0] == new_base and m.resolution[1] == new_base:
                             return
 

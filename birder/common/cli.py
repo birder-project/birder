@@ -35,11 +35,11 @@ def download_file(
 
     chunk_size = 128 * 1024
 
-    if isinstance(dst, str) is True:
+    if isinstance(dst, str):
         dst = Path(dst)
 
     # If file by the same name exists, check sha256 before overriding
-    if dst.exists() is True:  # type: ignore[union-attr]
+    if dst.exists() is True:
         if expected_sha256 is None or calc_sha256(dst) == expected_sha256:
             return
 

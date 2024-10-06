@@ -35,10 +35,10 @@ class TestDataset(ImageFolder):
         if target_dir is None:
             target_dir = settings.DATA_DIR
 
-        if isinstance(target_dir, str) is True:
+        if isinstance(target_dir, str):
             target_dir = Path(target_dir)
 
-        self._target_dir: Path = target_dir  # type: ignore[assignment]
+        self._target_dir: Path = target_dir
         self._root = self._target_dir.joinpath("TestDataset")
         if download is True:
             src = self._target_dir.joinpath("TestDataset.tar")
@@ -94,10 +94,10 @@ class Flowers102(ImageFolder):
         if target_dir is None:
             target_dir = settings.DATA_DIR
 
-        if isinstance(target_dir, str) is True:
+        if isinstance(target_dir, str):
             target_dir = Path(target_dir)
 
-        self._target_dir: Path = target_dir  # type: ignore[assignment]
+        self._target_dir: Path = target_dir
         self._root = self._target_dir.joinpath("Flowers102")
         if download is True:
             src = self._target_dir.joinpath("Flowers102.tar")
@@ -154,15 +154,15 @@ class CUB_200_2011(ImageFolder):
         if target_dir is None:
             target_dir = settings.DATA_DIR
 
-        if isinstance(target_dir, str) is True:
+        if isinstance(target_dir, str):
             target_dir = Path(target_dir)
 
-        self._target_dir: Path = target_dir  # type: ignore[assignment]
+        self._target_dir: Path = target_dir
         self._root = self._target_dir.joinpath("CUB_200_2011")
         if download is True:
             src = self._target_dir.joinpath("CUB_200_2011.tar")
             downloaded = download_url(
-                "https://f000.backblazeb2.com/file/birder/data/CUB_200_2011.tar",
+                "https://huggingface.co/datasets/birder-project/CUB_200_2011/resolve/main/CUB_200_2011.tar",
                 src,
                 sha256="acb58211efa4253d59935572b6d1d3b9f6990c569d1cd318e2e1613d0a065916",
                 progress_bar=progress_bar,

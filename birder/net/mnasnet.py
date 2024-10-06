@@ -20,6 +20,7 @@ import torch
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
+from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 
 
@@ -231,16 +232,16 @@ class MNASNet(DetectorBackbone):
 
         # Weights initialization
         for m in self.modules():
-            if isinstance(m, nn.Conv2d) is True:
+            if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-            elif isinstance(m, nn.BatchNorm2d) is True:
+            elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-            elif isinstance(m, nn.Linear) is True:
+            elif isinstance(m, nn.Linear):
                 nn.init.kaiming_uniform_(m.weight, mode="fan_out", nonlinearity="sigmoid")
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
@@ -271,3 +272,19 @@ class MNASNet(DetectorBackbone):
         x = self.stem(x)
         x = self.body(x)
         return self.features(x)
+
+
+registry.register_weights(
+    "mnasnet_0.5_il-common",
+    {
+        "description": "MnasNet with depth multiplier of 0.5 trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 5.6,
+                "sha256": "08c18c6edfcec4fb30edf772bf996347bd5dbc69ab5a00c3529f675b5f75b9ee",
+            }
+        },
+        "net": {"network": "mnasnet", "net_param": 0.5, "tag": "il-common"},
+    },
+)

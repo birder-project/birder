@@ -216,7 +216,7 @@ class SSDClassificationHead(SSDScoringHead):
 
         # Weights initialization
         for layer in cls_logits.modules():
-            if isinstance(layer, nn.Conv2d) is True:
+            if isinstance(layer, nn.Conv2d):
                 torch.nn.init.xavier_uniform_(layer.weight)
                 if layer.bias is not None:
                     torch.nn.init.constant_(layer.bias, 0.0)
@@ -232,7 +232,7 @@ class SSDRegressionHead(SSDScoringHead):
 
         # Weights initialization
         for layer in bbox_reg.modules():
-            if isinstance(layer, nn.Conv2d) is True:
+            if isinstance(layer, nn.Conv2d):
                 torch.nn.init.xavier_uniform_(layer.weight)
                 if layer.bias is not None:
                     torch.nn.init.constant_(layer.bias, 0.0)
@@ -461,7 +461,7 @@ class SSD(DetectionBaseNet):
             else:
                 for target in targets:
                     boxes = target["boxes"]
-                    if isinstance(boxes, torch.Tensor) is True:
+                    if isinstance(boxes, torch.Tensor):
                         torch._assert(
                             len(boxes.shape) == 2 and boxes.shape[-1] == 4,
                             f"Expected target boxes to be a tensor of shape [N, 4], got {boxes.shape}.",
