@@ -317,7 +317,7 @@ class EfficientFormer_v1(BaseNet):
         self.features = nn.Sequential(
             nn.LayerNorm(embed_dims[-1], eps=1e-6),
             Permute([0, 2, 1]),
-            nn.AdaptiveAvgPool1d(1),
+            nn.AdaptiveAvgPool1d(output_size=1),
             nn.Flatten(1),
         )
         self.embedding_size = embed_dims[-1]

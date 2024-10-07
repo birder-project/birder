@@ -74,6 +74,8 @@ On fine-tuning phase
 * [NFNet](#nfnet)
 * [RDNet](#rdnet)
 * [RegNet](#regnet)
+* [RepVgg](#repvgg)
+* [ResMLP](#resmlp)
 * [ResNeSt](#resnest)
 * [ResNet v2](#resnet-v2)
 * [ResNeXt](#resnext)
@@ -904,7 +906,13 @@ torchrun --nproc_per_node=2 train.py --network nextvit_b --opt adamw --lr 5e-6 -
 #### NFNet: F0
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network nfnet_f0 --nesterov --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 5 --batch-size 128 --epochs 360 --size 256 --wd 0.00002 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile
+torchrun --nproc_per_node=2 train.py --network nfnet_f0 --nesterov --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 5 --batch-size 128 --epochs 360 --size 256 --wd 0.00002 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile --stop-epoch 250
+```
+
+At epoch 250 increase resolution
+
+```sh
+torchrun --nproc_per_node=2 train.py --network nfnet_f0 --nesterov --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 5 --batch-size 128 --epochs 360 --size 384 --wd 0.00002 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile --resume-epoch 250 --load-states
 ```
 
 ### RDNet
@@ -1023,6 +1031,22 @@ Optional intermediate training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network regnet_y_16g --tag intermediate --lr 0.2 --lr-scheduler cosine --warmup-epochs 5 --batch-size 64 --size 256 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+```
+
+### RepVgg
+
+#### RepVgg: B1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network repvgg_b1 --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 5 --batch-size 128 --epochs 200 --size 256 --wd 0.0001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2
+```
+
+### ResMLP
+
+#### ResMLP: 24
+
+```sh
+torchrun --nproc_per_node=2 train.py --network resmlp_24 --opt adamw --lr 0.005 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 ### ResNeSt

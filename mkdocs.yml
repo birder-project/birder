@@ -1,10 +1,27 @@
 site_name: Birder
 site_dir: public/
 repo_url: https://gitlab.com/birder/birder
+
 nav:
-  - Birder Documentation: README.md
+  - Home: README.md
   - Getting Started: getting_started.md
-  - About: about.md
+  - Tools:
+      - Overview: tools/index.md
+      - Convert Model: tools/convert-model.md
+      - Ensemble Model: tools/ensemble-model.md
+      - Pack: tools/pack.md
+      - Results: tools/results.md
+  - Deployment:
+      - TorchServe: torchserve.md
+  - Other:
+      - Public Datasets: public_datasets.md
+      - About: about.md
+
 theme:
   name: readthedocs
   color_mode: auto
+
+extra:
+  social:
+    - icon: fontawesome/brands/gitlab
+      link: https://gitlab.com/birder/birder

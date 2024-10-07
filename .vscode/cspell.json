@@ -184,6 +184,7 @@
     "reparameterized",
     "repmixer",
     "repvgg",
+    "resmlp",
     "resnest",
     "resnet",
     "resnext",

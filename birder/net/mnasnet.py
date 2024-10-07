@@ -288,3 +288,17 @@ registry.register_weights(
         "net": {"network": "mnasnet", "net_param": 0.5, "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "mnasnet_1_il-common",
+    {
+        "description": "MnasNet with depth multiplier of 1 trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 13.9,
+                "sha256": "d3245f7819b39218179f5e7af1a9e5e389949634229bc97108dba72fe31e1918",
+            }
+        },
+        "net": {"network": "mnasnet", "net_param": 1, "tag": "il-common"},
+    },
+)

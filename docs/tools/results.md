@@ -8,8 +8,6 @@ The `results` tool is a powerful utility for analyzing and visualizing classific
 python -m birder.tools results [OPTIONS] RESULT_FILES...
 ```
 
-Certainly! I'll add that information to the Usage section. Here's the updated version:
-
 To see all available options and get detailed help, run:
 
 ```sh
@@ -20,7 +18,7 @@ This will display a comprehensive list of all options and their descriptions, en
 
 ## Description
 
-The `results` tool reads and processes result files generated from classification experiments by the predict script. It can handle multiple result files simultaneously, allowing for easy comparison between different models or experimental setups.
+The `results` tool reads and processes result files generated from classification experiments. It can handle multiple result files simultaneously, allowing for easy comparison between different models or experimental setups.
 
 Key features include:
 
@@ -30,6 +28,7 @@ Key features include:
 * Creating precision-recall curves
 * Visualizing probability histograms
 * Listing misclassifications and samples outside the top-k predictions
+* Identifying and displaying the most confused class pairs
 
 ## Notes
 

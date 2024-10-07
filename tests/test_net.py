@@ -70,6 +70,7 @@ class TestNet(unittest.TestCase):
             ("regnet_x_200m"),
             ("regnet_y_200m"),
             ("repvgg_a0"),
+            ("resmlp_12", None, False, 1, 0),
             ("resnest_14", None, False, 2),
             ("resnet_v2_18"),
             ("resnext_50"),
@@ -116,13 +117,14 @@ class TestNet(unittest.TestCase):
         torch.jit.script(n)
 
         # Adjust size
-        size += size_step
-        n.adjust_size(size)
-        out = n(torch.rand((batch_size, 3, size, size)))
-        self.assertEqual(out.numel(), 100 * batch_size)
-        if skip_embedding is False:
-            embedding = n.embedding(torch.rand((batch_size, 3, size, size))).flatten()
-            self.assertEqual(len(embedding), n.embedding_size * batch_size)
+        if size_step != 0:
+            size += size_step
+            n.adjust_size(size)
+            out = n(torch.rand((batch_size, 3, size, size)))
+            self.assertEqual(out.numel(), 100 * batch_size)
+            if skip_embedding is False:
+                embedding = n.embedding(torch.rand((batch_size, 3, size, size))).flatten()
+                self.assertEqual(len(embedding), n.embedding_size * batch_size)
 
         # Reset classifier
         n.reset_classifier(200)

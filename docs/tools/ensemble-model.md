@@ -22,6 +22,22 @@ Supports both TorchScript and pt2 model formats.
 
 ## Notes
 
-* The ensembled model will be saved with the name "ensemble"
+* The ensembled model will be saved with the name "ensemble" in the models directory
 * All models in the ensemble must have the same class-to-index definition
-* If model signatures or RGB values differ, the tool will use those of the first specified model and log a warning
+* If model signatures or RGB values differ among the input models, the tool will use those of the first specified model and log a warning
+* The tool ensures that all input models are of the same format (either all TorchScript or all pt2)
+
+## Ensemble Process
+
+The ensemble model works by:
+
+1. Loading all specified models
+1. Verifying that all models have the same class-to-index definition
+1. Creating a new `Ensemble` module that contains all the input models
+1. For each input, the ensemble:
+   * Passes the input through each model
+   * Stacks the outputs
+   * Computes the mean of all outputs
+1. The final output is the averaged prediction across all models
+
+For more detailed information about each option and its usage, refer to the help output of the tool.

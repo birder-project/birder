@@ -2,7 +2,7 @@
 MogaNet, adapted from
 https://github.com/Westlake-AI/MogaNet/blob/main/models/moganet.py
 
-"MogaNet: Multi-order Gated Aggregation Network",
+Paper "MogaNet: Multi-order Gated Aggregation Network",
 https://arxiv.org/abs/2211.03295
 """
 

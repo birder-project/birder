@@ -1,5 +1,5 @@
 matplotlib~=3.9.2
-numpy~=2.1.1  # --no-binary numpy
+numpy~=2.1.2  # --no-binary numpy
 onnx~=1.17.0
 # pandas[performance,plot,output-formatting]~=2.2.2
 Pillow~=10.4.0

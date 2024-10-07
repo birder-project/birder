@@ -84,7 +84,7 @@ class Simple_ViT(PreTrainEncoder):
         self.encoder = Encoder(num_layers, num_heads, hidden_dim, mlp_dim, dropout=0.0, attention_dropout=0.0, dpr=dpr)
         self.norm = nn.LayerNorm(hidden_dim, eps=1e-6)
         self.features = nn.Sequential(
-            nn.AdaptiveAvgPool1d(1),
+            nn.AdaptiveAvgPool1d(output_size=1),
             nn.Flatten(1),
         )
 

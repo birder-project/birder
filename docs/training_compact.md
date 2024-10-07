@@ -212,6 +212,14 @@ torchrun --nproc_per_node=2 train.py --network mobileone_s1 --tag il-common --lr
 torchrun --nproc_per_node=2 train.py --network mobilevit_v2 --net-param 1 --tag il-common --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 2e-5 --warmup-epochs 20 --batch-size 256 --size 256 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### MogaNet
+
+#### MogaNet: X-Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network moganet_xt --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 5 --batch-size 128 --size 256 --epochs 300 --wd 0.03 --smoothing-alpha 0.1 --mixup-alpha 0.1 --cutmix --aug-level 3 --ra-sampler --ra-reps 2 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### RegNet
 
 #### RegNet: Y 200 MF

@@ -40,6 +40,7 @@ from birder.net.nfnet import NFNet
 from birder.net.rdnet import RDNet
 from birder.net.regnet import RegNet
 from birder.net.repvgg import RepVgg
+from birder.net.resmlp import ResMLP
 from birder.net.resnest import ResNeSt
 from birder.net.resnet_v2 import ResNet_v2
 from birder.net.resnext import ResNeXt
@@ -105,6 +106,7 @@ __all__ = [
     "RDNet",
     "RegNet",
     "RepVgg",
+    "ResMLP",
     "ResNeSt",
     "ResNet_v2",
     "ResNeXt",
