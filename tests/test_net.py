@@ -66,6 +66,8 @@ class TestNet(unittest.TestCase):
             ("moganet_xt"),
             ("nextvit_s"),
             ("nfnet_f0"),
+            ("pvt_v1_t"),
+            ("pvt_v2_b0"),
             ("rdnet_t"),
             ("regnet_x_200m"),
             ("regnet_y_200m"),

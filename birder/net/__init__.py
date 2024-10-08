@@ -37,6 +37,8 @@ from birder.net.mobilevit_v2 import MobileViT_v2
 from birder.net.moganet import MogaNet
 from birder.net.nextvit import NextViT
 from birder.net.nfnet import NFNet
+from birder.net.pvt_v1 import PVT_v1
+from birder.net.pvt_v2 import PVT_v2
 from birder.net.rdnet import RDNet
 from birder.net.regnet import RegNet
 from birder.net.repvgg import RepVgg
@@ -103,6 +105,8 @@ __all__ = [
     "MogaNet",
     "NextViT",
     "NFNet",
+    "PVT_v1",
+    "PVT_v2",
     "RDNet",
     "RegNet",
     "RepVgg",

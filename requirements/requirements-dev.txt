@@ -2,7 +2,7 @@
 
 altair~=5.4.1
 bandit~=1.7.10
-black~=24.8.0
+black~=24.10.0
 build~=1.2.2
 bumpver~=2023.1129
 captum~=0.7.0

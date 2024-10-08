@@ -72,6 +72,8 @@ On fine-tuning phase
 * [MogaNet](#moganet)
 * [Next-ViT](#next-vit)
 * [NFNet](#nfnet)
+* [PVT v1](#pvt-v1)
+* [PVT v2](#pvt-v2)
 * [RDNet](#rdnet)
 * [RegNet](#regnet)
 * [RepVgg](#repvgg)
@@ -913,6 +915,76 @@ At epoch 250 increase resolution
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network nfnet_f0 --nesterov --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 5 --batch-size 128 --epochs 360 --size 384 --wd 0.00002 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile --resume-epoch 250 --load-states
+```
+
+### PVT v1
+
+#### PVT v1: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pvt_v1_t --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### PVT v1: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pvt_v1_s --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### PVT v1: Medium
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pvt_v1_m --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+#### PVT v1: Large
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pvt_v1_l --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+### PVT v2
+
+#### PVT v2: B0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pvt_v2_b0 --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### PVT v2: B1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pvt_v2_b1 --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### PVT v2: B2 Linear
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pvt_v2_b2_li --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### PVT v2: B2
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pvt_v2_b2 --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### PVT v2: B3
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pvt_v2_b3 --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+#### PVT v2: B4
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pvt_v2_b4 --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+#### PVT v2: B5
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pvt_v2_b5 --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 ### RDNet
