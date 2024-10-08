@@ -1,5 +1,5 @@
 [bumpver]
-current_version = "v0.0.5a49"
+current_version = "v0.0.5a50"
 version_pattern = "vMAJOR.MINOR.PATCH[PYTAGNUM]"
 commit_message = "Bump version: {old_version} -> {new_version}"
 tag_message = "{new_version}"
