@@ -7,6 +7,7 @@ Paper "UniFormer: Unifying Convolution and Self-attention for Visual Recognition
 
 # Reference license: Apache-2.0
 
+from collections import OrderedDict
 from typing import Any
 from typing import Literal
 from typing import Optional
@@ -17,7 +18,7 @@ from torch import nn
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 
 
 class MLP(nn.Module):
@@ -220,7 +221,7 @@ class UniFormerStage(nn.Module):
         return x
 
 
-class UniFormer(BaseNet):
+class UniFormer(DetectorBackbone):
     default_size = 224
 
     def __init__(
@@ -250,9 +251,10 @@ class UniFormer(BaseNet):
         num_heads = [dim // head_dim for dim in embed_dim]
 
         prev_dim = self.input_channels
-        stages = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         for i in range(num_stages):
-            stage = UniFormerStage(
+            stages[f"stage{i+1}"] = UniFormerStage(
                 block_type=block_type[i],  # type: ignore[arg-type]
                 patch_size=(patch_size[i], patch_size[i]),
                 in_channels=prev_dim,
@@ -264,15 +266,16 @@ class UniFormer(BaseNet):
                 drop=0.0,
                 drop_path=dpr[i],
             )
-            stages.append(stage)
+            return_channels.append(embed_dim[i])
             prev_dim = embed_dim[i]
 
-        stages.append(nn.BatchNorm2d(embed_dim[-1]))
-        self.body = nn.Sequential(*stages)
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
+            nn.BatchNorm2d(embed_dim[-1]),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = embed_dim[-1]
         self.classifier = self.create_classifier()
 
@@ -286,6 +289,23 @@ class UniFormer(BaseNet):
             elif isinstance(m, nn.LayerNorm):
                 nn.init.constant_(m.bias, 0)
                 nn.init.constant_(m.weight, 1.0)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.body(x)

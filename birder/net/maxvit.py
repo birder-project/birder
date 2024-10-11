@@ -9,6 +9,7 @@ Paper "MaxViT: Multi-Axis Vision Transformer", https://arxiv.org/abs/2204.01697
 
 import logging
 import math
+from collections import OrderedDict
 from collections.abc import Callable
 from functools import partial
 from typing import Any
@@ -24,6 +25,7 @@ from torchvision.ops import SqueezeExcitation
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
+from birder.net.base import DetectorBackbone
 from birder.net.base import PreTrainEncoder
 
 
@@ -448,9 +450,9 @@ class MaxVitBlock(nn.Module):
         return x
 
 
-class MaxViT(PreTrainEncoder):
+class MaxViT(DetectorBackbone, PreTrainEncoder):
     default_size = 224
-    block_group_regex = r"body\.\d+\.block\.(\d+)"
+    block_group_regex = r"body\.stage\d+\.block\.(\d+)"
 
     # pylint: disable=too-many-locals
     def __init__(
@@ -528,34 +530,35 @@ class MaxViT(PreTrainEncoder):
         p_stochastic = np.linspace(0, stochastic_depth_prob, sum(block_layers)).tolist()
 
         p_idx = 0
-        layers = []
-        for in_channel, out_channel, num_layers in zip(in_channels, out_channels, block_layers):
-            layers.append(
-                MaxVitBlock(
-                    in_channels=in_channel,
-                    out_channels=out_channel,
-                    squeeze_ratio=squeeze_ratio,
-                    expansion_ratio=expansion_ratio,
-                    norm_layer=norm_layer,
-                    activation_layer=nn.GELU,
-                    head_dim=head_dim,
-                    mlp_ratio=mlp_ratio,
-                    mlp_dropout=mlp_dropout,
-                    attention_dropout=attention_dropout,
-                    partition_size=partition_size,
-                    input_grid_size=image_size,
-                    n_layers=num_layers,
-                    p_stochastic=p_stochastic[p_idx : p_idx + num_layers],
-                ),
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
+        for i, (in_channel, out_channel, num_layers) in enumerate(zip(in_channels, out_channels, block_layers)):
+            stages[f"stage{i+1}"] = MaxVitBlock(
+                in_channels=in_channel,
+                out_channels=out_channel,
+                squeeze_ratio=squeeze_ratio,
+                expansion_ratio=expansion_ratio,
+                norm_layer=norm_layer,
+                activation_layer=nn.GELU,
+                head_dim=head_dim,
+                mlp_ratio=mlp_ratio,
+                mlp_dropout=mlp_dropout,
+                attention_dropout=attention_dropout,
+                partition_size=partition_size,
+                input_grid_size=image_size,
+                n_layers=num_layers,
+                p_stochastic=p_stochastic[p_idx : p_idx + num_layers],
             )
-            image_size = layers[-1].grid_size
+            return_channels.append(out_channel)
+            image_size = stages[f"stage{i+1}"].grid_size
             p_idx += num_layers
 
-        self.body = nn.Sequential(*layers)
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = block_channels[-1]
         self.classifier = self.create_classifier()
 
@@ -576,6 +579,28 @@ class MaxViT(PreTrainEncoder):
                 nn.init.normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def masked_encoding(
         self, x: torch.Tensor, mask_ratio: float, mask_token: Optional[torch.Tensor] = None

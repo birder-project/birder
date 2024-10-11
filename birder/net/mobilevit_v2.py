@@ -11,6 +11,7 @@ https://arxiv.org/abs/2206.02680
 # Reference license: Apache-2.0 and Apple open source (see license at reference)
 
 import math
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -21,7 +22,7 @@ from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 from birder.net.mobilenet_v2 import InvertedResidual
 
 
@@ -202,7 +203,7 @@ class MobileVitBlock(nn.Module):
 
 
 # pylint: disable=invalid-name
-class MobileViT_v2(BaseNet):
+class MobileViT_v2(DetectorBackbone):
     default_size = 256
     auto_register = True
 
@@ -242,8 +243,10 @@ class MobileViT_v2(BaseNet):
             bias=True,
         )
 
-        layers = []
-        layers.append(
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
+
+        stages["stage1"] = nn.Sequential(
             InvertedResidual(
                 stem_channels,
                 channels[0],
@@ -253,9 +256,7 @@ class MobileViT_v2(BaseNet):
                 expansion_factor=expansion,
                 shortcut=False,
                 activation_layer=nn.SiLU,
-            )
-        )
-        layers.append(
+            ),
             InvertedResidual(
                 channels[0],
                 channels[1],
@@ -265,9 +266,7 @@ class MobileViT_v2(BaseNet):
                 expansion_factor=expansion,
                 shortcut=False,
                 activation_layer=nn.SiLU,
-            )
-        )
-        layers.append(
+            ),
             InvertedResidual(
                 channels[1],
                 channels[1],
@@ -277,42 +276,65 @@ class MobileViT_v2(BaseNet):
                 expansion_factor=expansion,
                 shortcut=True,
                 activation_layer=nn.SiLU,
-            )
+            ),
         )
+        return_channels.append(channels[1])
 
         for idx in range(2, len(channels)):
-            layers.append(
-                nn.Sequential(
-                    InvertedResidual(
-                        channels[idx - 1],
-                        channels[idx],
-                        kernel_size=(3, 3),
-                        stride=(2, 2),
-                        padding=(1, 1),
-                        expansion_factor=expansion,
-                        shortcut=False,
-                        activation_layer=nn.SiLU,
-                    ),
-                    MobileVitBlock(
-                        channels[idx],
-                        kernel_size=(3, 3),
-                        stride=(1, 1),
-                        transformer_dim=dims[idx - 2],
-                        transformer_depth=depths[idx - 2],
-                        mlp_ratio=2,
-                        patch_size=patch_size,
-                        attn_drop=attn_drop,
-                    ),
-                )
+            stages[f"stage{idx}"] = nn.Sequential(
+                InvertedResidual(
+                    channels[idx - 1],
+                    channels[idx],
+                    kernel_size=(3, 3),
+                    stride=(2, 2),
+                    padding=(1, 1),
+                    expansion_factor=expansion,
+                    shortcut=False,
+                    activation_layer=nn.SiLU,
+                ),
+                MobileVitBlock(
+                    channels[idx],
+                    kernel_size=(3, 3),
+                    stride=(1, 1),
+                    transformer_dim=dims[idx - 2],
+                    transformer_depth=depths[idx - 2],
+                    mlp_ratio=2,
+                    patch_size=patch_size,
+                    attn_drop=attn_drop,
+                ),
             )
+            return_channels.append(channels[idx])
 
-        self.body = nn.Sequential(*layers)
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = channels[-1]
         self.classifier = self.create_classifier()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
@@ -337,7 +359,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 17.6,
-                "sha256": "b535e6e6ce5bc9417c7e925586aa54ba7170e57b6154845021281203b8f33d16",
+                "sha256": "2b45b7f2ffe3dd129d9a7e9690d2dfd0f93ac60f24d118b920a51bcb950fd95e",
             }
         },
         "net": {"network": "mobilevit_v2", "net_param": 1, "tag": "il-common"},

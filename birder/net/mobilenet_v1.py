@@ -8,6 +8,7 @@ https://arxiv.org/abs/1704.04861
 
 # Reference license: Apache-2.0
 
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -15,7 +16,7 @@ import torch
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 
 
 class DepthwiseSeparableNormConv2d(nn.Module):
@@ -46,7 +47,7 @@ class DepthwiseSeparableNormConv2d(nn.Module):
 
 
 # pylint: disable=invalid-name
-class MobileNet_v1(BaseNet):
+class MobileNet_v1(DetectorBackbone):
     default_size = 224
     auto_register = True
 
@@ -76,25 +77,40 @@ class MobileNet_v1(BaseNet):
             ),
             Conv2dNormActivation(base, base * 2, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
         )
-        self.body = nn.Sequential(
-            # 2
+
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
+
+        stages["stage1"] = nn.Sequential(
             DepthwiseSeparableNormConv2d(base * 2, base * 4, stride=(2, 2)),
-            # 4
             DepthwiseSeparableNormConv2d(base * 4, base * 4, stride=(1, 1)),
+        )
+        return_channels.append(base * 4)
+
+        stages["stage2"] = nn.Sequential(
             DepthwiseSeparableNormConv2d(base * 4, base * 8, stride=(2, 2)),
-            # 8
             DepthwiseSeparableNormConv2d(base * 8, base * 8, stride=(1, 1)),
+        )
+        return_channels.append(base * 8)
+
+        stages["stage3"] = nn.Sequential(
             DepthwiseSeparableNormConv2d(base * 8, base * 16, stride=(2, 2)),
-            # 16
             DepthwiseSeparableNormConv2d(base * 16, base * 16, stride=(1, 1)),
             DepthwiseSeparableNormConv2d(base * 16, base * 16, stride=(1, 1)),
             DepthwiseSeparableNormConv2d(base * 16, base * 16, stride=(1, 1)),
             DepthwiseSeparableNormConv2d(base * 16, base * 16, stride=(1, 1)),
             DepthwiseSeparableNormConv2d(base * 16, base * 16, stride=(1, 1)),
+        )
+        return_channels.append(base * 16)
+
+        stages["stage4"] = nn.Sequential(
             DepthwiseSeparableNormConv2d(base * 16, base * 32, stride=(2, 2)),
             # 32
             DepthwiseSeparableNormConv2d(base * 32, base * 32, stride=(1, 1)),
         )
+        return_channels.append(base * 32)
+
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             Conv2dNormActivation(
                 base * 32,
@@ -108,8 +124,31 @@ class MobileNet_v1(BaseNet):
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = base * 32
         self.classifier = self.create_classifier()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

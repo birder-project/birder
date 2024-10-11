@@ -8,6 +8,7 @@ Paper "GhostNetV2: Enhance Cheap Operation with Long-Range Attention", https://a
 # Reference license: Apache-2.0
 
 import math
+from collections import OrderedDict
 from typing import Any
 from typing import Literal
 from typing import Optional
@@ -19,7 +20,7 @@ from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import SqueezeExcitation
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 from birder.net.base import make_divisible
 from birder.net.ghostnet_v1 import GhostModule
 
@@ -198,7 +199,7 @@ class GhostBottleneck(nn.Module):
 
 
 # pylint: disable=invalid-name
-class GhostNet_v2(BaseNet):
+class GhostNet_v2(DetectorBackbone):
     default_size = 224
     auto_register = True
 
@@ -250,12 +251,20 @@ class GhostNet_v2(BaseNet):
             self.input_channels, stem_channels, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False
         )
 
-        stages = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
+        i = 0
+        layers: list[nn.Module] = []
         prev_channels = stem_channels
         layer_idx = 0
         for cfg in block_config:
-            layers = []
             for k, exp_size, c, se_ratio, s in cfg:
+                if s > 1:
+                    stages[f"stage{i}"] = nn.Sequential(*layers)
+                    return_channels.append(prev_channels)
+                    layers = []
+                    i += 1
+
                 out_channels = make_divisible(c * width, 4)
                 mid_channels = make_divisible(exp_size * width, 4)
                 if layer_idx > 1:
@@ -278,16 +287,15 @@ class GhostNet_v2(BaseNet):
                 prev_channels = out_channels
                 layer_idx += 1
 
-            stages.append(nn.Sequential(*layers))
-
         out_channels = make_divisible(exp_size * width, 4)
-        stages.append(
+        layers.append(
             Conv2dNormActivation(prev_channels, out_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         )
-        self.body = nn.Sequential(*stages)
-        prev_channels = out_channels
+        stages[f"stage{i}"] = nn.Sequential(*layers)
+        return_channels.append(out_channels)
 
-        self.num_features = prev_channels
+        self.body = nn.Sequential(stages)
+        prev_channels = out_channels
         out_channels = 1280
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
@@ -296,8 +304,31 @@ class GhostNet_v2(BaseNet):
             nn.Flatten(1),
             nn.Dropout(p=0.2),
         )
+        self.return_channels = return_channels[1:5]
         self.embedding_size = out_channels
         self.classifier = self.create_classifier()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
@@ -313,7 +344,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 20.9,
-                "sha256": "4f982ea3b218c1d63c7fd053add7ba3e9c8383e49fddfe056e14a8fb9a6e5282",
+                "sha256": "efb438440a88b7e159b36bbba7de1d0748c8caae16dbe85b0330ccf16ade93c0",
             }
         },
         "net": {"network": "ghostnet_v2", "net_param": 1, "tag": "il-common"},

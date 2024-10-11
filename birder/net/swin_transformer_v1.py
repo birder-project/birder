@@ -13,6 +13,7 @@ Changes from original:
 
 import logging
 import math
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -26,7 +27,7 @@ from torchvision.ops import Permute
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 
 
 def patch_merging_pad(x: torch.Tensor) -> torch.Tensor:
@@ -272,9 +273,9 @@ class SwinTransformerBlock(nn.Module):
 
 
 # pylint: disable=invalid-name
-class Swin_Transformer_v1(BaseNet):
+class Swin_Transformer_v1(DetectorBackbone):
     default_size = 224
-    block_group_regex = r"body\.\d+\.(\d+)"
+    block_group_regex = r"body\.stage\d+\.(\d+)"
 
     def __init__(
         self,
@@ -313,9 +314,10 @@ class Swin_Transformer_v1(BaseNet):
 
         total_stage_blocks = sum(depths)
         stage_block_id = 0
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         layers = []
         for i_stage, depth in enumerate(depths):
-            stage = []
             dim = embed_dim * 2**i_stage
             for i_layer in range(depth):
                 # Adjust stochastic depth probability based on the depth of the stage block
@@ -325,7 +327,7 @@ class Swin_Transformer_v1(BaseNet):
                 else:
                     shift_size = (window_size[0] // 2, window_size[1] // 2)
 
-                stage.append(
+                layers.append(
                     SwinTransformerBlock(
                         dim,
                         num_heads[i_stage],
@@ -337,20 +339,23 @@ class Swin_Transformer_v1(BaseNet):
                 )
                 stage_block_id += 1
 
-            layers.append(nn.Sequential(*stage))
+            stages[f"stage{i_stage+1}"] = nn.Sequential(*layers)
+            return_channels.append(dim)
+            layers = []
 
             # Add patch merging layer
             if i_stage < (len(depths) - 1):
                 layers.append(PatchMerging(dim))
 
         num_features = embed_dim * 2 ** (len(depths) - 1)
-        self.body = nn.Sequential(*layers)
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.LayerNorm(num_features, eps=1e-5),
             Permute([0, 3, 1, 2]),  # B H W C -> B C H W
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
@@ -360,6 +365,28 @@ class Swin_Transformer_v1(BaseNet):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x.permute(0, 3, 1, 2).contiguous()
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

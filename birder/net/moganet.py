@@ -8,6 +8,7 @@ https://arxiv.org/abs/2211.03295
 
 # Reference license: Apache-2.0
 
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -18,7 +19,7 @@ from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 
 
 class ElementScale(nn.Module):
@@ -206,7 +207,7 @@ class MogaBlock(nn.Module):
         return x
 
 
-class MogaNet(BaseNet):
+class MogaNet(DetectorBackbone):
     default_size = 224
 
     def __init__(
@@ -255,7 +256,8 @@ class MogaNet(BaseNet):
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, total_depth)]
 
         cur_block_idx = 0
-        stages = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         for i, depth in enumerate(depths):
             blocks = []
             if i > 0:
@@ -284,13 +286,15 @@ class MogaNet(BaseNet):
                 )
             cur_block_idx += depth
             blocks.append(nn.BatchNorm2d(embed_dims[i]))
-            stages.append(nn.Sequential(*blocks))
+            stages[f"stage{i+1}"] = nn.Sequential(*blocks)
+            return_channels.append(embed_dims[i])
 
-        self.body = nn.Sequential(*stages)
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
 
@@ -305,6 +309,28 @@ class MogaNet(BaseNet):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
@@ -341,4 +367,19 @@ registry.register_alias(
     "moganet_xl",
     MogaNet,
     config={"embed_dims": [96, 192, 480, 960], "depths": [6, 6, 44, 4], "drop_path_rate": 0.4},
+)
+
+registry.register_weights(
+    "moganet_xt_il-common",
+    {
+        "description": "MogaNet X-Tiny model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 11.1,
+                "sha256": "2b353981631650be749bc5d51b4af3aafe36a562be3f5cb0a2d91cec383a3253",
+            }
+        },
+        "net": {"network": "moganet_xt", "tag": "il-common"},
+    },
 )

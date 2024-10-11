@@ -41,13 +41,14 @@ class TestNet(unittest.TestCase):
             ("efficientnet_v1_b0"),
             ("efficientnet_v2_s"),
             ("fastvit_t8"),
+            ("fastvit_sa12"),
             ("focalnet_t_srf"),
             ("ghostnet_v1", 0),
             ("ghostnet_v2", 0),
             ("inception_next_t"),
-            ("inception_resnet_v2", None),
-            ("inception_v3", None),
-            ("inception_v4", None),
+            ("inception_resnet_v2"),
+            ("inception_v3"),
+            ("inception_v4"),
             ("maxvit_t"),
             ("poolformer_v1_s12"),
             ("poolformer_v2_s12"),
@@ -143,35 +144,78 @@ class TestNet(unittest.TestCase):
         [
             ("convnext_v1_tiny"),
             ("convnext_v2_tiny"),
+            ("densenet_121"),
+            ("edgenext_xxs"),
+            ("edgevit_xxs"),
+            ("efficientformer_v2_s0"),
             ("efficientnet_v1_b0"),
             ("efficientnet_v2_s"),
-            ("mnasnet", 0.75),
+            ("fastvit_t8"),
+            ("focalnet_t_srf"),
+            ("ghostnet_v1", 0),
+            ("ghostnet_v2", 0),
+            ("inception_next_t"),
+            ("inception_resnet_v2"),
+            ("maxvit_t"),
+            ("poolformer_v1_s12"),
+            ("poolformer_v2_s12"),
+            ("convformer_s18"),
+            ("caformer_s18"),
+            ("mnasnet", 0.5),
+            ("mobilenet_v1", 1),
             ("mobilenet_v2", 1),
             ("mobilenet_v3_large", 1),
             ("mobilenet_v3_small", 1),
             ("mobilenet_v4_s"),
             ("mobilenet_v4_hybrid_m"),
+            ("mobileone_s0"),
+            ("mobilevit_v2", 1),
+            ("moganet_xt"),
+            ("nextvit_s"),
+            ("nfnet_f0"),
+            ("pvt_v2_b0"),
+            ("rdnet_t"),
             ("regnet_y_200m"),
+            ("repvgg_a0"),
+            ("resnest_14", None, 2),
             ("resnet_v2_18"),
             ("resnext_50"),
             ("se_resnet_v2_18"),
             ("se_resnext_50"),
+            ("shufflenet_v1", 8),
+            ("shufflenet_v2", 1),
+            ("squeezenext", 0.5),
+            ("swin_transformer_v1_t"),
+            ("swin_transformer_v2_t"),
+            ("uniformer_s"),
             ("vgg_11"),
             ("vgg_reduced_11"),
+            ("wide_resnet_50"),
         ]
     )
-    def test_detection_backbone(self, network_name: str, net_param: Optional[float] = None) -> None:
+    def test_detection_backbone(
+        self, network_name: str, net_param: Optional[float] = None, batch_size: int = 1
+    ) -> None:
         n = registry.net_factory(network_name, 3, 100, net_param=net_param)
         size = n.default_size
 
         self.assertEqual(len(n.return_channels), len(n.return_stages))
-        out = n.detection_features(torch.rand((1, 3, size, size)))
-        prev_latent = 0
+        out = n.detection_features(torch.rand((batch_size, 3, size, size)))
         for i, stage_name in enumerate(n.return_stages):
             self.assertIn(stage_name, out)
-            self.assertLessEqual(prev_latent, out[stage_name].shape[1])
-            prev_latent = out[stage_name].shape[1]
-            self.assertEqual(prev_latent, n.return_channels[i])
+            self.assertEqual(out[stage_name].shape[1], n.return_channels[i])
+
+        prev_h = 0
+        prev_w = 0
+        for i, stage_name in enumerate(n.return_stages[::-1]):
+            self.assertLessEqual(prev_h, out[stage_name].shape[2])
+            self.assertLessEqual(prev_w, out[stage_name].shape[3])
+            prev_h = out[stage_name].shape[2]
+            prev_w = out[stage_name].shape[3]
+
+        num_stages = len(n.return_stages)
+        for idx in range(num_stages):
+            n.freeze_stages(idx)
 
     @parameterized.expand(  # type: ignore[misc]
         [

@@ -7,6 +7,7 @@ Paper "Focal Modulation Networks", https://arxiv.org/abs/2203.11926
 
 # Reference license: Apache-2.0
 
+from collections import OrderedDict
 from collections.abc import Callable
 from functools import partial
 from typing import Any
@@ -18,7 +19,7 @@ from torch import nn
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 
 
 class LayerNorm2d(nn.LayerNorm):
@@ -322,10 +323,11 @@ class FocalNetStage(nn.Module):
         return x
 
 
-class FocalNet(BaseNet):
+class FocalNet(DetectorBackbone):
     default_size = 224
-    block_group_regex = r"body\.\d+\.blocks\.(\d+)"
+    block_group_regex = r"body\.stage\d+\.blocks\.(\d+)"
 
+    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,
@@ -339,7 +341,6 @@ class FocalNet(BaseNet):
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
-        drop_path_rate = 0.1
         proj_drop_rate = 0.0
         depths: list[int] = self.config["depths"]
         embed_dim: int = self.config["embed_dim"]
@@ -349,9 +350,10 @@ class FocalNet(BaseNet):
         use_post_norm: bool = self.config["use_post_norm"]
         use_overlap_down: bool = self.config["use_overlap_down"]
         use_post_norm_in_modulation: bool = self.config["use_post_norm_in_modulation"]
+        drop_path_rate: float = self.config["drop_path_rate"]
 
-        num_layers = len(depths)
-        embed_dims = [embed_dim * (2**i) for i in range(num_layers)]
+        num_stages = len(depths)
+        embed_dims = [embed_dim * (2**i) for i in range(num_stages)]
         num_features = embed_dims[-1]
         norm_layer = partial(LayerNorm2d, eps=1e-5)
 
@@ -365,39 +367,62 @@ class FocalNet(BaseNet):
         in_dim = embed_dims[0]
         dpr: list[float] = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
 
-        layers = []
-        for i_layer in range(num_layers):
-            out_dim = embed_dims[i_layer]
-            layers.append(
-                FocalNetStage(
-                    dim=in_dim,
-                    out_dim=out_dim,
-                    depth=depths[i_layer],
-                    mlp_ratio=4.0,
-                    downsample=i_layer > 0,
-                    focal_level=focal_levels[i_layer],
-                    focal_window=focal_windows[i_layer],
-                    use_overlap_down=use_overlap_down,
-                    use_post_norm=use_post_norm,
-                    use_post_norm_in_modulation=use_post_norm_in_modulation,
-                    normalize_modulator=False,
-                    layer_scale_value=layer_scale_value,
-                    proj_drop=proj_drop_rate,
-                    drop_path=dpr[sum(depths[:i_layer]) : sum(depths[: i_layer + 1])],
-                    norm_layer=norm_layer,
-                )
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
+        for idx in range(num_stages):
+            out_dim = embed_dims[idx]
+            stages[f"stage{idx+1}"] = FocalNetStage(
+                dim=in_dim,
+                out_dim=out_dim,
+                depth=depths[idx],
+                mlp_ratio=4.0,
+                downsample=idx > 0,
+                focal_level=focal_levels[idx],
+                focal_window=focal_windows[idx],
+                use_overlap_down=use_overlap_down,
+                use_post_norm=use_post_norm,
+                use_post_norm_in_modulation=use_post_norm_in_modulation,
+                normalize_modulator=False,
+                layer_scale_value=layer_scale_value,
+                proj_drop=proj_drop_rate,
+                drop_path=dpr[sum(depths[:idx]) : sum(depths[: idx + 1])],
+                norm_layer=norm_layer,
             )
+
+            return_channels.append(out_dim)
             in_dim = out_dim
 
-        layers.append(norm_layer(num_features))
-
-        self.body = nn.Sequential(*layers)
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
+            norm_layer(num_features),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
@@ -417,6 +442,7 @@ registry.register_alias(
         "use_post_norm": False,
         "use_overlap_down": False,
         "use_post_norm_in_modulation": False,
+        "drop_path_rate": 0.2,
     },
 )
 registry.register_alias(
@@ -431,6 +457,7 @@ registry.register_alias(
         "use_post_norm": False,
         "use_overlap_down": False,
         "use_post_norm_in_modulation": False,
+        "drop_path_rate": 0.2,
     },
 )
 registry.register_alias(
@@ -445,6 +472,7 @@ registry.register_alias(
         "use_post_norm": False,
         "use_overlap_down": False,
         "use_post_norm_in_modulation": False,
+        "drop_path_rate": 0.2,
     },
 )
 registry.register_alias(
@@ -459,6 +487,7 @@ registry.register_alias(
         "use_post_norm": False,
         "use_overlap_down": False,
         "use_post_norm_in_modulation": False,
+        "drop_path_rate": 0.2,
     },
 )
 registry.register_alias(
@@ -473,6 +502,7 @@ registry.register_alias(
         "use_post_norm": False,
         "use_overlap_down": False,
         "use_post_norm_in_modulation": False,
+        "drop_path_rate": 0.3,
     },
 )
 registry.register_alias(
@@ -487,6 +517,7 @@ registry.register_alias(
         "use_post_norm": False,
         "use_overlap_down": False,
         "use_post_norm_in_modulation": False,
+        "drop_path_rate": 0.3,
     },
 )
 registry.register_alias(
@@ -501,6 +532,7 @@ registry.register_alias(
         "use_post_norm": True,
         "use_overlap_down": True,
         "use_post_norm_in_modulation": False,
+        "drop_path_rate": 0.3,
     },
 )
 registry.register_alias(
@@ -515,6 +547,7 @@ registry.register_alias(
         "use_post_norm": True,
         "use_overlap_down": True,
         "use_post_norm_in_modulation": False,
+        "drop_path_rate": 0.3,
     },
 )
 registry.register_alias(
@@ -529,6 +562,7 @@ registry.register_alias(
         "use_post_norm": True,
         "use_overlap_down": True,
         "use_post_norm_in_modulation": False,
+        "drop_path_rate": 0.3,
     },
 )
 registry.register_alias(
@@ -543,6 +577,7 @@ registry.register_alias(
         "use_post_norm": True,
         "use_overlap_down": True,
         "use_post_norm_in_modulation": False,
+        "drop_path_rate": 0.3,
     },
 )
 registry.register_alias(
@@ -557,6 +592,7 @@ registry.register_alias(
         "use_post_norm": True,
         "use_overlap_down": True,
         "use_post_norm_in_modulation": True,
+        "drop_path_rate": 0.3,
     },
 )
 registry.register_alias(
@@ -571,5 +607,6 @@ registry.register_alias(
         "use_post_norm": True,
         "use_overlap_down": True,
         "use_post_norm_in_modulation": True,
+        "drop_path_rate": 0.3,
     },
 )

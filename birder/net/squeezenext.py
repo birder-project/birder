@@ -4,6 +4,7 @@ SqueezeNext 23v5 version.
 Paper "SqueezeNext: Hardware-Aware Neural Network Design",  https://arxiv.org/abs/1803.10615
 """
 
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -11,7 +12,7 @@ import torch
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 
 
 class SqnxtUnit(nn.Module):
@@ -96,7 +97,7 @@ class SqnxtUnit(nn.Module):
         return x
 
 
-class SqueezeNext(BaseNet):
+class SqueezeNext(DetectorBackbone):
     default_size = 227
     auto_register = True
 
@@ -132,8 +133,10 @@ class SqueezeNext(BaseNet):
         )
 
         in_channels = int(64 * width_scale)
-        layers = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         for i, lps in enumerate(layers_per_stage):
+            layers = []
             for j in range(lps):
                 if j == 0 and i != 0:
                     stride = 2
@@ -144,7 +147,10 @@ class SqueezeNext(BaseNet):
                 layers.append(SqnxtUnit(in_channels, out_channels, stride))
                 in_channels = out_channels
 
-        self.body = nn.Sequential(*layers)
+            stages[f"stage{i+1}"] = nn.Sequential(*layers)
+            return_channels.append(out_channels)
+
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.Conv2d(
                 in_channels,
@@ -157,8 +163,31 @@ class SqueezeNext(BaseNet):
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = int(128 * width_scale)
         self.classifier = self.create_classifier()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

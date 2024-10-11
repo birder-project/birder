@@ -8,6 +8,7 @@ https://arxiv.org/abs/2207.05501
 
 # Reference license: Apache-2.0
 
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -18,6 +19,7 @@ from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
+from birder.net.base import DetectorBackbone
 from birder.net.base import PreTrainEncoder
 from birder.net.base import make_divisible
 
@@ -238,9 +240,9 @@ class NTB(nn.Module):
         return x
 
 
-class NextViT(PreTrainEncoder):
+class NextViT(DetectorBackbone, PreTrainEncoder):
     default_size = 224
-    block_group_regex = r"body\.(\d+)"
+    block_group_regex = r"body\.stage\d+\.(\d+)"
 
     # pylint: disable=too-many-locals
     def __init__(
@@ -287,9 +289,11 @@ class NextViT(PreTrainEncoder):
 
         input_channel = stem_chs[-1]
         idx = 0
-        layers = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         dpr = [x.item() for x in torch.linspace(0, path_dropout, sum(depths))]
         for stage_id, repeats in enumerate(depths):
+            layers = []
             output_channels = self.stage_out_channels[stage_id]
             block_types = self.stage_block_types[stage_id]
             for block_id in range(repeats):
@@ -329,14 +333,17 @@ class NextViT(PreTrainEncoder):
 
                 input_channel = output_channel
 
+            stages[f"stage{stage_id+1}"] = nn.Sequential(*layers)
+            return_channels.append(output_channel)
             idx += repeats
 
-        layers.append(nn.BatchNorm2d(output_channel))
-        self.body = nn.Sequential(*layers)
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
+            nn.BatchNorm2d(output_channel),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = output_channel
         self.classifier = self.create_classifier()
 
@@ -357,6 +364,28 @@ class NextViT(PreTrainEncoder):
                 nn.init.normal_(m.weight, std=0.02)
                 if hasattr(m, "bias") and m.bias is not None:
                     nn.init.constant_(m.bias, 0)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def masked_encoding(
         self, x: torch.Tensor, mask_ratio: float, mask_token: Optional[torch.Tensor] = None

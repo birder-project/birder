@@ -9,6 +9,7 @@ Paper "MetaFormer Baselines for Vision", https://arxiv.org/abs/2210.13452
 
 # Reference license: Apache-2.0 (both)
 
+from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any
 from typing import Optional
@@ -19,7 +20,7 @@ from torch import nn
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 from birder.net.convnext_v1 import LayerNorm2d
 
 
@@ -314,9 +315,9 @@ class MetaFormerStage(nn.Module):
         return x
 
 
-class MetaFormer(BaseNet):
+class MetaFormer(DetectorBackbone):
     default_size = 224
-    block_group_regex = r"body\.\d+\.blocks\.(\d+)"
+    block_group_regex = r"body\.stage\d+\.blocks\.(\d+)"
 
     def __init__(
         self,
@@ -352,36 +353,35 @@ class MetaFormer(BaseNet):
         )
 
         num_stages = len(depths)
-        stages = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         prev_dim = dims[0]
         dp_rates = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
-
         for i in range(num_stages):
-            stages += [
-                MetaFormerStage(
-                    prev_dim,
-                    dims[i],
-                    depth=depths[i],
-                    token_mixer=token_mixers[i],
-                    mlp_act=mlp_act,
-                    mlp_bias=mlp_bias,
-                    proj_drop=0.0,
-                    dp_rates=dp_rates[i],
-                    layer_scale_init_value=layer_scale_init_values[i],
-                    res_scale_init_value=res_scale_init_values[i],
-                    downsample_norm=downsample_norm,
-                    norm_layer=norm_layers[i],
-                )
-            ]
+            stages[f"stage{i+1}"] = MetaFormerStage(
+                prev_dim,
+                dims[i],
+                depth=depths[i],
+                token_mixer=token_mixers[i],
+                mlp_act=mlp_act,
+                mlp_bias=mlp_bias,
+                proj_drop=0.0,
+                dp_rates=dp_rates[i],
+                layer_scale_init_value=layer_scale_init_values[i],
+                res_scale_init_value=res_scale_init_values[i],
+                downsample_norm=downsample_norm,
+                norm_layer=norm_layers[i],
+            )
+            return_channels.append(dims[i])
             prev_dim = dims[i]
 
-        self.body = nn.Sequential(*stages)
-
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             LayerNorm2d(dims[-1], eps=1e-6),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = dims[-1]
         self.classifier = self.create_classifier()
 
@@ -392,6 +392,28 @@ class MetaFormer(BaseNet):
 
             elif isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

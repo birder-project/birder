@@ -9,6 +9,7 @@ Paper "Densely Connected Convolutional Networks", https://arxiv.org/abs/1608.069
 
 # Reference license: Apache-2.0 and BSD 3-Clause
 
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -17,7 +18,7 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 
 
 class DenseBlock(nn.Module):
@@ -71,7 +72,7 @@ class TransitionBlock(nn.Module):
         return x
 
 
-class DenseNet(BaseNet):
+class DenseNet(DetectorBackbone):
     default_size = 224
 
     def __init__(
@@ -104,24 +105,51 @@ class DenseNet(BaseNet):
         )
 
         # Add dense blocks
-        layers = []
         num_features = num_init_features
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         for i, num_layers in enumerate(layer_list):
+            layers = []
             layers.append(DenseBlock(num_features, num_layers=num_layers, growth_rate=growth_rate))
             num_features = num_features + (num_layers * growth_rate)
 
-            # Last block does not require transition
             if i != len(layer_list) - 1:
                 layers.append(TransitionBlock(num_features, num_features // 2))
                 num_features = num_features // 2
 
-        self.body = nn.Sequential(*layers)
+            stages[f"stage{i+1}"] = nn.Sequential(*layers)
+            return_channels.append(num_features)
+
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

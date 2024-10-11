@@ -11,6 +11,7 @@ Changes from original:
 
 # Reference license: Apple MIT License
 
+from collections import OrderedDict
 from typing import Any
 from typing import Literal
 from typing import Optional
@@ -21,7 +22,7 @@ from torch import nn
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 from birder.net.mobileone import MobileOneBlock
 
 
@@ -663,7 +664,7 @@ class FastVitStage(nn.Module):
         return x
 
 
-class FastViT(BaseNet):
+class FastViT(DetectorBackbone):
     default_size = 256
 
     def __init__(
@@ -738,10 +739,11 @@ class FastViT(BaseNet):
         prev_dim = embed_dims[0]
         dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(layers)).split(layers)]
         downsamples = (False,) + (True,) * (num_stages - 1)
-        stages = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         for i in range(num_stages):
             downsample = downsamples[i] or prev_dim != embed_dims[i]
-            stage = FastVitStage(
+            stages[f"stage{i+1}"] = FastVitStage(
                 dim=prev_dim,
                 dim_out=embed_dims[i],
                 depth=layers[i],
@@ -757,30 +759,29 @@ class FastViT(BaseNet):
                 layer_scale_init_value=layer_scale_init_value,
                 reparameterized=self.reparameterized,
             )
-            stages.append(stage)
+            return_channels.append(embed_dims[i])
             prev_dim = embed_dims[i]
 
-        stages.append(
-            MobileOneBlock(
-                in_channels=embed_dims[-1],
-                out_channels=int(embed_dims[-1] * cls_ratio),
-                kernel_size=3,
-                stride=1,
-                padding=1,
-                groups=embed_dims[-1],
-                use_se=True,
-                use_act=True,
-                use_scale_branch=True,
-                num_conv_branches=1,
-                reparameterized=self.reparameterized,
-                activation_layer=nn.GELU,
-            )
+        self.body = nn.Sequential(stages)
+        self.mobile_block = MobileOneBlock(
+            in_channels=embed_dims[-1],
+            out_channels=int(embed_dims[-1] * cls_ratio),
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            groups=embed_dims[-1],
+            use_se=True,
+            use_act=True,
+            use_scale_branch=True,
+            num_conv_branches=1,
+            reparameterized=self.reparameterized,
+            activation_layer=nn.GELU,
         )
-        self.body = nn.Sequential(*stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = int(embed_dims[-1] * cls_ratio)
         self.classifier = self.create_classifier()
 
@@ -791,9 +792,32 @@ class FastViT(BaseNet):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
+
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
         x = self.body(x)
+        x = self.mobile_block(x)
         return self.features(x)
 
     def reparameterize_model(self) -> None:
@@ -904,7 +928,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 13.8,
-                "sha256": "a49846e618af34bc4094003f92740693d7b0819ed4b258a82c3826ab344e673f",
+                "sha256": "52bd7f6e28100275253270a3600bdca2eb0f06af3822584f01ea3c39e34a6923",
             }
         },
         "net": {"network": "fastvit_t8", "tag": "il-common"},
@@ -918,7 +942,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 13.5,
-                "sha256": "05ac92ae3ee90f5e451141447beb4596f54516d7f68b573eec353ed40bb024e2",
+                "sha256": "62a0211ec644ff57539315601e4ad75001f860c4f9773dff21109c61145172bb",
             }
         },
         "net": {"network": "fastvit_t8", "tag": "il-common_reparameterized", "reparameterized": True},
@@ -932,7 +956,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 42.0,
-                "sha256": "a2a1933d1490fd571370eb12a687ae0888abc8aa9723c9bedb5053e17a459dc0",
+                "sha256": "3c40c65ba750e8031c09284d889bcfe9ddba106eaaf27a31803b7b056de9fee2",
             }
         },
         "net": {"network": "fastvit_sa12", "tag": "il-common"},
@@ -946,7 +970,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 41.7,
-                "sha256": "13e817a017e15efa494b2a5b186db6c64b319cbfc1edbda155f0e466c777676a",
+                "sha256": "c3cf2aab049eeea243e9f7502218c5b0f5274064601eab9f53e007f7e878955e",
             }
         },
         "net": {"network": "fastvit_sa12", "tag": "il-common_reparameterized", "reparameterized": True},

@@ -9,6 +9,7 @@ https://arxiv.org/abs/2206.10589
 # Reference license: MIT
 
 import math
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -19,7 +20,7 @@ from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 from birder.net.convnext_v1 import LayerNorm2d
 from birder.net.xcit import PositionalEncodingFourier
 
@@ -243,7 +244,7 @@ class EdgeNeXtStage(nn.Module):
         return x
 
 
-class EdgeNeXt(BaseNet):
+class EdgeNeXt(DetectorBackbone):
     default_size = 256
 
     # pylint: disable=too-many-locals
@@ -283,36 +284,37 @@ class EdgeNeXt(BaseNet):
         )
 
         current_stride = 4
-        stages = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
         in_channels = dims[0]
         for i, (depth, dim, head) in enumerate(zip(depths, dims, heads)):
             stride = 2 if current_stride == 2 or i > 0 else 1
             current_stride *= stride
-            stages.append(
-                EdgeNeXtStage(
-                    in_channels=in_channels,
-                    out_channels=dim,
-                    stride=stride,
-                    depth=depth,
-                    num_global_blocks=global_block_counts[i],
-                    num_heads=head,
-                    drop_path_rates=dpr[i],
-                    scales=d2_scales[i],
-                    expand_ratio=expand_ratio,
-                    kernel_size=kernel_sizes[i],
-                    use_pos_emb=use_pos_emb[i],
-                    layer_scale_init_value=layer_scale_init_value,
-                )
+            stages[f"stage{i+1}"] = EdgeNeXtStage(
+                in_channels=in_channels,
+                out_channels=dim,
+                stride=stride,
+                depth=depth,
+                num_global_blocks=global_block_counts[i],
+                num_heads=head,
+                drop_path_rates=dpr[i],
+                scales=d2_scales[i],
+                expand_ratio=expand_ratio,
+                kernel_size=kernel_sizes[i],
+                use_pos_emb=use_pos_emb[i],
+                layer_scale_init_value=layer_scale_init_value,
             )
-            in_channels = dims[i]
+            return_channels.append(dim)
+            in_channels = dim
 
-        self.body = nn.Sequential(*stages)
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             LayerNorm2d(dims[-1], eps=1e-6),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = dims[-1]
         self.classifier = self.create_classifier()
 
@@ -322,6 +324,28 @@ class EdgeNeXt(BaseNet):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
@@ -358,7 +382,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 4.7,
-                "sha256": "ae35035139c4ac027fe50c02c909bbad4c999565872efef17372822820ecae79",
+                "sha256": "05f567111bebe05f3e88cb73aa665407009decf275836ec3c1c823b3725c6725",
             }
         },
         "net": {"network": "edgenext_xxs", "tag": "il-common"},
@@ -372,7 +396,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 8.5,
-                "sha256": "053c23c12bdb3ed39a80b738a8e0642560855e25029ccfff620b328a72c28c5a",
+                "sha256": "ceb0554f66dfaeb8cbba95137982756b1a5456f5359dda1657f9aab934ed7e0e",
             }
         },
         "net": {"network": "edgenext_xs", "tag": "il-common"},

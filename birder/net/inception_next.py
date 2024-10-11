@@ -7,6 +7,7 @@ Paper "InceptionNeXt: When Inception Meets ConvNeXt", https://arxiv.org/abs/2303
 
 # Reference license: Apache-2.0
 
+from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any
 from typing import Optional
@@ -17,7 +18,7 @@ from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 
 
 class InceptionDWConv2d(nn.Module):
@@ -166,7 +167,7 @@ class InceptionNeXtStage(nn.Module):
 
 
 # pylint: disable=invalid-name
-class Inception_NeXt(BaseNet):
+class Inception_NeXt(DetectorBackbone):
     default_size = 224
 
     def __init__(
@@ -201,7 +202,8 @@ class Inception_NeXt(BaseNet):
         num_stage = len(num_layers)
         dp_rates = [x.tolist() for x in torch.linspace(0, stochastic_depth_prob, sum(num_layers)).split(num_layers)]
 
-        stages = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         prev_chs = channels[0]
         for i in range(num_stage):
             out_chs = channels[i]
@@ -210,25 +212,24 @@ class Inception_NeXt(BaseNet):
             else:
                 stride = 1
 
-            stages.append(
-                InceptionNeXtStage(
-                    prev_chs,
-                    out_chs,
-                    stride=stride,
-                    depth=num_layers[i],
-                    drop_path_rates=dp_rates[i],
-                    mlp_ratio=mlp_ratios[i],
-                    layer_scale=layer_scale,
-                )
+            stages[f"stage{i+1}"] = InceptionNeXtStage(
+                prev_chs,
+                out_chs,
+                stride=stride,
+                depth=num_layers[i],
+                drop_path_rates=dp_rates[i],
+                mlp_ratio=mlp_ratios[i],
+                layer_scale=layer_scale,
             )
+            return_channels.append(out_chs)
             prev_chs = out_chs
 
-        self.body = nn.Sequential(*stages)
-
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = channels[-1]
         self.last_mlp_ratio = mlp_ratios[-1]
         self.classifier = self.create_classifier()
@@ -238,6 +239,28 @@ class Inception_NeXt(BaseNet):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

@@ -7,6 +7,7 @@ Paper "DenseNets Reloaded: Paradigm Shift Beyond ResNets and ViTs", https://arxi
 
 # Reference license: Apache-2.0
 
+from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any
 from typing import Optional
@@ -16,7 +17,7 @@ from torch import nn
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 from birder.net.convnext_v1 import LayerNorm2d
 
 
@@ -127,9 +128,10 @@ class DenseStage(nn.Module):
         return torch.concat(features, dim=1)
 
 
-class RDNet(BaseNet):
+class RDNet(DetectorBackbone):
     default_size = 224
 
+    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,
@@ -163,13 +165,19 @@ class RDNet(BaseNet):
         dp_rates = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(num_blocks_list)).split(num_blocks_list)]
 
         # Add dense blocks
-        dense_stages = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
+        dense_stage_layers: list[nn.Module] = []
+        idx = 0
         for i in range(num_stages):
-            dense_stage_layers = []
             if i > 0:
                 compressed_num_features = int(num_features * transition_compression_ratio / 8) * 8
                 k_size = (1, 1)
                 if is_downsample_block[i] is True:
+                    stages[f"stage{idx+1}"] = nn.Sequential(*dense_stage_layers)
+                    return_channels.append(num_features)
+                    dense_stage_layers = []
+                    idx += 1
                     k_size = (2, 2)
 
                 dense_stage_layers.append(LayerNorm2d(num_features))
@@ -190,14 +198,17 @@ class RDNet(BaseNet):
                 )
             )
             num_features += num_blocks_list[i] * growth_rates[i]
-            dense_stages.append(nn.Sequential(*dense_stage_layers))
 
-        self.body = nn.Sequential(*dense_stages)
+        stages[f"stage{idx+1}"] = nn.Sequential(*dense_stage_layers)
+        return_channels.append(num_features)
+
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             LayerNorm2d(num_features, eps=1e-6),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
@@ -208,6 +219,28 @@ class RDNet(BaseNet):
 
             elif isinstance(m, nn.Linear):
                 nn.init.zeros_(m.bias)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

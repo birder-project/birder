@@ -7,6 +7,7 @@ Paper "RepVGG: Making VGG-style ConvNets Great Again", https://arxiv.org/abs/210
 
 # Reference license: MIT
 
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -15,7 +16,7 @@ from torch import nn
 from torchvision.ops import SqueezeExcitation
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 
 
 class RepVggBlock(nn.Module):
@@ -224,7 +225,7 @@ class RepVggStage(nn.Sequential):
             in_planes = planes
 
 
-class RepVgg(BaseNet):
+class RepVgg(DetectorBackbone):
     default_size = 224
 
     def __init__(
@@ -260,31 +261,55 @@ class RepVgg(BaseNet):
             reparameterized=self.reparameterized,
         )
 
-        stages = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         prev_blocks = 1  # Due to stem
         for idx in range(len(num_blocks_per_stage)):  # pylint: disable=consider-using-enumerate
             out_planes = int(widths[idx] * width_multipliers[idx])
-            stages.append(
-                RepVggStage(
-                    in_planes,
-                    out_planes,
-                    num_blocks_per_stage[idx],
-                    groups=groups,
-                    prev_blocks=prev_blocks,
-                    use_se=use_se,
-                    reparameterized=self.reparameterized,
-                )
+            stages[f"stage{idx+1}"] = RepVggStage(
+                in_planes,
+                out_planes,
+                num_blocks=num_blocks_per_stage[idx],
+                groups=groups,
+                prev_blocks=prev_blocks,
+                use_se=use_se,
+                reparameterized=self.reparameterized,
             )
+            return_channels.append(out_planes)
+
             in_planes = out_planes
             prev_blocks += num_blocks_per_stage[idx]
 
-        self.body = nn.Sequential(*stages)
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = int(widths[-1] * width_multipliers[3])
         self.classifier = self.create_classifier()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

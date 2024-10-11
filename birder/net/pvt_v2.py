@@ -7,6 +7,7 @@ Paper "PVT v2: Improved Baselines with Pyramid Vision Transformer", https://arxi
 
 # Reference license: Apache-2.0
 
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -16,7 +17,7 @@ from torch import nn
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 
 
 class MLP(nn.Module):
@@ -202,8 +203,6 @@ class PyramidVisionTransformerStage(nn.Module):
         drop_path: list[float],
     ) -> None:
         super().__init__()
-        self.grad_checkpointing = False
-
         if downsample is True:
             self.downsample = OverlapPatchEmbed(
                 patch_size=(3, 3),
@@ -248,7 +247,7 @@ class PyramidVisionTransformerStage(nn.Module):
 
 
 # pylint: disable=invalid-name
-class PVT_v2(BaseNet):
+class PVT_v2(DetectorBackbone):
     default_size = 224
 
     def __init__(
@@ -282,31 +281,32 @@ class PVT_v2(BaseNet):
         dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
         num_stages = len(depths)
         prev_dim = embed_dims[0]
-        stages = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         for i in range(num_stages):
-            stages.append(
-                PyramidVisionTransformerStage(
-                    dim=prev_dim,
-                    dim_out=embed_dims[i],
-                    depth=depths[i],
-                    num_heads=num_heads[i],
-                    sr_ratio=sr_ratios[i],
-                    linear=linear,
-                    mlp_ratio=mlp_ratios[i],
-                    qkv_bias=True,
-                    downsample=i > 0,
-                    proj_drop=0.0,
-                    attn_drop=0.0,
-                    drop_path=dpr[i],
-                )
+            stages[f"stage{i+1}"] = PyramidVisionTransformerStage(
+                dim=prev_dim,
+                dim_out=embed_dims[i],
+                depth=depths[i],
+                num_heads=num_heads[i],
+                sr_ratio=sr_ratios[i],
+                linear=linear,
+                mlp_ratio=mlp_ratios[i],
+                qkv_bias=True,
+                downsample=i > 0,
+                proj_drop=0.0,
+                attn_drop=0.0,
+                drop_path=dpr[i],
             )
+            return_channels.append(embed_dims[i])
             prev_dim = embed_dims[i]
 
-        self.body = nn.Sequential(*stages)
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
 
@@ -321,6 +321,28 @@ class PVT_v2(BaseNet):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.patch_embed(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.patch_embed.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)
@@ -403,5 +425,20 @@ registry.register_alias(
         "mlp_ratios": [4.0, 4.0, 4.0, 4.0],
         "linear": False,
         "drop_path_rate": 0.3,
+    },
+)
+
+registry.register_weights(
+    "pvt_v2_b0_il-common",
+    {
+        "description": "PVT v2 B0 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 13.4,
+                "sha256": "0b93fed77fe67cc386b5f9ac852bf8e4e9c7a3230e11a7872bf868ee00da8e83",
+            }
+        },
+        "net": {"network": "pvt_v2_b0", "tag": "il-common"},
     },
 )

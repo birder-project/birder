@@ -204,6 +204,14 @@ torchrun --nproc_per_node=2 train.py --network mobileone_s0 --tag il-common --lr
 torchrun --nproc_per_node=2 train.py --network mobileone_s1 --tag il-common --lr 0.1 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 10 --batch-size 256 --epochs 300 --size 256 --wd 0.0001 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### MobileViT v1
+
+#### MobileViT v1: Extra Extra Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mobilevit_v1_xxs --tag il-common --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 2e-5 --warmup-epochs 5 --batch-size 256 --size 256 --epochs 300 --wd 0.01 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### MobileViT v2
 
 #### MobileViT v2: 1
@@ -218,6 +226,14 @@ torchrun --nproc_per_node=2 train.py --network mobilevit_v2 --net-param 1 --tag 
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network moganet_xt --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 5 --batch-size 128 --size 256 --epochs 300 --wd 0.03 --smoothing-alpha 0.1 --mixup-alpha 0.1 --cutmix --aug-level 3 --ra-sampler --ra-reps 2 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+### PVT v2
+
+#### PVT v2: B0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pvt_v2_b0 --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### RegNet

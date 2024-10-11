@@ -15,6 +15,7 @@ Changes from original:
 
 import logging
 import math
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -25,7 +26,7 @@ from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 
 
 class Attention2d(nn.Module):
@@ -388,7 +389,7 @@ class EfficientFormerStage(nn.Module):
 
 
 # pylint: disable=invalid-name
-class EfficientFormer_v2(BaseNet):
+class EfficientFormer_v2(DetectorBackbone):
     default_size = 224
 
     def __init__(
@@ -438,37 +439,37 @@ class EfficientFormer_v2(BaseNet):
         dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
         downsample = (False,) + (True,) * (num_stages - 1)
 
-        stages = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         for i in range(num_stages):
             curr_resolution = (math.ceil(self.size / stride), math.ceil(self.size / stride))
-            stages.append(
-                EfficientFormerStage(
-                    prev_dim,
-                    embed_dims[i],
-                    depth=depths[i],
-                    resolution=curr_resolution,
-                    downsample=downsample[i],
-                    block_stride=2 if i == 2 else None,
-                    downsample_use_attn=i >= 3,
-                    block_use_attn=i >= 2,
-                    num_vit=num_vit,
-                    mlp_ratios=mlp_ratios[i],
-                    proj_drop=0.0,
-                    drop_path=dpr[i],
-                    layer_scale_init_value=layer_scale_init_value,
-                )
+            stages[f"stage{i+1}"] = EfficientFormerStage(
+                prev_dim,
+                embed_dims[i],
+                depth=depths[i],
+                resolution=curr_resolution,
+                downsample=downsample[i],
+                block_stride=2 if i == 2 else None,
+                downsample_use_attn=i >= 3,
+                block_use_attn=i >= 2,
+                num_vit=num_vit,
+                mlp_ratios=mlp_ratios[i],
+                proj_drop=0.0,
+                drop_path=dpr[i],
+                layer_scale_init_value=layer_scale_init_value,
             )
+            return_channels.append(embed_dims[i])
             prev_dim = embed_dims[i]
             if downsample[i] is True:
                 stride *= 2
 
-        stages.append(nn.BatchNorm2d(embed_dims[-1]))
-        self.body = nn.Sequential(*stages)
-
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
+            nn.BatchNorm2d(embed_dims[-1]),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = embed_dims[-1]
         self.dist_classifier = self.create_classifier()
         self.classifier = self.create_classifier()
@@ -494,6 +495,28 @@ class EfficientFormer_v2(BaseNet):
 
             for param in self.dist_classifier.parameters():
                 param.requires_grad = True
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
@@ -676,7 +699,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 13.2,
-                "sha256": "bd7738b31ecfde3210b75b136a8824949a11dc2cd94c15ccbeea7eb2274f414b",
+                "sha256": "2d78e74b03771c14850a025a4c6e84b37cb1933a39dc4c28e5a7eef09ac9b490",
             }
         },
         "net": {"network": "efficientformer_v2_s0", "tag": "il-common"},
@@ -690,7 +713,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 22.9,
-                "sha256": "a95bc36f2fee7b07b1a428aedc21fe93091fdada795686f50e8d64a25b505bef",
+                "sha256": "7228fda939ec82fd215fca297210eb9e9c5b1876017b57122b6c9b6b9ed751c9",
             }
         },
         "net": {"network": "efficientformer_v2_s1", "tag": "il-common"},

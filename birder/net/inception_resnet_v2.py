@@ -8,6 +8,7 @@ https://arxiv.org/abs/1602.07261
 
 # Reference license: Apache-2.0
 
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -15,7 +16,7 @@ import torch
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 
 
 class StemBlock(nn.Module):
@@ -190,7 +191,7 @@ class InceptionBlockC(nn.Module):
 
 
 # pylint: disable=invalid-name
-class Inception_ResNet_v2(BaseNet):
+class Inception_ResNet_v2(DetectorBackbone):
     default_size = 299
     auto_register = True
 
@@ -217,24 +218,32 @@ class Inception_ResNet_v2(BaseNet):
             Conv2dNormActivation(64, 80, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
             Conv2dNormActivation(80, 192, kernel_size=(3, 3), stride=(1, 1), padding=(0, 0), bias=False),
             nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(0, 0)),
-            StemBlock(192),
         )
 
-        # Stage 1
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
+
+        # Stage 1 (stem stage)
+        stages["stage1"] = StemBlock(192)
+        return_channels.append(320)
+
+        # Stage 2
         layers = []
         for _ in range(10):
             layers.append(InceptionBlockA(320, scale=0.17))
 
         layers.append(InceptionReductionBlockA(320))
-        stage1 = nn.Sequential(*layers)
+        stages["stage2"] = nn.Sequential(*layers)
+        return_channels.append(1088)
 
-        # Stage 2
+        # Stage 3
         layers = []
         for _ in range(20):
             layers.append(InceptionBlockB(1088, scale=0.1))
 
         layers.append(InceptionReductionBlockB(1088))
-        stage2 = nn.Sequential(*layers)
+        stages["stage3"] = nn.Sequential(*layers)
+        return_channels.append(2080)
 
         # Stage 3
         layers = []
@@ -243,16 +252,40 @@ class Inception_ResNet_v2(BaseNet):
 
         layers.append(InceptionBlockC(2080, scale=1.0, last_relu=False))
         layers.append(Conv2dNormActivation(2080, 1536, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False))
-        stage3 = nn.Sequential(*layers)
-        self.body = nn.Sequential(stage1, stage2, stage3)
+        stages["stage4"] = nn.Sequential(*layers)
+        return_channels.append(1536)
 
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
             nn.Dropout(p=0.2),
         )
+        self.return_channels = return_channels
         self.embedding_size = 1536
         self.classifier = self.create_classifier()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

@@ -8,6 +8,7 @@ https://arxiv.org/abs/1807.11164
 
 # Reference license: BSD 3-Clause
 
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -16,7 +17,7 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 from birder.net.shufflenet_v1 import channel_shuffle
 
 
@@ -94,7 +95,7 @@ class ShuffleUnit(nn.Module):
 
 
 # pylint: disable=invalid-name
-class ShuffleNet_v2(BaseNet):
+class ShuffleNet_v2(DetectorBackbone):
     default_size = 224
     auto_register = True
 
@@ -130,28 +131,33 @@ class ShuffleNet_v2(BaseNet):
         else:
             raise ValueError(f"multiplier = {multiplier} not supported")
 
-        self.stem = nn.Sequential(
-            Conv2dNormActivation(
-                self.input_channels,
-                out_channels[0],
-                kernel_size=(3, 3),
-                stride=(2, 2),
-                padding=(1, 1),
-                bias=False,
-            ),
-            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)),
+        self.stem = Conv2dNormActivation(
+            self.input_channels,
+            out_channels[0],
+            kernel_size=(3, 3),
+            stride=(2, 2),
+            padding=(1, 1),
+            bias=False,
         )
 
-        # Generate stages
-        stages = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
+
+        stages["stage1"] = nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+        return_channels.append(out_channels[0])
+
         for i, repeat in enumerate(stage_repeats):
-            stages.append(ShuffleUnit(in_channels=out_channels[i], out_channels=out_channels[i + 1], dw_conv_stride=2))
+            layers = []
+            layers.append(ShuffleUnit(in_channels=out_channels[i], out_channels=out_channels[i + 1], dw_conv_stride=2))
             for _ in range(repeat):
-                stages.append(
+                layers.append(
                     ShuffleUnit(in_channels=out_channels[i + 1], out_channels=out_channels[i + 1], dw_conv_stride=1)
                 )
 
-        self.body = nn.Sequential(*stages)
+            stages[f"stage{i+2}"] = nn.Sequential(*layers)
+            return_channels.append(out_channels[i + 1])
+
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             Conv2dNormActivation(
                 out_channels[-2],
@@ -164,8 +170,31 @@ class ShuffleNet_v2(BaseNet):
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = out_channels[-1]
         self.classifier = self.create_classifier()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
@@ -181,7 +210,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 6.4,
-                "sha256": "f70a03b4f5a10576bd68987c0ccdc41f19c2365fbde3322577189a92c1b7ed1f",
+                "sha256": "62c435e9a1335aa84290a3c7c99058b0fccd6cc27a04782a8fc1a55e1115f45c",
             }
         },
         "net": {"network": "shufflenet_v2", "net_param": 1, "tag": "il-common"},

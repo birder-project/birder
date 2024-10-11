@@ -12,6 +12,7 @@ Changes from original:
 # Reference license: BSD 3-Clause and MIT
 
 import logging
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -23,6 +24,7 @@ from torchvision.ops import Permute
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
+from birder.net.base import DetectorBackbone
 from birder.net.base import PreTrainEncoder
 from birder.net.swin_transformer_v1 import get_relative_position_bias
 from birder.net.swin_transformer_v1 import patch_merging_pad
@@ -185,9 +187,9 @@ class SwinTransformerBlock(nn.Module):
 
 
 # pylint: disable=invalid-name
-class Swin_Transformer_v2(PreTrainEncoder):
+class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder):
     default_size = 256
-    block_group_regex = r"body\.\d+\.(\d+)"
+    block_group_regex = r"body\.stage\d+\.(\d+)"
 
     # pylint: disable=too-many-locals
     def __init__(
@@ -229,9 +231,10 @@ class Swin_Transformer_v2(PreTrainEncoder):
         resolution = (self.size // patch_size[0], self.size // patch_size[1])
         total_stage_blocks = sum(depths)
         stage_block_id = 0
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         layers = []
         for i_stage, depth in enumerate(depths):
-            stage = []
             dim = embed_dim * 2**i_stage
             for i_layer in range(depth):
                 # Adjust stochastic depth probability based on the depth of the stage block
@@ -241,7 +244,7 @@ class Swin_Transformer_v2(PreTrainEncoder):
                 else:
                     shift_size = (window_size[0] // 2, window_size[1] // 2)
 
-                stage.append(
+                layers.append(
                     SwinTransformerBlock(
                         dim,
                         resolution,
@@ -254,7 +257,9 @@ class Swin_Transformer_v2(PreTrainEncoder):
                 )
                 stage_block_id += 1
 
-            layers.append(nn.Sequential(*stage))
+            stages[f"stage{i_stage+1}"] = nn.Sequential(*layers)
+            return_channels.append(dim)
+            layers = []
 
             # Add patch merging layer
             if i_stage < (len(depths) - 1):
@@ -262,18 +267,14 @@ class Swin_Transformer_v2(PreTrainEncoder):
                 resolution = (resolution[0] // 2, resolution[1] // 2)
 
         num_features = embed_dim * 2 ** (len(depths) - 1)
-        layers.append(
-            nn.Sequential(
-                nn.LayerNorm(num_features, eps=1e-5),
-                Permute([0, 3, 1, 2]),  # B H W C -> B C H W)
-            )
-        )
-        self.body = nn.Sequential(*layers)
-
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
+            nn.LayerNorm(num_features, eps=1e-5),
+            Permute([0, 3, 1, 2]),  # B H W C -> B C H W
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
@@ -285,6 +286,28 @@ class Swin_Transformer_v2(PreTrainEncoder):
                 nn.init.trunc_normal_(m.weight, mean=0.0, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x.permute(0, 3, 1, 2).contiguous()
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def masked_encoding(
         self, x: torch.Tensor, mask_ratio: float, mask_token: Optional[torch.Tensor] = None
@@ -320,7 +343,7 @@ class Swin_Transformer_v2(PreTrainEncoder):
         x = self.stem(x)
         mask_tokens = mask_token.expand(B, (H // 4), (W // 4), -1)  # Patch stride = 4
         x = x * (1.0 - upscale_mask) + (mask_tokens * upscale_mask)
-        x = self.body(x)
+        x = self.body(x).permute(0, 3, 1, 2).contiguous()
 
         return (x, mask)
 

@@ -269,7 +269,7 @@ chart
 
 ```{python}
 # Parameter count (filtered)
-filtered_param_compare_results_df = param_compare_results_df.filter(~pl.col("Model name").str.contains(r"xcit.*p8"))
+filtered_param_compare_results_df = param_compare_results_df.filter(~pl.col("Model name").str.contains(r"xcit.*p8|moganet*"))
 filtered_param_compare_results_df = filtered_param_compare_results_df.with_columns(
     pl.col("Accuracy").cum_max().alias("Pareto frontier (p)")
 )

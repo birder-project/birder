@@ -8,6 +8,7 @@ https://arxiv.org/abs/2206.04040
 
 # Reference license: Apple MIT License
 
+from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any
 from typing import Optional
@@ -17,7 +18,7 @@ from torch import nn
 from torchvision.ops import SqueezeExcitation
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 
 
 class MobileOneBlock(nn.Module):
@@ -290,7 +291,7 @@ class MobileOneStage(nn.Sequential):
             in_planes = planes
 
 
-class MobileOne(BaseNet):
+class MobileOne(DetectorBackbone):
     default_size = 224
 
     def __init__(
@@ -328,28 +329,51 @@ class MobileOne(BaseNet):
             reparameterized=self.reparameterized,
         )
 
-        stages = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         for idx in range(len(num_blocks_per_stage)):  # pylint: disable=consider-using-enumerate
             out_planes = int(widths[idx] * width_multipliers[idx])
-            stages.append(
-                MobileOneStage(
-                    in_planes,
-                    out_planes,
-                    num_blocks_per_stage[idx],
-                    num_se_blocks=num_se_blocks[idx],
-                    num_conv_branches=num_conv_branches,
-                    reparameterized=self.reparameterized,
-                )
+            stages[f"stage{idx+1}"] = MobileOneStage(
+                in_planes,
+                out_planes,
+                num_blocks_per_stage[idx],
+                num_se_blocks=num_se_blocks[idx],
+                num_conv_branches=num_conv_branches,
+                reparameterized=self.reparameterized,
             )
+            return_channels.append(out_planes)
             in_planes = out_planes
 
-        self.body = nn.Sequential(*stages)
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = int(widths[-1] * width_multipliers[3])
         self.classifier = self.create_classifier()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
@@ -398,7 +422,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 18.5,
-                "sha256": "7cabf95ac545e3fa9eb08cc6b2f3bb49d7e3a09f2f637a03531b35b86170475f",
+                "sha256": "9643db45433e92078a7c29fccec2dc8d787d638ce42e4565f3df330f4c761b3f",
             }
         },
         "net": {"network": "mobileone_s0", "tag": "il-common"},
@@ -412,7 +436,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 5.5,
-                "sha256": "51009e23ebf889448d47c3932ca510f004c52bc98d504410d3d696dfbe9772ea",
+                "sha256": "c400cd634c02134de7bdbc68c98f92aa167c0d495bd3ed9bd2613fde7dc3198f",
             }
         },
         "net": {"network": "mobileone_s0", "tag": "il-common_reparameterized", "reparameterized": True},
@@ -426,7 +450,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 15.8,
-                "sha256": "57829e685975ca595e50743e06159082ed3fc6179a3db25af8cabe804fa4df00",
+                "sha256": "10b47b9b90cdad7f19130b75440a01d8d7b625882903d752927e6acabaf612ee",
             }
         },
         "net": {"network": "mobileone_s1", "tag": "il-common"},
@@ -440,7 +464,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 15.1,
-                "sha256": "22de63275dc5547b0c095284a9f80b5bd33cb38291872daf85cf3bbb69ee5dfd",
+                "sha256": "4455b027f1e6332d93f237c34c440b49e3f9c8b6fe711765e20ae57f14aa2738",
             }
         },
         "net": {"network": "mobileone_s1", "tag": "il-common_reparameterized", "reparameterized": True},

@@ -7,6 +7,7 @@ Paper "Wide Residual Networks", https://arxiv.org/abs/1605.07146
 
 # Reference license: BSD 3-Clause
 
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -15,7 +16,7 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 
 
 class ResidualBlock(nn.Module):
@@ -80,7 +81,7 @@ class ResidualBlock(nn.Module):
 
 
 # pylint: disable=invalid-name
-class Wide_ResNet(BaseNet):
+class Wide_ResNet(DetectorBackbone):
     default_size = 224
 
     def __init__(
@@ -116,8 +117,10 @@ class Wide_ResNet(BaseNet):
         )
 
         # Generate body layers
-        layers = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         for i in range(num_unit):
+            layers = []
             if i == 0:
                 stride = (1, 1)
             else:
@@ -129,13 +132,39 @@ class Wide_ResNet(BaseNet):
                     ResidualBlock(filter_list[i + 1], filter_list[i + 1], stride=(1, 1), bottle_neck=bottle_neck)
                 )
 
-        self.body = nn.Sequential(*layers)
+            stages[f"stage{i+1}"] = nn.Sequential(*layers)
+            return_channels.append(filter_list[i + 1])
+
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = filter_list[-1]
         self.classifier = self.create_classifier()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

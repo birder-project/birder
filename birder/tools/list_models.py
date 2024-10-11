@@ -25,7 +25,7 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools list-models\n"
             "python -m birder.tools list-models --classification\n"
             "python -m birder.tools list-models --classification --detector-backbone\n"
-            "python -m birder.tools list-models --pretrain-encoder\n"
+            "python -m birder.tools list-models --mim-encoder\n"
             "python -m birder.tools list-models --detection\n"
             "python -m birder.tools list-models --pretrained\n"
             "python -m birder.tools list-models --pretrained --verbose\n"
@@ -45,7 +45,7 @@ def set_parser(subparsers: Any) -> None:
         "--detector-backbone", default=False, action="store_true", help="list detector backbone models"
     )
     type_group.add_argument(
-        "--pretrain-encoder", default=False, action="store_true", help="list models that support pretraining"
+        "--mim-encoder", default=False, action="store_true", help="list models that support mim pretraining"
     )
 
     subparser.add_argument("--filter", type=str, help="filter results with a fnmatch type filter)")
@@ -63,7 +63,7 @@ def main(args: argparse.Namespace) -> None:
     t = None
     if args.detector_backbone is True:
         t = DetectorBackbone
-    elif args.pretrain_encoder is True:
+    elif args.mim_encoder is True:
         t = PreTrainEncoder
 
     if args.classification is True:

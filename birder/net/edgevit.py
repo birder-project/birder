@@ -8,6 +8,7 @@ https://arxiv.org/abs/2205.03436
 
 # Reference license: Apache-2.0
 
+from collections import OrderedDict
 from collections.abc import Callable
 from functools import partial
 from typing import Any
@@ -18,7 +19,7 @@ from torch import nn
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 
 
 class MLP(nn.Module):
@@ -273,7 +274,7 @@ class EdgeViTSage(nn.Module):
         return x
 
 
-class EdgeViT(BaseNet):
+class EdgeViT(DetectorBackbone):
     default_size = 224
 
     def __init__(
@@ -303,9 +304,10 @@ class EdgeViT(BaseNet):
         norm_layer = partial(nn.LayerNorm, eps=1e-6)
 
         prev_dim = self.input_channels
-        stages = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         for i in range(num_stages):
-            stage = EdgeViTSage(
+            stages[f"stage{i+1}"] = EdgeViTSage(
                 patch_size=patch_size[i],
                 in_channels=prev_dim,
                 embed_dim=embed_dim[i],
@@ -317,15 +319,16 @@ class EdgeViT(BaseNet):
                 drop_path=dpr[i],
                 sr_ratio=sr_ratios[i],
             )
-            stages.append(stage)
+            return_channels.append(embed_dim[i])
             prev_dim = embed_dim[i]
 
-        stages.append(nn.BatchNorm2d(embed_dim[-1]))
-        self.body = nn.Sequential(*stages)
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
+            nn.BatchNorm2d(embed_dim[-1]),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = embed_dim[-1]
         self.classifier = self.create_classifier()
 
@@ -339,6 +342,23 @@ class EdgeViT(BaseNet):
             elif isinstance(m, nn.LayerNorm):
                 nn.init.constant_(m.bias, 0)
                 nn.init.constant_(m.weight, 1.0)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.body(x)
@@ -372,7 +392,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 14.9,
-                "sha256": "de086c3f4bf2a9a65f613c8b94b0a6781676e7f68039fe9356b5797fb72adfb9",
+                "sha256": "b4ae9c4f871bafc47c757b65ee8f7ce2dc427fff55171f4feaafdbb5ba02ff3f",
             }
         },
         "net": {"network": "edgevit_xxs", "tag": "il-common"},
@@ -385,8 +405,8 @@ registry.register_weights(
         "resolution": (256, 256),
         "formats": {
             "pt": {
-                "file_size": 25,
-                "sha256": "5c9bf97102aae477420d6fde4a638b6f331f2c6df8611591d4796a1d5c1c6092",
+                "file_size": 25.0,
+                "sha256": "38ab9c6f10586a84c2abaa55919cba56cbd2196ddf771befa09eb71c79d3634c",
             }
         },
         "net": {"network": "edgevit_xs", "tag": "il-common"},

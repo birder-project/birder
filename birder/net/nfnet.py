@@ -7,6 +7,7 @@ Paper "High-Performance Large-Scale Image Recognition Without Normalization", ht
 
 # Reference license: Apache-2.0
 
+from collections import OrderedDict
 from collections.abc import Callable
 from functools import partial
 from typing import Any
@@ -19,7 +20,7 @@ from torchvision.ops import SqueezeExcitation
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 from birder.net.base import make_divisible
 
 
@@ -193,9 +194,10 @@ class NormFreeBlock(nn.Module):
         return out
 
 
-class NFNet(BaseNet):
+class NFNet(DetectorBackbone):
     default_size = 224
 
+    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,
@@ -231,7 +233,8 @@ class NFNet(BaseNet):
         drop_path_rates = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
         prev_channels = stem_channels
         expected_var = 1.0
-        stages = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         for stage_idx, depth in enumerate(depths):
             stride = 1 if stage_idx == 0 else 2
             blocks = []
@@ -258,17 +261,16 @@ class NFNet(BaseNet):
                 expected_var += alpha**2
                 prev_channels = out_channels
 
-            stages.append(nn.Sequential(*blocks))
+            stages[f"stage{stage_idx+1}"] = nn.Sequential(*blocks)
+            return_channels.append(out_channels)
 
-        stages.append(
-            ScaledStdConv2d(prev_channels, prev_channels * 2, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
-        )
-        self.body = nn.Sequential(*stages)
-
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
+            ScaledStdConv2d(prev_channels, prev_channels * 2, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = prev_channels * 2
         self.classifier = self.create_classifier()
 
@@ -283,6 +285,28 @@ class NFNet(BaseNet):
                 nn.init.normal_(m.bias, 0.0, 0.01)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
