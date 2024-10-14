@@ -16,6 +16,7 @@ import torch
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
+from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import make_divisible
 
@@ -225,3 +226,19 @@ class MobileNet_v2(DetectorBackbone):
         x = self.stem(x)
         x = self.body(x)
         return self.features(x)
+
+
+registry.register_weights(
+    "mobilenet_v2_1_il-common",
+    {
+        "description": "MobileNet v2 (1.0 multiplier) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 10.6,
+                "sha256": "4cf940cd3863dd744662eb1914ef8708a96b9d90f1ed040c5cfbf18fcd58e8b0",
+            }
+        },
+        "net": {"network": "mobilenet_v2", "net_param": 1, "tag": "il-common"},
+    },
+)

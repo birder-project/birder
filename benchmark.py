@@ -134,19 +134,16 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--amp", default=False, action="store_true", help="use torch.amp.autocast for mixed precision inference"
     )
     parser.add_argument(
-        "--fast-matmul",
-        default=False,
-        action="store_true",
-        help="use fast matrix multiplication (affects precision)",
+        "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
     )
-    parser.add_argument("--size", type=int, default=None, help="image size for inference (defaults to model signature)")
-    parser.add_argument("--batch-size", type=int, default=1, help="the batch size")
+    parser.add_argument("--size", type=int, help="image size for inference (defaults to model signature)")
+    parser.add_argument("--batch-size", type=int, default=1, metavar="N", help="the batch size")
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
-    parser.add_argument("--gpu-id", type=int, help="gpu id to use")
-    parser.add_argument("--warmup", type=int, default=20, help="number of warmup iterations")
-    parser.add_argument("--repeats", type=int, default=4, help="number of repetitions")
-    parser.add_argument("--bench-iter", type=int, default=500, help="number of benchmark iterations")
+    parser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use")
+    parser.add_argument("--warmup", type=int, default=20, metavar="N", help="number of warmup iterations")
+    parser.add_argument("--repeats", type=int, default=4, metavar="N", help="number of repetitions")
+    parser.add_argument("--bench-iter", type=int, default=500, metavar="N", help="number of benchmark iterations")
     parser.add_argument("--append", default=False, action="store_true", help="append to existing output file")
 
     return parser

@@ -7,6 +7,7 @@ Paper "Xception: Deep Learning with Depthwise Separable Convolutions", https://a
 
 # Reference license: Apache-2.0
 
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -14,7 +15,7 @@ import torch
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 
 
 class SeparableConv2d(nn.Module):
@@ -99,7 +100,7 @@ class XceptionBlock(nn.Module):
         return x
 
 
-class Xception(BaseNet):
+class Xception(DetectorBackbone):
     default_size = 299
     auto_register = True
 
@@ -124,9 +125,17 @@ class Xception(BaseNet):
                 32, 64, kernel_size=(3, 3), stride=(1, 1), padding=(0, 0), bias=False, activation_layer=None
             ),  # Remove ReLU here, first Xception block starts with ReLU
         )
-        self.body = nn.Sequential(
-            XceptionBlock(64, 128, repeats=2, stride=(2, 2), grow_first=True),
-            XceptionBlock(128, 256, repeats=2, stride=(2, 2), grow_first=True),
+
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
+
+        stages["stage1"] = XceptionBlock(64, 128, repeats=2, stride=(2, 2), grow_first=True)
+        return_channels.append(128)
+
+        stages["stage2"] = XceptionBlock(128, 256, repeats=2, stride=(2, 2), grow_first=True)
+        return_channels.append(256)
+
+        stages["stage3"] = nn.Sequential(
             XceptionBlock(256, 728, repeats=2, stride=(2, 2), grow_first=True),
             XceptionBlock(728, 728, repeats=3, stride=(1, 1), grow_first=True),
             XceptionBlock(728, 728, repeats=3, stride=(1, 1), grow_first=True),
@@ -136,6 +145,10 @@ class Xception(BaseNet):
             XceptionBlock(728, 728, repeats=3, stride=(1, 1), grow_first=True),
             XceptionBlock(728, 728, repeats=3, stride=(1, 1), grow_first=True),
             XceptionBlock(728, 728, repeats=3, stride=(1, 1), grow_first=True),
+        )
+        return_channels.append(728)
+
+        stages["stage4"] = nn.Sequential(
             XceptionBlock(728, 1024, repeats=2, stride=(2, 2), grow_first=False),
             SeparableConv2d(1024, 1536, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
             nn.BatchNorm2d(1536),
@@ -144,10 +157,14 @@ class Xception(BaseNet):
             nn.BatchNorm2d(2048),
             nn.ReLU(inplace=True),
         )
+        return_channels.append(2048)
+
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.embedding_size = 2048
         self.classifier = self.create_classifier()
 
@@ -158,6 +175,28 @@ class Xception(BaseNet):
             elif isinstance(m, nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

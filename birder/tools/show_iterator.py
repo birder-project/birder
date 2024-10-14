@@ -184,8 +184,8 @@ def set_parser(subparsers: Any) -> None:
         "--data-path", type=str, default=str(settings.TRAINING_DATA_PATH), help="image directory path"
     )
     subparser.add_argument("--wds", default=False, action="store_true", help="use webdataset")
-    subparser.add_argument("--wds-class-file", type=str, default=None, help="class list file")
-    subparser.add_argument("--wds-size", type=int, help="size of the wds directory")
+    subparser.add_argument("--wds-class-file", type=str, metavar="FILE", help="class list file")
+    subparser.add_argument("--wds-size", type=int, metavar="N", help="size of the wds directory")
     subparser.set_defaults(func=main)
 
 

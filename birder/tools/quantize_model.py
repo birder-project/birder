@@ -43,7 +43,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "-p", "--net-param", type=float, help="network specific parameter, required by some networks"
     )
-    subparser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
+    subparser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
     subparser.add_argument(
         "-r", "--reparameterized", default=False, action="store_true", help="load reparameterized model"
@@ -62,7 +62,7 @@ def set_parser(subparsers: Any) -> None:
         default="qnnpack",
         help="quantized backend",
     )
-    subparser.add_argument("--batch-size", type=int, default=32, help="the batch size")
+    subparser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
     subparser.add_argument(
         "--num-calibration-batches",
         default=128,

@@ -219,6 +219,7 @@ class ResNeSt(DetectorBackbone):
         filter_list = [64, 128, 256, 512]
         stem_width: int = self.config["stem_width"]
         units: list[int] = self.config["units"]
+        final_drop: float = self.config["final_drop"]
 
         in_channels = stem_width * 2
         self.stem = nn.Sequential(
@@ -255,6 +256,7 @@ class ResNeSt(DetectorBackbone):
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
+            nn.Dropout(p=final_drop),
         )
         self.return_channels = return_channels
         self.embedding_size = filter_list[-1] * expansion
@@ -288,9 +290,24 @@ class ResNeSt(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias("resnest_14", ResNeSt, config={"stem_width": 32, "units": [1, 1, 1, 1]})
-registry.register_alias("resnest_26", ResNeSt, config={"stem_width": 32, "units": [2, 2, 2, 2]})
-registry.register_alias("resnest_50", ResNeSt, config={"stem_width": 32, "units": [3, 4, 6, 3]})
-registry.register_alias("resnest_101", ResNeSt, config={"stem_width": 64, "units": [3, 4, 23, 3]})
-registry.register_alias("resnest_200", ResNeSt, config={"stem_width": 64, "units": [3, 24, 36, 3]})
-registry.register_alias("resnest_269", ResNeSt, config={"stem_width": 64, "units": [3, 30, 48, 8]})
+registry.register_alias("resnest_14", ResNeSt, config={"stem_width": 32, "units": [1, 1, 1, 1], "final_drop": 0.0})
+registry.register_alias("resnest_26", ResNeSt, config={"stem_width": 32, "units": [2, 2, 2, 2], "final_drop": 0.0})
+registry.register_alias("resnest_50", ResNeSt, config={"stem_width": 32, "units": [3, 4, 6, 3], "final_drop": 0.0})
+registry.register_alias("resnest_101", ResNeSt, config={"stem_width": 64, "units": [3, 4, 23, 3], "final_drop": 0.0})
+registry.register_alias("resnest_200", ResNeSt, config={"stem_width": 64, "units": [3, 24, 36, 3], "final_drop": 0.2})
+registry.register_alias("resnest_269", ResNeSt, config={"stem_width": 64, "units": [3, 30, 48, 8], "final_drop": 0.2})
+
+registry.register_weights(
+    "resnest_14_il-common",
+    {
+        "description": "ResNeSt 14 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 35.7,
+                "sha256": "d80c2d290bdab79b03496853df87cb48fc01f63690500ab7d15086a2149ff1ba",
+            }
+        },
+        "net": {"network": "resnest_14", "tag": "il-common"},
+    },
+)

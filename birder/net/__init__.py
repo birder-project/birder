@@ -4,6 +4,7 @@ from birder.net.convmixer import ConvMixer
 from birder.net.convnext_v1 import ConvNeXt_v1
 from birder.net.convnext_v2 import ConvNeXt_v2
 from birder.net.crossvit import CrossViT
+from birder.net.davit import DaViT
 from birder.net.deit import DeiT
 from birder.net.deit3 import DeiT3
 from birder.net.densenet import DenseNet
@@ -41,6 +42,7 @@ from birder.net.pvt_v1 import PVT_v1
 from birder.net.pvt_v2 import PVT_v2
 from birder.net.rdnet import RDNet
 from birder.net.regnet import RegNet
+from birder.net.repghost import RepGhost
 from birder.net.repvgg import RepVgg
 from birder.net.resmlp import ResMLP
 from birder.net.resnest import ResNeSt
@@ -72,6 +74,7 @@ __all__ = [
     "ConvNeXt_v1",
     "ConvNeXt_v2",
     "CrossViT",
+    "DaViT",
     "DeiT",
     "DeiT3",
     "DenseNet",
@@ -109,6 +112,7 @@ __all__ = [
     "PVT_v2",
     "RDNet",
     "RegNet",
+    "RepGhost",
     "RepVgg",
     "ResMLP",
     "ResNeSt",

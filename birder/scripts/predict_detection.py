@@ -77,7 +77,7 @@ def predict(args: argparse.Namespace) -> None:
         rgb = tuple(int(x * 255) for x in rgb)
         color_list.append(rgb)
 
-    batch_size = 4
+    batch_size = args.batch_size
     dataset = ImageListDataset(samples, transforms=inference_preset(args.size, rgb_stats))
     inference_loader = DataLoader(
         dataset,
@@ -172,19 +172,17 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="network specific parameter, required by some networks (for the backbone)",
     )
     parser.add_argument("--backbone-tag", type=str, help="backbone training log tag (loading only)")
-    parser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
+    parser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")
     parser.add_argument("--quantized", default=False, action="store_true", help="load quantized model")
     parser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
     parser.add_argument("--pts", default=False, action="store_true", help="load torchscript network")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
-        "--fast-matmul",
-        default=False,
-        action="store_true",
-        help="use fast matrix multiplication (affects precision)",
+        "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
     )
     parser.add_argument("--min-score", type=float, default=0.5, help="prediction score threshold")
-    parser.add_argument("--size", type=int, default=None, help="image size for inference (defaults to model signature)")
+    parser.add_argument("--size", type=int, help="image size for inference (defaults to model signature)")
+    parser.add_argument("--batch-size", type=int, default=8, metavar="N", help="the batch size")
     parser.add_argument("--show", default=False, action="store_true", help="show image predictions")
     parser.add_argument("--shuffle", default=False, action="store_true", help="predict samples in random order")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")

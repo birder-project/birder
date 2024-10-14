@@ -12,6 +12,7 @@ from typing import Any
 from typing import Optional
 
 import torch
+import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import SqueezeExcitation
 
@@ -141,7 +142,7 @@ class RepVggBlock(nn.Module):
         if self.conv_1x1 is not None:
             kernel_1x1, bias_1x1 = self._fuse_bn_tensor(self.conv_1x1)
             pad = self.kernel_size // 2
-            kernel_1x1 = torch.nn.functional.pad(kernel_1x1, [pad, pad, pad, pad])
+            kernel_1x1 = F.pad(kernel_1x1, [pad, pad, pad, pad])
 
         # Get weights and bias of skip branch
         kernel_identity = 0

@@ -616,17 +616,14 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--momentum", type=float, default=0.9, help="optimizer momentum")
     parser.add_argument("--nesterov", default=False, action="store_true", help="use nesterov momentum")
     parser.add_argument("--wd", type=float, default=0.0001, help="weight decay")
-    parser.add_argument("--norm-wd", type=float, default=None, help="weight decay for Normalization layers")
-    parser.add_argument(
-        "--bias-weight-decay", default=None, type=float, help="weight decay for bias parameters of all layers"
-    )
+    parser.add_argument("--norm-wd", type=float, help="weight decay for Normalization layers")
+    parser.add_argument("--bias-weight-decay", type=float, help="weight decay for bias parameters of all layers")
     parser.add_argument(
         "--transformer-embedding-decay",
-        default=None,
         type=float,
         help="weight decay for embedding parameters for vision transformer models",
     )
-    parser.add_argument("--layer-decay", type=float, default=None, help="layer-wise learning rate decay (LLRD)")
+    parser.add_argument("--layer-decay", type=float, help="layer-wise learning rate decay (LLRD)")
     parser.add_argument("--opt-eps", type=float, help="optimizer epsilon (None to use the optimizer default)")
     parser.add_argument(
         "--opt-betas", type=float, nargs="+", help="optimizer betas (None to use the optimizer default)"
@@ -643,6 +640,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--lr-step-size",
         type=int,
         default=40,
+        metavar="N",
         help="decrease lr every step-size epochs (for step scheduler only)",
     )
     parser.add_argument(
@@ -657,11 +655,13 @@ def get_args_parser() -> argparse.ArgumentParser:
         default=0.000001,
         help="minimum learning rate (for cosine annealing scheduler only)",
     )
-    parser.add_argument("--grad-accum-steps", type=int, default=1, help="number of steps to accumulate gradients")
-    parser.add_argument("--channels", type=int, default=3, help="no. of image channels")
-    parser.add_argument("--size", type=int, default=None, help="image size (defaults to network recommendation)")
-    parser.add_argument("--batch-size", type=int, default=128, help="the batch size")
-    parser.add_argument("--warmup-epochs", type=int, default=0, help="number of warmup epochs")
+    parser.add_argument(
+        "--grad-accum-steps", type=int, default=1, metavar="N", help="number of steps to accumulate gradients"
+    )
+    parser.add_argument("--channels", type=int, default=3, metavar="N", help="no. of image channels")
+    parser.add_argument("--size", type=int, help="image size (defaults to network recommendation)")
+    parser.add_argument("--batch-size", type=int, default=128, metavar="N", help="the batch size")
+    parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
     parser.add_argument("--smoothing-alpha", type=float, default=0.0, help="label smoothing alpha")
     parser.add_argument("--mixup-alpha", type=float, help="mixup alpha")
     parser.add_argument("--cutmix", default=False, action="store_true", help="enable cutmix")
@@ -680,12 +680,12 @@ def get_args_parser() -> argparse.ArgumentParser:
         default="birder",
         help="rgb mean and std to use for normalization",
     )
-    parser.add_argument("--epochs", type=int, default=100, help="number of training epochs")
+    parser.add_argument("--epochs", type=int, default=100, metavar="N", help="number of training epochs")
     parser.add_argument(
-        "--stop-epoch", type=int, default=None, help="epoch to stop the training at (multi step training)"
+        "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi step training)"
     )
-    parser.add_argument("--save-frequency", type=int, default=5, help="frequency of model saving")
-    parser.add_argument("--resume-epoch", type=int, help="epoch to resume training from")
+    parser.add_argument("--save-frequency", type=int, default=5, metavar="N", help="frequency of model saving")
+    parser.add_argument("--resume-epoch", type=int, metavar="N", help="epoch to resume training from")
     parser.add_argument(
         "--load-states",
         default=False,
@@ -719,19 +719,19 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--ra-reps", type=int, default=3, help="number of repetitions for Repeated Augmentation")
     parser.add_argument("-t", "--tag", type=str, help="add training logs tag")
-    parser.add_argument("--log-interval", type=int, default=50, help="how many steps between summary writes")
+    parser.add_argument(
+        "--log-interval", type=int, default=50, metavar="N", help="how many steps between summary writes"
+    )
     parser.add_argument(
         "-j",
         "--num-workers",
         type=int,
         default=8,
+        metavar="N",
         help="number of preprocessing workers",
     )
     parser.add_argument(
-        "--prefetch-factor",
-        type=int,
-        default=None,
-        help="number of batches loaded in advance by each worker",
+        "--prefetch-factor", type=int, metavar="N", help="number of batches loaded in advance by each worker"
     )
     parser.add_argument("--amp", default=False, action="store_true", help="use torch.amp for mixed precision training")
     parser.add_argument(
@@ -742,10 +742,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="whether to use float16 or bfloat16 for mixed precision",
     )
     parser.add_argument(
-        "--fast-matmul",
-        default=False,
-        action="store_true",
-        help="use fast matrix multiplication (affects precision)",
+        "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
     )
     parser.add_argument(
         "--grad-anomaly-detection",
@@ -755,8 +752,8 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--world-size", type=int, default=1, help="number of distributed processes")
     parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
-    parser.add_argument("--clip-grad-norm", type=float, default=None, help="the maximum gradient norm")
-    parser.add_argument("--gpu", type=int, help="gpu id to use (ignored in distributed mode)")
+    parser.add_argument("--clip-grad-norm", type=float, help="the maximum gradient norm")
+    parser.add_argument("--gpu", type=int, metavar="ID", help="gpu id to use (ignored in distributed mode)")
     parser.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")
     parser.add_argument(
         "--plot-lr", default=False, action="store_true", help="plot learning rate and exit (skip training)"
@@ -768,9 +765,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--data-path", type=str, default=str(settings.TRAINING_DATA_PATH), help="training directory path"
     )
     parser.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
-    parser.add_argument("--wds-class-file", type=str, default=None, help="class list file")
-    parser.add_argument("--wds-train-size", type=int, help="size of the wds training set")
-    parser.add_argument("--wds-val-size", type=int, help="size of the wds validation set")
+    parser.add_argument("--wds-class-file", type=str, metavar="FILE", help="class list file")
+    parser.add_argument("--wds-train-size", type=int, metavar="N", help="size of the wds training set")
+    parser.add_argument("--wds-val-size", type=int, metavar="N", help="size of the wds validation set")
 
     return parser
 

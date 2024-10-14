@@ -271,6 +271,8 @@ def gen_classes_file(_ctx):
     if class_list == list(class_to_idx.keys()):
         echo("No new species")
     else:
+        # Remove "Unknown" class (not required in detection)
+        class_list.remove("Unknown")
         doc = "\n".join(class_list)
 
         echo("data/detection_data/classes.txt")
@@ -322,21 +324,58 @@ def pack_intermediate(ctx, size=384, suffix=settings.PACK_PATH_SUFFIX):
 
 
 @task
-def pack_il_common(ctx, size=384):
+def pack_class_file(ctx, cls, size=384):
     """
-    Pack il-common dataset
+    Pack a class file in directory format
     """
 
     ctx.run(
-        f"python tool.py pack --type directory -j 8 --suffix il-common_packed --size {size} --format jpeg "
-        "--class-file data/il-common_classes.txt data/training",
+        f"python tool.py pack --type directory -j 8 --suffix {cls}_packed --size {size} --format jpeg "
+        f"--class-file data/{cls}_classes.txt data/training",
         echo=True,
         pty=True,
         warn=True,
     )
     ctx.run(
-        f"python tool.py pack --type directory -j 8 --suffix il-common_packed --size {size} --format jpeg "
-        "--class-file data/il-common_classes.txt data/validation",
+        f"python tool.py pack --type directory -j 8 --suffix {cls}_packed --size {size} --format jpeg "
+        f"--class-file data/{cls}_classes.txt data/validation",
+        echo=True,
+        pty=True,
+        warn=True,
+    )
+
+
+######
+# Misc
+######
+
+
+@task
+def benchmark_append(ctx, fn, suffix, gpu_id=0):
+    """
+    Append models to benchmark
+    """
+
+    # CPU
+    ctx.run(
+        f"python benchmark.py --filter '{fn}' --suffix {suffix} --append",
+        echo=True,
+        pty=True,
+        warn=True,
+    )
+
+    # Compiled CPU
+    ctx.run(
+        f"python benchmark.py --filter '{fn}' --compile --suffix {suffix} --append",
+        echo=True,
+        pty=True,
+        warn=True,
+    )
+
+    # Compiled CUDA
+    ctx.run(
+        f"python benchmark.py --filter '{fn}' --bench-iter 100 --batch-size 512 "
+        f"--compile --gpu --gpu-id {gpu_id} --fast-matmul --suffix {suffix} --append",
         echo=True,
         pty=True,
         warn=True,

@@ -152,8 +152,7 @@ compare_results_df = compare_results_df.with_columns(
 
 # Filter relevant benchmark data
 compare_results_df = compare_results_df.filter(
-    ((pl.col("compile") == True) & (pl.col("Resolution") == pl.col("size")))
-    | (pl.col("ms / sample").is_null())  # Not benchmarked yet
+    (pl.col("Resolution") == pl.col("size")) | (pl.col("ms / sample").is_null())  # Not benchmarked yet
 )
 ```
 
@@ -168,31 +167,10 @@ compare_results_df = compare_results_df.select(
     "Parameters (M)",
     "samples_per_sec",
     "device",
+    "batch_size",
+    "compile",
 )
 compare_results_df = compare_results_df.rename({"samples_per_sec": "Samples / sec"})
-```
-
-```{python}
-# Calculate Pareto frontiers
-
-# Parameter count
-param_compare_results_df = compare_results_df.unique(subset=["Model name"]).sort("Parameters (M)", descending=False)
-param_compare_results_df = param_compare_results_df.with_columns(
-    pl.col("Accuracy").cum_max().alias("Pareto frontier (p)")
-)
-param_compare_results_df = param_compare_results_df.drop("Samples / sec", "device", "ms / sample")
-
-# CPU rate
-cpu_compare_results_df = compare_results_df.filter(pl.col("device") == "cpu").sort("ms / sample", descending=False)
-cpu_compare_results_df = cpu_compare_results_df.with_columns(
-    pl.col("Accuracy").cum_max().alias("Pareto frontier (cpu-ms)")
-)
-
-# CUDA rate
-cuda_compare_results_df = compare_results_df.filter(pl.col("device") == "cuda").sort("ms / sample", descending=False)
-cuda_compare_results_df = cuda_compare_results_df.with_columns(
-    pl.col("Accuracy").cum_max().alias("Pareto frontier (cuda-ms)")
-)
 ```
 
 ## Visualize Results
@@ -221,6 +199,8 @@ def plot_acc_param(param_compare_results_df: pl.DataFrame, width: int = 900, hei
 ```{python}
 def plot_acc_rate(rate_compare_results_df: pl.DataFrame, width: int = 900, height: int = 640) -> alt.LayerChart:
     device = rate_compare_results_df["device"][0]
+    compiled = rate_compare_results_df["compile"][0]
+    batch_size = rate_compare_results_df["batch_size"][0]
     df = rate_compare_results_df.select(
         "Model name",
         "Model type",
@@ -229,7 +209,7 @@ def plot_acc_rate(rate_compare_results_df: pl.DataFrame, width: int = 900, heigh
         "Resolution",
         "ms / sample",
         "Parameters (M)",
-        f"Pareto frontier ({device}-ms)",
+        "Pareto frontier (ms)",
     )
     base = df.plot.point(
         x="ms / sample",
@@ -247,53 +227,46 @@ def plot_acc_rate(rate_compare_results_df: pl.DataFrame, width: int = 900, heigh
         ],
     )
     text = base.mark_text(align="center", baseline="middle", dy=-10).encode(text="Model name")
-    frontier = df.plot.line(x="ms / sample", y=f"Pareto frontier ({device}-ms)").mark_line(
+    frontier = df.plot.line(x="ms / sample", y="Pareto frontier (ms)").mark_line(
         interpolate="step-after", color="red", strokeWidth=0.3, strokeDash=(2, 2)
     )
 
     chart = base + text + frontier
-    return chart.properties(title=f"Accuray vs {device.upper()} Rate", width=width, height=height).configure_scale(
-        zero=False
-    )
+    return chart.properties(
+        title=f"Accuray vs {device.upper()} Rate (compile={compiled}, batch size={batch_size})",
+        width=width,
+        height=height,
+    ).configure_scale(zero=False)
 ```
 
 ```{python}
-plot_acc_param(param_compare_results_df)
-```
-
-```{python}
-chart = plot_acc_param(param_compare_results_df)
-chart.layer[0].encoding.x.scale = alt.Scale(domain=[0.5, 7.5])
-chart
-```
-
-```{python}
-# Parameter count (filtered)
-filtered_param_compare_results_df = param_compare_results_df.filter(~pl.col("Model name").str.contains(r"xcit.*p8|moganet*"))
-filtered_param_compare_results_df = filtered_param_compare_results_df.with_columns(
+# Parameter count
+param_compare_results_df = compare_results_df.unique(subset=["Model name"]).sort("Parameters (M)", descending=False)
+param_compare_results_df = param_compare_results_df.with_columns(
     pl.col("Accuracy").cum_max().alias("Pareto frontier (p)")
 )
-plot_acc_param(filtered_param_compare_results_df)
+param_compare_results_df = param_compare_results_df.drop("Samples / sec", "device", "ms / sample")
+chart = plot_acc_param(param_compare_results_df)
+# chart.show()
+chart.layer[0].encoding.x.scale = alt.Scale(domain=[0.5, 7.5])
+chart.show()
 ```
 
 ```{python}
-# CPU rate
-plot_acc_rate(cpu_compare_results_df)
-```
+combination_df = compare_results_df.select("device", "batch_size", "compile").unique()
+for combination in combination_df.iter_rows(named=True):
+    df = compare_results_df.filter(**combination)
 
-```{python}
-chart = plot_acc_rate(cpu_compare_results_df)
-chart.layer[0].encoding.x.scale = alt.Scale(domain=[2.0, 13.0])
-chart
-```
+    # Device rate
+    device_compare_results_df = df.unique(subset=["Model name"]).sort("ms / sample", descending=False)
+    device_compare_results_df = device_compare_results_df.with_columns(
+        pl.col("Accuracy").cum_max().alias("Pareto frontier (ms)")
+    )
+    chart = plot_acc_rate(device_compare_results_df)
+    # chart.show()
 
-```{python}
-# CUDA rate
-plot_acc_rate(cuda_compare_results_df)
-```
-
-```{python}
-chart = plot_acc_rate(cuda_compare_results_df)
-chart.layer[0].encoding.x.scale = alt.Scale(domain=[0.0, 0.7])
-chart
+    x_max = device_compare_results_df["ms / sample"].quantile(0.95) * 1.04
+    x_min = device_compare_results_df["ms / sample"].min() * 0.96
+    chart.layer[0].encoding.x.scale = alt.Scale(domain=[x_min, x_max])
+    chart.show()
 ```

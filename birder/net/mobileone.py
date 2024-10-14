@@ -14,6 +14,7 @@ from typing import Any
 from typing import Optional
 
 import torch
+import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import SqueezeExcitation
 
@@ -179,7 +180,7 @@ class MobileOneBlock(nn.Module):
         if self.rbr_scale is not None:
             (kernel_scale, bias_scale) = self._fuse_bn_tensor(self.rbr_scale)
             pad = self.kernel_size // 2
-            kernel_scale = torch.nn.functional.pad(kernel_scale, [pad, pad, pad, pad])
+            kernel_scale = F.pad(kernel_scale, [pad, pad, pad, pad])
 
         # Get weights and bias of skip branch
         kernel_identity = 0

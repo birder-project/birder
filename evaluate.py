@@ -73,19 +73,16 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--amp", default=False, action="store_true", help="use torch.amp.autocast for mixed precision inference"
     )
     parser.add_argument(
-        "--fast-matmul",
-        default=False,
-        action="store_true",
-        help="use fast matrix multiplication (affects precision)",
+        "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
     )
-    parser.add_argument("--size", type=int, default=None, help="image size for inference (defaults to model signature)")
-    parser.add_argument("--batch-size", type=int, default=64, help="the batch size")
+    parser.add_argument("--size", type=int, help="image size for inference (defaults to model signature)")
+    parser.add_argument("--batch-size", type=int, default=64, metavar="N", help="the batch size")
     parser.add_argument("--center-crop", type=float, default=1.0, help="Center crop ratio to use during inference")
     parser.add_argument(
         "--dir", type=str, default="evaluate", help="place all outputs in a sub-directory (relative to results)"
     )
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
-    parser.add_argument("--gpu-id", type=int, help="gpu id to use")
+    parser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use")
     parser.add_argument("data_path", nargs="+", help="data files path (directories and files)")
 
     return parser

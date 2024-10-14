@@ -256,7 +256,7 @@ def set_parser(subparsers: Any) -> None:
         help="performs calculation on multiple cores, set -1 to run on all cores",
     )
     subparser.add_argument("--shuffle", default=False, action="store_true", help="shuffle the dataset during packing")
-    subparser.add_argument("--size", type=int, default=None, help="resize image longest dimension to size")
+    subparser.add_argument("--size", type=int, help="resize image longest dimension to size")
     subparser.add_argument(
         "--format", type=str, choices=["webp", "png", "jpeg"], default="webp", help="file format (when resizing)"
     )

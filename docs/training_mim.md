@@ -194,7 +194,7 @@ torchrun --nproc_per_node=2 train.py --network vitreg4_l16 --tag mim --lr 0.0075
 #### SimMIM: MaxViT Tiny
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder maxvit_t --opt adamw --lr 0.0001 --lr-scheduler cosine --warmup-epochs 10 --batch-size 128 --wd 0.05 --clip-grad-norm 1 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder maxvit_t --opt adamw --lr 0.0001 --lr-scheduler cosine --epochs 100 --warmup-epochs 10 --batch-size 128 --wd 0.05 --clip-grad-norm 1 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Fine-tuning, first stage - linear probing
@@ -203,16 +203,22 @@ Fine-tuning, first stage - linear probing
 torchrun --nproc_per_node=2 train.py --network maxvit_t --tag mim --opt adamw --lr 0.00005 --lr-scheduler cosine --batch-size 256 --size 256 --lr-cosine-min 1e-7 --epochs 10 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --clip-grad-norm 1 --amp --resume-epoch 0 --reset-head --freeze-body
 ```
 
+#### SimMIM: NextViT Small
+
+```sh
+torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder nextvit_s --opt adamw --lr 0.0001 --lr-scheduler cosine --epochs 100 --warmup-epochs 10 --batch-size 128 --wd 0.05 --clip-grad-norm 1 --amp --compile --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
+
 #### SimMIM: NextViT Base
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder nextvit_b --opt adamw --lr 0.0001 --lr-scheduler cosine --warmup-epochs 10 --batch-size 128 --wd 0.05 --clip-grad-norm 1 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder nextvit_b --opt adamw --lr 0.0001 --lr-scheduler cosine --warmup-epochs 10 --batch-size 128 --wd 0.05 --clip-grad-norm 1 --amp --compile --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 #### SimMIM: Swin Transformer v2 Small
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder swin_transformer_v2_s --opt adamw --lr 0.0001 --lr-scheduler cosine --warmup-epochs 10 --batch-size 128 --wd 0.05 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder swin_transformer_v2_s --opt adamw --lr 0.0001 --lr-scheduler cosine --warmup-epochs 10 --batch-size 128 --wd 0.05 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 After N epochs, switch to float16
@@ -232,7 +238,7 @@ torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s --tag mim -
 #### SimMIM: Swin Transformer v2 Base
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder swin_transformer_v2_b --opt adamw --lr 0.0001 --lr-scheduler cosine --warmup-epochs 10 --batch-size 128 --wd 0.05 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder swin_transformer_v2_b --opt adamw --lr 0.0001 --lr-scheduler cosine --warmup-epochs 10 --batch-size 128 --wd 0.05 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 After N epochs, switch to float16
@@ -240,7 +246,7 @@ After N epochs, switch to float16
 #### SimMIM: Swin Transformer v2 w2 Base
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder swin_transformer_v2_w2_b --opt adamw --lr 0.0001 --lr-scheduler cosine --warmup-epochs 10 --batch-size 64 --wd 0.05 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder swin_transformer_v2_w2_b --opt adamw --lr 0.0001 --lr-scheduler cosine --warmup-epochs 10 --batch-size 64 --wd 0.05 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 After N epochs, switch to float16

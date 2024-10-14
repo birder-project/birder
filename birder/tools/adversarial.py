@@ -146,13 +146,13 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "-p", "--net-param", type=float, help="network specific parameter, required by some networks"
     )
-    subparser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
+    subparser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
     subparser.add_argument(
         "-r", "--reparameterized", default=False, action="store_true", help="load reparameterized model"
     )
     subparser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
-    subparser.add_argument("--gpu-id", type=int, help="gpu id to use")
+    subparser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use")
     subparser.add_argument("--eps", type=float, default=0.007, help="fgsm epsilon")
     subparser.add_argument("--target", type=str, help="target class, leave empty to use predicted class")
     subparser.add_argument("image_path", type=str, help="input image path")

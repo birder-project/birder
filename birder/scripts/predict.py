@@ -247,7 +247,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("-n", "--network", type=str, help="the neural network to use (i.e. resnet_v2)")
     parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
-    parser.add_argument("-e", "--epoch", type=int, help="model checkpoint to load")
+    parser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")
     parser.add_argument("--quantized", default=False, action="store_true", help="load quantized model")
     parser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
     parser.add_argument(
@@ -260,18 +260,13 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--amp", default=False, action="store_true", help="use torch.amp.autocast for mixed precision inference"
     )
     parser.add_argument(
-        "--fast-matmul",
-        default=False,
-        action="store_true",
-        help="use fast matrix multiplication (affects precision)",
+        "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
     )
-    parser.add_argument("--size", type=int, default=None, help="image size for inference (defaults to model signature)")
-    parser.add_argument("--batch-size", type=int, default=32, help="the batch size")
+    parser.add_argument("--size", type=int, help="image size for inference (defaults to model signature)")
+    parser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
     parser.add_argument("--center-crop", type=float, default=1.0, help="Center crop ratio to use during inference")
     parser.add_argument("--show", default=False, action="store_true", help="show image predictions")
-    parser.add_argument(
-        "--show-below", type=float, default=None, help="show when target prediction is below given threshold"
-    )
+    parser.add_argument("--show-below", type=float, help="show when target prediction is below given threshold")
     parser.add_argument("--show-mistakes", default=False, action="store_true", help="show only mis-classified images")
     parser.add_argument("--show-out-of-k", default=False, action="store_true", help="show images not in the top-k")
     parser.add_argument("--show-class", type=str, help="show specific class predictions")
@@ -279,12 +274,10 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--summary", default=False, action="store_true", help="log prediction summary")
     parser.add_argument("--save-results", default=False, action="store_true", help="save results object")
     parser.add_argument("--save-output", default=False, action="store_true", help="save raw output as CSV")
-    parser.add_argument(
-        "--save-embedding", default=False, action="store_true", help="save features layer output as HDF5"
-    )
+    parser.add_argument("--save-embedding", default=False, action="store_true", help="save features layer output")
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
-    parser.add_argument("--gpu-id", type=int, help="gpu id to use (ignored in parallel mode)")
+    parser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use (ignored in parallel mode)")
     parser.add_argument("--parallel", default=False, action="store_true", help="use multiple gpu's")
     parser.add_argument("--wds", default=False, action="store_true", help="predict a webdataset directory")
     parser.add_argument("data_path", nargs="+", help="data files path (directories and files)")

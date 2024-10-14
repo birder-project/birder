@@ -3,6 +3,7 @@ import logging
 from functools import partial
 from typing import Optional
 
+import matplotlib.gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
@@ -36,12 +37,13 @@ def show_top_k(
     logging.debug("---")
 
     fig = plt.figure(num=image_path)
+    gs = matplotlib.gridspec.GridSpec(2, 1, height_ratios=[2, 1])
 
-    ax = fig.add_subplot(2, 1, 1)
+    ax = fig.add_subplot(gs[0, 0])
     ax.imshow(img)
     ax.axis("off")
 
-    ax = fig.add_subplot(2, 1, 2)
+    ax = fig.add_subplot(gs[1, 0])
     y_pos = np.arange(settings.TOP_K)
     bars = ax.barh(y_pos, probabilities, alpha=0.4, align="center")
     ax.set_yticks(y_pos)
