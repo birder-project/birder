@@ -394,15 +394,15 @@ class Swin_Transformer_v1(DetectorBackbone):
         return self.features(x)
 
     def adjust_size(self, new_size: int) -> None:
+        if new_size == self.size:
+            return
+
         super().adjust_size(new_size)
 
         log_flag = False
         for m in self.body.modules():
             if isinstance(m, SwinTransformerBlock):
                 new_window_size = (new_size // (2**5), new_size // (2**5))
-                if m.attn.window_size[0] == new_window_size[0] and m.attn.window_size[1] == new_window_size[1]:
-                    return
-
                 m.attn.window_size = new_window_size
                 shift_size_w = m.attn.shift_size[0]
                 shift_size_h = m.attn.shift_size[1]

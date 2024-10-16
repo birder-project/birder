@@ -353,6 +353,9 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder):
         return self.features(x)
 
     def adjust_size(self, new_size: int) -> None:
+        if new_size == self.size:
+            return
+
         old_size = self.size
         super().adjust_size(new_size)
 
@@ -381,9 +384,6 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder):
                     window_size_h = m.input_resolution[1]
 
                 src_window_size = m.attn.window_size
-                if src_window_size[0] == window_size_w and src_window_size[1] == window_size_h:
-                    return
-
                 m.attn.window_size = (window_size_w, window_size_h)
 
                 if m.attn.shift_size[0] != 0:

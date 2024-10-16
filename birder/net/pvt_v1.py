@@ -267,6 +267,9 @@ class PVT_v1(BaseNet):
         return x[:, 0]
 
     def adjust_size(self, new_size: int) -> None:
+        if new_size == self.size:
+            return
+
         super().adjust_size(new_size)
 
         log_flag = False
@@ -275,8 +278,6 @@ class PVT_v1(BaseNet):
             if isinstance(m, PyramidVisionTransformerStage):
                 new_num_patches = s * s
                 num_patches = m.pos_embed.size(1)
-                if num_patches == new_num_patches:
-                    return
 
                 m.pos_embed = nn.Parameter(adjust_position_embedding(num_patches, m.pos_embed, s, 0))
                 s = s // 2

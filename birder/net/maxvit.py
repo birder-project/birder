@@ -661,6 +661,9 @@ class MaxViT(DetectorBackbone, PreTrainEncoder):
         )
 
     def adjust_size(self, new_size: int) -> None:
+        if new_size == self.size:
+            return
+
         super().adjust_size(new_size)
 
         log_flag = False
@@ -670,12 +673,7 @@ class MaxViT(DetectorBackbone, PreTrainEncoder):
         self.partition_size = int(new_size / (2**5))
         for m in self.body.modules():
             if isinstance(m, MaxVitBlock):
-                grid_size = m.grid_size
-                if new_grid_size == grid_size:
-                    return
-
                 m.grid_size = _get_conv_output_shape(new_grid_size, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
-
                 for layer in m.block:
                     for i in range(1, 3):
                         mod = layer.layers[i]  # PartitionAttentionLayer

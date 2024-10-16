@@ -524,6 +524,18 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v2_l --lr 0.5 --lr-s
 torchrun --nproc_per_node=2 train.py --network fastvit_t8 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile
 ```
 
+#### FastViT: T12
+
+```sh
+torchrun --nproc_per_node=2 train.py --network fastvit_t12 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### FastViT: SA12
+
+```sh
+torchrun --nproc_per_node=2 train.py --network fastvit_sa12 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 128 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
 #### FastViT: SA24
 
 ```sh
@@ -822,6 +834,12 @@ torchrun --nproc_per_node=2 train.py --network mobileone_s2 --lr 0.1 --lr-schedu
 torchrun --nproc_per_node=2 train.py --network mobilevit_v1_xxs --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 2e-5 --warmup-epochs 5 --batch-size 256 --size 256 --epochs 300 --wd 0.01 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --ra-sampler --ra-reps 2 --fast-matmul --compile
 ```
 
+#### MobileViT v1: Extra Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mobilevit_v1_xs --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 2e-5 --warmup-epochs 5 --batch-size 256 --size 256 --epochs 300 --wd 0.01 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --ra-sampler --ra-reps 2 --amp --compile
+```
+
 #### MobileViT v1: Small
 
 ```sh
@@ -987,7 +1005,7 @@ torchrun --nproc_per_node=2 train.py --network pvt_v2_b0 --opt adamw --lr 0.001 
 #### PVT v2: B1
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network pvt_v2_b1 --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 128 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+torchrun --nproc_per_node=2 train.py --network pvt_v2_b1 --opt adamw --lr 0.001 --lr-scheduler cosine --batch-size 256 --lr-cosine-min 1e-7 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 #### PVT v2: B2 Linear

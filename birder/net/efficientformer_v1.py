@@ -367,6 +367,9 @@ class EfficientFormer_v1(BaseNet):
         return x
 
     def adjust_size(self, new_size: int) -> None:
+        if new_size == self.size:
+            return
+
         old_res = int(self.size / (2**5))
         super().adjust_size(new_size)
 

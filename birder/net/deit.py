@@ -177,6 +177,9 @@ class DeiT(BaseNet):
         return x
 
     def adjust_size(self, new_size: int) -> None:
+        if new_size == self.size:
+            return
+
         super().adjust_size(new_size)
 
         # Sort out sizes
@@ -187,9 +190,6 @@ class DeiT(BaseNet):
             num_new_tokens += 2  # Adding the class and distillation tokens
         else:
             num_prefix_tokens = 0
-
-        if num_new_tokens == num_pos_tokens:
-            return
 
         # Add back class tokens
         self.pos_embedding = nn.Parameter(

@@ -341,6 +341,9 @@ class CrossViT(BaseNet):
         return out
 
     def adjust_size(self, new_size: int) -> None:
+        if new_size == self.size:
+            return
+
         super().adjust_size(new_size)
 
         # Sort out sizes
@@ -349,8 +352,6 @@ class CrossViT(BaseNet):
         for i in range(self.num_branches):
             num_pos_tokens = self.pos_embed[i].shape[1]
             num_new_tokens = 1 + num_patches[i]
-            if num_new_tokens == num_pos_tokens:
-                continue
 
             # Add back class tokens
             self.pos_embed[i] = nn.Parameter(torch.zeros(1, 1 + num_patches[i], self.embed_dim[i]))

@@ -338,13 +338,14 @@ class ViT(PreTrainEncoder):
         return x[:, self.num_reg_tokens]
 
     def adjust_size(self, new_size: int) -> None:
+        if new_size == self.size:
+            return
+
         super().adjust_size(new_size)
 
         # Sort out sizes
         num_pos_tokens = self.pos_embedding.shape[1]
         num_new_tokens = ((new_size // self.patch_size) ** 2) + 1 + self.num_reg_tokens
-        if num_new_tokens == num_pos_tokens:
-            return
 
         # Add back class tokens
         self.pos_embedding = nn.Parameter(

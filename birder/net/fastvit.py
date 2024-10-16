@@ -949,6 +949,34 @@ registry.register_weights(
     },
 )
 registry.register_weights(
+    "fastvit_t12_il-common",
+    {
+        "description": "FastViT T-12 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 26.7,
+                "sha256": "e373cc4c9644af38c76c253231dcf480e74b0411c21b9aebfd1a84fbe23a52fc",
+            }
+        },
+        "net": {"network": "fastvit_t12", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "fastvit_t12_il-common_reparameterized",
+    {
+        "description": "FastViT T-12 (reparameterized) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 26.3,
+                "sha256": "d9976aed913c7f25eed8616c25ab384770c0070e7758f16be61442fcb017091a",
+            }
+        },
+        "net": {"network": "fastvit_t12", "tag": "il-common_reparameterized", "reparameterized": True},
+    },
+)
+registry.register_weights(
     "fastvit_sa12_il-common",
     {
         "description": "FastViT SA-12 model trained on the il-common dataset",

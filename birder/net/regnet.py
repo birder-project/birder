@@ -10,6 +10,7 @@ Paper "Designing Network Design Spaces", https://arxiv.org/abs/2003.13678
 import math
 from collections import OrderedDict
 from collections.abc import Iterator
+from functools import partial
 from typing import Any
 from typing import Optional
 
@@ -20,6 +21,7 @@ from torchvision.ops import SqueezeExcitation
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import PreTrainEncoder
 from birder.net.base import make_divisible
 
 
@@ -149,32 +151,11 @@ class BottleneckTransform(nn.Module):
             se_block = SqueezeExcitation(input_channels=w_b, squeeze_channels=width_se_out)
 
         self.block = nn.Sequential(
-            Conv2dNormActivation(
-                width_in,
-                w_b,
-                kernel_size=(1, 1),
-                stride=(1, 1),
-                padding=(0, 0),
-                bias=False,
-            ),
-            Conv2dNormActivation(
-                w_b,
-                w_b,
-                kernel_size=(3, 3),
-                stride=stride,
-                padding=(1, 1),
-                groups=g,
-                bias=False,
-            ),
+            Conv2dNormActivation(width_in, w_b, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
+            Conv2dNormActivation(w_b, w_b, kernel_size=(3, 3), stride=stride, padding=(1, 1), groups=g, bias=False),
             se_block,
             Conv2dNormActivation(
-                w_b,
-                width_out,
-                kernel_size=(1, 1),
-                stride=(1, 1),
-                padding=(0, 0),
-                bias=False,
-                activation_layer=None,
+                w_b, width_out, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False, activation_layer=None
             ),
         )
 
@@ -264,8 +245,9 @@ class AnyStage(nn.Module):
         return self.block(x)
 
 
-class RegNet(DetectorBackbone):
+class RegNet(DetectorBackbone, PreTrainEncoder):
     default_size = 224
+    block_group_regex = r"body\.stage\d+\.block\.(\d+)"
 
     def __init__(
         self,
@@ -322,6 +304,16 @@ class RegNet(DetectorBackbone):
         self.embedding_size = current_width
         self.classifier = self.create_classifier()
 
+        self.encoding_size = current_width
+        decoder_block = partial(
+            BottleneckTransform,
+            stride=(1, 1),
+            group_width=64,
+            bottleneck_multiplier=1.0,
+            se_ratio=se_ratio,
+        )
+        self.decoder_block = lambda x: decoder_block(x, x)
+
         # Weight initialization
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -358,6 +350,40 @@ class RegNet(DetectorBackbone):
 
             for param in module.parameters():
                 param.requires_grad = False
+
+    def masked_encoding(
+        self, x: torch.Tensor, mask_ratio: float, _mask_token: Optional[torch.Tensor] = None
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        N = x.shape[0]
+        L = (x.shape[2] // 32) ** 2  # Patch size = 32
+        len_keep = int(L * (1 - mask_ratio))
+
+        noise = torch.randn(N, L, device=x.device)
+
+        # Sort noise for each sample
+        ids_shuffle = torch.argsort(noise, dim=1)
+        ids_restore = torch.argsort(ids_shuffle, dim=1)
+
+        # Generate the binary mask: 0 is keep 1 is remove
+        mask = torch.ones([N, L], device=x.device)
+        mask[:, :len_keep] = 0
+
+        # Un-shuffle to get the binary mask
+        mask = torch.gather(mask, dim=1, index=ids_restore)
+
+        # Upsample mask
+        scale = 2**4
+        assert len(mask.shape) == 2
+
+        p = int(mask.shape[1] ** 0.5)
+        upscale_mask = mask.reshape(-1, p, p).repeat_interleave(scale, axis=1).repeat_interleave(scale, axis=2)
+        upscale_mask = upscale_mask.unsqueeze(1).type_as(x)
+
+        x = self.stem(x)
+        x = x * (1.0 - upscale_mask)
+        x = self.body(x)
+
+        return (x, mask)
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
@@ -525,5 +551,19 @@ registry.register_weights(
             }
         },
         "net": {"network": "regnet_y_400m", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "regnet_y_600m_il-common",
+    {
+        "description": "RegNet Y 600m model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 21.9,
+                "sha256": "7ff9dc09d0f3216d85fe739fd0977b98a96e394d9a8916afa5454aa8fedda4c6",
+            }
+        },
+        "net": {"network": "regnet_y_600m", "tag": "il-common"},
     },
 )

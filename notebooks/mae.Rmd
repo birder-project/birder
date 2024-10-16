@@ -72,6 +72,11 @@ size = 224
 # encoder_param = 5
 # size = 224
 
+network = "fcmae"
+encoder = "regnet_y_8g"
+encoder_param = None
+size = 224
+
 # network = "simmim"
 # encoder = "swin_transformer_v2_s"
 # encoder_param = None

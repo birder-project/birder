@@ -23,7 +23,7 @@ jobs=4
 max-line-length=120
 
 # Maximum number of lines in a module
-max-module-lines=1000
+max-module-lines=2000
 
 [MESSAGES CONTROL]
 # Disable the following PyLint checks:

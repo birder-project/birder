@@ -109,6 +109,12 @@ Fine-tuning, first stage - linear probing
 torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag mim --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 320 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
 ```
 
+#### FCMAE: RegNet Y 8 GF
+
+```sh
+torchrun --nproc_per_node=2 train_mim.py --network fcmae --encoder regnet_y_8g --opt adamw --lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --batch-size 128 --wd 0.05 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
+
 ### MAE ViT
 
 #### MAE ViT: Simple ViT b16

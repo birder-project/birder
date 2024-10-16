@@ -109,6 +109,9 @@ class ResMLP(BaseNet):
         return self.features(x)
 
     def adjust_size(self, new_size: int) -> None:
+        if new_size == self.size:
+            return
+
         raise RuntimeError("Model resizing not supported")
 
 

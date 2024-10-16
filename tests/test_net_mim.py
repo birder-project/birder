@@ -14,14 +14,15 @@ logging.disable(logging.CRITICAL)
 class TestNetMIM(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
-            ("fcmae", None, ("convnext_v2_atto", 0)),
-            ("mae_vit", None, ("simple_vit_b32", 0)),
-            ("mae_vit", None, ("vit_b32", 0)),
-            ("mae_vit", None, ("vitreg4_b32", 1)),
-            ("simmim", None, ("maxvit_t", 0)),
-            ("simmim", None, ("nextvit_s", 0)),
-            ("simmim", None, ("swin_transformer_v2_t", 0)),
-            ("simmim", None, ("swin_transformer_v2_w2_t", 0)),
+            ("fcmae", None, ("convnext_v2_atto", None)),
+            ("fcmae", None, ("regnet_y_200m", None)),
+            ("mae_vit", None, ("simple_vit_b32", None)),
+            ("mae_vit", None, ("vit_b32", None)),
+            ("mae_vit", None, ("vitreg4_b32", None)),
+            ("simmim", None, ("maxvit_t", None)),
+            ("simmim", None, ("nextvit_s", None)),
+            ("simmim", None, ("swin_transformer_v2_t", None)),
+            ("simmim", None, ("swin_transformer_v2_w2_t", None)),
         ]
     )
     def test_net_mim(self, network_name: str, net_param: Optional[float], encoder_params: tuple[str, float]) -> None:

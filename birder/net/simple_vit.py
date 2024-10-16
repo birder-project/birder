@@ -165,13 +165,14 @@ class Simple_ViT(PreTrainEncoder):
         return self.features(x)
 
     def adjust_size(self, new_size: int) -> None:
+        if new_size == self.size:
+            return
+
         super().adjust_size(new_size)
 
         # Sort out sizes
         num_pos_tokens = self.pos_embedding.shape[0]
         num_new_tokens = (new_size // self.patch_size) ** 2
-        if num_new_tokens == num_pos_tokens:
-            return
 
         pos_embedding = pos_embedding_sin_cos_2d(
             h=new_size // self.patch_size,

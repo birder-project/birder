@@ -402,3 +402,17 @@ registry.register_weights(
         "net": {"network": "edgenext_xs", "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "edgenext_s_il-common",
+    {
+        "description": "EdgeNeXt small model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 20.7,
+                "sha256": "2855125a641f143b97fff4ef27ac1386a3058d1659b4e8e5d723952e788ce0ef",
+            }
+        },
+        "net": {"network": "edgenext_s", "tag": "il-common"},
+    },
+)

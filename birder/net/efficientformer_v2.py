@@ -539,6 +539,9 @@ class EfficientFormer_v2(DetectorBackbone):
         return x
 
     def adjust_size(self, new_size: int) -> None:
+        if new_size == self.size:
+            return
+
         old_size = self.size
         super().adjust_size(new_size)
 
@@ -589,9 +592,6 @@ class EfficientFormer_v2(DetectorBackbone):
 
                 for m in stage.modules():
                     if isinstance(m, EfficientFormerBlock):
-                        if m.resolution[0] == new_base and m.resolution[1] == new_base:
-                            return
-
                         c_old_base = old_base
                         c_new_base = new_base
                         if m.token_mixer is not None and m.use_attn is True and m.stride is not None:

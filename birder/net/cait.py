@@ -259,13 +259,14 @@ class CaiT(BaseNet):
         return x[:, 0]
 
     def adjust_size(self, new_size: int) -> None:
+        if new_size == self.size:
+            return
+
         super().adjust_size(new_size)
 
         # Sort out sizes
         num_pos_tokens = self.pos_embed.shape[1]
         num_new_tokens = (new_size // self.patch_size[0]) * (new_size // self.patch_size[1])
-        if num_new_tokens == num_pos_tokens:
-            return
 
         # Add back class tokens
         self.pos_embed = nn.Parameter(

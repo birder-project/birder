@@ -226,14 +226,16 @@ class TestNet(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[misc]
         [
-            ("convnext_v2_atto", 0, False),
-            ("maxvit_t", 0, True),
-            ("nextvit_s", 0, True),
-            ("simple_vit_b32", 0, False),
-            ("swin_transformer_v2_t", 0, True),
-            ("swin_transformer_v2_w2_t", 0, True),
-            ("vit_b32", 0, False),
-            ("vitreg4_b32", 0, False),
+            ("convnext_v2_atto", None, False),
+            ("maxvit_t", None, True),
+            ("nextvit_s", None, True),
+            ("regnet_x_200m", None, False),
+            ("regnet_y_200m", None, False),
+            ("simple_vit_b32", None, False),
+            ("swin_transformer_v2_t", None, True),
+            ("swin_transformer_v2_w2_t", None, True),
+            ("vit_b32", None, False),
+            ("vitreg4_b32", None, False),
         ]
     )
     def test_pre_training_encoder(self, network_name: str, net_param: Optional[float], mask_token: bool) -> None:
