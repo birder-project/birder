@@ -219,46 +219,50 @@ class Inception_v3(DetectorBackbone):
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
 
-        stages["stage1"] = nn.Sequential(
+        stages["stage0"] = nn.Sequential(
             Conv2dNormActivation(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(0, 0), bias=False),
             Conv2dNormActivation(32, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
-            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(0, 0)),
         )
         return_channels.append(64)
 
-        stages["stage2"] = nn.Sequential(
+        stages["stage1"] = nn.Sequential(
+            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(0, 0)),
             Conv2dNormActivation(64, 80, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
             Conv2dNormActivation(80, 192, kernel_size=(3, 3), stride=(1, 1), padding=(0, 0), bias=False),
-            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(0, 0)),
         )
         return_channels.append(192)
 
-        stages["stage3"] = nn.Sequential(
+        stages["stage2"] = nn.Sequential(
+            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(0, 0)),
             InceptionBlockA(192, pool_features=32),
             InceptionBlockA(256, pool_features=64),
             InceptionBlockA(288, pool_features=64),
-            InceptionReductionBlockA(288),
         )
-        return_channels.append(768)
+        return_channels.append(288)
 
-        stages["stage4"] = nn.Sequential(
+        stages["stage3"] = nn.Sequential(
+            InceptionReductionBlockA(288),
             InceptionBlockB(768, num_channels=128),
             InceptionBlockB(768, num_channels=160),
             InceptionBlockB(768, num_channels=160),
             InceptionBlockB(768, num_channels=192),
-            InceptionReductionBlockB(768),
         )
-        return_channels.append(1280)
+        return_channels.append(768)
+
+        stages["stage4"] = nn.Sequential(
+            InceptionReductionBlockB(768),
+            InceptionBlockC(1280),
+            InceptionBlockC(2048),
+        )
+        return_channels.append(2048)
 
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
-            InceptionBlockC(1280),
-            InceptionBlockC(2048),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
             nn.Dropout(p=0.5),
         )
-        self.return_channels = return_channels
+        self.return_channels = return_channels[1:]
         self.embedding_size = 2048
         self.classifier = self.create_classifier()
 

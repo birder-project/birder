@@ -496,6 +496,11 @@ class EfficientFormer_v2(DetectorBackbone):
             for param in self.dist_classifier.parameters():
                 param.requires_grad = True
 
+    def transform_to_backbone(self) -> None:
+        self.features = nn.Identity()
+        self.classifier = nn.Identity()
+        self.dist_classifier = nn.Identity()
+
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)
 

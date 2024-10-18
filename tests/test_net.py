@@ -215,8 +215,8 @@ class TestNet(unittest.TestCase):
         prev_h = 0
         prev_w = 0
         for i, stage_name in enumerate(n.return_stages[::-1]):
-            self.assertLessEqual(prev_h, out[stage_name].shape[2])
-            self.assertLessEqual(prev_w, out[stage_name].shape[3])
+            self.assertLess(prev_h, out[stage_name].shape[2])
+            self.assertLess(prev_w, out[stage_name].shape[3])
             prev_h = out[stage_name].shape[2]
             prev_w = out[stage_name].shape[3]
 

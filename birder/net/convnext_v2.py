@@ -118,15 +118,18 @@ class ConvNeXt_v2(DetectorBackbone, PreTrainEncoder):
         stage_block_id = 0
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
+        layers = []
         for idx, (i, out, n) in enumerate(zip(in_channels, out_channels, num_layers)):
-            layers = []
-
             # Bottlenecks
             for _ in range(n):
                 # Adjust stochastic depth probability based on the depth of the stage block
                 sd_prob = stochastic_depth_prob * stage_block_id / (total_stage_blocks - 1.0)
                 layers.append(ConvNeXtBlock(i, sd_prob))
                 stage_block_id += 1
+
+            stages[f"stage{idx+1}"] = nn.Sequential(*layers)
+            return_channels.append(i)
+            layers = []
 
             # Down sampling
             if out != -1:
@@ -136,9 +139,6 @@ class ConvNeXt_v2(DetectorBackbone, PreTrainEncoder):
                         nn.Conv2d(i, out, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0), bias=True),
                     )
                 )
-
-            stages[f"stage{idx+1}"] = nn.Sequential(*layers)
-            return_channels.append(out if out != -1 else i)
 
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
@@ -275,7 +275,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 13.4,
-                "sha256": "2bf74e6f11a04f4e60970c7a8b2bbb239c5ddb7070f6c8b4978c310137023244",
+                "sha256": "b001b4d71c74966b530f847490edf1c4c7d769a34fa29aa96238602e3248a2a2",
             }
         },
         "net": {"network": "convnext_v2_atto", "tag": "il-common"},

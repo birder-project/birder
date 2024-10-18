@@ -107,15 +107,18 @@ class ConvNeXt_v1(DetectorBackbone):
         stage_block_id = 0
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
+        layers = []
         for idx, (i, out, n) in enumerate(zip(in_channels, out_channels, num_layers)):
-            layers = []
-
             # Bottlenecks
             for _ in range(n):
                 # Adjust stochastic depth probability based on the depth of the stage block
                 sd_prob = stochastic_depth_prob * stage_block_id / (total_stage_blocks - 1.0)
                 layers.append(ConvNeXtBlock(i, layer_scale, sd_prob))
                 stage_block_id += 1
+
+            stages[f"stage{idx+1}"] = nn.Sequential(*layers)
+            return_channels.append(i)
+            layers = []
 
             # Down sampling
             if out != -1:
@@ -125,9 +128,6 @@ class ConvNeXt_v1(DetectorBackbone):
                         nn.Conv2d(i, out, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0), bias=True),
                     )
                 )
-
-            stages[f"stage{idx+1}"] = nn.Sequential(*layers)
-            return_channels.append(out if out != -1 else i)
 
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(

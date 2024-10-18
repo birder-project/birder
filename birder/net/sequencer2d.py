@@ -217,14 +217,10 @@ class Sequencer2d(BaseNet):
             ]
             prev_dim = embed_dim
 
-        stages.append(
-            nn.Sequential(
-                nn.LayerNorm(prev_dim, eps=1e-6),
-                Permute([0, 3, 1, 2]),  # B H W C -> B C H W)
-            )
-        )
         self.body = nn.Sequential(*stages)
         self.features = nn.Sequential(
+            nn.LayerNorm(prev_dim, eps=1e-6),
+            Permute([0, 3, 1, 2]),  # B H W C -> B C H W)
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )

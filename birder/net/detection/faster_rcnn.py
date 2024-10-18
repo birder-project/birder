@@ -743,6 +743,7 @@ class RoIHeads(nn.Module):
 # pylint: disable=invalid-name
 class Faster_RCNN(DetectionBaseNet):
     default_size = 640
+    auto_register = True
 
     # pylint: disable=too-many-locals
     def __init__(
@@ -756,6 +757,7 @@ class Faster_RCNN(DetectionBaseNet):
     ) -> None:
         super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
+        assert self.config is None, "config not supported"
 
         fpn_width = 256
         rpn_pre_nms_top_n_train = 2000

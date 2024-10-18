@@ -158,6 +158,12 @@ class DetectorBackbone(BaseNet):
         self.return_stages = ["stage1", "stage2", "stage3", "stage4"]
         self.return_channels: list[int]
 
+    def transform_to_backbone(self) -> None:
+        if hasattr(self, "features") is True:
+            self.features = nn.Identity()  # pylint: disable=attribute-defined-outside-init
+
+        self.classifier = nn.Identity()
+
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         raise NotImplementedError
 

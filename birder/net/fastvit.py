@@ -763,21 +763,21 @@ class FastViT(DetectorBackbone):
             prev_dim = embed_dims[i]
 
         self.body = nn.Sequential(stages)
-        self.mobile_block = MobileOneBlock(
-            in_channels=embed_dims[-1],
-            out_channels=int(embed_dims[-1] * cls_ratio),
-            kernel_size=3,
-            stride=1,
-            padding=1,
-            groups=embed_dims[-1],
-            use_se=True,
-            use_act=True,
-            use_scale_branch=True,
-            num_conv_branches=1,
-            reparameterized=self.reparameterized,
-            activation_layer=nn.GELU,
-        )
         self.features = nn.Sequential(
+            MobileOneBlock(
+                in_channels=embed_dims[-1],
+                out_channels=int(embed_dims[-1] * cls_ratio),
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                groups=embed_dims[-1],
+                use_se=True,
+                use_act=True,
+                use_scale_branch=True,
+                num_conv_branches=1,
+                reparameterized=self.reparameterized,
+                activation_layer=nn.GELU,
+            ),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
@@ -817,7 +817,6 @@ class FastViT(DetectorBackbone):
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
         x = self.body(x)
-        x = self.mobile_block(x)
         return self.features(x)
 
     def reparameterize_model(self) -> None:
@@ -928,7 +927,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 13.8,
-                "sha256": "52bd7f6e28100275253270a3600bdca2eb0f06af3822584f01ea3c39e34a6923",
+                "sha256": "ec976d4edebf2215807de264e67d8bf65aa6da893295d4132cd418ea42b2171f",
             }
         },
         "net": {"network": "fastvit_t8", "tag": "il-common"},
@@ -942,7 +941,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 13.5,
-                "sha256": "62a0211ec644ff57539315601e4ad75001f860c4f9773dff21109c61145172bb",
+                "sha256": "062c98f4acd50f726346a572a6f505c1b804c8ca6618da8c3719ff6764e9ac3b",
             }
         },
         "net": {"network": "fastvit_t8", "tag": "il-common_reparameterized", "reparameterized": True},
@@ -956,7 +955,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 26.7,
-                "sha256": "e373cc4c9644af38c76c253231dcf480e74b0411c21b9aebfd1a84fbe23a52fc",
+                "sha256": "66a61c8ba504357869af29349b3554b28567f020b539ad7c89d7b4d90de9b490",
             }
         },
         "net": {"network": "fastvit_t12", "tag": "il-common"},
@@ -970,7 +969,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 26.3,
-                "sha256": "d9976aed913c7f25eed8616c25ab384770c0070e7758f16be61442fcb017091a",
+                "sha256": "debb0dc5a96c9bb843e57bdea995c0b1535aceb0ad26aa8fb5d23ecdb8427f9b",
             }
         },
         "net": {"network": "fastvit_t12", "tag": "il-common_reparameterized", "reparameterized": True},
@@ -984,7 +983,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 42.0,
-                "sha256": "3c40c65ba750e8031c09284d889bcfe9ddba106eaaf27a31803b7b056de9fee2",
+                "sha256": "5478786787fe8f23cff31216de941e6d4b0aab307ea0b9051115f7691906707f",
             }
         },
         "net": {"network": "fastvit_sa12", "tag": "il-common"},
@@ -998,7 +997,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 41.7,
-                "sha256": "c3cf2aab049eeea243e9f7502218c5b0f5274064601eab9f53e007f7e878955e",
+                "sha256": "6e83955ac63b323760be62383c21ef72417c7bca461347401c9cd0d1d424ff62",
             }
         },
         "net": {"network": "fastvit_sa12", "tag": "il-common_reparameterized", "reparameterized": True},

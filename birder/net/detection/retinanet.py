@@ -119,7 +119,7 @@ class RetinaNetClassificationHead(nn.Module):
             (N, _, H, W) = cls_logits.shape
             cls_logits = cls_logits.view(N, -1, self.num_classes, H, W)
             cls_logits = cls_logits.permute(0, 3, 4, 1, 2)
-            cls_logits = cls_logits.reshape(N, -1, self.num_classes)  # Size=(N, HWA, 4)
+            cls_logits = cls_logits.reshape(N, -1, self.num_classes)  # Size=(N, HWA, K)
 
             all_cls_logits.append(cls_logits)
 
@@ -150,7 +150,6 @@ class RetinaNetRegressionHead(nn.Module):
                     torch.nn.init.zeros_(layer.bias)
 
         self.box_coder = BoxCoder(weights=(1.0, 1.0, 1.0, 1.0))
-        self._loss_type = "l1"
 
     def compute_loss(
         self,
@@ -235,6 +234,7 @@ class RetinaNetHead(nn.Module):
 
 class RetinaNet(DetectionBaseNet):
     default_size = 640
+    auto_register = True
 
     def __init__(
         self,
@@ -247,6 +247,7 @@ class RetinaNet(DetectionBaseNet):
     ) -> None:
         super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
+        assert self.config is None, "config not supported"
 
         fpn_width = 256
         fg_iou_thresh = 0.5
@@ -445,7 +446,7 @@ class RetinaNet(DetectionBaseNet):
 
             split_anchors = [list(a.split(num_anchors_per_level)) for a in anchors]
 
-            # compute the detections
+            # Compute the detections
             detections = self.postprocess_detections(split_head_outputs, split_anchors, images.image_sizes)
 
         return (detections, losses)

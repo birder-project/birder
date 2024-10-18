@@ -8,6 +8,8 @@ import torch.amp
 import torch.nn.functional as F
 from PIL import Image
 from torch.utils.data import DataLoader
+from torchvision.transforms import v2
+from torchvision.transforms.v2.functional import five_crop
 from tqdm import tqdm
 
 from birder.results.classification import Results
@@ -18,6 +20,7 @@ def infer_image(
     sample: Image.Image | str,
     transform: Callable[..., torch.Tensor],
     return_embedding: bool = False,
+    tta: bool = False,
     device: Optional[torch.device] = None,
 ) -> tuple[npt.NDArray[np.float32], Optional[npt.NDArray[np.float32]]]:
     """
@@ -43,16 +46,29 @@ def infer_image(
         device = torch.device("cpu")
 
     input_tensor = transform(image).unsqueeze(dim=0).to(device)
-    return infer_batch(net, input_tensor, return_embedding=return_embedding)
+    return infer_batch(net, input_tensor, return_embedding=return_embedding, tta=tta)
 
 
 def infer_batch(
-    net: torch.nn.Module | torch.ScriptModule, inputs: torch.Tensor, return_embedding: bool = False
+    net: torch.nn.Module | torch.ScriptModule, inputs: torch.Tensor, return_embedding: bool = False, tta: bool = False
 ) -> tuple[npt.NDArray[np.float32], Optional[npt.NDArray[np.float32]]]:
     if return_embedding is True:
         embedding_tensor: torch.Tensor = net.embedding(inputs)
         out: npt.NDArray[np.float32] = F.softmax(net.classify(embedding_tensor), dim=1).cpu().numpy()
         embedding: Optional[npt.NDArray[np.float32]] = embedding_tensor.cpu().numpy()
+
+    elif tta is True:
+        embedding = None
+        (_, _, H, W) = inputs.size()
+        crop_h = int(H * 0.8)
+        crop_w = int(W * 0.8)
+        tta_inputs = five_crop(inputs, size=[crop_h, crop_w])
+        t = v2.Resize((H, W), interpolation=v2.InterpolationMode.BICUBIC, antialias=True)
+        outs = []
+        for tta_input in tta_inputs:
+            outs.append(F.softmax(net(t(tta_input)), dim=1))
+
+        out = torch.stack(outs).mean(axis=0).cpu().numpy()
 
     else:
         embedding = None
@@ -66,6 +82,7 @@ def infer_dataloader(
     net: torch.nn.Module | torch.ScriptModule,
     dataloader: DataLoader,
     return_embedding: bool = False,
+    tta: bool = False,
     amp: bool = False,
     num_samples: Optional[int] = None,
     batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], list[int]], None]] = None,
@@ -86,6 +103,8 @@ def infer_dataloader(
         The DataLoader containing the dataset to perform inference on.
     return_embedding
         Whether to return embeddings along with the outputs.
+    tta
+        Run inference with oversampling.
     amp
         Whether to use automatic mixed precision.
     num_samples
@@ -127,7 +146,7 @@ def infer_dataloader(
             inputs = inputs.to(device)
 
             with torch.amp.autocast(device.type, enabled=amp):
-                (out, embedding) = infer_batch(net, inputs, return_embedding=return_embedding)
+                (out, embedding) = infer_batch(net, inputs, return_embedding=return_embedding, tta=tta)
 
             out_list.append(out)
             if embedding is not None:
@@ -154,10 +173,13 @@ def evaluate(
     net: torch.nn.Module | torch.ScriptModule,
     dataloader: DataLoader,
     class_to_idx: dict[str, int],
+    tta: bool = False,
     amp: bool = False,
     num_samples: Optional[int] = None,
 ) -> Results:
-    (sample_paths, outs, labels, _) = infer_dataloader(device, net, dataloader, amp=amp, num_samples=num_samples)
+    (sample_paths, outs, labels, _) = infer_dataloader(
+        device, net, dataloader, tta=tta, amp=amp, num_samples=num_samples
+    )
     results = Results(sample_paths, labels, list(class_to_idx.keys()), outs)
 
     return results

@@ -30,3 +30,9 @@ class TestInference(unittest.TestCase):
             self.assertEqual(len(out), 1)
             self.assertEqual(len(out[0]), 10)
             self.assertAlmostEqual(sum(out[0]), 1, places=5)
+
+            (out, embed) = classification.infer_batch(n, torch.rand((1, 3, size, size)), tta=True)
+            self.assertIsNone(embed)
+            self.assertEqual(len(out), 1)
+            self.assertEqual(len(out[0]), 10)
+            self.assertAlmostEqual(sum(out[0]), 1, places=5)

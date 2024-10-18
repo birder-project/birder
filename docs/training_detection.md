@@ -5,6 +5,14 @@ Training script and procedures adapted from PyTorch vision reference
 
 ## Object Detection
 
+### EfficientDet
+
+#### EfficientDet: EfficientNet v1 B0
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d0 --backbone efficientnet_v1_b0 --backbone-epoch 0 --freeze-backbone --lr 0.08 --lr-scheduler cosine --warmup-epochs 2 --batch-size 8 --epochs 300 --wd 0.00004 --clip-grad-norm 10 --amp
+```
+
 ### Faster R-CNN
 
 ### Faster R-CNN: MobileNet v3 Large Backbone

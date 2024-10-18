@@ -168,6 +168,12 @@ class EfficientNet_v2(DetectorBackbone):
                     in_ch = in_channels[i]
                     stride = strides[i]
 
+                if stride[0] > 1 or stride[1] > 1:
+                    stages[f"stage{stage_id}"] = nn.Sequential(*layers)
+                    return_channels.append(in_ch)
+                    layers = []
+                    stage_id += 1
+
                 if i < 3:
                     layers.append(
                         FusedMBConv(
@@ -192,15 +198,13 @@ class EfficientNet_v2(DetectorBackbone):
                         )
                     )
 
-                if stride[0] > 1:
-                    stages[f"stage{stage_id}"] = nn.Sequential(*layers)
-                    return_channels.append(out_channels[i])
-                    layers = []
-                    stage_id += 1
-
                 stage_block_id += 1
 
-        layers.append(
+        stages[f"stage{stage_id}"] = nn.Sequential(*layers)
+        return_channels.append(out_channels[-1])
+
+        self.body = nn.Sequential(stages)
+        self.features = nn.Sequential(
             Conv2dNormActivation(
                 out_channels[-1],
                 last_channels,
@@ -209,14 +213,7 @@ class EfficientNet_v2(DetectorBackbone):
                 padding=(0, 0),
                 bias=False,
                 activation_layer=nn.SiLU,
-            )
-        )
-
-        stages[f"stage{stage_id}"] = nn.Sequential(*layers)
-        return_channels.append(last_channels)
-
-        self.body = nn.Sequential(stages)
-        self.features = nn.Sequential(
+            ),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )

@@ -220,7 +220,7 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
             sd_prob = stochastic_depth_prob * float(idx) / total_stage_blocks
 
             if idx > 0 and (block_settings.stride[0] > 1 or block_settings.stride[1] > 1):
-                stages[f"stage{i}"] = nn.Sequential(*layers)
+                stages[f"stage{i+1}"] = nn.Sequential(*layers)
                 return_channels.append(net_settings[idx - 1].out_channels)
                 layers = []
                 i += 1
@@ -248,7 +248,7 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
             else:
                 raise ValueError("Unknown config")
 
-        stages[f"stage{i}"] = nn.Sequential(*layers)
+        stages[f"stage{i+1}"] = nn.Sequential(*layers)
         return_channels.append(net_settings[-1].out_channels)
         layers = []
         i += 1
@@ -262,7 +262,7 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
                     padding=block_settings.padding,
                 )
             )
-        stages[f"stage{i}"] = nn.Sequential(*layers)
+        stages[f"stage{i+1}"] = nn.Sequential(*layers)
         return_channels.append(last_stage_settings[-1].out_channels)
 
         self.body = nn.Sequential(stages)
@@ -271,7 +271,7 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
             nn.Flatten(1),
             nn.Dropout(p=dropout),
         )
-        self.return_channels = return_channels[1:5]
+        self.return_channels = return_channels[:4]
         self.embedding_size = last_stage_settings[-1].out_channels
         self.classifier = self.create_classifier()
 

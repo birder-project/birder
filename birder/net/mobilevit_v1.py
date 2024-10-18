@@ -224,7 +224,8 @@ class MobileViT_v1(BaseNet):
                 )
             )
 
-        layers.append(
+        self.body = nn.Sequential(*layers)
+        self.features = nn.Sequential(
             Conv2dNormActivation(
                 channels_b[-2],
                 last_dim,
@@ -233,11 +234,7 @@ class MobileViT_v1(BaseNet):
                 padding=(0, 0),
                 activation_layer=nn.SiLU,
                 bias=True,
-            )
-        )
-
-        self.body = nn.Sequential(*layers)
-        self.features = nn.Sequential(
+            ),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
@@ -301,9 +298,23 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 4.2,
-                "sha256": "baf2c18814c9e7191d3116cda2f242bce374e998243ed4e67e1bb74395c252b0",
+                "sha256": "2b565a768ca21fd72d5ef5090ff0f8b725f3e1165cd8e56749815041e5254d26",
             }
         },
         "net": {"network": "mobilevit_v1_xxs", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "mobilevit_v1_xs_il-common",
+    {
+        "description": "MobileViT v1 XS model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 8.1,
+                "sha256": "193bcede7f0b9f4574673e95c23c6ca3b8eeb30254a32a85e93342f1d67db31b",
+            }
+        },
+        "net": {"network": "mobilevit_v1_xs", "tag": "il-common"},
     },
 )

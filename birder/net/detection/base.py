@@ -36,10 +36,15 @@ def get_detection_signature(input_shape: tuple[int, ...], num_outputs: int) -> D
 
 class DetectionBaseNet(nn.Module):
     default_size: int
+    auto_register = False
     task = str(Task.OBJECT_DETECTION)
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
+        if cls.auto_register is False:
+            # Exclude networks with custom config (initialized only with aliases)
+            return
+
         registry.register_model(cls.__name__.lower(), cls)
 
     def __init__(
@@ -55,7 +60,7 @@ class DetectionBaseNet(nn.Module):
         self.input_channels = backbone.input_channels
         self.num_classes = num_classes + 1  # Background always at index 0
         self.backbone = backbone
-        self.backbone.classifier = nn.Identity()
+        self.backbone.transform_to_backbone()
         if hasattr(self, "net_param") is False:  # Avoid overriding aliases
             self.net_param = net_param
         if hasattr(self, "config") is False:  # Avoid overriding aliases

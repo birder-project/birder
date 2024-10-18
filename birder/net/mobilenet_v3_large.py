@@ -192,7 +192,11 @@ class MobileNet_v3_Large(DetectorBackbone):
 
             layers.append(InvertedResidual(block_settings))
 
-        layers.append(
+        stages[f"stage{i}"] = nn.Sequential(*layers)
+        return_channels.append(net_settings[-1].out_channels)
+
+        self.body = nn.Sequential(stages)
+        self.features = nn.Sequential(
             Conv2dNormActivation(
                 net_settings[-1].out_channels,
                 net_settings[-1].out_channels * 6,
@@ -201,13 +205,7 @@ class MobileNet_v3_Large(DetectorBackbone):
                 padding=(0, 0),
                 bias=False,
                 activation_layer=nn.Hardswish,
-            )
-        )
-        stages[f"stage{i}"] = nn.Sequential(*layers)
-        return_channels.append(net_settings[-1].out_channels * 6)
-
-        self.body = nn.Sequential(stages)
-        self.features = nn.Sequential(
+            ),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
@@ -281,7 +279,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 12.1,
-                "sha256": "45ab21e80fe8a7ed71af7ca87a38e40f2955bdc0c3f4dc67bdcdb289d6472df7",
+                "sha256": "92412316f3dbcc41e4f3186acb50027e87ce0ea3ea1d6b5a726ea883fea20b8e",
             }
         },
         "net": {"network": "mobilenet_v3_large", "net_param": 0.75, "tag": "il-common"},

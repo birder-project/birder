@@ -274,6 +274,7 @@ class ExtraBlock(nn.Sequential):
 
 class SSD(DetectionBaseNet):
     default_size = 512
+    auto_register = True
 
     def __init__(
         self,
@@ -286,6 +287,7 @@ class SSD(DetectionBaseNet):
     ) -> None:
         super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
+        assert self.config is None, "config not supported"
 
         iou_thresh = 0.5
         score_thresh = 0.01

@@ -7,6 +7,7 @@ Paper "EfficientDet: Scalable and Efficient Object Detection", https://arxiv.org
 
 # Reference license: Apache-2.0
 
+import itertools
 from collections.abc import Callable
 from functools import partial
 from typing import Any
@@ -17,9 +18,55 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
+from torchvision.ops import boxes as box_ops
+from torchvision.ops import sigmoid_focal_loss
 
+from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.detection.base import AnchorGenerator
+from birder.net.detection.base import BoxCoder
 from birder.net.detection.base import DetectionBaseNet
+from birder.net.detection.base import ImageList
+from birder.net.detection.base import Matcher
+
+
+def get_bifpn_config(min_level: int, max_level: int, weight_method: Literal["fastattn", "sum"]) -> list[dict[str, Any]]:
+    num_levels = max_level - min_level + 1
+    node_ids = {min_level + i: [i] for i in range(num_levels)}
+    id_cnt = itertools.count(num_levels)
+
+    nodes = []
+    for i in range(max_level - 1, min_level - 1, -1):
+        # Top-down
+        nodes.append(
+            {
+                "feat_level": i,
+                "inputs_offsets": [node_ids[i][-1], node_ids[i + 1][-1]],
+                "weight_method": weight_method,
+            }
+        )
+        node_ids[i].append(next(id_cnt))
+
+    for i in range(min_level + 1, max_level + 1):
+        # Bottom-up
+        nodes.append(
+            {
+                "feat_level": i,
+                "inputs_offsets": node_ids[i] + [node_ids[i - 1][-1]],
+                "weight_method": weight_method,
+            }
+        )
+        node_ids[i].append(next(id_cnt))
+
+    return nodes
+
+
+def _sum(x: list[torch.Tensor]) -> torch.Tensor:
+    res = x[0]
+    for i in x[1:]:
+        res = res + i
+
+    return res
 
 
 class Interpolate2d(nn.Module):
@@ -39,13 +86,15 @@ class Interpolate2d(nn.Module):
         size: Optional[int | tuple[int, int]] = None,
         scale_factor: Optional[float | tuple[float, float]] = None,
         mode: str = "nearest",
-        align_corners: bool = False,
+        align_corners: Optional[bool] = False,
     ) -> None:
         super().__init__()
         self.size = size
         self.scale_factor = scale_factor
         self.mode = mode
         self.align_corners = align_corners
+        if mode == "nearest":
+            self.align_corners = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return F.interpolate(
@@ -97,7 +146,7 @@ class ResampleFeatureMap(nn.Sequential):
                     ((stride[1] - 1) + (kernel_size[1] - 1)) // 2,
                 )
 
-                down_inst = nn.AvgPool2d(kernel_size, stride=stride, padding=padding)
+                down_inst = nn.MaxPool2d(kernel_size, stride=stride, padding=padding)
 
             else:
                 down_inst = Interpolate2d(size=output_size, mode=downsample)
@@ -112,26 +161,25 @@ class ResampleFeatureMap(nn.Sequential):
 class FpnCombine(nn.Module):
     def __init__(
         self,
-        in_channels: int,
+        in_channels: list[int],
         fpn_channels: int,
         inputs_offsets: list[int],
-        input_size: tuple[int, int],
+        input_size: list[tuple[int, int]],
         output_size: tuple[int, int],
         downsample: Literal["max", "bilinear"],
         upsample: Literal["nearest", "bilinear"],
-        norm_layer: Optional[Callable[..., nn.Module]] = nn.BatchNorm2d,
+        norm_layer: Optional[Callable[..., nn.Module]],
         weight_method: Literal["attn", "fastattn", "sum"] = "attn",
     ):
         super().__init__()
-        self.inputs_offsets = inputs_offsets
         self.weight_method = weight_method
 
         self.resample = nn.ModuleDict()
         for offset in inputs_offsets:
             self.resample[str(offset)] = ResampleFeatureMap(
-                in_channels,
+                in_channels[offset],
                 fpn_channels,
-                input_size=input_size,
+                input_size=input_size[offset],
                 output_size=output_size,
                 downsample=downsample,
                 upsample=upsample,
@@ -146,8 +194,8 @@ class FpnCombine(nn.Module):
     def forward(self, x: list[torch.Tensor]) -> torch.Tensor:
         dtype = x[0].dtype
         nodes = []
-        for offset, resample in zip(self.inputs_offsets, self.resample.values()):
-            input_node = x[offset]
+        for offset, resample in self.resample.items():
+            input_node = x[int(offset)]
             input_node = resample(input_node)
             nodes.append(input_node)
 
@@ -179,18 +227,143 @@ class FNode(nn.Module):
         return self.after_combine(self.combine(x))
 
 
-class HeadNet(nn.Module):
+class BiFpnLayer(nn.Module):
     def __init__(
         self,
-        num_outputs: int,
-        num_levels: int,
-        repeats: int,
+        in_channels: list[int],
+        input_size: list[tuple[int, int]],
+        feat_sizes: list[tuple[int, int]],
+        fpn_config: list[dict[str, Any]],
         fpn_channels: int,
-        aspect_ratios: list[float],
-        num_scales: int,
+        num_levels: int,
+        downsample: Literal["max", "bilinear"],
+        upsample: Literal["nearest", "bilinear"],
+        norm_layer: Optional[Callable[..., nn.Module]] = nn.BatchNorm2d,
     ) -> None:
         super().__init__()
         self.num_levels = num_levels
+        self.fnode = nn.ModuleList()
+        for fnode_cfg in fpn_config:
+            combine = FpnCombine(
+                in_channels,
+                fpn_channels,
+                inputs_offsets=fnode_cfg["inputs_offsets"],
+                input_size=input_size,
+                output_size=feat_sizes[fnode_cfg["feat_level"]],
+                downsample=downsample,
+                upsample=upsample,
+                norm_layer=norm_layer,
+                weight_method=fnode_cfg["weight_method"],
+            )
+
+            after_combine = nn.Sequential(
+                nn.SiLU(),
+                nn.Conv2d(
+                    fpn_channels,
+                    fpn_channels,
+                    kernel_size=(3, 3),
+                    stride=(1, 1),
+                    padding=(1, 1),
+                    groups=fpn_channels,
+                    bias=False,
+                ),
+                Conv2dNormActivation(
+                    fpn_channels,
+                    fpn_channels,
+                    kernel_size=(1, 1),
+                    stride=(1, 1),
+                    padding=(0, 0),
+                    norm_layer=norm_layer,
+                    activation_layer=None,
+                ),
+            )
+
+            self.fnode.append(FNode(combine=combine, after_combine=after_combine))
+
+    def forward(self, x: list[torch.Tensor]) -> list[torch.Tensor]:
+        for fn in self.fnode:
+            x.append(fn(x))
+
+        return x[-self.num_levels : :]
+
+
+class BiFpn(nn.Module):
+    def __init__(
+        self,
+        image_size: tuple[int, int],
+        min_level: int,
+        max_level: int,
+        num_levels: int,
+        backbone_channels: list[int],
+        fpn_channels: int,
+        fpn_cell_repeats: int,
+        bifpn_config: list[dict[str, Any]],
+    ):
+        super().__init__()
+        feat_size = image_size
+        feat_sizes = [feat_size]
+        for _ in range(1, max_level + 1):
+            feat_size = ((feat_size[0] - 1) // 2 + 1, (feat_size[1] - 1) // 2 + 1)
+            feat_sizes.append(feat_size)
+
+        input_size = feat_sizes.copy()
+        input_size = input_size[-num_levels:]
+        prev_feat_size = feat_sizes[min_level]
+        self.resample = nn.ModuleDict()
+        for level in range(num_levels):
+            feat_size = feat_sizes[level + min_level]
+            if level < len(backbone_channels):
+                in_channels = backbone_channels[level]
+                input_size[level] = feat_size
+            else:
+                self.resample[str(level)] = ResampleFeatureMap(
+                    in_channels=in_channels,
+                    out_channels=fpn_channels,
+                    input_size=prev_feat_size,
+                    output_size=feat_size,
+                    downsample="max",
+                    upsample="nearest",
+                    norm_layer=nn.BatchNorm2d,
+                )
+                in_channels = fpn_channels
+                backbone_channels.append(in_channels)
+
+            prev_feat_size = feat_size
+
+        self.cells = nn.ModuleList()
+        fpn_combine_channels = backbone_channels
+        for _ in range(fpn_cell_repeats):
+            fpn_combine_channels = fpn_combine_channels + [fpn_channels for _ in bifpn_config]
+            input_size = input_size + [feat_sizes[fc["feat_level"]] for fc in bifpn_config]
+            fpn_layer = BiFpnLayer(
+                in_channels=fpn_combine_channels,
+                input_size=input_size,
+                feat_sizes=feat_sizes,
+                fpn_config=bifpn_config,
+                fpn_channels=fpn_channels,
+                num_levels=num_levels,
+                downsample="max",
+                upsample="nearest",
+                norm_layer=nn.BatchNorm2d,
+            )
+            self.cells.append(fpn_layer)
+            fpn_combine_channels = fpn_combine_channels[-num_levels::]
+            input_size = input_size[-num_levels::]
+
+    def forward(self, x: list[torch.Tensor]) -> list[torch.Tensor]:
+        for resample in self.resample.values():
+            x.append(resample(x[-1]))
+
+        for cell in self.cells:
+            x = cell(x)
+
+        return x
+
+
+class HeadNet(nn.Module):
+    def __init__(self, num_outputs: int, repeats: int, fpn_channels: int, num_anchors: int) -> None:
+        super().__init__()
+        self.num_outputs = num_outputs
         norm_layer = partial(nn.BatchNorm2d, eps=0.001, momentum=0.01)
 
         layers = []
@@ -212,7 +385,7 @@ class HeadNet(nn.Module):
                     fpn_channels,
                     kernel_size=(1, 1),
                     stride=(1, 1),
-                    padding=(0, 1),
+                    padding=(0, 0),
                     norm_layer=norm_layer,
                     bias=False,
                     activation_layer=nn.SiLU,
@@ -220,7 +393,6 @@ class HeadNet(nn.Module):
             )
 
         self.conv_repeat = nn.Sequential(*layers)
-        num_anchors = len(aspect_ratios) * num_scales
         self.predict = nn.Sequential(
             nn.Conv2d(
                 fpn_channels,
@@ -236,19 +408,122 @@ class HeadNet(nn.Module):
                 num_outputs * num_anchors,
                 kernel_size=(1, 1),
                 stride=(1, 1),
-                padding=(0, 1),
+                padding=(0, 0),
                 bias=True,
             ),
         )
 
-    def forward(self, x: list[torch.Tensor]) -> list[torch.Tensor]:
-        outputs = []
-        for level in range(self.num_levels):
-            x_level = x[level]
-            x_level = self.conv_repeat(x_level)
-            outputs.append(self.predict(x_level))
+    def forward(self, x: list[torch.Tensor]) -> torch.Tensor:
+        raise NotImplementedError
 
-        return outputs
+
+class ClassificationHead(HeadNet):
+    def __init__(self, num_outputs: int, repeats: int, fpn_channels: int, num_anchors: int) -> None:
+        super().__init__(num_outputs, repeats, fpn_channels, num_anchors)
+        self.BETWEEN_THRESHOLDS = Matcher.BETWEEN_THRESHOLDS  # pylint: disable=invalid-name
+
+    def compute_loss(
+        self,
+        targets: list[dict[str, torch.Tensor]],
+        cls_logits: torch.Tensor,
+        matched_idxs: list[torch.Tensor],
+    ) -> torch.Tensor:
+        losses = []
+        for targets_per_image, cls_logits_per_image, matched_idxs_per_image in zip(targets, cls_logits, matched_idxs):
+            # determine only the foreground
+            foreground_idxs_per_image = matched_idxs_per_image >= 0
+            num_foreground = foreground_idxs_per_image.sum()
+
+            # Create the target classification
+            gt_classes_target = torch.zeros_like(cls_logits_per_image)
+            gt_classes_target[
+                foreground_idxs_per_image,
+                targets_per_image["labels"][matched_idxs_per_image[foreground_idxs_per_image]],
+            ] = 1.0
+
+            # Find indices for which anchors should be ignored
+            valid_idxs_per_image = matched_idxs_per_image != self.BETWEEN_THRESHOLDS
+
+            # Compute the classification loss
+            losses.append(
+                sigmoid_focal_loss(
+                    cls_logits_per_image[valid_idxs_per_image],
+                    gt_classes_target[valid_idxs_per_image],
+                    gamma=1.5,
+                    reduction="sum",
+                )
+                / max(1, num_foreground)
+            )
+
+        return _sum(losses) / len(targets)
+
+    def forward(self, x: list[torch.Tensor]) -> torch.Tensor:
+        all_cls_logits = []
+
+        for features in x:
+            cls_logits: torch.Tensor = self.conv_repeat(features)
+            cls_logits = self.predict(cls_logits)
+
+            # Permute classification output from (N, A * K, H, W) to (N, HWA, K).
+            (N, _, H, W) = cls_logits.shape
+            cls_logits = cls_logits.view(N, -1, self.num_outputs, H, W)
+            cls_logits = cls_logits.permute(0, 3, 4, 1, 2)
+            cls_logits = cls_logits.reshape(N, -1, self.num_outputs)  # Size=(N, HWA, K)
+
+            all_cls_logits.append(cls_logits)
+
+        return torch.concat(all_cls_logits, dim=1)
+
+
+class RegressionHead(HeadNet):
+    def __init__(self, num_outputs: int, repeats: int, fpn_channels: int, num_anchors: int) -> None:
+        super().__init__(num_outputs, repeats, fpn_channels, num_anchors)
+        self.box_coder = BoxCoder(weights=(1.0, 1.0, 1.0, 1.0))
+
+    def compute_loss(
+        self,
+        targets: list[dict[str, torch.Tensor]],
+        bbox_regression: torch.Tensor,
+        anchors: list[torch.Tensor],
+        matched_idxs: list[torch.Tensor],
+    ) -> torch.Tensor:
+        losses = []
+        for targets_per_image, bbox_regression_per_image, anchors_per_image, matched_idxs_per_image in zip(
+            targets, bbox_regression, anchors, matched_idxs
+        ):
+            # Determine only the foreground indices, ignore the rest
+            foreground_idxs_per_image = torch.where(matched_idxs_per_image >= 0)[0]
+            num_foreground = foreground_idxs_per_image.numel()
+
+            # Select only the foreground boxes
+            matched_gt_boxes_per_image = targets_per_image["boxes"][matched_idxs_per_image[foreground_idxs_per_image]]
+            bbox_regression_per_image = bbox_regression_per_image[foreground_idxs_per_image, :]
+            anchors_per_image = anchors_per_image[foreground_idxs_per_image, :]
+
+            # Compute the loss
+            target_regression = self.box_coder.encode_single(matched_gt_boxes_per_image, anchors_per_image)
+            losses.append(
+                F.l1_loss(bbox_regression_per_image, target_regression, reduction="sum") / max(1, num_foreground)
+            )
+
+        return _sum(losses) / max(1, len(targets))
+
+    def forward(self, x: list[torch.Tensor]) -> torch.Tensor:
+        all_bbox_regression = []
+
+        for features in x:
+            bbox_regression: torch.Tensor = self.conv_repeat(features)
+            bbox_regression = self.predict(bbox_regression)
+
+            # Permute bbox regression output from (N, 4 * A, H, W) to (N, HWA, 4).
+            (N, _, H, W) = bbox_regression.shape
+            bbox_regression = bbox_regression.view(N, -1, 4, H, W)
+            bbox_regression = bbox_regression.permute(0, 3, 4, 1, 2)
+            bbox_regression = bbox_regression.reshape(N, -1, 4)  # Size=(N, HWA, 4)
+
+            all_bbox_regression.append(bbox_regression)
+
+        return torch.concat(all_bbox_regression, dim=1)
 
 
 class EfficientDet(DetectionBaseNet):
@@ -264,39 +539,273 @@ class EfficientDet(DetectionBaseNet):
         size: Optional[int] = None,
     ) -> None:
         super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size)
-        assert self.net_param is not None, "must set net-param"
-        net_param = int(self.net_param)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
+
+        score_thresh = 0.001
+        fg_iou_thresh = 0.5
+        bg_iou_thresh = 0.3
+        nms_thresh = 0.5
+        detections_per_img = 100
+        topk_candidates = 5000
 
         min_level = 3
         max_level = 7
         num_levels = max_level - min_level + 1
-        aspect_ratios = [1.0, 2.0, 0.5]
-        num_scales = 3
+        anchor_sizes = [[x, int(x * 2 ** (1.0 / 3)), int(x * 2 ** (2.0 / 3))] for x in [32, 64, 128, 256, 512]]
+        aspect_ratios = [[0.5, 1.0, 2.0]] * len(anchor_sizes)
 
-        if net_param == 0:
-            box_class_repeats = 3
-            fpn_channels = 64
-        else:
-            raise ValueError(f"net_param = {net_param} not supported")
+        fpn_cell_repeats: int = self.config["fpn_cell_repeats"]
+        box_class_repeats: int = self.config["box_class_repeats"]
+        fpn_channels: int = self.config["fpn_channels"]
+        weight_method: Literal["fastattn", "sum"] = self.config["weight_method"]
 
-        self.class_net = HeadNet(
+        bifpn_config = get_bifpn_config(min_level, max_level, weight_method)
+        self.backbone.return_channels = self.backbone.return_channels[-3:]
+        self.backbone.return_stages = self.backbone.return_stages[-3:]
+
+        self.bifpn = BiFpn(
+            image_size=(self.size, self.size),
+            min_level=min_level,
+            max_level=max_level,
+            num_levels=num_levels,
+            backbone_channels=self.backbone.return_channels,
+            fpn_channels=fpn_channels,
+            fpn_cell_repeats=fpn_cell_repeats,
+            bifpn_config=bifpn_config,
+        )
+        self.anchor_generator = AnchorGenerator(anchor_sizes, aspect_ratios)
+        self.class_net = ClassificationHead(
             num_outputs=self.num_classes,
-            num_levels=num_levels,
             repeats=box_class_repeats,
             fpn_channels=fpn_channels,
-            aspect_ratios=aspect_ratios,
-            num_scales=num_scales,
+            num_anchors=self.anchor_generator.num_anchors_per_location()[0],
         )
-        self.box_net = HeadNet(
+        self.box_net = RegressionHead(
             num_outputs=4,
-            num_levels=num_levels,
             repeats=box_class_repeats,
             fpn_channels=fpn_channels,
-            aspect_ratios=aspect_ratios,
-            num_scales=num_scales,
+            num_anchors=self.anchor_generator.num_anchors_per_location()[0],
         )
+        self.proposal_matcher = Matcher(fg_iou_thresh, bg_iou_thresh, allow_low_quality_matches=True)
+        self.box_coder = BoxCoder(weights=(1.0, 1.0, 1.0, 1.0))
 
+        self.score_thresh = score_thresh
+        self.nms_thresh = nms_thresh
+        self.detections_per_img = detections_per_img
+        self.topk_candidates = topk_candidates
+
+    def compute_loss(
+        self,
+        targets: list[dict[str, torch.Tensor]],
+        cls_logits: torch.Tensor,
+        box_output: torch.Tensor,
+        anchors: list[torch.Tensor],
+    ) -> dict[str, torch.Tensor]:
+        matched_idxs = []
+        for anchors_per_image, targets_per_image in zip(anchors, targets):
+            if targets_per_image["boxes"].numel() == 0:
+                matched_idxs.append(
+                    torch.full((anchors_per_image.size(0),), -1, dtype=torch.int64, device=anchors_per_image.device)
+                )
+                continue
+
+            match_quality_matrix = box_ops.box_iou(targets_per_image["boxes"], anchors_per_image)
+            matched_idxs.append(self.proposal_matcher(match_quality_matrix))
+
+        return {
+            "classification": self.class_net.compute_loss(targets, cls_logits, matched_idxs),
+            "bbox_regression": self.box_net.compute_loss(targets, box_output, anchors, matched_idxs),
+        }
+
+    # pylint: disable=too-many-locals
+    def postprocess_detections(
+        self,
+        class_logits: list[torch.Tensor],
+        box_regression: list[torch.Tensor],
+        anchors: list[list[torch.Tensor]],
+        image_shapes: list[tuple[int, int]],
+    ) -> list[dict[str, torch.Tensor]]:
+        num_images = len(image_shapes)
+
+        detections: list[dict[str, torch.Tensor]] = []
+        for index in range(num_images):
+            box_regression_per_image = [br[index] for br in box_regression]
+            logits_per_image = [cl[index] for cl in class_logits]
+            anchors_per_image = anchors[index]
+            image_shape = image_shapes[index]
+
+            image_boxes = []
+            image_scores = []
+            image_labels = []
+            for box_regression_per_level, logits_per_level, anchors_per_level in zip(
+                box_regression_per_image, logits_per_image, anchors_per_image
+            ):
+                num_classes = logits_per_level.shape[-1]
+
+                # Remove low scoring boxes
+                scores_per_level = torch.sigmoid(logits_per_level).flatten()
+                keep_idxs = scores_per_level > self.score_thresh
+                scores_per_level = scores_per_level[keep_idxs]
+                topk_idxs = torch.where(keep_idxs)[0]
+
+                # Keep only topk scoring predictions
+                num_topk = min(self.topk_candidates, int(topk_idxs.size(0)))
+                (scores_per_level, idxs) = scores_per_level.topk(num_topk)
+                topk_idxs = topk_idxs[idxs]
+
+                anchor_idxs = torch.div(topk_idxs, num_classes, rounding_mode="floor")
+                labels_per_level = topk_idxs % num_classes
+
+                boxes_per_level = self.box_coder.decode_single(
+                    box_regression_per_level[anchor_idxs], anchors_per_level[anchor_idxs]
+                )
+                boxes_per_level = box_ops.clip_boxes_to_image(boxes_per_level, image_shape)
+
+                image_boxes.append(boxes_per_level)
+                image_scores.append(scores_per_level)
+                image_labels.append(labels_per_level)
+
+            image_boxes = torch.concat(image_boxes, dim=0)
+            image_scores = torch.concat(image_scores, dim=0)
+            image_labels = torch.concat(image_labels, dim=0)
+
+            # Non-maximum suppression
+            keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)
+            keep = keep[: self.detections_per_img]
+
+            detections.append(
+                {
+                    "boxes": image_boxes[keep],
+                    "scores": image_scores[keep],
+                    "labels": image_labels[keep],
+                }
+            )
+
+        return detections
+
+    # pylint: disable=protected-access,too-many-locals,invalid-name
     def forward(  # type: ignore[override]
         self, x: torch.Tensor, targets: Optional[list[dict[str, torch.Tensor]]] = None
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
-        raise NotImplementedError
+        if self.training is True:
+            if targets is None:
+                torch._assert(False, "targets should not be none when in training mode")
+
+            else:
+                for target in targets:
+                    boxes = target["boxes"]
+                    if isinstance(boxes, torch.Tensor):
+                        torch._assert(
+                            len(boxes.shape) == 2 and boxes.shape[-1] == 4,
+                            f"Expected target boxes to be a tensor of shape [N, 4], got {boxes.shape}.",
+                        )
+
+                    else:
+                        torch._assert(False, f"Expected target boxes to be of type Tensor, got {type(boxes)}.")
+
+        if targets is not None:
+            for target_idx, target in enumerate(targets):
+                boxes = target["boxes"]
+                degenerate_boxes = boxes[:, 2:] <= boxes[:, :2]
+                if degenerate_boxes.any():
+                    # Print the first degenerate box
+                    bb_idx = torch.where(degenerate_boxes.any(dim=1))[0][0]
+                    degenerate_bb: list[float] = boxes[bb_idx].tolist()
+                    torch._assert(
+                        False,
+                        "All bounding boxes should have positive height and width."
+                        f" Found invalid box {degenerate_bb} for target at index {target_idx}.",
+                    )
+
+        image_sizes = [img.shape[-2:] for img in x]
+        image_sizes_list: list[tuple[int, int]] = []
+        for image_size in image_sizes:
+            torch._assert(
+                len(image_size) == 2,
+                f"Input tensors expected to have in the last two elements H and W, instead got {image_size}",
+            )
+            image_sizes_list.append((image_size[0], image_size[1]))
+
+        images = ImageList(x, image_sizes_list)
+
+        features: dict[str, torch.Tensor] = self.backbone.detection_features(x)
+        feature_list = list(features.values())
+        feature_list = self.bifpn(feature_list)
+        cls_logits = self.class_net(feature_list)
+        box_output = self.box_net(feature_list)
+        anchors = self.anchor_generator(images, feature_list)
+
+        losses = {}
+        detections: list[dict[str, torch.Tensor]] = []
+        if self.training is True:
+            if targets is None:  # Redundant due to MyPy
+                torch._assert(False, "targets should not be none when in training mode")
+            else:
+                losses = self.compute_loss(targets, cls_logits, box_output, anchors)
+
+        else:
+            # Recover level sizes
+            num_anchors_per_level = [x.size(2) * x.size(3) for x in feature_list]
+            HW = 0
+            for v in num_anchors_per_level:
+                HW += v
+
+            HWA = cls_logits.size(1)
+            A = HWA // HW
+            num_anchors_per_level = [hw * A for hw in num_anchors_per_level]
+
+            # Split outputs per level
+            split_anchors = [list(a.split(num_anchors_per_level)) for a in anchors]
+
+            # Compute the detections
+            detections = self.postprocess_detections(
+                list(cls_logits.split(num_anchors_per_level, dim=1)),
+                list(box_output.split(num_anchors_per_level, dim=1)),
+                split_anchors,
+                images.image_sizes,
+            )
+
+        return (detections, losses)
+
+
+registry.register_alias(
+    "efficientdet_d0",
+    EfficientDet,
+    config={"fpn_cell_repeats": 3, "box_class_repeats": 3, "fpn_channels": 64, "weight_method": "fastattn"},
+)
+registry.register_alias(
+    "efficientdet_d1",
+    EfficientDet,
+    config={"fpn_cell_repeats": 4, "box_class_repeats": 3, "fpn_channels": 88, "weight_method": "fastattn"},
+)
+registry.register_alias(
+    "efficientdet_d2",
+    EfficientDet,
+    config={"fpn_cell_repeats": 5, "box_class_repeats": 3, "fpn_channels": 112, "weight_method": "fastattn"},
+)
+registry.register_alias(
+    "efficientdet_d3",
+    EfficientDet,
+    config={"fpn_cell_repeats": 6, "box_class_repeats": 4, "fpn_channels": 160, "weight_method": "fastattn"},
+)
+registry.register_alias(
+    "efficientdet_d4",
+    EfficientDet,
+    config={"fpn_cell_repeats": 7, "box_class_repeats": 4, "fpn_channels": 224, "weight_method": "fastattn"},
+)
+registry.register_alias(
+    "efficientdet_d5",
+    EfficientDet,
+    config={"fpn_cell_repeats": 7, "box_class_repeats": 4, "fpn_channels": 288, "weight_method": "fastattn"},
+)
+registry.register_alias(
+    "efficientdet_d6",
+    EfficientDet,
+    config={"fpn_cell_repeats": 8, "box_class_repeats": 5, "fpn_channels": 384, "weight_method": "sum"},
+)
+registry.register_alias(
+    "efficientdet_d7",
+    EfficientDet,
+    config={"fpn_cell_repeats": 8, "box_class_repeats": 5, "fpn_channels": 384, "weight_method": "sum"},
+)

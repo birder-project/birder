@@ -173,6 +173,12 @@ class EfficientNet_v1(DetectorBackbone):
                     in_ch = in_channels[i]
                     stride = strides[i]
 
+                if stride[0] > 1 or stride[1] > 1:
+                    stages[f"stage{stage_id}"] = nn.Sequential(*layers)
+                    return_channels.append(in_ch)
+                    layers = []
+                    stage_id += 1
+
                 layers.append(
                     MBConv(
                         in_ch,
@@ -184,15 +190,13 @@ class EfficientNet_v1(DetectorBackbone):
                     )
                 )
 
-                if stride[0] > 1:
-                    stages[f"stage{stage_id}"] = nn.Sequential(*layers)
-                    return_channels.append(out_channels[i])
-                    layers = []
-                    stage_id += 1
-
                 stage_block_id += 1
 
-        layers.append(
+        stages[f"stage{stage_id}"] = nn.Sequential(*layers)
+        return_channels.append(out_channels[-1])
+
+        self.body = nn.Sequential(stages)
+        self.features = nn.Sequential(
             Conv2dNormActivation(
                 out_channels[-1],
                 out_channels[-1] * 4,
@@ -201,14 +205,7 @@ class EfficientNet_v1(DetectorBackbone):
                 padding=(0, 0),
                 bias=False,
                 activation_layer=nn.SiLU,
-            )
-        )
-
-        stages[f"stage{stage_id}"] = nn.Sequential(*layers)
-        return_channels.append(out_channels[-1] * 4)
-
-        self.body = nn.Sequential(stages)
-        self.features = nn.Sequential(
+            ),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
@@ -322,7 +319,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 17.4,
-                "sha256": "fad26685a729ed222109220332e0b0eff6b2db85374d7fb034defd2e2941a270",
+                "sha256": "9b8da7fa8095cb0bec88df85f56735d8c4a41e0f68cbf5dc610665fb30a5fbbc",
             }
         },
         "net": {"network": "efficientnet_v1_b0", "tag": "il-common"},
@@ -336,7 +333,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 27.1,
-                "sha256": "c554a7b4d714849a1d82bd2eeb0685b1b8ad62196123693685e2150b7c7a60a1",
+                "sha256": "e93b5f13cd93654fbec1455a3593a963aa415c21ad28c442583af57ac43e032f",
             }
         },
         "net": {"network": "efficientnet_v1_b1", "tag": "il-common"},

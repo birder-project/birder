@@ -45,7 +45,7 @@ def evaluate(args: argparse.Namespace) -> None:
         inference_loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=8)
         with torch.inference_mode():
             results = birder.evaluate_classification(
-                device, net, inference_loader, class_to_idx, args.amp, num_samples=num_samples
+                device, net, inference_loader, class_to_idx, args.tta, args.amp, num_samples=num_samples
             )
 
         logging.info(f"{model_name}: accuracy={results.accuracy:.3f}")
@@ -75,6 +75,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
     )
+    parser.add_argument("--tta", default=False, action="store_true", help="test time augmentation (oversampling)")
     parser.add_argument("--size", type=int, help="image size for inference (defaults to model signature)")
     parser.add_argument("--batch-size", type=int, default=64, metavar="N", help="the batch size")
     parser.add_argument("--center-crop", type=float, default=1.0, help="Center crop ratio to use during inference")

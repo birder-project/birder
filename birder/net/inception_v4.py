@@ -259,12 +259,12 @@ class Inception_v4(DetectorBackbone):
             InceptionBlockA(384),
             InceptionBlockA(384),
             InceptionBlockA(384),
-            InceptionReductionBlockA(384),
         )
-        return_channels.append(1024)
+        return_channels.append(384)
 
         # Stage 3
         stages["stage3"] = nn.Sequential(
+            InceptionReductionBlockA(384),
             InceptionBlockB(1024),
             InceptionBlockB(1024),
             InceptionBlockB(1024),
@@ -272,12 +272,12 @@ class Inception_v4(DetectorBackbone):
             InceptionBlockB(1024),
             InceptionBlockB(1024),
             InceptionBlockB(1024),
-            InceptionReductionBlockB(1024),
         )
-        return_channels.append(1536)
+        return_channels.append(1024)
 
         # Stage 4
         stages["stage4"] = nn.Sequential(
+            InceptionReductionBlockB(1024),
             InceptionBlockC(1536),
             InceptionBlockC(1536),
             InceptionBlockC(1536),
@@ -290,7 +290,8 @@ class Inception_v4(DetectorBackbone):
             nn.Flatten(1),
             nn.Dropout(p=0.2),
         )
-        self.return_channels = return_channels
+        self.return_channels = return_channels[1:]
+        self.return_stages = self.return_stages[1:]
         self.embedding_size = 1536
         self.classifier = self.create_classifier()
 

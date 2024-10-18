@@ -264,7 +264,7 @@ class MobileNet_v4(DetectorBackbone):
             sd_prob = stochastic_depth_prob * float(idx) / total_stage_blocks
 
             if idx > 0 and (block_settings.stride[0] > 1 or block_settings.stride[1] > 1):
-                stages[f"stage{i}"] = nn.Sequential(*layers)
+                stages[f"stage{i+1}"] = nn.Sequential(*layers)
                 return_channels.append(net_settings[idx - 1].out_channels)
                 layers = []
                 i += 1
@@ -289,7 +289,7 @@ class MobileNet_v4(DetectorBackbone):
             else:
                 raise ValueError("Unknown config")
 
-        stages[f"stage{i}"] = nn.Sequential(*layers)
+        stages[f"stage{i+1}"] = nn.Sequential(*layers)
         return_channels.append(net_settings[-1].out_channels)
         layers = []
         i += 1
@@ -303,7 +303,7 @@ class MobileNet_v4(DetectorBackbone):
                     padding=block_settings.padding,
                 )
             )
-        stages[f"stage{i}"] = nn.Sequential(*layers)
+        stages[f"stage{i+1}"] = nn.Sequential(*layers)
         return_channels.append(last_stage_settings[-1].out_channels)
 
         self.body = nn.Sequential(stages)
@@ -312,7 +312,7 @@ class MobileNet_v4(DetectorBackbone):
             nn.Flatten(1),
             nn.Dropout(p=dropout),
         )
-        self.return_channels = return_channels[1:5]
+        self.return_channels = return_channels[:4]
         self.embedding_size = last_stage_settings[-1].out_channels
         self.classifier = self.create_classifier()
 
@@ -490,7 +490,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 11.5,
-                "sha256": "f5a995d076bdcf1e9984fd3f8beb40bcd17ba6f1b6df74d7a82056bd06250b4f",
+                "sha256": "faa6cb3adae59739892d28184a6746fe21df79599c0b09b66b5db745645587c3",
             }
         },
         "net": {"network": "mobilenet_v4_s", "tag": "il-common"},
@@ -504,7 +504,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 34.4,
-                "sha256": "dd6c05489f303ef78b097928a42d907dd83e75a4bbaaea867870b0a89b3f2dc6",
+                "sha256": "b34c25a14251084cead2c259e627ff00d6bbd2e23d841fc112dacae469ce1d8d",
             }
         },
         "net": {"network": "mobilenet_v4_m", "tag": "il-common"},

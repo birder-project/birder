@@ -155,7 +155,14 @@ def predict(args: argparse.Namespace) -> None:
     tic = time.time()
     with torch.inference_mode():
         (sample_paths, outs, labels, embedding_list) = classification.infer_dataloader(
-            device, net, inference_loader, args.save_embedding, args.amp, num_samples, batch_callback=batch_callback
+            device,
+            net,
+            inference_loader,
+            args.save_embedding,
+            args.tta,
+            args.amp,
+            num_samples,
+            batch_callback=batch_callback,
         )
 
     toc = time.time()
@@ -173,6 +180,8 @@ def predict(args: argparse.Namespace) -> None:
     base_output_path = (
         f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size}px_crop{args.center_crop}_{num_samples}"
     )
+    if args.tta is not None:
+        base_output_path = f"{base_output_path}_tta"
     if args.suffix is not None:
         base_output_path = f"{base_output_path}_{args.suffix}"
 
@@ -262,6 +271,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
     )
+    parser.add_argument("--tta", default=False, action="store_true", help="test time augmentation (oversampling)")
     parser.add_argument("--size", type=int, help="image size for inference (defaults to model signature)")
     parser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
     parser.add_argument("--center-crop", type=float, default=1.0, help="Center crop ratio to use during inference")
@@ -290,6 +300,7 @@ def validate_args(args: argparse.Namespace) -> None:
     assert args.center_crop <= 1 and args.center_crop > 0, "Center crop ratio must be between 0 and 1"
     assert args.parallel is False or args.gpu is True
     assert args.save_embedding is False or args.parallel is False
+    assert args.save_embedding is False or args.tta is False
     assert args.parallel is False or args.compile is False
     assert args.wds is False or len(args.data_path) == 1
     assert args.wds is False or (

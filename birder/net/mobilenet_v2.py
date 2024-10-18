@@ -160,8 +160,12 @@ class MobileNet_v2(DetectorBackbone):
 
             base = c
 
+        stages[f"stage{i}"] = nn.Sequential(*layers)
+        return_channels.append(base)
+
         last_channels = make_divisible(1280 * max(1.0, alpha), 8)
-        layers.append(
+        self.body = nn.Sequential(stages)
+        self.features = nn.Sequential(
             Conv2dNormActivation(
                 c,
                 last_channels,
@@ -170,14 +174,7 @@ class MobileNet_v2(DetectorBackbone):
                 padding=(0, 0),
                 bias=False,
                 activation_layer=nn.ReLU6,
-            )
-        )
-
-        stages[f"stage{i}"] = nn.Sequential(*layers)
-        return_channels.append(last_channels)
-
-        self.body = nn.Sequential(stages)
-        self.features = nn.Sequential(
+            ),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
@@ -236,7 +233,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 10.6,
-                "sha256": "4cf940cd3863dd744662eb1914ef8708a96b9d90f1ed040c5cfbf18fcd58e8b0",
+                "sha256": "d6182293e98c102026f7cdc0d446aaf0e511232173c4b98c1a882c9f147be6e7",
             }
         },
         "net": {"network": "mobilenet_v2", "net_param": 1, "tag": "il-common"},

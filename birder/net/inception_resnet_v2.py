@@ -232,21 +232,21 @@ class Inception_ResNet_v2(DetectorBackbone):
         for _ in range(10):
             layers.append(InceptionBlockA(320, scale=0.17))
 
-        layers.append(InceptionReductionBlockA(320))
         stages["stage2"] = nn.Sequential(*layers)
-        return_channels.append(1088)
+        return_channels.append(320)
 
         # Stage 3
         layers = []
+        layers.append(InceptionReductionBlockA(320))
         for _ in range(20):
             layers.append(InceptionBlockB(1088, scale=0.1))
 
-        layers.append(InceptionReductionBlockB(1088))
         stages["stage3"] = nn.Sequential(*layers)
-        return_channels.append(2080)
+        return_channels.append(1088)
 
-        # Stage 3
+        # Stage 4
         layers = []
+        layers.append(InceptionReductionBlockB(1088))
         for _ in range(9):
             layers.append(InceptionBlockC(2080, scale=0.2, last_relu=True))
 
@@ -261,7 +261,8 @@ class Inception_ResNet_v2(DetectorBackbone):
             nn.Flatten(1),
             nn.Dropout(p=0.2),
         )
-        self.return_channels = return_channels
+        self.return_channels = return_channels[1:]
+        self.return_stages = self.return_stages[1:]
         self.embedding_size = 1536
         self.classifier = self.create_classifier()
 

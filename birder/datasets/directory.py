@@ -46,7 +46,7 @@ class ImageListDataset(torch.utils.data.Dataset):
     def __repr__(self) -> str:
         head = "Dataset " + self.__class__.__name__
         body = [f"Number of data points: {self.__len__()}"]
-        if hasattr(self, "transforms") and self.transforms is not None:
+        if hasattr(self, "transforms") is True and self.transforms is not None:
             body += [repr(self.transforms)]
 
         lines = [head] + ["    " + line for line in body]

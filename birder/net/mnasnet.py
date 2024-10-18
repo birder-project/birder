@@ -190,25 +190,26 @@ class MNASNet(DetectorBackbone):
 
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
-        stages["stage0"] = nn.Sequential(
+        stages["stage1"] = nn.Sequential(
             InvertedResidualBlock(depths[1], depths[2], (3, 3), (2, 2), (1, 1), 3, 3, norm_layer),
         )
         return_channels.append(depths[2])
-        stages["stage1"] = nn.Sequential(
+        stages["stage2"] = nn.Sequential(
             InvertedResidualBlock(depths[2], depths[3], (5, 5), (2, 2), (2, 2), 3, 3, norm_layer),
         )
         return_channels.append(depths[3])
-        stages["stage2"] = nn.Sequential(
-            InvertedResidualBlock(depths[3], depths[4], (5, 5), (2, 2), (2, 2), 6, 3, norm_layer),
-        )
-        return_channels.append(depths[4])
         stages["stage3"] = nn.Sequential(
+            InvertedResidualBlock(depths[3], depths[4], (5, 5), (2, 2), (2, 2), 6, 3, norm_layer),
             InvertedResidualBlock(depths[4], depths[5], (3, 3), (1, 1), (1, 1), 6, 2, norm_layer),
-            InvertedResidualBlock(depths[5], depths[6], (5, 5), (2, 2), (2, 2), 6, 4, norm_layer),
         )
-        return_channels.append(depths[6])
+        return_channels.append(depths[5])
         stages["stage4"] = nn.Sequential(
+            InvertedResidualBlock(depths[5], depths[6], (5, 5), (2, 2), (2, 2), 6, 4, norm_layer),
             InvertedResidualBlock(depths[6], depths[7], (3, 3), (1, 1), (1, 1), 6, 1, norm_layer),
+        )
+        return_channels.append(depths[7])
+        self.body = nn.Sequential(stages)
+        self.features = nn.Sequential(
             Conv2dNormActivation(
                 depths[7],
                 1280,
@@ -218,15 +219,11 @@ class MNASNet(DetectorBackbone):
                 bias=False,
                 norm_layer=norm_layer,
             ),
-        )
-        return_channels.append(1280)
-        self.body = nn.Sequential(stages)
-        self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
             nn.Dropout(p=0.2),
         )
-        self.return_channels = return_channels[1:5]
+        self.return_channels = return_channels
         self.embedding_size = 1280
         self.classifier = self.create_classifier()
 
@@ -282,7 +279,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 5.6,
-                "sha256": "08c18c6edfcec4fb30edf772bf996347bd5dbc69ab5a00c3529f675b5f75b9ee",
+                "sha256": "bec1d292d6400b54958206e9f89ec50a31e42abd94447fb466161dd0623cd75a",
             }
         },
         "net": {"network": "mnasnet", "net_param": 0.5, "tag": "il-common"},
@@ -296,7 +293,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 13.9,
-                "sha256": "d3245f7819b39218179f5e7af1a9e5e389949634229bc97108dba72fe31e1918",
+                "sha256": "351256cf362e5ed64838fb72e1455aee05793d2eff3c2c02f5a4c0f89cce7e53",
             }
         },
         "net": {"network": "mnasnet", "net_param": 1, "tag": "il-common"},

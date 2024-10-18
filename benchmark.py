@@ -17,8 +17,22 @@ def dummy(arg: Any) -> None:
     type(arg)
 
 
-# pylint: disable=too-many-locals
+# pylint: disable=too-many-locals,too-many-branches
 def benchmark(args: argparse.Namespace) -> None:
+    output_path = "benchmark"
+    if args.suffix is not None:
+        output_path = f"{output_path}_{args.suffix}"
+
+    benchmark_path = settings.RESULTS_DIR.joinpath(f"{output_path}.csv")
+    if benchmark_path.exists() is True and args.append is False:  # pylint: disable=no-else-raise
+        logging.warning("Benchmark file already exists... aborting")
+        raise SystemExit(1)
+    elif benchmark_path.exists() is True:
+        logging.info(f"Loading {benchmark_path}...")
+        existing_df = pl.read_csv(benchmark_path)
+    else:
+        existing_df = None
+
     if args.gpu is True:
         device = torch.device("cuda")
     else:
@@ -45,6 +59,24 @@ def benchmark(args: argparse.Namespace) -> None:
         else:
             size = (args.size, args.size)
 
+        # Check if model already benchmarked at this configuration
+        if existing_df is not None:
+            combination_exists = existing_df.filter(
+                **{
+                    "model_name": model_name,
+                    "device": device.type,
+                    "compile": args.compile,
+                    "amp": args.amp,
+                    "fast_matmul": args.fast_matmul,
+                    "size": size[0],
+                    "batch_size": args.batch_size,
+                }
+            ).is_empty()
+            if combination_exists is False:
+                logging.info(f"{model_name} at the current configuration is already on file, skipping...")
+                continue
+
+        # Initialize model
         net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, size=size[0])
         net.to(device)
         for param in net.parameters():
@@ -95,10 +127,6 @@ def benchmark(args: argparse.Namespace) -> None:
 
     results_df = pl.DataFrame(results)
 
-    output_path = "benchmark"
-    if args.suffix is not None:
-        output_path = f"{output_path}_{args.suffix}"
-
     if args.append is True:
         include_header = False
         mode = "a"
@@ -106,7 +134,6 @@ def benchmark(args: argparse.Namespace) -> None:
         include_header = True
         mode = "w"
 
-    benchmark_path = settings.RESULTS_DIR.joinpath(f"{output_path}.csv")
     logging.info(f"Saving results at {benchmark_path}")
     with open(benchmark_path, mode=mode, encoding="utf-8") as handle:
         results_df.write_csv(handle, include_header=include_header)
