@@ -59,8 +59,8 @@ def get_detection_network_name(
     backbone_param: Optional[float],
     backbone_tag: Optional[str],
 ) -> str:
-    prefix = get_network_name(network, net_param, backbone_tag)
-    suffix = get_network_name(backbone, backbone_param, tag)
+    prefix = get_network_name(network, net_param, tag)
+    suffix = get_network_name(backbone, backbone_param, backbone_tag)
     return f"{prefix}_{suffix}"
 
 

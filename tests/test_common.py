@@ -18,7 +18,7 @@ from birder.net.vit import ViT
 logging.disable(logging.CRITICAL)
 
 
-class TestCommon(unittest.TestCase):
+class TestLib(unittest.TestCase):
     def test_lib(self) -> None:
         # Network name
         net_name = lib.get_network_name("net", net_param=None)
@@ -41,7 +41,7 @@ class TestCommon(unittest.TestCase):
         net_name = lib.get_detection_network_name(
             "net", net_param=None, backbone="back", backbone_param=3, tag="exp", backbone_tag=None
         )
-        self.assertEqual(net_name, "net_back_3_exp")
+        self.assertEqual(net_name, "net_exp_back_3")
 
         # Label from path
         label = lib.get_label_from_path("data/validation/Barn owl/000001.jpeg")
@@ -52,6 +52,8 @@ class TestCommon(unittest.TestCase):
         self.assertEqual(detection_class_to_index["first"], 1)
         self.assertEqual(detection_class_to_index["second"], 2)
 
+
+class TestCLI(unittest.TestCase):
     def test_cli(self) -> None:
         m = mock_open(read_data=b"test data")
         with patch("builtins.open", m):
@@ -59,6 +61,8 @@ class TestCommon(unittest.TestCase):
             m.assert_called_with("some_file.tar.gz", "rb")
             self.assertEqual(hex_digest, "916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9")
 
+
+class TestFSOps(unittest.TestCase):
     def test_fs_ops(self) -> None:
         # Test model paths
         path = fs_ops.model_path("net", states=True)
@@ -82,8 +86,9 @@ class TestCommon(unittest.TestCase):
         path = fs_ops.model_path("net", epoch=17)
         self.assertEqual(path, settings.MODELS_DIR.joinpath("net_17.pt"))
 
-    def test_training_util(self) -> None:
-        # Test RA Sampler
+
+class TestTrainingUtils(unittest.TestCase):
+    def test_ra_sampler(self) -> None:
         dataset = list(range(512))
         sampler = training_utils.RASampler(dataset, num_replicas=2, rank=0, shuffle=False, repetitions=1)
         self.assertEqual(len(sampler), 256)  # Each rank gets half the dataset
@@ -112,7 +117,7 @@ class TestCommon(unittest.TestCase):
         sample_iterator = iter(sampler)
         self.assertLessEqual(next(sample_iterator), 512)  # type: ignore
 
-        # Test Optimizer Parameter Groups
+    def test_optimizer_parameter_groups(self) -> None:
         model = torch.nn.Sequential(
             torch.nn.Linear(1, 2, bias=True),
             torch.nn.BatchNorm1d(2),
@@ -190,7 +195,7 @@ class TestCommon(unittest.TestCase):
         for param in params[:4]:  # CLS token, positional encoding and conv_proj
             self.assertAlmostEqual(param["lr_scale"], 1e-13)
 
-        # Get optimizer
+    def test_get_optimizer(self) -> None:
         for opt_type in typing.get_args(training_utils.OptimizerType):
             args = argparse.Namespace(opt=opt_type, lr=0.1, momentum=0.9, wd=0, nesterov=False)
             opt = training_utils.get_optimizer([{"params": []}], args)
@@ -206,7 +211,9 @@ class TestCommon(unittest.TestCase):
         self.assertEqual(opt.defaults["eps"], 1e-6)
         self.assertEqual(opt.defaults["betas"], [0.1, 0.2])
 
-        # Get scheduler
+    def test_get_scheduler(self) -> None:
+        args = argparse.Namespace(opt="sgd", lr=0.1, momentum=0.9, wd=0, nesterov=False)
+        opt = training_utils.get_optimizer([{"params": []}], args)
         for scheduler_type in typing.get_args(training_utils.SchedulerType):
             scheduler = training_utils.get_scheduler(scheduler_type, opt, 0, 0, 10, 0.0, 0, 0.0)
             self.assertIsInstance(scheduler, torch.optim.lr_scheduler.LRScheduler)
@@ -222,7 +229,7 @@ class TestCommon(unittest.TestCase):
         self.assertFalse(training_utils.is_dist_available_and_initialized())
         self.assertRegex(training_utils.training_log_name("something", torch.device("cpu")), "something__")
 
-        # Test grad norm
+    def test_get_grad_norm(self) -> None:
         model = torch.nn.Sequential(
             torch.nn.Linear(1, 2, bias=True),
             torch.nn.BatchNorm1d(2),
@@ -237,3 +244,17 @@ class TestCommon(unittest.TestCase):
         loss.backward()
         grad_norm = training_utils.get_grad_norm(model.parameters())
         self.assertGreater(grad_norm, 0.0)
+
+    def test_freeze_batchnorm2d(self) -> None:
+        model = torch.nn.Sequential(
+            torch.nn.Linear(1, 2, bias=True),
+            torch.nn.BatchNorm1d(2),
+            torch.nn.Linear(2, 1, bias=False),
+        )
+        model = training_utils.freeze_batchnorm2d(model)
+        self.assertIsInstance(model[1], torch.nn.BatchNorm1d)  # 1d batchnorm should not change
+
+        model = ResNeXt(3, 2, config={"units": [3, 4, 6, 3]})
+        model = training_utils.freeze_batchnorm2d(model)
+        for m in model.modules():
+            self.assertNotIsInstance(m, torch.nn.BatchNorm2d)

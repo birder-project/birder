@@ -83,8 +83,8 @@ class Attention2d(nn.Module):
         ).flatten(1)
         rel_pos = (pos[..., :, None] - pos[..., None, :]).abs()
         rel_pos = (rel_pos[0] * self.resolution[1]) + rel_pos[1]
-        self.attention_biases = torch.nn.Parameter(torch.zeros(num_heads, self.N))
-        self.register_buffer("attention_bias_idxs", torch.LongTensor(rel_pos), persistent=False)
+        self.attention_biases = nn.Parameter(torch.zeros(num_heads, self.N))
+        self.attention_bias_idxs = nn.Buffer(torch.LongTensor(rel_pos), persistent=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B = x.size(0)  # (B, C, H, W)
@@ -177,7 +177,7 @@ class Attention2dDownsample(nn.Module):
         ).flatten(1)
         rel_pos = (q_pos[..., :, None] - k_pos[..., None, :]).abs()
         rel_pos = (rel_pos[0] * self.resolution[1]) + rel_pos[1]
-        self.register_buffer("attention_bias_idxs", rel_pos, persistent=False)
+        self.attention_bias_idxs = nn.Buffer(torch.LongTensor(rel_pos), persistent=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B = x.size(0)  # (B, C, H, W)
@@ -574,7 +574,7 @@ class EfficientFormer_v2(DetectorBackbone):
                         )
                         attention_biases = attention_biases.permute(0, 2, 3, 1).reshape(attn.num_heads, -1)
                         attention_biases = attention_biases.to(orig_dtype)
-                        attn.attention_biases = torch.nn.Parameter(attention_biases)
+                        attn.attention_biases = nn.Parameter(attention_biases)
 
                         k_pos = torch.stack(
                             torch.meshgrid(
@@ -590,7 +590,7 @@ class EfficientFormer_v2(DetectorBackbone):
                         ).flatten(1)
                         rel_pos = (q_pos[..., :, None] - k_pos[..., None, :]).abs()
                         rel_pos = (rel_pos[0] * attn.resolution[1]) + rel_pos[1]
-                        attn.attention_bias_idxs = torch.LongTensor(rel_pos)
+                        attn.attention_bias_idxs = nn.Buffer(torch.LongTensor(rel_pos), persistent=False)
 
                     old_base = old_base // 2
                     new_base = new_base // 2
@@ -625,8 +625,8 @@ class EfficientFormer_v2(DetectorBackbone):
                             )
                             attention_biases = attention_biases.permute(0, 2, 3, 1).reshape(m.token_mixer.num_heads, -1)
                             attention_biases = attention_biases.to(orig_dtype)
-                            m.token_mixer.attention_biases = torch.nn.Parameter(attention_biases)
-                            m.token_mixer.attention_bias_idxs = torch.LongTensor(rel_pos)
+                            m.token_mixer.attention_biases = nn.Parameter(attention_biases)
+                            m.token_mixer.attention_bias_idxs = nn.Buffer(torch.LongTensor(rel_pos), persistent=False)
 
         logging.info(f"Resized attention base resolution: {old_base} to {new_base}")
 

@@ -20,7 +20,7 @@ from tqdm import tqdm
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
-from birder.datasets.directory import ImageListDataset
+from birder.datasets.directory import make_image_dataset
 from birder.inference import classification
 from birder.transforms.classification import inference_preset
 
@@ -41,11 +41,10 @@ def similarity(args: argparse.Namespace) -> None:
     )
 
     size = lib.get_size_from_signature(signature)[0]
-    samples = fs_ops.samples_from_paths(args.data_path, class_to_idx=class_to_idx)
-    assert len(samples) > 0, "Couldn't find any images"
-
     batch_size = 32
-    dataset = ImageListDataset(samples, transforms=inference_preset((size, size), rgb_stats, 1.0))
+    dataset = make_image_dataset(
+        args.data_path, class_to_idx, transforms=inference_preset((size, size), rgb_stats, 1.0)
+    )
     inference_loader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -56,7 +55,7 @@ def similarity(args: argparse.Namespace) -> None:
     embedding_list: list[npt.NDArray[np.float32]] = []
     sample_paths: list[str] = []
     tic = time.time()
-    with tqdm(total=len(samples), initial=0, unit="images", unit_scale=True, leave=False) as progress:
+    with tqdm(total=len(dataset), initial=0, unit="images", unit_scale=True, leave=False) as progress:
         for file_paths, inputs, _targets in inference_loader:
             # Predict
             inputs = inputs.to(device)
@@ -70,9 +69,9 @@ def similarity(args: argparse.Namespace) -> None:
     embeddings = np.concatenate(embedding_list, axis=0)
 
     toc = time.time()
-    rate = len(samples) / (toc - tic)
+    rate = len(dataset) / (toc - tic)
     (minutes, seconds) = divmod(toc - tic, 60)
-    logging.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {len(samples)} samples ({rate:.2f} samples/sec)")
+    logging.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {len(dataset)} samples ({rate:.2f} samples/sec)")
 
     logging.info("Processing similarity...")
 

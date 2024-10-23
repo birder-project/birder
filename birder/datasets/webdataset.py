@@ -4,6 +4,7 @@ from typing import Any
 import torch
 import torch.utils.data
 import webdataset as wds
+from torchvision.io import decode_image
 
 from birder.common.training_utils import reduce_across_processes
 
@@ -11,6 +12,14 @@ from birder.common.training_utils import reduce_across_processes
 def decode_sample_name(item: tuple[str, str, Any, int]) -> tuple[str, Any, int]:
     sample_name = item[0] + "/" + item[1]
     return (sample_name, item[2], item[3])
+
+
+def wds_image_decoder(key: str, data: bytes) -> torch.Tensor:
+    if key.endswith((".jpg", ".jpeg", ".webp", ".png")) is False:
+        return None
+
+    tensor = torch.frombuffer(bytearray(data), dtype=torch.uint8)
+    return decode_image(tensor)
 
 
 def make_wds_dataset(

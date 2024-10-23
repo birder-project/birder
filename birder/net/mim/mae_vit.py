@@ -21,6 +21,7 @@ from birder.net.base import pos_embedding_sin_cos_2d
 from birder.net.mim.base import MIMBaseNet
 from birder.net.simple_vit import Simple_ViT
 from birder.net.vit import ViT
+from birder.net.vit_sam import ViT_SAM
 
 
 # pylint: disable=invalid-name
@@ -37,12 +38,12 @@ class MAE_ViT(MIMBaseNet):
     ) -> None:
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
-        assert isinstance(self.encoder, (ViT, Simple_ViT))
-        self.encoder: ViT | Simple_ViT
+        assert isinstance(self.encoder, (ViT, Simple_ViT, ViT_SAM))
+        self.encoder: ViT | Simple_ViT | ViT_SAM
 
         self.mask_ratio = 0.75
         self.patch_size = self.encoder.patch_size
-        encoder_dim = self.encoder.embedding_size
+        encoder_dim = self.encoder.hidden_dim
         decoder_embed_dim = 512
         decoder_depth = 8
 

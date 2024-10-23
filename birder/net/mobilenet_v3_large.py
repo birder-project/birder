@@ -285,3 +285,17 @@ registry.register_weights(
         "net": {"network": "mobilenet_v3_large", "net_param": 0.75, "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "mobilenet_v3_large_1_il-common",
+    {
+        "description": "MobileNet v3 large (1.0 multiplier) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 18.1,
+                "sha256": "85bc65482716368c4fd69d4c699b61330fdf806d99e6c88ffbeda54886c2f3d4",
+            }
+        },
+        "net": {"network": "mobilenet_v3_large", "net_param": 1, "tag": "il-common"},
+    },
+)

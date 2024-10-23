@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+from pathlib import Path
 from typing import Any
 
 import onnx
@@ -17,6 +18,102 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import SignatureType
 from birder.net.base import reparameterize_available
 from birder.net.detection.base import DetectionSignatureType
+from birder.transforms.classification import RGBType
+
+
+def reparameterize(
+    net: torch.nn.Module,
+    signature: SignatureType | DetectionSignatureType,
+    class_to_idx: dict[str, int],
+    rgb_stats: RGBType,
+    epoch: int,
+    network_name: str,
+) -> None:
+    if reparameterize_available(net) is False:
+        logging.error("Reparameterize not supported for this network")
+    else:
+        net.reparameterize_model()
+        network_name = lib.get_network_name(network_name, net_param=None, tag="reparameterized")
+        fs_ops.checkpoint_model(
+            network_name,
+            epoch,
+            net,
+            signature=signature,
+            class_to_idx=class_to_idx,
+            rgb_stats=rgb_stats,
+            optimizer=None,
+            scheduler=None,
+            scaler=None,
+        )
+
+
+def pt2_export(
+    net: torch.nn.Module,
+    signature: SignatureType | DetectionSignatureType,
+    class_to_idx: dict[str, int],
+    rgb_stats: RGBType,
+    device: torch.device,
+    model_path: str | Path,
+) -> None:
+    signature["inputs"][0]["data_shape"][0] = 2  # Set batch size
+    sample_shape = signature["inputs"][0]["data_shape"]
+    batch_dim = torch.export.Dim("batch", min=1)
+    exported_net = torch.export.export(
+        net, (torch.randn(*sample_shape, device=device),), dynamic_shapes={"x": {0: batch_dim}}
+    )
+    fs_ops.save_pt2(exported_net, model_path, net.task, class_to_idx, signature, rgb_stats)
+
+
+def onnx_export(
+    net: torch.nn.Module,
+    signature: SignatureType | DetectionSignatureType,
+    class_to_idx: dict[str, int],
+    rgb_stats: RGBType,
+    model_path: str | Path,
+) -> None:
+    signature["inputs"][0]["data_shape"][0] = 1  # Set batch size
+    sample_shape = signature["inputs"][0]["data_shape"]
+    torch.onnx.export(
+        net,
+        torch.randn(sample_shape),
+        model_path,
+        export_params=True,
+        opset_version=16,
+        input_names=["input"],
+        output_names=["output"],
+        dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
+    )
+    signature["inputs"][0]["data_shape"][0] = 0
+
+    logging.info("Saving class to index json...")
+    with open(f"{model_path}_class_to_idx.json", "w", encoding="utf-8") as handle:
+        json.dump(class_to_idx, handle, indent=2)
+
+    model_name = registry.get_model_base_name(net)
+    net_param = None
+    model_config = None
+    if net.config is not None:
+        model_config = net.config
+    elif net.net_param is not None:
+        net_param = net.net_param
+
+    logging.info("Saving model config json...")
+    with open(f"{model_path}_config.json", "w", encoding="utf-8") as handle:
+        json.dump(
+            {
+                "name": model_name,
+                "net_param": net_param,
+                "model_config": model_config,
+                "signature": signature,
+                "rgb_stats": rgb_stats,
+            },
+            handle,
+            indent=2,
+        )
+
+    # Test exported model
+    onnx_model = onnx.load(str(model_path))
+    onnx.checker.check_model(onnx_model, full_check=True)
 
 
 def set_parser(subparsers: Any) -> None:
@@ -132,22 +229,7 @@ def main(args: argparse.Namespace) -> None:
 
     logging.info(f"Saving converted model {model_path}...")
     if args.reparameterize is True:
-        if reparameterize_available(net) is False:
-            logging.error("Reparameterize not supported for this network")
-        else:
-            net.reparameterize_model()
-            network_name = lib.get_network_name(network_name, net_param=None, tag="reparameterized")
-            fs_ops.checkpoint_model(
-                network_name,
-                args.epoch,
-                net,
-                signature=signature,
-                class_to_idx=class_to_idx,
-                rgb_stats=rgb_stats,
-                optimizer=None,
-                scheduler=None,
-                scaler=None,
-            )
+        reparameterize(net, signature, class_to_idx, rgb_stats, args.epoch, network_name)
 
     elif args.lite is True:
         if args.trace is True:
@@ -168,41 +250,10 @@ def main(args: argparse.Namespace) -> None:
         )
 
     elif args.pt2 is True:
-        signature["inputs"][0]["data_shape"][0] = 2  # Set batch size
-        sample_shape = signature["inputs"][0]["data_shape"]
-        batch_dim = torch.export.Dim("batch", min=1)
-        exported_net = torch.export.export(
-            net, (torch.randn(*sample_shape, device=device),), dynamic_shapes={"x": {0: batch_dim}}
-        )
-        fs_ops.save_pt2(exported_net, model_path, net.task, class_to_idx, signature, rgb_stats)
+        pt2_export(net, signature, class_to_idx, rgb_stats, device, model_path)
 
     elif args.onnx is True:
-        signature["inputs"][0]["data_shape"][0] = 1  # Set batch size
-        sample_shape = signature["inputs"][0]["data_shape"]
-        torch.onnx.export(
-            net,
-            torch.randn(sample_shape),
-            model_path,
-            export_params=True,
-            opset_version=16,
-            input_names=["input"],
-            output_names=["output"],
-            dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
-        )
-        signature["inputs"][0]["data_shape"][0] = 0
-
-        with open(f"{model_path}_class_to_idx.json", "w", encoding="utf-8") as handle:
-            json.dump(class_to_idx, handle, indent=2)
-
-        with open(f"{model_path}_signature.json", "w", encoding="utf-8") as handle:
-            json.dump(signature, handle, indent=2)
-
-        with open(f"{model_path}_rgb_stats.json", "w", encoding="utf-8") as handle:
-            json.dump(rgb_stats, handle, indent=2)
-
-        # Test exported model
-        onnx_model = onnx.load(str(model_path))
-        onnx.checker.check_model(onnx_model, full_check=True)
+        onnx_export(net, signature, class_to_idx, rgb_stats, model_path)
 
     elif args.pts is True:
         if args.trace is True:

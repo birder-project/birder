@@ -43,12 +43,7 @@ def adjust_position_embedding(
     orig_dtype = pos_embedding.dtype
     pos_embedding = pos_embedding.float()  # Interpolate needs float32
     pos_embedding = pos_embedding.reshape(1, old_size, old_size, -1).permute(0, 3, 1, 2)
-    pos_embedding = F.interpolate(
-        pos_embedding,
-        size=(new_base_size, new_base_size),
-        mode="bicubic",
-        antialias=True,
-    )
+    pos_embedding = F.interpolate(pos_embedding, size=(new_base_size, new_base_size), mode="bicubic", antialias=True)
     pos_embedding = pos_embedding.permute(0, 2, 3, 1).reshape(1, -1, embed_dim)
     pos_embedding = pos_embedding.to(orig_dtype)
 
@@ -162,7 +157,6 @@ class Encoder(nn.Module):
             b.set_need_attn()
 
 
-# pylint: disable=too-many-instance-attributes
 class ViT(PreTrainEncoder):
     default_size = 224
     block_group_regex = r"encoder\.block\.(\d+)"
@@ -405,6 +399,18 @@ registry.register_alias(
         "num_heads": 16,
         "hidden_dim": 1024,
         "mlp_dim": 4096,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "vit_h16",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 32,
+        "num_heads": 16,
+        "hidden_dim": 1280,
+        "mlp_dim": 5120,
         "drop_path_rate": 0.1,
     },
 )

@@ -23,7 +23,7 @@ from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
 from birder.conf import settings
 from birder.dataloader.webdataset import make_wds_loader
-from birder.datasets.directory import ImageListDataset
+from birder.datasets.directory import make_image_dataset
 from birder.datasets.webdataset import make_wds_dataset
 from birder.datasets.webdataset import wds_size
 from birder.model_registry import Task
@@ -69,9 +69,8 @@ def train(args: argparse.Namespace) -> None:
         input_idx = 0
 
     else:
-        samples = fs_ops.samples_from_paths(args.data_path, class_to_idx={})
-        training_dataset = ImageListDataset(
-            samples, transforms=training_preset((args.size, args.size), args.aug_level, rgb_stats)
+        training_dataset = make_image_dataset(
+            args.data_path, {}, transforms=training_preset((args.size, args.size), args.aug_level, rgb_stats)
         )
         input_idx = 1
 

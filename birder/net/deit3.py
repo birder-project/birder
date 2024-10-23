@@ -72,6 +72,6 @@ registry.register_weights(
                 "sha256": "a883c5240cd3f8b6b003218e6016e18d01f8a5243481acbeeb3cbc3bf68a76af",
             }
         },
-        "net": {"network": "deit_t16", "tag": "il-common"},
+        "net": {"network": "deit3_t16", "tag": "il-common"},
     },
 )

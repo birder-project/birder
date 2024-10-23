@@ -115,9 +115,9 @@ class RPNHead(nn.Module):
         # Weights initialization
         for layer in self.modules():
             if isinstance(layer, nn.Conv2d):
-                torch.nn.init.normal_(layer.weight, std=0.01)
+                nn.init.normal_(layer.weight, std=0.01)
                 if layer.bias is not None:
-                    torch.nn.init.constant_(layer.bias, 0)
+                    nn.init.constant_(layer.bias, 0)
 
     def forward(self, x: list[torch.Tensor]) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
         logits = []
@@ -803,7 +803,7 @@ class Faster_RCNN(DetectionBaseNet):
             score_thresh=rpn_score_thresh,
         )
         box_roi_pool = MultiScaleRoIAlign(
-            featmap_names=["stage1", "stage2", "stage3", "stage4"],
+            featmap_names=self.backbone.return_stages,
             output_size=canonical_scale // 32,
             sampling_ratio=2,
             canonical_scale=canonical_scale,

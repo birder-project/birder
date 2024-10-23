@@ -14,6 +14,7 @@ if TYPE_CHECKING is True:
     from birder.net.detection.base import DetectionBaseNet  # pylint: disable=cyclic-import
     from birder.net.mim.base import MIMBaseNet  # pylint: disable=cyclic-import
 
+    BaseNetObjType = BaseNet | DetectionBaseNet | MIMBaseNet
     BaseNetType = type[BaseNet] | type[DetectionBaseNet] | type[MIMBaseNet]
 
 
@@ -34,7 +35,7 @@ class Task(str, Enum):
 
 class ModelRegistry:
     def __init__(self) -> None:
-        self.aliases: dict[str, BaseNetType] = {}
+        self.aliases: dict[str, "BaseNetType"] = {}
         self._nets: dict[str, type["BaseNet"]] = {}
         self._detection_nets: dict[str, type["DetectionBaseNet"]] = {}
         self._mim_nets: dict[str, type["MIMBaseNet"]] = {}
@@ -139,6 +140,13 @@ class ModelRegistry:
             nets = {name: t for name, t in nets.items() if issubclass(t, net_type) is True}
 
         return name in nets
+
+    def get_model_base_name(self, model: "BaseNetObjType") -> str:
+        type_name = model.__class__.__name__.lower()
+        if type_name in self.aliases:
+            type_name = model.__class__.__bases__[0].__name__.lower()
+
+        return type_name
 
     def list_pretrained_models(self, include_filter: Optional[str] = None) -> list[str]:
         """

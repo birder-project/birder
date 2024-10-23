@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-from torchvision.io import read_image
+from torchvision.io import decode_image
 from torchvision.utils import draw_bounding_boxes
 from tqdm import tqdm
 
@@ -15,7 +15,7 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
-from birder.datasets.directory import ImageListDataset
+from birder.datasets.directory import make_image_dataset
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.transforms.detection import batch_images
@@ -62,9 +62,6 @@ def predict(args: argparse.Namespace) -> None:
         args.size = lib.get_size_from_signature(signature)[0]
         logging.debug(f"Using size={args.size}")
 
-    samples = fs_ops.samples_from_paths(args.data_path, class_to_idx={})
-    assert len(samples) > 0, "Couldn't find any images"
-
     score_threshold = args.min_score
     class_list = list(class_to_idx.keys())
     class_list.insert(0, "Background")
@@ -78,7 +75,7 @@ def predict(args: argparse.Namespace) -> None:
         color_list.append(rgb)
 
     batch_size = args.batch_size
-    dataset = ImageListDataset(samples, transforms=inference_preset(args.size, rgb_stats))
+    dataset = make_image_dataset(args.data_path, {}, transforms=inference_preset(args.size, rgb_stats))
     inference_loader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -88,7 +85,7 @@ def predict(args: argparse.Namespace) -> None:
     )
 
     tic = time.time()
-    with tqdm(total=len(samples), initial=0, unit="images", unit_scale=True, leave=False) as progress:
+    with tqdm(total=len(dataset), initial=0, unit="images", unit_scale=True, leave=False) as progress:
         for file_paths, inputs, _ in inference_loader:
             # Predict
             inputs = [i.to(device) for i in inputs]
@@ -110,7 +107,7 @@ def predict(args: argparse.Namespace) -> None:
                     label_names = [f"{class_list[i]}: {s:.3f}" for i, s in zip(labels, scores)]
                     colors = [color_list[label] for label in labels]
 
-                    img = read_image(file_path)
+                    img = decode_image(file_path)
                     (orig_w, orig_h) = img.shape[1:]
                     w_ratio = orig_w / w
                     h_ratio = orig_h / h
@@ -138,9 +135,9 @@ def predict(args: argparse.Namespace) -> None:
             progress.update(n=batch_size)
 
     toc = time.time()
-    rate = len(samples) / (toc - tic)
+    rate = len(dataset) / (toc - tic)
     (minutes, seconds) = divmod(toc - tic, 60)
-    logging.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {len(samples):,} samples ({rate:.2f} samples/sec)")
+    logging.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {len(dataset):,} samples ({rate:.2f} samples/sec)")
 
 
 def get_args_parser() -> argparse.ArgumentParser:

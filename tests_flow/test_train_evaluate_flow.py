@@ -1,4 +1,3 @@
-import logging
 import random
 import unittest
 
@@ -10,8 +9,6 @@ from birder.common.fs_ops import load_model
 from birder.datahub.classification import TestDataset
 from birder.model_registry import registry
 from birder.scripts import train
-
-logging.disable(logging.CRITICAL)
 
 
 class TestTrainFlow(unittest.TestCase):

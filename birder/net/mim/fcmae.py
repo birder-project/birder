@@ -75,7 +75,7 @@ class FCMAE(MIMBaseNet):
                 nn.init.constant_(m.weight, 1.0)
 
             if hasattr(self, "mask_token") is True:
-                torch.nn.init.normal_(self.mask_token, std=0.02)
+                nn.init.normal_(self.mask_token, std=0.02)
 
     def patchify(self, imgs: torch.Tensor) -> torch.Tensor:
         """

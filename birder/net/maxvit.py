@@ -151,11 +151,10 @@ class RelativePositionalMultiHeadAttention(nn.Module):
         self.relative_position_bias_table = nn.Parameter(
             torch.empty(((2 * self.size - 1) * (2 * self.size - 1), self.n_heads), dtype=torch.float32),
         )
-
-        self.register_buffer("relative_position_index", _get_relative_position_index(self.size, self.size))
+        self.relative_position_index = nn.Buffer(_get_relative_position_index(self.size, self.size))
 
         # Initialize with truncated normal the bias
-        torch.nn.init.trunc_normal_(self.relative_position_bias_table, std=0.02)
+        nn.init.trunc_normal_(self.relative_position_bias_table, std=0.02)
 
     def get_relative_positional_bias(self) -> torch.Tensor:
         bias_index = self.relative_position_index.view(-1)
@@ -702,7 +701,7 @@ class MaxViT(DetectorBackbone, PreTrainEncoder):
                         attn = mod.attn_layer[1]  # RelativePositionalMultiHeadAttention
                         attn.size = self.partition_size
                         attn.max_seq_len = self.partition_size**2
-                        attn.relative_position_index = _get_relative_position_index(attn.size, attn.size)
+                        attn.relative_position_index = nn.Buffer(_get_relative_position_index(attn.size, attn.size))
 
                         # Interpolate relative_position_bias_table, adapted from
                         # https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/pos_embed_rel.py

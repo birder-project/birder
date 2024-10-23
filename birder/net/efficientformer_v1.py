@@ -47,8 +47,8 @@ class Attention(nn.Module):
         ).flatten(1)
         rel_pos = (pos[..., :, None] - pos[..., None, :]).abs()
         rel_pos = (rel_pos[0] * resolution[1]) + rel_pos[1]
-        self.attention_biases = torch.nn.Parameter(torch.zeros(num_heads, resolution[0] * resolution[1]))
-        self.register_buffer("attention_bias_idxs", rel_pos)
+        self.attention_biases = nn.Parameter(torch.zeros(num_heads, resolution[0] * resolution[1]))
+        self.attention_bias_idxs = nn.Buffer(rel_pos)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         (B, N, _) = x.shape
@@ -392,8 +392,8 @@ class EfficientFormer_v1(BaseNet):
                 )
                 attention_biases = attention_biases.permute(0, 2, 3, 1).reshape(m.num_heads, -1)
                 attention_biases = attention_biases.to(orig_dtype)
-                m.attention_biases = torch.nn.Parameter(attention_biases)
-                m.attention_bias_idxs = rel_pos
+                m.attention_biases = nn.Parameter(attention_biases)
+                m.attention_bias_idxs = nn.Buffer(rel_pos)
 
         logging.info(f"Resized attention resolution: {resolution} to {old_res}")
 

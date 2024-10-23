@@ -180,7 +180,7 @@ def predict(args: argparse.Namespace) -> None:
     base_output_path = (
         f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size}px_crop{args.center_crop}_{num_samples}"
     )
-    if args.tta is not None:
+    if args.tta is True:
         base_output_path = f"{base_output_path}_tta"
     if args.suffix is not None:
         base_output_path = f"{base_output_path}_{args.suffix}"

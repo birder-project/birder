@@ -58,10 +58,12 @@ from birder.net.squeezenet import SqueezeNet
 from birder.net.squeezenext import SqueezeNext
 from birder.net.swin_transformer_v1 import Swin_Transformer_v1
 from birder.net.swin_transformer_v2 import Swin_Transformer_v2
+from birder.net.tiny_vit import Tiny_ViT
 from birder.net.uniformer import UniFormer
 from birder.net.vgg import Vgg
 from birder.net.vgg_reduced import Vgg_Reduced
 from birder.net.vit import ViT
+from birder.net.vit_sam import ViT_SAM
 from birder.net.vitreg import ViTReg4
 from birder.net.wide_resnet import Wide_ResNet
 from birder.net.xception import Xception
@@ -128,10 +130,12 @@ __all__ = [
     "SqueezeNext",
     "Swin_Transformer_v1",
     "Swin_Transformer_v2",
+    "Tiny_ViT",
     "UniFormer",
     "Vgg",
     "Vgg_Reduced",
     "ViT",
+    "ViT_SAM",
     "ViTReg4",
     "Wide_ResNet",
     "Xception",

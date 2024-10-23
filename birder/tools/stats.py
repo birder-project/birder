@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
-from torchvision.io import read_image
+from torchvision.io import decode_image
 from torchvision.transforms import v2
 from tqdm import tqdm
 
@@ -138,11 +138,10 @@ def mean_and_std(args: argparse.Namespace) -> None:
         transform=v2.Compose(
             [
                 v2.Resize((256, 256), interpolation=v2.InterpolationMode.BILINEAR),
-                v2.PILToTensor(),
                 v2.ToDtype(torch.float32, scale=True),
             ]
         ),
-        loader=read_image,
+        loader=decode_image,
     )
     batch_size = 64
     data_loader = DataLoader(

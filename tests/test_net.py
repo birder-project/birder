@@ -90,10 +90,12 @@ class TestNet(unittest.TestCase):
             ("swin_transformer_v1_t"),
             ("swin_transformer_v2_t"),
             ("swin_transformer_v2_w2_t"),
+            ("tiny_vit_5m"),
             ("uniformer_s"),
             ("vgg_11"),
             ("vgg_reduced_11"),
             ("vit_b32"),
+            ("vit_sam_b16"),
             ("vitreg4_b32"),
             ("wide_resnet_50"),
             ("xception"),
@@ -193,9 +195,11 @@ class TestNet(unittest.TestCase):
             ("squeezenext", 0.5),
             ("swin_transformer_v1_t"),
             ("swin_transformer_v2_t"),
+            ("tiny_vit_5m"),
             ("uniformer_s"),
             ("vgg_11"),
             ("vgg_reduced_11"),
+            ("vit_sam_b16"),
             ("wide_resnet_50"),
             ("xception"),
         ]
@@ -235,6 +239,7 @@ class TestNet(unittest.TestCase):
             ("swin_transformer_v2_t", None, True),
             ("swin_transformer_v2_w2_t", None, True),
             ("vit_b32", None, False),
+            ("vit_sam_b16", None, False),
             ("vitreg4_b32", None, False),
         ]
     )
@@ -251,3 +256,17 @@ class TestNet(unittest.TestCase):
             self.assertFalse(torch.isnan(out).any())
 
         self.assertTrue(hasattr(n, "block_group_regex"))
+
+
+class TestSpecialFunctions(unittest.TestCase):
+    def test_vit_sam_weight_import(self) -> None:
+        vit_b16 = registry.net_factory("vit_b16", 3, 100, size=192)
+        vit_sam_b16 = registry.net_factory("vit_sam_b16", 3, 100, size=192)
+
+        # Simple ViT
+        vit_sam_b16.load_vit_weights(vit_b16.state_dict())
+
+        vitreg4_b16 = registry.net_factory("vitreg4_b16", 3, 100, size=192)
+
+        # ViT with register tokens
+        vit_sam_b16.load_vit_weights(vitreg4_b16.state_dict())

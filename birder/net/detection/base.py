@@ -1,10 +1,13 @@
 import math
+from collections import OrderedDict
+from collections.abc import Callable
 from typing import Any
 from typing import Optional
 from typing import TypedDict
 
 import torch
 from torch import nn
+from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import FeaturePyramidNetwork
 from torchvision.ops.feature_pyramid_network import ExtraFPNBlock
 
@@ -95,6 +98,11 @@ class ImageList:
         return ImageList(cast_tensor, self.image_sizes)
 
 
+###############################################################################
+# Backbone Classes
+###############################################################################
+
+
 class BackboneWithFPN(nn.Module):
     def __init__(
         self, backbone: DetectorBackbone, out_channels: int, extra_blocks: Optional[ExtraFPNBlock] = None
@@ -114,6 +122,119 @@ class BackboneWithFPN(nn.Module):
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         out: dict[str, torch.Tensor] = self.backbone.detection_features(x)
         out = self.fpn(out)
+        return out
+
+
+# Code adapted from https://github.com/fizyr-forks/torchvision/blob/vitdet2/torchvision/ops/feature_pyramid_network.py
+# Reference license: BSD 3-Clause
+
+
+class BackboneWithSimpleFPN(nn.Module):
+    def __init__(
+        self, backbone: DetectorBackbone, out_channels: int, extra_blocks: Optional[ExtraFPNBlock] = None
+    ) -> None:
+        super().__init__()
+        self.backbone = backbone
+        self.size = self.backbone.size
+        self.fpn = SimpleFeaturePyramidNetwork(
+            in_channels=self.backbone.return_channels[-1],
+            out_channels=out_channels,
+            norm_layer=nn.BatchNorm2d,
+            extra_blocks=extra_blocks,
+        )
+
+        self.out_channels = out_channels
+
+    def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        out: dict[str, torch.Tensor] = self.backbone.detection_features(x)
+        x = out[self.backbone.return_stages[-1]]
+        out = self.fpn(x)
+        return out
+
+
+class SimpleFeaturePyramidNetwork(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        norm_layer: Callable[..., nn.Module],
+        extra_blocks: Optional[ExtraFPNBlock] = None,
+    ):
+        super().__init__()
+        self.blocks = nn.ModuleList()
+        for block_index in range(4):
+            layers = []
+
+            current_in_channels = in_channels
+            if block_index == 0:
+                layers.extend(
+                    [
+                        nn.ConvTranspose2d(
+                            in_channels, in_channels // 2, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0)
+                        ),
+                        norm_layer(in_channels // 2),
+                        nn.GELU(),
+                        nn.ConvTranspose2d(
+                            in_channels // 2, in_channels // 4, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0)
+                        ),
+                    ]
+                )
+                current_in_channels = in_channels // 4
+            elif block_index == 1:
+                layers.append(
+                    nn.ConvTranspose2d(
+                        in_channels, in_channels // 2, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0)
+                    ),
+                )
+                current_in_channels = in_channels // 2
+            elif block_index == 2:
+                pass
+            elif block_index == 3:
+                layers.append(nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2)))
+
+            layers.extend(
+                [
+                    Conv2dNormActivation(
+                        current_in_channels,
+                        out_channels,
+                        kernel_size=(1, 1),
+                        stride=(1, 1),
+                        padding=(0, 0),
+                        norm_layer=norm_layer,
+                        activation_layer=None,
+                    ),
+                    Conv2dNormActivation(
+                        out_channels,
+                        out_channels,
+                        kernel_size=(3, 3),
+                        stride=(1, 1),
+                        padding=(1, 1),
+                        norm_layer=norm_layer,
+                        activation_layer=None,
+                    ),
+                ]
+            )
+
+            self.blocks.append(nn.Sequential(*layers))
+
+        if extra_blocks is not None:
+            if not isinstance(extra_blocks, ExtraFPNBlock):
+                raise TypeError(f"extra_blocks should be of type ExtraFPNBlock not {type(extra_blocks)}")
+
+        self.extra_blocks = extra_blocks
+
+    def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        results: list[torch.Tensor] = []
+        names: list[str] = []
+        for idx, block in enumerate(self.blocks):
+            results.append(block(x))
+            names.append(f"stage{idx+1}")
+
+        if self.extra_blocks is not None:
+            (results, names) = self.extra_blocks(results, [x], names)
+
+        out = OrderedDict(list(zip(names, results)))
+
         return out
 
 

@@ -5,7 +5,7 @@ from typing import Any
 import torch
 from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
-from torchvision.io import read_image
+from torchvision.io import decode_image
 from torchvision.transforms import v2
 from tqdm import tqdm
 
@@ -19,13 +19,12 @@ def verify_directory(args: argparse.Namespace) -> None:
     transform = v2.Compose(
         [
             v2.Resize((256, 256), interpolation=v2.InterpolationMode.BILINEAR),
-            v2.PILToTensor(),
             v2.ToDtype(torch.float32, scale=True),
         ]
     )
 
     for data_path in args.data_path:
-        dataset = ImageFolder(data_path, transform=transform, loader=read_image)
+        dataset = ImageFolder(data_path, transform=transform, loader=decode_image)
         total = len(dataset)
         dataset.samples = dataset.samples[args.start :]
         data_loader = DataLoader(

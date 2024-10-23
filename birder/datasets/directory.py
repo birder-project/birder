@@ -5,8 +5,7 @@ from typing import Optional
 import numpy as np
 import torch
 import torch.utils.data
-from torchvision.datasets.folder import pil_loader
-from torchvision.transforms.v2.functional import pil_to_tensor
+from torchvision.io import decode_image
 
 from birder.common import fs_ops
 
@@ -16,7 +15,7 @@ class ImageListDataset(torch.utils.data.Dataset):
         self,
         samples: list[tuple[str, int]],
         transforms: Optional[Callable[..., torch.Tensor]] = None,
-        loader: Callable[[str], Any] = pil_loader,
+        loader: Callable[[str], torch.Tensor] = decode_image,
     ) -> None:
         super().__init__()
         self.transforms = transforms
@@ -36,7 +35,7 @@ class ImageListDataset(torch.utils.data.Dataset):
             sample = self.transforms(img)
 
         else:
-            sample = pil_to_tensor(img)
+            sample = img
 
         return (path, sample, label)
 
@@ -58,8 +57,9 @@ def make_image_dataset(
     paths: list[str],
     class_to_idx: dict[str, int],
     transforms: Optional[Callable[..., torch.Tensor]] = None,
+    loader: Callable[[str], torch.Tensor] = decode_image,
 ) -> ImageListDataset:
     samples = fs_ops.samples_from_paths(paths, class_to_idx=class_to_idx)
-    dataset = ImageListDataset(samples, transforms=transforms)
+    dataset = ImageListDataset(samples, transforms=transforms, loader=loader)
 
     return dataset

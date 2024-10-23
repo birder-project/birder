@@ -7,6 +7,8 @@ https://github.com/dmlc/gluon-cv/blob/master/gluoncv/model_zoo/ssd/ssd.py
 Paper "SSD: Single Shot MultiBox Detector", https://arxiv.org/abs/1512.02325
 """
 
+# Reference license: BSD 3-Clause
+
 import math
 from typing import Any
 from typing import Optional
@@ -217,9 +219,9 @@ class SSDClassificationHead(SSDScoringHead):
         # Weights initialization
         for layer in cls_logits.modules():
             if isinstance(layer, nn.Conv2d):
-                torch.nn.init.xavier_uniform_(layer.weight)
+                nn.init.xavier_uniform_(layer.weight)
                 if layer.bias is not None:
-                    torch.nn.init.constant_(layer.bias, 0.0)
+                    nn.init.constant_(layer.bias, 0.0)
 
         super().__init__(cls_logits, num_classes)
 
@@ -233,9 +235,9 @@ class SSDRegressionHead(SSDScoringHead):
         # Weights initialization
         for layer in bbox_reg.modules():
             if isinstance(layer, nn.Conv2d):
-                torch.nn.init.xavier_uniform_(layer.weight)
+                nn.init.xavier_uniform_(layer.weight)
                 if layer.bias is not None:
-                    torch.nn.init.constant_(layer.bias, 0.0)
+                    nn.init.constant_(layer.bias, 0.0)
 
         super().__init__(bbox_reg, 4)
 

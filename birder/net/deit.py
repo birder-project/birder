@@ -23,7 +23,6 @@ from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
 
 
-# pylint: disable=too-many-instance-attributes
 class DeiT(BaseNet):
     default_size = 224
     block_group_regex = r"encoder\.block\.(\d+)"

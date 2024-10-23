@@ -57,15 +57,15 @@ class RetinaNetClassificationHead(nn.Module):
         # Weights initialization
         for layer in self.conv.modules():
             if isinstance(layer, nn.Conv2d):
-                torch.nn.init.normal_(layer.weight, std=0.01)
+                nn.init.normal_(layer.weight, std=0.01)
                 if layer.bias is not None:
-                    torch.nn.init.constant_(layer.bias, 0)
+                    nn.init.constant_(layer.bias, 0)
 
         self.cls_logits = nn.Conv2d(in_channels, num_anchors * num_classes, kernel_size=3, stride=1, padding=1)
 
         # Weights initialization
-        torch.nn.init.normal_(self.cls_logits.weight, std=0.01)
-        torch.nn.init.constant_(self.cls_logits.bias, -math.log((1 - prior_probability) / prior_probability))
+        nn.init.normal_(self.cls_logits.weight, std=0.01)
+        nn.init.constant_(self.cls_logits.bias, -math.log((1 - prior_probability) / prior_probability))
 
         self.num_classes = num_classes
         self.num_anchors = num_anchors
@@ -139,15 +139,15 @@ class RetinaNetRegressionHead(nn.Module):
         self.conv = nn.Sequential(*conv)
 
         self.bbox_reg = nn.Conv2d(in_channels, num_anchors * 4, kernel_size=3, stride=1, padding=1)
-        torch.nn.init.normal_(self.bbox_reg.weight, std=0.01)
-        torch.nn.init.zeros_(self.bbox_reg.bias)
+        nn.init.normal_(self.bbox_reg.weight, std=0.01)
+        nn.init.zeros_(self.bbox_reg.bias)
 
         # Weights initialization
         for layer in self.conv.modules():
             if isinstance(layer, nn.Conv2d):
-                torch.nn.init.normal_(layer.weight, std=0.01)
+                nn.init.normal_(layer.weight, std=0.01)
                 if layer.bias is not None:
-                    torch.nn.init.zeros_(layer.bias)
+                    nn.init.zeros_(layer.bias)
 
         self.box_coder = BoxCoder(weights=(1.0, 1.0, 1.0, 1.0))
 

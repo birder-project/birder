@@ -15,6 +15,7 @@ import torch.amp
 import torch.distributed as dist
 import torch.utils.data
 import torch.utils.data.distributed
+from torchvision.ops import FrozenBatchNorm2d
 
 OptimizerType = Literal["sgd", "rmsprop", "adamw"]
 SchedulerType = Literal["constant", "step", "cosine"]
@@ -505,3 +506,29 @@ def get_grad_norm(parameters: Iterator[torch.Tensor], norm_type: float = 2) -> f
     total_norm = total_norm ** (1.0 / norm_type)
 
     return total_norm
+
+
+def freeze_batchnorm2d(module: torch.nn.Module) -> torch.nn.Module:
+    """
+    Referenced from https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/norm_act.py#L251
+    """
+
+    res = module
+    if isinstance(module, (torch.nn.modules.batchnorm.BatchNorm2d, torch.nn.modules.batchnorm.SyncBatchNorm)):
+        res = FrozenBatchNorm2d(module.num_features)
+        res.num_features = module.num_features
+        res.affine = module.affine
+        if module.affine is True:
+            res.weight.data = module.weight.data.clone().detach()
+            res.bias.data = module.bias.data.clone().detach()
+
+        res.running_mean.data = module.running_mean.data
+        res.running_var.data = module.running_var.data
+        res.eps = module.eps
+    else:
+        for name, child in module.named_children():
+            new_child = freeze_batchnorm2d(child)
+            if new_child is not child:
+                res.add_module(name, new_child)
+
+    return res

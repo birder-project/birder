@@ -27,7 +27,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets import ImageFolder
-from torchvision.io import read_image
+from torchvision.io import decode_image
 from tqdm import tqdm
 
 from birder.common import cli
@@ -123,12 +123,12 @@ def train(args: argparse.Namespace) -> None:
         training_dataset = ImageFolder(
             args.data_path,
             transform=training_preset((args.size, args.size), args.aug_level, rgb_stats),
-            loader=read_image,
+            loader=decode_image,
         )
         validation_dataset = ImageFolder(
             args.val_path,
             transform=inference_preset((args.size, args.size), rgb_stats, 1.0),
-            loader=read_image,
+            loader=decode_image,
             allow_empty=True,
         )
         assert training_dataset.class_to_idx == validation_dataset.class_to_idx
@@ -185,6 +185,9 @@ def train(args: argparse.Namespace) -> None:
             net_param=args.student_param,
             size=args.size,
         ).to(device)
+
+    if args.freeze_bn is True:
+        student = training_utils.freeze_batchnorm2d(student)
 
     if args.fast_matmul is True:
         torch.set_float32_matmul_precision("high")
@@ -678,6 +681,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--channels", type=int, default=3, metavar="N", help="no. of image channels")
     parser.add_argument(
         "--size", type=int, help="image size (defaults to teacher network size) shared by both networks"
+    )
+    parser.add_argument(
+        "--freeze-bn",
+        default=False,
+        action="store_true",
+        help="freeze all batch statistics and affine parameters of batchnorm2d layers",
     )
     parser.add_argument("--batch-size", type=int, default=128, metavar="N", help="the batch size")
     parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")

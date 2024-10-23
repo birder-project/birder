@@ -130,12 +130,15 @@ def train(args: argparse.Namespace) -> None:
     elif args.freeze_backbone_stages is not None:
         net.backbone.freeze_stages(up_to_stage=args.freeze_backbone_stages)
 
+    if args.freeze_backbone_bn is True:
+        net.backbone = training_utils.freeze_batchnorm2d(net.backbone)
+
     if args.fast_matmul is True:
         torch.set_float32_matmul_precision("high")
 
     # Compile network
     if args.compile is True:
-        raise NotImplementedError
+        net = torch.compile(net)
 
     # Define optimizer and learning rate scheduler and training parameter groups
     custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
@@ -197,13 +200,20 @@ def train(args: argparse.Namespace) -> None:
         model_to_save = net_without_ddp
         eval_model = net
 
+    if args.compile is True and hasattr(model_to_save, "_orig_mod") is True:
+        model_to_save = model_to_save._orig_mod  # pylint: disable=protected-access
+
     # Define metrics
     validation_metrics = MeanAveragePrecision(iou_type="bbox", box_format="xyxy", average="macro").to(device)
     metric_list = ["map", "map_small", "map_medium", "map_large", "map_50", "map_75", "mar_1", "mar_10"]
 
     # Print network summary
+    net_for_info = net_without_ddp
+    if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
+        net_for_info = net_without_ddp._orig_mod  # pylint: disable=protected-access
+
     torchinfo.summary(
-        net_without_ddp,
+        net_for_info,
         device=device,
         input_size=sample_shape,
         dtypes=[torch.float32],
@@ -257,6 +267,7 @@ def train(args: argparse.Namespace) -> None:
     )
 
     last_batch_idx = math.ceil(len(training_dataset) / batch_size) - 1
+    grad_accum_steps: int = args.grad_accum_steps
 
     # Enable or disable the autograd anomaly detection
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
@@ -281,6 +292,9 @@ def train(args: argparse.Namespace) -> None:
                 leave=False,
             )
 
+        # Zero the parameter gradients
+        optimizer.zero_grad()
+
         for i, (inputs, targets) in enumerate(training_loader):
             inputs = [i.to(device, non_blocking=True) for i in inputs]
             targets = [
@@ -289,29 +303,35 @@ def train(args: argparse.Namespace) -> None:
             ]
             inputs = batch_images(inputs)
 
-            # Zero the parameter gradients
-            optimizer.zero_grad()
+            optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
 
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
                 (_detections, losses) = net(inputs, targets)
                 loss = sum(v for v in losses.values())
 
+            # if grad_accum_steps > 1:
+            #     loss = loss / grad_accum_steps
+
             if scaler is not None:
                 scaler.scale(loss).backward()
-                if args.clip_grad_norm is not None:
-                    scaler.unscale_(optimizer)
-                    torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
+                if optimizer_update is True:
+                    if args.clip_grad_norm is not None:
+                        scaler.unscale_(optimizer)
+                        torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
-                scaler.step(optimizer)
-                scaler.update()
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad()
 
             else:
                 loss.backward()
-                if args.clip_grad_norm is not None:
-                    torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
+                if optimizer_update is True:
+                    if args.clip_grad_norm is not None:
+                        torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
-                optimizer.step()
+                    optimizer.step()
+                    optimizer.zero_grad()
 
             # Exponential moving average
             if args.model_ema is True and i % args.model_ema_steps == 0:
@@ -521,8 +541,17 @@ def get_args_parser() -> argparse.ArgumentParser:
         default=0.000001,
         help="minimum learning rate (for cosine annealing scheduler only)",
     )
+    parser.add_argument(
+        "--grad-accum-steps", type=int, default=1, metavar="N", help="number of steps to accumulate gradients"
+    )
     parser.add_argument("--channels", type=int, default=3, metavar="N", help="no. of image channels")
     parser.add_argument("--size", type=int, help="image size (defaults to network recommendation)")
+    parser.add_argument(
+        "--freeze-backbone-bn",
+        default=False,
+        action="store_true",
+        help="freeze all batch statistics and affine parameters of batchnorm2d layers (backbone only)",
+    )
     parser.add_argument("--batch-size", type=int, default=16, metavar="N", help="the batch size")
     parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
     parser.add_argument(
