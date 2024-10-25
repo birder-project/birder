@@ -815,8 +815,8 @@ class Faster_RCNN(DetectionBaseNet):
             norm_layer=nn.BatchNorm2d,
         )
 
-        representation_size = 1024
-        box_predictor = FastRCNNPredictor(representation_size, self.num_classes)
+        self.representation_size = 1024
+        box_predictor = FastRCNNPredictor(self.representation_size, self.num_classes)
 
         self.roi_heads = RoIHeads(
             # Box
@@ -832,6 +832,11 @@ class Faster_RCNN(DetectionBaseNet):
             box_nms_thresh,
             box_detections_per_img,
         )
+
+    def reset_classifier(self, num_classes: int) -> None:
+        self.num_classes = num_classes
+        box_predictor = FastRCNNPredictor(self.representation_size, self.num_classes)
+        self.roi_heads.box_predictor = box_predictor
 
     # pylint: disable=protected-access
     def forward(  # type: ignore[override]

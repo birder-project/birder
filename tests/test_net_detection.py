@@ -43,6 +43,10 @@ class TestNetDetection(unittest.TestCase):
             for key in ["boxes", "labels", "scores"]:
                 self.assertFalse(torch.isnan(detection[key]).any())
 
+        # Reset classifier
+        n.reset_classifier(20)
+        n(torch.rand((1, 3, size, size)))
+
         n.train()
         out = n(
             torch.rand((1, 3, size, size)),

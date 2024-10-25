@@ -53,6 +53,10 @@ def adjust_position_embedding(
 
 class PatchEmbed(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        The entire forward is equivalent to x.flatten(2).transpose(1, 2)
+        """
+
         (n, hidden_dim, h, w) = x.size()
 
         # (n, hidden_dim, h, w) -> (n, hidden_dim, (h * w))

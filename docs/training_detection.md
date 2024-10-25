@@ -62,3 +62,13 @@ torchrun --nproc_per_node=2 train_detection.py --network ssd --backbone mobilene
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network vitdet --backbone vit_sam_b16 --backbone-epoch 0 --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 8 --warmup-epochs 2 --epochs 100 --wd 0.1 --norm-wd 0 --clip-grad-norm 1 --amp --compile --layer-decay 0.7
 ```
+
+## Common Dataset Training Scenarios
+
+### COCO
+
+#### SSD: MobileNet v4 Medium Backbone COCO example
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network ssd --tag coco --backbone mobilenet_v4_m --backbone-param 1 --backbone-epoch 0 --freeze-backbone-stages 4 --lr 0.015 --lr-scheduler cosine --batch-size 128 --epochs 300 --wd 0.00002 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json
+```

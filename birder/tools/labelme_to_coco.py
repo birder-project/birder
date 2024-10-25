@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import os
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -34,8 +35,18 @@ def _create_annotation(
     return annotation
 
 
-def labelme_to_coco(args: argparse.Namespace, target_path: Path) -> None:
-    class_to_idx = fs_ops.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
+def labelme_to_coco(args: argparse.Namespace) -> None:
+    if args.class_file is not None:
+        class_file = args.class_file
+        base_name = Path(args.data_path).stem + "_" + Path(args.class_file).stem
+    else:
+        class_file = settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME)
+        base_name = Path(args.data_path).stem
+
+    target_path = Path(args.data_path).parent.joinpath(f"{base_name}_coco.json")
+    base_path = args.data_path.removeprefix(str(settings.DETECTION_DATA_PATH) + "/")
+
+    class_to_idx = fs_ops.read_class_file(class_file)
     class_to_idx = lib.detection_class_to_idx(class_to_idx)
 
     image_list = []
@@ -49,11 +60,22 @@ def labelme_to_coco(args: argparse.Namespace, target_path: Path) -> None:
         if unknown is True and args.include_unknown is False:
             continue
 
+        if args.class_file is not None:
+            skip = False
+            for shapes in data["shapes"]:
+                if shapes["label"] not in class_to_idx:
+                    logging.debug(f"Found unknown label: {shapes['label']}, skipping image {data['imagePath']}")
+                    skip = True
+                    break
+
+            if skip is True:
+                continue
+
         image = {
             "id": idx,
             "width": data["imageWidth"],
             "height": data["imageHeight"],
-            "file_name": f"{args.data_path}/{data['imagePath']}",
+            "file_name": os.path.normpath(f"{base_path}/{data['imagePath']}"),
         }
         image_list.append(image)
 
@@ -110,6 +132,8 @@ def set_parser(subparsers: Any) -> None:
         epilog=(
             "Usage examples:\n"
             "python -m birder.tools labelme-to-coco data/detection_data/training_annotations\n"
+            "python -m birder.tools labelme-to-coco --class-file data/il-common_classes.txt "
+            "data/detection_data/training_annotations\n"
             "python -m birder.tools labelme-to-coco --include-unknown data/detection_data/validation_annotations\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
@@ -117,11 +141,10 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--include-unknown", default=False, action="store_true", help="include files with unknown flag"
     )
+    subparser.add_argument("--class-file", type=str, help="class list file")
     subparser.add_argument("data_path", help="image directory path")
     subparser.set_defaults(func=main)
 
 
 def main(args: argparse.Namespace) -> None:
-    base_name = Path(args.data_path).stem
-    target_path = Path(args.data_path).parent.joinpath(f"{base_name}_coco.json")
-    labelme_to_coco(args, target_path)
+    labelme_to_coco(args)

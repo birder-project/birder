@@ -101,8 +101,8 @@ class ViTDet(Faster_RCNN):
             norm_layer=nn.BatchNorm2d,
         )
 
-        representation_size = 1024
-        box_predictor = FastRCNNPredictor(representation_size, self.num_classes)
+        self.representation_size = 1024
+        box_predictor = FastRCNNPredictor(self.representation_size, self.num_classes)
 
         self.roi_heads = RoIHeads(
             # Box

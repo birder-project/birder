@@ -48,6 +48,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "-r", "--reparameterized", default=False, action="store_true", help="load reparameterized model"
     )
+    subparser.add_argument("-f", "--force", action="store_true", help="override existing model")
     subparser.add_argument(
         "-j",
         "--num-workers",
@@ -77,6 +78,12 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
+    network_name = get_network_name(args.network, net_param=args.net_param, tag=args.tag)
+    model_path = fs_ops.model_path(network_name, epoch=args.epoch, quantized=True, pts=True)
+    if model_path.exists() is True and args.force is False:
+        logging.warning("Quantized model already exists... aborting")
+        raise SystemExit(1)
+
     if args.gpu is True:
         device = torch.device("cuda")
     else:
@@ -130,7 +137,6 @@ def main(args: argparse.Namespace) -> None:
     (minutes, seconds) = divmod(toc - tic, 60)
     logging.info(f"{int(minutes):0>2}m{seconds:04.1f}s to quantize model")
 
-    network_name = get_network_name(args.network, net_param=args.net_param, tag=args.tag)
     model_path = fs_ops.model_path(network_name, epoch=args.epoch, quantized=True, pts=True)
     logging.info(f"Saving quantized TorchScript model {model_path}...")
 
@@ -140,6 +146,10 @@ def main(args: argparse.Namespace) -> None:
 
     if args.qbackend == "qnnpack":
         model_path = fs_ops.model_path(network_name, epoch=args.epoch, quantized=True, lite=True)
+        if model_path.exists() is True and args.force is False:
+            logging.warning("Quantized model lite already exists... aborting")
+            raise SystemExit(1)
+
         logging.info(f"Saving quantized TorchScript model {model_path}...")
         optimized_scripted_module = optimize_for_mobile(scripted_module)
         optimized_scripted_module._save_for_lite_interpreter(  # pylint: disable=protected-access

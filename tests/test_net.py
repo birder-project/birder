@@ -50,6 +50,7 @@ class TestNet(unittest.TestCase):
             ("inception_resnet_v2"),
             ("inception_v3"),
             ("inception_v4"),
+            ("levit_128"),
             ("maxvit_t"),
             ("poolformer_v1_s12"),
             ("poolformer_v2_s12"),
@@ -75,7 +76,7 @@ class TestNet(unittest.TestCase):
             ("regnet_y_200m"),
             ("repghost", 1),
             ("repvgg_a0"),
-            ("resmlp_12", None, False, 1, 0),
+            ("resmlp_12", None, False, 1, 0),  # No resize support
             ("resnest_14", None, False, 2),
             ("resnet_v2_18"),
             ("resnext_50"),

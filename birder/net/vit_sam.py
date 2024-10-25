@@ -67,6 +67,7 @@ def get_rel_pos(q_size: int, k_size: int, rel_pos: torch.Tensor) -> torch.Tensor
 
     # Interpolate rel pos if needed
     if rel_pos.shape[0] != max_rel_dist:
+        # Adjust size is a one off interpolation, should prevent us from getting here
         rel_pos_resized = F.interpolate(
             rel_pos.reshape(1, rel_pos.shape[0], -1).permute(0, 2, 1), size=max_rel_dist, mode="linear"
         )
@@ -318,6 +319,8 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
     def freeze_stages(self, up_to_stage: int) -> None:
         for param in self.patch_embed.parameters():
             param.requires_grad = False
+
+        self.pos_embedding.requires_grad = False
 
         for idx, module in enumerate(self.body.children()):
             if idx >= up_to_stage:

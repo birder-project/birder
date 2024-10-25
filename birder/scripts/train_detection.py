@@ -5,7 +5,6 @@ import math
 import sys
 import time
 import typing
-from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -44,22 +43,24 @@ def train(args: argparse.Namespace) -> None:
 
     logging.info(f"Using size={args.size}")
 
-    device = torch.device("cuda")
-    device_id = torch.cuda.current_device()
-    torch.backends.cudnn.benchmark = True
+    if args.cpu is True:
+        device = torch.device("cpu")
+        device_id = 0
+    else:
+        device = torch.device("cuda")
+        device_id = torch.cuda.current_device()
+        torch.backends.cudnn.benchmark = True
 
     rgb_stats = get_rgb_stats(args.rgb_mode)
-    train_base_name = Path(args.data_path).stem
-    train_coco_path = Path(args.data_path).parent.joinpath(f"{train_base_name}_coco.json")
-    val_base_name = Path(args.val_path).stem
-    val_coco_path = Path(args.val_path).parent.joinpath(f"{val_base_name}_coco.json")
-
     training_dataset = CocoDetection(
-        ".", train_coco_path, transforms=training_preset(args.size, args.aug_level, rgb_stats)
+        args.data_path, args.coco_json_path, transforms=training_preset(args.size, args.aug_level, rgb_stats)
     )
     training_dataset = wrap_dataset_for_transforms_v2(training_dataset)
-    validation_dataset = CocoDetection(".", val_coco_path, transforms=inference_preset(args.size, rgb_stats))
+    validation_dataset = CocoDetection(
+        args.val_path, args.coco_val_json_path, transforms=inference_preset(args.size, rgb_stats)
+    )
     validation_dataset = wrap_dataset_for_transforms_v2(validation_dataset)
+
     class_to_idx = fs_ops.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
     class_to_idx = lib.detection_class_to_idx(class_to_idx)
 
@@ -101,7 +102,25 @@ def train(args: argparse.Namespace) -> None:
             backbone_tag=args.backbone_tag,
             epoch=args.resume_epoch,
         )
-        assert class_to_idx == class_to_idx_saved
+        if args.reset_head is True:
+            net.reset_classifier(len(class_to_idx))
+            net.to(device)
+        else:
+            assert class_to_idx == class_to_idx_saved
+
+    elif args.pretrained is True:
+        (net, class_to_idx_saved, optimizer_state, scheduler_state, scaler_state) = fs_ops.load_detection_checkpoint(
+            device,
+            args.network,
+            net_param=args.net_param,
+            tag=args.tag,
+            backbone=args.backbone,
+            backbone_param=args.backbone_param,
+            backbone_tag=args.backbone_tag,
+            epoch=args.resume_epoch,
+        )
+        net.reset_classifier(len(class_to_idx))
+        net.to(device)
 
     else:
         if args.backbone_epoch is not None:
@@ -254,6 +273,7 @@ def train(args: argparse.Namespace) -> None:
         batch_size=batch_size,
         sampler=train_sampler,
         num_workers=args.num_workers,
+        prefetch_factor=args.prefetch_factor,
         collate_fn=lambda batch: tuple(zip(*batch)),
         pin_memory=True,
     )
@@ -262,6 +282,7 @@ def train(args: argparse.Namespace) -> None:
         batch_size=batch_size,
         sampler=validation_sampler,
         num_workers=args.num_workers,
+        prefetch_factor=args.prefetch_factor,
         collate_fn=lambda batch: tuple(zip(*batch)),
         pin_memory=True,
     )
@@ -466,6 +487,8 @@ def train(args: argparse.Namespace) -> None:
             scaler,
         )
 
+    training_utils.shutdown_distributed_mode(args)
+
 
 def get_args_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -475,6 +498,12 @@ def get_args_parser() -> argparse.ArgumentParser:
             "Usage examples:\n"
             "python train_detection.py --network faster_rcnn --backbone mobilenet_v3_large --backbone-param 1 "
             "--backbone-epoch 0 --lr 0.02 --batch-size 16\n"
+            "python train_detection.py --network vitdet --backbone vit_sam_b16 "
+            "--backbone-epoch 0 --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 8 "
+            "--warmup-epochs 2 --epochs 100 --wd 0.1 --norm-wd 0 --clip-grad-norm 1 --amp --compile --layer-decay 0.7 "
+            "--data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 "
+            "--coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json "
+            "--coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -488,6 +517,10 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--backbone-tag", type=str, help="backbone training log tag (loading only)")
     parser.add_argument("--backbone-epoch", type=int, help="load backbone weights from selected epoch")
+    parser.add_argument(
+        "--pretrained", default=False, action="store_true", help="start with pretrained version of specified network"
+    )
+    parser.add_argument("--reset-head", default=False, action="store_true", help="reset the classification head")
     parser.add_argument("--freeze-backbone", default=False, action="store_true", help="freeze backbone")
     parser.add_argument("--freeze-backbone-stages", type=int, help="number of backbone stages to freeze")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
@@ -618,6 +651,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="number of preprocessing workers",
     )
     parser.add_argument(
+        "--prefetch-factor", type=int, metavar="N", help="number of batches loaded in advance by each worker"
+    )
+    parser.add_argument(
         "--amp", default=False, action="store_true", help="use torch.cuda.amp for mixed precision training"
     )
     parser.add_argument(
@@ -640,20 +676,27 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
     parser.add_argument("--clip-grad-norm", type=float, help="the maximum gradient norm")
     parser.add_argument("--gpu", type=int, metavar="ID", help="gpu id to use (ignored in distributed mode)")
+    parser.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")
     parser.add_argument(
         "--plot-lr", default=False, action="store_true", help="plot learning rate and exit (skip training)"
     )
     parser.add_argument(
-        "--val-path",
-        type=str,
-        default=str(settings.VALIDATION_DETECTION_ANNOTATIONS_PATH),
-        help="validation directory path",
+        "--val-path", type=str, default=str(settings.DETECTION_DATA_PATH), help="validation base directory path"
     )
     parser.add_argument(
-        "--data-path",
+        "--data-path", type=str, default=str(settings.DETECTION_DATA_PATH), help="training base directory path"
+    )
+    parser.add_argument(
+        "--coco-val-json-path",
         type=str,
-        default=str(settings.TRAINING_DETECTION_ANNOTATIONS_PATH),
-        help="training directory path",
+        default=f"{settings.VALIDATION_DETECTION_ANNOTATIONS_PATH}_coco.json",
+        help="validation COCO json path",
+    )
+    parser.add_argument(
+        "--coco-json-path",
+        type=str,
+        default=f"{settings.TRAINING_DETECTION_ANNOTATIONS_PATH}_coco.json",
+        help="training COCO json path",
     )
 
     return parser
@@ -662,6 +705,9 @@ def get_args_parser() -> argparse.ArgumentParser:
 def validate_args(args: argparse.Namespace) -> None:
     assert args.network is not None
     assert args.backbone is not None
+    assert (
+        args.pretrained is False or args.resume_epoch is None
+    ), "Cannot set resume epoch while starting from a pretrained network"
     assert args.load_states is False or (
         args.load_states is True and args.resume_epoch is not None
     ), "Load states must be from resumed training (--resume-epoch)"

@@ -153,7 +153,6 @@ def train(args: argparse.Namespace) -> None:
         if args.reset_head is True:
             net.reset_classifier(len(class_to_idx))
             net.to(device)
-
         else:
             assert class_to_idx == class_to_idx_saved
 
@@ -573,6 +572,8 @@ def train(args: argparse.Namespace) -> None:
             scheduler,
             scaler,
         )
+
+    training_utils.shutdown_distributed_mode(args)
 
 
 def get_args_parser() -> argparse.ArgumentParser:

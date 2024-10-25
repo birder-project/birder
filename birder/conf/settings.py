@@ -16,6 +16,7 @@ VALIDATION_DETECTION_PATH = DETECTION_DATA_PATH.joinpath("validation")
 TRAINING_DETECTION_ANNOTATIONS_PATH = DETECTION_DATA_PATH.joinpath("training_annotations")
 VALIDATION_DETECTION_ANNOTATIONS_PATH = DETECTION_DATA_PATH.joinpath("validation_annotations")
 WEAKLY_LABELED_DATA_PATH = DATA_DIR.joinpath("raw_data")
+WEAKLY_VAL_LABELED_DATA_PATH = DATA_DIR.joinpath("raw_data_validation")
 CLASS_LIST_NAME = "classes.txt"
 PACK_PATH_SUFFIX = "packed"
 

@@ -58,6 +58,7 @@ On fine-tuning phase
 * [Inception-ResNet v2](#inception-resnet-v2)
 * [Inception v3](#inception-v3)
 * [Inception v4](#inception-v4)
+* [LeViT](#levit)
 * [MaxViT](#maxvit)
 * [MetaFormer](#metaformer)
 * [MnasNet](#mnasnet)
@@ -640,6 +641,26 @@ torchrun --nproc_per_node=2 train.py --network inception_v3 --lr-scheduler cosin
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network inception_v4 --lr-scheduler cosine --batch-size 64 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3
+```
+
+### LeViT
+
+#### LeViT: 128s
+
+```sh
+torchrun --nproc_per_node=2 train.py --network levit_128s --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --fast-matmul --compile
+```
+
+#### LeViT: 128
+
+```sh
+torchrun --nproc_per_node=2 train.py --network levit_128s --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile
+```
+
+#### LeViT: 256
+
+```sh
+torchrun --nproc_per_node=2 train.py --network levit_256 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.025 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile
 ```
 
 ### MaxViT

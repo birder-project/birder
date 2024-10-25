@@ -3,11 +3,14 @@ import pathlib
 import time
 
 import polars as pl
+import torch
 from invoke import Exit
 from invoke import task
 
 from birder.common import fs_ops
+from birder.common import lib
 from birder.conf import settings
+from birder.model_registry import registry
 from birder.tools.stats import detection_object_count
 from birder.tools.stats import directory_label_count
 
@@ -283,19 +286,24 @@ def gen_classes_file(_ctx):
 
 
 @task
-def convert_to_coco(ctx):
+def convert_to_coco(ctx, class_file=None):
     """
     Convert labelme annotations to coco format for both training and validation sets
     """
 
+    if class_file is not None:
+        stmt = f" --class-file {class_file} "
+    else:
+        stmt = " "
+
     ctx.run(
-        "python tool.py labelme-to-coco data/detection_data/training_annotations",
+        f"python tool.py labelme-to-coco{stmt}data/detection_data/training_annotations",
         echo=True,
         pty=True,
         warn=True,
     )
     ctx.run(
-        "python tool.py labelme-to-coco data/detection_data/validation_annotations",
+        f"python tool.py labelme-to-coco{stmt}data/detection_data/validation_annotations",
         echo=True,
         pty=True,
         warn=True,
@@ -379,4 +387,38 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
         echo=True,
         pty=True,
         warn=True,
+    )
+
+
+@task
+def sam_from_vit(_ctx, network, tag=None, epoch=None):
+    """
+    Transform vanilla ViT to ViT SAM
+    """
+
+    # Assuming network is vit_{b, l, h}16 or vitregN_{b, l, h}16
+    if "reg" in network:
+        sam_network = network[0:3] + "_sam" + network[7:]
+    else:
+        sam_network = network[0:3] + "_sam" + network[3:]
+
+    path = fs_ops.model_path(sam_network, epoch=epoch)
+    if path.exists() is True:
+        echo(f"{path} already exists")
+        echo("Aborting", color=COLOR_RED)
+        raise Exit(code=1)
+
+    # Load model
+    device = torch.device("cpu")
+    (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+        device, network, tag=tag, epoch=epoch, inference=False
+    )
+    size = lib.get_size_from_signature(signature)[0]
+
+    sam = registry.net_factory(sam_network, 3, len(class_to_idx), size=size)
+    sam.load_vit_weights(net.state_dict())
+
+    # Save model
+    fs_ops.checkpoint_model(
+        sam_network, epoch, sam, signature, class_to_idx, rgb_stats, optimizer=None, scheduler=None, scaler=None
     )

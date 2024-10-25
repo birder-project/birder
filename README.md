@@ -123,10 +123,11 @@ The pre-training dataset comprises:
 * WebVision-2.0 (~1.5M random subset)
 * imagenet-w21-webp-wds (~1M random subset)
 * SA-1B (~220K random subset of 20 chunks)
+* COCO (~120K)
 * NABirds (~48K)
 * Birdsnap v1.1 (~44K)
 * CUB-200 2011 (~18K)
-* The Birder dataset (~3.5M)
+* The Birder dataset (~3.6M)
 
 Total: ~9.5M images
 

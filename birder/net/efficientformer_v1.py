@@ -18,7 +18,6 @@ from typing import Any
 from typing import Optional
 
 import torch
-import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import MLP
 from torchvision.ops import Conv2dNormActivation
@@ -27,6 +26,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import BaseNet
+from birder.net.base import interpolate_attention_bias
 
 
 class Attention(nn.Module):
@@ -376,23 +376,13 @@ class EfficientFormer_v1(BaseNet):
         resolution = int(new_size / (2**5))
         for m in self.body.modules():
             if isinstance(m, Attention):
+                m.attention_biases = nn.Parameter(interpolate_attention_bias(m.attention_biases, resolution))
+
                 pos = torch.stack(
                     torch.meshgrid(torch.arange(resolution), torch.arange(resolution), indexing="ij")
                 ).flatten(1)
                 rel_pos = (pos[..., :, None] - pos[..., None, :]).abs()
                 rel_pos = (rel_pos[0] * resolution) + rel_pos[1]
-                orig_dtype = m.attention_biases.dtype
-                attention_biases = m.attention_biases.float()  # Interpolate needs float32
-                attention_biases = attention_biases.reshape(1, old_res, old_res, -1).permute(0, 3, 1, 2)
-                attention_biases = F.interpolate(
-                    attention_biases,
-                    size=(resolution, resolution),
-                    mode="bicubic",
-                    antialias=True,
-                )
-                attention_biases = attention_biases.permute(0, 2, 3, 1).reshape(m.num_heads, -1)
-                attention_biases = attention_biases.to(orig_dtype)
-                m.attention_biases = nn.Parameter(attention_biases)
                 m.attention_bias_idxs = nn.Buffer(rel_pos)
 
         logging.info(f"Resized attention resolution: {resolution} to {old_res}")

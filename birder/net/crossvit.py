@@ -24,6 +24,7 @@ from torchvision.ops import StochasticDepth
 from birder.model_registry import registry
 from birder.net.base import BaseNet
 from birder.net.vit import EncoderBlock
+from birder.net.vit import adjust_position_embedding
 
 
 class PatchEmbed(nn.Module):
@@ -354,7 +355,11 @@ class CrossViT(BaseNet):
             num_new_tokens = 1 + num_patches[i]
 
             # Add back class tokens
-            self.pos_embed[i] = nn.Parameter(torch.zeros(1, 1 + num_patches[i], self.embed_dim[i]))
+            self.pos_embed[i] = nn.Parameter(
+                adjust_position_embedding(
+                    num_pos_tokens, self.pos_embed[i], int(num_patches[i] ** 0.5), num_prefix_tokens=1
+                )
+            )
             logging.info(f"Resized position embedding: {num_pos_tokens} to {num_new_tokens}")
 
 

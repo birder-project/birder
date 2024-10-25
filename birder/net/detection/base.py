@@ -76,6 +76,9 @@ class DetectionBaseNet(nn.Module):
 
         assert isinstance(self.size, int)
 
+    def reset_classifier(self, num_classes: int) -> None:
+        raise NotImplementedError
+
     def adjust_size(self, new_size: int) -> None:
         """
         Override this when one time adjustments for different resolutions is required.

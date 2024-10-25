@@ -20,13 +20,13 @@ from typing import Any
 from typing import Optional
 
 import torch
-import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import interpolate_attention_bias
 
 
 class Attention2d(nn.Module):
@@ -563,18 +563,9 @@ class EfficientFormer_v2(DetectorBackbone):
                         attn.N2 = attn.resolution2[0] * attn.resolution2[1]
 
                         # Interpolate attention_biases
-                        orig_dtype = attn.attention_biases.dtype
-                        attention_biases = attn.attention_biases.float()  # Interpolate needs float32
-                        attention_biases = attention_biases.reshape(1, old_base, old_base, -1).permute(0, 3, 1, 2)
-                        attention_biases = F.interpolate(
-                            attention_biases,
-                            size=(new_base, new_base),
-                            mode="bicubic",
-                            antialias=True,
+                        attn.attention_biases = nn.Parameter(
+                            interpolate_attention_bias(attn.attention_biases, new_base)
                         )
-                        attention_biases = attention_biases.permute(0, 2, 3, 1).reshape(attn.num_heads, -1)
-                        attention_biases = attention_biases.to(orig_dtype)
-                        attn.attention_biases = nn.Parameter(attention_biases)
 
                         k_pos = torch.stack(
                             torch.meshgrid(
@@ -597,35 +588,23 @@ class EfficientFormer_v2(DetectorBackbone):
 
                 for m in stage.modules():
                     if isinstance(m, EfficientFormerBlock):
-                        c_old_base = old_base
                         c_new_base = new_base
                         if m.token_mixer is not None and m.use_attn is True and m.stride is not None:
-                            c_old_base = math.ceil(old_base / m.stride)
                             c_new_base = math.ceil(new_base / m.stride)
 
                         if m.token_mixer is not None:
                             m.token_mixer.resolution = (c_new_base, c_new_base)
                             m.token_mixer.N = m.token_mixer.resolution[0] * m.token_mixer.resolution[1]
 
+                            m.token_mixer.attention_biases = nn.Parameter(
+                                interpolate_attention_bias(m.token_mixer.attention_biases, c_new_base)
+                            )
+
                             pos = torch.stack(
                                 torch.meshgrid(torch.arange(c_new_base), torch.arange(c_new_base), indexing="ij")
                             ).flatten(1)
                             rel_pos = (pos[..., :, None] - pos[..., None, :]).abs()
                             rel_pos = (rel_pos[0] * c_new_base) + rel_pos[1]
-                            orig_dtype = m.token_mixer.attention_biases.dtype
-                            attention_biases = m.token_mixer.attention_biases.float()  # Interpolate needs float32
-                            attention_biases = attention_biases.reshape(1, c_old_base, c_old_base, -1).permute(
-                                0, 3, 1, 2
-                            )
-                            attention_biases = F.interpolate(
-                                attention_biases,
-                                size=(c_new_base, c_new_base),
-                                mode="bicubic",
-                                antialias=True,
-                            )
-                            attention_biases = attention_biases.permute(0, 2, 3, 1).reshape(m.token_mixer.num_heads, -1)
-                            attention_biases = attention_biases.to(orig_dtype)
-                            m.token_mixer.attention_biases = nn.Parameter(attention_biases)
                             m.token_mixer.attention_bias_idxs = nn.Buffer(torch.LongTensor(rel_pos), persistent=False)
 
         logging.info(f"Resized attention base resolution: {old_base} to {new_base}")

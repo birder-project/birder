@@ -14,21 +14,12 @@ from typing import Any
 from typing import Optional
 
 import torch
-import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-
-
-class LayerNorm2d(nn.LayerNorm):
-    def forward(self, x: torch.Tensor) -> torch.Tensor:  # pylint: disable=arguments-renamed
-        x = x.permute(0, 2, 3, 1)
-        x = F.layer_norm(x, self.normalized_shape, self.weight, self.bias, eps=self.eps)
-        x = x.permute(0, 3, 1, 2)
-
-        return x
+from birder.net.convnext_v1 import LayerNorm2d
 
 
 class LayerScale2d(nn.Module):

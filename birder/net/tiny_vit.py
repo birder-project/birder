@@ -24,6 +24,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import interpolate_attention_bias
 from birder.net.convnext_v1 import LayerNorm2d
 
 
@@ -451,19 +452,11 @@ class Tiny_ViT(DetectorBackbone):
                         m.attn.define_bias_idxs(window_resolution)
 
                         # Interpolate the actual table
-                        orig_dtype = m.attn.attention_biases.dtype
-                        attention_biases = m.attn.attention_biases.float()
-                        (_, L) = attention_biases.size()
-                        ws = int(L**0.5)
-                        attention_biases = attention_biases.reshape(1, m.attn.num_heads, ws, ws)
-                        attention_biases = F.interpolate(
-                            attention_biases, size=window_resolution, mode="bilinear", antialias=True
+                        L = m.attn.attention_biases.size(1)
+                        m.attn.attention_biases = nn.Parameter(
+                            interpolate_attention_bias(m.attn.attention_biases, window_resolution[0], mode="bilinear")
                         )
-                        attention_biases = attention_biases.reshape(
-                            m.attn.num_heads, window_resolution[0] * window_resolution[1]
-                        )
-                        attention_biases = attention_biases.to(orig_dtype)
-                        m.attn.attention_biases = nn.Parameter(attention_biases)
+
                         if log_flag is False:
                             logging.info(
                                 f"Resized attention biases: {L} to {window_resolution[0] * window_resolution[1]}"

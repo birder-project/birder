@@ -14,6 +14,7 @@ import torch.utils.data
 import torchinfo
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from torchvision.datasets.folder import pil_loader
 from tqdm import tqdm
 
 from birder.common import cli
@@ -45,16 +46,19 @@ def train(args: argparse.Namespace) -> None:
 
     logging.info(f"Using size={args.size}")
 
-    device = torch.device("cuda")
-    device_id = torch.cuda.current_device()
-    torch.backends.cudnn.benchmark = True
+    if args.cpu is True:
+        device = torch.device("cpu")
+        device_id = 0
+    else:
+        device = torch.device("cuda")
+        device_id = torch.cuda.current_device()
+        torch.backends.cudnn.benchmark = True
 
     rgb_stats = get_rgb_stats(args.rgb_mode)
     if args.wds is True:
         (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.data_path[0]))
         if args.wds_train_size is not None:
             dataset_size = args.wds_train_size
-
         else:
             dataset_size = wds_size(wds_path, device)
 
@@ -70,7 +74,10 @@ def train(args: argparse.Namespace) -> None:
 
     else:
         training_dataset = make_image_dataset(
-            args.data_path, {}, transforms=training_preset((args.size, args.size), args.aug_level, rgb_stats)
+            args.data_path,
+            {},
+            transforms=training_preset((args.size, args.size), args.aug_level, rgb_stats),
+            loader=pil_loader,  # Slower but Handles external dataset quirks better
         )
         input_idx = 1
 
@@ -389,6 +396,8 @@ def train(args: argparse.Namespace) -> None:
             scaler,
         )
 
+    training_utils.shutdown_distributed_mode(args)
+
 
 def get_args_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -536,6 +545,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--clip-grad-norm", type=float, help="the maximum gradient norm")
     parser.add_argument("--gpu", type=int, metavar="ID", help="gpu id to use (ignored in distributed mode)")
+    parser.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")
     parser.add_argument(
         "--plot-lr", default=False, action="store_true", help="plot learning rate and exit (skip training)"
     )

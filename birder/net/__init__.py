@@ -23,6 +23,7 @@ from birder.net.inception_next import Inception_NeXt
 from birder.net.inception_resnet_v2 import Inception_ResNet_v2
 from birder.net.inception_v3 import Inception_v3
 from birder.net.inception_v4 import Inception_v4
+from birder.net.levit import LeViT
 from birder.net.maxvit import MaxViT
 from birder.net.metaformer import MetaFormer
 from birder.net.mnasnet import MNASNet
@@ -95,6 +96,7 @@ __all__ = [
     "Inception_ResNet_v2",
     "Inception_v3",
     "Inception_v4",
+    "LeViT",
     "MaxViT",
     "MetaFormer",
     "MNASNet",

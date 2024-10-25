@@ -1,9 +1,11 @@
 from collections.abc import Callable
 from typing import Any
+from typing import Literal
 from typing import Optional
 from typing import TypedDict
 
 import torch
+import torch.nn.functional as F
 from torch import nn
 
 from birder.model_registry import Task
@@ -188,6 +190,30 @@ def pos_embedding_sin_cos_2d(
         pe = torch.concat([torch.zeros([num_special_tokens, dim]), pe], axis=0)
 
     return pe
+
+
+def interpolate_attention_bias(
+    attention_bias: torch.Tensor, new_resolution: int, mode: Literal["bilinear", "bicubic"] = "bicubic"
+) -> torch.Tensor:
+    (H, L) = attention_bias.size()
+
+    # Assuming square base resolution
+    ws = int(L**0.5)
+
+    # Interpolate
+    orig_dtype = attention_bias.dtype
+    attention_bias = attention_bias.float()  # Interpolate needs float32
+    attention_bias = attention_bias.reshape(1, ws, ws, H).permute(0, 3, 1, 2)
+    attention_bias = F.interpolate(
+        attention_bias,
+        size=(new_resolution, new_resolution),
+        mode=mode,
+        antialias=True,
+    )
+    attention_bias = attention_bias.permute(0, 2, 3, 1).reshape(H, new_resolution * new_resolution)
+    attention_bias = attention_bias.to(orig_dtype)
+
+    return attention_bias
 
 
 def reparameterize_available(net: nn.Module) -> bool:

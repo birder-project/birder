@@ -449,6 +449,11 @@ def init_distributed_mode(args: argparse.Namespace) -> None:
         logging.disable(logging.CRITICAL)
 
 
+def shutdown_distributed_mode(args: argparse.Namespace) -> None:
+    if args.distributed is True:
+        dist.destroy_process_group()
+
+
 def disable_print() -> None:
     import builtins as __builtin__  # pylint: disable=import-outside-toplevel
 

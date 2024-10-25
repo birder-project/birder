@@ -121,7 +121,9 @@ class ModelRegistry:
 
         return nets
 
-    def list_models(self, *, task: Optional[Task] = None, net_type: Optional[type] = None) -> list[str]:
+    def list_models(
+        self, *, include_filter: Optional[str] = None, task: Optional[Task] = None, net_type: Optional[type] = None
+    ) -> list[str]:
         nets = self.all_nets
         if task is not None:
             nets = self._get_models_for_task(task)
@@ -129,7 +131,11 @@ class ModelRegistry:
         if net_type is not None:
             nets = {name: t for name, t in nets.items() if issubclass(t, net_type) is True}
 
-        return list(nets.keys())
+        model_list = list(nets.keys())
+        if include_filter is not None:
+            model_list = fnmatch.filter(model_list, include_filter)
+
+        return model_list
 
     def exists(self, name: str, task: Optional[Task] = None, net_type: Optional[type] = None) -> bool:
         nets = self.all_nets
@@ -195,7 +201,7 @@ class ModelRegistry:
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
-    ) -> "DetectorBackbone":
+    ) -> "DetectionBaseNet":
         return self._detection_nets[name](num_classes, backbone, net_param=net_param, config=config, size=size)
 
     def mim_net_factory(

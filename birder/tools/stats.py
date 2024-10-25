@@ -130,6 +130,15 @@ def set_size(_args: argparse.Namespace) -> None:
         f"Weakly labeled: {len(weak_dataset):,} samples with {len(weak_dataset.classes)} classes "
         f"(average of {round(len(weak_dataset) / len(weak_dataset.classes))} per class)"
     )
+    weak_val_dataset = ImageFolder(settings.WEAKLY_VAL_LABELED_DATA_PATH)
+    logging.info(
+        f"Weakly labeled validation: {len(weak_val_dataset):,} samples with {len(weak_val_dataset.classes)} classes "
+        f"(average of {round(len(weak_val_dataset) / len(weak_val_dataset.classes))} per class)"
+    )
+
+    logging.info("---")
+    num_classes = len(set(training_dataset.class_to_idx.keys()).union(set(weak_dataset.class_to_idx.keys())))
+    logging.info(f"Total of {num_classes} unique classes")
 
 
 def mean_and_std(args: argparse.Namespace) -> None:

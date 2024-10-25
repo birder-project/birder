@@ -560,6 +560,9 @@ class EfficientDet(DetectionBaseNet):
         fpn_channels: int = self.config["fpn_channels"]
         weight_method: Literal["fastattn", "sum"] = self.config["weight_method"]
 
+        self.box_class_repeats = box_class_repeats
+        self.fpn_channels = fpn_channels
+
         bifpn_config = get_bifpn_config(min_level, max_level, weight_method)
         self.backbone.return_channels = self.backbone.return_channels[-3:]
         self.backbone.return_stages = self.backbone.return_stages[-3:]
@@ -594,6 +597,15 @@ class EfficientDet(DetectionBaseNet):
         self.nms_thresh = nms_thresh
         self.detections_per_img = detections_per_img
         self.topk_candidates = topk_candidates
+
+    def reset_classifier(self, num_classes: int) -> None:
+        self.num_classes = num_classes
+        self.class_net = ClassificationHead(
+            num_outputs=self.num_classes,
+            repeats=self.box_class_repeats,
+            fpn_channels=self.fpn_channels,
+            num_anchors=self.anchor_generator.num_anchors_per_location()[0],
+        )
 
     def compute_loss(
         self,
