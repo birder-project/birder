@@ -38,6 +38,7 @@ class MAE_ViT(MIMBaseNet):
     ) -> None:
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
+        assert self.config is None, "config not supported"
         assert isinstance(self.encoder, (ViT, Simple_ViT, ViT_SAM))
         self.encoder: ViT | Simple_ViT | ViT_SAM
 

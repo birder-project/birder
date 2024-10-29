@@ -15,10 +15,12 @@ from birder.net.efficientformer_v1 import EfficientFormer_v1
 from birder.net.efficientformer_v2 import EfficientFormer_v2
 from birder.net.efficientnet_v1 import EfficientNet_v1
 from birder.net.efficientnet_v2 import EfficientNet_v2
+from birder.net.fasternet import FasterNet
 from birder.net.fastvit import FastViT
 from birder.net.focalnet import FocalNet
 from birder.net.ghostnet_v1 import GhostNet_v1
 from birder.net.ghostnet_v2 import GhostNet_v2
+from birder.net.hiera import Hiera
 from birder.net.inception_next import Inception_NeXt
 from birder.net.inception_resnet_v2 import Inception_ResNet_v2
 from birder.net.inception_v3 import Inception_v3
@@ -88,10 +90,12 @@ __all__ = [
     "EfficientFormer_v2",
     "EfficientNet_v1",
     "EfficientNet_v2",
+    "FasterNet",
     "FastViT",
     "FocalNet",
     "GhostNet_v1",
     "GhostNet_v2",
+    "Hiera",
     "Inception_NeXt",
     "Inception_ResNet_v2",
     "Inception_v3",

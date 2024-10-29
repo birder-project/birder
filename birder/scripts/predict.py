@@ -36,10 +36,12 @@ def handle_show_flags(
     # Show prediction
     if args.show is True:
         show_top_k(img_path, prob, class_to_idx, label)
+    elif args.show_top_below is not None and args.show_top_below > prob.max():
+        show_top_k(img_path, prob, class_to_idx, label)
 
     # Show mistake (if label exists)
-    elif label != -1:
-        if args.show_below is not None and args.show_below > prob[label]:
+    if label != -1:
+        if args.show_target_below is not None and args.show_target_below > prob[label]:
             show_top_k(img_path, prob, class_to_idx, label)
 
         elif args.show_mistakes is True:
@@ -90,7 +92,7 @@ def predict(args: argparse.Namespace) -> None:
         if args.show_class not in class_to_idx:
             logging.warning("Select show class is not part of the model classes")
 
-    if args.fast_matmul is True:
+    if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
     if args.compile is True:
@@ -140,15 +142,18 @@ def predict(args: argparse.Namespace) -> None:
             num_workers=8,
         )
 
+    show_flag = (
+        args.show is True
+        or args.show_top_below is not None
+        or args.show_target_below is not None
+        or args.show_mistakes is True
+        or args.show_out_of_k is True
+        or args.show_class is not None
+    )
+
     def batch_callback(file_paths: list[str], out: npt.NDArray[np.float32], batch_labels: list[int]) -> None:
         # Show flags
-        if (
-            args.show is True
-            or args.show_below is not None
-            or args.show_mistakes is True
-            or args.show_out_of_k is True
-            or args.show_class is not None
-        ):
+        if show_flag is True:
             for img_path, prob, label in zip(file_paths, out, batch_labels):
                 handle_show_flags(args, img_path, prob, label, class_to_idx)
 
@@ -276,7 +281,8 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
     parser.add_argument("--center-crop", type=float, default=1.0, help="Center crop ratio to use during inference")
     parser.add_argument("--show", default=False, action="store_true", help="show image predictions")
-    parser.add_argument("--show-below", type=float, help="show when target prediction is below given threshold")
+    parser.add_argument("--show-top-below", type=float, help="show when top prediction is below given threshold")
+    parser.add_argument("--show-target-below", type=float, help="show when target prediction is below given threshold")
     parser.add_argument("--show-mistakes", default=False, action="store_true", help="show only mis-classified images")
     parser.add_argument("--show-out-of-k", default=False, action="store_true", help="show images not in the top-k")
     parser.add_argument("--show-class", type=str, help="show specific class predictions")

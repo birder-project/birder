@@ -46,6 +46,7 @@ class BaseNet(nn.Module):
     default_size: int
     block_group_regex: Optional[str]
     auto_register = False
+    scriptable = True
     task = str(Task.IMAGE_CLASSIFICATION)
 
     def __init_subclass__(cls) -> None:

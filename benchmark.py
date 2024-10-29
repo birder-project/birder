@@ -43,7 +43,7 @@ def benchmark(args: argparse.Namespace) -> None:
 
     logging.info(f"Using device {device}")
 
-    if args.fast_matmul is True:
+    if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
     input_channels = 3

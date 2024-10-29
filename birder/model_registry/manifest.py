@@ -21,6 +21,7 @@ NetworkInfoType = TypedDict(
 ModelInfoType = TypedDict(
     "ModelInfoType",
     {
+        "url": NotRequired[str],
         "description": str,
         "resolution": tuple[int, int],
         "formats": dict[Literal["pt", "pt2", "pts", "ptl"], FormatInfoType],

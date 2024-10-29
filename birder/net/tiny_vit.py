@@ -10,7 +10,6 @@ Changes from original:
 
 # Reference license: Apache-2.0
 
-import itertools
 import logging
 from collections import OrderedDict
 from typing import Any
@@ -180,19 +179,15 @@ class Attention(nn.Module):
         self.attention_biases = nn.Parameter(torch.zeros(self.num_heads, resolution[0] * resolution[1]))
 
     def define_bias_idxs(self, resolution: tuple[int, int]) -> None:
-        points = list(itertools.product(range(resolution[0]), range(resolution[1])))
-        N = len(points)
-        attention_offsets: dict[tuple[int, int], int] = {}
-        idxs = []
-        for p1 in points:
-            for p2 in points:
-                offset = (abs(p1[0] - p2[0]), abs(p1[1] - p2[1]))
-                if offset not in attention_offsets:
-                    attention_offsets[offset] = len(attention_offsets)
-
-                idxs.append(attention_offsets[offset])
-
-        self.attention_bias_idxs = nn.Buffer(torch.LongTensor(idxs).view(N, N), persistent=False)
+        k_pos = torch.stack(
+            torch.meshgrid(torch.arange(resolution[0]), torch.arange(resolution[1]), indexing="ij")
+        ).flatten(1)
+        q_pos = torch.stack(
+            torch.meshgrid(torch.arange(0, resolution[0]), torch.arange(0, resolution[1]), indexing="ij")
+        ).flatten(1)
+        rel_pos = (q_pos[..., :, None] - k_pos[..., None, :]).abs()
+        rel_pos = (rel_pos[0] * resolution[1]) + rel_pos[1]
+        self.attention_bias_idxs = nn.Buffer(torch.LongTensor(rel_pos), persistent=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         attn_bias = self.attention_biases[:, self.attention_bias_idxs]
@@ -394,7 +389,7 @@ class Tiny_ViT(DetectorBackbone):
 
             return_channels.append(prev_dim)
 
-        num_features = self.head_hidden_size = embed_dims[-1]
+        num_features = embed_dims[-1]
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
@@ -494,5 +489,20 @@ registry.register_alias(
         "depths": [2, 2, 6, 2],
         "num_heads": [3, 6, 12, 18],
         "drop_path_rate": 0.2,
+    },
+)
+
+registry.register_weights(
+    "tiny_vit_5m_il-common",
+    {
+        "description": "TinyViT 5M model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 20.0,
+                "sha256": "57f84dc3144fc4e3ca39328d3a1446ca9e26ddb54e4c4d84301b7638bee2ec21",
+            },
+        },
+        "net": {"network": "tiny_vit_5m", "tag": "il-common"},
     },
 )

@@ -31,6 +31,7 @@ class FCMAE(MIMBaseNet):
     ) -> None:
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
+        assert self.config is None, "config not supported"
 
         self.mask_ratio = 0.6
         self.decoder_embed_dim = 512

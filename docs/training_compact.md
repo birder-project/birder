@@ -102,6 +102,20 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v1_b0 --tag il-commo
 torchrun --nproc_per_node=2 train.py --network efficientnet_v1_b1 --tag il-common --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 10 --batch-size 128 --epochs 300 --size 256 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### FasterNet
+
+#### FasterNet: T0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network fasternet_t0 --tag il-common --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.005 --grad-accum-steps 2 --smoothing-alpha 0.1 --aug-level 3 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+#### FasterNet: T1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network fasternet_t1 --tag il-common --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.01 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### FastViT
 
 #### FastViT: T8

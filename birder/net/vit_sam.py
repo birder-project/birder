@@ -103,7 +103,7 @@ def get_decomposed_rel_pos_bias(
 
 
 class PatchEmbed(nn.Module):
-    def __init__(self, kernel_size: tuple[int, int], stride: tuple[int, int], in_channels: int, embed_dim: int) -> None:
+    def __init__(self, in_channels: int, embed_dim: int, kernel_size: tuple[int, int], stride: tuple[int, int]) -> None:
         super().__init__()
         self.proj = nn.Conv2d(in_channels, embed_dim, kernel_size=kernel_size, stride=stride, padding=(0, 0))
 
@@ -240,10 +240,10 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
         self.patch_embed = PatchEmbed(
-            kernel_size=(patch_size, patch_size),
-            stride=(patch_size, patch_size),
             in_channels=self.input_channels,
             embed_dim=hidden_dim,
+            kernel_size=(patch_size, patch_size),
+            stride=(patch_size, patch_size),
         )
 
         # Absolute position embedding

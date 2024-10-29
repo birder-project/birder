@@ -50,10 +50,12 @@ On fine-tuning phase
 * [EfficientFormer v2](#efficientformer-v2)
 * [EfficientNet v1](#efficientnet-v1)
 * [EfficientNet v2](#efficientnet-v2)
+* [FasterNet](#fasternet)
 * [FastViT](#fastvit)
 * [FocalNet](#focalnet)
 * [GhostNet v1](#ghostnet-v1)
 * [GhostNet v2](#ghostnet-v2)
+* [Hiera](#hiera)
 * [InceptionNeXt](#inceptionnext)
 * [Inception-ResNet v2](#inception-resnet-v2)
 * [Inception v3](#inception-v3)
@@ -519,6 +521,44 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --tag intermedi
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_l --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 16 --epochs 300 --size 384 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
 ```
 
+### FasterNet
+
+#### FasterNet: T0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network fasternet_t0 --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.005 --grad-accum-steps 2 --smoothing-alpha 0.1 --aug-level 3 --fast-matmul --compile
+```
+
+#### FasterNet: T1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network fasternet_t1 --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.01 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --fast-matmul --compile
+```
+
+#### FasterNet: T2
+
+```sh
+torchrun --nproc_per_node=2 train.py --network fasternet_t2 --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.02 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --amp --compile
+```
+
+#### FasterNet: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network fasternet_s --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.03 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --amp --compile
+```
+
+#### FasterNet: Medium
+
+```sh
+torchrun --nproc_per_node=2 train.py --network fasternet_m --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 64 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --clip-grad-norm 1 --amp --compile
+```
+
+#### FasterNet: Large
+
+```sh
+torchrun --nproc_per_node=2 train.py --network fasternet_l --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --clip-grad-norm 0.1 --amp --compile
+```
+
 ### FastViT
 
 #### FastViT: T8
@@ -609,6 +649,14 @@ torchrun --nproc_per_node=2 train.py --network ghostnet_v2 --net-param 1.3 --opt
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network ghostnet_v2 --net-param 1.6 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --warmup-epochs 3 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --ra-sampler --ra-reps 2 --amp --compile
+```
+
+### Hiera
+
+#### Hiera: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network hiera_tiny --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 ### InceptionNeXt

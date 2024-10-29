@@ -349,7 +349,11 @@ def load_pretrained_model(
 
     model_file = f"{weights}.pt"
     dst = settings.MODELS_DIR.joinpath(model_file)
-    url = f"{settings.REGISTRY_BASE_UTL}/{model_file}"
+    if "url" in model_info:
+        url = model_info["url"]
+    else:
+        url = f"{settings.REGISTRY_BASE_UTL}/{model_file}"
+
     cli.download_file(url, dst, model_info["formats"]["pt"]["sha256"], progress_bar=progress_bar)
 
     if device is None:

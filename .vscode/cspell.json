@@ -6,6 +6,7 @@
   "language": "en",
   // words - list of words to be always considered correct
   "words": [
+    "abswin",
     "accum",
     "adamw",
     "addcmul",
@@ -73,6 +74,7 @@
     "einsum",
     "exiftool",
     "explainability",
+    "fasternet",
     "fastvit",
     "fcmae",
     "femto",
@@ -91,6 +93,7 @@
     "gridspec",
     "hardsigmoid",
     "hardswish",
+    "hiera",
     "hlines",
     "horizontalalignment",
     "hparam",

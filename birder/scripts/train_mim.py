@@ -119,7 +119,7 @@ def train(args: argparse.Namespace) -> None:
         encoder = registry.net_factory(args.encoder, sample_shape[1], 0, net_param=args.encoder_param, size=args.size)
         net = registry.mim_net_factory(args.network, encoder, net_param=args.net_param, size=args.size).to(device)
 
-    if args.fast_matmul is True:
+    if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
     # Compile network

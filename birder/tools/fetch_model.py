@@ -15,8 +15,8 @@ def set_parser(subparsers: Any) -> None:
         description="download pretrained model",
         epilog=(
             "Usage examples:\n"
-            "python -m birder.tools fetch-model mobilenet_v3_large_1_0\n"
-            "python -m birder.tools fetch-model convnext_v2_4_0 --force\n"
+            "python -m birder.tools fetch-model mobilenet_v3_large_1\n"
+            "python -m birder.tools fetch-model convnext_v2_tiny_0 --force\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -44,5 +44,9 @@ def main(args: argparse.Namespace) -> None:
         logging.warning(f"File {model_file} already exists... aborting")
         raise SystemExit(1)
 
-    url = f"{settings.REGISTRY_BASE_UTL}/{model_file}"
+    if "url" in model_info:
+        url = model_info["url"]
+    else:
+        url = f"{settings.REGISTRY_BASE_UTL}/{model_file}"
+
     cli.download_file(url, dst, model_info["formats"][args.format]["sha256"], override=args.force)

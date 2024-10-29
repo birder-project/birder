@@ -45,7 +45,11 @@ class TestRegistry(unittest.TestCase):
     def test_manifest(self) -> None:
         for model_name, model_info in registry._pretrained_nets.items():
             for model_format in model_info["formats"]:
-                url = f"{settings.REGISTRY_BASE_UTL}/{model_name}.{model_format}"
+                if "url" in model_info:
+                    url = model_info["url"]
+                else:
+                    url = f"{settings.REGISTRY_BASE_UTL}/{model_name}.{model_format}"
+
                 resp = requests.head(url, timeout=5, allow_redirects=True)
                 self.assertEqual(resp.status_code, 200)
                 self.assertGreater(int(resp.headers["Content-Length"]), 100000)

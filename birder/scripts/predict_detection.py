@@ -49,7 +49,7 @@ def predict(args: argparse.Namespace) -> None:
         pts=args.pts,
     )
 
-    if args.fast_matmul is True:
+    if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
     if args.compile is True:
@@ -90,7 +90,8 @@ def predict(args: argparse.Namespace) -> None:
             # Predict
             inputs = [i.to(device) for i in inputs]
             inputs = batch_images(inputs)
-            (detections, _) = net(inputs)
+            with torch.amp.autocast(device.type, enabled=args.amp):
+                (detections, _) = net(inputs)
 
             # Metrics
             # TBD
@@ -174,6 +175,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
     parser.add_argument("--pts", default=False, action="store_true", help="load torchscript network")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
+    parser.add_argument(
+        "--amp", default=False, action="store_true", help="use torch.amp.autocast for mixed precision inference"
+    )
     parser.add_argument(
         "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
     )

@@ -41,11 +41,14 @@ class TestNet(unittest.TestCase):
             ("efficientformer_v2_s0"),
             ("efficientnet_v1_b0"),
             ("efficientnet_v2_s"),
+            ("fasternet_t0"),
             ("fastvit_t8"),
             ("fastvit_sa12"),
             ("focalnet_t_srf"),
             ("ghostnet_v1", 1),
             ("ghostnet_v2", 1),
+            ("hiera_tiny"),
+            ("hiera_abswin_tiny"),
             ("inception_next_t"),
             ("inception_resnet_v2"),
             ("inception_v3"),
@@ -122,7 +125,12 @@ class TestNet(unittest.TestCase):
             embedding = n.embedding(torch.rand((batch_size, 3, size, size))).flatten()
             self.assertEqual(len(embedding), n.embedding_size * batch_size)
 
-        torch.jit.script(n)
+        if n.scriptable is True:
+            torch.jit.script(n)
+        else:
+            n.eval()
+            torch.jit.trace(n, example_inputs=torch.rand((batch_size, 3, size, size)))
+            n.train()
 
         # Adjust size
         if size_step != 0:
@@ -156,10 +164,13 @@ class TestNet(unittest.TestCase):
             ("efficientformer_v2_s0"),
             ("efficientnet_v1_b0"),
             ("efficientnet_v2_s"),
+            ("fasternet_t0"),
             ("fastvit_t8"),
             ("focalnet_t_srf"),
             ("ghostnet_v1", 1),
             ("ghostnet_v2", 1),
+            ("hiera_tiny"),
+            ("hiera_abswin_tiny"),
             ("inception_next_t"),
             ("inception_resnet_v2"),
             ("inception_v3"),
@@ -232,6 +243,8 @@ class TestNet(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
             ("convnext_v2_atto", None, False),
+            ("hiera_tiny", None, False),
+            ("hiera_abswin_tiny", None, False),
             ("maxvit_t", None, True),
             ("nextvit_s", None, True),
             ("regnet_x_200m", None, False),
@@ -254,7 +267,11 @@ class TestNet(unittest.TestCase):
 
         outs = n.masked_encoding(torch.rand((1, 3, size, size)), 0.6, mt)
         for out in outs:
-            self.assertFalse(torch.isnan(out).any())
+            if isinstance(out, (tuple, list)):  # Hierarchical MIM
+                for o in out:
+                    self.assertFalse(torch.isnan(o).any())
+            else:
+                self.assertFalse(torch.isnan(out).any())
 
         self.assertTrue(hasattr(n, "block_group_regex"))
 

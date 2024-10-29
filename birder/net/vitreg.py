@@ -71,6 +71,18 @@ registry.register_alias(
     },
 )
 registry.register_alias(
+    "vitreg4_h16",
+    ViTReg4,
+    config={
+        "patch_size": 16,
+        "num_layers": 32,
+        "num_heads": 16,
+        "hidden_dim": 1280,
+        "mlp_dim": 5120,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
     "vitreg4_h14",
     ViTReg4,
     config={

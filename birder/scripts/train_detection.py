@@ -152,7 +152,7 @@ def train(args: argparse.Namespace) -> None:
     if args.freeze_backbone_bn is True:
         net.backbone = training_utils.freeze_batchnorm2d(net.backbone)
 
-    if args.fast_matmul is True:
+    if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
     # Compile network

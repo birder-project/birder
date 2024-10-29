@@ -16,6 +16,8 @@ class TestNetMIM(unittest.TestCase):
         [
             ("fcmae", None, ("convnext_v2_atto", None)),
             ("fcmae", None, ("regnet_y_200m", None)),
+            ("mae_hiera", None, ("hiera_tiny", None)),
+            ("mae_hiera", None, ("hiera_abswin_tiny", None)),
             ("mae_vit", None, ("simple_vit_b32", None)),
             ("mae_vit", None, ("vit_b32", None)),
             ("mae_vit", None, ("vit_sam_b16", None)),
