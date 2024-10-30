@@ -1,5 +1,7 @@
 import argparse
 import logging
+import os
+import tempfile
 import typing
 import unittest
 from unittest.mock import mock_open
@@ -60,6 +62,11 @@ class TestCLI(unittest.TestCase):
             hex_digest = cli.calc_sha256("some_file.tar.gz")
             m.assert_called_with("some_file.tar.gz", "rb")
             self.assertEqual(hex_digest, "916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9")
+
+    @unittest.skipUnless(os.environ.get("NETWORK_TESTS", False), "Avoid tests that require network access")
+    def test_download_file(self) -> None:
+        with tempfile.NamedTemporaryFile() as f:
+            cli.download_file("https://f000.backblazeb2.com/file/birder/data/img_001.jpeg", f.name)
 
 
 class TestFSOps(unittest.TestCase):

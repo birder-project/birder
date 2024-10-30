@@ -402,7 +402,7 @@ class LeViT(BaseNet):
         self.dist_classifier = self.create_classifier()
         self.classifier = self.create_classifier()
 
-    def freeze(self, freeze_classifier: bool = True) -> None:
+    def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
         for param in self.parameters():
             param.requires_grad = False
 
@@ -411,6 +411,10 @@ class LeViT(BaseNet):
                 param.requires_grad = True
 
             for param in self.dist_classifier.parameters():
+                param.requires_grad = True
+
+        if unfreeze_features is True:
+            for param in self.features.parameters():
                 param.requires_grad = True
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:

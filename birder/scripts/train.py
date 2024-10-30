@@ -174,7 +174,7 @@ def train(args: argparse.Namespace) -> None:
         ).to(device)
 
     if args.freeze_body is True:
-        net.freeze(freeze_classifier=False)
+        net.freeze(freeze_classifier=False, unfreeze_features=args.unfreeze_features)
 
     if args.freeze_bn is True:
         net = training_utils.freeze_batchnorm2d(net)
@@ -607,6 +607,12 @@ def get_args_parser() -> argparse.ArgumentParser:
         default=False,
         action="store_true",
         help="freeze all layers of the model except the classification head",
+    )
+    parser.add_argument(
+        "--unfreeze-features",
+        default=False,
+        action="store_true",
+        help="unfreeze features layer (only relevant when freezing body)",
     )
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(

@@ -9,6 +9,7 @@ from birder.conf import settings
 from birder.model_registry import registry
 from birder.model_registry.model_registry import ModelRegistry
 from birder.model_registry.model_registry import Task
+from birder.model_registry.model_registry import group_sort
 from birder.net.base import BaseNet
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.mim.base import MIMBaseNet
@@ -18,6 +19,15 @@ logging.disable(logging.CRITICAL)
 
 # pylint: disable=protected-access
 class TestRegistry(unittest.TestCase):
+    def test_group_sort(self) -> None:
+        model_list = group_sort(
+            ["b_prefix_b", "b_prefix_c", "a_prefix_z", "a_prefix_h", "a_prefix_a", "c_prefix_b", "c_prefix_a"]
+        )
+        self.assertEqual(
+            model_list,
+            ["a_prefix_z", "a_prefix_h", "a_prefix_a", "b_prefix_b", "b_prefix_c", "c_prefix_b", "c_prefix_a"],
+        )
+
     def test_registry_nets(self) -> None:
         for net in registry._nets.values():
             self.assertTrue(issubclass(net, BaseNet))

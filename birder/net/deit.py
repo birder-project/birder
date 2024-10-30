@@ -124,7 +124,7 @@ class DeiT(BaseNet):
         self.dist_classifier = self.create_classifier()
         self.classifier = self.create_classifier()
 
-    def freeze(self, freeze_classifier: bool = True) -> None:
+    def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
         for param in self.parameters():
             param.requires_grad = False
 

@@ -220,7 +220,7 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag intermedia
 Optional intermediate training: linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag intermediate --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 448 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
+torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag intermediate --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 448 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
 ```
 
 Optional intermediate training: fine-tuning
@@ -250,7 +250,7 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag intermedia
 Optional intermediate training: linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag intermediate --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 384 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --amp --compile --resume-epoch 0 --reset-head --freeze-body
+torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag intermediate --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 10 --size 384 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --amp --compile --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
 ```
 
 Optional intermediate training: fine-tuning
@@ -482,7 +482,7 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag intermedi
 Optional intermediate training: linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag intermediate --lr 0.1 --lr-scheduler cosine --batch-size 128 --epochs 10 --size 448 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body
+torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag intermediate --lr 0.1 --lr-scheduler cosine --batch-size 128 --epochs 10 --size 448 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
 ```
 
 Optional intermediate training: fine-tuning
@@ -506,7 +506,7 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --tag intermedi
 Optional intermediate training: linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --tag intermediate --lr 0.1 --lr-scheduler cosine --batch-size 128 --epochs 10 --size 448 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body
+torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --tag intermediate --lr 0.1 --lr-scheduler cosine --batch-size 128 --epochs 10 --size 448 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
 ```
 
 Optional intermediate training: fine-tuning
@@ -656,7 +656,13 @@ torchrun --nproc_per_node=2 train.py --network ghostnet_v2 --net-param 1.6 --opt
 #### Hiera: Tiny
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network hiera_tiny --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network hiera_tiny --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+#### Hiera: AbsWin Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network hiera_abswin_small --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 ### InceptionNeXt
@@ -696,19 +702,19 @@ torchrun --nproc_per_node=2 train.py --network inception_v4 --lr-scheduler cosin
 #### LeViT: 128s
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network levit_128s --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --fast-matmul --compile
+torchrun --nproc_per_node=2 train.py --network levit_128s --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --model-ema-decay 0.9998 --clip-grad-norm 1 --fast-matmul --compile
 ```
 
 #### LeViT: 128
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network levit_128s --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network levit_128s --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --model-ema-decay 0.9998 --clip-grad-norm 1 --amp --compile
 ```
 
 #### LeViT: 256
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network levit_256 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.025 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network levit_256 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.025 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --model-ema-decay 0.9998 --clip-grad-norm 1 --amp --compile
 ```
 
 ### MaxViT
@@ -1458,7 +1464,7 @@ torchrun --nproc_per_node=2 train.py --network tiny_vit_5m --tag intermediate --
 Optional intermediate training: linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network tiny_vit_5m --tag intermediate --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --wd 0.01 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --fast-matmul --compile --resume-epoch 0 --reset-head --freeze-body
+torchrun --nproc_per_node=2 train.py --network tiny_vit_5m --tag intermediate --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --wd 0.01 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --fast-matmul --compile --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
 ```
 
 Optional intermediate training: fine-tuning

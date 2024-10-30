@@ -20,6 +20,35 @@ class TestBase(unittest.TestCase):
         self.assertIn("inputs", signature)
         self.assertIn("outputs", signature)
 
+    def test_base_net(self) -> None:
+        base_net = base.BaseNet(3, num_classes=2, size=128)
+        base_net.body = torch.nn.Linear(3, 10, bias=False)
+        base_net.features = torch.nn.Linear(10, 10, bias=False)
+        base_net.classifier = base_net.create_classifier(embed_dim=10)
+
+        # Test freeze
+        for param in base_net.parameters():
+            self.assertTrue(param.requires_grad)
+
+        base_net.freeze()
+        for param in base_net.parameters():
+            self.assertFalse(param.requires_grad)
+
+        base_net.freeze(freeze_classifier=False)
+        self.assertFalse(base_net.body.weight.requires_grad)
+        self.assertFalse(base_net.features.weight.requires_grad)
+        self.assertTrue(base_net.classifier.weight.requires_grad)
+
+        base_net.freeze(freeze_classifier=False, unfreeze_features=True)
+        self.assertFalse(base_net.body.weight.requires_grad)
+        self.assertTrue(base_net.features.weight.requires_grad)
+        self.assertTrue(base_net.classifier.weight.requires_grad)
+
+        base_net.freeze(freeze_classifier=True, unfreeze_features=True)
+        self.assertFalse(base_net.body.weight.requires_grad)
+        self.assertTrue(base_net.features.weight.requires_grad)
+        self.assertFalse(base_net.classifier.weight.requires_grad)
+
 
 class TestNet(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]

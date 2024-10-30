@@ -12,6 +12,7 @@ import torch
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
+from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 
 
@@ -193,3 +194,19 @@ class SqueezeNext(DetectorBackbone):
         x = self.stem(x)
         x = self.body(x)
         return self.features(x)
+
+
+registry.register_weights(
+    "squeezenext_1_il-common",
+    {
+        "description": "SqueezeNext v2 1.0x output channels model trained on the il-common dataset",
+        "resolution": (259, 259),
+        "formats": {
+            "pt": {
+                "file_size": 3.5,
+                "sha256": "da01d1cd05c71b80b5e4e6ca66400f64fa3f6179d0e90834c4f6942c8095557a",
+            }
+        },
+        "net": {"network": "squeezenext", "net_param": 1, "tag": "il-common"},
+    },
+)
