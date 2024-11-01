@@ -40,6 +40,7 @@ def get_detection_signature(input_shape: tuple[int, ...], num_outputs: int) -> D
 class DetectionBaseNet(nn.Module):
     default_size: int
     auto_register = False
+    scriptable = True
     task = str(Task.OBJECT_DETECTION)
 
     def __init_subclass__(cls) -> None:

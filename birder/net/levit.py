@@ -542,3 +542,18 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
+
+registry.register_weights(
+    "levit_128s_il-common",
+    {
+        "description": "LeViT 128s model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 28.1,
+                "sha256": "f70629adc76d029445f6eb70786075e71b9e7d99029186fefc4e1fb966aaf743",
+            }
+        },
+        "net": {"network": "levit_128s", "tag": "il-common"},
+    },
+)

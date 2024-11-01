@@ -484,7 +484,14 @@ def reduce_across_processes(value: float, device: torch.device) -> float:
     dist.barrier()
     dist.all_reduce(value_t)
 
-    return value_t.item()  # type: ignore
+    return value_t.item()  # type: ignore[no-any-return]
+
+
+def get_world_size() -> int:
+    if is_dist_available_and_initialized() is False:
+        return 1
+
+    return dist.get_world_size()  # type: ignore[no-any-return]
 
 
 def training_log_name(network: str, device: torch.device) -> str:

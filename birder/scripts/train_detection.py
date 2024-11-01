@@ -35,6 +35,31 @@ from birder.transforms.detection import inference_preset
 from birder.transforms.detection import training_preset
 
 
+def _remove_images_without_annotations(dataset: CocoDetection) -> CocoDetection:
+    def _has_only_empty_bbox(anno: list[dict[str, Any]]) -> bool:
+        return all(any(o <= 1 for o in obj["bbox"][2:]) for obj in anno)
+
+    def _has_valid_annotation(anno: list[dict[str, Any]]) -> bool:
+        # If it's empty, there is no annotation
+        if len(anno) == 0:
+            return False
+
+        # If all boxes have close to zero area, there is no annotation
+        if _has_only_empty_bbox(anno):
+            return False
+
+        return True
+
+    ids = []
+    for ds_idx, img_id in enumerate(dataset.ids):
+        ann_ids = dataset.coco.getAnnIds(imgIds=img_id, iscrowd=None)
+        anno = dataset.coco.loadAnns(ann_ids)
+        if _has_valid_annotation(anno):
+            ids.append(ds_idx)
+
+    return torch.utils.data.Subset(dataset, ids)
+
+
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
     training_utils.init_distributed_mode(args)
@@ -56,12 +81,13 @@ def train(args: argparse.Namespace) -> None:
         args.data_path, args.coco_json_path, transforms=training_preset(args.size, args.aug_level, rgb_stats)
     )
     training_dataset = wrap_dataset_for_transforms_v2(training_dataset)
+    training_dataset = _remove_images_without_annotations(training_dataset)
     validation_dataset = CocoDetection(
         args.val_path, args.coco_val_json_path, transforms=inference_preset(args.size, rgb_stats)
     )
     validation_dataset = wrap_dataset_for_transforms_v2(validation_dataset)
 
-    class_to_idx = fs_ops.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
+    class_to_idx = fs_ops.read_class_file(args.class_file)
     class_to_idx = lib.detection_class_to_idx(class_to_idx)
 
     assert args.model_ema is False or args.model_ema_steps <= len(training_dataset) / args.batch_size
@@ -697,6 +723,13 @@ def get_args_parser() -> argparse.ArgumentParser:
         type=str,
         default=f"{settings.TRAINING_DETECTION_ANNOTATIONS_PATH}_coco.json",
         help="training COCO json path",
+    )
+    parser.add_argument(
+        "--class-file",
+        type=str,
+        default=str(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME)),
+        metavar="FILE",
+        help="class list file",
     )
 
     return parser

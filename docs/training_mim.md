@@ -124,7 +124,19 @@ torchrun --nproc_per_node=2 train.py --network regnet_y_8g --tag mim --lr 0.1 --
 Optional intermediate training: next, full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network regnet_y_8g --tag mim --lr 0.1 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 110 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --amp --compile --layer-decay 0.9 --resume-epoch 10 --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network regnet_y_8g --tag mim --lr 0.1 --lr-scheduler cosine --warmup-epochs 15 --batch-size 128 --size 256 --epochs 110 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --amp --compile --layer-decay 0.9 --resume-epoch 10 --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+```
+
+Fine-tuning, first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regnet_y_8g --tag mim --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --epochs 10 --size 256 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body
+```
+
+Next, full fine-tuning with layer-wise learning rate decay
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regnet_y_8g --tag mim --lr 0.001 --lr-scheduler cosine --batch-size 128 --size 256 --epochs 30 --wd 0.0005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --amp --compile --layer-decay 0.8 --resume-epoch 10
 ```
 
 ### MAE Hiera

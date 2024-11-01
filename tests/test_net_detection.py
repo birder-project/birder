@@ -22,6 +22,7 @@ class TestBase(unittest.TestCase):
 class TestNetDetection(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
+            ("detr", None, ("regnet_y_1600m", None)),
             ("efficientdet_d0", None, ("efficientnet_v1_b0", None)),
             ("faster_rcnn", None, ("resnet_v2_18", None)),
             ("retinanet", None, ("mobilenet_v3_small", 1)),
@@ -66,4 +67,9 @@ class TestNetDetection(unittest.TestCase):
             for key in ["boxes", "labels", "scores"]:
                 self.assertFalse(torch.isnan(detection[key]).any())
 
-        torch.jit.script(n)
+        if n.scriptable is True:
+            torch.jit.script(n)
+        else:
+            n.eval()
+            torch.jit.trace(n, example_inputs=torch.rand((1, 3, size, size)))
+            n.train()
