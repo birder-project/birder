@@ -433,6 +433,12 @@ def train(args: argparse.Namespace) -> None:
                 with torch.amp.autocast("cuda", enabled=args.amp):
                     (detections, losses) = eval_model(inputs)
 
+                for target in targets:
+                    # TorchMetrics can't handle "empty" images, we don't want to remove them...
+                    if "boxes" not in target:
+                        target["boxes"] = torch.tensor([], dtype=torch.float, device=device)
+                        target["labels"] = torch.tensor([], dtype=torch.int64, device=device)
+
                 # Statistics
                 validation_metrics(detections, targets)
 
