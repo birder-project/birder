@@ -7,10 +7,10 @@ Training script and procedures adapted from PyTorch vision reference
 
 ### DETR
 
-#### DETR: EfficientNet v1 B0
+#### DETR: RegNet Y 8 GF
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network detr --backbone efficientnet_v1_b0 --backbone-epoch 0 --freeze-backbone --opt adamw --lr 0.0001 --lr-scheduler cosine --freeze-backbone-bn --batch-size 32 --epochs 300 --wd 0.0001 --clip-grad-norm 0.1 --fast-matmul
+torchrun --nproc_per_node=2 train_detection.py --network detr --backbone regnet_y_8g --backbone-epoch 0 --freeze-backbone --opt adamw --lr 0.0001 --backbone-lr 0.00001 --lr-scheduler cosine --freeze-backbone-bn --batch-size 32 --epochs 300 --wd 0.0001 --clip-grad-norm 0.1 --fast-matmul
 ```
 
 ### EfficientDet

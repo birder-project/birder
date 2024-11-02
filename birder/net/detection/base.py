@@ -86,6 +86,51 @@ class DetectionBaseNet(nn.Module):
         This should run after load_state_dict.
         """
 
+    # pylint: disable=protected-access
+    def _input_check(self, targets: Optional[list[dict[str, torch.Tensor]]]) -> None:
+        if self.training is True:
+            if targets is None:
+                torch._assert(False, "targets should not be None when in training mode")
+
+            else:
+                for target in targets:
+                    boxes = target["boxes"]
+                    if isinstance(boxes, torch.Tensor):
+                        torch._assert(
+                            len(boxes.shape) == 2 and boxes.shape[-1] == 4,
+                            f"Expected target boxes to be a tensor of shape [N, 4], got {boxes.shape}.",
+                        )
+
+                    else:
+                        torch._assert(False, f"Expected target boxes to be of type Tensor, got {type(boxes)}.")
+
+        if targets is not None:
+            for target_idx, target in enumerate(targets):
+                boxes = target["boxes"]
+                degenerate_boxes = boxes[:, 2:] <= boxes[:, :2]
+                if degenerate_boxes.any():
+                    # Print the first degenerate box
+                    bb_idx = torch.where(degenerate_boxes.any(dim=1))[0][0]
+                    degenerate_bb: list[float] = boxes[bb_idx].tolist()
+                    torch._assert(
+                        False,
+                        "All bounding boxes should have positive height and width."
+                        f" Found invalid box {degenerate_bb} for target at index {target_idx}.",
+                    )
+
+    # pylint: disable=protected-access
+    def _to_img_list(self, x: torch.Tensor) -> "ImageList":
+        image_sizes = [img.shape[-2:] for img in x]
+        image_sizes_list: list[tuple[int, int]] = []
+        for image_size in image_sizes:
+            torch._assert(
+                len(image_size) == 2,
+                f"Input tensors expected to have in the last two elements H and W, instead got {image_size}",
+            )
+            image_sizes_list.append((image_size[0], image_size[1]))
+
+        return ImageList(x, image_sizes_list)
+
     def forward(
         self, x: torch.Tensor, targets: Optional[list[dict[str, torch.Tensor]]] = None
     ) -> tuple[list[DetectorResultType], dict[str, torch.Tensor]]:

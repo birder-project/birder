@@ -181,6 +181,7 @@ def optimizer_parameter_groups(
     norm_weight_decay: Optional[float] = None,
     custom_keys_weight_decay: Optional[list[tuple[str, float]]] = None,
     layer_decay: Optional[float] = None,
+    backbone_lr: Optional[float] = None,
 ) -> list[dict[str, Any]]:
     """
     Return parameter groups for optimizers with per-parameter group weight decay.
@@ -248,34 +249,33 @@ def optimizer_parameter_groups(
                 for key, custom_wd in custom_keys_weight_decay:
                     target_name_for_custom_key = f"{prefix}.{name}" if prefix != "" and "." in key else name
                     if key == target_name_for_custom_key:
-                        params.append(
-                            {
-                                "params": p,
-                                "weight_decay": custom_wd,
-                                "lr_scale": 1.0 if layer_decay is None else layer_scales[idx],
-                            }
-                        )
+                        d = {
+                            "params": p,
+                            "weight_decay": custom_wd,
+                            "lr_scale": 1.0 if layer_decay is None else layer_scales[idx],
+                        }
+                        if backbone_lr is not None and target_name.startswith("backbone.") is True:
+                            d["lr"] = backbone_lr
+
+                        params.append(d)
                         is_custom_key = True
                         break
 
             if is_custom_key is False:
                 if norm_weight_decay is not None and isinstance(module, norm_classes):
-                    params.append(
-                        {
-                            "params": p,
-                            "weight_decay": norm_weight_decay,
-                            "lr_scale": 1.0 if layer_decay is None else layer_scales[idx],
-                        }
-                    )
-
+                    wd = norm_weight_decay
                 else:
-                    params.append(
-                        {
-                            "params": p,
-                            "weight_decay": weight_decay,
-                            "lr_scale": 1.0 if layer_decay is None else layer_scales[idx],
-                        }
-                    )
+                    wd = weight_decay
+
+                d = {
+                    "params": p,
+                    "weight_decay": wd,
+                    "lr_scale": 1.0 if layer_decay is None else layer_scales[idx],
+                }
+                if backbone_lr is not None and target_name.startswith("backbone.") is True:
+                    d["lr"] = backbone_lr
+
+                params.append(d)
 
         if parameters_found is True:
             idx += 1

@@ -5,6 +5,9 @@ and from
 https://github.com/dmlc/gluon-cv/blob/master/gluoncv/model_zoo/ssd/ssd.py
 
 Paper "SSD: Single Shot MultiBox Detector", https://arxiv.org/abs/1512.02325
+
+Changes from original:
+* Changed extra block to be backbone agnostic
 """
 
 # Reference license: BSD 3-Clause
@@ -462,50 +465,11 @@ class SSD(DetectionBaseNet):
 
         return detections
 
-    # pylint: disable=protected-access,too-many-branches
     def forward(  # type: ignore[override]
         self, x: torch.Tensor, targets: Optional[list[dict[str, torch.Tensor]]] = None
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
-        if self.training is True:
-            if targets is None:
-                torch._assert(False, "targets should not be none when in training mode")
-
-            else:
-                for target in targets:
-                    boxes = target["boxes"]
-                    if isinstance(boxes, torch.Tensor):
-                        torch._assert(
-                            len(boxes.shape) == 2 and boxes.shape[-1] == 4,
-                            f"Expected target boxes to be a tensor of shape [N, 4], got {boxes.shape}.",
-                        )
-
-                    else:
-                        torch._assert(False, f"Expected target boxes to be of type Tensor, got {type(boxes)}.")
-
-        if targets is not None:
-            for target_idx, target in enumerate(targets):
-                boxes = target["boxes"]
-                degenerate_boxes = boxes[:, 2:] <= boxes[:, :2]
-                if degenerate_boxes.any():
-                    # Print the first degenerate box
-                    bb_idx = torch.where(degenerate_boxes.any(dim=1))[0][0]
-                    degenerate_bb: list[float] = boxes[bb_idx].tolist()
-                    torch._assert(
-                        False,
-                        "All bounding boxes should have positive height and width."
-                        f" Found invalid box {degenerate_bb} for target at index {target_idx}.",
-                    )
-
-        image_sizes = [img.shape[-2:] for img in x]
-        image_sizes_list: list[tuple[int, int]] = []
-        for image_size in image_sizes:
-            torch._assert(
-                len(image_size) == 2,
-                f"Input tensors expected to have in the last two elements H and W, instead got {image_size}",
-            )
-            image_sizes_list.append((image_size[0], image_size[1]))
-
-        images = ImageList(x, image_sizes_list)
+        self._input_check(targets)
+        images = self._to_img_list(x)
 
         features = self.backbone.detection_features(x)
         feature_list = list(features.values())
@@ -518,27 +482,25 @@ class SSD(DetectionBaseNet):
         losses = {}
         detections: list[dict[str, torch.Tensor]] = []
         if self.training is True:
+            assert targets is not None, "targets should not be none when in training mode"
+
             matched_idxs = []
-            if targets is None:
-                torch._assert(False, "targets should not be none when in training mode")
-
-            else:
-                for anchors_per_image, targets_per_image in zip(anchors, targets):
-                    if targets_per_image["boxes"].numel() == 0:
-                        matched_idxs.append(
-                            torch.full(
-                                (anchors_per_image.size(0),),
-                                -1,
-                                dtype=torch.int64,
-                                device=anchors_per_image.device,
-                            )
+            for anchors_per_image, targets_per_image in zip(anchors, targets):
+                if targets_per_image["boxes"].numel() == 0:
+                    matched_idxs.append(
+                        torch.full(
+                            (anchors_per_image.size(0),),
+                            -1,
+                            dtype=torch.int64,
+                            device=anchors_per_image.device,
                         )
-                        continue
+                    )
+                    continue
 
-                    match_quality_matrix = box_ops.box_iou(targets_per_image["boxes"], anchors_per_image)
-                    matched_idxs.append(self.proposal_matcher(match_quality_matrix))
+                match_quality_matrix = box_ops.box_iou(targets_per_image["boxes"], anchors_per_image)
+                matched_idxs.append(self.proposal_matcher(match_quality_matrix))
 
-                losses = self.compute_loss(targets, head_outputs, anchors, matched_idxs)
+            losses = self.compute_loss(targets, head_outputs, anchors, matched_idxs)
 
         else:
             detections = self.postprocess_detections(head_outputs, anchors, images.image_sizes)

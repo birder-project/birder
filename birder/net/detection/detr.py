@@ -75,6 +75,7 @@ class HungarianMatcher(nn.Module):
             # Final cost matrix
             C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
             C = C.view(B, num_queries, -1).cpu()
+            C[C.isnan() | C.isinf()] = 0.0
 
             sizes = [len(v["boxes"]) for v in targets]
             indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]
@@ -427,35 +428,7 @@ class DETR(DetectionBaseNet):
     def forward(  # type: ignore[override]
         self, x: torch.Tensor, targets: Optional[list[dict[str, torch.Tensor]]] = None
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
-        if self.training is True:
-            if targets is None:
-                torch._assert(False, "targets should not be none when in training mode")
-
-            else:
-                for target in targets:
-                    boxes = target["boxes"]
-                    if isinstance(boxes, torch.Tensor):
-                        torch._assert(
-                            len(boxes.shape) == 2 and boxes.shape[-1] == 4,
-                            f"Expected target boxes to be a tensor of shape [N, 4], got {boxes.shape}.",
-                        )
-
-                    else:
-                        torch._assert(False, f"Expected target boxes to be of type Tensor, got {type(boxes)}.")
-
-        if targets is not None:
-            for target_idx, target in enumerate(targets):
-                boxes = target["boxes"]
-                degenerate_boxes = boxes[:, 2:] <= boxes[:, :2]
-                if degenerate_boxes.any():
-                    # Print the first degenerate box
-                    bb_idx = torch.where(degenerate_boxes.any(dim=1))[0][0]
-                    degenerate_bb: list[float] = boxes[bb_idx].tolist()
-                    torch._assert(
-                        False,
-                        "All bounding boxes should have positive height and width."
-                        f" Found invalid box {degenerate_bb} for target at index {target_idx}.",
-                    )
+        self._input_check(targets)
 
         image_sizes = [img.shape[-2:] for img in x]
         image_sizes_list: list[tuple[int, int]] = []
@@ -476,17 +449,16 @@ class DETR(DetectionBaseNet):
         losses = {}
         detections: list[dict[str, torch.Tensor]] = []
         if self.training:
-            if targets is None:  # Redundant due to MyPy
-                torch._assert(False, "targets should not be none when in training mode")
-            else:
-                # Convert target boxes
-                for idx, target in enumerate(targets):
-                    boxes = target["boxes"]
-                    boxes = box_ops.box_convert(boxes, in_fmt="xyxy", out_fmt="cxcywh")
-                    boxes = boxes / torch.tensor(image_sizes[idx] * 2, dtype=torch.float32, device=x.device)
-                    targets[idx]["boxes"] = boxes
+            assert targets is not None, "targets should not be none when in training mode"
 
-                losses = self.compute_loss(targets, outputs_class, outputs_coord)
+            # Convert target boxes
+            for idx, target in enumerate(targets):
+                boxes = target["boxes"]
+                boxes = box_ops.box_convert(boxes, in_fmt="xyxy", out_fmt="cxcywh")
+                boxes = boxes / torch.tensor(image_sizes[idx] * 2, dtype=torch.float32, device=x.device)
+                targets[idx]["boxes"] = boxes
+
+            losses = self.compute_loss(targets, outputs_class, outputs_coord)
 
         else:
             detections = self.postprocess_detections(outputs_class[-1], outputs_coord[-1], image_sizes_list)

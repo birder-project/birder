@@ -95,3 +95,7 @@ max-attributes=20
 
 # Minimum number of public methods for a class (see R0903).
 min-public-methods=0
+
+[REFACTORING]
+# Maximum number of nested blocks for function / method body
+max-nested-blocks=6

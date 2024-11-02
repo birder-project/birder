@@ -4,6 +4,7 @@ import os
 import tempfile
 import typing
 import unittest
+from collections import OrderedDict
 from unittest.mock import mock_open
 from unittest.mock import patch
 
@@ -201,6 +202,28 @@ class TestTrainingUtils(unittest.TestCase):
             self.assertAlmostEqual(param["lr_scale"], 0.01)
         for param in params[:4]:  # CLS token, positional encoding and conv_proj
             self.assertAlmostEqual(param["lr_scale"], 1e-13)
+
+        # Test backbone
+        model = torch.nn.Sequential(
+            OrderedDict(
+                {
+                    "backbone": torch.nn.Sequential(
+                        OrderedDict(
+                            {
+                                "linear": torch.nn.Linear(1, 2, bias=True),
+                                "norm": torch.nn.BatchNorm1d(2),
+                            }
+                        )
+                    ),
+                    "classifier": torch.nn.Linear(2, 1, bias=False),
+                }
+            )
+        )
+        params = training_utils.optimizer_parameter_groups(model, 0, backbone_lr=0.1)
+        for param in params[:4]:  # Linear + norm
+            self.assertEqual(param["lr"], 0.1)
+        for param in params[4:]:
+            self.assertNotIn("lr", param)
 
     def test_get_optimizer(self) -> None:
         for opt_type in typing.get_args(training_utils.OptimizerType):

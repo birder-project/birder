@@ -160,6 +160,16 @@ def train(args: argparse.Namespace) -> None:
                 new_size=args.size,
             )
 
+        elif args.backbone_pretrained is True:
+            (backbone, class_to_idx_saved, _, _, _) = fs_ops.load_checkpoint(
+                device,
+                args.backbone,
+                net_param=args.backbone_param,
+                tag=args.backbone_tag,
+                epoch=None,
+                new_size=args.size,
+            )
+
         else:
             backbone = registry.net_factory(
                 args.backbone, sample_shape[1], num_outputs, net_param=args.backbone_param, size=args.size
@@ -193,6 +203,7 @@ def train(args: argparse.Namespace) -> None:
         norm_weight_decay=args.norm_wd,
         custom_keys_weight_decay=custom_keys_weight_decay,
         layer_decay=args.layer_decay,
+        backbone_lr=args.backbone_lr,
     )
     optimizer = training_utils.get_optimizer(parameters, args)
     scheduler = training_utils.get_scheduler(
@@ -535,7 +546,8 @@ def get_args_parser() -> argparse.ArgumentParser:
             "--warmup-epochs 2 --epochs 100 --wd 0.1 --norm-wd 0 --clip-grad-norm 1 --amp --compile --layer-decay 0.7 "
             "--data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 "
             "--coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json "
-            "--coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json\n"
+            "--coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json "
+            "--class-file public_datasets_metadata/coco-classes.txt\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -549,6 +561,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--backbone-tag", type=str, help="backbone training log tag (loading only)")
     parser.add_argument("--backbone-epoch", type=int, help="load backbone weights from selected epoch")
+    parser.add_argument(
+        "--backbone-pretrained",
+        default=False,
+        action="store_true",
+        help="start with pretrained version of specified backbone",
+    )
     parser.add_argument(
         "--pretrained", default=False, action="store_true", help="start with pretrained version of specified network"
     )
@@ -564,6 +582,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="optimizer to use",
     )
     parser.add_argument("--lr", type=float, default=0.01, help="base learning rate")
+    parser.add_argument("--backbone-lr", type=float, help="backbone learning rate")
     parser.add_argument("--momentum", type=float, default=0.9, help="optimizer momentum")
     parser.add_argument("--nesterov", default=False, action="store_true", help="use nesterov momentum")
     parser.add_argument("--wd", type=float, default=0.0001, help="weight decay")
@@ -744,6 +763,9 @@ def get_args_parser() -> argparse.ArgumentParser:
 def validate_args(args: argparse.Namespace) -> None:
     assert args.network is not None
     assert args.backbone is not None
+    assert (
+        args.backbone_pretrained is False or args.backbone_epoch is None
+    ), "Cannot set backbone epoch while starting from a pretrained backbone"
     assert (
         args.pretrained is False or args.resume_epoch is None
     ), "Cannot set resume epoch while starting from a pretrained network"
