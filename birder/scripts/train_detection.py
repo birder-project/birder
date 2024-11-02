@@ -227,13 +227,13 @@ def train(args: argparse.Namespace) -> None:
         if scaler is not None:
             scaler.load_state_dict(scaler_state)  # pylint: disable=possibly-used-before-assignment
 
-    last_lr = scheduler.get_last_lr()[0]
+    last_lr = max(scheduler.get_last_lr())
     if args.plot_lr is True:
         logging.info("Fast forwarding scheduler...")
         lrs = []
         for epoch in range(begin_epoch, epochs):
             optimizer.step()
-            lrs.append(scheduler.get_last_lr()[0])
+            lrs.append(max(scheduler.get_last_lr()))
             scheduler.step()
 
         plt.plot(range(begin_epoch, epochs), lrs)
@@ -464,8 +464,8 @@ def train(args: argparse.Namespace) -> None:
 
         # Learning rate scheduler update
         scheduler.step()
-        if last_lr != scheduler.get_last_lr()[0]:
-            last_lr = scheduler.get_last_lr()[0]
+        if last_lr != max(scheduler.get_last_lr()):
+            last_lr = max(scheduler.get_last_lr())
             logging.info(f"Updated learning rate to: {last_lr}")
 
         if args.rank == 0:

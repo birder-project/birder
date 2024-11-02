@@ -401,7 +401,7 @@ class DETR(DetectionBaseNet):
         self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_shapes: list[tuple[int, int]]
     ) -> list[dict[str, torch.Tensor]]:
         prob = F.softmax(class_logits, -1)
-        (scores, labels) = prob[..., :-1].max(-1)
+        (scores, labels) = prob[..., 1:].max(-1)
         target_sizes = torch.tensor(image_shapes, device=class_logits.device)
 
         # Convert to [x0, y0, x1, y1] format
