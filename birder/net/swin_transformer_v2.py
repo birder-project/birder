@@ -17,7 +17,6 @@ from typing import Any
 from typing import Optional
 
 import torch
-import torch.fx
 from torch import nn
 from torchvision.ops import MLP
 from torchvision.ops import Permute

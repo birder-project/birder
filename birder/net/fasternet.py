@@ -9,7 +9,7 @@ Changes from original:
 * No extra norm's for detection
 """
 
-# Reference license: MIT License
+# Reference license: MIT
 
 from collections import OrderedDict
 from collections.abc import Callable

@@ -59,6 +59,8 @@ class TestNet(unittest.TestCase):
             ("convnext_v1_tiny"),
             ("convnext_v2_atto"),
             ("crossvit_9d", None, True, 1, 48),
+            ("cswin_transformer_t"),
+            ("darknet_53"),
             ("davit_tiny"),
             ("deit_t16", 0, True),
             ("deit3_t16", 0, True),
@@ -186,6 +188,8 @@ class TestNet(unittest.TestCase):
         [
             ("convnext_v1_tiny"),
             ("convnext_v2_tiny"),
+            ("cswin_transformer_t"),
+            ("darknet_53"),
             ("davit_tiny"),
             ("densenet_121"),
             ("edgenext_xxs"),

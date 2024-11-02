@@ -5,7 +5,9 @@ https://github.com/facebookresearch/detr/blob/main/models/detr.py
 Paper "End-to-End Object Detection with Transformers", https://arxiv.org/abs/2005.12872
 
 Changes from original:
+* Move background index to first from last (to be inline with the rest of Birder detectors)
 * Removed masking / padding and nested tensors (images are resized at the dataloader)
+* Zero cost matrix elements on overflow (HungarianMatcher)
 """
 
 # Reference license: Apache-2.0
@@ -402,6 +404,7 @@ class DETR(DetectionBaseNet):
     ) -> list[dict[str, torch.Tensor]]:
         prob = F.softmax(class_logits, -1)
         (scores, labels) = prob[..., 1:].max(-1)
+        labels = labels + 1
         target_sizes = torch.tensor(image_shapes, device=class_logits.device)
 
         # Convert to [x0, y0, x1, y1] format

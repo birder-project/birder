@@ -39,6 +39,8 @@ On fine-tuning phase
 * [ConvNeXt v1](#convnext-v1)
 * [ConvNeXt v2](#convnext-v2)
 * [CrossViT](#crossvit)
+* [CSWin Transformer](#cswin-transformer)
+* [Darknet](#darknet)
 * [DaViT](#davit)
 * [DeiT](#deit)
 * [DeiT3](#deit3)
@@ -289,6 +291,42 @@ torchrun --nproc_per_node=2 train.py --network crossvit_15d --opt adamw --lr 0.0
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network crossvit_18 --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 30 --epochs 300 --size 384 --wd 0.05 --norm-wd 0 --grad-accum-steps 16 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+### CSWin Transformer
+
+#### CSWin Transformer: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cswin_transformer_t --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --size 256 --warmup-epochs 20 --epochs 300 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### CSWin Transformer: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cswin_transformer_s --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --size 256 --warmup-epochs 20 --epochs 300 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### CSWin Transformer: Base
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cswin_transformer_b --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 32 --size 256 --warmup-epochs 20 --epochs 300 --wd 0.1 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### CSWin Transformer: Large
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cswin_transformer_l --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 16 --size 256 --warmup-epochs 20 --epochs 300 --wd 0.1 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+On intermediate training use wd of 0.2 (large only)
+
+### Darknet
+
+#### Darknet: 53
+
+```sh
+torchrun --nproc_per_node=2 train.py --network darknet_53 --lr 0.1 --lr-scheduler cosine --batch-size 128 --epochs 90 --size 256 -wd 0.0005 --smoothing-alpha 0.1 --aug-level 3 --fast-matmul --compile
 ```
 
 ### DaViT
@@ -1432,7 +1470,7 @@ torchrun --nproc_per_node=2 train.py --network swin_transformer_v1_l --opt adamw
 #### Swin Transformer v2: Tiny
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_t --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --size 256 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_t --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --size 256 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
 ```
 
 #### Swin Transformer v2: Small
