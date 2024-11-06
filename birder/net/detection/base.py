@@ -86,6 +86,9 @@ class DetectionBaseNet(nn.Module):
         This should run after load_state_dict.
         """
 
+        self.size = new_size
+        self.backbone.adjust_size(new_size)
+
     # pylint: disable=protected-access
     def _input_check(self, targets: Optional[list[dict[str, torch.Tensor]]]) -> None:
         if self.training is True:

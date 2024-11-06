@@ -14,7 +14,10 @@ import torch.utils.data
 import torchinfo
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from torchvision.datasets.folder import pil_loader
+from torchvision.datasets.folder import pil_loader  # Slower but Handles external dataset quirks better
+from torchvision.io import ImageReadMode
+from torchvision.io import decode_image
+from torchvision.transforms.functional import pil_to_tensor
 from tqdm import tqdm
 
 from birder.common import cli
@@ -35,6 +38,13 @@ from birder.net.mim.base import get_mim_signature
 from birder.transforms.classification import RGBMode
 from birder.transforms.classification import get_rgb_stats
 from birder.transforms.classification import training_preset
+
+
+def _tv_loader(path: str) -> torch.Tensor:
+    if path.endswith(".webp") is True:  # Memory leak in TV webp
+        return pil_to_tensor(pil_loader(path))
+
+    return decode_image(path, mode=ImageReadMode.RGB)
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
@@ -77,7 +87,7 @@ def train(args: argparse.Namespace) -> None:
             args.data_path,
             {},
             transforms=training_preset((args.size, args.size), args.aug_level, rgb_stats),
-            loader=pil_loader,  # Slower but Handles external dataset quirks better
+            loader=pil_loader if args.img_loader == "pil" else _tv_loader,
         )
         input_idx = 1
 
@@ -159,11 +169,11 @@ def train(args: argparse.Namespace) -> None:
 
     elif args.load_scheduler is True:
         scheduler.load_state_dict(scheduler_state)
-        last_lr = scheduler.get_last_lr()[0]
-        for g in optimizer.param_groups:
+        last_lrs = scheduler.get_last_lr()
+        for g, last_lr in zip(optimizer.param_groups, last_lrs):
             g["lr"] = last_lr
 
-    last_lr = scheduler.get_last_lr()[0]
+    last_lr = max(scheduler.get_last_lr())
     if args.plot_lr is True:
         logging.info("Fast forwarding scheduler...")
         lrs = []
@@ -514,6 +524,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         default=8,
         metavar="N",
         help="number of preprocessing workers",
+    )
+    parser.add_argument(
+        "--img-loader", type=str, choices=["tv", "pil"], default="tv", help="backend to load and decode images"
     )
     parser.add_argument(
         "--prefetch-factor", type=int, metavar="N", help="number of batches loaded in advance by each worker"

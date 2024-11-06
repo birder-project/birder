@@ -141,6 +141,12 @@ torchrun --nproc_per_node=2 train.py --network regnet_y_8g --tag mim --lr 0.001 
 
 ### MAE Hiera
 
+#### MAE Hiera: Hiera Small
+
+```sh
+torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_small --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 400 --batch-size 256 --wd 0.05 --amp --compile --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
+
 #### MAE Hiera: Hiera AbsWin Tiny
 
 ```sh
@@ -150,7 +156,7 @@ torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_abs
 Optional intermediate training: first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network hiera_abswin_tiny --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --wd 0.3 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network hiera_abswin_tiny --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --wd 0.3 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body --unfreeze-features --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 Optional intermediate training: next, full fine-tuning with layer-wise learning rate decay
@@ -162,19 +168,25 @@ torchrun --nproc_per_node=2 train.py --network hiera_abswin_tiny --tag mim --opt
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network hiera_abswin_tiny --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --wd 0.3 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
+torchrun --nproc_per_node=2 train.py --network hiera_abswin_tiny --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --wd 0.3 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
 ```
 
-#### MAE Hiera: Hiera Small
+#### MAE Hiera: Hiera AbsWin Small
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_small --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 400 --batch-size 64 --wd 0.05 --amp --compile --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_abswin_small --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 400 --batch-size 256 --wd 0.05 --amp --compile --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 #### MAE Hiera: Hiera AbsWin Base
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_abswin_base --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 400 --batch-size 32 --wd 0.05 --amp --compile --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_abswin_base --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 400 --batch-size 256 --wd 0.05 --amp --compile --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
+
+#### MAE Hiera: Hiera AbsWin Base Plus
+
+```sh
+torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_abswin_base_plus --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 800 --batch-size 128 --wd 0.05 --amp --compile --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 ### MAE ViT

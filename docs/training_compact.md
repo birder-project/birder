@@ -102,6 +102,14 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v1_b0 --tag il-commo
 torchrun --nproc_per_node=2 train.py --network efficientnet_v1_b1 --tag il-common --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 10 --batch-size 128 --epochs 300 --size 256 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### EfficientNet v2
+
+#### EfficientNet v2: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag il-common --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 256 --epochs 300 --size 256 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### FasterNet
 
 #### FasterNet: T0

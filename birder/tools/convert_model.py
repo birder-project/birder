@@ -73,16 +73,9 @@ def onnx_export(
 ) -> None:
     signature["inputs"][0]["data_shape"][0] = 1  # Set batch size
     sample_shape = signature["inputs"][0]["data_shape"]
-    torch.onnx.export(
-        net,
-        torch.randn(sample_shape),
-        model_path,
-        export_params=True,
-        opset_version=16,
-        input_names=["input"],
-        output_names=["output"],
-        dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
-    )
+    onnx_program = torch.onnx.dynamo_export(net, torch.randn(sample_shape))
+    onnx_program.save(str(model_path))
+
     signature["inputs"][0]["data_shape"][0] = 0
 
     logging.info("Saving class to index json...")

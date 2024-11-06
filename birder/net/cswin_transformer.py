@@ -74,19 +74,17 @@ class LePEAttention(nn.Module):
             raise ValueError("unsupported idx")
 
     def im2cswin(self, x: torch.Tensor) -> torch.Tensor:
-        (B, N, C) = x.size()
-        H = int(math.sqrt(N))
-        W = H
-        x = x.transpose(-2, -1).contiguous().view(B, C, H, W)
+        (B, _, C) = x.size()
+        x = x.transpose(-2, -1).contiguous().view(B, C, self.resolution, self.resolution)
         x = img2windows(x, self.h_sp, self.w_sp)
         x = x.reshape(-1, self.h_sp * self.w_sp, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3).contiguous()
 
         return x
 
     def get_lepe(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        (B, N, C) = x.shape
-        H = int(math.sqrt(N))
-        W = H
+        (B, _, C) = x.size()
+        H = self.resolution
+        W = self.resolution
         x = x.transpose(-2, -1).contiguous().view(B, C, H, W)
 
         h_sp = self.h_sp
@@ -108,7 +106,7 @@ class LePEAttention(nn.Module):
 
         q = self.im2cswin(q)
         k = self.im2cswin(k)
-        v, lepe = self.get_lepe(v)
+        (v, lepe) = self.get_lepe(v)
 
         q = q * self.scale
         attn = q @ k.transpose(-2, -1)  # B head N C @ B head C N --> B head N N

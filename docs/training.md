@@ -326,7 +326,7 @@ On intermediate training use wd of 0.2 (large only)
 #### Darknet: 53
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network darknet_53 --lr 0.1 --lr-scheduler cosine --batch-size 128 --epochs 90 --size 256 -wd 0.0005 --smoothing-alpha 0.1 --aug-level 3 --fast-matmul --compile
+torchrun --nproc_per_node=2 train.py --network darknet_53 --lr 0.1 --lr-scheduler cosine --batch-size 128 --epochs 90 --size 256 --wd 0.0005 --smoothing-alpha 0.1 --aug-level 3 --fast-matmul --compile
 ```
 
 ### DaViT

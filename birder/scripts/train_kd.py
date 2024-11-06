@@ -243,11 +243,11 @@ def train(args: argparse.Namespace) -> None:
 
     elif args.load_scheduler is True:
         scheduler.load_state_dict(scheduler_state)
-        last_lr = scheduler.get_last_lr()[0]
-        for g in optimizer.param_groups:
+        last_lrs = scheduler.get_last_lr()
+        for g, last_lr in zip(optimizer.param_groups, last_lrs):
             g["lr"] = last_lr
 
-    last_lr = scheduler.get_last_lr()[0]
+    last_lr = max(scheduler.get_last_lr())
 
     # Distributed
     net_without_ddp = student

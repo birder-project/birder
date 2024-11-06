@@ -330,3 +330,18 @@ registry.register_alias(
         "dropout_rate": 0.4,
     },
 )
+
+registry.register_weights(
+    "efficientnet_v2_s_il-common",
+    {
+        "description": "EfficientNet v2 small model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 79.7,
+                "sha256": "abd0310951ae2dcc56792473bcefab49ab28971746322cd561d6c369503e4d6f",
+            }
+        },
+        "net": {"network": "efficientnet_v2_s", "tag": "il-common"},
+    },
+)

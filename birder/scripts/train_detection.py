@@ -60,6 +60,16 @@ def _remove_images_without_annotations(dataset: CocoDetection) -> CocoDetection:
     return torch.utils.data.Subset(dataset, ids)
 
 
+def _convert_to_binary_annotations(dataset: CocoDetection) -> CocoDetection:
+    for img_id in dataset.ids:
+        ann_ids = dataset.coco.getAnnIds(imgIds=img_id, iscrowd=None)
+        anno = dataset.coco.loadAnns(ann_ids)
+        for obj in anno:
+            obj["category_id"] = 1
+
+    return dataset
+
+
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
     training_utils.init_distributed_mode(args)
@@ -81,7 +91,6 @@ def train(args: argparse.Namespace) -> None:
         args.data_path, args.coco_json_path, transforms=training_preset(args.size, args.aug_level, rgb_stats)
     )
     training_dataset = wrap_dataset_for_transforms_v2(training_dataset)
-    training_dataset = _remove_images_without_annotations(training_dataset)
     validation_dataset = CocoDetection(
         args.val_path, args.coco_val_json_path, transforms=inference_preset(args.size, rgb_stats)
     )
@@ -89,6 +98,13 @@ def train(args: argparse.Namespace) -> None:
 
     class_to_idx = fs_ops.read_class_file(args.class_file)
     class_to_idx = lib.detection_class_to_idx(class_to_idx)
+
+    if args.binary_mode is True:
+        training_dataset = _convert_to_binary_annotations(training_dataset)
+        validation_dataset = _convert_to_binary_annotations(validation_dataset)
+        class_to_idx = {"Object": 1}
+
+    training_dataset = _remove_images_without_annotations(training_dataset)
 
     assert args.model_ema is False or args.model_ema_steps <= len(training_dataset) / args.batch_size
 
@@ -127,6 +143,7 @@ def train(args: argparse.Namespace) -> None:
             backbone_param=args.backbone_param,
             backbone_tag=args.backbone_tag,
             epoch=args.resume_epoch,
+            new_size=args.size,
         )
         if args.reset_head is True:
             net.reset_classifier(len(class_to_idx))
@@ -144,6 +161,7 @@ def train(args: argparse.Namespace) -> None:
             backbone_param=args.backbone_param,
             backbone_tag=args.backbone_tag,
             epoch=args.resume_epoch,
+            new_size=args.size,
         )
         net.reset_classifier(len(class_to_idx))
         net.to(device)
@@ -226,6 +244,12 @@ def train(args: argparse.Namespace) -> None:
         scheduler.load_state_dict(scheduler_state)  # pylint: disable=possibly-used-before-assignment
         if scaler is not None:
             scaler.load_state_dict(scaler_state)  # pylint: disable=possibly-used-before-assignment
+
+    elif args.load_scheduler is True:
+        scheduler.load_state_dict(scheduler_state)
+        last_lrs = scheduler.get_last_lr()
+        for g, last_lr in zip(optimizer.param_groups, last_lrs):
+            g["lr"] = last_lr
 
     last_lr = max(scheduler.get_last_lr())
     if args.plot_lr is True:
@@ -664,6 +688,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="load optimizer, scheduler and scaler states when resuming",
     )
+    parser.add_argument("--load-scheduler", default=False, action="store_true", help="load scheduler only resuming")
     parser.add_argument(
         "--model-ema",
         default=False,
@@ -729,6 +754,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--gpu", type=int, metavar="ID", help="gpu id to use (ignored in distributed mode)")
     parser.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")
     parser.add_argument(
+        "--binary-mode",
+        default=False,
+        action="store_true",
+        help="treat all objects as a single class (binary detection: object vs background)",
+    )
+    parser.add_argument(
         "--plot-lr", default=False, action="store_true", help="plot learning rate and exit (skip training)"
     )
     parser.add_argument(
@@ -772,6 +803,9 @@ def validate_args(args: argparse.Namespace) -> None:
     assert args.load_states is False or (
         args.load_states is True and args.resume_epoch is not None
     ), "Load states must be from resumed training (--resume-epoch)"
+    assert (
+        args.load_scheduler is False or args.resume_epoch is not None
+    ), "Load scheduler must be from resumed training (--resume-epoch)"
     assert args.freeze_backbone is False or args.freeze_backbone_stages is None
     assert (
         registry.exists(args.network, task=Task.OBJECT_DETECTION) is True

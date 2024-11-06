@@ -243,6 +243,7 @@ def load_detection_checkpoint(
     backbone_param: Optional[float],
     backbone_tag: Optional[str],
     epoch: Optional[int] = None,
+    new_size: Optional[int] = None,
 ) -> tuple[DetectionBaseNet, dict[str, int], dict[str, Any], dict[str, Any], dict[str, Any]]:
     network_name = get_detection_network_name(
         network,
@@ -265,6 +266,9 @@ def load_detection_checkpoint(
     net_backbone = registry.net_factory(backbone, input_channels, num_classes, net_param=backbone_param, size=size)
     net = registry.detection_net_factory(network, num_classes, net_backbone, net_param=net_param, size=size)
     net.load_state_dict(model_dict["state"])
+    if new_size is not None:
+        net.adjust_size(new_size)
+
     net.to(device)
 
     class_to_idx: dict[str, int] = model_dict["class_to_idx"]

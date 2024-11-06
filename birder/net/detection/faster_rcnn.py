@@ -61,20 +61,22 @@ class BalancedPositiveNegativeSampler:
             negative = torch.where(matched_idxs_per_image == 0)[0]
 
             num_pos = int(self.batch_size_per_image * self.positive_fraction)
-            # protect against not enough positive examples
+
+            # Protect against not enough positive examples
             num_pos = min(positive.numel(), num_pos)
             num_neg = self.batch_size_per_image - num_pos
-            # protect against not enough negative examples
+
+            # Protect against not enough negative examples
             num_neg = min(negative.numel(), num_neg)
 
-            # randomly select positive and negative examples
+            # Randomly select positive and negative examples
             perm1 = torch.randperm(positive.numel(), device=positive.device)[:num_pos]
             perm2 = torch.randperm(negative.numel(), device=negative.device)[:num_neg]
 
             pos_idx_per_image = positive[perm1]
             neg_idx_per_image = negative[perm2]
 
-            # create binary mask from indices
+            # Create binary mask from indices
             pos_idx_per_image_mask = torch.zeros_like(matched_idxs_per_image, dtype=torch.uint8)
             neg_idx_per_image_mask = torch.zeros_like(matched_idxs_per_image, dtype=torch.uint8)
 
@@ -117,7 +119,7 @@ class RPNHead(nn.Module):
             if isinstance(layer, nn.Conv2d):
                 nn.init.normal_(layer.weight, std=0.01)
                 if layer.bias is not None:
-                    nn.init.constant_(layer.bias, 0)
+                    nn.init.zeros_(layer.bias)
 
     def forward(self, x: list[torch.Tensor]) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
         logits = []

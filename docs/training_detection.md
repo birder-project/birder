@@ -55,6 +55,14 @@ torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone 
 torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone resnext_101 --backbone-epoch 0 --freeze-backbone --lr 0.02 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.93 --freeze-backbone-bn --batch-size 16 --epochs 100 --amp --compile
 ```
 
+### FCOS
+
+#### FCOS: Tiny ViT 5M Backbone
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network fcos --backbone tiny_vit_5m --backbone-epoch 0 --lr 0.01 --lr-scheduler step --lr-step-size 15 --lr-step-gamma 0.1 --freeze-backbone-bn --batch-size 16 --epochs 32 --wd 0.0001 --amp
+```
+
 ### RetinaNet
 
 #### RetinaNet: ResNeXt 101 Backbone

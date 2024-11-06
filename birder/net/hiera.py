@@ -659,6 +659,7 @@ registry.register_alias(
     },
 )
 
+# AbsWin variant
 registry.register_alias(
     "hiera_abswin_tiny",
     Hiera,

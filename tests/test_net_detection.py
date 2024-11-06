@@ -25,6 +25,7 @@ class TestNetDetection(unittest.TestCase):
             ("detr", None, ("regnet_y_1600m", None)),
             ("efficientdet_d0", None, ("efficientnet_v1_b0", None)),
             ("faster_rcnn", None, ("resnet_v2_18", None)),
+            ("fcos", None, ("tiny_vit_5m", None)),
             ("retinanet", None, ("mobilenet_v3_small", 1)),
             ("ssd", None, ("efficientnet_v2_s", None)),
             ("vitdet", None, ("vit_sam_b16", None)),

@@ -30,7 +30,7 @@ class ResidualBlock(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         identity = x
         x = self.block(x)
-        x += identity
+        x = x + identity
 
         return x
 
