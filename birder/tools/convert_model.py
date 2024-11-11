@@ -158,6 +158,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--force", action="store_true", help="override existing model")
 
     format_group = subparser.add_mutually_exclusive_group(required=True)
+    format_group.add_argument("--resize", type=int, help="resize model (pt)")
     format_group.add_argument("--reparameterize", default=False, action="store_true", help="reparameterize model")
     format_group.add_argument("--pts", default=False, action="store_true", help="convert to TorchScript model")
     format_group.add_argument(
@@ -184,6 +185,7 @@ def main(args: argparse.Namespace) -> None:
             net_param=args.net_param,
             tag=args.tag,
             epoch=args.epoch,
+            new_size=args.resize,
             inference=True,
             reparameterized=args.reparameterized,
         )
@@ -199,6 +201,7 @@ def main(args: argparse.Namespace) -> None:
             backbone_param=args.backbone_param,
             backbone_tag=args.backbone_tag,
             epoch=args.epoch,
+            new_size=args.resize,
             inference=True,
             pts=False,
         )
@@ -213,6 +216,9 @@ def main(args: argparse.Namespace) -> None:
 
     net.eval()
 
+    if args.resize is not None:
+        network_name = f"{network_name}_{args.resize}px"
+
     model_path = fs_ops.model_path(
         network_name, epoch=args.epoch, pts=args.pts, lite=args.lite, pt2=args.pt2, onnx=args.onnx
     )
@@ -221,17 +227,34 @@ def main(args: argparse.Namespace) -> None:
         raise SystemExit(1)
 
     logging.info(f"Saving converted model {model_path}...")
-    if args.reparameterize is True:
+    if args.resize is not None:
+        net.adjust_size(args.resize)
+        signature["inputs"][0]["data_shape"][2] = args.resize
+        signature["inputs"][0]["data_shape"][3] = args.resize
+        fs_ops.checkpoint_model(
+            network_name,
+            args.epoch,
+            net,
+            signature,
+            class_to_idx,
+            rgb_stats,
+            optimizer=None,
+            scheduler=None,
+            scaler=None,
+        )
+
+    elif args.reparameterize is True:
         reparameterize(net, signature, class_to_idx, rgb_stats, args.epoch, network_name)
 
     elif args.lite is True:
         if args.trace is True:
             sample_shape = [1] + signature["inputs"][0]["data_shape"][1:]  # C, H, W
             scripted_module = torch.jit.trace(net, example_inputs=torch.randn(sample_shape))
+            optimized_scripted_module = scripted_module
         else:
             scripted_module = torch.jit.script(net)
+            optimized_scripted_module = optimize_for_mobile(scripted_module)
 
-        optimized_scripted_module = optimize_for_mobile(scripted_module)
         optimized_scripted_module._save_for_lite_interpreter(  # pylint: disable=protected-access
             str(model_path),
             _extra_files={

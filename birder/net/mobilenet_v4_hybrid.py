@@ -423,3 +423,18 @@ registry.register_alias(
         ],
     },
 )
+
+registry.register_weights(
+    "mobilenet_v4_hybrid_m_il-common",
+    {
+        "description": "MobileNet hybrid v4 medium model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 39.8,
+                "sha256": "a8f081f370042e77441ec8efbae047cb84cc81313cdd0a12a0936cb59aa40a0f",
+            }
+        },
+        "net": {"network": "mobilenet_v4_hybrid_m", "tag": "il-common"},
+    },
+)
