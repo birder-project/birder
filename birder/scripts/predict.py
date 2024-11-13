@@ -201,7 +201,7 @@ def predict(args: argparse.Namespace) -> None:
         )
         embeddings_df = embeddings_df.sort("sample", descending=False)
         embeddings_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_embeddings.csv")
-        logging.info(f"Saving results at {embeddings_path}")
+        logging.info(f"Saving embeddings at {embeddings_path}")
         embeddings_df.write_csv(embeddings_path)
 
     # Save output
@@ -215,7 +215,7 @@ def predict(args: argparse.Namespace) -> None:
         )
         output_df = output_df.sort("sample", descending=False)
         output_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_output.csv")
-        logging.info(f"Saving results at {output_path}")
+        logging.info(f"Saving output at {output_path}")
         output_df.write_csv(output_path)
 
     # Handle results
