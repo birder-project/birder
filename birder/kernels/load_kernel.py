@@ -23,7 +23,8 @@ def load_msda() -> Optional[ModuleType]:
         root.joinpath("cuda/ms_deform_attn_cuda.cu"),
     ]
 
-    with warnings.catch_warnings(action="ignore", category=UserWarning):
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UserWarning)
         msda: ModuleType = load(
             "MultiScaleDeformableAttention",
             src_files,
