@@ -284,13 +284,13 @@ class RetinaNet(DetectionBaseNet):
         self.topk_candidates = topk_candidates
 
     def reset_classifier(self, num_classes: int) -> None:
-        self.num_classes = num_classes
+        self.num_classes = num_classes + 1
 
         norm_layer = self.head.norm_layer
         self.head.classification_head = RetinaNetClassificationHead(
             self.backbone_with_fpn.out_channels,
             self.anchor_generator.num_anchors_per_location()[0],
-            num_classes,
+            self.num_classes,
             norm_layer=norm_layer,
         )
 

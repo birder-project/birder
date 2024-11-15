@@ -329,11 +329,11 @@ class SSD(DetectionBaseNet):
         self.neg_to_pos_ratio = (1.0 - positive_fraction) / positive_fraction
 
     def reset_classifier(self, num_classes: int) -> None:
-        self.num_classes = num_classes
+        self.num_classes = num_classes + 1
         self.head.classification_head = SSDClassificationHead(
             self.backbone.return_channels + [512, 256, 256],
             self.anchor_generator.num_anchors_per_location(),
-            num_classes,
+            self.num_classes,
         )
 
     # pylint: disable=too-many-locals

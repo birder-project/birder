@@ -312,8 +312,8 @@ class DETR(DetectionBaseNet):
         self.empty_weight = nn.Buffer(empty_weight)
 
     def reset_classifier(self, num_classes: int) -> None:
-        self.num_classes = num_classes
-        self.class_embed = nn.Linear(self.hidden_dim, num_classes)
+        self.num_classes = num_classes + 1
+        self.class_embed = nn.Linear(self.hidden_dim, self.num_classes)
 
         empty_weight = torch.ones(self.num_classes)
         empty_weight[0] = 0.1

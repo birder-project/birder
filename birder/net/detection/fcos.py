@@ -315,7 +315,7 @@ class FCOS(DetectionBaseNet):
         self.box_coder = BoxLinearCoder(normalize_by_size=True)
 
     def reset_classifier(self, num_classes: int) -> None:
-        self.num_classes = num_classes
+        self.num_classes = num_classes + 1
 
         self.head.classification_head = FCOSClassificationHead(
             self.backbone_with_fpn.out_channels,

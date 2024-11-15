@@ -162,6 +162,7 @@
     "nvtx",
     "objectness",
     "onednn",
+    "onehot",
     "onnx",
     "onnxruntime",
     "opset",

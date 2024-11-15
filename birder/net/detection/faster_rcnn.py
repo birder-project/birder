@@ -836,7 +836,7 @@ class Faster_RCNN(DetectionBaseNet):
         )
 
     def reset_classifier(self, num_classes: int) -> None:
-        self.num_classes = num_classes
+        self.num_classes = num_classes + 1
         box_predictor = FastRCNNPredictor(self.representation_size, self.num_classes)
         self.roi_heads.box_predictor = box_predictor
 

@@ -598,7 +598,7 @@ class EfficientDet(DetectionBaseNet):
         self.topk_candidates = topk_candidates
 
     def reset_classifier(self, num_classes: int) -> None:
-        self.num_classes = num_classes
+        self.num_classes = num_classes + 1
         self.class_net = ClassificationHead(
             num_outputs=self.num_classes,
             repeats=self.box_class_repeats,

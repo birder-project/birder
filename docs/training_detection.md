@@ -5,6 +5,22 @@ Training script and procedures adapted from PyTorch vision reference
 
 ## Object Detection
 
+### Deformable DETR
+
+#### Deformable DETR: RegNet Y 8 GF
+
+Optional warmup
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network deformable_detr --backbone regnet_y_8g --backbone-epoch 0 --freeze-backbone --opt adamw --lr 0.0001 --freeze-backbone-bn --batch-size 4 --epochs 2 --wd 0.0001 --clip-grad-norm 1 --fast-matmul
+```
+
+Optional warmup: actual training
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network deformable_detr --backbone regnet_y_8g --backbone-epoch 0 --opt adamw --lr 0.0002 --backbone-lr 0.00002 --lr-scheduler cosine --freeze-backbone-bn --batch-size 4 --epochs 50 --wd 0.0001 --clip-grad-norm 1 --fast-matmul --resume-epoch 0
+```
+
 ### DETR
 
 #### DETR: RegNet Y 8 GF
