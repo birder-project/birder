@@ -4,6 +4,8 @@ stages:
   - deploy
 
 all-test-job:
+  tags:
+    - saas-linux-medium-amd64
   stage: test
   image: python:3.10
   only:
