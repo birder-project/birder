@@ -157,6 +157,7 @@ def multi_scale_deformable_attention(
 # pylint: disable=abstract-method,arguments-differ
 class MSDAFunction(Function):
     @staticmethod
+    @torch.amp.custom_fwd(device_type="cuda", cast_inputs=torch.float32)
     def forward(  # type: ignore
         ctx, value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, im2col_step
     ):
@@ -170,6 +171,7 @@ class MSDAFunction(Function):
         return output
 
     @staticmethod
+    @torch.amp.custom_bwd(device_type="cuda")
     @once_differentiable
     def backward(ctx, grad_output):  # type: ignore
         (value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights) = (

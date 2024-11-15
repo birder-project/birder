@@ -79,6 +79,20 @@ torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone 
 torchrun --nproc_per_node=2 train_detection.py --network fcos --backbone tiny_vit_5m --backbone-epoch 0 --lr 0.01 --lr-scheduler step --lr-step-size 15 --lr-step-gamma 0.1 --freeze-backbone-bn --batch-size 16 --epochs 32 --wd 0.0001 --amp
 ```
 
+#### FCOS: EfficientNet v2 Small Backbone
+
+Optional warmup
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network fcos --backbone efficientnet_v2_s --backbone-pretrained --freeze-backbone --lr 0.01 --freeze-backbone-bn --batch-size 32 --epochs 2 --wd 0.0001 --fast-matmul
+```
+
+Optional warmup: actual training
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network fcos --backbone efficientnet_v2_s --backbone-pretrained --lr 0.01 --lr-scheduler step --lr-step-size 15 --lr-step-gamma 0.1 --freeze-backbone-bn --batch-size 16 --epochs 32 --wd 0.0001 --amp --resume-epoch 0
+```
+
 ### RetinaNet
 
 #### RetinaNet: ResNeXt 101 Backbone

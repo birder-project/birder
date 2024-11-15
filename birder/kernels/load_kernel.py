@@ -1,3 +1,4 @@
+import os
 import warnings
 from pathlib import Path
 from types import ModuleType
@@ -10,7 +11,7 @@ import birder
 
 
 def load_msda() -> Optional[ModuleType]:
-    if torch.cuda.is_available() is False:
+    if torch.cuda.is_available() is False or os.environ.get("DISABLE_CUSTOM_KERNELS", "0") == "1":
         return None
 
     # Adapted from:

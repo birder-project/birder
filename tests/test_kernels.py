@@ -30,6 +30,13 @@ class TestKernels(unittest.TestCase):
         )
         self.assertEqual(output_kernel.size(), (1, 34000, 256))
 
+        with torch.amp.autocast("cuda"):
+            output_kernel = msda.ms_deform_attn_forward(  # type: ignore
+                value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, im2col_step
+            )
+
+        self.assertEqual(output_kernel.size(), (1, 34000, 256))
+
         output_torch = multi_scale_deformable_attention(
             value, value_spatial_shapes, sampling_locations, attention_weights
         )
