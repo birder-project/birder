@@ -5,6 +5,7 @@ from birder.net.detection.faster_rcnn import Faster_RCNN
 from birder.net.detection.fcos import FCOS
 from birder.net.detection.retinanet import RetinaNet
 from birder.net.detection.ssd import SSD
+from birder.net.detection.ssdlite import SSDLite
 from birder.net.detection.vitdet import ViTDet
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "FCOS",
     "RetinaNet",
     "SSD",
+    "SSDLite",
     "ViTDet",
 ]

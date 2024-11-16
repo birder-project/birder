@@ -355,7 +355,7 @@ def get_scheduler(
         main_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_step_size, gamma=lr_step_gamma)
     elif lr_scheduler == "cosine":
         main_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=(epochs - begin_epoch + 1 - remaining_warmup), eta_min=lr_cosine_min
+            optimizer, T_max=(epochs - begin_epoch - remaining_warmup), eta_min=lr_cosine_min
         )
     else:
         raise ValueError("Unknown learning rate scheduler")

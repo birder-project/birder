@@ -570,7 +570,7 @@ class RoIHeads(nn.Module):
     def subsample(self, labels: list[torch.Tensor]) -> list[torch.Tensor]:
         (sampled_pos_idxs, sampled_neg_idxs) = self.fg_bg_sampler(labels)
         sampled_idxs = []
-        for _img_idx, (pos_idxs_img, neg_idxs_img) in enumerate(zip(sampled_pos_idxs, sampled_neg_idxs)):
+        for pos_idxs_img, neg_idxs_img in zip(sampled_pos_idxs, sampled_neg_idxs):
             img_sampled_idxs = torch.where(pos_idxs_img | neg_idxs_img)[0]
             sampled_idxs.append(img_sampled_idxs)
 

@@ -290,6 +290,11 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
                 nn.init.normal_(m.weight, 0, 0.01)
                 nn.init.zeros_(m.bias)
 
+    def transform_to_backbone(self) -> None:
+        self.body.stage5 = nn.Identity()
+        self.features = nn.Identity()
+        self.classifier = nn.Identity()
+
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)
 

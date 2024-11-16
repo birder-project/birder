@@ -285,6 +285,8 @@ class FCOS(DetectionBaseNet):
         assert self.net_param is None, "net-param not supported"
         assert self.config is None, "config not supported"
 
+        self.num_classes = self.num_classes - 1
+
         fpn_width = 256
         self.center_sampling_radius = 1.5
         self.score_thresh = 0.2
@@ -315,7 +317,7 @@ class FCOS(DetectionBaseNet):
         self.box_coder = BoxLinearCoder(normalize_by_size=True)
 
     def reset_classifier(self, num_classes: int) -> None:
-        self.num_classes = num_classes + 1
+        self.num_classes = num_classes
 
         self.head.classification_head = FCOSClassificationHead(
             self.backbone_with_fpn.out_channels,
@@ -417,6 +419,7 @@ class FCOS(DetectionBaseNet):
 
                 anchor_idxs = torch.div(topk_idxs, num_classes, rounding_mode="floor")
                 labels_per_level = topk_idxs % num_classes
+                labels_per_level += 1  # Background offset
 
                 boxes_per_level = self.box_coder.decode(
                     box_regression_per_level[anchor_idxs], anchors_per_level[anchor_idxs]
@@ -463,6 +466,9 @@ class FCOS(DetectionBaseNet):
         detections: list[dict[str, torch.Tensor]] = []
         if self.training is True:
             assert targets is not None, "targets should not be none when in training mode"
+            for idx, target in enumerate(targets):
+                targets[idx]["labels"] = target["labels"] - 1  # No background
+
             losses = self.compute_loss(targets, head_outputs, anchors, num_anchors_per_level)
 
         else:

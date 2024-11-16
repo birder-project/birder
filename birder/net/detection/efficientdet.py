@@ -541,6 +541,8 @@ class EfficientDet(DetectionBaseNet):
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
+        self.num_classes = self.num_classes - 1
+
         score_thresh = 0.001
         fg_iou_thresh = 0.5
         bg_iou_thresh = 0.3
@@ -598,7 +600,7 @@ class EfficientDet(DetectionBaseNet):
         self.topk_candidates = topk_candidates
 
     def reset_classifier(self, num_classes: int) -> None:
-        self.num_classes = num_classes + 1
+        self.num_classes = num_classes
         self.class_net = ClassificationHead(
             num_outputs=self.num_classes,
             repeats=self.box_class_repeats,
@@ -667,6 +669,7 @@ class EfficientDet(DetectionBaseNet):
 
                 anchor_idxs = torch.div(topk_idxs, num_classes, rounding_mode="floor")
                 labels_per_level = topk_idxs % num_classes
+                labels_per_level += 1  # Background offset
 
                 boxes_per_level = self.box_coder.decode_single(
                     box_regression_per_level[anchor_idxs], anchors_per_level[anchor_idxs]
@@ -713,6 +716,9 @@ class EfficientDet(DetectionBaseNet):
         detections: list[dict[str, torch.Tensor]] = []
         if self.training is True:
             assert targets is not None, "targets should not be none when in training mode"
+            for idx, target in enumerate(targets):
+                targets[idx]["labels"] = target["labels"] - 1  # No background
+
             losses = self.compute_loss(targets, cls_logits, box_output, anchors)
 
         else:

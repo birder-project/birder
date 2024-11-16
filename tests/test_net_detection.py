@@ -29,6 +29,7 @@ class TestNetDetection(unittest.TestCase):
             ("fcos", None, ("tiny_vit_5m", None)),
             ("retinanet", None, ("mobilenet_v3_small", 1)),
             ("ssd", None, ("efficientnet_v2_s", None)),
+            ("ssdlite", None, ("mobilenet_v2", 1)),
             ("vitdet", None, ("vit_sam_b16", None)),
         ]
     )

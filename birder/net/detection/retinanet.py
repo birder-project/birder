@@ -137,7 +137,7 @@ class RetinaNetRegressionHead(nn.Module):
 
         self.conv = nn.Sequential(*conv)
 
-        self.bbox_reg = nn.Conv2d(in_channels, num_anchors * 4, kernel_size=3, stride=1, padding=1)
+        self.bbox_reg = nn.Conv2d(in_channels, num_anchors * 4, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
         nn.init.normal_(self.bbox_reg.weight, std=0.01)
         nn.init.zeros_(self.bbox_reg.bias)
 
@@ -249,6 +249,8 @@ class RetinaNet(DetectionBaseNet):
         assert self.net_param is None, "net-param not supported"
         assert self.config is None, "config not supported"
 
+        self.num_classes = self.num_classes - 1
+
         fpn_width = 256
         fg_iou_thresh = 0.5
         bg_iou_thresh = 0.4
@@ -284,7 +286,7 @@ class RetinaNet(DetectionBaseNet):
         self.topk_candidates = topk_candidates
 
     def reset_classifier(self, num_classes: int) -> None:
-        self.num_classes = num_classes + 1
+        self.num_classes = num_classes
 
         norm_layer = self.head.norm_layer
         self.head.classification_head = RetinaNetClassificationHead(
@@ -301,7 +303,7 @@ class RetinaNet(DetectionBaseNet):
         anchors: list[torch.Tensor],
     ) -> dict[str, torch.Tensor]:
         matched_idxs = []
-        for anchors_per_image, targets_per_image in zip(anchors, targets):
+        for idx, (anchors_per_image, targets_per_image) in enumerate(zip(anchors, targets)):
             if targets_per_image["boxes"].numel() == 0:
                 matched_idxs.append(
                     torch.full((anchors_per_image.size(0),), -1, dtype=torch.int64, device=anchors_per_image.device)
@@ -310,6 +312,7 @@ class RetinaNet(DetectionBaseNet):
 
             match_quality_matrix = box_ops.box_iou(targets_per_image["boxes"], anchors_per_image)
             matched_idxs.append(self.proposal_matcher(match_quality_matrix))
+            targets[idx]["labels"] = targets_per_image["labels"] - 1  # No background
 
         return self.head.compute_loss(targets, head_outputs, anchors, matched_idxs)
 
@@ -353,6 +356,7 @@ class RetinaNet(DetectionBaseNet):
 
                 anchor_idxs = torch.div(topk_idxs, num_classes, rounding_mode="floor")
                 labels_per_level = topk_idxs % num_classes
+                labels_per_level += 1  # Background offset
 
                 boxes_per_level = self.box_coder.decode_single(
                     box_regression_per_level[anchor_idxs], anchors_per_level[anchor_idxs]
