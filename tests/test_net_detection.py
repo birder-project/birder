@@ -23,6 +23,7 @@ class TestNetDetection(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
             ("deformable_detr", None, ("fasternet_t0", None)),
+            ("deformable_detr_boxref", None, ("regnet_x_200m", None)),
             ("detr", None, ("regnet_y_1600m", None)),
             ("efficientdet_d0", None, ("efficientnet_v1_b0", None)),
             ("faster_rcnn", None, ("resnet_v2_18", None)),

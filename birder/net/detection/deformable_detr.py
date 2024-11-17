@@ -32,6 +32,7 @@ from torchvision.ops import sigmoid_focal_loss
 
 from birder.common import training_utils
 from birder.kernels.load_kernel import load_msda
+from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.detr import PositionEmbeddingSine
@@ -428,8 +429,12 @@ class DeformableTransformerEncoder(nn.Module):
 class DeformableTransformerDecoder(nn.Module):
     def __init__(self, decoder_layer: nn.Module, num_layers: int, return_intermediate: bool) -> None:
         super().__init__()
+        self.num_layers = num_layers
         self.layers = _get_clones(decoder_layer, num_layers)
         self.return_intermediate = return_intermediate
+
+        self.box_refine = False
+        self.bbox_embed = nn.ModuleList([nn.Identity() for _ in range(self.num_layers)])
 
     def forward(
         self,
@@ -444,7 +449,7 @@ class DeformableTransformerDecoder(nn.Module):
 
         intermediate = []
         intermediate_reference_points = []
-        for layer in self.layers:
+        for layer, bbox_embed in zip(self.layers, self.bbox_embed):
             if reference_points.shape[-1] == 4:
                 reference_points_input = reference_points[:, :, None]
             else:
@@ -459,6 +464,19 @@ class DeformableTransformerDecoder(nn.Module):
                 src_spatial_shapes,
                 src_level_start_index,
             )
+
+            if self.box_refine is True:
+                tmp = bbox_embed(output)
+                if reference_points.shape[-1] == 4:
+                    new_reference_points = tmp + inverse_sigmoid(reference_points)
+                    new_reference_points = new_reference_points.sigmoid()
+                else:
+                    assert reference_points.shape[-1] == 2
+                    new_reference_points = tmp
+                    new_reference_points[..., :2] = tmp[..., :2] + inverse_sigmoid(reference_points)
+                    new_reference_points = new_reference_points.sigmoid()
+
+                reference_points = new_reference_points.detach()
 
             if self.return_intermediate is True:
                 intermediate.append(output)
@@ -566,7 +584,6 @@ class DeformableTransformer(nn.Module):
 # pylint: disable=invalid-name
 class Deformable_DETR(DetectionBaseNet):
     default_size = 640
-    auto_register = True
 
     def __init__(
         self,
@@ -579,7 +596,7 @@ class Deformable_DETR(DetectionBaseNet):
     ) -> None:
         super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
-        assert self.config is None, "config not supported"
+        assert self.config is not None, "must set config"
 
         # Sigmoid based classification (like multi-label networks)
         self.num_classes = self.num_classes - 1
@@ -594,6 +611,9 @@ class Deformable_DETR(DetectionBaseNet):
         dec_n_points = 4
         enc_n_points = 4
         num_queries = 300
+
+        box_refine: bool = self.config["box_refine"]
+        self.box_refine = box_refine
 
         self.hidden_dim = hidden_dim
         input_proj_list = []
@@ -620,32 +640,52 @@ class Deformable_DETR(DetectionBaseNet):
             enc_n_points=enc_n_points,
         )
 
-        self.class_embed = nn.Linear(hidden_dim, self.num_classes)
-        self.bbox_embed = MLP(hidden_dim, [hidden_dim, hidden_dim, 4], activation_layer=nn.ReLU)
+        num_pred = self.transformer.decoder.num_layers
+
         self.query_embed = nn.Embedding(num_queries, hidden_dim * 2)
         self.pos_enc = PositionEmbeddingSine(hidden_dim // 2, normalize=True)
-
         self.matcher = HungarianMatcher(cost_class=2, cost_bbox=5, cost_giou=2)
+
+        class_embed = nn.Linear(hidden_dim, self.num_classes)
+        bbox_embed = MLP(hidden_dim, [hidden_dim, hidden_dim, 4], activation_layer=nn.ReLU)
+        if self.box_refine is True:
+            self.class_embed = _get_clones(class_embed, num_pred)
+            self.bbox_embed = _get_clones(bbox_embed, num_pred)
+            self.transformer.decoder.box_refine = True
+            self.transformer.decoder.bbox_embed = self.bbox_embed
+        else:
+            self.class_embed = nn.ModuleList([class_embed for _ in range(num_pred)])
+            self.bbox_embed = nn.ModuleList([bbox_embed for _ in range(num_pred)])
 
         # Weights initialization
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)
-        self.class_embed.bias.data = torch.ones(self.num_classes) * bias_value
+        for class_embed in self.class_embed:
+            class_embed.bias.data = torch.ones(self.num_classes) * bias_value
+
         for proj in self.input_proj:
             nn.init.xavier_uniform_(proj[0].weight, gain=1)
             nn.init.zeros_(proj[0].bias)
 
-        nn.init.zeros_(self.bbox_embed[-2].weight.data)
-        nn.init.zeros_(self.bbox_embed[-2].bias.data)
-        nn.init.constant_(self.bbox_embed[-2].bias.data[2:], -2.0)
+        for bbox_embed in self.bbox_embed:
+            nn.init.zeros_(bbox_embed[-2].weight.data)
+            nn.init.zeros_(bbox_embed[-2].bias.data)
+
+        nn.init.constant_(self.bbox_embed[0][-2].bias.data[2:], -2.0)
 
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes
-        self.class_embed = nn.Linear(self.hidden_dim, num_classes)
+        class_embed = nn.Linear(self.hidden_dim, num_classes)
+        num_pred = self.transformer.decoder.num_layers
+        if self.box_refine is True:
+            self.class_embed = _get_clones(class_embed, num_pred)
+        else:
+            self.class_embed = nn.ModuleList([class_embed for _ in range(num_pred)])
 
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)
-        self.class_embed.bias.data = torch.ones(self.num_classes) * bias_value
+        for class_embed in self.class_embed:
+            class_embed.bias.data = torch.ones(self.num_classes) * bias_value
 
     def _get_src_permutation_idx(self, indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         batch_idx = torch.concat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
@@ -772,7 +812,7 @@ class Deformable_DETR(DetectionBaseNet):
 
         return detections
 
-    # pylint: disable=protected-access
+    # pylint: disable=protected-access,too-many-locals
     def forward(  # type: ignore[override]
         self, x: torch.Tensor, targets: Optional[list[dict[str, torch.Tensor]]] = None
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
@@ -797,15 +837,15 @@ class Deformable_DETR(DetectionBaseNet):
         (hs, init_reference, inter_references) = self.transformer(feature_list, pos_list, self.query_embed.weight)
         outputs_classes = []
         outputs_coords = []
-        for lvl in range(hs.shape[0]):
+        for lvl, (class_embed, bbox_embed) in enumerate(zip(self.class_embed, self.bbox_embed)):
             if lvl == 0:
                 reference = init_reference
             else:
                 reference = inter_references[lvl - 1]
 
             reference = inverse_sigmoid(reference)
-            outputs_class = self.class_embed(hs[lvl])
-            tmp = self.bbox_embed(hs[lvl])
+            outputs_class = class_embed(hs[lvl])
+            tmp = bbox_embed(hs[lvl])
             if reference.shape[-1] == 4:
                 tmp += reference
             else:
@@ -838,3 +878,7 @@ class Deformable_DETR(DetectionBaseNet):
             detections = self.postprocess_detections(outputs_class[-1], outputs_coord[-1], image_sizes_list)
 
         return (detections, losses)
+
+
+registry.register_alias("deformable_detr", Deformable_DETR, config={"box_refine": False})
+registry.register_alias("deformable_detr_boxref", Deformable_DETR, config={"box_refine": True})

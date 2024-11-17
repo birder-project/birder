@@ -95,8 +95,9 @@ class TestNet(unittest.TestCase):
             ("mobilenet_v2", 1),
             ("mobilenet_v3_large", 1),
             ("mobilenet_v3_small", 1),
-            ("mobilenet_v4_s"),
-            ("mobilenet_v4_hybrid_m"),
+            ("mobilenet_v4_s", None, False, 2),
+            ("mobilenet_v4_hybrid_m", None, False, 2),
+            ("mobilenet_v4_hybrid_l", None, False, 2),  # GELU (inplace)
             ("mobileone_s0"),
             ("mobilevit_v1_xxs"),
             ("mobilevit_v2", 1),

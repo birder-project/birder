@@ -21,6 +21,14 @@ Optional warmup: actual training
 torchrun --nproc_per_node=2 train_detection.py --network deformable_detr --backbone regnet_y_8g --backbone-epoch 0 --opt adamw --lr 0.0002 --backbone-lr 0.00002 --lr-scheduler cosine --freeze-backbone-bn --batch-size 4 --epochs 50 --wd 0.0001 --clip-grad-norm 1 --fast-matmul --resume-epoch 0
 ```
 
+### Deformable DETR BoxRef
+
+#### Deformable DETR BoxRef: RegNet Y 8 GF
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network deformable_detr_boxref --backbone regnet_y_8g --backbone-epoch 0 --opt adamw --lr 0.0002 --backbone-lr 0.00002 --lr-scheduler cosine --freeze-backbone-bn --batch-size 4 --epochs 50 --wd 0.0001 --clip-grad-norm 1 --fast-matmul
+```
+
 ### DETR
 
 #### DETR: RegNet Y 8 GF
@@ -111,10 +119,16 @@ torchrun --nproc_per_node=2 train_detection.py --network ssd --backbone mobilene
 
 ### SSDLite
 
+#### SSDLite: MobileNet v2 1 Backbone
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network ssdlite --backbone mobilenet_v2 --backbone-param 1 --backbone-epoch 0 --lr 0.15 --lr-scheduler cosine --batch-size 32 --epochs 600 --wd 0.00004 --fast-matmul
+```
+
 #### SSDLite: MobileNet v4 Hybrid Medium Backbone
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network ssdlite --backbone mobilenet_v4_hybrid_m --backbone-epoch 0 --lr 0.15 --lr-scheduler cosine --batch-size 32 --epochs 600 --wd 0.00004 --fast-matmul
+torchrun --nproc_per_node=2 train_detection.py --network ssdlite --backbone mobilenet_v4_hybrid_m --backbone-epoch 0 --opt adamw --lr 0.002 --backbone-lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-8 --batch-size 32 --warmup-epochs 20 --epochs 600 --wd 0.0001 --fast-matmul
 ```
 
 ### ViTDet

@@ -70,11 +70,32 @@ def onnx_export(
     class_to_idx: dict[str, int],
     rgb_stats: RGBType,
     model_path: str | Path,
+    dynamo: bool,
+    trace: bool,
 ) -> None:
     signature["inputs"][0]["data_shape"][0] = 1  # Set batch size
     sample_shape = signature["inputs"][0]["data_shape"]
-    onnx_program = torch.onnx.dynamo_export(net, torch.randn(sample_shape))
-    onnx_program.save(str(model_path))
+
+    if dynamo is False:
+        if trace is False:
+            scripted_module = torch.jit.script(net)
+        else:
+            scripted_module = net
+
+        torch.onnx.export(
+            scripted_module,
+            torch.randn(sample_shape),
+            str(model_path),
+            export_params=True,
+            opset_version=18,
+            input_names=["input"],
+            output_names=["output"],
+            dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
+        )
+
+    else:
+        onnx_program = torch.onnx.dynamo_export(net, torch.randn(sample_shape))
+        onnx_program.save(str(model_path))
 
     signature["inputs"][0]["data_shape"][0] = 0
 
@@ -168,12 +189,15 @@ def set_parser(subparsers: Any) -> None:
         "--pt2", default=False, action="store_true", help="convert to standardized model representation"
     )
     format_group.add_argument("--onnx", default=False, action="store_true", help="convert to ONNX format")
+    format_group.add_argument(
+        "--onnx-dynamo", default=False, action="store_true", help="convert to ONNX format using TorchDynamo"
+    )
 
     subparser.set_defaults(func=main)
 
 
 def main(args: argparse.Namespace) -> None:
-    assert args.trace is False or (args.trace is True and (args.pts is True or args.lite is True))
+    assert args.trace is False or (args.trace is True and (args.pts is True or args.lite is True or args.onnx is True))
 
     # Load model
     device = torch.device("cpu")
@@ -220,7 +244,7 @@ def main(args: argparse.Namespace) -> None:
         network_name = f"{network_name}_{args.resize}px"
 
     model_path = fs_ops.model_path(
-        network_name, epoch=args.epoch, pts=args.pts, lite=args.lite, pt2=args.pt2, onnx=args.onnx
+        network_name, epoch=args.epoch, pts=args.pts, lite=args.lite, pt2=args.pt2, onnx=args.onnx or args.onnx_dynamo
     )
     if model_path.exists() is True and args.force is False and args.reparameterize is False:
         logging.warning("Converted model already exists... aborting")
@@ -268,8 +292,8 @@ def main(args: argparse.Namespace) -> None:
     elif args.pt2 is True:
         pt2_export(net, signature, class_to_idx, rgb_stats, device, model_path)
 
-    elif args.onnx is True:
-        onnx_export(net, signature, class_to_idx, rgb_stats, model_path)
+    elif args.onnx is True or args.onnx_dynamo:
+        onnx_export(net, signature, class_to_idx, rgb_stats, model_path, args.onnx_dynamo, args.trace)
 
     elif args.pts is True:
         if args.trace is True:

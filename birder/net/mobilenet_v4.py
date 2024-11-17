@@ -31,12 +31,14 @@ class ConvNormActConfig:
         kernel: tuple[int, int],
         stride: tuple[int, int],
         padding: tuple[int, int],
+        activation: Callable[..., nn.Module] = nn.ReLU,
     ) -> None:
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel = kernel
         self.stride = stride
         self.padding = padding
+        self.activation = activation
 
 
 class InvertedResidualConfig:
@@ -71,6 +73,7 @@ class UniversalInvertedBottleneckConfig:
         middle_dw_kernel_size: Optional[tuple[int, int]],
         stride: tuple[int, int],
         middle_dw_downsample: bool,
+        activation: Callable[..., nn.Module] = nn.ReLU,
     ) -> None:
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -79,11 +82,26 @@ class UniversalInvertedBottleneckConfig:
         self.middle_dw_kernel_size = middle_dw_kernel_size
         self.stride = stride
         self.middle_dw_downsample = middle_dw_downsample
+        self.activation = activation
 
         if stride[0] == 1 and stride[1] == 1 and in_channels == out_channels:
             self.shortcut = True
         else:
             self.shortcut = False
+
+
+class LayerScale2d(nn.Module):
+    def __init__(self, dim: int, init_values: float, inplace: bool = False) -> None:
+        super().__init__()
+        self.inplace = inplace
+        self.gamma = nn.Parameter(init_values * torch.ones([dim]))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        gamma = self.gamma.view(1, -1, 1, 1)
+        if self.inplace is True:
+            return x.mul_(gamma)
+
+        return x * gamma
 
 
 class InvertedResidual(nn.Module):
@@ -104,8 +122,9 @@ class InvertedResidual(nn.Module):
                     kernel_size=cnf.kernel_size,
                     stride=cnf.stride,
                     padding=cnf.padding,
-                    bias=False,
                     activation_layer=cnf.activation,
+                    inplace=None,
+                    bias=False,
                 )
             )
 
@@ -119,8 +138,9 @@ class InvertedResidual(nn.Module):
                     stride=cnf.stride,
                     padding=cnf.padding,
                     groups=cnf.expanded_channels,
-                    bias=False,
                     activation_layer=cnf.activation,
+                    inplace=None,
+                    bias=False,
                 )
             )
             squeeze_channels = make_divisible(cnf.expanded_channels // 4, 8)
@@ -151,7 +171,9 @@ class InvertedResidual(nn.Module):
 
 
 class UniversalInvertedBottleneck(nn.Module):
-    def __init__(self, cnf: UniversalInvertedBottleneckConfig, stochastic_depth_prob: float) -> None:
+    def __init__(
+        self, cnf: UniversalInvertedBottleneckConfig, layer_scale_init_value: float, stochastic_depth_prob: float
+    ) -> None:
         super().__init__()
         self.shortcut = cnf.shortcut
 
@@ -177,7 +199,14 @@ class UniversalInvertedBottleneck(nn.Module):
 
         expand_channels = make_divisible(cnf.in_channels * cnf.expand_ratio, 8)
         self.expand_conv = Conv2dNormActivation(
-            cnf.in_channels, expand_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False
+            cnf.in_channels,
+            expand_channels,
+            kernel_size=(1, 1),
+            stride=(1, 1),
+            padding=(0, 0),
+            activation_layer=cnf.activation,
+            inplace=None,
+            bias=False,
         )
 
         if cnf.middle_dw_kernel_size is not None:
@@ -193,6 +222,8 @@ class UniversalInvertedBottleneck(nn.Module):
                 stride=s,
                 padding=((cnf.middle_dw_kernel_size[0] - 1) // 2, (cnf.middle_dw_kernel_size[1] - 1) // 2),
                 groups=expand_channels,
+                activation_layer=cnf.activation,
+                inplace=None,
                 bias=False,
             )
 
@@ -208,6 +239,12 @@ class UniversalInvertedBottleneck(nn.Module):
             activation_layer=None,
             bias=False,
         )
+
+        if layer_scale_init_value > 0:
+            self.layer_scale = LayerScale2d(cnf.out_channels, layer_scale_init_value)
+        else:
+            self.layer_scale = nn.Identity()
+
         self.stochastic_depth = StochasticDepth(stochastic_depth_prob, mode="row")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -216,6 +253,7 @@ class UniversalInvertedBottleneck(nn.Module):
         x = self.expand_conv(x)
         x = self.middle_dw_conv(x)
         x = self.proj_conv(x)
+        x = self.layer_scale(x)
         if self.shortcut is True:
             x = self.stochastic_depth(x)
             return x + shortcut
@@ -245,6 +283,7 @@ class MobileNet_v4(DetectorBackbone):
         stem_settings: ConvNormActConfig = self.config["stem_settings"]
         net_settings: list[Any] = self.config["net_settings"]
         last_stage_settings: list[ConvNormActConfig] = self.config["last_stage_settings"]
+        features_stage_settings: ConvNormActConfig = self.config["features_stage_settings"]
 
         self.stem = Conv2dNormActivation(
             self.input_channels,
@@ -252,6 +291,7 @@ class MobileNet_v4(DetectorBackbone):
             kernel_size=stem_settings.kernel,
             stride=stem_settings.stride,
             padding=stem_settings.padding,
+            activation_layer=stem_settings.activation,
         )
 
         layers: list[nn.Module] = []
@@ -277,6 +317,7 @@ class MobileNet_v4(DetectorBackbone):
                         kernel_size=block_settings.kernel,
                         stride=block_settings.stride,
                         padding=block_settings.padding,
+                        activation_layer=block_settings.activation,
                     )
                 )
 
@@ -284,7 +325,7 @@ class MobileNet_v4(DetectorBackbone):
                 layers.append(InvertedResidual(block_settings, sd_prob))
 
             elif isinstance(block_settings, UniversalInvertedBottleneckConfig):
-                layers.append(UniversalInvertedBottleneck(block_settings, sd_prob))
+                layers.append(UniversalInvertedBottleneck(block_settings, 0.0, sd_prob))
 
             else:
                 raise ValueError("Unknown config")
@@ -301,6 +342,7 @@ class MobileNet_v4(DetectorBackbone):
                     kernel_size=block_settings.kernel,
                     stride=block_settings.stride,
                     padding=block_settings.padding,
+                    activation_layer=block_settings.activation,
                 )
             )
         stages[f"stage{i+1}"] = nn.Sequential(*layers)
@@ -309,11 +351,19 @@ class MobileNet_v4(DetectorBackbone):
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
+            Conv2dNormActivation(
+                features_stage_settings.in_channels,
+                features_stage_settings.out_channels,
+                kernel_size=features_stage_settings.kernel,
+                stride=features_stage_settings.stride,
+                padding=features_stage_settings.padding,
+                activation_layer=features_stage_settings.activation,
+            ),
             nn.Flatten(1),
             nn.Dropout(p=dropout),
         )
         self.return_channels = return_channels[:4]
-        self.embedding_size = last_stage_settings[-1].out_channels
+        self.embedding_size = features_stage_settings.out_channels
         self.classifier = self.create_classifier()
 
         # Weight initialization
@@ -395,8 +445,8 @@ registry.register_alias(
         ],
         "last_stage_settings": [
             ConvNormActConfig(128, 960, (1, 1), (1, 1), (0, 0)),
-            ConvNormActConfig(960, 1280, (1, 1), (1, 1), (0, 0)),
         ],
+        "features_stage_settings": ConvNormActConfig(960, 1280, (1, 1), (1, 1), (0, 0)),
     },
 )
 registry.register_alias(
@@ -436,8 +486,8 @@ registry.register_alias(
         ],
         "last_stage_settings": [
             ConvNormActConfig(256, 960, (1, 1), (1, 1), (0, 0)),
-            ConvNormActConfig(960, 1280, (1, 1), (1, 1), (0, 0)),
         ],
+        "features_stage_settings": ConvNormActConfig(960, 1280, (1, 1), (1, 1), (0, 0)),
     },
 )
 registry.register_alias(
@@ -482,8 +532,8 @@ registry.register_alias(
         ],
         "last_stage_settings": [
             ConvNormActConfig(512, 960, (1, 1), (1, 1), (0, 0)),
-            ConvNormActConfig(960, 1280, (1, 1), (1, 1), (0, 0)),
         ],
+        "features_stage_settings": ConvNormActConfig(960, 1280, (1, 1), (1, 1), (0, 0)),
     },
 )
 

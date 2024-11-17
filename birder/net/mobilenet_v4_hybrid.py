@@ -23,6 +23,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.mobilenet_v4 import ConvNormActConfig
 from birder.net.mobilenet_v4 import InvertedResidual
 from birder.net.mobilenet_v4 import InvertedResidualConfig
+from birder.net.mobilenet_v4 import LayerScale2d
 from birder.net.mobilenet_v4 import UniversalInvertedBottleneck
 from birder.net.mobilenet_v4 import UniversalInvertedBottleneckConfig
 
@@ -76,13 +77,20 @@ class MultiQueryAttention(nn.Module):
             query_layers.append(nn.BatchNorm2d(in_channels))
 
         query_layers.append(
-            nn.Conv2d(in_channels, self.num_heads * self.key_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
+            nn.Conv2d(
+                in_channels,
+                self.num_heads * self.key_dim,
+                kernel_size=(1, 1),
+                stride=(1, 1),
+                padding=(0, 0),
+                bias=False,
+            )
         )
         self.query = nn.Sequential(*query_layers)
 
         key_layers = []
         value_layers = []
-        if kv_strides[0] > 1 or kv_strides[1] > 0:
+        if kv_strides[0] > 1 or kv_strides[1] > 1:
             key_layers.append(
                 Conv2dNormActivation(
                     in_channels,
@@ -106,8 +114,12 @@ class MultiQueryAttention(nn.Module):
                 )
             )
 
-        key_layers.append(nn.Conv2d(in_channels, self.key_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)))
-        value_layers.append(nn.Conv2d(in_channels, value_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)))
+        key_layers.append(
+            nn.Conv2d(in_channels, self.key_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False)
+        )
+        value_layers.append(
+            nn.Conv2d(in_channels, value_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False)
+        )
         self.key = nn.Sequential(*key_layers)
         self.value = nn.Sequential(*value_layers)
 
@@ -116,7 +128,9 @@ class MultiQueryAttention(nn.Module):
             output_layers.append(nn.Upsample(scale_factor=self.query_strides, mode="bilinear", align_corners=False))
 
         output_layers.append(
-            nn.Conv2d(self.num_heads * value_dim, in_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
+            nn.Conv2d(
+                self.num_heads * value_dim, in_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False
+            )
         )
         output_layers.append(nn.Dropout(p=dropout))
         self.output = nn.Sequential(*output_layers)
@@ -167,13 +181,13 @@ class MultiQueryAttentionBlock(nn.Module):
             cnf.dw_kernel_size,
             cnf.dropout,
         )
-        self.gamma = nn.Parameter(1e-5 * torch.ones(cnf.in_channels, 1, 1), requires_grad=True)
+        self.layer_scale = LayerScale2d(cnf.in_channels, 1e-5)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         shortcut = x
         x = self.input_norm(x)
         x = self.multi_query_attention(x)
-        x = x * self.gamma
+        x = self.layer_scale(x)
         x = x + shortcut
 
         return x
@@ -201,6 +215,7 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
         stem_settings: ConvNormActConfig = self.config["stem_settings"]
         net_settings: list[Any] = self.config["net_settings"]
         last_stage_settings: list[ConvNormActConfig] = self.config["last_stage_settings"]
+        features_stage_settings: ConvNormActConfig = self.config["features_stage_settings"]
 
         self.stem = Conv2dNormActivation(
             self.input_channels,
@@ -208,6 +223,8 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
             kernel_size=stem_settings.kernel,
             stride=stem_settings.stride,
             padding=stem_settings.padding,
+            activation_layer=stem_settings.activation,
+            inplace=None,
         )
 
         layers: list[nn.Module] = []
@@ -233,6 +250,8 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
                         kernel_size=block_settings.kernel,
                         stride=block_settings.stride,
                         padding=block_settings.padding,
+                        activation_layer=block_settings.activation,
+                        inplace=None,
                     )
                 )
 
@@ -240,7 +259,7 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
                 layers.append(InvertedResidual(block_settings, sd_prob))
 
             elif isinstance(block_settings, UniversalInvertedBottleneckConfig):
-                layers.append(UniversalInvertedBottleneck(block_settings, sd_prob))
+                layers.append(UniversalInvertedBottleneck(block_settings, 1e-5, sd_prob))
 
             elif isinstance(block_settings, MultiQueryAttentionBlockConfig):
                 layers.append(MultiQueryAttentionBlock(block_settings))
@@ -260,6 +279,8 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
                     kernel_size=block_settings.kernel,
                     stride=block_settings.stride,
                     padding=block_settings.padding,
+                    activation_layer=block_settings.activation,
+                    inplace=None,
                 )
             )
         stages[f"stage{i+1}"] = nn.Sequential(*layers)
@@ -268,11 +289,20 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
+            Conv2dNormActivation(
+                features_stage_settings.in_channels,
+                features_stage_settings.out_channels,
+                kernel_size=features_stage_settings.kernel,
+                stride=features_stage_settings.stride,
+                padding=features_stage_settings.padding,
+                activation_layer=features_stage_settings.activation,
+                inplace=None,
+            ),
             nn.Flatten(1),
             nn.Dropout(p=dropout),
         )
         self.return_channels = return_channels[:4]
-        self.embedding_size = last_stage_settings[-1].out_channels
+        self.embedding_size = features_stage_settings.out_channels
         self.classifier = self.create_classifier()
 
         # Weight initialization
@@ -369,8 +399,8 @@ registry.register_alias(
         ],
         "last_stage_settings": [
             ConvNormActConfig(256, 960, (1, 1), (1, 1), (0, 0)),
-            ConvNormActConfig(960, 1280, (1, 1), (1, 1), (0, 0)),
         ],
+        "features_stage_settings": ConvNormActConfig(960, 1280, (1, 1), (1, 1), (0, 0)),
     },
 )
 registry.register_alias(
@@ -379,53 +409,53 @@ registry.register_alias(
     config={
         "dropout": 0.2,
         "stochastic_depth_prob": 0.35,
-        "stem_settings": ConvNormActConfig(0, 24, (3, 3), (2, 2), (1, 1)),
+        "stem_settings": ConvNormActConfig(0, 24, (3, 3), (2, 2), (1, 1), nn.GELU),
         "net_settings": [
             # Stage 1
-            InvertedResidualConfig(24, 48, (3, 3), (2, 2), (1, 1), 4.0, False),
+            InvertedResidualConfig(24, 48, (3, 3), (2, 2), (1, 1), 4.0, False, nn.GELU),
             # Stage 2
-            UniversalInvertedBottleneckConfig(48, 96, 4.0, (3, 3), (5, 5), (2, 2), True),
-            UniversalInvertedBottleneckConfig(96, 96, 4.0, (3, 3), (3, 3), (1, 1), True),
+            UniversalInvertedBottleneckConfig(48, 96, 4.0, (3, 3), (5, 5), (2, 2), True, nn.GELU),
+            UniversalInvertedBottleneckConfig(96, 96, 4.0, (3, 3), (3, 3), (1, 1), True, nn.GELU),
             # Stage 3
-            UniversalInvertedBottleneckConfig(96, 192, 4.0, (3, 3), (5, 5), (2, 2), True),
-            UniversalInvertedBottleneckConfig(192, 192, 4.0, (3, 3), (3, 3), (1, 1), True),
-            UniversalInvertedBottleneckConfig(192, 192, 4.0, (3, 3), (3, 3), (1, 1), True),
-            UniversalInvertedBottleneckConfig(192, 192, 4.0, (3, 3), (3, 3), (1, 1), True),
-            UniversalInvertedBottleneckConfig(192, 192, 4.0, (3, 3), (5, 5), (1, 1), True),
-            UniversalInvertedBottleneckConfig(192, 192, 4.0, (5, 5), (3, 3), (1, 1), True),
-            UniversalInvertedBottleneckConfig(192, 192, 4.0, (5, 5), (3, 3), (1, 1), True),
+            UniversalInvertedBottleneckConfig(96, 192, 4.0, (3, 3), (5, 5), (2, 2), True, nn.GELU),
+            UniversalInvertedBottleneckConfig(192, 192, 4.0, (3, 3), (3, 3), (1, 1), True, nn.GELU),
+            UniversalInvertedBottleneckConfig(192, 192, 4.0, (3, 3), (3, 3), (1, 1), True, nn.GELU),
+            UniversalInvertedBottleneckConfig(192, 192, 4.0, (3, 3), (3, 3), (1, 1), True, nn.GELU),
+            UniversalInvertedBottleneckConfig(192, 192, 4.0, (3, 3), (5, 5), (1, 1), True, nn.GELU),
+            UniversalInvertedBottleneckConfig(192, 192, 4.0, (5, 5), (3, 3), (1, 1), True, nn.GELU),
+            UniversalInvertedBottleneckConfig(192, 192, 4.0, (5, 5), (3, 3), (1, 1), True, nn.GELU),
             MultiQueryAttentionBlockConfig(192, (3, 3), 8, 48, 48, (2, 2), (1, 1), 0.0),
-            UniversalInvertedBottleneckConfig(192, 192, 4.0, (5, 5), (3, 3), (1, 1), True),
+            UniversalInvertedBottleneckConfig(192, 192, 4.0, (5, 5), (3, 3), (1, 1), True, nn.GELU),
             MultiQueryAttentionBlockConfig(192, (3, 3), 8, 48, 48, (2, 2), (1, 1), 0.0),
-            UniversalInvertedBottleneckConfig(192, 192, 4.0, (5, 5), (3, 3), (1, 1), True),
+            UniversalInvertedBottleneckConfig(192, 192, 4.0, (5, 5), (3, 3), (1, 1), True, nn.GELU),
             MultiQueryAttentionBlockConfig(192, (3, 3), 8, 48, 48, (2, 2), (1, 1), 0.0),
-            UniversalInvertedBottleneckConfig(192, 192, 4.0, (5, 5), (3, 3), (1, 1), True),
+            UniversalInvertedBottleneckConfig(192, 192, 4.0, (5, 5), (3, 3), (1, 1), True, nn.GELU),
             MultiQueryAttentionBlockConfig(192, (3, 3), 8, 48, 48, (2, 2), (1, 1), 0.0),
-            UniversalInvertedBottleneckConfig(192, 192, 4.0, (3, 3), None, (1, 1), True),
+            UniversalInvertedBottleneckConfig(192, 192, 4.0, (3, 3), None, (1, 1), True, nn.GELU),
             # Stage 4
-            UniversalInvertedBottleneckConfig(192, 512, 4.0, (5, 5), (5, 5), (2, 2), True),
-            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), (5, 5), (1, 1), True),
-            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), (5, 5), (1, 1), True),
-            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), (5, 5), (1, 1), True),
-            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), None, (1, 1), True),
-            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), (3, 3), (1, 1), True),
-            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), None, (1, 1), True),
-            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), None, (1, 1), True),
-            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), (3, 3), (1, 1), True),
-            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), (5, 5), (1, 1), True),
+            UniversalInvertedBottleneckConfig(192, 512, 4.0, (5, 5), (5, 5), (2, 2), True, nn.GELU),
+            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), (5, 5), (1, 1), True, nn.GELU),
+            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), (5, 5), (1, 1), True, nn.GELU),
+            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), (5, 5), (1, 1), True, nn.GELU),
+            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), None, (1, 1), True, nn.GELU),
+            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), (3, 3), (1, 1), True, nn.GELU),
+            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), None, (1, 1), True, nn.GELU),
+            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), None, (1, 1), True, nn.GELU),
+            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), (3, 3), (1, 1), True, nn.GELU),
+            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), (5, 5), (1, 1), True, nn.GELU),
             MultiQueryAttentionBlockConfig(512, (3, 3), 8, 64, 64, (1, 1), (1, 1), 0.0),
-            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), None, (1, 1), True),
+            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), None, (1, 1), True, nn.GELU),
             MultiQueryAttentionBlockConfig(512, (3, 3), 8, 64, 64, (1, 1), (1, 1), 0.0),
-            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), None, (1, 1), True),
+            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), None, (1, 1), True, nn.GELU),
             MultiQueryAttentionBlockConfig(512, (3, 3), 8, 64, 64, (1, 1), (1, 1), 0.0),
-            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), None, (1, 1), True),
+            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), None, (1, 1), True, nn.GELU),
             MultiQueryAttentionBlockConfig(512, (3, 3), 8, 64, 64, (1, 1), (1, 1), 0.0),
-            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), None, (1, 1), True),
+            UniversalInvertedBottleneckConfig(512, 512, 4.0, (5, 5), None, (1, 1), True, nn.GELU),
         ],
         "last_stage_settings": [
-            ConvNormActConfig(512, 960, (1, 1), (1, 1), (0, 0)),
-            ConvNormActConfig(960, 1280, (1, 1), (1, 1), (0, 0)),
+            ConvNormActConfig(512, 960, (1, 1), (1, 1), (0, 0), nn.GELU),
         ],
+        "features_stage_settings": ConvNormActConfig(960, 1280, (1, 1), (1, 1), (0, 0), nn.GELU),
     },
 )
 

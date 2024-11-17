@@ -190,6 +190,8 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v1 --net-param 0.5 --ta
 
 ### Mobilenet v2
 
+#### Mobilenet v2: 1
+
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v2 --net-param 1 --tag il-common --opt rmsprop --lr 0.045 --lr-scheduler step --lr-step-size 1 --lr-step-gamma 0.98 --batch-size 128 --size 256 --epochs 300 --wd 0.00004 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
