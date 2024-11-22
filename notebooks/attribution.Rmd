@@ -20,7 +20,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
-from captum.attr import LRP, IntegratedGradients, NoiseTunnel, Occlusion
+from captum.attr import LRP
+from captum.attr import IntegratedGradients
+from captum.attr import NoiseTunnel
+from captum.attr import Occlusion
 from captum.attr import visualization as viz
 from matplotlib.colors import LinearSegmentedColormap
 from PIL import Image
@@ -31,7 +34,8 @@ sys.path.append("..")
 ```
 
 ```{python}
-from birder.common import fs_ops, lib
+from birder.common import fs_ops
+from birder.common import lib
 from birder.common.lib import get_label_from_path
 from birder.conf import settings
 from birder.transforms.classification import inference_preset
@@ -48,28 +52,29 @@ default_cmap = LinearSegmentedColormap.from_list(
 ```
 
 ```{python}
-network = "efficientnet_v2"
+network = "regnet_y_8g"
 # network = "swin_transformer_v2"
-net_param = 0
+net_param = None
 epoch = 0
+tag = "raw384px"
 ```
 
 ```{python}
 device = torch.device("cpu")
 (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
-    device, network, net_param=net_param, epoch=epoch, inference=True
+    device, network, net_param=net_param, epoch=epoch, tag=tag, inference=True
 )
 idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
-size = lib.get_size_from_signature(signature)[0]
+size = lib.get_size_from_signature(signature)
 transform = inference_preset(size, rgb_stats, 1.0)
 ```
 
 ```{python}
-# image = "../data/testing/Lesser kestrel/000202.jpeg"
-image = "../data/testing/Bluethroat/000202.jpeg"
-# image = "../data/testing/Lesser grey shrike/000200.jpeg"
-# image = "../data/testing/Great bittern/000107.jpeg"
-# image = "../data/testing/Crowned sandgrouse/000012.jpeg"
+# image = "data/testing/Lesser kestrel/000202.jpeg"
+# image = "data/testing/Lesser grey shrike/000200.jpeg"
+# image = "data/testing/Great bittern/000107.jpeg"
+# image = "data/testing/Crowned sandgrouse/000012.jpeg"
+image = "data/a.jpeg"
 img = Image.open(image)
 input_tensor = transform(img).unsqueeze(dim=0).to(device)
 ```
@@ -80,23 +85,19 @@ output = F.softmax(net(input_tensor), dim=1)
 class_idx.squeeze_()
 prob.squeeze_()
 
-print(
-    f"Predicted {idx_to_class[class_idx.cpu().detach().item()]} ({prob.cpu().detach().item():.3f})"
-)
+print(f"Predicted {idx_to_class[class_idx.cpu().detach().item()]} ({prob.cpu().detach().item():.3f})")
 img
 ```
 
 ```{python}
 integrated_gradients = IntegratedGradients(net)
-attributions_ig = integrated_gradients.attribute(
-    input_tensor, target=class_idx, n_steps=128, internal_batch_size=16
-)
+attributions_ig = integrated_gradients.attribute(input_tensor, target=class_idx, n_steps=128, internal_batch_size=16)
 ```
 
 ```{python}
 _ = viz.visualize_image_attr_multiple(
     np.transpose(attributions_ig.squeeze().cpu().detach().numpy(), (1, 2, 0)),
-    np.array(img.resize([size, size])),
+    np.array(img.resize(size)),
     ["original_image", "heat_map"],
     ["all", "positive"],
     cmap=default_cmap,
@@ -120,7 +121,7 @@ attributions_occ = occlusion.attribute(
 ```{python}
 _ = viz.visualize_image_attr_multiple(
     np.transpose(attributions_occ.squeeze().cpu().detach().numpy(), (1, 2, 0)),
-    np.array(img.resize([size, size])),
+    np.array(img.resize(size)),
     ["original_image", "heat_map"],
     ["all", "all"],
     show_colorbar=True,
@@ -143,7 +144,7 @@ attributions_ig_nt = noise_tunnel.attribute(
 ```{python}
 _ = viz.visualize_image_attr_multiple(
     np.transpose(attributions_ig_nt.squeeze().cpu().detach().numpy(), (1, 2, 0)),
-    np.array(img.resize([size, size])),
+    np.array(img.resize(size),
     ["original_image", "heat_map"],
     ["all", "positive"],
     cmap=default_cmap,

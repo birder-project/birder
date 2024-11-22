@@ -103,27 +103,10 @@ def onnx_export(
     with open(f"{model_path}_class_to_idx.json", "w", encoding="utf-8") as handle:
         json.dump(class_to_idx, handle, indent=2)
 
-    model_name = registry.get_model_base_name(net)
-    net_param = None
-    model_config = None
-    if net.config is not None:
-        model_config = net.config
-    elif net.net_param is not None:
-        net_param = net.net_param
-
+    model_config = lib.get_network_config(net, signature, rgb_stats)
     logging.info("Saving model config json...")
     with open(f"{model_path}_config.json", "w", encoding="utf-8") as handle:
-        json.dump(
-            {
-                "name": model_name,
-                "net_param": net_param,
-                "model_config": model_config,
-                "signature": signature,
-                "rgb_stats": rgb_stats,
-            },
-            handle,
-            indent=2,
-        )
+        json.dump(model_config, handle, indent=2)
 
     # Test exported model
     onnx_model = onnx.load(str(model_path))

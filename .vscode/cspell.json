@@ -48,6 +48,7 @@
     "convnext",
     "convolutional",
     "crossvit",
+    "cspnet",
     "cswin",
     "cublas",
     "cuda",

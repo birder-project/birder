@@ -341,38 +341,6 @@ def load_model(
     return (net, class_to_idx, signature, rgb_stats)
 
 
-def load_pretrained_model(
-    weights: str, inference: bool = False, device: Optional[torch.device] = None, progress_bar: bool = True
-) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], SignatureType, RGBType]:
-    if settings.MODELS_DIR.exists() is False:
-        logging.info(f"Creating {settings.MODELS_DIR} directory...")
-        settings.MODELS_DIR.mkdir(parents=True)
-
-    model_info = registry.get_pretrained_info(weights)
-    assert "pt" in model_info["formats"], "Can only load pt type files"
-
-    model_file = f"{weights}.pt"
-    dst = settings.MODELS_DIR.joinpath(model_file)
-    if "url" in model_info:
-        url = model_info["url"]
-    else:
-        url = f"{settings.REGISTRY_BASE_UTL}/{model_file}"
-
-    cli.download_file(url, dst, model_info["formats"]["pt"]["sha256"], progress_bar=progress_bar)
-
-    if device is None:
-        device = torch.device("cpu")
-
-    return load_model(
-        device,
-        model_info["net"]["network"],
-        net_param=model_info["net"].get("net_param", None),
-        tag=model_info["net"].get("tag", None),
-        reparameterized=model_info["net"].get("reparameterized", False),
-        inference=inference,
-    )
-
-
 def load_detection_model(
     device: torch.device,
     network: str,
@@ -430,6 +398,38 @@ def load_detection_model(
         net.eval()
 
     return (net, class_to_idx, signature, rgb_stats)
+
+
+def load_pretrained_model(
+    weights: str, inference: bool = False, device: Optional[torch.device] = None, progress_bar: bool = True
+) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], SignatureType, RGBType]:
+    if settings.MODELS_DIR.exists() is False:
+        logging.info(f"Creating {settings.MODELS_DIR} directory...")
+        settings.MODELS_DIR.mkdir(parents=True)
+
+    model_info = registry.get_pretrained_info(weights)
+    assert "pt" in model_info["formats"], "Can only load pt type files"
+
+    model_file = f"{weights}.pt"
+    dst = settings.MODELS_DIR.joinpath(model_file)
+    if "url" in model_info:
+        url = model_info["url"]
+    else:
+        url = f"{settings.REGISTRY_BASE_UTL}/{model_file}"
+
+    cli.download_file(url, dst, model_info["formats"]["pt"]["sha256"], progress_bar=progress_bar)
+
+    if device is None:
+        device = torch.device("cpu")
+
+    return load_model(
+        device,
+        model_info["net"]["network"],
+        net_param=model_info["net"].get("net_param", None),
+        tag=model_info["net"].get("tag", None),
+        reparameterized=model_info["net"].get("reparameterized", False),
+        inference=inference,
+    )
 
 
 def save_pts(

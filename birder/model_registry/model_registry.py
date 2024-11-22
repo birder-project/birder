@@ -154,6 +154,13 @@ class ModelRegistry:
 
         return type_name
 
+    def get_model_alias(self, model: "BaseNetObjType") -> Optional[str]:
+        type_name = model.__class__.__name__.lower()
+        if type_name in self.aliases:
+            return type_name
+
+        return None
+
     def list_pretrained_models(self, include_filter: Optional[str] = None) -> list[str]:
         """
         Parameters

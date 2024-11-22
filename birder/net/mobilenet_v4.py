@@ -545,7 +545,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 11.5,
-                "sha256": "faa6cb3adae59739892d28184a6746fe21df79599c0b09b66b5db745645587c3",
+                "sha256": "1b9b83a54c5be13e1fd6baec1f70524911cc3b7977b14c68ae45a85dc2fde911",
             }
         },
         "net": {"network": "mobilenet_v4_s", "tag": "il-common"},
@@ -559,7 +559,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 34.4,
-                "sha256": "b34c25a14251084cead2c259e627ff00d6bbd2e23d841fc112dacae469ce1d8d",
+                "sha256": "e229e341117b8c66d13c19d238591665673424358d626de3b33d32e9771310f6",
             }
         },
         "net": {"network": "mobilenet_v4_m", "tag": "il-common"},

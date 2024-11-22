@@ -15,6 +15,8 @@ from birder.common import fs_ops
 from birder.common import lib
 from birder.common import training_utils
 from birder.conf import settings
+from birder.net.base import SignatureType
+from birder.net.detection.base import DetectionSignatureType
 from birder.net.resnext import ResNeXt
 from birder.net.vit import ViT
 
@@ -23,6 +25,23 @@ logging.disable(logging.CRITICAL)
 
 class TestLib(unittest.TestCase):
     def test_lib(self) -> None:
+        # Signature components
+        signature: SignatureType = {
+            "inputs": [{"data_shape": [0, 3, 224, 224]}],
+            "outputs": [{"data_shape": [0, 371]}],
+        }
+        detection_signature: DetectionSignatureType = {
+            "inputs": [{"data_shape": [0, 3, 640, 640]}],
+            "outputs": ([{"boxes": [0, 4], "labels": [0], "scores": [0]}], {}),
+            "num_labels": 91,
+        }
+        self.assertEqual(lib.get_size_from_signature(signature), (224, 224))
+        self.assertEqual(lib.get_size_from_signature(detection_signature), (640, 640))
+        self.assertEqual(lib.get_channels_from_signature(signature), 3)
+        self.assertEqual(lib.get_channels_from_signature(detection_signature), 3)
+        self.assertEqual(lib.get_num_labels_from_signature(signature), 371)
+        self.assertEqual(lib.get_num_labels_from_signature(detection_signature), 91)
+
         # Network name
         net_name = lib.get_network_name("net", net_param=None)
         self.assertEqual(net_name, "net")

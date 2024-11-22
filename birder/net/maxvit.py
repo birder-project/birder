@@ -410,7 +410,7 @@ class MaxVitBlock(nn.Module):
         p_stochastic: list[float],
     ) -> None:
         super().__init__()
-        if not len(p_stochastic) == n_layers:
+        if len(p_stochastic) != n_layers:
             raise ValueError(f"p_stochastic must have length n_layers={n_layers}, got p_stochastic={p_stochastic}.")
 
         # Account for the first stride of the first layer
