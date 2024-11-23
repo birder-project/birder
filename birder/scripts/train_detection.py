@@ -213,7 +213,7 @@ def train(args: argparse.Namespace) -> None:
     if args.compile is True:
         net = torch.compile(net)
     elif args.compile_backbone is True:
-        net.backbone.detection_features = torch.compile(net.backbone.detection_features)
+        net.backbone.detection_features = torch.compile(net.backbone.detection_features)  # type: ignore[method-assign]
 
     # Define optimizer and learning rate scheduler and training parameter groups
     custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
