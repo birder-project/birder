@@ -16,7 +16,7 @@ all-test-job:
     - pip install -r requirements/requirements-pytorch-cpu.txt
     - pip install -r requirements/requirements-dev.txt
     - inv ci --coverage
-  coverage: '/TOTAL.*? (100(?:\.0+)?\%\|[1-9]?\d(?:\.\d+)?\%)$/'
+  coverage: '/^\s*TOTAL.+?(\d+\%)$/'
 
 build-job:
   stage: build

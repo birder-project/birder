@@ -36,8 +36,8 @@ class TestNetDetection(unittest.TestCase):
     )
     def test_net_detection(self, network_name: str, net_param: Optional[float], encoder: tuple[str, float]) -> None:
         backbone = registry.net_factory(encoder[0], 3, 10, net_param=encoder[1])
-        n = registry.detection_net_factory(network_name, 10, backbone, net_param=net_param)
-        size = n.default_size
+        n = registry.detection_net_factory(network_name, 10, backbone, net_param=net_param, size=256)
+        size = 256  # Just for faster tests
         backbone.adjust_size(size)
 
         n.eval()
