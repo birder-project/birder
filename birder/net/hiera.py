@@ -299,7 +299,6 @@ class HieraBlock(nn.Module):
             self.proj = None
 
         self.attn = MaskUnitAttention(dim, dim_out, heads, q_stride, window_size, use_mask_unit_attn)
-
         self.norm2 = nn.LayerNorm(dim_out)
         self.mlp = MLP(dim_out, [int(dim_out * mlp_ratio), dim_out], activation_layer=nn.GELU)
         self.drop_path = StochasticDepth(drop_path, mode="row")
@@ -383,7 +382,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
 
         q_pool_blocks = [x + 1 for x in self.stage_ends[:q_pool]]
         depth = sum(depths)
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # Stochastic depth decay rule
 
         cur_stage = 0
         layers = []

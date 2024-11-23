@@ -66,8 +66,8 @@ class TestNet(unittest.TestCase):
             ("cswin_transformer_t"),
             ("darknet_53"),
             ("davit_tiny"),
-            ("deit_t16", 0, True),
-            ("deit3_t16", 0, True),
+            ("deit_t16", None, True),
+            ("deit3_t16", None, True),
             ("densenet_121"),
             ("dpn_92"),
             ("edgenext_xxs"),
@@ -84,6 +84,7 @@ class TestNet(unittest.TestCase):
             ("ghostnet_v2", 1),
             ("hiera_tiny"),
             ("hiera_abswin_tiny"),
+            ("hieradet_tiny"),
             ("inception_next_t"),
             ("inception_resnet_v2"),
             ("inception_v3"),
@@ -108,6 +109,7 @@ class TestNet(unittest.TestCase):
             ("moganet_xt"),
             ("nextvit_s"),
             ("nfnet_f0"),
+            ("pit_t", None, True),
             ("pvt_v1_t"),
             ("pvt_v2_b0"),
             ("rdnet_t"),
@@ -213,6 +215,7 @@ class TestNet(unittest.TestCase):
             ("ghostnet_v2", 1),
             ("hiera_tiny"),
             ("hiera_abswin_tiny"),
+            ("hieradet_tiny"),
             ("inception_next_t"),
             ("inception_resnet_v2"),
             ("inception_v3"),
@@ -234,6 +237,7 @@ class TestNet(unittest.TestCase):
             ("moganet_xt"),
             ("nextvit_s"),
             ("nfnet_f0"),
+            ("pit_t"),
             ("pvt_v2_b0"),
             ("rdnet_t"),
             ("regnet_y_200m"),
@@ -330,3 +334,9 @@ class TestSpecialFunctions(unittest.TestCase):
 
         # ViT with register tokens
         vit_sam_b16.load_vit_weights(vitreg4_b16.state_dict())
+
+    def test_hieradet_weight_import(self) -> None:
+        hiera_abswin_tiny = registry.net_factory("hiera_abswin_tiny", 3, 100, size=192)
+        hieradet_tiny = registry.net_factory("hieradet_tiny", 3, 100, size=192)
+
+        hieradet_tiny.load_hiera_weights(hiera_abswin_tiny.state_dict())

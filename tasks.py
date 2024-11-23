@@ -414,11 +414,53 @@ def sam_from_vit(_ctx, network, tag=None, epoch=None):
         device, network, tag=tag, epoch=epoch, inference=False
     )
     size = lib.get_size_from_signature(signature)[0]
+    channels = lib.get_channels_from_signature(signature)
 
-    sam = registry.net_factory(sam_network, 3, len(class_to_idx), size=size)
+    sam = registry.net_factory(sam_network, channels, len(class_to_idx), size=size)
     sam.load_vit_weights(net.state_dict())
 
     # Save model
     fs_ops.checkpoint_model(
         sam_network, epoch, sam, signature, class_to_idx, rgb_stats, optimizer=None, scheduler=None, scaler=None
+    )
+
+
+@task
+def hieradet_from_hiera(_ctx, network, tag=None, epoch=None):
+    """
+    Transform vanilla Hiera to HieraDet
+    """
+
+    if "abswin" not in network:
+        raise ValueError("Only abswin variant is supported")
+
+    hieradet_network = network[0:5] + "det" + network[12:]
+    path = fs_ops.model_path(hieradet_network, epoch=epoch)
+    if path.exists() is True:
+        echo(f"{path} already exists")
+        echo("Aborting", color=COLOR_RED)
+        raise Exit(code=1)
+
+    # Load model
+    device = torch.device("cpu")
+    (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+        device, network, tag=tag, epoch=epoch, inference=False
+    )
+    size = lib.get_size_from_signature(signature)[0]
+    channels = lib.get_channels_from_signature(signature)
+
+    hieradet = registry.net_factory(hieradet_network, channels, len(class_to_idx), size=size)
+    hieradet.load_hiera_weights(net.state_dict())
+
+    # Save model
+    fs_ops.checkpoint_model(
+        hieradet_network,
+        epoch,
+        hieradet,
+        signature,
+        class_to_idx,
+        rgb_stats,
+        optimizer=None,
+        scheduler=None,
+        scaler=None,
     )

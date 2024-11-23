@@ -4,6 +4,7 @@ from typing import Any
 import torch
 import torch.utils.data
 import webdataset as wds
+from torchvision.io import ImageReadMode
 from torchvision.io import decode_image
 
 from birder.common.training_utils import reduce_across_processes
@@ -19,7 +20,7 @@ def wds_image_decoder(key: str, data: bytes) -> torch.Tensor:
         return None
 
     tensor = torch.frombuffer(bytearray(data), dtype=torch.uint8)
-    return decode_image(tensor)
+    return decode_image(tensor, mode=ImageReadMode.RGB)
 
 
 def make_wds_dataset(
@@ -39,6 +40,7 @@ def make_wds_dataset(
         return_keys = ["__url__", "__key__"] + return_keys
 
     dataset = dataset.with_length(dataset_size).decode("pil").to_tuple(*return_keys)
+    # dataset = dataset.with_length(dataset_size).map(wds_image_decoder).to_tuple(*return_keys)
 
     if samples_names is True:
         dataset = dataset.map(decode_sample_name)

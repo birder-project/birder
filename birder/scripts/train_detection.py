@@ -212,6 +212,8 @@ def train(args: argparse.Namespace) -> None:
     # Compile network
     if args.compile is True:
         net = torch.compile(net)
+    elif args.compile_backbone is True:
+        net.backbone.detection_features = torch.compile(net.backbone.detection_features)
 
     # Define optimizer and learning rate scheduler and training parameter groups
     custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
@@ -233,6 +235,7 @@ def train(args: argparse.Namespace) -> None:
         args.lr_cosine_min,
         args.lr_step_size,
         args.lr_step_gamma,
+        args.lr_power,
     )
 
     # Gradient scaler and AMP related tasks
@@ -599,6 +602,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--freeze-backbone-stages", type=int, help="number of backbone stages to freeze")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
+        "--compile-backbone", default=False, action="store_true", help="enable backbone only compilation"
+    )
+    parser.add_argument(
         "--opt",
         type=str,
         choices=list(typing.get_args(training_utils.OptimizerType)),
@@ -648,6 +654,12 @@ def get_args_parser() -> argparse.ArgumentParser:
         type=float,
         default=0.000001,
         help="minimum learning rate (for cosine annealing scheduler only)",
+    )
+    parser.add_argument(
+        "--lr-power",
+        type=float,
+        default=1.0,
+        help="power of the polynomial (for polynomial scheduler only)",
     )
     parser.add_argument(
         "--grad-accum-steps", type=int, default=1, metavar="N", help="number of steps to accumulate gradients"
@@ -813,6 +825,7 @@ def validate_args(args: argparse.Namespace) -> None:
     assert (
         registry.exists(args.backbone, net_type=DetectorBackbone) is True
     ), "Unknown backbone, see list-models tool for available options"
+    assert args.compile is False or args.compile_backbone is False
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

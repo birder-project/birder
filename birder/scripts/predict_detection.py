@@ -54,6 +54,8 @@ def predict(args: argparse.Namespace) -> None:
 
     if args.compile is True:
         net = torch.compile(net)
+    elif args.compile_backbone is True:
+        net.backbone.detection_features = torch.compile(net.backbone.detection_features)
 
     if args.parallel is True and torch.cuda.device_count() > 1:
         net = torch.nn.DataParallel(net)
@@ -176,6 +178,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pts", default=False, action="store_true", help="load torchscript network")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
+        "--compile-backbone", default=False, action="store_true", help="enable backbone only compilation"
+    )
+    parser.add_argument(
         "--amp", default=False, action="store_true", help="use torch.amp.autocast for mixed precision inference"
     )
     parser.add_argument(
@@ -198,6 +203,7 @@ def validate_args(args: argparse.Namespace) -> None:
     assert args.backbone is not None
     assert args.parallel is False or (args.parallel is True and args.gpu is True)
     assert args.parallel is False or args.compile is False
+    assert args.compile is False or args.compile_backbone is False
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

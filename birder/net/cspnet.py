@@ -5,7 +5,7 @@ https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/cspnet
 Paper "CSPNet: A New Backbone that can Enhance Learning Capability of CNN", https://arxiv.org/abs/1911.11929
 
 Changes from original:
-* No partial shortcut (same as TIMM implementation)
+* No partial shortcut (same as the TIMM implementation)
 """
 
 # Reference license: Apache-2.0

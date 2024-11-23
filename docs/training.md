@@ -39,6 +39,7 @@ On fine-tuning phase
 * [ConvNeXt v1](#convnext-v1)
 * [ConvNeXt v2](#convnext-v2)
 * [CrossViT](#crossvit)
+* [CSPNet](#cspnet)
 * [CSWin Transformer](#cswin-transformer)
 * [Darknet](#darknet)
 * [DaViT](#davit)
@@ -58,6 +59,7 @@ On fine-tuning phase
 * [GhostNet v1](#ghostnet-v1)
 * [GhostNet v2](#ghostnet-v2)
 * [Hiera](#hiera)
+* [HieraDet](#hieradet)
 * [InceptionNeXt](#inceptionnext)
 * [Inception-ResNet v2](#inception-resnet-v2)
 * [Inception v3](#inception-v3)
@@ -78,6 +80,7 @@ On fine-tuning phase
 * [MogaNet](#moganet)
 * [Next-ViT](#next-vit)
 * [NFNet](#nfnet)
+* [PiT](#pit)
 * [PVT v1](#pvt-v1)
 * [PVT v2](#pvt-v2)
 * [RDNet](#rdnet)
@@ -292,6 +295,38 @@ torchrun --nproc_per_node=2 train.py --network crossvit_15d --opt adamw --lr 0.0
 ```sh
 torchrun --nproc_per_node=2 train.py --network crossvit_18 --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 30 --epochs 300 --size 384 --wd 0.05 --norm-wd 0 --grad-accum-steps 16 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
+
+### CSPNet
+
+#### CSPNet: CSP ResNet 50
+
+```sh
+torchrun --nproc_per_node=2 train.py --network csp_resnet_50 --lr 0.1 --lr-scheduler polynomial --lr-power 4 --batch-size 128 --epochs 90 --size 256 --wd 0.0005 --smoothing-alpha 0.1 --aug-level 3 --fast-matmul --compile
+```
+
+#### CSPNet: CSP ResNeXt 50
+
+```sh
+torchrun --nproc_per_node=2 train.py --network csp_resnext_50 --lr 0.1 --lr-scheduler polynomial --lr-power 4 --batch-size 128 --epochs 90 --size 256 --wd 0.0005 --smoothing-alpha 0.1 --aug-level 3 --fast-matmul --compile
+```
+
+#### CSPNet: CSP Darknet 53
+
+```sh
+torchrun --nproc_per_node=2 train.py --network csp_darknet_53 --lr 0.1 --lr-scheduler polynomial --lr-power 4 --batch-size 128 --epochs 90 --size 256 --wd 0.0005 --smoothing-alpha 0.1 --aug-level 3 --fast-matmul --compile
+```
+
+#### CSPNet: CSP SE ResNet 50
+
+Same as non SE version
+
+#### CSPNet: CSP SE ResNeXt 50
+
+Same as non SE version
+
+#### CSPNet: CSP SE Darknet 53
+
+Same as non SE version
 
 ### CSWin Transformer
 
@@ -709,6 +744,10 @@ torchrun --nproc_per_node=2 train.py --network hiera_tiny --opt adamw --lr 0.001
 torchrun --nproc_per_node=2 train.py --network hiera_abswin_small --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
+### HieraDet
+
+Same as Hiera
+
 ### InceptionNeXt
 
 #### InceptionNeXt: Small
@@ -1087,6 +1126,32 @@ At epoch 250 increase resolution
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network nfnet_f0 --nesterov --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 5 --batch-size 128 --epochs 360 --size 384 --wd 0.00002 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile --resume-epoch 250 --load-states
+```
+
+### PiT
+
+#### PiT: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pit_t --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --model-ema --clip-grad-norm 1 --fast-matmul --compile
+```
+
+#### PiT: Extra Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pit_xs --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --fast-matmul --compile
+```
+
+#### PiT: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pit_s --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile
+```
+
+#### PiT: Base
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pit_b --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 ### PVT v1

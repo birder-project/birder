@@ -206,6 +206,7 @@ def train(args: argparse.Namespace) -> None:
         args.lr_cosine_min,
         args.lr_step_size,
         args.lr_step_gamma,
+        args.lr_power,
     )
 
     # Gradient scaler and AMP related tasks
@@ -664,6 +665,12 @@ def get_args_parser() -> argparse.ArgumentParser:
         type=float,
         default=0.000001,
         help="minimum learning rate (for cosine annealing scheduler only)",
+    )
+    parser.add_argument(
+        "--lr-power",
+        type=float,
+        default=1.0,
+        help="power of the polynomial (for polynomial scheduler only)",
     )
     parser.add_argument(
         "--grad-accum-steps", type=int, default=1, metavar="N", help="number of steps to accumulate gradients"

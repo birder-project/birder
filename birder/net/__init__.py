@@ -24,6 +24,7 @@ from birder.net.focalnet import FocalNet
 from birder.net.ghostnet_v1 import GhostNet_v1
 from birder.net.ghostnet_v2 import GhostNet_v2
 from birder.net.hiera import Hiera
+from birder.net.hieradet import HieraDet
 from birder.net.inception_next import Inception_NeXt
 from birder.net.inception_resnet_v2 import Inception_ResNet_v2
 from birder.net.inception_v3 import Inception_v3
@@ -44,6 +45,7 @@ from birder.net.mobilevit_v2 import MobileViT_v2
 from birder.net.moganet import MogaNet
 from birder.net.nextvit import NextViT
 from birder.net.nfnet import NFNet
+from birder.net.pit import PiT
 from birder.net.pvt_v1 import PVT_v1
 from birder.net.pvt_v2 import PVT_v2
 from birder.net.rdnet import RDNet
@@ -102,6 +104,7 @@ __all__ = [
     "GhostNet_v1",
     "GhostNet_v2",
     "Hiera",
+    "HieraDet",
     "Inception_NeXt",
     "Inception_ResNet_v2",
     "Inception_v3",
@@ -122,6 +125,7 @@ __all__ = [
     "MogaNet",
     "NextViT",
     "NFNet",
+    "PiT",
     "PVT_v1",
     "PVT_v2",
     "RDNet",

@@ -18,7 +18,7 @@ import torch.utils.data.distributed
 from torchvision.ops import FrozenBatchNorm2d
 
 OptimizerType = Literal["sgd", "rmsprop", "adamw"]
-SchedulerType = Literal["constant", "step", "cosine"]
+SchedulerType = Literal["constant", "step", "cosine", "polynomial"]
 
 
 class RASampler(torch.utils.data.Sampler):
@@ -346,6 +346,7 @@ def get_scheduler(
     lr_cosine_min: float,
     lr_step_size: int,
     lr_step_gamma: float,
+    lr_power: float,
 ) -> torch.optim.lr_scheduler.LRScheduler:
     # Warmup epochs is given in absolute number from 0
     remaining_warmup = max(0, warmup_epochs - begin_epoch)
@@ -356,6 +357,10 @@ def get_scheduler(
     elif lr_scheduler == "cosine":
         main_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=(epochs - begin_epoch - remaining_warmup), eta_min=lr_cosine_min
+        )
+    elif lr_scheduler == "polynomial":
+        main_scheduler = torch.optim.lr_scheduler.PolynomialLR(
+            optimizer, total_iters=(epochs - begin_epoch - remaining_warmup) + 1, power=lr_power
         )
     else:
         raise ValueError("Unknown learning rate scheduler")
