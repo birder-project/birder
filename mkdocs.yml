@@ -27,3 +27,6 @@ extra:
   social:
     - icon: fontawesome/brands/gitlab
       link: https://gitlab.com/birder/birder
+
+markdown_extensions:
+  - footnotes

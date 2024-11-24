@@ -91,5 +91,3 @@ Get started with Birder by classifying a single image, visualizing the results a
     This command generates a saliency map highlighting the pixels in the input image that most significantly influenced the model's classification decision.
 
     [^1]: [Jost Tobias Springenberg, Alexey Dosovitskiy, Thomas Brox, Martin Riedmiller. (2014). *Striving for Simplicity: The All Convolutional Net*. arXiv:1412.6806](https://arxiv.org/abs/1412.6806)
-
-### Camera Trap Analysis

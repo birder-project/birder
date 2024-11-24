@@ -1133,19 +1133,19 @@ torchrun --nproc_per_node=2 train.py --network nfnet_f0 --nesterov --lr 0.1 --lr
 #### PiT: Tiny
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network pit_t --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --model-ema --clip-grad-norm 1 --fast-matmul --compile
+torchrun --nproc_per_node=2 train.py --network pit_t --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --model-ema --clip-grad-norm 1 --fast-matmul
 ```
 
 #### PiT: Extra Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network pit_xs --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --fast-matmul --compile
+torchrun --nproc_per_node=2 train.py --network pit_xs --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --fast-matmul
 ```
 
 #### PiT: Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network pit_s --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network pit_s --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --amp
 ```
 
 #### PiT: Base
