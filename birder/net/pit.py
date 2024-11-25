@@ -310,3 +310,18 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
+
+registry.register_weights(
+    "pit_t_il-common",
+    {
+        "description": "PiT tiny model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 18.4,
+                "sha256": "8a1d98a2b7388e1efa14bbee89fc182b588a35d239544de521769c2d850ee5fe",
+            }
+        },
+        "net": {"network": "pit_t", "tag": "il-common"},
+    },
+)

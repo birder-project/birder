@@ -8,8 +8,8 @@ all-test-job:
     - saas-linux-medium-amd64
   stage: test
   image: python:3.10
-  only:
-    - tags
+  rules:
+    - if: $CI_COMMIT_TAG
   variables:
     NETWORK_TESTS: 1
   script:
@@ -21,8 +21,8 @@ all-test-job:
 build-job:
   stage: build
   image: python:3.10
-  only:
-    - tags
+  rules:
+    - if: $CI_COMMIT_TAG
   script:
     - pip install --upgrade pip wheel build twine
     - python -m build
@@ -41,8 +41,8 @@ publish:
     PYPI_ID_TOKEN:
       # Use "testpypi" if uploading to TestPyPI
       aud: pypi
-  only:
-    - tags
+  rules:
+    - if: $CI_COMMIT_TAG
   script:
     # Install dependencies
     - apt update && apt install -y jq
@@ -59,8 +59,10 @@ publish:
 pages:
   stage: deploy
   image: python:3.10
-  only:
-    - tags
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
   script:
     - pip install -r requirements/requirements-dev.txt
     - mkdocs build --strict --verbose

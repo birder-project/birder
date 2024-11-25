@@ -452,7 +452,7 @@ def train(args: argparse.Namespace) -> None:
             # Exponential moving average
             if args.model_ema is True and i % args.model_ema_steps == 0:
                 model_ema.update_parameters(student)
-                if epoch < args.warmup_epochs:
+                if epoch <= args.warmup_epochs:
                     # Reset ema buffer to keep copying weights during warmup period
                     model_ema.n_averaged.fill_(0)  # pylint: disable=no-member
 

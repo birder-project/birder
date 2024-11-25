@@ -1,8 +1,5 @@
 # Reference Detection Training Procedure
 
-Training script and procedures adapted from PyTorch vision reference
-<https://github.com/pytorch/vision/blob/main/references/detection>
-
 ## Object Detection
 
 ### Deformable DETR

@@ -48,14 +48,14 @@ Consider these factors when selecting a model:
 
 1. **Geographical Relevance**: Choose models with tags matching your region for best accuracy
 2. **Computational Resources**:
-   * For mobile/edge devices: Consider `quantized` models
-   * For server deployment: Full models may provide better accuracy
+    * For mobile/edge devices: Consider `quantized` models
+    * For server deployment: Full models may provide better accuracy
 3. **Task Requirements**:
-   * Single bird identification: Use classification models
-   * Multiple birds per image: Choose detection models
+    * Single bird identification: Use classification models
+    * Multiple birds per image: Choose detection models
 4. **Dataset Size**:
-   * Small datasets: Consider `mim` or `intermediate` models for better generalization
-   * Large datasets: Any model type suitable
+    * Small datasets: Consider `mim` or `intermediate` models for better generalization
+    * Large datasets: Any model type suitable
 
 ## Example Usage
 

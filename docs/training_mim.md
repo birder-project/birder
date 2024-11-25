@@ -1,9 +1,6 @@
 # Reference Pre-training Procedure
 
-Training script and procedures adapted from PyTorch vision reference
-<https://github.com/pytorch/vision/tree/main/references/classification>
-
-Set `OMP_NUM_THREADS`.
+Before running any training scripts, set the `OMP_NUM_THREADS` environment variable appropriately for your system.
 
 ## Image Pre-training
 

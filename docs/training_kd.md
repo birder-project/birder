@@ -1,5 +1,7 @@
 # Reference Knowledge Distillation Procedure
 
+Before running any training scripts, set the `OMP_NUM_THREADS` environment variable appropriately for your system.
+
 ## Knowledge Distillation
 
 ### MobileNet v4

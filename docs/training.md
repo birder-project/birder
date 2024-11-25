@@ -1,7 +1,5 @@
 # Reference Training Procedure
 
-The classification training script and procedures are adapted from PyTorch vision reference files at <https://github.com/pytorch/vision/tree/main/references/classification>
-
 Before running any training scripts, set the `OMP_NUM_THREADS` environment variable appropriately for your system.
 
 ## Table of Contents
