@@ -3,6 +3,9 @@ Pyramid Vision Transformer v2, adapted from
 https://github.com/whai362/PVT/blob/v2/classification/pvt_v2.py
 
 Paper "PVT v2: Improved Baselines with Pyramid Vision Transformer", https://arxiv.org/abs/2106.13797
+
+Changes from original:
+* Add linear version to more models
 """
 
 # Reference license: Apache-2.0
@@ -351,6 +354,17 @@ class PVT_v2(DetectorBackbone):
 
 
 registry.register_alias(
+    "pvt_v2_b0_li",
+    PVT_v2,
+    config={
+        "depths": [2, 2, 2, 2],
+        "embed_dims": [32, 64, 160, 256],
+        "mlp_ratios": [8.0, 8.0, 4.0, 4.0],
+        "linear": True,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
     "pvt_v2_b0",
     PVT_v2,
     config={
@@ -358,6 +372,17 @@ registry.register_alias(
         "embed_dims": [32, 64, 160, 256],
         "mlp_ratios": [8.0, 8.0, 4.0, 4.0],
         "linear": False,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "pvt_v2_b1_li",
+    PVT_v2,
+    config={
+        "depths": [2, 2, 2, 2],
+        "embed_dims": [64, 128, 320, 512],
+        "mlp_ratios": [8.0, 8.0, 4.0, 4.0],
+        "linear": True,
         "drop_path_rate": 0.1,
     },
 )
@@ -395,6 +420,17 @@ registry.register_alias(
     },
 )
 registry.register_alias(
+    "pvt_v2_b3_li",
+    PVT_v2,
+    config={
+        "depths": [3, 4, 18, 3],
+        "embed_dims": [64, 128, 320, 512],
+        "mlp_ratios": [8.0, 8.0, 4.0, 4.0],
+        "linear": True,
+        "drop_path_rate": 0.3,
+    },
+)
+registry.register_alias(
     "pvt_v2_b3",
     PVT_v2,
     config={
@@ -428,6 +464,20 @@ registry.register_alias(
     },
 )
 
+registry.register_weights(
+    "pvt_v2_b0_li_il-common",
+    {
+        "description": "PVT v2 B0 linear model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 12.4,
+                "sha256": "2c2e61844afc64b2efb3f0179f87029e4e418945ca9fae7b705b7d3287c36344",
+            }
+        },
+        "net": {"network": "pvt_v2_b0_li", "tag": "il-common"},
+    },
+)
 registry.register_weights(
     "pvt_v2_b0_il-common",
     {

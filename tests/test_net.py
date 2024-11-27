@@ -55,6 +55,8 @@ class TestNet(unittest.TestCase):
         [
             ("alexnet"),
             ("cait_xxs24"),
+            ("coat_tiny"),
+            ("coat_lite_tiny"),
             ("convmixer_768_32"),
             ("convnext_v1_tiny"),
             ("convnext_v2_atto"),
@@ -74,6 +76,7 @@ class TestNet(unittest.TestCase):
             ("edgevit_xxs"),
             ("efficientformer_v1_l1"),
             ("efficientformer_v2_s0"),
+            ("efficientnet_lite0"),
             ("efficientnet_v1_b0"),
             ("efficientnet_v2_s"),
             ("fasternet_t0"),
@@ -193,6 +196,8 @@ class TestNet(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[misc]
         [
+            ("coat_tiny"),
+            ("coat_lite_tiny"),
             ("convnext_v1_tiny"),
             ("convnext_v2_tiny"),
             ("csp_resnet_50"),
@@ -206,6 +211,7 @@ class TestNet(unittest.TestCase):
             ("edgenext_xxs"),
             ("edgevit_xxs"),
             ("efficientformer_v2_s0"),
+            ("efficientnet_lite0"),
             ("efficientnet_v1_b0"),
             ("efficientnet_v2_s"),
             ("fasternet_t0"),
@@ -260,10 +266,15 @@ class TestNet(unittest.TestCase):
             ("vit_sam_b16"),
             ("wide_resnet_50"),
             ("xception"),
+            ("xcit_nano12_p16", None, 1, True),
         ]
     )
     def test_detection_backbone(
-        self, network_name: str, net_param: Optional[float] = None, batch_size: int = 1
+        self,
+        network_name: str,
+        net_param: Optional[float] = None,
+        batch_size: int = 1,
+        allow_equal_stages: bool = False,
     ) -> None:
         n = registry.net_factory(network_name, 3, 100, net_param=net_param)
         size = n.default_size
@@ -277,8 +288,13 @@ class TestNet(unittest.TestCase):
         prev_h = 0
         prev_w = 0
         for i, stage_name in enumerate(n.return_stages[::-1]):
-            self.assertLess(prev_h, out[stage_name].shape[2])
-            self.assertLess(prev_w, out[stage_name].shape[3])
+            if allow_equal_stages is True:
+                self.assertLessEqual(prev_h, out[stage_name].shape[2])
+                self.assertLessEqual(prev_w, out[stage_name].shape[3])
+            else:
+                self.assertLess(prev_h, out[stage_name].shape[2])
+                self.assertLess(prev_w, out[stage_name].shape[3])
+
             prev_h = out[stage_name].shape[2]
             prev_w = out[stage_name].shape[3]
 

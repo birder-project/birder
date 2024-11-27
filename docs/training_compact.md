@@ -2,6 +2,20 @@
 
 ## Compact Madness
 
+### CoaT
+
+#### CoaT: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network coat_tiny --tag il-common --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+#### CoaT: Lite Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network coat_lite_tiny --tag il-common --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### ConvNeXt v2
 
 #### ConvNeXt v2: Atto
@@ -293,6 +307,12 @@ torchrun --nproc_per_node=2 train.py --network pit_t --tag il-common --opt adamw
 ```
 
 ### PVT v2
+
+#### PVT v2: B0 Linear
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pvt_v2_b0_li --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
 
 #### PVT v2: B0
 

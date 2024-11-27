@@ -3,11 +3,15 @@ XCiT, adapted from
 https://github.com/facebookresearch/xcit/blob/main/xcit.py
 
 "XCiT: Cross-Covariance Image Transformers", https://arxiv.org/abs/2106.09681
+
+Changes from original:
+* No FPN layers (detection version of XCiT)
 """
 
 # Reference license: Apache-2.0
 
 import math
+from collections import OrderedDict
 from typing import Any
 from typing import Literal
 from typing import Optional
@@ -20,8 +24,16 @@ from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 from birder.net.cait import ClassAttention
+
+
+class SequentialWithSize(nn.Sequential):
+    def forward(self, x: torch.Tensor, H: int, W: int) -> torch.Tensor:  # pylint: disable=arguments-differ
+        for module in self:
+            x = module(x, H, W)
+
+        return x
 
 
 class PositionalEncodingFourier(nn.Module):
@@ -262,9 +274,9 @@ class XCABlock(nn.Module):
         return x
 
 
-class XCiT(BaseNet):
+class XCiT(DetectorBackbone):
     default_size = 224
-    block_group_regex = r"block1\.(\d+)"  # ClassAttentionBlock combined with the head
+    block_group_regex = r"block1\.stage\d+\.(\d+)"  # ClassAttentionBlock combined with the head
 
     def __init__(
         self,
@@ -290,13 +302,22 @@ class XCiT(BaseNet):
         eta: float = self.config["eta"]
         drop_path_rate: float = self.config["drop_path_rate"]
 
+        if depth == 12:
+            out_indices = [3, 5, 7, 11]
+        elif depth == 24:
+            out_indices = [7, 11, 15, 23]
+        else:
+            raise ValueError(f"depth={depth} is not supported")
+
         self.patch_embed = ConvPatchEmbed(patch_size, self.input_channels, dim=embed_dim)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # Stochastic depth decay rule
 
-        self.block1 = nn.ModuleList()
+        cur_stage = 0
+        block1: OrderedDict[str, nn.Module] = OrderedDict()
+        layers = []
         for i in range(depth):
-            self.block1.append(
+            layers.append(
                 XCABlock(
                     dim=embed_dim,
                     num_heads=num_heads,
@@ -307,6 +328,12 @@ class XCiT(BaseNet):
                     eta=eta,
                 )
             )
+            if i in out_indices:
+                block1[f"stage{cur_stage+1}"] = SequentialWithSize(*layers)
+                layers = []
+                cur_stage += 1
+
+        self.block1 = SequentialWithSize(block1)
 
         layers2 = []
         for _ in range(cls_attn_layers):
@@ -326,6 +353,7 @@ class XCiT(BaseNet):
         self.block2 = nn.Sequential(*layers2)
         self.pos_embed = PositionalEncodingFourier(hidden_dim=32, dim=embed_dim)
 
+        self.return_channels = [embed_dim] * len(out_indices)
         self.embedding_size = embed_dim
         self.classifier = self.create_classifier()
 
@@ -333,13 +361,43 @@ class XCiT(BaseNet):
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
-
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
 
             elif isinstance(m, nn.LayerNorm):
                 nn.init.constant_(m.bias, 0)
                 nn.init.constant_(m.weight, 1.0)
+
+    def transform_to_backbone(self) -> None:
+        self.block2 = nn.Identity()
+        self.classifier = nn.Identity()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        B = x.shape[0]
+
+        (x, H, W) = self.patch_embed(x)
+
+        pos_encoding = self.pos_embed(B, H, W).reshape(B, -1, x.shape[1]).permute(0, 2, 1)
+        x = x + pos_encoding
+
+        out = {}
+        for name, module in self.block1.named_children():
+            x = module(x, H, W)
+            if name in self.return_stages:
+                out[name] = x.permute(0, 2, 1).reshape(B, -1, H, W)
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.patch_embed.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.block1.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         B = x.shape[0]
@@ -348,9 +406,7 @@ class XCiT(BaseNet):
 
         pos_encoding = self.pos_embed(B, H, W).reshape(B, -1, x.shape[1]).permute(0, 2, 1)
         x = x + pos_encoding
-
-        for blk in self.block1:
-            x = blk(x, H, W)
+        x = self.block1(x, H, W)
 
         cls_tokens = self.cls_token.expand(B, -1, -1)
         x = torch.concat((cls_tokens, x), dim=1)
@@ -438,7 +494,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 11.5,
-                "sha256": "624aac6ffc5024f2138f10d1f5bff8575e19ed683f85bd1623ac39484d0f242a",
+                "sha256": "f0b1d9b6a39f816b235795155a9afd3fa344ba95bb083d7509d5f4e4d93dde3c",
             },
         },
         "net": {"network": "xcit_nano12_p16", "tag": "il-common"},
@@ -452,7 +508,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 11.5,
-                "sha256": "fcd67b884999a3c6135d995706256382c8d2f966ef1bce22911abc56160a95c1",
+                "sha256": "fe14249630e41102ad3059ffa1afe581d659603979f1bab0a1a32cbdb95d3b83",
             },
         },
         "net": {"network": "xcit_nano12_p8", "tag": "il-common"},

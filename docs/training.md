@@ -33,6 +33,7 @@ On fine-tuning phase
 
 * [AlexNet](#alexnet)
 * [CaiT](#cait)
+* [CoaT](#coat)
 * [ConvMixer](#convmixer)
 * [ConvNeXt v1](#convnext-v1)
 * [ConvNeXt v2](#convnext-v2)
@@ -49,6 +50,7 @@ On fine-tuning phase
 * [EdgeViT](#edgevit)
 * [EfficientFormer v1](#efficientformer-v1)
 * [EfficientFormer v2](#efficientformer-v2)
+* [EfficientNet Lite](#efficientnet-lite)
 * [EfficientNet v1](#efficientnet-v1)
 * [EfficientNet v2](#efficientnet-v2)
 * [FasterNet](#fasternet)
@@ -122,6 +124,50 @@ torchrun --nproc_per_node=2 train.py --network alexnet --lr 0.01 --batch-size 12
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network cait_s24 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+### CoaT
+
+#### CoaT: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network coat_tiny --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile
+```
+
+#### CoaT: Mini
+
+```sh
+torchrun --nproc_per_node=2 train.py --network coat_mini --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile
+```
+
+#### CoaT: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network coat_small --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 32 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+```
+
+#### CoaT: Lite Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network coat_lite_tiny --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --fast-matmul --compile
+```
+
+#### CoaT: Lite Mini
+
+```sh
+torchrun --nproc_per_node=2 train.py --network coat_lite_mini --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile
+```
+
+#### CoaT: Lite Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network coat_lite_small --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile
+```
+
+#### CoaT: Lite Medium
+
+```sh
+torchrun --nproc_per_node=2 train.py --network coat_lite_medium --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 32 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
 ```
 
 ### ConvMixer
@@ -502,6 +548,14 @@ Must increase resolution gradually due to the nature of the down-sampling layers
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network efficientformer_v2_s1 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 288 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+### EfficientNet Lite
+
+#### EfficientNet Lite: 0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientnet_lite0 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 10 --batch-size 256 --epochs 300 --size 256 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile
 ```
 
 ### EfficientNet v1
@@ -1196,6 +1250,12 @@ torchrun --nproc_per_node=2 train.py --network pvt_v2_b1 --opt adamw --lr 0.001 
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network pvt_v2_b2_li --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+At epoch 200 increase resolution
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pvt_v2_b2_li --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 20 --epochs 300 --size 384 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 200 --load-states
 ```
 
 #### PVT v2: B2
