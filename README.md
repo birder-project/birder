@@ -67,7 +67,7 @@ wget https://f000.backblazeb2.com/file/birder/data/img_001.jpeg -O data/img_001.
 To classify bird images, use the `birder-predict` script as follows:
 
 ```sh
-birder-predict -n mobilenet_v3_large -t il-common -p 1 --show data/bird.jpeg
+birder-predict -n mobilenet_v3_large -t il-common -p 1 --show data/img_001.jpeg
 ```
 
 For more options and detailed usage of the prediction tool, run:
