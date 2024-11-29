@@ -35,7 +35,7 @@ def inference_preset(
     )
 
 
-class BirdClassifier(BaseHandler):
+class ImageClassifier(BaseHandler):
     def __init__(self) -> None:
         super().__init__()
         self.model_yaml_config: dict[str, Any] = {}
@@ -93,8 +93,8 @@ class BirdClassifier(BaseHandler):
         signature = json.loads(extra_files["signature"])
         rgb_stats = json.loads(extra_files["rgb_stats"])
 
-        size = signature["inputs"][0]["data_shape"][2]
-        transforms = inference_preset((size, size), rgb_stats, 1.0)
+        size = signature["inputs"][0]["data_shape"][2:4]
+        transforms = inference_preset(size, rgb_stats, 1.0)
 
         idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
 

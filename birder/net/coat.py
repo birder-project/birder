@@ -689,3 +689,32 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
+
+registry.register_weights(
+    "coat_tiny_il-common",
+    {
+        "description": "CoaT tiny model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 20.8,
+                "sha256": "d6bef0c932233a48d297855e04ca421484672e4c684581c486d3cb7b2fcd0003",
+            }
+        },
+        "net": {"network": "coat_tiny", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "coat_lite_tiny_il-common",
+    {
+        "description": "CoaT lite tiny model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 21.1,
+                "sha256": "275edeeccaa74547056a9a3ee09dd36b17c7c97e453030b6f62b18dd02107bf1",
+            }
+        },
+        "net": {"network": "coat_lite_tiny", "tag": "il-common"},
+    },
+)

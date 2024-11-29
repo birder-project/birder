@@ -148,6 +148,8 @@
     "msecs",
     "multiclass",
     "multihead",
+    "multiscale",
+    "mvit",
     "nccl",
     "ncols",
     "ndarray",

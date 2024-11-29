@@ -78,6 +78,7 @@ On fine-tuning phase
 * [MobileViT v1](#mobilevit-v1)
 * [MobileViT v2](#mobilevit-v2)
 * [MogaNet](#moganet)
+* [MViT v2](#mvit-v2)
 * [Next-ViT](#next-vit)
 * [NFNet](#nfnet)
 * [PiT](#pit)
@@ -555,7 +556,7 @@ torchrun --nproc_per_node=2 train.py --network efficientformer_v2_s1 --opt adamw
 #### EfficientNet Lite: 0
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_lite0 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 10 --batch-size 256 --epochs 300 --size 256 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile
+torchrun --nproc_per_node=2 train.py --network efficientnet_lite0 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 10 --batch-size 256 --epochs 300 --size 256 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile --rgb-mode none
 ```
 
 ### EfficientNet v1
@@ -1132,6 +1133,50 @@ torchrun --nproc_per_node=2 train.py --network moganet_l --opt adamw --lr 0.001 
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network moganet_xl --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 5 --batch-size 64 --size 256 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+### MViT v2
+
+#### MViT v2: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mvit_v2_t --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --warmup-epochs 70 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+#### MViT v2: Base
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mvit_v2_b --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --warmup-epochs 70 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+Optional intermediate training
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mvit_v2_b --tag intermediate --opt adamw --lr 0.0000675 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --warmup-epochs 20 --epochs 90 --size 256 --wd 0.01 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+```
+
+Optional intermediate training: linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mvit_v2_b --tag intermediate --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --wd 0.01 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --fast-matmul --compile --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
+```
+
+Optional intermediate training: fine-tuning
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mvit_v2_b --opt adamw --lr 0.00007 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --warmup-epochs 70 --epochs 40 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --resume-epoch 10
+```
+
+#### MViT v2: Large
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mvit_v2_l --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --warmup-epochs 70 --epochs 300 --size 256 --wd 0.1 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+#### MViT v2: Base w/cls token
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mvit_v2_b_cls --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --warmup-epochs 70 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 ### Next-ViT

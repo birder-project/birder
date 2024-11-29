@@ -362,10 +362,10 @@ class XCiT(DetectorBackbone):
             if isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
+                    nn.init.zeros_(m.bias)
 
             elif isinstance(m, nn.LayerNorm):
-                nn.init.constant_(m.bias, 0)
+                nn.init.zeros_(m.bias)
                 nn.init.constant_(m.weight, 1.0)
 
     def transform_to_backbone(self) -> None:

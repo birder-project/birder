@@ -69,7 +69,7 @@ Get started with Birder by classifying a single image, visualizing the results a
 
 1. **Download a Pre-trained Model**
 
-        python -m birder.tools fetch-model efficientnet_v2_s
+        python -m birder.tools fetch-model efficientnet_v2_s_il-common
 
 1. **Download a Sample Image**
 
@@ -80,13 +80,13 @@ Get started with Birder by classifying a single image, visualizing the results a
 
 1. **Classify the Image**
 
-        birder-predict -n efficientnet_v2_s --show data/img_001.jpeg
+        birder-predict -n efficientnet_v2_s -t il-common --show data/img_001.jpeg
 
 1. **Explore Model Decision-Making with Introspection**
 
     To gain insight into the model's decision-making process, we'll use Guided Backpropagation [^1], a technique that visualizes the input features most influential to the classification:
 
-        python -m birder.tool introspection --method guided-backprop --network efficientnet_v2_s --image data/img_001.jpeg
+        python -m birder.tool introspection --method guided-backprop --network efficientnet_v2_s -t il-common --image data/img_001.jpeg
 
     This command generates a saliency map highlighting the pixels in the input image that most significantly influenced the model's classification decision.
 

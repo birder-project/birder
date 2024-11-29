@@ -1,7 +1,7 @@
 -r requirements.txt
 
 altair~=5.5.0
-bandit~=1.7.10
+bandit~=1.8.0
 black~=24.10.0
 build~=1.2.2
 bumpver~=2024.1130

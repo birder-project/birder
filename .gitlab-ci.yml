@@ -2,6 +2,7 @@ stages:
   - test
   - build
   - deploy
+  - release
 
 all-test-job:
   tags:
@@ -70,3 +71,14 @@ pages:
     paths:
       - public
   environment: production
+
+release-job:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - echo "Running release-job"
+  release:
+    tag_name: "$CI_COMMIT_TAG"
+    description: "$CI_COMMIT_TAG"
