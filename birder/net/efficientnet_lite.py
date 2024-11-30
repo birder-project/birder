@@ -288,3 +288,18 @@ registry.register_alias(
     EfficientNet_Lite,
     config={"width_coefficient": 1.4, "depth_coefficient": 1.8, "dropout_rate": 0.4},
 )
+
+registry.register_weights(
+    "efficientnet_lite0_il-common",
+    {
+        "description": "EfficientNet lite0 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 15.0,
+                "sha256": "e37102c47b4f3feb0fdf991efff3ada6c7b830cf66dc685d371eaf7ecb75d34c",
+            }
+        },
+        "net": {"network": "efficientnet_lite0", "tag": "il-common"},
+    },
+)

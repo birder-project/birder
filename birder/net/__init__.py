@@ -20,6 +20,7 @@ from birder.net.efficientformer_v2 import EfficientFormer_v2
 from birder.net.efficientnet_lite import EfficientNet_Lite
 from birder.net.efficientnet_v1 import EfficientNet_v1
 from birder.net.efficientnet_v2 import EfficientNet_v2
+from birder.net.efficientvit_msft import EfficientViT_MSFT
 from birder.net.fasternet import FasterNet
 from birder.net.fastvit import FastViT
 from birder.net.focalnet import FocalNet
@@ -57,8 +58,10 @@ from birder.net.repghost import RepGhost
 from birder.net.repvgg import RepVgg
 from birder.net.resmlp import ResMLP
 from birder.net.resnest import ResNeSt
+from birder.net.resnet_v1 import ResNet_v1
 from birder.net.resnet_v2 import ResNet_v2
 from birder.net.resnext import ResNeXt
+from birder.net.se_resnet_v1 import SE_ResNet_v1
 from birder.net.se_resnet_v2 import SE_ResNet_v2
 from birder.net.se_resnext import SE_ResNeXt
 from birder.net.sequencer2d import Sequencer2d
@@ -71,6 +74,7 @@ from birder.net.swin_transformer_v1 import Swin_Transformer_v1
 from birder.net.swin_transformer_v2 import Swin_Transformer_v2
 from birder.net.tiny_vit import Tiny_ViT
 from birder.net.uniformer import UniFormer
+from birder.net.van import VAN
 from birder.net.vgg import Vgg
 from birder.net.vgg_reduced import Vgg_Reduced
 from birder.net.vit import ViT
@@ -103,6 +107,7 @@ __all__ = [
     "EfficientNet_Lite",
     "EfficientNet_v1",
     "EfficientNet_v2",
+    "EfficientViT_MSFT",
     "FasterNet",
     "FastViT",
     "FocalNet",
@@ -140,8 +145,10 @@ __all__ = [
     "RepVgg",
     "ResMLP",
     "ResNeSt",
+    "ResNet_v1",
     "ResNet_v2",
     "ResNeXt",
+    "SE_ResNet_v1",
     "SE_ResNet_v2",
     "SE_ResNeXt",
     "Sequencer2d",
@@ -154,6 +161,7 @@ __all__ = [
     "Swin_Transformer_v2",
     "Tiny_ViT",
     "UniFormer",
+    "VAN",
     "Vgg",
     "Vgg_Reduced",
     "ViT",

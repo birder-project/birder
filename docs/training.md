@@ -53,6 +53,7 @@ On fine-tuning phase
 * [EfficientNet Lite](#efficientnet-lite)
 * [EfficientNet v1](#efficientnet-v1)
 * [EfficientNet v2](#efficientnet-v2)
+* [EfficientViT MSFT](#efficientvit-msft)
 * [FasterNet](#fasternet)
 * [FastViT](#fastvit)
 * [FocalNet](#focalnet)
@@ -90,8 +91,10 @@ On fine-tuning phase
 * [RepVgg](#repvgg)
 * [ResMLP](#resmlp)
 * [ResNeSt](#resnest)
+* [ResNet v1](#resnet-v1)
 * [ResNet v2](#resnet-v2)
 * [ResNeXt](#resnext)
+* [SE ResNet v1](#se-resnet-v1)
 * [SE ResNet v2](#se-resnet-v2)
 * [SE ResNeXt](#se-resnext)
 * [Sequencer2d](#sequencer2d)
@@ -104,6 +107,7 @@ On fine-tuning phase
 * [Swin Transformer v2](#swin-transformer-v2)
 * [Tiny ViT](#tiny-vit)
 * [UniFormer](#uniformer)
+* [VAN](#van)
 * [VGG](#vgg)
 * [VGG Reduced](#vgg-reduced)
 * [ViT](#vit)
@@ -651,6 +655,14 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --tag intermedi
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_l --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 16 --epochs 300 --size 384 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+### EfficientViT MSFT
+
+#### EfficientViT MSFT: M0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientvit_msft_m0 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --fast-matmul --compile
 ```
 
 ### FasterNet
@@ -1489,13 +1501,19 @@ torchrun --nproc_per_node=2 train.py --network resnest_50 --lr 0.1 --lr-schedule
 torchrun --nproc_per_node=2 train.py --network resnest_101 --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --epochs 270 --batch-size 32 --size 256 --wd 0.0001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --amp --compile
 ```
 
+### ResNet v1
+
+#### ResNet v1: 50
+
+```sh
+torchrun --nproc_per_node=2 train.py --network resnet_v1_50 --lr-scheduler step --lr-step-size 30 --lr-step-gamma 0.1 --batch-size 256 --epochs 90 --smoothing-alpha 0.1 --aug-level 3
+```
+
 ### ResNet v2
 
 #### ResNet v2: 50
 
-```sh
-torchrun --nproc_per_node=2 train.py --network resnet_v2_50 --lr-scheduler step --lr-step-size 30 --lr-step-gamma 0.1 --batch-size 256 --epochs 90 --smoothing-alpha 0.1 --aug-level 3
-```
+Same as ResNet v1
 
 #### ResNet v2: 50, ResNet strikes back procedure
 
@@ -1522,6 +1540,10 @@ At epoch 150 increase resolution
 ```sh
 torchrun --nproc_per_node=2 train.py --network resnext_101 --lr 0.04 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 10 --batch-size 32 --epochs 200 --size 384 --wd 0.001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --resume-epoch 150 --load-states
 ```
+
+### SE ResNet v1
+
+Same as ResNet v1
 
 ### SE ResNet v2
 
@@ -1709,6 +1731,20 @@ torchrun --nproc_per_node=2 train.py --network tiny_vit_21m --opt adamw --lr 0.0
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network uniformer_s --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 64 --epochs 300 --size 320 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+### VAN
+
+#### VAN: B0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network van_b0 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+#### VAN: B1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network van_b1 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 ### VGG

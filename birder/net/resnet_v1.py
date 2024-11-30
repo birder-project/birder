@@ -1,11 +1,11 @@
 """
-ResNet v2, adapted from
-https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/resnetv2.py
+ResNet v1, adapted from
+https://github.com/pytorch/vision/blob/main/torchvision/models/resnet.py
 
-Paper "https://arxiv.org/abs/1603.05027", https://arxiv.org/abs/1603.05027
+Paper "Deep Residual Learning for Image Recognition", https://arxiv.org/abs/1512.03385
 """
 
-# Reference license: Apache-2.0
+# Reference license: BSD 3-Clause
 
 from collections import OrderedDict
 from typing import Any
@@ -27,8 +27,6 @@ class ResidualBlock(nn.Module):
         super().__init__()
         if bottle_neck is True:
             self.block1 = nn.Sequential(
-                nn.BatchNorm2d(in_channels),
-                nn.ReLU(),
                 Conv2dNormActivation(
                     in_channels,
                     out_channels // 4,
@@ -53,23 +51,24 @@ class ResidualBlock(nn.Module):
                     padding=(0, 0),
                     bias=False,
                 ),
+                nn.BatchNorm2d(out_channels),
             )
 
         else:
             self.block1 = nn.Sequential(
-                nn.BatchNorm2d(in_channels),
-                nn.ReLU(),
                 Conv2dNormActivation(
                     in_channels, out_channels, kernel_size=(3, 3), stride=stride, padding=(1, 1), bias=False
                 ),
                 nn.Conv2d(out_channels, out_channels, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
+                nn.BatchNorm2d(out_channels),
             )
 
         if in_channels == out_channels:
             self.block2 = nn.Identity()
         else:
-            self.block2 = nn.Conv2d(
-                in_channels, out_channels, kernel_size=(1, 1), stride=stride, padding=(0, 0), bias=False
+            self.block2 = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), stride=stride, padding=(0, 0), bias=False),
+                nn.BatchNorm2d(out_channels),
             )
 
         self.relu = nn.ReLU(inplace=True)
@@ -90,7 +89,7 @@ class ResidualBlock(nn.Module):
 
 
 # pylint: disable=invalid-name
-class ResNet_v2(DetectorBackbone):
+class ResNet_v1(DetectorBackbone):
     default_size = 224
 
     def __init__(
@@ -115,7 +114,7 @@ class ResNet_v2(DetectorBackbone):
         num_unit = len(units)
 
         self.stem = nn.Sequential(
-            nn.Conv2d(
+            Conv2dNormActivation(
                 self.input_channels,
                 filter_list[0],
                 kernel_size=(7, 7),
@@ -161,7 +160,6 @@ class ResNet_v2(DetectorBackbone):
 
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
-            nn.BatchNorm2d(filter_list[-1]),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
@@ -198,37 +196,37 @@ class ResNet_v2(DetectorBackbone):
 
 
 registry.register_alias(
-    "resnet_v2_18",
-    ResNet_v2,
+    "resnet_v1_18",
+    ResNet_v1,
     config={"bottle_neck": False, "filter_list": [64, 64, 128, 256, 512], "units": [2, 2, 2, 2]},
 )
 registry.register_alias(
-    "resnet_v2_34",
-    ResNet_v2,
+    "resnet_v1_34",
+    ResNet_v1,
     config={"bottle_neck": False, "filter_list": [64, 64, 128, 256, 512], "units": [3, 4, 6, 3]},
 )
 registry.register_alias(
-    "resnet_v2_50",
-    ResNet_v2,
+    "resnet_v1_50",
+    ResNet_v1,
     config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 4, 6, 3]},
 )
 registry.register_alias(
-    "resnet_v2_101",
-    ResNet_v2,
+    "resnet_v1_101",
+    ResNet_v1,
     config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 4, 23, 3]},
 )
 registry.register_alias(
-    "resnet_v2_152",
-    ResNet_v2,
+    "resnet_v1_152",
+    ResNet_v1,
     config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 8, 36, 3]},
 )
 registry.register_alias(
-    "resnet_v2_200",
-    ResNet_v2,
+    "resnet_v1_200",
+    ResNet_v1,
     config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 24, 36, 3]},
 )
 registry.register_alias(
-    "resnet_v2_269",
-    ResNet_v2,
+    "resnet_v1_269",
+    ResNet_v1,
     config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 30, 48, 8]},
 )

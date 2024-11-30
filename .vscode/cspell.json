@@ -75,6 +75,7 @@
     "efficientdet",
     "efficientformer",
     "efficientnet",
+    "efficientvit",
     "eigen",
     "einsum",
     "exiftool",
