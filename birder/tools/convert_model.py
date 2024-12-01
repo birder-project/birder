@@ -20,6 +20,13 @@ from birder.net.base import reparameterize_available
 from birder.net.detection.base import DetectionSignatureType
 from birder.transforms.classification import RGBType
 
+try:
+    import safetensors.torch
+
+    _HAS_SAFETENSORS = True
+except ImportError:
+    _HAS_SAFETENSORS = False
+
 
 def reparameterize(
     net: torch.nn.Module,
@@ -171,6 +178,7 @@ def set_parser(subparsers: Any) -> None:
     format_group.add_argument(
         "--pt2", default=False, action="store_true", help="convert to standardized model representation"
     )
+    format_group.add_argument("--st", default=False, action="store_true", help="convert to Safetensors")
     format_group.add_argument("--onnx", default=False, action="store_true", help="convert to ONNX format")
     format_group.add_argument(
         "--onnx-dynamo", default=False, action="store_true", help="convert to ONNX format using TorchDynamo"
@@ -227,7 +235,13 @@ def main(args: argparse.Namespace) -> None:
         network_name = f"{network_name}_{args.resize}px"
 
     model_path = fs_ops.model_path(
-        network_name, epoch=args.epoch, pts=args.pts, lite=args.lite, pt2=args.pt2, onnx=args.onnx or args.onnx_dynamo
+        network_name,
+        epoch=args.epoch,
+        pts=args.pts,
+        lite=args.lite,
+        pt2=args.pt2,
+        st=args.st,
+        onnx=args.onnx or args.onnx_dynamo,
     )
     if model_path.exists() is True and args.force is False and args.reparameterize is False:
         logging.warning("Converted model already exists... aborting")
@@ -274,6 +288,19 @@ def main(args: argparse.Namespace) -> None:
 
     elif args.pt2 is True:
         pt2_export(net, signature, class_to_idx, rgb_stats, device, model_path)
+
+    elif args.st is True:
+        assert _HAS_SAFETENSORS, "'pip install safetensors' to use .safetensors"
+        safetensors.torch.save_model(
+            net,
+            str(model_path),
+            {
+                "task": net.task,
+                "class_to_idx": json.dumps(class_to_idx),
+                "signature": json.dumps(signature),
+                "rgb_stats": json.dumps(rgb_stats),
+            },
+        )
 
     elif args.onnx is True or args.onnx_dynamo:
         onnx_export(net, signature, class_to_idx, rgb_stats, model_path, args.onnx_dynamo, args.trace)

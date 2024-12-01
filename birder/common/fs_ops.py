@@ -25,6 +25,14 @@ from birder.net.mim.base import MIMBaseNet
 from birder.net.mim.base import MIMSignatureType
 from birder.transforms.classification import RGBType
 
+try:
+    import safetensors
+    import safetensors.torch
+
+    _HAS_SAFETENSORS = True
+except ImportError:
+    _HAS_SAFETENSORS = False
+
 
 def write_signature(network_name: str, signature: SignatureType | DetectionSignatureType) -> None:
     signature_file = settings.MODELS_DIR.joinpath(f"{network_name}.json")
@@ -63,6 +71,7 @@ def model_path(
     pts: bool = False,
     lite: bool = False,
     pt2: bool = False,
+    st: bool = False,
     onnx: bool = False,
     states: bool = False,
 ) -> Path:
@@ -87,6 +96,9 @@ def model_path(
 
     elif pt2 is True:
         file_name = f"{file_name}.pt2"
+
+    elif st is True:
+        file_name = f"{file_name}.safetensors"
 
     elif onnx is True:
         file_name = f"{file_name}.onnx"
@@ -277,6 +289,7 @@ def load_detection_checkpoint(
     return (net, class_to_idx, optimizer_state, scheduler_state, scaler_state)
 
 
+# pylint: disable=too-many-locals
 def load_model(
     device: torch.device,
     network: str,
@@ -290,9 +303,10 @@ def load_model(
     reparameterized: bool = False,
     pts: bool = False,
     pt2: bool = False,
+    st: bool = False,
 ) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], SignatureType, RGBType]:
     network_name = get_network_name(network, net_param, tag)
-    path = model_path(network_name, epoch=epoch, quantized=quantized, pts=pts, pt2=pt2)
+    path = model_path(network_name, epoch=epoch, quantized=quantized, pts=pts, pt2=pt2, st=st)
     logging.info(f"Loading model from {path} on device {device}...")
 
     if pts is True:
@@ -312,11 +326,34 @@ def load_model(
         signature = json.loads(extra_files["signature"])
         rgb_stats = json.loads(extra_files["rgb_stats"])
 
+    elif st is True:
+        assert _HAS_SAFETENSORS, "'pip install safetensors' to use .safetensors"
+        with safetensors.safe_open(path, framework="pt", device="cpu") as f:  # type: ignore[attr-defined]
+            extra_files = f.metadata()
+
+        class_to_idx = json.loads(extra_files["class_to_idx"])
+        signature = json.loads(extra_files["signature"])
+        rgb_stats = json.loads(extra_files["rgb_stats"])
+        input_channels = lib.get_channels_from_signature(signature)
+        num_classes = lib.get_num_labels_from_signature(signature)
+        size = lib.get_size_from_signature(signature)[0]
+
+        model_state: dict[str, Any] = safetensors.torch.load_file(path, device=device.type)
+        net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
+        if reparameterized is True:
+            net.reparameterize_model()
+
+        net.load_state_dict(model_state)
+        if new_size is not None:
+            net.adjust_size(new_size)
+
+        net.to(device)
+
     else:
         model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)
         signature = model_dict["signature"]
         input_channels = lib.get_channels_from_signature(signature)
-        num_classes = signature["outputs"][0]["data_shape"][1]
+        num_classes = lib.get_num_labels_from_signature(signature)
         size = lib.get_size_from_signature(signature)[0]
 
         net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
@@ -341,6 +378,7 @@ def load_model(
     return (net, class_to_idx, signature, rgb_stats)
 
 
+# pylint: disable=too-many-locals
 def load_detection_model(
     device: torch.device,
     network: str,
@@ -355,6 +393,8 @@ def load_detection_model(
     quantized: bool = False,
     inference: bool,
     pts: bool = False,
+    pt2: bool = False,
+    st: bool = False,
 ) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], DetectionSignatureType, RGBType]:
     network_name = get_detection_network_name(
         network,
@@ -364,21 +404,53 @@ def load_detection_model(
         backbone_param=backbone_param,
         backbone_tag=backbone_tag,
     )
-    path = model_path(network_name, epoch=epoch, quantized=quantized, pts=pts)
+    path = model_path(network_name, epoch=epoch, quantized=quantized, pts=pts, pt2=pt2, st=st)
     logging.info(f"Loading model from {path} on device {device}...")
 
     if pts is True:
-        extra_files = {"class_to_idx": "", "signature": "", "rgb_stats": ""}
+        extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_stats": ""}
         net = torch.jit.load(path, map_location=device, _extra_files=extra_files)
+        net.task = extra_files["task"]
         class_to_idx: dict[str, int] = json.loads(extra_files["class_to_idx"])
         signature: DetectionSignatureType = json.loads(extra_files["signature"])
         rgb_stats: RGBType = json.loads(extra_files["rgb_stats"])
+
+    elif pt2 is True:
+        extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_stats": ""}
+        net = torch.export.load(path, extra_files=extra_files).module()
+        net.to(device)
+        net.task = extra_files["task"]
+        class_to_idx = json.loads(extra_files["class_to_idx"])
+        signature = json.loads(extra_files["signature"])
+        rgb_stats = json.loads(extra_files["rgb_stats"])
+
+    elif st is True:
+        assert _HAS_SAFETENSORS, "'pip install safetensors' to use .safetensors"
+        with safetensors.safe_open(path, framework="pt", device="cpu") as f:  # type: ignore[attr-defined]
+            extra_files = f.metadata()
+
+        class_to_idx = json.loads(extra_files["class_to_idx"])
+        signature = json.loads(extra_files["signature"])
+        rgb_stats = json.loads(extra_files["rgb_stats"])
+        input_channels = lib.get_channels_from_signature(signature)
+        num_classes = lib.get_num_labels_from_signature(signature)
+        size = lib.get_size_from_signature(signature)[0]
+
+        model_state: dict[str, Any] = safetensors.torch.load_file(path, device=device.type)
+        net_backbone = registry.net_factory(backbone, input_channels, num_classes, net_param=backbone_param, size=size)
+        net = registry.detection_net_factory(network, num_classes, net_backbone, net_param=net_param, size=size)
+
+        net.load_state_dict(model_state)
+        if new_size is not None:
+            net.adjust_size(new_size)
+
+        net.to(device)
 
     else:
         model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)
         signature = model_dict["signature"]
         input_channels = lib.get_channels_from_signature(signature)
-        num_classes = signature["num_labels"]
+        num_classes = lib.get_num_labels_from_signature(signature)
         size = lib.get_size_from_signature(signature)[0]
 
         net_backbone = registry.net_factory(backbone, input_channels, num_classes, net_param=backbone_param, size=size)

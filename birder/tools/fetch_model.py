@@ -21,14 +21,22 @@ def set_parser(subparsers: Any) -> None:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     subparser.add_argument(
-        "--format", type=str, choices=["pt", "pt2", "pts", "ptl"], default="pt", help="model serialization format"
+        "--format",
+        type=str,
+        choices=["pt", "pt2", "pts", "ptl", "safetensors"],
+        default="pt",
+        help="model serialization format",
     )
     subparser.add_argument("--force", action="store_true", help="force download even if model already exists")
-    subparser.add_argument("model_name", choices=registry.list_pretrained_models(), help="the model to download")
+    subparser.add_argument("model_name", help="the model to download")
     subparser.set_defaults(func=main)
 
 
 def main(args: argparse.Namespace) -> None:
+    assert (
+        args.model_name in registry.list_pretrained_models()
+    ), "Unknown model, see list-models tool for available options"
+
     if settings.MODELS_DIR.exists() is False:
         logging.info(f"Creating {settings.MODELS_DIR} directory...")
         settings.MODELS_DIR.mkdir(parents=True)

@@ -47,6 +47,8 @@ def predict(args: argparse.Namespace) -> None:
         quantized=args.quantized,
         inference=True,
         pts=args.pts,
+        pt2=args.pt2,
+        st=args.st,
     )
 
     if args.fast_matmul is True or args.amp is True:
@@ -176,6 +178,8 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--quantized", default=False, action="store_true", help="load quantized model")
     parser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
     parser.add_argument("--pts", default=False, action="store_true", help="load torchscript network")
+    parser.add_argument("--pt2", default=False, action="store_true", help="load standardized model")
+    parser.add_argument("--st", default=False, action="store_true", help="load Safetensors weights")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
         "--compile-backbone", default=False, action="store_true", help="enable backbone only compilation"

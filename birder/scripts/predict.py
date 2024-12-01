@@ -86,6 +86,7 @@ def predict(args: argparse.Namespace) -> None:
         reparameterized=args.reparameterized,
         pts=args.pts,
         pt2=args.pt2,
+        st=args.st,
     )
 
     if args.show_class is not None:
@@ -269,6 +270,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--pts", default=False, action="store_true", help="load torchscript network")
     parser.add_argument("--pt2", default=False, action="store_true", help="load standardized model")
+    parser.add_argument("--st", default=False, action="store_true", help="load Safetensors weights")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
         "--amp", default=False, action="store_true", help="use torch.amp.autocast for mixed precision inference"
