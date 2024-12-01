@@ -389,6 +389,15 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
         warn=True,
     )
 
+    # Compiled CUDA with AMP
+    ctx.run(
+        f"python benchmark.py --filter '{fn}' --bench-iter 100 --batch-size 512 "
+        f"--compile --gpu --gpu-id {gpu_id} --amp --suffix {suffix} --append",
+        echo=True,
+        pty=True,
+        warn=True,
+    )
+
 
 @task
 def sam_from_vit(_ctx, network, tag=None, epoch=None):

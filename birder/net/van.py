@@ -266,3 +266,18 @@ registry.register_alias(
 registry.register_alias(
     "van_b6", VAN, config={"embed_dims": [96, 192, 384, 768], "depths": [6, 6, 90, 6], "drop_path_rate": 0.5}
 )
+
+registry.register_weights(
+    "van_b0_il-common",
+    {
+        "description": "VAN B0 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 15.2,
+                "sha256": "6ab691627500cbba1e289e5293039630f76fba06b93222dddb5b06e711ccc31e",
+            },
+        },
+        "net": {"network": "van_b0", "tag": "il-common"},
+    },
+)

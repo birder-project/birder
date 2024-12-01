@@ -53,6 +53,7 @@ On fine-tuning phase
 * [EfficientNet Lite](#efficientnet-lite)
 * [EfficientNet v1](#efficientnet-v1)
 * [EfficientNet v2](#efficientnet-v2)
+* [EfficientViT MIT](#efficientvit-mit)
 * [EfficientViT MSFT](#efficientvit-msft)
 * [FasterNet](#fasternet)
 * [FastViT](#fastvit)
@@ -421,6 +422,12 @@ torchrun --nproc_per_node=2 train.py --network darknet_53 --lr 0.1 --lr-schedule
 torchrun --nproc_per_node=2 train.py --network davit_tiny --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
+#### DaViT: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network davit_small --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 16 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
 ### DeiT
 
 #### DeiT: t16
@@ -655,6 +662,26 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --tag intermedi
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_l --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 16 --epochs 300 --size 384 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+### EfficientViT MIT
+
+#### EfficientViT MIT: B0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientvit_mit_b0 --opt adamw --lr 0.00025 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.1 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 2 --fast-matmul --compile
+```
+
+#### EfficientViT MIT: B3
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientvit_mit_b3 --opt adamw --lr 0.00025 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.1 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 2 --fast-matmul --compile
+```
+
+#### EfficientViT MIT: L1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientvit_mit_l1 --opt adamw --lr 0.00015 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.1 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 2 --amp --amp-dtype bfloat16 --compile
 ```
 
 ### EfficientViT MSFT

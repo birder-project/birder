@@ -132,6 +132,22 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v1_b1 --tag il-commo
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag il-common --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 256 --epochs 300 --size 256 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### EfficientViT MIT
+
+#### EfficientViT MIT: B0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientvit_mit_b0 --tag il-common --opt adamw --lr 0.00025 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.1 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+### EfficientViT MSFT
+
+#### EfficientViT MSFT: M0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientvit_msft_m0 --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### FasterNet
 
 #### FasterNet: T0

@@ -48,6 +48,12 @@ For detailed installation options, including source installation, refer to our [
 
 ## Getting Started
 
+Check out the Birder Colab notebook for an interactive tutorial.
+
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/birder-project/birder/blob/main/notebooks/getting_started.ipynb)
+
+If you prefer a local setup, follow the installation instructions below.
+
 Once Birder is installed, you can start exploring its capabilities.
 
 Birder provides pre-trained models that you can download using the `fetch-model` tool.
