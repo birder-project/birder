@@ -286,7 +286,7 @@ class CSWin_Transformer(DetectorBackbone):
         embed_dim: int = self.config["embed_dim"]
         depths: list[int] = self.config["depths"]
         num_heads: list[int] = self.config["num_heads"]
-        stochastic_depth_prob: float = self.config["stochastic_depth_prob"]
+        drop_path_rate: float = self.config["drop_path_rate"]
         mlp_ratio = 4.0
         self.split_size = [1, 2, int(self.size / (2**5)), int(self.size / (2**5))]
 
@@ -298,7 +298,7 @@ class CSWin_Transformer(DetectorBackbone):
 
         num_stages = len(depths)
         curr_dim = embed_dim
-        dpr = [x.tolist() for x in torch.linspace(0, stochastic_depth_prob, sum(depths)).split(depths)]
+        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
 
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
@@ -367,9 +367,9 @@ class CSWin_Transformer(DetectorBackbone):
             return
 
         old_size = self.size
+        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        old_base = old_size // 4
         new_base = new_size // 4
         idx = 0
         for stage in self.body.modules():
@@ -384,28 +384,27 @@ class CSWin_Transformer(DetectorBackbone):
                             attn.assign_sp_shape()
 
                 new_base = new_base // 2
+                self.split_size[idx] = new_size // 32
                 idx += 1
-
-        logging.info(f"Resized base resolution: {old_base} to {new_base}")
 
 
 registry.register_alias(
     "cswin_transformer_t",
     CSWin_Transformer,
-    config={"embed_dim": 64, "depths": [1, 2, 21, 1], "num_heads": [2, 4, 8, 16], "stochastic_depth_prob": 0.2},
+    config={"embed_dim": 64, "depths": [1, 2, 21, 1], "num_heads": [2, 4, 8, 16], "drop_path_rate": 0.2},
 )
 registry.register_alias(
     "cswin_transformer_s",
     CSWin_Transformer,
-    config={"embed_dim": 64, "depths": [2, 4, 32, 2], "num_heads": [2, 4, 8, 16], "stochastic_depth_prob": 0.4},
+    config={"embed_dim": 64, "depths": [2, 4, 32, 2], "num_heads": [2, 4, 8, 16], "drop_path_rate": 0.4},
 )
 registry.register_alias(
     "cswin_transformer_b",
     CSWin_Transformer,
-    config={"embed_dim": 96, "depths": [2, 4, 32, 2], "num_heads": [2, 4, 8, 16], "stochastic_depth_prob": 0.5},
+    config={"embed_dim": 96, "depths": [2, 4, 32, 2], "num_heads": [2, 4, 8, 16], "drop_path_rate": 0.5},
 )
 registry.register_alias(
     "cswin_transformer_l",
     CSWin_Transformer,
-    config={"embed_dim": 144, "depths": [2, 4, 32, 2], "num_heads": [6, 12, 24, 24], "stochastic_depth_prob": 0.5},
+    config={"embed_dim": 144, "depths": [2, 4, 32, 2], "num_heads": [6, 12, 24, 24], "drop_path_rate": 0.5},
 )

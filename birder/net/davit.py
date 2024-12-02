@@ -403,16 +403,13 @@ class DaViT(DetectorBackbone):
         if new_size == self.size:
             return
 
-        old_size = self.size
+        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        src_window_size = (int(old_size / (2**5)), int(old_size / (2**5)))
         new_window_size = (int(self.size / (2**5)), int(self.size / (2**5)))
         for m in self.body.modules():
             if isinstance(m, SpatialBlock):
                 m.window_size = new_window_size
-
-        logging.info(f"Resized window size: {src_window_size} to {new_window_size}")
 
 
 registry.register_alias(

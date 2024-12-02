@@ -185,6 +185,7 @@ def load_checkpoint(
     network: str,
     *,
     net_param: Optional[float],
+    config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
     epoch: Optional[int] = None,
     new_size: Optional[int] = None,
@@ -200,7 +201,7 @@ def load_checkpoint(
     input_channels = lib.get_channels_from_signature(signature)
     num_classes = signature["outputs"][0]["data_shape"][1]
     size = lib.get_size_from_signature(signature)[0]
-    net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
+    net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, config=config, size=size)
     net.load_state_dict(model_dict["state"])
     if new_size is not None:
         net.adjust_size(new_size)
@@ -217,8 +218,10 @@ def load_mim_checkpoint(
     network: str,
     *,
     net_param: Optional[float],
+    config: Optional[dict[str, Any]] = None,
     encoder: str,
     encoder_param: Optional[float],
+    encoder_config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
     epoch: Optional[int] = None,
 ) -> tuple[MIMBaseNet, dict[str, Any], dict[str, Any], dict[str, Any]]:
@@ -235,8 +238,10 @@ def load_mim_checkpoint(
     input_channels = lib.get_channels_from_signature(signature)
     num_classes = 0
     size = lib.get_size_from_signature(signature)[0]
-    net_encoder = registry.net_factory(encoder, input_channels, num_classes, net_param=encoder_param, size=size)
-    net = registry.mim_net_factory(network, net_encoder, net_param=net_param, size=size)
+    net_encoder = registry.net_factory(
+        encoder, input_channels, num_classes, net_param=encoder_param, config=encoder_config, size=size
+    )
+    net = registry.mim_net_factory(network, net_encoder, net_param=net_param, config=config, size=size)
     net.load_state_dict(model_dict["state"])
     net.to(device)
 
@@ -250,9 +255,11 @@ def load_detection_checkpoint(
     network: str,
     *,
     net_param: Optional[float],
+    config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
     backbone: str,
     backbone_param: Optional[float],
+    backbone_config: Optional[dict[str, Any]] = None,
     backbone_tag: Optional[str],
     epoch: Optional[int] = None,
     new_size: Optional[int] = None,
@@ -275,8 +282,12 @@ def load_detection_checkpoint(
     input_channels = lib.get_channels_from_signature(signature)
     num_classes = signature["num_labels"]
     size = lib.get_size_from_signature(signature)[0]
-    net_backbone = registry.net_factory(backbone, input_channels, num_classes, net_param=backbone_param, size=size)
-    net = registry.detection_net_factory(network, num_classes, net_backbone, net_param=net_param, size=size)
+    net_backbone = registry.net_factory(
+        backbone, input_channels, num_classes, net_param=backbone_param, config=backbone_config, size=size
+    )
+    net = registry.detection_net_factory(
+        network, num_classes, net_backbone, net_param=net_param, config=config, size=size
+    )
     net.load_state_dict(model_dict["state"])
     if new_size is not None:
         net.adjust_size(new_size)
@@ -295,6 +306,7 @@ def load_model(
     network: str,
     *,
     net_param: Optional[float] = None,
+    config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
     epoch: Optional[int] = None,
     new_size: Optional[int] = None,
@@ -339,7 +351,7 @@ def load_model(
         size = lib.get_size_from_signature(signature)[0]
 
         model_state: dict[str, Any] = safetensors.torch.load_file(path, device=device.type)
-        net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
+        net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, config=config, size=size)
         if reparameterized is True:
             net.reparameterize_model()
 
@@ -356,7 +368,7 @@ def load_model(
         num_classes = lib.get_num_labels_from_signature(signature)
         size = lib.get_size_from_signature(signature)[0]
 
-        net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
+        net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, config=config, size=size)
         if reparameterized is True:
             net.reparameterize_model()
 
@@ -378,15 +390,17 @@ def load_model(
     return (net, class_to_idx, signature, rgb_stats)
 
 
-# pylint: disable=too-many-locals
+# pylint: disable=too-many-locals,too-many-arguments
 def load_detection_model(
     device: torch.device,
     network: str,
     *,
     net_param: Optional[float] = None,
+    config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
     backbone: str,
     backbone_param: Optional[float],
+    backbone_config: Optional[dict[str, Any]] = None,
     backbone_tag: Optional[str],
     epoch: Optional[int] = None,
     new_size: Optional[int] = None,
@@ -437,8 +451,12 @@ def load_detection_model(
         size = lib.get_size_from_signature(signature)[0]
 
         model_state: dict[str, Any] = safetensors.torch.load_file(path, device=device.type)
-        net_backbone = registry.net_factory(backbone, input_channels, num_classes, net_param=backbone_param, size=size)
-        net = registry.detection_net_factory(network, num_classes, net_backbone, net_param=net_param, size=size)
+        net_backbone = registry.net_factory(
+            backbone, input_channels, num_classes, net_param=backbone_param, config=backbone_config, size=size
+        )
+        net = registry.detection_net_factory(
+            network, num_classes, net_backbone, net_param=net_param, config=config, size=size
+        )
 
         net.load_state_dict(model_state)
         if new_size is not None:
@@ -453,8 +471,12 @@ def load_detection_model(
         num_classes = lib.get_num_labels_from_signature(signature)
         size = lib.get_size_from_signature(signature)[0]
 
-        net_backbone = registry.net_factory(backbone, input_channels, num_classes, net_param=backbone_param, size=size)
-        net = registry.detection_net_factory(network, num_classes, net_backbone, net_param=net_param, size=size)
+        net_backbone = registry.net_factory(
+            backbone, input_channels, num_classes, net_param=backbone_param, config=backbone_config, size=size
+        )
+        net = registry.detection_net_factory(
+            network, num_classes, net_backbone, net_param=net_param, config=config, size=size
+        )
         net.load_state_dict(model_dict["state"])
         if new_size is not None:
             net.adjust_size(new_size)

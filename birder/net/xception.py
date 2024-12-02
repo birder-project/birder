@@ -174,8 +174,8 @@ class Xception(DetectorBackbone):
                 nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
 
             elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

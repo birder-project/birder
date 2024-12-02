@@ -132,4 +132,6 @@ class Darknet(DetectorBackbone):
         return self.features(x)
 
 
+registry.register_alias("darknet_17", Darknet, config={"repeats": [1, 1, 1, 1, 1]})
+registry.register_alias("darknet_21", Darknet, config={"repeats": [1, 1, 1, 2, 2]})
 registry.register_alias("darknet_53", Darknet, config={"repeats": [1, 2, 8, 8, 4]})

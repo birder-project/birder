@@ -479,7 +479,7 @@ class MaxViT(DetectorBackbone, PreTrainEncoder):
         block_layers: list[int] = self.config["block_layers"]
         stem_channels: int = self.config["stem_channels"]
         head_dim: int = self.config["head_dim"]
-        stochastic_depth_prob: float = self.config["stochastic_depth_prob"]
+        drop_path_rate: float = self.config["drop_path_rate"]
 
         # Make sure input size will be divisible by the partition size in all blocks
         # Undefined behavior if H or W are not divisible by p
@@ -526,7 +526,7 @@ class MaxViT(DetectorBackbone, PreTrainEncoder):
         # Pre-compute the stochastic depth probabilities from 0 to stochastic_depth_prob
         # since we have N blocks with L layers, we will have N * L probabilities uniformly distributed
         # over the range [0, stochastic_depth_prob]
-        p_stochastic = np.linspace(0, stochastic_depth_prob, sum(block_layers)).tolist()
+        p_stochastic = np.linspace(0, drop_path_rate, sum(block_layers)).tolist()
 
         p_idx = 0
         stages: OrderedDict[str, nn.Module] = OrderedDict()
@@ -663,9 +663,8 @@ class MaxViT(DetectorBackbone, PreTrainEncoder):
         if new_size == self.size:
             return
 
+        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
-
-        log_flag = False
 
         new_grid_size = _get_conv_output_shape((new_size, new_size), kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
         new_grid_size = _get_conv_output_shape(new_grid_size, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
@@ -755,10 +754,6 @@ class MaxViT(DetectorBackbone, PreTrainEncoder):
                         rel_pos_bias = torch.concat(all_rel_pos_bias, dim=-1)
                         attn.relative_position_bias_table = nn.Parameter(rel_pos_bias)
 
-                        if log_flag is False:
-                            logging.info(f"Resized relative position bias table: {src_size} to {dst_size}")
-                            log_flag = True
-
                 new_grid_size = m.grid_size
 
 
@@ -770,7 +765,7 @@ registry.register_alias(
         "block_layers": [2, 2, 5, 2],
         "stem_channels": 64,
         "head_dim": 32,
-        "stochastic_depth_prob": 0.2,
+        "drop_path_rate": 0.2,
     },
 )
 registry.register_alias(
@@ -781,7 +776,7 @@ registry.register_alias(
         "block_layers": [2, 2, 5, 2],
         "stem_channels": 64,
         "head_dim": 32,
-        "stochastic_depth_prob": 0.3,
+        "drop_path_rate": 0.3,
     },
 )
 registry.register_alias(
@@ -792,7 +787,7 @@ registry.register_alias(
         "block_layers": [2, 6, 14, 2],
         "stem_channels": 64,
         "head_dim": 32,
-        "stochastic_depth_prob": 0.4,
+        "drop_path_rate": 0.4,
     },
 )
 registry.register_alias(
@@ -803,6 +798,6 @@ registry.register_alias(
         "block_layers": [2, 6, 14, 2],
         "stem_channels": 128,
         "head_dim": 32,
-        "stochastic_depth_prob": 0.5,
+        "drop_path_rate": 0.5,
     },
 )

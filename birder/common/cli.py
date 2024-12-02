@@ -1,5 +1,7 @@
 import argparse
+import ast
 import hashlib
+import json
 import logging
 import os
 import shutil
@@ -14,6 +16,49 @@ from tqdm import tqdm
 
 class ArgumentHelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawTextHelpFormatter):
     pass
+
+
+class FlexibleDictAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):  # type: ignore
+        existing_dict = getattr(namespace, self.dest, {})
+        if existing_dict is None:
+            existing_dict = {}
+
+        # Try parsing as JSON first
+        try:
+            parsed_value = json.loads(values)
+            if isinstance(parsed_value, dict):
+                existing_dict.update(parsed_value)
+                setattr(namespace, self.dest, existing_dict)
+                return
+
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        # Try parsing comma-separated simple key-value pairs
+        try:
+            pairs = [pair.strip() for pair in values.split(",")]
+            new_dict = {}
+            for pair in pairs:
+                # Split each pair into key and value
+                (key, value) = pair.split("=", 1)
+                key = key.strip()
+
+                # Try to safely evaluate the value (handles ints and strings mostly)
+                try:
+                    parsed_value = ast.literal_eval(value.strip())
+                except (ValueError, SyntaxError):
+                    # If literal_eval fails, keep it as a string
+                    parsed_value = value.strip()
+
+                new_dict[key] = parsed_value
+
+            # Update the existing dictionary
+            existing_dict.update(new_dict)
+            setattr(namespace, self.dest, existing_dict)
+
+        except ValueError as e:
+            parser.error(f"Invalid input format for {option_string}: {e}")
 
 
 def calc_sha256(file_path: str | Path) -> str:

@@ -168,12 +168,10 @@ class Simple_ViT(PreTrainEncoder):
         if new_size == self.size:
             return
 
+        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         # Sort out sizes
-        num_pos_tokens = self.pos_embedding.shape[0]
-        num_new_tokens = (new_size // self.patch_size) ** 2
-
         pos_embedding = pos_embedding_sin_cos_2d(
             h=new_size // self.patch_size,
             w=new_size // self.patch_size,
@@ -181,8 +179,6 @@ class Simple_ViT(PreTrainEncoder):
             num_special_tokens=self.num_special_tokens,
         )
         self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=False)
-
-        logging.info(f"Resized position embedding: {num_pos_tokens} to {num_new_tokens}")
 
 
 registry.register_alias(

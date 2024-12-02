@@ -89,7 +89,7 @@ class ConvNeXt_v1(DetectorBackbone):
         layer_scale = 1e-6
         in_channels: list[int] = self.config["in_channels"]
         num_layers: list[int] = self.config["num_layers"]
-        stochastic_depth_prob: float = self.config["stochastic_depth_prob"]
+        drop_path_rate: float = self.config["drop_path_rate"]
         out_channels = in_channels[1:] + [-1]
 
         self.stem = Conv2dNormActivation(
@@ -112,7 +112,7 @@ class ConvNeXt_v1(DetectorBackbone):
             # Bottlenecks
             for _ in range(n):
                 # Adjust stochastic depth probability based on the depth of the stage block
-                sd_prob = stochastic_depth_prob * stage_block_id / (total_stage_blocks - 1.0)
+                sd_prob = drop_path_rate * stage_block_id / (total_stage_blocks - 1.0)
                 layers.append(ConvNeXtBlock(i, layer_scale, sd_prob))
                 stage_block_id += 1
 
@@ -177,20 +177,20 @@ class ConvNeXt_v1(DetectorBackbone):
 registry.register_alias(
     "convnext_v1_tiny",
     ConvNeXt_v1,
-    config={"in_channels": [96, 192, 384, 768], "num_layers": [3, 3, 9, 3], "stochastic_depth_prob": 0.1},
+    config={"in_channels": [96, 192, 384, 768], "num_layers": [3, 3, 9, 3], "drop_path_rate": 0.1},
 )
 registry.register_alias(
     "convnext_v1_small",
     ConvNeXt_v1,
-    config={"in_channels": [96, 192, 384, 768], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.4},
+    config={"in_channels": [96, 192, 384, 768], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.4},
 )
 registry.register_alias(
     "convnext_v1_base",
     ConvNeXt_v1,
-    config={"in_channels": [128, 256, 512, 1024], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.5},
+    config={"in_channels": [128, 256, 512, 1024], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.5},
 )
 registry.register_alias(
     "convnext_v1_large",
     ConvNeXt_v1,
-    config={"in_channels": [192, 384, 768, 1536], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.5},
+    config={"in_channels": [192, 384, 768, 1536], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.5},
 )

@@ -261,18 +261,16 @@ class CaiT(BaseNet):
         if new_size == self.size:
             return
 
+        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         # Sort out sizes
         num_pos_tokens = self.pos_embed.shape[1]
-        num_new_tokens = (new_size // self.patch_size[0]) * (new_size // self.patch_size[1])
 
         # Add back class tokens
         self.pos_embed = nn.Parameter(
             adjust_position_embedding(num_pos_tokens, self.pos_embed, new_size // self.patch_size[0], 0)
         )
-
-        logging.info(f"Resized position embedding: {num_pos_tokens} to {num_new_tokens}")
 
 
 registry.register_alias(

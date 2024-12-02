@@ -119,15 +119,26 @@ def train(args: argparse.Namespace) -> None:
             device,
             args.network,
             net_param=args.net_param,
+            config=args.model_config,
             encoder=args.encoder,
             encoder_param=args.encoder_param,
+            encoder_config=args.encoder_model_config,
             tag=args.tag,
             epoch=args.resume_epoch,
         )
 
     else:
-        encoder = registry.net_factory(args.encoder, sample_shape[1], 0, net_param=args.encoder_param, size=args.size)
-        net = registry.mim_net_factory(args.network, encoder, net_param=args.net_param, size=args.size).to(device)
+        encoder = registry.net_factory(
+            args.encoder,
+            sample_shape[1],
+            0,
+            net_param=args.encoder_param,
+            config=args.encoder_model_config,
+            size=args.size,
+        )
+        net = registry.mim_net_factory(
+            args.network, encoder, net_param=args.net_param, config=args.model_config, size=args.size
+        ).to(device)
 
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
@@ -426,11 +437,27 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("-n", "--network", type=str, help="the neural network to use")
     parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
+    parser.add_argument(
+        "--model-config",
+        action=cli.FlexibleDictAction,
+        help=(
+            "override the model default configuration, accepts key-value pairs or JSON "
+            "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
+        ),
+    )
     parser.add_argument("--encoder", type=str, help="the neural network to used as encoder (network being pre-trained)")
     parser.add_argument(
         "--encoder-param",
         type=float,
         help="network specific parameter, required by some networks (for the encoder)",
+    )
+    parser.add_argument(
+        "--encoder-model-config",
+        action=cli.FlexibleDictAction,
+        help=(
+            "override the encoder default configuration, accepts key-value pairs or JSON "
+            "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
+        ),
     )
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(

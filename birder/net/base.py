@@ -77,6 +77,9 @@ class BaseNet(nn.Module):
             self.net_param = net_param
         if hasattr(self, "config") is False:  # Avoid overriding aliases
             self.config = config
+        elif config is not None:
+            assert self.config is not None
+            self.config.update(config)  # Override with custom config
 
         if size is not None:
             self.size = size

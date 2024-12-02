@@ -75,6 +75,7 @@ def train(args: argparse.Namespace) -> None:
         device,
         args.teacher,
         net_param=args.teacher_param,
+        config=args.teacher_model_config,
         tag=args.teacher_tag,
         epoch=args.teacher_epoch,
         new_size=args.size,
@@ -173,6 +174,7 @@ def train(args: argparse.Namespace) -> None:
             device,
             args.student,
             net_param=args.student_param,
+            config=args.student_model_config,
             tag=args.student_tag,
             epoch=args.resume_epoch,
             new_size=args.size,
@@ -185,6 +187,7 @@ def train(args: argparse.Namespace) -> None:
             sample_shape[1],
             num_outputs,
             net_param=args.student_param,
+            config=args.student_model_config,
             size=args.size,
         ).to(device)
 
@@ -623,12 +626,28 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--type", type=str, choices=typing.get_args(DistType), help="type of distillation")
     parser.add_argument("--teacher", type=str, help="the teacher network")
     parser.add_argument("--teacher-param", type=float, help="network specific parameter (teacher)")
+    parser.add_argument(
+        "--teacher-model-config",
+        action=cli.FlexibleDictAction,
+        help=(
+            "override the teacher model default configuration, accepts key-value pairs or JSON "
+            "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
+        ),
+    )
     parser.add_argument("--teacher-tag", type=str, help="teacher training log tag (loading only)")
     parser.add_argument("--pts", default=False, action="store_true", help="load torchscript teacher")
     parser.add_argument("--pt2", default=False, action="store_true", help="load pt2 teacher")
     parser.add_argument("--teacher-epoch", type=int, help="load teacher weights from selected epoch")
     parser.add_argument("--student", type=str, help="the student network to train")
     parser.add_argument("--student-param", type=float, help="network specific parameter (student)")
+    parser.add_argument(
+        "--student-model-config",
+        action=cli.FlexibleDictAction,
+        help=(
+            "override the student model default configuration, accepts key-value pairs or JSON "
+            "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
+        ),
+    )
     parser.add_argument("--compile", default=False, action="store_true", help="enable teacher compilation")
     parser.add_argument(
         "--opt",

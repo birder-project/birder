@@ -431,11 +431,11 @@ class Tiny_ViT(DetectorBackbone):
         if new_size == self.size:
             return
 
+        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         window_sizes = [int(new_size / (2**5) * scale) for scale in self.window_scale_factors]
         idx = 0
-        log_flag = False
         for stage in self.body:
             if isinstance(stage, TinyVitStage):
                 for m in stage.modules():
@@ -447,16 +447,9 @@ class Tiny_ViT(DetectorBackbone):
                         m.attn.define_bias_idxs(window_resolution)
 
                         # Interpolate the actual table
-                        L = m.attn.attention_biases.size(1)
                         m.attn.attention_biases = nn.Parameter(
                             interpolate_attention_bias(m.attn.attention_biases, window_resolution[0], mode="bilinear")
                         )
-
-                        if log_flag is False:
-                            logging.info(
-                                f"Resized attention biases: {L} to {window_resolution[0] * window_resolution[1]}"
-                            )
-                            log_flag = True
 
             idx += 1
 

@@ -211,7 +211,7 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
         assert self.config is not None, "must set config"
 
         dropout: float = self.config["dropout"]
-        stochastic_depth_prob: float = self.config["stochastic_depth_prob"]
+        drop_path_rate: float = self.config["drop_path_rate"]
         stem_settings: ConvNormActConfig = self.config["stem_settings"]
         net_settings: list[Any] = self.config["net_settings"]
         last_stage_settings: list[ConvNormActConfig] = self.config["last_stage_settings"]
@@ -234,7 +234,7 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
         return_channels: list[int] = []
         for idx, block_settings in enumerate(net_settings):
             # Adjust stochastic depth probability based on the depth of the stage block
-            sd_prob = stochastic_depth_prob * float(idx) / total_stage_blocks
+            sd_prob = drop_path_rate * float(idx) / total_stage_blocks
 
             if idx > 0 and (block_settings.stride[0] > 1 or block_settings.stride[1] > 1):
                 stages[f"stage{i+1}"] = nn.Sequential(*layers)
@@ -358,7 +358,7 @@ registry.register_alias(
     MobileNet_v4_Hybrid,
     config={
         "dropout": 0.2,
-        "stochastic_depth_prob": 0.075,
+        "drop_path_rate": 0.075,
         "stem_settings": ConvNormActConfig(0, 32, (3, 3), (2, 2), (1, 1)),
         "net_settings": [
             # Stage 1
@@ -408,7 +408,7 @@ registry.register_alias(
     MobileNet_v4_Hybrid,
     config={
         "dropout": 0.2,
-        "stochastic_depth_prob": 0.35,
+        "drop_path_rate": 0.35,
         "stem_settings": ConvNormActConfig(0, 24, (3, 3), (2, 2), (1, 1), nn.GELU),
         "net_settings": [
             # Stage 1

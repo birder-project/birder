@@ -270,21 +270,16 @@ class PVT_v1(BaseNet):
         if new_size == self.size:
             return
 
+        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        log_flag = False
         s = new_size // 4
         for m in self.body.modules():
             if isinstance(m, PyramidVisionTransformerStage):
-                new_num_patches = s * s
                 num_patches = m.pos_embed.size(1)
 
                 m.pos_embed = nn.Parameter(adjust_position_embedding(num_patches, m.pos_embed, s, 0))
                 s = s // 2
-
-                if log_flag is False:
-                    logging.info(f"Resized position embedding: {num_patches} to {new_num_patches}")
-                    log_flag = True
 
 
 registry.register_alias("pvt_v1_t", PVT_v1, config={"depths": [2, 2, 2, 2], "drop_path_rate": 0.1})

@@ -374,7 +374,7 @@ class EfficientFormer_v1(BaseNet):
         if new_size == self.size:
             return
 
-        old_res = int(self.size / (2**5))
+        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         resolution = int(new_size / (2**5))
@@ -388,8 +388,6 @@ class EfficientFormer_v1(BaseNet):
                 rel_pos = (pos[..., :, None] - pos[..., None, :]).abs()
                 rel_pos = (rel_pos[0] * resolution) + rel_pos[1]
                 m.attention_bias_idxs = nn.Buffer(rel_pos)
-
-        logging.info(f"Resized attention resolution: {resolution} to {old_res}")
 
 
 registry.register_alias(

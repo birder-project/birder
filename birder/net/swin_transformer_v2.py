@@ -208,7 +208,7 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder):
         embed_dim: int = self.config["embed_dim"]
         depths: list[int] = self.config["depths"]
         num_heads: list[int] = self.config["num_heads"]
-        stochastic_depth_prob: float = self.config["stochastic_depth_prob"]
+        drop_path_rate: float = self.config["drop_path_rate"]
         self.window_scale_factor: int = self.config["window_scale_factor"]
         mlp_ratio = 4.0
         base_window_size = int(self.size / (2**5)) * self.window_scale_factor
@@ -237,7 +237,7 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder):
             dim = embed_dim * 2**i_stage
             for i_layer in range(depth):
                 # Adjust stochastic depth probability based on the depth of the stage block
-                sd_prob = stochastic_depth_prob * float(stage_block_id) / (total_stage_blocks - 1)
+                sd_prob = drop_path_rate * float(stage_block_id) / (total_stage_blocks - 1)
                 if i_layer % 2 == 0:
                     shift_size = (0, 0)
                 else:
@@ -356,9 +356,9 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder):
             return
 
         old_size = self.size
+        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        log_flag = False
         for m in self.body.modules():
             if isinstance(m, SwinTransformerBlock):
                 base_window_size = int(new_size / (2**5)) * self.window_scale_factor
@@ -382,7 +382,6 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder):
                     shift_size_h = 0
                     window_size_h = m.input_resolution[1]
 
-                src_window_size = m.attn.window_size
                 m.attn.window_size = (window_size_w, window_size_h)
 
                 if m.attn.shift_size[0] != 0:
@@ -396,10 +395,6 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder):
                 m.attn.define_relative_position_bias_table()
                 m.attn.define_relative_position_index()
 
-                if log_flag is False:
-                    logging.info(f"Resized window size: {src_window_size} to {new_window_size}")
-                    log_flag = True
-
 
 # Window factor = 1
 registry.register_alias(
@@ -410,7 +405,7 @@ registry.register_alias(
         "embed_dim": 96,
         "depths": [2, 2, 6, 2],
         "num_heads": [3, 6, 12, 24],
-        "stochastic_depth_prob": 0.2,
+        "drop_path_rate": 0.2,
         "window_scale_factor": 1,
     },
 )
@@ -422,7 +417,7 @@ registry.register_alias(
         "embed_dim": 96,
         "depths": [2, 2, 18, 2],
         "num_heads": [3, 6, 12, 24],
-        "stochastic_depth_prob": 0.3,
+        "drop_path_rate": 0.3,
         "window_scale_factor": 1,
     },
 )
@@ -434,7 +429,7 @@ registry.register_alias(
         "embed_dim": 128,
         "depths": [2, 2, 18, 2],
         "num_heads": [4, 8, 16, 32],
-        "stochastic_depth_prob": 0.5,
+        "drop_path_rate": 0.5,
         "window_scale_factor": 1,
     },
 )
@@ -446,7 +441,7 @@ registry.register_alias(
         "embed_dim": 192,
         "depths": [2, 2, 18, 2],
         "num_heads": [6, 12, 24, 48],
-        "stochastic_depth_prob": 0.5,
+        "drop_path_rate": 0.5,
         "window_scale_factor": 1,
     },
 )
@@ -460,7 +455,7 @@ registry.register_alias(
         "embed_dim": 96,
         "depths": [2, 2, 6, 2],
         "num_heads": [3, 6, 12, 24],
-        "stochastic_depth_prob": 0.2,
+        "drop_path_rate": 0.2,
         "window_scale_factor": 2,
     },
 )
@@ -472,7 +467,7 @@ registry.register_alias(
         "embed_dim": 96,
         "depths": [2, 2, 18, 2],
         "num_heads": [3, 6, 12, 24],
-        "stochastic_depth_prob": 0.3,
+        "drop_path_rate": 0.3,
         "window_scale_factor": 2,
     },
 )
@@ -484,7 +479,7 @@ registry.register_alias(
         "embed_dim": 128,
         "depths": [2, 2, 18, 2],
         "num_heads": [4, 8, 16, 32],
-        "stochastic_depth_prob": 0.5,
+        "drop_path_rate": 0.5,
         "window_scale_factor": 2,
     },
 )
@@ -496,7 +491,7 @@ registry.register_alias(
         "embed_dim": 192,
         "depths": [2, 2, 18, 2],
         "num_heads": [6, 12, 24, 48],
-        "stochastic_depth_prob": 0.5,
+        "drop_path_rate": 0.5,
         "window_scale_factor": 2,
     },
 )

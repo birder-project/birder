@@ -62,6 +62,7 @@ On fine-tuning phase
 * [GhostNet v2](#ghostnet-v2)
 * [Hiera](#hiera)
 * [HieraDet](#hieradet)
+* [iFormer](#iformer)
 * [InceptionNeXt](#inceptionnext)
 * [Inception-ResNet v2](#inception-resnet-v2)
 * [Inception v3](#inception-v3)
@@ -419,7 +420,13 @@ torchrun --nproc_per_node=2 train.py --network darknet_53 --lr 0.1 --lr-schedule
 #### DaViT: Tiny
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network davit_tiny --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network davit_tiny --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --stop-epoch 220
+```
+
+At epoch 220 increase resolution
+
+```sh
+torchrun --nproc_per_node=2 train.py --network davit_tiny --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 20 --epochs 300 --size 384 --wd 0.05 --norm-wd 0 --grad-accum-steps 32 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --resume-epoch 220 --load-states
 ```
 
 #### DaViT: Small
@@ -839,6 +846,26 @@ torchrun --nproc_per_node=2 train.py --network hiera_abswin_small --opt adamw --
 ### HieraDet
 
 Same as Hiera
+
+### iFormer
+
+#### iFormer: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network iformer_s --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --fast-matmul --compile
+```
+
+#### iFormer: Base
+
+```sh
+torchrun --nproc_per_node=2 train.py --network iformer_b --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 64 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+#### iFormer: Large
+
+```sh
+torchrun --nproc_per_node=2 train.py --network iformer_l --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 64 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
 
 ### InceptionNeXt
 

@@ -120,7 +120,7 @@ class EfficientNet_Lite(DetectorBackbone):
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
-        stochastic_depth_prob = 0.2
+        drop_path_rate = 0.2
         repeats = [1, 2, 2, 3, 3, 4, 1]
         in_channels = [32, 16, 24, 40, 80, 112, 192]
         out_channels = [16, 24, 40, 80, 112, 192, 320]
@@ -156,7 +156,7 @@ class EfficientNet_Lite(DetectorBackbone):
         for i, repeat in enumerate(repeats):
             for r in range(repeat):
                 # Adjust stochastic depth probability based on the depth of the stage block
-                sd_prob = stochastic_depth_prob * float(stage_block_id) / total_stage_blocks
+                sd_prob = drop_path_rate * float(stage_block_id) / total_stage_blocks
 
                 if r > 0:
                     in_ch = out_channels[i]

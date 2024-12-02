@@ -179,14 +179,13 @@ class DeiT(BaseNet):
         if new_size == self.size:
             return
 
+        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         # Sort out sizes
         num_pos_tokens = self.pos_embedding.shape[1]
-        num_new_tokens = (new_size // self.patch_size) ** 2
         if self.pos_embed_class is True:
             num_prefix_tokens = 2
-            num_new_tokens += 2  # Adding the class and distillation tokens
         else:
             num_prefix_tokens = 0
 
@@ -196,8 +195,6 @@ class DeiT(BaseNet):
                 num_pos_tokens, self.pos_embedding, new_size // self.patch_size, num_prefix_tokens
             )
         )
-
-        logging.info(f"Resized position embedding: {num_pos_tokens} to {num_new_tokens}")
 
 
 registry.register_alias(

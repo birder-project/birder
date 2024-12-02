@@ -345,6 +345,7 @@ class CrossViT(BaseNet):
         if new_size == self.size:
             return
 
+        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         # Sort out sizes
@@ -352,7 +353,6 @@ class CrossViT(BaseNet):
         num_patches = _compute_num_patches(image_size, self.patch_size)
         for i in range(self.num_branches):
             num_pos_tokens = self.pos_embed[i].shape[1]
-            num_new_tokens = 1 + num_patches[i]
 
             # Add back class tokens
             self.pos_embed[i] = nn.Parameter(
@@ -360,7 +360,6 @@ class CrossViT(BaseNet):
                     num_pos_tokens, self.pos_embed[i], int(num_patches[i] ** 0.5), num_prefix_tokens=1
                 )
             )
-            logging.info(f"Resized position embedding: {num_pos_tokens} to {num_new_tokens}")
 
 
 registry.register_alias(

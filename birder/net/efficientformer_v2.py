@@ -551,10 +551,9 @@ class EfficientFormer_v2(DetectorBackbone):
         if new_size == self.size:
             return
 
-        old_size = self.size
+        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        old_base = old_size // 4
         new_base = new_size // 4
         for stage in self.body.modules():
             if isinstance(stage, EfficientFormerStage):
@@ -587,7 +586,6 @@ class EfficientFormer_v2(DetectorBackbone):
                         rel_pos = (rel_pos[0] * attn.resolution[1]) + rel_pos[1]
                         attn.attention_bias_idxs = nn.Buffer(torch.LongTensor(rel_pos), persistent=False)
 
-                    old_base = old_base // 2
                     new_base = new_base // 2
 
                 for m in stage.modules():
@@ -610,8 +608,6 @@ class EfficientFormer_v2(DetectorBackbone):
                             rel_pos = (pos[..., :, None] - pos[..., None, :]).abs()
                             rel_pos = (rel_pos[0] * c_new_base) + rel_pos[1]
                             m.token_mixer.attention_bias_idxs = nn.Buffer(torch.LongTensor(rel_pos), persistent=False)
-
-        logging.info(f"Resized attention base resolution: {old_base} to {new_base}")
 
 
 registry.register_alias(

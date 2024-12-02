@@ -100,7 +100,7 @@ class ConvNeXt_v2(DetectorBackbone, PreTrainEncoder):
 
         in_channels: list[int] = self.config["in_channels"]
         num_layers: list[int] = self.config["num_layers"]
-        stochastic_depth_prob: float = self.config["stochastic_depth_prob"]
+        drop_path_rate: float = self.config["drop_path_rate"]
         out_channels = in_channels[1:] + [-1]
 
         self.stem = Conv2dNormActivation(
@@ -123,7 +123,7 @@ class ConvNeXt_v2(DetectorBackbone, PreTrainEncoder):
             # Bottlenecks
             for _ in range(n):
                 # Adjust stochastic depth probability based on the depth of the stage block
-                sd_prob = stochastic_depth_prob * stage_block_id / (total_stage_blocks - 1.0)
+                sd_prob = drop_path_rate * stage_block_id / (total_stage_blocks - 1.0)
                 layers.append(ConvNeXtBlock(i, sd_prob))
                 stage_block_id += 1
 
@@ -229,42 +229,42 @@ class ConvNeXt_v2(DetectorBackbone, PreTrainEncoder):
 registry.register_alias(
     "convnext_v2_atto",
     ConvNeXt_v2,
-    config={"in_channels": [40, 80, 160, 320], "num_layers": [2, 2, 6, 2], "stochastic_depth_prob": 0.0},
+    config={"in_channels": [40, 80, 160, 320], "num_layers": [2, 2, 6, 2], "drop_path_rate": 0.0},
 )
 registry.register_alias(
     "convnext_v2_femto",
     ConvNeXt_v2,
-    config={"in_channels": [48, 96, 192, 384], "num_layers": [2, 2, 6, 2], "stochastic_depth_prob": 0.0},
+    config={"in_channels": [48, 96, 192, 384], "num_layers": [2, 2, 6, 2], "drop_path_rate": 0.0},
 )
 registry.register_alias(
     "convnext_v2_pico",
     ConvNeXt_v2,
-    config={"in_channels": [64, 128, 256, 512], "num_layers": [2, 2, 6, 2], "stochastic_depth_prob": 0.0},
+    config={"in_channels": [64, 128, 256, 512], "num_layers": [2, 2, 6, 2], "drop_path_rate": 0.0},
 )
 registry.register_alias(
     "convnext_v2_nano",
     ConvNeXt_v2,
-    config={"in_channels": [80, 160, 320, 640], "num_layers": [2, 2, 8, 2], "stochastic_depth_prob": 0.1},
+    config={"in_channels": [80, 160, 320, 640], "num_layers": [2, 2, 8, 2], "drop_path_rate": 0.1},
 )
 registry.register_alias(
     "convnext_v2_tiny",
     ConvNeXt_v2,
-    config={"in_channels": [96, 192, 384, 768], "num_layers": [3, 3, 9, 3], "stochastic_depth_prob": 0.2},
+    config={"in_channels": [96, 192, 384, 768], "num_layers": [3, 3, 9, 3], "drop_path_rate": 0.2},
 )
 registry.register_alias(
     "convnext_v2_base",
     ConvNeXt_v2,
-    config={"in_channels": [128, 256, 512, 1024], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.1},
+    config={"in_channels": [128, 256, 512, 1024], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.1},
 )
 registry.register_alias(
     "convnext_v2_large",
     ConvNeXt_v2,
-    config={"in_channels": [192, 384, 768, 1536], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.2},
+    config={"in_channels": [192, 384, 768, 1536], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.2},
 )
 registry.register_alias(
     "convnext_v2_huge",
     ConvNeXt_v2,
-    config={"in_channels": [352, 704, 1408, 2816], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.3},
+    config={"in_channels": [352, 704, 1408, 2816], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.3},
 )
 
 registry.register_weights(

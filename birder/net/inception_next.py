@@ -187,7 +187,7 @@ class Inception_NeXt(DetectorBackbone):
         mlp_ratios = [4, 4, 4, 3]
         channels: list[int] = self.config["channels"]
         num_layers: list[int] = self.config["num_layers"]
-        stochastic_depth_prob: float = self.config["stochastic_depth_prob"]
+        drop_path_rate: float = self.config["drop_path_rate"]
 
         self.stem = Conv2dNormActivation(
             self.input_channels,
@@ -200,7 +200,7 @@ class Inception_NeXt(DetectorBackbone):
         )
 
         num_stage = len(num_layers)
-        dp_rates = [x.tolist() for x in torch.linspace(0, stochastic_depth_prob, sum(num_layers)).split(num_layers)]
+        dp_rates = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(num_layers)).split(num_layers)]
 
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
@@ -234,6 +234,7 @@ class Inception_NeXt(DetectorBackbone):
         self.last_mlp_ratio = mlp_ratios[-1]
         self.classifier = self.create_classifier()
 
+        # Weight initialization
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.Linear)):
                 nn.init.trunc_normal_(m.weight, std=0.02)
@@ -285,20 +286,20 @@ class Inception_NeXt(DetectorBackbone):
 registry.register_alias(
     "inception_next_t",
     Inception_NeXt,
-    config={"channels": [96, 192, 384, 768], "num_layers": [3, 3, 9, 3], "stochastic_depth_prob": 0.1},
+    config={"channels": [96, 192, 384, 768], "num_layers": [3, 3, 9, 3], "drop_path_rate": 0.1},
 )
 registry.register_alias(
     "inception_next_s",
     Inception_NeXt,
-    config={"channels": [96, 192, 384, 768], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.3},
+    config={"channels": [96, 192, 384, 768], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.3},
 )
 registry.register_alias(
     "inception_next_b",
     Inception_NeXt,
-    config={"channels": [128, 256, 512, 1024], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.4},
+    config={"channels": [128, 256, 512, 1024], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.4},
 )
 registry.register_alias(
     "inception_next_l",
     Inception_NeXt,
-    config={"channels": [192, 384, 768, 1536], "num_layers": [3, 3, 27, 3], "stochastic_depth_prob": 0.5},
+    config={"channels": [192, 384, 768, 1536], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.5},
 )

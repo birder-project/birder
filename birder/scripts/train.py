@@ -146,6 +146,7 @@ def train(args: argparse.Namespace) -> None:
             device,
             args.network,
             net_param=args.net_param,
+            config=args.model_config,
             tag=args.tag,
             epoch=args.resume_epoch,
             new_size=args.size,
@@ -161,6 +162,7 @@ def train(args: argparse.Namespace) -> None:
             device,
             args.network,
             net_param=args.net_param,
+            config=args.model_config,
             tag=args.tag,
             epoch=None,
             new_size=args.size,
@@ -170,7 +172,12 @@ def train(args: argparse.Namespace) -> None:
 
     else:
         net = registry.net_factory(
-            args.network, sample_shape[1], num_outputs, net_param=args.net_param, size=args.size
+            args.network,
+            sample_shape[1],
+            num_outputs,
+            net_param=args.net_param,
+            config=args.model_config,
+            size=args.size,
         ).to(device)
 
     if args.freeze_body is True:
@@ -540,12 +547,15 @@ def train(args: argparse.Namespace) -> None:
 
     # Save model hyperparameters with metrics
     if args.rank == 0:
-        # Replace list based args
+        # Replace list/dict based args
         if args.opt_betas is not None:
             for idx, beta in enumerate(args.opt_betas):
                 setattr(args, f"opt_betas_{idx}", beta)
 
             del args.opt_betas
+
+        if args.model_config is not None:
+            args.model_config = json.dumps(args.model_config)
 
         # Save all args
         metrics = training_metrics.compute()
@@ -599,6 +609,14 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("-n", "--network", type=str, help="the neural network to use")
     parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
+    parser.add_argument(
+        "--model-config",
+        action=cli.FlexibleDictAction,
+        help=(
+            "override the model default configuration, accepts key-value pairs or JSON "
+            "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
+        ),
+    )
     parser.add_argument(
         "--pretrained", default=False, action="store_true", help="start with pretrained version of specified network"
     )

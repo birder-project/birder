@@ -38,9 +38,11 @@ def predict(args: argparse.Namespace) -> None:
         device,
         args.network,
         net_param=args.net_param,
+        config=args.model_config,
         tag=args.tag,
         backbone=args.backbone,
         backbone_param=args.backbone_param,
+        backbone_config=args.backbone_model_config,
         backbone_tag=args.backbone_tag,
         epoch=args.epoch,
         new_size=args.size,
@@ -163,6 +165,14 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("-n", "--network", type=str, help="the neural network to use (i.e. faster_rcnn)")
     parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
     parser.add_argument(
+        "--model-config",
+        action=cli.FlexibleDictAction,
+        help=(
+            "override the model default configuration, accepts key-value pairs or JSON "
+            "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
+        ),
+    )
+    parser.add_argument(
         "--backbone",
         type=str,
         choices=registry.list_models(net_type=DetectorBackbone),
@@ -172,6 +182,14 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--backbone-param",
         type=float,
         help="network specific parameter, required by some networks (for the backbone)",
+    )
+    parser.add_argument(
+        "--backbone-model-config",
+        action=cli.FlexibleDictAction,
+        help=(
+            "override the backbone default configuration, accepts key-value pairs or JSON "
+            "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
+        ),
     )
     parser.add_argument("--backbone-tag", type=str, help="backbone training log tag (loading only)")
     parser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")

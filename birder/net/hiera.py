@@ -551,10 +551,10 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
         if new_size == self.size:
             return
 
+        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         if self.pos_embed_win is not None:
-            old_global_pos_size = (self.pos_embed.size(2), self.pos_embed.size(3))
             global_pos_size = (new_size // 2**4, new_size // 2**4)
             pos_embed = F.interpolate(
                 self.pos_embed,
@@ -563,18 +563,15 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
                 antialias=True,
             )
             self.pos_embed = nn.Parameter(pos_embed)
-            logging.info(f"Resized position embedding: {old_global_pos_size} to {global_pos_size}")
 
         else:
             # Sort out sizes
             num_pos_tokens = self.pos_embed.shape[1]
-            num_new_tokens = (new_size // self.patch_stride[0]) * (new_size // self.patch_stride[1])
 
             # Add back class tokens
             self.pos_embed = nn.Parameter(
                 adjust_position_embedding(num_pos_tokens, self.pos_embed, new_size // self.patch_stride[0], 0)
             )
-            logging.info(f"Resized position embedding: {num_pos_tokens} to {num_new_tokens}")
 
         # Re-init vars
         self.tokens_spatial_shape = [i // s for i, s in zip((new_size, new_size), self.patch_stride)]

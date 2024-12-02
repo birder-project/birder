@@ -378,6 +378,7 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
         if new_size == self.size:
             return
 
+        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         new_base_size = new_size // self.patch_size
@@ -410,7 +411,6 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
                 m.attn.rel_pos_h = nn.Parameter(rel_pos_h)
                 m.attn.rel_pos_w = nn.Parameter(rel_pos_w)
 
-        base_size = self.pos_embedding.size(1)
         orig_dtype = self.pos_embedding.dtype
         pos_embedding = self.pos_embedding.float()
         pos_embedding = pos_embedding.permute(0, 3, 1, 2)
@@ -421,7 +421,6 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
         pos_embedding = pos_embedding.to(orig_dtype)
 
         self.pos_embedding = nn.Parameter(pos_embedding)
-        logging.info(f"Resized position embedding: {(base_size, base_size)} to {(new_base_size, new_base_size)}")
 
     def load_vit_weights(self, state_dict: dict[str, Any]) -> None:
         """

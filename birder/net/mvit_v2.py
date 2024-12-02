@@ -563,9 +563,9 @@ class MViT_v2(DetectorBackbone):
         if new_size == self.size:
             return
 
+        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        log_flag = False
         input_size = new_size // 4
         for i, module in enumerate(self.body.children()):
             if isinstance(module, MultiScaleVitStage):
@@ -591,10 +591,6 @@ class MViT_v2(DetectorBackbone):
 
                         m.attn.rel_pos_h = nn.Parameter(rel_pos_h_resized.reshape(-1, rel_sp_dim).permute(1, 0))
                         m.attn.rel_pos_w = nn.Parameter(rel_pos_w_resized.reshape(-1, rel_sp_dim).permute(1, 0))
-
-                        if log_flag is False:
-                            logging.info(f"Resized rel pos: {rel_pos_h.size()} to {m.attn.rel_pos_h.size()}")
-                            log_flag = True
 
                         if idx == 0:
                             input_size = input_size // self.stride_q[i][0]

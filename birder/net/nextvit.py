@@ -107,7 +107,7 @@ class NCB(nn.Module):
         in_channels: int,
         out_channels: int,
         stride: tuple[int, int],
-        path_dropout: float,
+        drop_path: float,
         head_dim: int,
         mlp_ratio: float,
     ) -> None:
@@ -116,7 +116,7 @@ class NCB(nn.Module):
 
         self.patch_embed = PatchEmbed(in_channels, out_channels, stride)
         self.mhca = MHCA(out_channels, head_dim)
-        self.drop_path = StochasticDepth(path_dropout, mode="row")
+        self.drop_path = StochasticDepth(drop_path, mode="row")
 
         self.norm = nn.BatchNorm2d(out_channels)
         self.mlp = MLP(out_channels, out_channels, mlp_ratio=mlp_ratio, bias=True)
@@ -191,7 +191,7 @@ class NTB(nn.Module):
         self,
         in_channels: int,
         out_channels: int,
-        path_dropout: float,
+        drop_path: float,
         stride: tuple[int, int],
         sr_ratio: int,
         mlp_ratio: float,
@@ -210,15 +210,15 @@ class NTB(nn.Module):
             head_dim=head_dim,
             sr_ratio=sr_ratio,
         )
-        self.mhsa_path_dropout = StochasticDepth(path_dropout * mix_block_ratio, mode="row")
+        self.mhsa_drop_path = StochasticDepth(drop_path * mix_block_ratio, mode="row")
 
         self.projection = PatchEmbed(mhsa_out_channels, mhca_out_channels, stride=(1, 1))
         self.mhca = MHCA(mhca_out_channels, head_dim=head_dim)
-        self.mhca_path_dropout = StochasticDepth(path_dropout * (1 - mix_block_ratio), mode="row")
+        self.mhca_drop_path = StochasticDepth(drop_path * (1 - mix_block_ratio), mode="row")
 
         self.norm2 = nn.BatchNorm2d(out_channels)
         self.mlp = MLP(out_channels, out_channels, mlp_ratio=mlp_ratio, bias=True)
-        self.mlp_path_dropout = StochasticDepth(path_dropout, mode="row")
+        self.mlp_drop_path = StochasticDepth(drop_path, mode="row")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)
@@ -226,16 +226,16 @@ class NTB(nn.Module):
         out = self.norm1(x)
 
         out = out.reshape(B, C, H * W).permute(0, 2, 1)
-        out = self.mhsa_path_dropout(self.e_mhsa(out))
+        out = self.mhsa_drop_path(self.e_mhsa(out))
         out = out.permute(0, 2, 1).reshape(B, C, H, W)
         x = x + out
 
         out = self.projection(x)
-        out = out + self.mhca_path_dropout(self.mhca(out))
+        out = out + self.mhca_drop_path(self.mhca(out))
         x = torch.concat([x, out], dim=1)
 
         out = self.norm2(x)
-        x = x + self.mlp_path_dropout(self.mlp(out))
+        x = x + self.mlp_drop_path(self.mlp(out))
 
         return x
 
@@ -264,7 +264,7 @@ class NextViT(DetectorBackbone, PreTrainEncoder):
         mix_block_ratio = 0.75
         sr_ratios = [8, 4, 2, 1]
         depths: list[int] = self.config["depths"]
-        path_dropout: float = self.config["path_dropout"]
+        drop_path_rate: float = self.config["drop_path_rate"]
 
         self.stage_out_channels = [
             [96] * (depths[0]),
@@ -291,7 +291,7 @@ class NextViT(DetectorBackbone, PreTrainEncoder):
         idx = 0
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
-        dpr = [x.item() for x in torch.linspace(0, path_dropout, sum(depths))]
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
         for stage_id, repeats in enumerate(depths):
             layers = []
             output_channels = self.stage_out_channels[stage_id]
@@ -309,7 +309,7 @@ class NextViT(DetectorBackbone, PreTrainEncoder):
                         input_channel,
                         output_channel,
                         stride=stride,
-                        path_dropout=dpr[idx + block_id],
+                        drop_path=dpr[idx + block_id],
                         head_dim=head_dim,
                         mlp_ratio=3,
                     )
@@ -319,7 +319,7 @@ class NextViT(DetectorBackbone, PreTrainEncoder):
                     layer = NTB(
                         input_channel,
                         output_channel,
-                        path_dropout=dpr[idx + block_id],
+                        drop_path=dpr[idx + block_id],
                         stride=stride,
                         sr_ratio=sr_ratios[stage_id],
                         mlp_ratio=2,
@@ -432,6 +432,6 @@ class NextViT(DetectorBackbone, PreTrainEncoder):
         return self.features(x)
 
 
-registry.register_alias("nextvit_s", NextViT, config={"depths": [3, 4, 10, 3], "path_dropout": 0.1})
-registry.register_alias("nextvit_b", NextViT, config={"depths": [3, 4, 20, 3], "path_dropout": 0.2})
-registry.register_alias("nextvit_l", NextViT, config={"depths": [3, 4, 30, 3], "path_dropout": 0.2})
+registry.register_alias("nextvit_s", NextViT, config={"depths": [3, 4, 10, 3], "drop_path_rate": 0.1})
+registry.register_alias("nextvit_b", NextViT, config={"depths": [3, 4, 20, 3], "drop_path_rate": 0.2})
+registry.register_alias("nextvit_l", NextViT, config={"depths": [3, 4, 30, 3], "drop_path_rate": 0.2})

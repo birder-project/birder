@@ -250,8 +250,8 @@ class PiT(DetectorBackbone):
         if new_size == self.size:
             return
 
+        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
-        prev_size = self.pos_embed.shape[2:4]
 
         height = (new_size - self.patch_size[0]) // self.patch_stride[0] + 1
         width = (new_size - self.patch_size[1]) // self.patch_stride[1] + 1
@@ -259,7 +259,6 @@ class PiT(DetectorBackbone):
         self.pos_embed = nn.Parameter(
             F.interpolate(self.pos_embed.data, (height, width), mode="bicubic"), requires_grad=True
         )
-        logging.info(f"Resized position embedding: {prev_size} to {[height, width]}")
 
 
 registry.register_alias(

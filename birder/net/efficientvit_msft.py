@@ -459,9 +459,9 @@ class EfficientViT_MSFT(DetectorBackbone):
         if new_size == self.size:
             return
 
+        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        log_flag = False
         resolution = new_size // 16
         window_size = int(new_size / (2**5))
         for module in self.body.children():  # pylint: disable=too-many-nested-blocks
@@ -472,10 +472,6 @@ class EfficientViT_MSFT(DetectorBackbone):
                 module.resolution = resolution
                 for m in module.modules():
                     if isinstance(m, EfficientVitBlock):
-                        if log_flag is False:
-                            logging.info(f"Resized base resolution: {m.mixer.m.resolution} to {resolution}")
-                            log_flag = True
-
                         m.mixer.m.resolution = resolution
                         m.mixer.m.window_resolution = window_size
                         window_resolution = min(window_size, resolution)
