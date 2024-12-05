@@ -13,6 +13,7 @@ invoke~=2.2.0
 ipython~=8.30.0
 isort~=5.13.2
 mkdocs~=1.6.1
+mkdocs-exclude~=1.0.2
 MonkeyType~=23.3.0
 mypy~=1.13.0
 parameterized~=0.9.0

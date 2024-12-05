@@ -30,3 +30,8 @@ extra:
 
 markdown_extensions:
   - footnotes
+
+plugins:
+  - exclude:
+      glob:
+        - internal/* # Just bloats the documentation

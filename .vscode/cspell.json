@@ -31,6 +31,8 @@
     "batchmean",
     "batchnorm",
     "bfloat",
+    "bibtex",
+    "biformer",
     "bifpn",
     "binarize",
     "bluethroat",

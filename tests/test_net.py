@@ -54,6 +54,7 @@ class TestNet(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
             ("alexnet"),
+            ("biformer_t"),
             ("cait_xxs24"),
             ("coat_tiny"),
             ("coat_lite_tiny"),
@@ -205,6 +206,7 @@ class TestNet(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[misc]
         [
+            ("biformer_t"),
             ("coat_tiny"),
             ("coat_lite_tiny"),
             ("convnext_v1_tiny"),
@@ -259,6 +261,7 @@ class TestNet(unittest.TestCase):
             ("nextvit_s"),
             ("nfnet_f0"),
             ("pit_t"),
+            ("pvt_v1_t"),
             ("pvt_v2_b0"),
             ("rdnet_t"),
             ("regnet_y_200m"),

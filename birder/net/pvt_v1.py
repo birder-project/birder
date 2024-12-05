@@ -13,6 +13,7 @@ Changes from original:
 # Reference license: Apache-2.0
 
 import logging
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -23,7 +24,7 @@ from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 from birder.net.vit import adjust_position_embedding
 
 
@@ -177,7 +178,7 @@ class PyramidVisionTransformerStage(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.downsample(x)  # B, C, H, W -> B, H, W, C
-        (B, H, W, C) = x.shape
+        (B, H, W, C) = x.size()
         x = x.reshape(B, -1, C)
         x = x + self.pos_embed
         if self.cls_token is not None:
@@ -196,7 +197,7 @@ class PyramidVisionTransformerStage(nn.Module):
 
 
 # pylint: disable=invalid-name
-class PVT_v1(BaseNet):
+class PVT_v1(DetectorBackbone):
     default_size = 224
 
     def __init__(
@@ -229,28 +230,30 @@ class PVT_v1(BaseNet):
         dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
         num_stages = len(depths)
         prev_dim = embed_dims[0]
-        stages = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         for i in range(num_stages):
-            stages.append(
-                PyramidVisionTransformerStage(
-                    dim=prev_dim,
-                    dim_out=embed_dims[i],
-                    depth=depths[i],
-                    num_heads=num_heads[i],
-                    sr_ratio=sr_ratios[i],
-                    mlp_ratio=mlp_ratios[i],
-                    qkv_bias=True,
-                    downsample=i > 0,
-                    cls_token=i == num_stages - 1,
-                    img_size=(img_size // (2**i), img_size // (2**i)),
-                    proj_drop=0.0,
-                    attn_drop=0.0,
-                    drop_path=dpr[i],
-                )
+            stages[f"stage{i+1}"] = PyramidVisionTransformerStage(
+                dim=prev_dim,
+                dim_out=embed_dims[i],
+                depth=depths[i],
+                num_heads=num_heads[i],
+                sr_ratio=sr_ratios[i],
+                mlp_ratio=mlp_ratios[i],
+                qkv_bias=True,
+                downsample=i > 0,
+                cls_token=i == num_stages - 1,
+                img_size=(img_size // (2**i), img_size // (2**i)),
+                proj_drop=0.0,
+                attn_drop=0.0,
+                drop_path=dpr[i],
             )
-            prev_dim = embed_dims[i]
 
-        self.body = nn.Sequential(*stages)
+            prev_dim = embed_dims[i]
+            return_channels.append(embed_dims[i])
+
+        self.body = nn.Sequential(stages)
+        self.return_channels = return_channels
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
 
@@ -260,6 +263,33 @@ class PVT_v1(BaseNet):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.patch_embed(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            (B, _, H, W) = x.size()
+            x = module(x)
+            if name in self.return_stages:
+                if name == "stage4":
+                    # Remove class token and reshape
+                    out[name] = x[:, 1:].reshape(B, H // 2, W // 2, -1).permute(0, 3, 1, 2).contiguous()
+                else:
+                    out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.patch_embed.parameters():
+            param.requires_grad = False
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)

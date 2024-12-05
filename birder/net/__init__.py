@@ -1,4 +1,5 @@
 from birder.net.alexnet import AlexNet
+from birder.net.biformer import BiFormer
 from birder.net.cait import CaiT
 from birder.net.coat import CoaT
 from birder.net.convmixer import ConvMixer
@@ -88,6 +89,7 @@ from birder.net.xcit import XCiT
 
 __all__ = [
     "AlexNet",
+    "BiFormer",
     "CaiT",
     "CoaT",
     "ConvMixer",

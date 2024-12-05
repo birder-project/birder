@@ -7,6 +7,7 @@ import torch
 from invoke import Exit
 from invoke import task
 
+from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
@@ -24,6 +25,8 @@ COLOR_RED = 91
 DEFAULT_COLOR = COLOR_GRAY
 
 PROJECT_DIR = "birder"
+HF_DOCS_DIR = "docs/internal/hf_model_cards"
+HF_MODEL_CARD_TEMPLATE = "docs/internal/model_card_template.md"
 
 
 def echo(msg: str, color: int = DEFAULT_COLOR) -> None:
@@ -397,6 +400,55 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
         pty=True,
         warn=True,
     )
+
+
+@task
+def model_pre_publish(_ctx, model, net_param=None, tag=None, epoch=None, reparameterized=False):
+    """
+    Generate data required for publishing a model
+    """
+
+    network_name = fs_ops.get_network_name(model, net_param, tag)
+
+    (net, _, signature, _) = fs_ops.load_model(
+        torch.device("cpu"),
+        model,
+        net_param=net_param,
+        tag=tag,
+        epoch=epoch,
+        inference=True,
+        reparameterized=reparameterized,
+    )
+    num_params = sum(p.numel() for p in net.parameters())
+    num_params = round(num_params / 1_000_000, 1)
+    size = lib.get_size_from_signature(signature)
+
+    # Check if model already in manifest
+    if registry.pretrained_exists(network_name) is False:
+        echo("Model not in manifest, generating ModelInfo information")
+        path = fs_ops.model_path(network_name, epoch=epoch)
+        file_size = pathlib.Path(path).stat().st_size
+        file_size = round(file_size / 1024 / 1024, 1)
+        sha256 = cli.calc_sha256(path)
+
+        print(f'"resolution": {size}')
+        print(f'"file_size": {file_size}')
+        print(f'"sha256": "{sha256}"')
+
+    # Check if HF model card already exist
+    model_card_path = pathlib.Path(HF_DOCS_DIR).joinpath(f"{network_name}.md")
+    if model_card_path.exists() is False:
+        echo("Model card does not exist, creating from template")
+        with open(HF_MODEL_CARD_TEMPLATE, mode="r", encoding="utf-8") as handle:
+            template = handle.read()
+
+        model_card = template.replace("<MODEL_NAME>", network_name)
+        model_card = model_card.replace("<NUM_PARAMS>", str(num_params))
+        model_card = model_card.replace("<SIZE_x_SIZE>", f"{size[0]} x {size[1]}")
+
+        echo(f"Writing model card at {model_card_path}...")
+        with open(model_card_path, mode="w", encoding="utf-8") as handle:
+            handle.write(model_card)
 
 
 @task

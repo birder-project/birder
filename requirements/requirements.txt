@@ -1,8 +1,7 @@
 matplotlib~=3.9.3
-numpy~=2.1.3  # --no-binary numpy
+numpy~=2.1.3
 onnx~=1.17.0
 onnxscript<1.0.0,>=0.1.0.dev20241106
-# pandas[performance,plot,output-formatting]~=2.2.2
 Pillow~=11.0.0
 polars~=1.12.0
 pyarrow~=18.1.0
@@ -20,3 +19,7 @@ webdataset~=0.2.100
 torchserve~=0.12.0
 torch-model-archiver~=0.12.0
 torch-workflow-archiver~=0.2.15
+
+# PyTorch, you should install a version suitable for your hardware and drivers
+torch>=2.5.1
+torchvision

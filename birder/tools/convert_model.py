@@ -75,7 +75,6 @@ def onnx_export(
     net: torch.nn.Module,
     signature: SignatureType | DetectionSignatureType,
     class_to_idx: dict[str, int],
-    rgb_stats: RGBType,
     model_path: str | Path,
     dynamo: bool,
     trace: bool,
@@ -110,14 +109,18 @@ def onnx_export(
     with open(f"{model_path}_class_to_idx.json", "w", encoding="utf-8") as handle:
         json.dump(class_to_idx, handle, indent=2)
 
+    # Test exported model
+    onnx_model = onnx.load(str(model_path))
+    onnx.checker.check_model(onnx_model, full_check=True)
+
+
+def config_export(
+    net: torch.nn.Module, signature: SignatureType | DetectionSignatureType, rgb_stats: RGBType, model_path: str | Path
+) -> None:
     model_config = lib.get_network_config(net, signature, rgb_stats)
     logging.info("Saving model config json...")
     with open(f"{model_path}_config.json", "w", encoding="utf-8") as handle:
         json.dump(model_config, handle, indent=2)
-
-    # Test exported model
-    onnx_model = onnx.load(str(model_path))
-    onnx.checker.check_model(onnx_model, full_check=True)
 
 
 def set_parser(subparsers: Any) -> None:
@@ -199,10 +202,12 @@ def set_parser(subparsers: Any) -> None:
     format_group.add_argument(
         "--onnx-dynamo", default=False, action="store_true", help="convert to ONNX format using TorchDynamo"
     )
+    format_group.add_argument("--config", default=False, action="store_true", help="generate model config json")
 
     subparser.set_defaults(func=main)
 
 
+# pylint: disable=too-many-branches
 def main(args: argparse.Namespace) -> None:
     assert args.trace is False or (args.trace is True and (args.pts is True or args.lite is True or args.onnx is True))
 
@@ -262,7 +267,7 @@ def main(args: argparse.Namespace) -> None:
         st=args.st,
         onnx=args.onnx or args.onnx_dynamo,
     )
-    if model_path.exists() is True and args.force is False and args.reparameterize is False:
+    if model_path.exists() is True and args.force is False and args.reparameterize is False and args.config is False:
         logging.warning("Converted model already exists... aborting")
         raise SystemExit(1)
 
@@ -321,8 +326,12 @@ def main(args: argparse.Namespace) -> None:
             },
         )
 
-    elif args.onnx is True or args.onnx_dynamo:
-        onnx_export(net, signature, class_to_idx, rgb_stats, model_path, args.onnx_dynamo, args.trace)
+    elif args.onnx is True or args.onnx_dynamo is True:
+        config_export(net, signature, rgb_stats, model_path)
+        onnx_export(net, signature, class_to_idx, model_path, args.onnx_dynamo, args.trace)
+
+    elif args.config is True:
+        config_export(net, signature, rgb_stats, model_path)
 
     elif args.pts is True:
         if args.trace is True:

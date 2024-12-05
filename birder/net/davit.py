@@ -442,3 +442,19 @@ registry.register_alias(
     DaViT,
     config={"depths": [1, 1, 12, 3], "dims": [384, 768, 1536, 3072], "heads": [12, 24, 48, 96], "drop_path_rate": 0.5},
 )
+
+registry.register_weights(
+    "davit_tiny_il-all",
+    {
+        "url": "https://huggingface.co/birder-project/davit_tiny_il-all/resolve/main/davit_tiny_il-all.pt",
+        "description": "DaViT tiny model trained on the il-all dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 107.0,
+                "sha256": "0d2f8e3e49633f83e3b4c4affa3a00fef8e617c45ae8e8cf4bd05dc72deeba60",
+            }
+        },
+        "net": {"network": "davit_tiny", "tag": "il-all"},
+    },
+)

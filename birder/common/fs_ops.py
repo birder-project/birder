@@ -191,8 +191,8 @@ def load_checkpoint(
     new_size: Optional[int] = None,
 ) -> tuple[BaseNet, dict[str, int], dict[str, Any], dict[str, Any], dict[str, Any]]:
     network_name = get_network_name(network, net_param, tag)
-    path = model_path(network_name, epoch=epoch, pts=False)
-    states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
+    path = model_path(network_name, epoch=epoch)
+    states_path = model_path(network_name, epoch=epoch, states=True)
     logging.info(f"Loading model from {path} on device {device}...")
 
     model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)
@@ -495,7 +495,7 @@ def load_detection_model(
 
 
 def load_pretrained_model(
-    weights: str, inference: bool = False, device: Optional[torch.device] = None, progress_bar: bool = True
+    weights: str, *, inference: bool = False, device: Optional[torch.device] = None, progress_bar: bool = True
 ) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], SignatureType, RGBType]:
     if settings.MODELS_DIR.exists() is False:
         logging.info(f"Creating {settings.MODELS_DIR} directory...")

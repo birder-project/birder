@@ -63,7 +63,7 @@ This should print the version of Birder.
 
 ## Quick Start Guide
 
-### Simple Image Classification
+### Image Classification (CLI)
 
 Get started with Birder by classifying a single image, visualizing the results and exploring model decision-making through introspection techniques.
 
@@ -86,7 +86,7 @@ Get started with Birder by classifying a single image, visualizing the results a
 
     To gain insight into the model's decision-making process, we'll use Guided Backpropagation [^1], a technique that visualizes the input features most influential to the classification:
 
-        python -m birder.tool introspection --method guided-backprop --network efficientnet_v2_s -t il-common --image data/img_001.jpeg
+        python -m birder.tools introspection --method guided-backprop --network efficientnet_v2_s -t il-common data/img_001.jpeg
 
     This command generates a saliency map highlighting the pixels in the input image that most significantly influenced the model's classification decision.
 

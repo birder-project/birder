@@ -180,6 +180,9 @@ class ModelRegistry:
 
         return group_sort(model_list)
 
+    def pretrained_exists(self, model_name: str) -> bool:
+        return model_name in self._pretrained_nets
+
     def get_default_size(self, model_name: str) -> int:
         net = self._get_model_by_name(model_name)
         return net.default_size

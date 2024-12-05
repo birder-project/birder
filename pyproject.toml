@@ -1,6 +1,6 @@
 [project]
 name = "birder"
-authors = [{ name = "Ofer Hasson", email = "author@example.com" }]
+authors = [{ name = "Ofer Hasson" }]
 description = "A computer vision framework for wildlife image analysis, focusing on avian species."
 readme = "README.md"
 requires-python = ">=3.10"
