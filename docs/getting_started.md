@@ -91,3 +91,34 @@ Get started with Birder by classifying a single image, visualizing the results a
     This command generates a saliency map highlighting the pixels in the input image that most significantly influenced the model's classification decision.
 
     [^1]: [Jost Tobias Springenberg, Alexey Dosovitskiy, Thomas Brox, Martin Riedmiller. (2014). *Striving for Simplicity: The All Convolutional Net*. arXiv:1412.6806](https://arxiv.org/abs/1412.6806)
+
+### Image Classification (API)
+
+Birder provides a flexible Python API for performing bird image classification. Following the CLI example, here's how to perform inference programmatically:
+
+```python
+import birder
+from birder.inference.classification import infer_image
+
+# Load a pre-trained model
+(net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model("efficientnet_v2_s_il-common", inference=True)
+
+# Get the image size the model was trained on
+size = birder.get_size_from_signature(signature)
+
+# Create an inference transform
+transform = birder.classification_transform(size, rgb_stats)
+
+# Perform inference on an image
+image = "data/img_001.jpeg"  # Path to your image
+(out, top_predictions) = infer_image(net, image, transform)
+```
+
+Alternatively, you can load Birder models directly using Torch Hub:
+
+```python
+import torch
+
+# Load a model using Torch Hub
+(net, class_to_idx, signature, rgb_stats) = torch.hub.load("birder-project/birder", "efficientnet_v2_s_il_common", inference=True)
+```
