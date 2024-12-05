@@ -305,6 +305,7 @@ def load_model(
     device: torch.device,
     network: str,
     *,
+    path: Optional[str | Path] = None,
     net_param: Optional[float] = None,
     config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
@@ -317,8 +318,10 @@ def load_model(
     pt2: bool = False,
     st: bool = False,
 ) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], SignatureType, RGBType]:
-    network_name = get_network_name(network, net_param, tag)
-    path = model_path(network_name, epoch=epoch, quantized=quantized, pts=pts, pt2=pt2, st=st)
+    if path is None:
+        _network_name = get_network_name(network, net_param, tag)
+        path = model_path(_network_name, epoch=epoch, quantized=quantized, pts=pts, pt2=pt2, st=st)
+
     logging.info(f"Loading model from {path} on device {device}...")
 
     if pts is True:
@@ -395,6 +398,7 @@ def load_detection_model(
     device: torch.device,
     network: str,
     *,
+    path: Optional[str | Path] = None,
     net_param: Optional[float] = None,
     config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
@@ -410,15 +414,17 @@ def load_detection_model(
     pt2: bool = False,
     st: bool = False,
 ) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], DetectionSignatureType, RGBType]:
-    network_name = get_detection_network_name(
-        network,
-        net_param=net_param,
-        tag=tag,
-        backbone=backbone,
-        backbone_param=backbone_param,
-        backbone_tag=backbone_tag,
-    )
-    path = model_path(network_name, epoch=epoch, quantized=quantized, pts=pts, pt2=pt2, st=st)
+    if path is None:
+        _network_name = get_detection_network_name(
+            network,
+            net_param=net_param,
+            tag=tag,
+            backbone=backbone,
+            backbone_param=backbone_param,
+            backbone_tag=backbone_tag,
+        )
+        path = model_path(_network_name, epoch=epoch, quantized=quantized, pts=pts, pt2=pt2, st=st)
+
     logging.info(f"Loading model from {path} on device {device}...")
 
     if pts is True:
@@ -495,8 +501,44 @@ def load_detection_model(
 
 
 def load_pretrained_model(
-    weights: str, *, inference: bool = False, device: Optional[torch.device] = None, progress_bar: bool = True
+    weights: str,
+    *,
+    dst: Optional[str | Path] = None,
+    inference: bool = False,
+    device: Optional[torch.device] = None,
+    progress_bar: bool = True,
 ) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], SignatureType, RGBType]:
+    """
+    Loads a pre-trained model from the model registry or a specified destination.
+
+    Parameters
+    ----------
+    weights
+        Name of the pre-trained weights to load from the model registry.
+    dst
+        Destination path where the model weights will be downloaded or loaded from.
+        If None, the model will be saved in the default models directory.
+    inference
+        Flag to prepare the model for inference mode.
+    device
+        The device to load the model on (cpu/cuda).
+    progress_bar
+        Whether to display a progress bar during file download.
+
+    Returns
+    -------
+        A tuple containing four elements:
+        - A PyTorch module (neural network model) loaded with pre-trained weights.
+        - Class to index mapping.
+        - A signature defining the expected input and output tensor shapes.
+        - The model's RGB processing type.
+
+    Notes
+    -----
+        - Creates the models directory if it doesn't exist.
+        - Downloads the model weights if not already present locally.
+    """
+
     if settings.MODELS_DIR.exists() is False:
         logging.info(f"Creating {settings.MODELS_DIR} directory...")
         settings.MODELS_DIR.mkdir(parents=True)
@@ -505,7 +547,9 @@ def load_pretrained_model(
     assert "pt" in model_info["formats"], "Can only load pt type files"
 
     model_file = f"{weights}.pt"
-    dst = settings.MODELS_DIR.joinpath(model_file)
+    if dst is None:
+        dst = settings.MODELS_DIR.joinpath(model_file)
+
     if "url" in model_info:
         url = model_info["url"]
     else:
@@ -519,6 +563,7 @@ def load_pretrained_model(
     return load_model(
         device,
         model_info["net"]["network"],
+        path=dst,
         net_param=model_info["net"].get("net_param", None),
         tag=model_info["net"].get("tag", None),
         reparameterized=model_info["net"].get("reparameterized", False),
