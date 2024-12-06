@@ -69,6 +69,14 @@ def read_config(network_name: str) -> dict[str, Any]:
     return model_config
 
 
+def read_config_from_path(path: str | Path) -> dict[str, Any]:
+    logging.info(f"Reading {path}")
+    with open(path, "r", encoding="utf-8") as handle:
+        model_config: dict[str, Any] = json.load(handle)
+
+    return model_config
+
+
 def read_class_file(path: Path | str) -> dict[str, int]:
     if Path(path).exists() is False:
         logging.warning(f"Class file '{path}' not found... class_to_idx returns empty")
@@ -597,7 +605,26 @@ def load_pretrained_model(
     )
 
 
-def load_model_with_cfg(cfg: dict[str, Any], weights_path: Optional[str | Path]) -> torch.nn.Module:
+def load_model_with_cfg(cfg: dict[str, Any] | str | Path, weights_path: Optional[str | Path]) -> torch.nn.Module:
+    """
+    Loads a neural network model based on a configuration dictionary or configuration file path and optional weights.
+
+    Parameters
+    ----------
+    cfg
+        A model configuration dictionary or a path to a json configuration file.
+    weights_path
+        Path to the model weights file. Supports .pt and .safetensors formats.
+        If None, returns an untrained model.
+
+    Returns
+    -------
+        A PyTorch neural network model, optionally loaded with pre-trained weights.
+    """
+
+    if not isinstance(cfg, dict):
+        cfg = read_config_from_path(cfg)
+
     if cfg["alias"] is not None:
         name = cfg["alias"]
     else:
