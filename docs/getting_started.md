@@ -116,6 +116,8 @@ image = "data/img_001.jpeg"  # Path to your image
 
 Alternatively, you can load Birder models directly using Torch Hub:
 
+By default the model will be downloaded into `$TORCH_HOME` and not into the standard Birder directories.
+
 ```python
 import torch
 

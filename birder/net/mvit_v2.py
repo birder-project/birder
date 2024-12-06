@@ -706,3 +706,19 @@ registry.register_alias(
         "drop_path_rate": 0.8,
     },
 )
+
+registry.register_weights(
+    "mvit_v2_t_il-all",
+    {
+        "url": "https://huggingface.co/birder-project/mvit_v2_t_il-all/resolve/main/mvit_v2_t_il-all.pt",
+        "description": "MViT v2 tiny model trained on the il-all dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 91.2,
+                "sha256": "c733af082b26fdb334aebbe81fcc13be42f0446ac4221e8718e536ec2acc41ad",
+            }
+        },
+        "net": {"network": "mvit_v2_t", "tag": "il-all"},
+    },
+)

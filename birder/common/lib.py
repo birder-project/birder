@@ -5,6 +5,7 @@ from typing import Optional
 from birder.model_registry import registry
 from birder.net.base import BaseNet
 from birder.net.base import SignatureType
+from birder.net.base import reparameterize_available
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import DetectionSignatureType
 from birder.transforms.classification import RGBType
@@ -100,10 +101,12 @@ def get_network_config(
     if isinstance(net, DetectionBaseNet):
         backbone_config["backbone"] = registry.get_model_base_name(net.backbone)
         backbone_config["backbone_alias"] = registry.get_model_alias(net.backbone)
-        if net.backbone.config is not None:
-            backbone_config["backbone_config"] = net.backbone.config
         if net.backbone.net_param is not None:
             backbone_config["backbone_net_param"] = net.backbone.net_param
+        if net.backbone.config is not None:
+            backbone_config["backbone_config"] = net.backbone.config
+        if reparameterize_available(net.backbone) is True:
+            backbone_config["backbone_reparameterized"] = net.backbone.reparameterized
 
     net_config = {
         "name": model_name,
@@ -115,5 +118,8 @@ def get_network_config(
         "signature": signature,
         "rgb_stats": rgb_stats,
     }
+
+    if reparameterize_available(net) is True:
+        net_config["reparameterized"] = net.reparameterized
 
     return net_config

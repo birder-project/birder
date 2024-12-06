@@ -50,6 +50,25 @@ def read_signature(network_name: str) -> SignatureType | DetectionSignatureType:
     return signature
 
 
+def write_config(
+    network_name: str, net: torch.nn.Module, signature: SignatureType | DetectionSignatureType, rgb_stats: RGBType
+) -> None:
+    model_config = lib.get_network_config(net, signature, rgb_stats)
+    config_file = settings.MODELS_DIR.joinpath(f"{network_name}.json")
+    logging.info(f"Writing {config_file}")
+    with open(config_file, "w", encoding="utf-8") as handle:
+        json.dump(model_config, handle, indent=2)
+
+
+def read_config(network_name: str) -> dict[str, Any]:
+    config_file = settings.MODELS_DIR.joinpath(f"{network_name}.json")
+    logging.info(f"Reading {config_file}")
+    with open(config_file, "r", encoding="utf-8") as handle:
+        model_config: dict[str, Any] = json.load(handle)
+
+    return model_config
+
+
 def read_class_file(path: Path | str) -> dict[str, int]:
     if Path(path).exists() is False:
         logging.warning(f"Class file '{path}' not found... class_to_idx returns empty")
@@ -405,7 +424,8 @@ def load_detection_model(
     backbone: str,
     backbone_param: Optional[float],
     backbone_config: Optional[dict[str, Any]] = None,
-    backbone_tag: Optional[str],
+    backbone_tag: Optional[str] = None,
+    backbone_reparameterized: bool = False,
     epoch: Optional[int] = None,
     new_size: Optional[int] = None,
     quantized: bool = False,
@@ -460,6 +480,9 @@ def load_detection_model(
         net_backbone = registry.net_factory(
             backbone, input_channels, num_classes, net_param=backbone_param, config=backbone_config, size=size
         )
+        if backbone_reparameterized is True:
+            net_backbone.reparameterize_model()
+
         net = registry.detection_net_factory(
             network, num_classes, net_backbone, net_param=net_param, config=config, size=size
         )
@@ -480,6 +503,9 @@ def load_detection_model(
         net_backbone = registry.net_factory(
             backbone, input_channels, num_classes, net_param=backbone_param, config=backbone_config, size=size
         )
+        if backbone_reparameterized is True:
+            net_backbone.reparameterize_model()
+
         net = registry.detection_net_factory(
             network, num_classes, net_backbone, net_param=net_param, config=config, size=size
         )
@@ -569,6 +595,64 @@ def load_pretrained_model(
         reparameterized=model_info["net"].get("reparameterized", False),
         inference=inference,
     )
+
+
+def load_model_with_cfg(cfg: dict[str, Any], weights_path: Optional[str | Path]) -> torch.nn.Module:
+    if cfg["alias"] is not None:
+        name = cfg["alias"]
+    else:
+        name = cfg["name"]
+
+    net_param = cfg["net_param"]
+    model_config = cfg["model_config"]
+    signature = cfg["signature"]
+
+    input_channels = lib.get_channels_from_signature(signature)
+    num_classes = lib.get_num_labels_from_signature(signature)
+    size = lib.get_size_from_signature(signature)[0]
+
+    if "backbone" in cfg:
+        if cfg["backbone_alias"] is not None:
+            backbone_name = cfg["backbone_alias"]
+        else:
+            backbone_name = cfg["backbone"]
+
+        backbone_net_param = cfg.get("backbone_net_param", None)
+        backbone_config = cfg.get("backbone_config", None)
+        backbone = registry.net_factory(
+            backbone_name, input_channels, num_classes, net_param=backbone_net_param, config=backbone_config, size=size
+        )
+        if cfg.get("backbone_reparameterized", False) is True:
+            backbone.reparameterize_model()
+
+        net = registry.detection_net_factory(
+            name, num_classes, backbone, net_param=net_param, config=model_config, size=size
+        )
+    else:
+        net = registry.net_factory(
+            name, input_channels, num_classes, net_param=net_param, config=model_config, size=size
+        )
+
+    if cfg.get("reparameterized", False) is True:
+        net.reparameterize_model()
+
+    if weights_path is None:
+        return net
+
+    if isinstance(weights_path, str):
+        weights_path = Path(weights_path)
+
+    device = torch.device("cpu")
+    if weights_path.suffix == ".safetensors":
+        assert _HAS_SAFETENSORS, "'pip install safetensors' to use .safetensors"
+        model_state: dict[str, Any] = safetensors.torch.load_file(weights_path, device=device.type)
+    else:
+        model_dict: dict[str, Any] = torch.load(weights_path, map_location=device, weights_only=True)
+        model_state = model_dict["state"]
+
+    net.load_state_dict(model_state)
+
+    return net
 
 
 def save_pts(

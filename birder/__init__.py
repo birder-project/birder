@@ -1,3 +1,4 @@
+from birder.common.fs_ops import load_model_with_cfg
 from birder.common.fs_ops import load_pretrained_model
 from birder.common.lib import get_channels_from_signature
 from birder.common.lib import get_size_from_signature
@@ -13,5 +14,6 @@ __all__ = [
     "get_channels_from_signature",
     "get_size_from_signature",
     "list_pretrained_models",
+    "load_model_with_cfg",
     "load_pretrained_model",
 ]

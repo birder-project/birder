@@ -235,7 +235,7 @@ def train(args: argparse.Namespace) -> None:
     encoder_signature = get_signature(input_shape=sample_shape, num_outputs=0)
     if args.rank == 0:
         summary_writer.flush()
-        fs_ops.write_signature(network_name, signature)
+        fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
         with open(training_log_path.joinpath("args.json"), "w", encoding="utf-8") as handle:
             json.dump({"cmdline": " ".join(sys.argv), **vars(args)}, handle, indent=2)
 

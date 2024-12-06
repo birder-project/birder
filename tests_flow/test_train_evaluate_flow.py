@@ -6,6 +6,9 @@ from torch.utils.data import DataLoader
 
 import birder
 from birder.common.fs_ops import load_model
+from birder.common.fs_ops import model_path
+from birder.common.fs_ops import read_config
+from birder.common.lib import get_network_name
 from birder.datahub.classification import TestDataset
 from birder.model_registry import registry
 from birder.scripts import train
@@ -50,6 +53,12 @@ class TestTrainFlow(unittest.TestCase):
             device, network, net_param=net_param, tag=tag, epoch=1, inference=True
         )
         self.assertEqual(len(class_to_idx), signature["outputs"][0]["data_shape"][1])
+
+        # Check valid config
+        network_name = get_network_name(network, net_param, tag)
+        config = read_config(network_name)
+        weights_path = model_path(network_name, epoch=1)
+        _ = birder.load_model_with_cfg(config, weights_path)
 
         # Prepare dataloader
         size = birder.get_size_from_signature(signature)

@@ -311,7 +311,7 @@ def train(args: argparse.Namespace) -> None:
             summary_writer.add_graph(net_for_info, torch.rand(sample_shape, device=device))
 
         summary_writer.flush()
-        fs_ops.write_signature(student_name, signature)
+        fs_ops.write_config(student_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
         with open(training_log_path.joinpath("args.json"), "w", encoding="utf-8") as handle:
             json.dump({"cmdline": " ".join(sys.argv), **vars(args)}, handle, indent=2)
 
