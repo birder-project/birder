@@ -122,5 +122,5 @@ By default the model will be downloaded into `$TORCH_HOME` and not into the stan
 import torch
 
 # Load a model using Torch Hub
-(net, class_to_idx, signature, rgb_stats) = torch.hub.load("birder-project/birder", "efficientnet_v2_s_il_common", inference=True)
+net = torch.hub.load("birder-project/birder", "efficientnet_v2_s_il_common")
 ```
