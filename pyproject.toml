@@ -43,7 +43,7 @@ include = ["birder*"]
 namespaces = false
 
 [tool.setuptools.dynamic]
-version = { attr = "birder.__version__" }
+version = { attr = "birder.version.__version__" }
 dependencies = { file = ["requirements/requirements.txt"] }
 
 [tool.black]

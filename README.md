@@ -48,6 +48,8 @@ For detailed installation options, including source installation, refer to our [
 
 ## Getting Started
 
+![Example](docs/img/example.jpeg)
+
 Check out the Birder Colab notebook for an interactive tutorial.
 
 [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/birder-project/birder/blob/main/notebooks/getting_started.ipynb)

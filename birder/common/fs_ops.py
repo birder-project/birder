@@ -24,6 +24,7 @@ from birder.net.detection.base import DetectionSignatureType
 from birder.net.mim.base import MIMBaseNet
 from birder.net.mim.base import MIMSignatureType
 from birder.transforms.classification import RGBType
+from birder.version import __version__
 
 try:
     import safetensors
@@ -180,6 +181,7 @@ def checkpoint_model(
     torch.save(
         {
             "state": net.state_dict(),
+            "birder_version": __version__,
             "task": net.task,
             "signature": signature,
             "class_to_idx": class_to_idx,
@@ -429,6 +431,7 @@ def load_detection_model(
     net_param: Optional[float] = None,
     config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
+    reparameterized: bool = False,
     backbone: str,
     backbone_param: Optional[float],
     backbone_config: Optional[dict[str, Any]] = None,
@@ -494,6 +497,8 @@ def load_detection_model(
         net = registry.detection_net_factory(
             network, num_classes, net_backbone, net_param=net_param, config=config, size=size
         )
+        if reparameterized is True:
+            net.reparameterize_model()
 
         net.load_state_dict(model_state)
         if new_size is not None:
@@ -517,6 +522,9 @@ def load_detection_model(
         net = registry.detection_net_factory(
             network, num_classes, net_backbone, net_param=net_param, config=config, size=size
         )
+        if reparameterized is True:
+            net.reparameterize_model()
+
         net.load_state_dict(model_dict["state"])
         if new_size is not None:
             net.adjust_size(new_size)
@@ -694,6 +702,7 @@ def save_pts(
         scripted_module,
         str(dst),
         _extra_files={
+            "birder_version": __version__,
             "task": task,
             "class_to_idx": json.dumps(class_to_idx),
             "signature": json.dumps(signature),
@@ -714,6 +723,29 @@ def save_pt2(
         exported_net,
         dst,
         extra_files={
+            "birder_version": __version__,
+            "task": task,
+            "class_to_idx": json.dumps(class_to_idx),
+            "signature": json.dumps(signature),
+            "rgb_stats": json.dumps(rgb_stats),
+        },
+    )
+
+
+def save_st(
+    net: torch.nn.Module,
+    dst: str,
+    task: str,
+    class_to_idx: dict[str, int],
+    signature: SignatureType | DetectionSignatureType,
+    rgb_stats: RGBType,
+) -> None:
+    assert _HAS_SAFETENSORS, "'pip install safetensors' to use .safetensors"
+    safetensors.torch.save_model(
+        net,
+        str(dst),
+        {
+            "birder_version": __version__,
             "task": task,
             "class_to_idx": json.dumps(class_to_idx),
             "signature": json.dumps(signature),

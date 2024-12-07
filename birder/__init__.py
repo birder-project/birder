@@ -5,8 +5,7 @@ from birder.common.lib import get_size_from_signature
 from birder.inference.classification import evaluate as evaluate_classification
 from birder.model_registry.model_registry import list_pretrained_models
 from birder.transforms.classification import inference_preset as classification_transform
-
-__version__ = "v0.0.5a74"
+from birder.version import __version__
 
 __all__ = [
     "classification_transform",
@@ -16,4 +15,5 @@ __all__ = [
     "list_pretrained_models",
     "load_model_with_cfg",
     "load_pretrained_model",
+    "__version__",
 ]

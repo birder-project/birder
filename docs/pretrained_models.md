@@ -40,7 +40,7 @@ Our models are trained on region-specific datasets, for example:
 * **il-common**: Specialized for common bird species in Israel
 * **il-all**: Covers all bird species found in Israel
 * **arabian-peninsula**: Comprehensive coverage of bird species in the Arabian Peninsula
-* **europe**: Trained on European bird species
+* **eu-all**: Trained on all European bird species
 
 ## Choosing a Model
 

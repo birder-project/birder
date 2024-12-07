@@ -9,6 +9,7 @@ from birder.net.base import reparameterize_available
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import DetectionSignatureType
 from birder.transforms.classification import RGBType
+from birder.version import __version__
 
 
 def get_size_from_signature(signature: SignatureType | DetectionSignatureType) -> tuple[int, int]:
@@ -109,6 +110,7 @@ def get_network_config(
             backbone_config["backbone_reparameterized"] = net.backbone.reparameterized
 
     net_config = {
+        "birder_version": __version__,
         "name": model_name,
         "alias": alias,
         "task": net.task,

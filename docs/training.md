@@ -32,7 +32,7 @@ On fine-tuning phase
 ## Network Specific Training Procedures
 
 * [AlexNet](#alexnet)
-* [BiFormer](biformer)
+* [BiFormer](#biformer)
 * [CaiT](#cait)
 * [CoaT](#coat)
 * [ConvMixer](#convmixer)

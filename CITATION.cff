@@ -1,0 +1,22 @@
+# This CITATION.cff file was generated with cffinit.
+
+cff-version: 1.2.0
+title: Birder
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Ofer
+    family-names: Hasson
+repository-code: 'https://gitlab.com/birder/birder'
+url: 'https://birder.gitlab.io/birder/'
+repository-artifact: 'https://pypi.org/project/birder/'
+abstract: >-
+  An open-source computer vision framework for wildlife
+  image analysis, focusing on avian species.
+keywords:
+  - computer-vision
+  - image-classification
+  - object-detection
+license: Apache-2.0

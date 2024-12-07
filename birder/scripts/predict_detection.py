@@ -40,10 +40,12 @@ def predict(args: argparse.Namespace) -> None:
         net_param=args.net_param,
         config=args.model_config,
         tag=args.tag,
+        reparameterized=args.reparameterized,
         backbone=args.backbone,
         backbone_param=args.backbone_param,
         backbone_config=args.backbone_model_config,
         backbone_tag=args.backbone_tag,
+        backbone_reparameterized=args.backbone_reparameterized,
         epoch=args.epoch,
         new_size=args.size,
         quantized=args.quantized,
@@ -192,9 +194,15 @@ def get_args_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--backbone-tag", type=str, help="backbone training log tag (loading only)")
+    parser.add_argument(
+        "--backbone-reparameterized", default=False, action="store_true", help="load reparameterized backbone"
+    )
     parser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")
     parser.add_argument("--quantized", default=False, action="store_true", help="load quantized model")
     parser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
+    parser.add_argument(
+        "-r", "--reparameterized", default=False, action="store_true", help="load reparameterized model"
+    )
     parser.add_argument("--pts", default=False, action="store_true", help="load torchscript network")
     parser.add_argument("--pt2", default=False, action="store_true", help="load standardized model")
     parser.add_argument("--st", default=False, action="store_true", help="load Safetensors weights")

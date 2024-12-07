@@ -19,13 +19,7 @@ from birder.net.base import SignatureType
 from birder.net.base import reparameterize_available
 from birder.net.detection.base import DetectionSignatureType
 from birder.transforms.classification import RGBType
-
-try:
-    import safetensors.torch
-
-    _HAS_SAFETENSORS = True
-except ImportError:
-    _HAS_SAFETENSORS = False
+from birder.version import __version__
 
 
 def reparameterize(
@@ -303,6 +297,7 @@ def main(args: argparse.Namespace) -> None:
         optimized_scripted_module._save_for_lite_interpreter(  # pylint: disable=protected-access
             str(model_path),
             _extra_files={
+                "birder_version": __version__,
                 "task": net.task,
                 "class_to_idx": json.dumps(class_to_idx),
                 "signature": json.dumps(signature),
@@ -314,17 +309,7 @@ def main(args: argparse.Namespace) -> None:
         pt2_export(net, signature, class_to_idx, rgb_stats, device, model_path)
 
     elif args.st is True:
-        assert _HAS_SAFETENSORS, "'pip install safetensors' to use .safetensors"
-        safetensors.torch.save_model(
-            net,
-            str(model_path),
-            {
-                "task": net.task,
-                "class_to_idx": json.dumps(class_to_idx),
-                "signature": json.dumps(signature),
-                "rgb_stats": json.dumps(rgb_stats),
-            },
-        )
+        fs_ops.save_st(net, str(model_path), net.task, class_to_idx, signature, rgb_stats)
 
     elif args.onnx is True or args.onnx_dynamo is True:
         config_export(net, signature, rgb_stats, model_path)

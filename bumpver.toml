@@ -8,4 +8,4 @@ tag = true
 push = false
 
 [bumpver.file_patterns]
-"birder/__init__.py" = ['^__version__ = "{version}"$']
+"birder/version.py" = ['^__version__ = "{version}"$']

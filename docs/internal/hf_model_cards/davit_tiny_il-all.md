@@ -10,14 +10,14 @@ license: apache-2.0
 
 A Dual Attention Vision Transformer (DaViT) image classification model. This model was trained on the `il-all` dataset (all the relevant bird species found in Israel inc. rarities).
 
-The specie list is based on data from <https://www.israbirding.com/checklist/>.
+The species list is derived from data available at <https://www.israbirding.com/checklist/>.
 
 ## Model Details
 
-- **Model Type:** Image classification / detection backbone
+- **Model Type:** Image classification and detection backbone
 - **Model Stats:**
   - Params (M): 28.0
-  - Image size: 384 x 384
+  - Input image size: 384 x 384
 - **Dataset:** il-all (550 classes)
 
 - **Papers:**
