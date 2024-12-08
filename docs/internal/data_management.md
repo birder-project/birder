@@ -29,6 +29,12 @@ Examine the annotations status
 Remove all json files in all tar files
 `for f in *.tar; do tar -vf "$f" --wildcards --delete "*.json"; done`
 
+Check for duplicated rows in a class file
+`cat data/il-all_classes.txt | sort | uniq -cd`
+
+List missing classes in training directory
+`comm -23 <(sort data/eu-common_classes.txt) <(ls data/training| sort)`
+
 ## Useful Websites
 
 <https://www.israbirding.com/checklist/>
