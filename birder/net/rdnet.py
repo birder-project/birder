@@ -102,10 +102,17 @@ class DenseStage(nn.Module):
         drop_path_rates: list[int],
         growth_rate: int,
         bottleneck_width_ratio: float,
-        block_type: type[Block | BlockESE],
+        block_name: str,
         ls_init_value: float,
     ) -> None:
         super().__init__()
+        if block_name == "Block":
+            block_type = Block
+        elif block_name == "BlockESE":
+            block_type = BlockESE
+        else:
+            raise ValueError(f"Unknown block_name '{block_name}'")
+
         self.layers = nn.ModuleList()
         for i in range(num_block):
             layer = DenseBlock(
@@ -152,7 +159,7 @@ class RDNet(DetectorBackbone):
         num_blocks_list: list[int] = self.config["num_blocks_list"]
         is_downsample_block: list[bool] = self.config["is_downsample_block"]
         transition_compression_ratio: float = self.config["transition_compression_ratio"]
-        block_type: list[type[Block] | type[BlockESE]] = self.config["block_type"]
+        block_type_name: list[str] = self.config["block_type_name"]
         drop_path_rate: float = self.config["drop_path_rate"]
 
         self.stem = nn.Sequential(
@@ -193,7 +200,7 @@ class RDNet(DetectorBackbone):
                     drop_path_rates=dp_rates[i],
                     growth_rate=growth_rates[i],
                     bottleneck_width_ratio=bottleneck_width_ratio,
-                    block_type=block_type[i],
+                    block_name=block_type_name[i],
                     ls_init_value=ls_init_value,
                 )
             )
@@ -258,7 +265,7 @@ registry.register_alias(
         "num_blocks_list": [3] * 7,
         "is_downsample_block": [False, True, True, False, False, False, True],
         "transition_compression_ratio": 0.5,
-        "block_type": [Block] + [Block] + [BlockESE] * 4 + [BlockESE],
+        "block_type_name": ["Block"] + ["Block"] + ["BlockESE"] * 4 + ["BlockESE"],
         "drop_path_rate": 0.15,
     },
 )
@@ -272,7 +279,7 @@ registry.register_alias(
         "num_blocks_list": [3] * 11,
         "is_downsample_block": [False, True, True, False, False, False, False, False, False, True, False],
         "transition_compression_ratio": 0.5,
-        "block_type": [Block] + [Block] + [BlockESE] * (11 - 4) + [BlockESE] * 2,
+        "block_type_name": ["Block"] + ["Block"] + ["BlockESE"] * (11 - 4) + ["BlockESE"] * 2,
         "drop_path_rate": 0.35,
     },
 )
@@ -286,7 +293,7 @@ registry.register_alias(
         "num_blocks_list": [3] * 11,
         "is_downsample_block": [False, True, True, False, False, False, False, False, False, True, False],
         "transition_compression_ratio": 0.5,
-        "block_type": [Block] + [Block] + [BlockESE] * (11 - 4) + [BlockESE] * 2,
+        "block_type_name": ["Block"] + ["Block"] + ["BlockESE"] * (11 - 4) + ["BlockESE"] * 2,
         "drop_path_rate": 0.4,
     },
 )
@@ -300,7 +307,7 @@ registry.register_alias(
         "num_blocks_list": [3] * 12,
         "is_downsample_block": [False, True, True, False, False, False, False, False, False, False, True, False],
         "transition_compression_ratio": 0.5,
-        "block_type": [Block] + [Block] + [BlockESE] * (12 - 4) + [BlockESE] * 2,
+        "block_type_name": ["Block"] + ["Block"] + ["BlockESE"] * (12 - 4) + ["BlockESE"] * 2,
         "drop_path_rate": 0.5,
     },
 )

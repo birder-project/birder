@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from functools import partial
 from typing import Any
 from typing import Literal
 from typing import Optional
@@ -225,3 +226,27 @@ def interpolate_attention_bias(
 
 def reparameterize_available(net: nn.Module) -> bool:
     return hasattr(net, "reparameterize_model")
+
+
+def get_activation_module(name: str) -> type[nn.Module]:
+    activation_dict = {
+        "identity": nn.Identity,
+        "relu": nn.ReLU,
+        "relu6": nn.ReLU6,
+        "leaky_relu": nn.LeakyReLU,
+        "elu": nn.ELU,
+        "prelu": nn.PReLU,
+        "celu": nn.CELU,
+        "selu": nn.SELU,
+        "gelu": nn.GELU,
+        "gelu_tanh": partial(nn.GELU, approximate="tanh"),
+        "silu": nn.SiLU,
+        "mish": nn.Mish,
+        "sigmoid": nn.Sigmoid,
+        "tanh": nn.Tanh,
+        "hard_sigmoid": nn.Hardsigmoid,
+        "hard_swish": nn.Hardswish,
+        "hard_tanh": nn.Hardtanh,
+    }
+
+    return activation_dict[name]  # type: ignore

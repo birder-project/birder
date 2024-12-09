@@ -1,3 +1,4 @@
+import json
 import logging
 import unittest
 from typing import Optional
@@ -168,6 +169,10 @@ class TestNet(unittest.TestCase):
         n = registry.net_factory(network_name, 3, 100, net_param=net_param)
         size = n.default_size
 
+        # Ensure config is serializable
+        _ = json.dumps(n.config)
+
+        # Test network
         out = n(torch.rand((batch_size, 3, size, size)))
         self.assertEqual(out.numel(), 100 * batch_size)
         self.assertFalse(torch.isnan(out).any())

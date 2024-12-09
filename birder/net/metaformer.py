@@ -319,6 +319,7 @@ class MetaFormer(DetectorBackbone):
     default_size = 224
     block_group_regex = r"body\.stage\d+\.blocks\.(\d+)"
 
+    # pylint: disable=too-many-locals,too-many-branches
     def __init__(
         self,
         input_channels: int,
@@ -334,16 +335,52 @@ class MetaFormer(DetectorBackbone):
 
         depths: list[int] = self.config["depths"]
         dims: list[int] = self.config["dims"]
-        token_mixers: list[type[nn.Module]] = self.config["token_mixers"]
-        mlp_act: Callable[..., nn.Module] = self.config["mlp_act"]
+        token_mixer_names: list[str] = self.config["token_mixer_names"]
+        mlp_act_name: str = self.config["mlp_act_name"]
         mlp_bias: bool = self.config["mlp_bias"]
         layer_scale_init_values: list[Optional[float]] = self.config["layer_scale_init_values"]
         res_scale_init_values: list[Optional[float]] = self.config["res_scale_init_values"]
-        norm_layers: list[type[nn.Module]] = self.config["norm_layers"]
-        downsample_norm: type[nn.Module] = self.config["downsample_norm"]
+        norm_layer_names: list[str] = self.config["norm_layer_names"]
+        downsample_norm_name: str = self.config["downsample_norm_name"]
         drop_path_rate: float = self.config["drop_path_rate"]
         use_mlp_head: bool = self.config["use_mlp_head"]
         mlp_head_dropout: float = self.config["mlp_head_dropout"]
+
+        token_mixers: list[type[nn.Module]] = []
+        for token_mixer_name in token_mixer_names:
+            if token_mixer_name == "Pooling":  # nosec
+                token_mixers.append(Pooling)
+            elif token_mixer_name == "SepConv":  # nosec
+                token_mixers.append(SepConv)
+            elif token_mixer_name == "Attention":  # nosec
+                token_mixers.append(Attention)
+            else:
+                raise ValueError(f"Unknown token_mixer_name '{token_mixer_name}'")
+
+        if mlp_act_name == "StarReLU":
+            mlp_act = StarReLU
+        elif mlp_act_name == "GELU":
+            mlp_act = nn.GELU
+        else:
+            raise ValueError(f"Unknown mlp_act_name '{mlp_act_name}'")
+
+        norm_layers: list[type[nn.Module]] = []
+        for norm_layer_name in norm_layer_names:
+            if norm_layer_name == "GroupNorm1":
+                norm_layers.append(GroupNorm1)
+            elif norm_layer_name == "GroupNorm1NoBias":
+                norm_layers.append(GroupNorm1NoBias)
+            elif norm_layer_name == "LayerNorm2dNoBias":
+                norm_layers.append(LayerNorm2dNoBias)
+            else:
+                raise ValueError(f"Unknown norm_layer_name '{norm_layer_name}'")
+
+        if downsample_norm_name == "Identity":
+            downsample_norm = nn.Identity
+        elif downsample_norm_name == "LayerNorm2dNoBias":
+            downsample_norm = LayerNorm2dNoBias
+        else:
+            raise ValueError(f"Unknown downsample_norm_name '{downsample_norm_name}'")
 
         self.use_mlp_head = use_mlp_head
         self.mlp_head_dropout = mlp_head_dropout
@@ -446,13 +483,13 @@ registry.register_alias(
     config={
         "depths": [2, 2, 6, 2],
         "dims": [64, 128, 320, 512],
-        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
-        "mlp_act": nn.GELU,
+        "token_mixer_names": ["Pooling", "Pooling", "Pooling", "Pooling"],
+        "mlp_act_name": "GELU",
         "mlp_bias": True,
         "layer_scale_init_values": [1e-5, 1e-5, 1e-5, 1e-5],
         "res_scale_init_values": [None, None, None, None],
-        "norm_layers": [GroupNorm1, GroupNorm1, GroupNorm1, GroupNorm1],
-        "downsample_norm": nn.Identity,
+        "norm_layer_names": ["GroupNorm1", "GroupNorm1", "GroupNorm1", "GroupNorm1"],
+        "downsample_norm_name": "Identity",
         "drop_path_rate": 0.1,
         "use_mlp_head": False,
         "mlp_head_dropout": 0.0,
@@ -464,13 +501,13 @@ registry.register_alias(
     config={
         "depths": [4, 4, 12, 4],
         "dims": [64, 128, 320, 512],
-        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
-        "mlp_act": nn.GELU,
+        "token_mixer_names": ["Pooling", "Pooling", "Pooling", "Pooling"],
+        "mlp_act_name": "GELU",
         "mlp_bias": True,
         "layer_scale_init_values": [1e-5, 1e-5, 1e-5, 1e-5],
         "res_scale_init_values": [None, None, None, None],
-        "norm_layers": [GroupNorm1, GroupNorm1, GroupNorm1, GroupNorm1],
-        "downsample_norm": nn.Identity,
+        "norm_layer_names": ["GroupNorm1", "GroupNorm1", "GroupNorm1", "GroupNorm1"],
+        "downsample_norm_name": "Identity",
         "drop_path_rate": 0.1,
         "use_mlp_head": False,
         "mlp_head_dropout": 0.0,
@@ -482,13 +519,13 @@ registry.register_alias(
     config={
         "depths": [6, 6, 18, 6],
         "dims": [64, 128, 320, 512],
-        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
-        "mlp_act": nn.GELU,
+        "token_mixer_names": ["Pooling", "Pooling", "Pooling", "Pooling"],
+        "mlp_act_name": "GELU",
         "mlp_bias": True,
         "layer_scale_init_values": [1e-6, 1e-6, 1e-6, 1e-6],
         "res_scale_init_values": [None, None, None, None],
-        "norm_layers": [GroupNorm1, GroupNorm1, GroupNorm1, GroupNorm1],
-        "downsample_norm": nn.Identity,
+        "norm_layer_names": ["GroupNorm1", "GroupNorm1", "GroupNorm1", "GroupNorm1"],
+        "downsample_norm_name": "Identity",
         "drop_path_rate": 0.2,
         "use_mlp_head": False,
         "mlp_head_dropout": 0.0,
@@ -500,13 +537,13 @@ registry.register_alias(
     config={
         "depths": [6, 6, 18, 6],
         "dims": [96, 192, 384, 768],
-        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
-        "mlp_act": nn.GELU,
+        "token_mixer_names": ["Pooling", "Pooling", "Pooling", "Pooling"],
+        "mlp_act_name": "GELU",
         "mlp_bias": True,
         "layer_scale_init_values": [1e-6, 1e-6, 1e-6, 1e-6],
         "res_scale_init_values": [None, None, None, None],
-        "norm_layers": [GroupNorm1, GroupNorm1, GroupNorm1, GroupNorm1],
-        "downsample_norm": nn.Identity,
+        "norm_layer_names": ["GroupNorm1", "GroupNorm1", "GroupNorm1", "GroupNorm1"],
+        "downsample_norm_name": "Identity",
         "drop_path_rate": 0.3,
         "use_mlp_head": False,
         "mlp_head_dropout": 0.0,
@@ -518,13 +555,13 @@ registry.register_alias(
     config={
         "depths": [8, 8, 24, 8],
         "dims": [96, 192, 384, 768],
-        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
-        "mlp_act": nn.GELU,
+        "token_mixer_names": ["Pooling", "Pooling", "Pooling", "Pooling"],
+        "mlp_act_name": "GELU",
         "mlp_bias": True,
         "layer_scale_init_values": [1e-6, 1e-6, 1e-6, 1e-6],
         "res_scale_init_values": [None, None, None, None],
-        "norm_layers": [GroupNorm1, GroupNorm1, GroupNorm1, GroupNorm1],
-        "downsample_norm": nn.Identity,
+        "norm_layer_names": ["GroupNorm1", "GroupNorm1", "GroupNorm1", "GroupNorm1"],
+        "downsample_norm_name": "Identity",
         "drop_path_rate": 0.4,
         "use_mlp_head": False,
         "mlp_head_dropout": 0.0,
@@ -538,13 +575,13 @@ registry.register_alias(
     config={
         "depths": [2, 2, 6, 2],
         "dims": [64, 128, 320, 512],
-        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
-        "mlp_act": StarReLU,
+        "token_mixer_names": ["Pooling", "Pooling", "Pooling", "Pooling"],
+        "mlp_act_name": "StarReLU",
         "mlp_bias": False,
         "layer_scale_init_values": [None, None, None, None],
         "res_scale_init_values": [None, None, 1.0, 1.0],
-        "norm_layers": [GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias],
-        "downsample_norm": LayerNorm2dNoBias,
+        "norm_layer_names": ["GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias"],
+        "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.1,
         "use_mlp_head": False,
         "mlp_head_dropout": 0.0,
@@ -556,13 +593,13 @@ registry.register_alias(
     config={
         "depths": [4, 4, 12, 4],
         "dims": [64, 128, 320, 512],
-        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
-        "mlp_act": StarReLU,
+        "token_mixer_names": ["Pooling", "Pooling", "Pooling", "Pooling"],
+        "mlp_act_name": "StarReLU",
         "mlp_bias": False,
         "layer_scale_init_values": [None, None, None, None],
         "res_scale_init_values": [None, None, 1.0, 1.0],
-        "norm_layers": [GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias],
-        "downsample_norm": LayerNorm2dNoBias,
+        "norm_layer_names": ["GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias"],
+        "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.1,
         "use_mlp_head": False,
         "mlp_head_dropout": 0.0,
@@ -574,13 +611,13 @@ registry.register_alias(
     config={
         "depths": [6, 6, 18, 6],
         "dims": [64, 128, 320, 512],
-        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
-        "mlp_act": StarReLU,
+        "token_mixer_names": ["Pooling", "Pooling", "Pooling", "Pooling"],
+        "mlp_act_name": "StarReLU",
         "mlp_bias": False,
         "layer_scale_init_values": [None, None, None, None],
         "res_scale_init_values": [None, None, 1.0, 1.0],
-        "norm_layers": [GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias],
-        "downsample_norm": LayerNorm2dNoBias,
+        "norm_layer_names": ["GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias"],
+        "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.2,
         "use_mlp_head": False,
         "mlp_head_dropout": 0.0,
@@ -592,13 +629,13 @@ registry.register_alias(
     config={
         "depths": [6, 6, 18, 6],
         "dims": [96, 192, 384, 768],
-        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
-        "mlp_act": StarReLU,
+        "token_mixer_names": ["Pooling", "Pooling", "Pooling", "Pooling"],
+        "mlp_act_name": "StarReLU",
         "mlp_bias": False,
         "layer_scale_init_values": [None, None, None, None],
         "res_scale_init_values": [None, None, 1.0, 1.0],
-        "norm_layers": [GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias],
-        "downsample_norm": LayerNorm2dNoBias,
+        "norm_layer_names": ["GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias"],
+        "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.3,
         "use_mlp_head": False,
         "mlp_head_dropout": 0.0,
@@ -610,13 +647,13 @@ registry.register_alias(
     config={
         "depths": [8, 8, 24, 8],
         "dims": [96, 192, 384, 768],
-        "token_mixers": [Pooling, Pooling, Pooling, Pooling],
-        "mlp_act": StarReLU,
+        "token_mixer_names": ["Pooling", "Pooling", "Pooling", "Pooling"],
+        "mlp_act_name": "StarReLU",
         "mlp_bias": False,
         "layer_scale_init_values": [None, None, None, None],
         "res_scale_init_values": [None, None, 1.0, 1.0],
-        "norm_layers": [GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias, GroupNorm1NoBias],
-        "downsample_norm": LayerNorm2dNoBias,
+        "norm_layer_names": ["GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias"],
+        "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.4,
         "use_mlp_head": False,
         "mlp_head_dropout": 0.0,
@@ -630,13 +667,13 @@ registry.register_alias(
     config={
         "depths": [3, 3, 9, 3],
         "dims": [64, 128, 320, 512],
-        "token_mixers": [SepConv, SepConv, SepConv, SepConv],
-        "mlp_act": StarReLU,
+        "token_mixer_names": ["SepConv", "SepConv", "SepConv", "SepConv"],
+        "mlp_act_name": "StarReLU",
         "mlp_bias": False,
         "layer_scale_init_values": [None, None, None, None],
         "res_scale_init_values": [None, None, 1.0, 1.0],
-        "norm_layers": [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias],
-        "downsample_norm": LayerNorm2dNoBias,
+        "norm_layer_names": ["LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias"],
+        "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.2,
         "use_mlp_head": True,
         "mlp_head_dropout": 0.0,
@@ -648,13 +685,13 @@ registry.register_alias(
     config={
         "depths": [3, 12, 18, 3],
         "dims": [64, 128, 320, 512],
-        "token_mixers": [SepConv, SepConv, SepConv, SepConv],
-        "mlp_act": StarReLU,
+        "token_mixer_names": ["SepConv", "SepConv", "SepConv", "SepConv"],
+        "mlp_act_name": "StarReLU",
         "mlp_bias": False,
         "layer_scale_init_values": [None, None, None, None],
         "res_scale_init_values": [None, None, 1.0, 1.0],
-        "norm_layers": [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias],
-        "downsample_norm": LayerNorm2dNoBias,
+        "norm_layer_names": ["LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias"],
+        "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.3,
         "use_mlp_head": True,
         "mlp_head_dropout": 0.0,
@@ -666,13 +703,13 @@ registry.register_alias(
     config={
         "depths": [3, 12, 18, 3],
         "dims": [96, 192, 384, 576],
-        "token_mixers": [SepConv, SepConv, SepConv, SepConv],
-        "mlp_act": StarReLU,
+        "token_mixer_names": ["SepConv", "SepConv", "SepConv", "SepConv"],
+        "mlp_act_name": "StarReLU",
         "mlp_bias": False,
         "layer_scale_init_values": [None, None, None, None],
         "res_scale_init_values": [None, None, 1.0, 1.0],
-        "norm_layers": [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias],
-        "downsample_norm": LayerNorm2dNoBias,
+        "norm_layer_names": ["LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias"],
+        "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.4,
         "use_mlp_head": True,
         "mlp_head_dropout": 0.0,
@@ -684,13 +721,13 @@ registry.register_alias(
     config={
         "depths": [3, 12, 18, 3],
         "dims": [128, 256, 512, 768],
-        "token_mixers": [SepConv, SepConv, SepConv, SepConv],
-        "mlp_act": StarReLU,
+        "token_mixer_names": ["SepConv", "SepConv", "SepConv", "SepConv"],
+        "mlp_act_name": "StarReLU",
         "mlp_bias": False,
         "layer_scale_init_values": [None, None, None, None],
         "res_scale_init_values": [None, None, 1.0, 1.0],
-        "norm_layers": [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias],
-        "downsample_norm": LayerNorm2dNoBias,
+        "norm_layer_names": ["LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias"],
+        "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.6,
         "use_mlp_head": True,
         "mlp_head_dropout": 0.0,
@@ -704,13 +741,13 @@ registry.register_alias(
     config={
         "depths": [3, 3, 9, 3],
         "dims": [64, 128, 320, 512],
-        "token_mixers": [SepConv, SepConv, Attention, Attention],
-        "mlp_act": StarReLU,
+        "token_mixer_names": ["SepConv", "SepConv", "Attention", "Attention"],
+        "mlp_act_name": "StarReLU",
         "mlp_bias": False,
         "layer_scale_init_values": [None, None, None, None],
         "res_scale_init_values": [None, None, 1.0, 1.0],
-        "norm_layers": [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias],
-        "downsample_norm": LayerNorm2dNoBias,
+        "norm_layer_names": ["LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias"],
+        "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.15,
         "use_mlp_head": True,
         "mlp_head_dropout": 0.0,
@@ -722,13 +759,13 @@ registry.register_alias(
     config={
         "depths": [3, 12, 18, 3],
         "dims": [64, 128, 320, 512],
-        "token_mixers": [SepConv, SepConv, Attention, Attention],
-        "mlp_act": StarReLU,
+        "token_mixer_names": ["SepConv", "SepConv", "Attention", "Attention"],
+        "mlp_act_name": "StarReLU",
         "mlp_bias": False,
         "layer_scale_init_values": [None, None, None, None],
         "res_scale_init_values": [None, None, 1.0, 1.0],
-        "norm_layers": [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias],
-        "downsample_norm": LayerNorm2dNoBias,
+        "norm_layer_names": ["LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias"],
+        "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.3,
         "use_mlp_head": True,
         "mlp_head_dropout": 0.4,
@@ -740,13 +777,13 @@ registry.register_alias(
     config={
         "depths": [3, 12, 18, 3],
         "dims": [96, 192, 384, 576],
-        "token_mixers": [SepConv, SepConv, Attention, Attention],
-        "mlp_act": StarReLU,
+        "token_mixer_names": ["SepConv", "SepConv", "Attention", "Attention"],
+        "mlp_act_name": "StarReLU",
         "mlp_bias": False,
         "layer_scale_init_values": [None, None, None, None],
         "res_scale_init_values": [None, None, 1.0, 1.0],
-        "norm_layers": [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias],
-        "downsample_norm": LayerNorm2dNoBias,
+        "norm_layer_names": ["LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias"],
+        "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.4,
         "use_mlp_head": True,
         "mlp_head_dropout": 0.4,
@@ -758,13 +795,13 @@ registry.register_alias(
     config={
         "depths": [3, 12, 18, 3],
         "dims": [128, 256, 512, 768],
-        "token_mixers": [SepConv, SepConv, Attention, Attention],
-        "mlp_act": StarReLU,
+        "token_mixer_names": ["SepConv", "SepConv", "Attention", "Attention"],
+        "mlp_act_name": "StarReLU",
         "mlp_bias": False,
         "layer_scale_init_values": [None, None, None, None],
         "res_scale_init_values": [None, None, 1.0, 1.0],
-        "norm_layers": [LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias, LayerNorm2dNoBias],
-        "downsample_norm": LayerNorm2dNoBias,
+        "norm_layer_names": ["LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias"],
+        "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.6,
         "use_mlp_head": True,
         "mlp_head_dropout": 0.5,

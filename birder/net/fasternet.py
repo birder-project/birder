@@ -22,6 +22,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import get_activation_module
 
 
 class PartialConv(nn.Module):
@@ -143,8 +144,10 @@ class FasterNet(DetectorBackbone):
         feature_dim = 1280
         depths: list[int] = self.config["depths"]
         embed_dim: int = self.config["embed_dim"]
-        act_layer: Callable[..., nn.Module] = self.config["act_layer"]
+        act_layer_name: str = self.config["act_layer_name"]
         drop_path_rate: float = self.config["drop_path_rate"]
+
+        act_layer = get_activation_module(act_layer_name)
 
         self.stem = PatchEmbed(
             in_channels=self.input_channels, embed_dim=embed_dim, patch_size=patch_size, patch_stride=patch_stride
@@ -217,32 +220,32 @@ class FasterNet(DetectorBackbone):
 registry.register_alias(
     "fasternet_t0",
     FasterNet,
-    config={"depths": [1, 2, 8, 2], "embed_dim": 40, "act_layer": nn.GELU, "drop_path_rate": 0.0},
+    config={"depths": [1, 2, 8, 2], "embed_dim": 40, "act_layer_name": "gelu", "drop_path_rate": 0.0},
 )
 registry.register_alias(
     "fasternet_t1",
     FasterNet,
-    config={"depths": [1, 2, 8, 2], "embed_dim": 64, "act_layer": nn.GELU, "drop_path_rate": 0.02},
+    config={"depths": [1, 2, 8, 2], "embed_dim": 64, "act_layer_name": "gelu", "drop_path_rate": 0.02},
 )
 registry.register_alias(
     "fasternet_t2",
     FasterNet,
-    config={"depths": [1, 2, 8, 2], "embed_dim": 96, "act_layer": nn.ReLU, "drop_path_rate": 0.05},
+    config={"depths": [1, 2, 8, 2], "embed_dim": 96, "act_layer_name": "relu", "drop_path_rate": 0.05},
 )
 registry.register_alias(
     "fasternet_s",
     FasterNet,
-    config={"depths": [1, 2, 13, 2], "embed_dim": 128, "act_layer": nn.ReLU, "drop_path_rate": 0.1},
+    config={"depths": [1, 2, 13, 2], "embed_dim": 128, "act_layer_name": "relu", "drop_path_rate": 0.1},
 )
 registry.register_alias(
     "fasternet_m",
     FasterNet,
-    config={"depths": [3, 4, 18, 3], "embed_dim": 144, "act_layer": nn.ReLU, "drop_path_rate": 0.2},
+    config={"depths": [3, 4, 18, 3], "embed_dim": 144, "act_layer_name": "relu", "drop_path_rate": 0.2},
 )
 registry.register_alias(
     "fasternet_l",
     FasterNet,
-    config={"depths": [3, 4, 18, 3], "embed_dim": 192, "act_layer": nn.ReLU, "drop_path_rate": 0.3},
+    config={"depths": [3, 4, 18, 3], "embed_dim": 192, "act_layer_name": "relu", "drop_path_rate": 0.3},
 )
 
 registry.register_weights(

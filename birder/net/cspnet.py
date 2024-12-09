@@ -245,7 +245,14 @@ class CSPNet(DetectorBackbone):
         down_growth: bool = self.config["down_growth"]
         cross_linear: bool = self.config["cross_linear"]
         squeeze_excitation: bool = self.config["squeeze_excitation"]
-        block_type: nn.Module = self.config["block_type"]
+        block_type_name: str = self.config["block_type_name"]
+
+        if block_type_name == "BottleneckBlock":
+            block_type = BottleneckBlock
+        elif block_type_name == "DarkBlock":
+            block_type = DarkBlock
+        else:
+            raise ValueError(f"Unknown block_type_name '{block_type_name}'")
 
         self.stem = nn.Sequential(
             Conv2dNormActivation(
@@ -348,7 +355,7 @@ registry.register_alias(
         "down_growth": False,
         "cross_linear": True,
         "squeeze_excitation": False,
-        "block_type": BottleneckBlock,
+        "block_type_name": "BottleneckBlock",
     },
 )
 registry.register_alias(
@@ -370,7 +377,7 @@ registry.register_alias(
         "down_growth": False,
         "cross_linear": True,
         "squeeze_excitation": False,
-        "block_type": BottleneckBlock,
+        "block_type_name": "BottleneckBlock",
     },
 )
 registry.register_alias(
@@ -392,7 +399,7 @@ registry.register_alias(
         "down_growth": True,
         "cross_linear": False,
         "squeeze_excitation": False,
-        "block_type": DarkBlock,
+        "block_type_name": "DarkBlock",
     },
 )
 registry.register_alias(
@@ -414,7 +421,7 @@ registry.register_alias(
         "down_growth": False,
         "cross_linear": True,
         "squeeze_excitation": True,
-        "block_type": BottleneckBlock,
+        "block_type_name": "BottleneckBlock",
     },
 )
 registry.register_alias(
@@ -436,7 +443,7 @@ registry.register_alias(
         "down_growth": False,
         "cross_linear": True,
         "squeeze_excitation": True,
-        "block_type": BottleneckBlock,
+        "block_type_name": "BottleneckBlock",
     },
 )
 registry.register_alias(
@@ -458,6 +465,6 @@ registry.register_alias(
         "down_growth": True,
         "cross_linear": False,
         "squeeze_excitation": True,
-        "block_type": DarkBlock,
+        "block_type_name": "DarkBlock",
     },
 )

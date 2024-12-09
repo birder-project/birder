@@ -539,3 +539,19 @@ registry.register_alias(
         "drop_path_rate": 0.4,
     },
 )
+
+registry.register_weights(
+    "biformer_s_il-all",
+    {
+        "url": "https://huggingface.co/birder-project/biformer_s_il-all/resolve/main/biformer_s_il-all.pt",
+        "description": "BiFormer small model trained on the il-all dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 96.8,
+                "sha256": "c60e4be7b28832744c3e9b8d176347fd2f5b3dbcb986717e531e7b3b43010424",
+            }
+        },
+        "net": {"network": "biformer_s", "tag": "il-all"},
+    },
+)

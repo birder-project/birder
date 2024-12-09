@@ -1,3 +1,4 @@
+import json
 import logging
 import unittest
 from typing import Optional
@@ -34,6 +35,10 @@ class TestNetMIM(unittest.TestCase):
         size = n.default_size
         encoder.adjust_size(size)
 
+        # Ensure config is serializable
+        _ = json.dumps(n.config)
+
+        # Test network
         out = n(torch.rand((1, 3, size, size)))
         for key in ["loss", "pred", "mask"]:
             self.assertFalse(torch.isnan(out[key]).any())

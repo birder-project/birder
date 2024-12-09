@@ -10,7 +10,6 @@ https://arxiv.org/abs/2205.14756
 
 from collections import OrderedDict
 from collections.abc import Callable
-from functools import partial
 from typing import Any
 from typing import Optional
 
@@ -22,6 +21,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import get_activation_module
 
 
 class ResidualBlock(nn.Module):
@@ -550,9 +550,17 @@ class EfficientViT_MIT(DetectorBackbone):
         expand_ratio: float = self.config["expand_ratio"]
         vit_expand_ratio: float = self.config["vit_expand_ratio"]
         expand_divisor: int = self.config["expand_divisor"]
-        act_layer: type[nn.Module] = self.config["act_layer"]
-        stem_block: type[nn.Module] = self.config["stem_block"]
+        act_layer_name: str = self.config["act_layer_name"]
+        stem_block_name: str = self.config["stem_block_name"]
         drop_path_rate: float = self.config["drop_path_rate"]
+
+        act_layer = get_activation_module(act_layer_name)
+        if stem_block_name == "DSConv":
+            stem_block = DSConv
+        elif stem_block_name == "ConvBlock":
+            stem_block = ConvBlock
+        else:
+            raise ValueError(f"Unknown stem_block_name '{stem_block_name}'")
 
         self.stem = Stem(
             self.input_channels, widths[0], depths[0], norm_layer=norm_layer, act_layer=act_layer, stem_block=stem_block
@@ -643,8 +651,8 @@ registry.register_alias(
         "expand_ratio": 4.0,
         "vit_expand_ratio": 4.0,
         "expand_divisor": 1,
-        "act_layer": nn.Hardswish,
-        "stem_block": DSConv,
+        "act_layer_name": "hard_swish",
+        "stem_block_name": "DSConv",
         "drop_path_rate": 0.0,
     },
 )
@@ -661,8 +669,8 @@ registry.register_alias(
         "expand_ratio": 4.0,
         "vit_expand_ratio": 4.0,
         "expand_divisor": 1,
-        "act_layer": nn.Hardswish,
-        "stem_block": DSConv,
+        "act_layer_name": "hard_swish",
+        "stem_block_name": "DSConv",
         "drop_path_rate": 0.0,
     },
 )
@@ -679,8 +687,8 @@ registry.register_alias(
         "expand_ratio": 4.0,
         "vit_expand_ratio": 4.0,
         "expand_divisor": 1,
-        "act_layer": nn.Hardswish,
-        "stem_block": DSConv,
+        "act_layer_name": "hard_swish",
+        "stem_block_name": "DSConv",
         "drop_path_rate": 0.0,
     },
 )
@@ -697,8 +705,8 @@ registry.register_alias(
         "expand_ratio": 4.0,
         "vit_expand_ratio": 4.0,
         "expand_divisor": 1,
-        "act_layer": nn.Hardswish,
-        "stem_block": DSConv,
+        "act_layer_name": "hard_swish",
+        "stem_block_name": "DSConv",
         "drop_path_rate": 0.0,
     },
 )
@@ -715,8 +723,8 @@ registry.register_alias(
         "expand_ratio": 16.0,
         "vit_expand_ratio": 24.0,
         "expand_divisor": 4,
-        "act_layer": partial(nn.GELU, approximate="tanh"),
-        "stem_block": ConvBlock,
+        "act_layer_name": "gelu_tanh",
+        "stem_block_name": "ConvBlock",
         "drop_path_rate": 0.1,
     },
 )
@@ -733,8 +741,8 @@ registry.register_alias(
         "expand_ratio": 16.0,
         "vit_expand_ratio": 24.0,
         "expand_divisor": 4,
-        "act_layer": partial(nn.GELU, approximate="tanh"),
-        "stem_block": ConvBlock,
+        "act_layer_name": "gelu_tanh",
+        "stem_block_name": "ConvBlock",
         "drop_path_rate": 0.1,
     },
 )
@@ -751,8 +759,8 @@ registry.register_alias(
         "expand_ratio": 16.0,
         "vit_expand_ratio": 24.0,
         "expand_divisor": 4,
-        "act_layer": partial(nn.GELU, approximate="tanh"),
-        "stem_block": ConvBlock,
+        "act_layer_name": "gelu_tanh",
+        "stem_block_name": "ConvBlock",
         "drop_path_rate": 0.1,
     },
 )

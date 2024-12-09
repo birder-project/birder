@@ -1,3 +1,4 @@
+import json
 import logging
 import unittest
 from typing import Optional
@@ -40,6 +41,10 @@ class TestNetDetection(unittest.TestCase):
         size = 256  # Just for faster tests
         backbone.adjust_size(size)
 
+        # Ensure config is serializable
+        _ = json.dumps(n.config)
+
+        # Test network
         n.eval()
         out = n(torch.rand((1, 3, size, size)))
         (detections, losses) = out
