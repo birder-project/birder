@@ -1,15 +1,20 @@
 """
 FastViT, adapted from
 https://github.com/apple/ml-fastvit/blob/main/models/fastvit.py
+and
+https://github.com/apple/ml-mobileclip/blob/main/mobileclip/models/mci.py
 
 Paper "FastViT: A Fast Hybrid Vision Transformer using Structural Reparameterization",
 https://arxiv.org/abs/2303.14189
+and
+Paper "MobileCLIP: Fast Image-Text Models through Multi-Modal Reinforced Training",
+https://arxiv.org/abs/2311.17049
 
 Changes from original:
-* Fixed ReparamLargeKernelConv activation (a forward)
+* Fixed ReparamLargeKernelConv activation (at forward)
 """
 
-# Reference license: Apple MIT License
+# Reference license: Apple MIT License (both)
 
 from collections import OrderedDict
 from typing import Any
@@ -19,6 +24,7 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torchvision.ops import SqueezeExcitation
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
@@ -44,6 +50,7 @@ class ReparamLargeKernelConv(nn.Module):
         stride: int,
         groups: int,
         small_kernel: int,
+        use_se: bool,
         reparameterized: bool,
     ) -> None:
         super().__init__()
@@ -101,15 +108,22 @@ class ReparamLargeKernelConv(nn.Module):
             )
             self.small_conv.add_module("bn", nn.BatchNorm2d(num_features=out_channels))
 
+        if use_se is True:
+            self.se = SqueezeExcitation(out_channels, out_channels // 4)
+        else:
+            self.se = nn.Identity()
+
         self.activation = nn.GELU()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # Reparameterized forward pass
         if self.lkb_reparam is not None:
-            return self.activation(self.lkb_reparam(x))
+            # Reparameterized forward pass
+            x = self.lkb_reparam(x)
+        else:
+            # Multi-branched train-time forward pass
+            x = self.lkb_origin(x) + self.small_conv(x)
 
-        # Multi-branched train-time forward pass
-        x = self.lkb_origin(x) + self.small_conv(x)
+        x = self.se(x)
         x = self.activation(x)
 
         return x
@@ -211,6 +225,7 @@ class PatchEmbed(nn.Module):
         stride: int,
         in_channels: int,
         embed_dim: int,
+        use_se: bool,
         reparameterized: bool,
     ) -> None:
         super().__init__()
@@ -222,6 +237,7 @@ class PatchEmbed(nn.Module):
                 stride=stride,
                 groups=in_channels,
                 small_kernel=3,
+                use_se=use_se,
                 reparameterized=reparameterized,
             ),
             MobileOneBlock(
@@ -599,6 +615,7 @@ class FastVitStage(nn.Module):
         depth: int,
         token_mixer_type: Literal["repmixer", "attention"],
         downsample: bool,
+        se_downsample: bool,
         down_patch_size: int,
         down_stride: int,
         use_cpe: bool,
@@ -616,6 +633,7 @@ class FastVitStage(nn.Module):
                 stride=down_stride,
                 in_channels=dim,
                 embed_dim=dim_out,
+                use_se=se_downsample,
                 reparameterized=reparameterized,
             )
         else:
@@ -685,6 +703,7 @@ class FastViT(DetectorBackbone):
         layers: tuple[int, int, int, int] = self.config["layers"]
         embed_dims: tuple[int, int, int, int] = self.config["embed_dims"]
         mlp_ratios: tuple[int, int, int, int] = self.config["mlp_ratios"]
+        se_downsamples: tuple[bool, bool, bool, bool] = self.config["se_downsamples"]
         use_cpe: tuple[bool, bool, bool, bool] = self.config["use_cpe"]
         token_mixers: tuple[str, str, str, str] = self.config["token_mixers"]
         layer_scale_init_value: float = self.config["layer_scale_init_value"]
@@ -749,6 +768,7 @@ class FastViT(DetectorBackbone):
                 depth=layers[i],
                 token_mixer_type=token_mixers[i],  # type: ignore[arg-type]
                 downsample=downsample,
+                se_downsample=se_downsamples[i],
                 down_patch_size=7,
                 down_stride=2,
                 use_cpe=use_cpe[i],
@@ -834,6 +854,7 @@ registry.register_alias(
         "layers": (2, 2, 4, 2),
         "embed_dims": (48, 96, 192, 384),
         "mlp_ratios": (3, 3, 3, 3),
+        "se_downsamples": (False, False, False, False),
         "use_cpe": (False, False, False, False),
         "token_mixers": ("repmixer", "repmixer", "repmixer", "repmixer"),
         "layer_scale_init_value": 1e-5,
@@ -847,6 +868,7 @@ registry.register_alias(
         "layers": (2, 2, 6, 2),
         "embed_dims": (64, 128, 256, 512),
         "mlp_ratios": (3, 3, 3, 3),
+        "se_downsamples": (False, False, False, False),
         "use_cpe": (False, False, False, False),
         "token_mixers": ("repmixer", "repmixer", "repmixer", "repmixer"),
         "layer_scale_init_value": 1e-5,
@@ -860,6 +882,7 @@ registry.register_alias(
         "layers": (2, 2, 6, 2),
         "embed_dims": (64, 128, 256, 512),
         "mlp_ratios": (4, 4, 4, 4),
+        "se_downsamples": (False, False, False, False),
         "use_cpe": (False, False, False, False),
         "token_mixers": ("repmixer", "repmixer", "repmixer", "repmixer"),
         "layer_scale_init_value": 1e-5,
@@ -873,6 +896,7 @@ registry.register_alias(
         "layers": (2, 2, 6, 2),
         "embed_dims": (64, 128, 256, 512),
         "mlp_ratios": (4, 4, 4, 4),
+        "se_downsamples": (False, False, False, False),
         "use_cpe": (False, False, False, True),
         "token_mixers": ("repmixer", "repmixer", "repmixer", "attention"),
         "layer_scale_init_value": 1e-5,
@@ -886,6 +910,7 @@ registry.register_alias(
         "layers": (4, 4, 12, 4),
         "embed_dims": (64, 128, 256, 512),
         "mlp_ratios": (4, 4, 4, 4),
+        "se_downsamples": (False, False, False, False),
         "use_cpe": (False, False, False, True),
         "token_mixers": ("repmixer", "repmixer", "repmixer", "attention"),
         "layer_scale_init_value": 1e-5,
@@ -899,6 +924,7 @@ registry.register_alias(
         "layers": (6, 6, 18, 6),
         "embed_dims": (64, 128, 256, 512),
         "mlp_ratios": (4, 4, 4, 4),
+        "se_downsamples": (False, False, False, False),
         "use_cpe": (False, False, False, True),
         "token_mixers": ("repmixer", "repmixer", "repmixer", "attention"),
         "layer_scale_init_value": 1e-6,
@@ -912,10 +938,54 @@ registry.register_alias(
         "layers": (6, 6, 18, 6),
         "embed_dims": (76, 152, 304, 608),
         "mlp_ratios": (4, 4, 4, 4),
+        "se_downsamples": (False, False, False, False),
         "use_cpe": (False, False, False, True),
         "token_mixers": ("repmixer", "repmixer", "repmixer", "attention"),
         "layer_scale_init_value": 1e-6,
         "drop_path_rate": 0.35,
+    },
+)
+
+registry.register_alias(
+    "mobileclip_i0",
+    FastViT,
+    config={
+        "layers": (2, 6, 10, 2),
+        "embed_dims": (64, 128, 256, 512),
+        "mlp_ratios": (3, 3, 3, 3),
+        "se_downsamples": (False, False, True, True),
+        "use_cpe": (False, False, False, True),
+        "token_mixers": ("repmixer", "repmixer", "repmixer", "attention"),
+        "layer_scale_init_value": 1e-5,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "mobileclip_i1",
+    FastViT,
+    config={
+        "layers": (4, 12, 20, 4),
+        "embed_dims": (64, 128, 256, 512),
+        "mlp_ratios": (3, 3, 3, 3),
+        "se_downsamples": (False, False, True, True),
+        "use_cpe": (False, False, False, True),
+        "token_mixers": ("repmixer", "repmixer", "repmixer", "attention"),
+        "layer_scale_init_value": 1e-5,
+        "drop_path_rate": 0.05,
+    },
+)
+registry.register_alias(
+    "mobileclip_i2",
+    FastViT,
+    config={
+        "layers": (4, 12, 24, 4),
+        "embed_dims": (80, 160, 320, 640),
+        "mlp_ratios": (3, 3, 3, 3),
+        "se_downsamples": (False, False, True, True),
+        "use_cpe": (False, False, False, True),
+        "token_mixers": ("repmixer", "repmixer", "repmixer", "attention"),
+        "layer_scale_init_value": 1e-5,
+        "drop_path_rate": 0.15,
     },
 )
 

@@ -9,6 +9,7 @@ Paper "Focal Loss for Dense Object Detection", https://arxiv.org/abs/1708.02002
 
 import math
 from collections.abc import Callable
+from functools import partial
 from typing import Any
 from typing import Optional
 
@@ -17,6 +18,7 @@ import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import boxes as box_ops
+from torchvision.ops import generalized_box_iou_loss
 from torchvision.ops import sigmoid_focal_loss
 from torchvision.ops.feature_pyramid_network import LastLevelP6P7
 
@@ -127,9 +129,14 @@ class RetinaNetClassificationHead(nn.Module):
 
 class RetinaNetRegressionHead(nn.Module):
     def __init__(
-        self, in_channels: int, num_anchors: int, norm_layer: Optional[Callable[..., nn.Module]] = None
+        self,
+        in_channels: int,
+        num_anchors: int,
+        norm_layer: Optional[Callable[..., nn.Module]] = None,
+        giou_loss: bool = True,
     ) -> None:
         super().__init__()
+        self.giou_loss = giou_loss
 
         conv = []
         for _ in range(4):
@@ -173,10 +180,14 @@ class RetinaNetRegressionHead(nn.Module):
             anchors_per_image = anchors_per_image[foreground_idxs_per_image, :]
 
             # Compute the loss
-            target_regression = self.box_coder.encode_single(matched_gt_boxes_per_image, anchors_per_image)
-            losses.append(
-                F.l1_loss(bbox_regression_per_image, target_regression, reduction="sum") / max(1, num_foreground)
-            )
+            if self.giou_loss is True:
+                bbox_per_image = self.box_coder.decode_single(bbox_regression_per_image, anchors_per_image)
+                loss = generalized_box_iou_loss(bbox_per_image, matched_gt_boxes_per_image, reduction="sum", eps=1e-7)
+            else:
+                target_regression = self.box_coder.encode_single(matched_gt_boxes_per_image, anchors_per_image)
+                loss = F.l1_loss(bbox_regression_per_image, target_regression, reduction="sum") / max(1, num_foreground)
+
+            losses.append(loss / max(1, num_foreground))
 
         return _sum(losses) / max(1, len(targets))
 
@@ -205,13 +216,16 @@ class RetinaNetHead(nn.Module):
         num_anchors: int,
         num_classes: int,
         norm_layer: Optional[Callable[..., nn.Module]] = None,
+        giou_loss: bool = True,
     ) -> None:
         super().__init__()
         self.norm_layer = norm_layer
         self.classification_head = RetinaNetClassificationHead(
             in_channels, num_anchors, num_classes, norm_layer=norm_layer
         )
-        self.regression_head = RetinaNetRegressionHead(in_channels, num_anchors, norm_layer=norm_layer)
+        self.regression_head = RetinaNetRegressionHead(
+            in_channels, num_anchors, norm_layer=norm_layer, giou_loss=giou_loss
+        )
 
     def compute_loss(
         self,
@@ -258,14 +272,15 @@ class RetinaNet(DetectionBaseNet):
         nms_thresh = 0.5
         detections_per_img = 300
         topk_candidates = 1000
+        giou_loss = True
 
-        self.backbone.return_channels = self.backbone.return_channels[1:]
-        self.backbone.return_stages = self.backbone.return_stages[1:]
+        self.backbone.return_channels = self.backbone.return_channels[-3:]
+        self.backbone.return_stages = self.backbone.return_stages[-3:]
         self.backbone_with_fpn = BackboneWithFPN(
             # Skip stage1 because it generates too many anchors (according to their paper)
             self.backbone,
             fpn_width,
-            extra_blocks=LastLevelP6P7(256, 256),
+            extra_blocks=LastLevelP6P7(self.backbone.return_channels[-1], 256),
         )
 
         anchor_sizes = [[x, int(x * 2 ** (1.0 / 3)), int(x * 2 ** (2.0 / 3))] for x in [32, 64, 128, 256, 512]]
@@ -276,6 +291,8 @@ class RetinaNet(DetectionBaseNet):
             self.backbone_with_fpn.out_channels,
             self.anchor_generator.num_anchors_per_location()[0],
             self.num_classes,
+            norm_layer=partial(nn.GroupNorm, 32),
+            giou_loss=giou_loss,
         )
         self.proposal_matcher = Matcher(fg_iou_thresh, bg_iou_thresh, allow_low_quality_matches=True)
         self.box_coder = BoxCoder(weights=(1.0, 1.0, 1.0, 1.0))

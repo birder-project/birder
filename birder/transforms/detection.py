@@ -36,6 +36,7 @@ def batch_images(images: list[torch.Tensor], size_divisible: int = 32) -> torch.
 def training_preset(size: int, level: int, rgv_values: RGBType) -> Callable[..., torch.Tensor]:
     mean = rgv_values["mean"]
     std = rgv_values["std"]
+    fill_value = [255 * v for v in mean]
 
     if level == 0:
         return v2.Compose(  # type: ignore
@@ -52,13 +53,13 @@ def training_preset(size: int, level: int, rgv_values: RGBType) -> Callable[...,
         return v2.Compose(  # type: ignore
             [
                 v2.ScaleJitter(
-                    target_size=(800, 800),
+                    target_size=(size, size),
                     scale_range=(0.25, 2),
                     antialias=True,
                 ),
+                v2.RandomZoomOut(fill_value),
                 v2.Resize((size, size), interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
                 v2.RandomHorizontalFlip(0.5),
-                v2.ColorJitter(brightness=0.25, contrast=0.15, hue=0.04),
                 v2.SanitizeBoundingBoxes(),
                 v2.PILToTensor(),
                 v2.ToDtype(torch.float32, scale=True),
@@ -70,11 +71,31 @@ def training_preset(size: int, level: int, rgv_values: RGBType) -> Callable[...,
         return v2.Compose(  # type: ignore
             [
                 v2.ScaleJitter(
-                    target_size=(800, 800),
+                    target_size=(size, size),
                     scale_range=(0.2, 2),
                     antialias=True,
                 ),
-                # v2.RandomIoUCrop(),
+                v2.RandomZoomOut(fill_value),
+                v2.Resize((size, size), interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
+                v2.RandomHorizontalFlip(0.5),
+                v2.ColorJitter(brightness=0.25, contrast=0.15, hue=0.04),
+                v2.SanitizeBoundingBoxes(),
+                v2.PILToTensor(),
+                v2.ToDtype(torch.float32, scale=True),
+                v2.Normalize(mean=mean, std=std),
+            ]
+        )
+
+    if level == 3:
+        return v2.Compose(  # type: ignore
+            [
+                v2.ScaleJitter(
+                    target_size=(size, size),
+                    scale_range=(0.1, 2),
+                    antialias=True,
+                ),
+                v2.RandomZoomOut(fill_value),
+                v2.RandomIoUCrop(min_scale=0.7),
                 v2.Resize((size, size), interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
                 v2.RandomHorizontalFlip(0.5),
                 v2.RandomAutocontrast(0.2),

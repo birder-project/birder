@@ -212,6 +212,7 @@ def train(args: argparse.Namespace) -> None:
         epochs,
         args.lr_cosine_min,
         args.lr_step_size,
+        args.lr_steps,
         args.lr_step_gamma,
         args.lr_power,
     )
@@ -304,6 +305,7 @@ def train(args: argparse.Namespace) -> None:
 
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
+        training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
         with open(training_log_path.joinpath("args.json"), "w", encoding="utf-8") as handle:
             json.dump({"cmdline": " ".join(sys.argv), **vars(args)}, handle, indent=2)
 
@@ -554,6 +556,8 @@ def train(args: argparse.Namespace) -> None:
 
             del args.opt_betas
 
+        if args.lr_steps is not None:
+            args.lr_steps = json.dumps(args.lr_steps)
         if args.model_config is not None:
             args.model_config = json.dumps(args.model_config)
 
@@ -671,6 +675,12 @@ def get_args_parser() -> argparse.ArgumentParser:
         default=40,
         metavar="N",
         help="decrease lr every step-size epochs (for step scheduler only)",
+    )
+    parser.add_argument(
+        "--lr-steps",
+        type=int,
+        nargs="+",
+        help="decrease lr every step-size epochs (multistep scheduler only)",
     )
     parser.add_argument(
         "--lr-step-gamma",

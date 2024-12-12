@@ -78,7 +78,7 @@ def read_config_from_path(path: str | Path) -> dict[str, Any]:
     return model_config
 
 
-def read_class_file(path: Path | str) -> dict[str, int]:
+def read_class_file(path: str | Path) -> dict[str, int]:
     if Path(path).exists() is False:
         logging.warning(f"Class file '{path}' not found... class_to_idx returns empty")
         return {}
@@ -549,7 +549,7 @@ def load_pretrained_model(
     inference: bool = False,
     device: Optional[torch.device] = None,
     progress_bar: bool = True,
-) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], SignatureType, RGBType]:
+) -> tuple[BaseNet | DetectionBaseNet, dict[str, int], SignatureType | DetectionSignatureType, RGBType]:
     """
     Loads a pre-trained model from the model registry or a specified destination.
 
@@ -601,6 +601,21 @@ def load_pretrained_model(
 
     if device is None:
         device = torch.device("cpu")
+
+    if "backbone" in model_info:
+        return load_detection_model(
+            device,
+            model_info["net"]["network"],
+            path=dst,
+            net_param=model_info["net"].get("net_param", None),
+            tag=model_info["net"].get("tag", None),
+            reparameterized=model_info["net"].get("reparameterized", False),
+            backbone=model_info["backbone"]["network"],
+            backbone_param=model_info["backbone"].get("net_param", None),
+            backbone_tag=model_info["backbone"].get("tag", None),
+            backbone_reparameterized=model_info["backbone"].get("reparameterized", False),
+            inference=inference,
+        )
 
     return load_model(
         device,

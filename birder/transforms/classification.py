@@ -8,7 +8,7 @@ from torch import nn
 from torchvision.transforms import v2
 
 RGBType = TypedDict("RGBType", {"mean": tuple[float, float, float], "std": tuple[float, float, float]})
-RGBMode = Literal["birder", "imagenet", "none"]
+RGBMode = Literal["birder", "imagenet", "neutral", "none"]
 
 
 def get_rgb_stats(mode: RGBMode) -> RGBType:
@@ -22,6 +22,12 @@ def get_rgb_stats(mode: RGBMode) -> RGBType:
         return {
             "mean": (0.485, 0.456, 0.406),
             "std": (0.229, 0.224, 0.225),
+        }
+
+    if mode == "neutral":
+        return {
+            "mean": (0.0, 0.0, 0.0),
+            "std": (1.0, 1.0, 1.0),
         }
 
     if mode == "none":

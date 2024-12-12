@@ -26,6 +26,7 @@ ModelInfoType = TypedDict(
         "resolution": tuple[int, int],
         "formats": dict[Literal["pt", "pt2", "pts", "ptl", "safetensors"], FormatInfoType],
         "net": NetworkInfoType,
+        "backbone": NotRequired[NetworkInfoType],
     },
 )
 

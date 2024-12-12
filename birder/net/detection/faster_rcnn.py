@@ -787,7 +787,9 @@ class Faster_RCNN(DetectionBaseNet):
         anchor_sizes = [[32], [64], [128], [256], [512]]
         aspect_ratios = [[0.5, 1.0, 2.0]] * len(anchor_sizes)
         rpn_anchor_generator = AnchorGenerator(anchor_sizes, aspect_ratios)
-        rpn_head = RPNHead(self.backbone_with_fpn.out_channels, rpn_anchor_generator.num_anchors_per_location()[0])
+        rpn_head = RPNHead(
+            self.backbone_with_fpn.out_channels, rpn_anchor_generator.num_anchors_per_location()[0], conv_depth=2
+        )
 
         rpn_pre_nms_top_n = {"training": rpn_pre_nms_top_n_train, "testing": rpn_pre_nms_top_n_test}
         rpn_post_nms_top_n = {"training": rpn_post_nms_top_n_train, "testing": rpn_post_nms_top_n_test}
@@ -855,3 +857,23 @@ class Faster_RCNN(DetectionBaseNet):
         losses.update(proposal_losses)
 
         return (detections, losses)
+
+
+# registry.register_weights(
+#     "faster_rcnn_coco_csp_resnet_50_imagenet1k",
+#     {
+#         "description": (
+#             "Faster R-CNN with a CSP ResNet 50 backbone pretrained on ImageNet 1K, "
+#             "detection model trained on the COCO dataset"
+#         ),
+#         "resolution": (640, 640),
+#         "formats": {
+#             "pt": {
+#                 "file_size": 151.9,
+#                 "sha256": "275edeeccaa74547056a9a3ee09dd36b17c7c97e453030b6f62b18dd02107bf1",
+#             }
+#         },
+#         "net": {"network": "faster_rcnn", "tag": "coco"},
+#         "backbone": {"network": "csp_resnet_50", "tag": "imagenet1k"},
+#     },
+# )

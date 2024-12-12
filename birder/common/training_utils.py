@@ -5,6 +5,7 @@ import os
 import re
 from collections.abc import Iterator
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from typing import Literal
 from typing import Optional
@@ -18,7 +19,7 @@ import torch.utils.data.distributed
 from torchvision.ops import FrozenBatchNorm2d
 
 OptimizerType = Literal["sgd", "rmsprop", "adamw"]
-SchedulerType = Literal["constant", "step", "cosine", "polynomial"]
+SchedulerType = Literal["constant", "step", "multistep", "cosine", "polynomial"]
 
 
 class RASampler(torch.utils.data.Sampler):
@@ -345,6 +346,7 @@ def get_scheduler(
     epochs: int,
     lr_cosine_min: float,
     lr_step_size: int,
+    lr_steps: list[int],
     lr_step_gamma: float,
     lr_power: float,
 ) -> torch.optim.lr_scheduler.LRScheduler:
@@ -354,6 +356,8 @@ def get_scheduler(
         main_scheduler = torch.optim.lr_scheduler.ConstantLR(optimizer, factor=1.0, total_iters=1)
     elif lr_scheduler == "step":
         main_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_step_size, gamma=lr_step_gamma)
+    elif lr_scheduler == "multistep":
+        main_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=lr_steps, gamma=lr_step_gamma)
     elif lr_scheduler == "cosine":
         main_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=(epochs - begin_epoch - remaining_warmup), eta_min=lr_cosine_min
@@ -510,6 +514,18 @@ def training_log_name(network: str, device: torch.device) -> str:
 
     iso_timestamp = timestamp.isoformat()
     return f"{network}__{iso_timestamp}"
+
+
+def setup_file_logging(log_file_path: str | Path) -> None:
+    file_handler = logging.FileHandler(log_file_path)
+    formatter = logging.Formatter(
+        fmt="{message}",
+        style="{",
+    )
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.INFO)
+
+    logging.root.addHandler(file_handler)
 
 
 def get_grad_norm(parameters: Iterator[torch.Tensor], norm_type: float = 2) -> float:

@@ -267,15 +267,15 @@ class TestTrainingUtils(unittest.TestCase):
         args = argparse.Namespace(opt="sgd", lr=0.1, momentum=0.9, wd=0, nesterov=False)
         opt = training_utils.get_optimizer([{"params": []}], args)
         for scheduler_type in typing.get_args(training_utils.SchedulerType):
-            scheduler = training_utils.get_scheduler(scheduler_type, opt, 0, 0, 10, 0.0, 0, 0.0, 1.0)
+            scheduler = training_utils.get_scheduler(scheduler_type, opt, 0, 0, 10, 0.0, 0, [], 0.0, 1.0)
             self.assertIsInstance(scheduler, torch.optim.lr_scheduler.LRScheduler)
 
         # Check warmup
-        scheduler = training_utils.get_scheduler("step", opt, 5, 0, 10, 0.0, 0, 0.0, 1.0)
+        scheduler = training_utils.get_scheduler("step", opt, 5, 0, 10, 0.0, 0, [], 0.0, 1.0)
         self.assertIsInstance(scheduler, torch.optim.lr_scheduler.SequentialLR)
 
         with self.assertRaises(ValueError):
-            training_utils.get_scheduler("unknown", opt, 0, 0, 10, 0.0, 0, 0.0, 1.0)  # type: ignore
+            training_utils.get_scheduler("unknown", opt, 0, 0, 10, 0.0, 0, [], 0.0, 1.0)  # type: ignore
 
         # Misc
         self.assertFalse(training_utils.is_dist_available_and_initialized())

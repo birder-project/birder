@@ -87,6 +87,7 @@ class TestNet(unittest.TestCase):
             ("fasternet_t0"),
             ("fastvit_t8"),
             ("fastvit_sa12"),
+            ("mobileclip_i0"),
             ("focalnet_t_srf"),
             ("ghostnet_v1", 1),
             ("ghostnet_v2", 1),
