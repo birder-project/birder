@@ -344,11 +344,13 @@ def train(args: argparse.Namespace) -> None:
 
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
-                summary_writer.add_scalars(
-                    "loss",
-                    {f"training{args.rank}": running_loss / (i * batch_size)},
-                    ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
-                )
+                interval_loss = training_utils.reduce_across_processes(running_loss, device)
+                if args.rank == 0:
+                    summary_writer.add_scalars(
+                        "loss",
+                        {"training": interval_loss / (i * batch_size * args.world_size)},
+                        ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
+                    )
 
             # Update progress bar
             if args.rank == 0:
