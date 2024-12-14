@@ -781,8 +781,3 @@ registry.register_alias(
     EfficientDet,
     config={"fpn_cell_repeats": 8, "box_class_repeats": 5, "fpn_channels": 384, "weight_method": "sum"},
 )
-registry.register_alias(
-    "efficientdet_d7",
-    EfficientDet,
-    config={"fpn_cell_repeats": 8, "box_class_repeats": 5, "fpn_channels": 384, "weight_method": "sum"},
-)

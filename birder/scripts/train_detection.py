@@ -84,6 +84,11 @@ def train(args: argparse.Namespace) -> None:
     else:
         device = torch.device("cuda")
         device_id = torch.cuda.current_device()
+
+    if args.use_deterministic_algorithms is True:
+        torch.backends.cudnn.benchmark = False
+        torch.use_deterministic_algorithms(True)
+    else:
         torch.backends.cudnn.benchmark = True
 
     rgb_stats = get_rgb_stats(args.rgb_mode)
@@ -222,6 +227,9 @@ def train(args: argparse.Namespace) -> None:
     if args.freeze_backbone_bn is True:
         net.backbone = training_utils.freeze_batchnorm2d(net.backbone)
 
+    if args.sync_bn is True and args.distributed is True:
+        net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)
+
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
@@ -230,6 +238,10 @@ def train(args: argparse.Namespace) -> None:
         net = torch.compile(net)
     elif args.compile_backbone is True:
         net.backbone.detection_features = torch.compile(net.backbone.detection_features)  # type: ignore[method-assign]
+
+    if args.compile_custom is not None:
+        mod = getattr(net, args.compile_custom)
+        setattr(net, args.compile_custom, torch.compile(mod))
 
     # Define optimizer and learning rate scheduler and training parameter groups
     custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
@@ -242,6 +254,9 @@ def train(args: argparse.Namespace) -> None:
         backbone_lr=args.backbone_lr,
     )
     optimizer = training_utils.get_optimizer(parameters, args)
+    if args.compile_opt is True:
+        optimizer.step = torch.compile(optimizer.step, fullgraph=False)
+
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
         optimizer,
@@ -302,6 +317,9 @@ def train(args: argparse.Namespace) -> None:
 
     if args.compile is True and hasattr(model_to_save, "_orig_mod") is True:
         model_to_save = model_to_save._orig_mod  # pylint: disable=protected-access
+    if args.compile_custom is not None and hasattr(getattr(model_to_save, args.compile_custom), "_orig_mod") is True:
+        mod = getattr(model_to_save, args.compile_custom)
+        setattr(model_to_save, args.compile_custom, mod._orig_mod)  # pylint: disable=protected-access
 
     # Define metrics
     validation_metrics = MeanAveragePrecision(iou_type="bbox", box_format="xyxy", average="macro").to(device)
@@ -645,6 +663,10 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--compile-backbone", default=False, action="store_true", help="enable backbone only compilation"
     )
+    parser.add_argument("--compile-custom", type=str, help="enable compilation for specific module")
+    parser.add_argument(
+        "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
+    )
     parser.add_argument(
         "--opt",
         type=str,
@@ -719,6 +741,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="freeze all batch statistics and affine parameters of batchnorm2d layers (backbone only)",
     )
+    parser.add_argument("--sync-bn", default=False, action="store_true", help="use synchronized BatchNorm")
     parser.add_argument("--batch-size", type=int, default=16, metavar="N", help="the batch size")
     parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
     parser.add_argument(
@@ -812,6 +835,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--clip-grad-norm", type=float, help="the maximum gradient norm")
     parser.add_argument("--gpu", type=int, metavar="ID", help="gpu id to use (ignored in distributed mode)")
     parser.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")
+    parser.add_argument(
+        "--use-deterministic-algorithms", default=False, action="store_true", help="use only deterministic algorithms"
+    )
     parser.add_argument(
         "--binary-mode",
         default=False,

@@ -58,33 +58,21 @@ torchrun --nproc_per_node=2 train_detection.py --network detr --backbone regnet_
 #### EfficientDet D0: EfficientNet v1 B0
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d0 --backbone efficientnet_v1_b0 --backbone-epoch 0 --freeze-backbone --lr 0.08 --lr-scheduler cosine --warmup-epochs 2 --freeze-backbone-bn --batch-size 32 --epochs 300 --wd 0.00004 --clip-grad-norm 10 --amp --compile
+torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d0 --backbone efficientnet_v1_b0 --lr 0.08 --lr-scheduler cosine --sync-bn --warmup-epochs 5 --batch-size 16 --epochs 300 --wd 0.00004 --model-ema --clip-grad-norm 10 --amp --compile-backbone --compile-custom bifpn
 ```
 
 #### EfficientDet D4: RegNet Y 8 GF
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d4 --backbone regnet_y_8g --backbone-epoch 0 --freeze-backbone --lr 0.08 --lr-scheduler cosine --warmup-epochs 2 --freeze-backbone-bn --batch-size 8 --epochs 300 --wd 0.00004 --clip-grad-norm 10 --amp --compile
+torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d4 --backbone regnet_y_8g --backbone-epoch 0 --freeze-backbone --lr 0.08 --lr-scheduler cosine --warmup-epochs 2 --freeze-backbone-bn --batch-size 8 --epochs 300 --wd 0.00004 --clip-grad-norm 10 --amp --compile-backbone --compile-custom bifpn
 ```
 
 ### Faster R-CNN
 
-#### Faster R-CNN: MobileNet v3 Large Backbone
-
-```sh
-torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone mobilenet_v3_large --backbone-param 1 --backbone-epoch 0 --freeze-backbone --lr 0.02 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.93 --freeze-backbone-bn --batch-size 16 --epochs 100
-```
-
 #### Faster R-CNN: EfficientNet v2 Small Backbone
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone efficientnet_v2_s --backbone-epoch 0 --freeze-backbone --lr 0.02 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.93 --freeze-backbone-bn --batch-size 16 --epochs 100 --fast-matmul --compile
-```
-
-#### Faster R-CNN: ResNeXt 101 Backbone
-
-```sh
-torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone resnext_101 --backbone-epoch 0 --freeze-backbone --lr 0.02 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.93 --freeze-backbone-bn --batch-size 16 --epochs 100 --amp --compile
+torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone efficientnet_v2_s --backbone-epoch 0 --lr 0.02 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --freeze-backbone-stages 2 --freeze-backbone-bn --batch-size 16 --epochs 26 --wd 0.0001 --fast-matmul --compile-custom backbone_with_fpn
 ```
 
 ### FCOS
@@ -111,10 +99,10 @@ torchrun --nproc_per_node=2 train_detection.py --network fcos --backbone efficie
 
 ### RetinaNet
 
-#### RetinaNet: ResNeXt 101 Backbone
+#### RetinaNet: CSP ResNet 50 Backbone
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network retinanet --backbone resnext_101 --backbone-epoch 0 --freeze-backbone --lr 0.01 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.93 --batch-size 16 --epochs 100 --amp --compile
+torchrun --nproc_per_node=2 train_detection.py --network retinanet --backbone csp_resnet_50 --backbone-epoch 0 --opt adamw --lr 0.0001 --epochs 26 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --freeze-backbone-stages 1 --freeze-backbone-bn --batch-size 32 --wd 0.05 --norm-wd 0 --amp --compile-backbone
 ```
 
 ### SSD
@@ -154,13 +142,13 @@ torchrun --nproc_per_node=2 train_detection.py --network vitdet --backbone vit_s
 #### Faster R-CNN: CSP ResNet 50 Backbone COCO example
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --tag coco --backbone csp_resnet_50 --backbone-pretrained --backbone-tag imagenet1k --lr 0.02 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --freeze-backbone-stages 2 --freeze-backbone-bn --batch-size 16 --epochs 26 --wd 0.0001 --fast-matmul --compile-backbone --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --tag coco --backbone csp_resnet_50 --backbone-pretrained --backbone-tag imagenet1k --lr 0.02 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --freeze-backbone-stages 2 --freeze-backbone-bn --batch-size 16 --epochs 26 --wd 0.0001 --fast-matmul --compile-custom backbone_with_fpn --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 #### Faster R-CNN: ResNet v1 50 Backbone COCO example
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --tag coco --backbone resnet_v1_50 --lr 0.1 --lr-scheduler multistep --lr-steps 352 384 --lr-step-gamma 0.1 --batch-size 16 --epochs 400 --wd 0.0004 --amp --compile-backbone --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --tag coco --backbone resnet_v1_50 --lr 0.1 --lr-scheduler multistep --lr-steps 352 384 --lr-step-gamma 0.1 --batch-size 16 --epochs 400 --wd 0.0004 --amp --compile-custom backbone_with_fpn --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 #### RetinaNet: ResNet v1 50 Backbone COCO example

@@ -56,6 +56,11 @@ def train(args: argparse.Namespace) -> None:
     else:
         device = torch.device("cuda")
         device_id = torch.cuda.current_device()
+
+    if args.use_deterministic_algorithms is True:
+        torch.backends.cudnn.benchmark = False
+        torch.use_deterministic_algorithms(True)
+    else:
         torch.backends.cudnn.benchmark = True
 
     rgb_stats = get_rgb_stats(args.rgb_mode)
@@ -185,6 +190,8 @@ def train(args: argparse.Namespace) -> None:
 
     if args.freeze_bn is True:
         net = training_utils.freeze_batchnorm2d(net)
+    elif args.sync_bn is True and args.distributed is True:
+        net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)
 
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
@@ -204,6 +211,9 @@ def train(args: argparse.Namespace) -> None:
     )
     criterion = torch.nn.CrossEntropyLoss(label_smoothing=args.smoothing_alpha)
     optimizer = training_utils.get_optimizer(parameters, args)
+    if args.compile_opt is True:
+        optimizer.step = torch.compile(optimizer.step, fullgraph=False)
+
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
         optimizer,
@@ -639,6 +649,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
+        "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
+    )
+    parser.add_argument(
         "--opt",
         type=str,
         choices=list(typing.get_args(training_utils.OptimizerType)),
@@ -711,6 +724,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="freeze all batch statistics and affine parameters of batchnorm2d layers",
     )
+    parser.add_argument("--sync-bn", default=False, action="store_true", help="use synchronized BatchNorm")
     parser.add_argument("--batch-size", type=int, default=128, metavar="N", help="the batch size")
     parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
     parser.add_argument("--smoothing-alpha", type=float, default=0.0, help="label smoothing alpha")
@@ -807,6 +821,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--gpu", type=int, metavar="ID", help="gpu id to use (ignored in distributed mode)")
     parser.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")
     parser.add_argument(
+        "--use-deterministic-algorithms", default=False, action="store_true", help="use only deterministic algorithms"
+    )
+    parser.add_argument(
         "--plot-lr", default=False, action="store_true", help="plot learning rate and exit (skip training)"
     )
     parser.add_argument(
@@ -842,6 +859,7 @@ def validate_args(args: argparse.Namespace) -> None:
     assert (
         registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION) is True
     ), "Unknown network, see list-models tool for available options"
+    assert args.freeze_bn is False or args.sync_bn is False, "Cannot freeze-bn and sync-bn are mutually exclusive"
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

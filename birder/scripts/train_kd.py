@@ -68,6 +68,11 @@ def train(args: argparse.Namespace) -> None:
     else:
         device = torch.device("cuda")
         device_id = torch.cuda.current_device()
+
+    if args.use_deterministic_algorithms is True:
+        torch.backends.cudnn.benchmark = False
+        torch.use_deterministic_algorithms(True)
+    else:
         torch.backends.cudnn.benchmark = True
 
     # Using the teacher rgb values for the student
@@ -193,11 +198,13 @@ def train(args: argparse.Namespace) -> None:
 
     if args.freeze_bn is True:
         student = training_utils.freeze_batchnorm2d(student)
+    elif args.sync_bn is True and args.distributed is True:
+        student = torch.nn.SyncBatchNorm.convert_sync_batchnorm(student)
 
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
-    # Compile teacher network
+    # Compile networks
     if args.compile is True:
         teacher = torch.compile(teacher)
         student = torch.compile(student)
@@ -223,6 +230,9 @@ def train(args: argparse.Namespace) -> None:
         raise ValueError(f"Unknown KD type: {args.type}")
 
     optimizer = training_utils.get_optimizer(parameters, args)
+    if args.compile_opt is True:
+        optimizer.step = torch.compile(optimizer.step, fullgraph=False)
+
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
         optimizer,
@@ -657,7 +667,10 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
-    parser.add_argument("--compile", default=False, action="store_true", help="enable teacher compilation")
+    parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
+    parser.add_argument(
+        "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
+    )
     parser.add_argument(
         "--opt",
         type=str,
@@ -733,6 +746,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="freeze all batch statistics and affine parameters of batchnorm2d layers",
     )
+    parser.add_argument("--sync-bn", default=False, action="store_true", help="use synchronized BatchNorm")
     parser.add_argument("--batch-size", type=int, default=128, metavar="N", help="the batch size")
     parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
     parser.add_argument("--smoothing-alpha", type=float, default=0.0, help="label smoothing alpha")
@@ -829,6 +843,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--gpu", type=int, metavar="ID", help="gpu id to use (ignored in distributed mode)")
     parser.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")
     parser.add_argument(
+        "--use-deterministic-algorithms", default=False, action="store_true", help="use only deterministic algorithms"
+    )
+    parser.add_argument(
         "--val-path", type=str, default=str(settings.VALIDATION_DATA_PATH), help="validation directory path"
     )
     parser.add_argument(
@@ -859,6 +876,7 @@ def validate_args(args: argparse.Namespace) -> None:
     assert (
         registry.exists(args.student, task=Task.IMAGE_CLASSIFICATION) is True
     ), "Unknown student network, see list-models tool for available options"
+    assert args.freeze_bn is False or args.sync_bn is False, "Cannot freeze-bn and sync-bn are mutually exclusive"
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

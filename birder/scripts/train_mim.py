@@ -62,6 +62,11 @@ def train(args: argparse.Namespace) -> None:
     else:
         device = torch.device("cuda")
         device_id = torch.cuda.current_device()
+
+    if args.use_deterministic_algorithms is True:
+        torch.backends.cudnn.benchmark = False
+        torch.use_deterministic_algorithms(True)
+    else:
         torch.backends.cudnn.benchmark = True
 
     rgb_stats = get_rgb_stats(args.rgb_mode)
@@ -157,6 +162,9 @@ def train(args: argparse.Namespace) -> None:
         layer_decay=args.layer_decay,
     )
     optimizer = training_utils.get_optimizer(parameters, args)
+    if args.compile_opt is True:
+        optimizer.step = torch.compile(optimizer.step, fullgraph=False)
+
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
         optimizer,
@@ -463,6 +471,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
+        "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
+    )
+    parser.add_argument(
         "--opt",
         type=str,
         choices=list(typing.get_args(training_utils.OptimizerType)),
@@ -601,6 +612,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--clip-grad-norm", type=float, help="the maximum gradient norm")
     parser.add_argument("--gpu", type=int, metavar="ID", help="gpu id to use (ignored in distributed mode)")
     parser.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")
+    parser.add_argument(
+        "--use-deterministic-algorithms", default=False, action="store_true", help="use only deterministic algorithms"
+    )
     parser.add_argument(
         "--plot-lr", default=False, action="store_true", help="plot learning rate and exit (skip training)"
     )
