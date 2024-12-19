@@ -44,3 +44,9 @@ List missing classes in training directory
 <https://en.wikipedia.org/wiki/Biogeographic_realm>
 
 <https://digdeep1962.wordpress.com/2014/03/14/keep-calm-and-study-snipes-part-1/>
+
+## Detection Annotations
+
+`labelme --labels ../birder/data/detection_data/classes.txt --nodata --output ../birder/data/detection_data/training_annotations --flags unknown ../birder/data/detection_data/training`
+
+`labelme --labels ../birder/data/detection_data/classes.txt --nodata --output ../birder/data/detection_data/validation_annotations --flags unknown ../birder/data/detection_data/validation`

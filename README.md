@@ -53,6 +53,7 @@ For detailed installation options, including source installation, refer to our [
 Check out the Birder Colab notebook for an interactive tutorial.
 
 [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/birder-project/birder/blob/main/notebooks/getting_started.ipynb)
+[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Project-blue)](https://huggingface.co/birder-project)
 
 If you prefer a local setup, follow the installation instructions below.
 
@@ -146,12 +147,6 @@ For detailed information about these datasets, including descriptions, citations
 ## Detection
 
 Detection features are currently under development and will be available in future releases.
-
-For annotation, run the following command:
-
-```sh
-labelme --labels ../birder/data/detection_data/classes.txt --nodata --output ../birder/data/detection_data/training_annotations --flags unknown ../birder/data/detection_data/training
-```
 
 ## Project Status and Contributions
 

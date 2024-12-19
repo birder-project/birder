@@ -35,7 +35,7 @@ Our model names follow a systematic pattern that encodes important information a
 
 ### Geographical Tags
 
-Our models are trained on region-specific datasets, for example:
+Indicates the geographical region or scope of the training data:
 
 * **il-common**: Specialized for common bird species in Israel
 * **il-all**: Covers all bird species found in Israel
