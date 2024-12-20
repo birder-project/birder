@@ -8,6 +8,7 @@ from birder.net.base import SignatureType
 from birder.net.base import reparameterize_available
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import DetectionSignatureType
+from birder.net.mim.base import MIMBaseNet
 from birder.transforms.classification import RGBType
 from birder.version import __version__
 
@@ -87,7 +88,7 @@ def detection_class_to_idx(class_to_idx: dict[str, int]) -> dict[str, int]:
 
 
 def get_network_config(
-    net: BaseNet | DetectionBaseNet, signature: SignatureType | DetectionSignatureType, rgb_stats: RGBType
+    net: BaseNet | DetectionBaseNet | MIMBaseNet, signature: SignatureType | DetectionSignatureType, rgb_stats: RGBType
 ) -> dict[str, Any]:
     model_name = registry.get_model_base_name(net)
     alias = registry.get_model_alias(net)
@@ -109,6 +110,17 @@ def get_network_config(
         if reparameterize_available(net.backbone) is True:
             backbone_config["backbone_reparameterized"] = net.backbone.reparameterized
 
+    encoder_config: dict[str, Any] = {}
+    if isinstance(net, MIMBaseNet):
+        encoder_config["encoder"] = registry.get_model_base_name(net.encoder)
+        encoder_config["encoder_alias"] = registry.get_model_alias(net.encoder)
+        if net.encoder.net_param is not None:
+            backbone_config["encoder_net_param"] = net.encoder.net_param
+        if net.encoder.config is not None:
+            backbone_config["encoder_config"] = net.encoder.config
+        if reparameterize_available(net.encoder) is True:
+            backbone_config["encoder_reparameterized"] = net.encoder.reparameterized
+
     net_config = {
         "birder_version": __version__,
         "name": model_name,
@@ -117,6 +129,7 @@ def get_network_config(
         "net_param": net_param,
         "model_config": model_config,
         **backbone_config,
+        **encoder_config,
         "signature": signature,
         "rgb_stats": rgb_stats,
     }

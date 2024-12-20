@@ -4,10 +4,19 @@ Adapted from https://github.com/jacobgil/vit-explain/blob/main/vit_rollout.py
 
 # Reference license: MIT
 
+from collections.abc import Callable
+from pathlib import Path
 from typing import Literal
+from typing import Optional
 
+import numpy as np
 import torch
+from PIL import Image
+from torch import nn
 
+from birder.introspection.base import InterpretabilityResult
+from birder.introspection.base import Interpreter
+from birder.introspection.base import show_mask_on_image
 from birder.net.vit import Encoder
 
 
@@ -75,3 +84,34 @@ class AttentionRollout:
             self.net(x)
 
         return rollout(self.attentions, discard_ratio, head_fusion, self.net.num_special_tokens)
+
+
+class AttentionRolloutInterpreter(Interpreter):
+    def __init__(
+        self,
+        model: nn.Module,
+        device: torch.device,
+        transform: Callable[..., torch.Tensor],
+        attention_layer_name: str,
+        discard_ratio: float,
+        head_fusion: Literal["mean", "max", "min"],
+    ) -> None:
+        super().__init__(model, device, transform)
+        self.attention_rollout = AttentionRollout(model, attention_layer_name)
+        self.discard_ratio = discard_ratio
+        self.head_fusion = head_fusion
+
+    def interpret(self, image: str | Path | Image.Image, target_class: Optional[int] = None) -> InterpretabilityResult:
+        (input_tensor, rgb_img) = self._preprocess_image(image)
+
+        attention_map = self.attention_rollout(
+            input_tensor, discard_ratio=self.discard_ratio, head_fusion=self.head_fusion
+        )
+
+        # Resize attention map to match image size
+        attention_img = Image.fromarray(attention_map.numpy())
+        attention_img = attention_img.resize(rgb_img.shape[:2])
+        attention_arr = np.array(attention_img)
+        visualization = show_mask_on_image(rgb_img, attention_arr, image_weight=0.4)
+
+        return InterpretabilityResult(rgb_img, visualization, raw_output=attention_arr)

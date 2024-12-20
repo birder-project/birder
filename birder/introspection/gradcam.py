@@ -5,9 +5,9 @@ Adapted from https://github.com/jacobgil/pytorch-grad-cam
 # Reference license: MIT
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Optional
 
-import matplotlib.cm
 import numpy as np
 import numpy.typing as npt
 import torch
@@ -15,21 +15,12 @@ from PIL import Image
 from torch import nn
 from torch.utils.hooks import RemovableHandle
 
-
-def show_cam_on_image(
-    img: npt.NDArray[np.float32], mask: npt.NDArray[np.float32], image_weight: float = 0.5
-) -> npt.NDArray[np.float32]:
-    color_map = matplotlib.colormaps["jet"]
-    heatmap = color_map(mask)[:, :, :3]
-
-    cam: npt.NDArray[np.float32] = (1 - image_weight) * heatmap + image_weight * img
-    cam = cam / np.max(cam)
-    cam = cam * 255
-
-    return cam.astype(np.uint8)
+from birder.introspection.base import InterpretabilityResult
+from birder.introspection.base import Interpreter
+from birder.introspection.base import show_mask_on_image
 
 
-def scale_cam_image(
+def _scale_cam_image(
     cam: npt.NDArray[np.float32], target_size: Optional[tuple[int, int]] = None
 ) -> npt.NDArray[np.float32]:
     result = []
@@ -134,7 +125,7 @@ class GradCAM:
 
         cam = self.get_cam_image(layer_activations, layer_grads)
         cam = np.maximum(cam, 0)
-        scaled = scale_cam_image(cam, target_size)
+        scaled = _scale_cam_image(cam, target_size)
         return scaled[:, None, :]
 
     def __call__(
@@ -151,9 +142,35 @@ class GradCAM:
 
         cam_per_layer = self.compute_layer_cam(input_tensor)
         cam_per_layer = np.mean(cam_per_layer, axis=1)
-        cam_per_layer = scale_cam_image(cam_per_layer)
+        cam_per_layer = _scale_cam_image(cam_per_layer)
 
         return cam_per_layer
 
     def __del__(self) -> None:
         self.activations_and_grads.release()
+
+
+class GradCamInterpreter(Interpreter):
+    def __init__(
+        self,
+        model: nn.Module,
+        device: torch.device,
+        transform: Callable[..., torch.Tensor],
+        target_layer: nn.Module,
+        reshape_transform: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
+    ) -> None:
+        super().__init__(model, device, transform)
+        self.grad_cam = GradCAM(model, target_layer, reshape_transform=reshape_transform)
+
+    def interpret(self, image: str | Path | Image.Image, target_class: Optional[int] = None) -> InterpretabilityResult:
+        (input_tensor, rgb_img) = self._preprocess_image(image)
+
+        if target_class is not None:
+            target = ClassifierOutputTarget(target_class)
+        else:
+            target = None
+
+        grayscale_cam = self.grad_cam(input_tensor, target=target)[0, :]
+        visualization = show_mask_on_image(rgb_img, grayscale_cam)
+
+        return InterpretabilityResult(rgb_img, visualization, raw_output=grayscale_cam)

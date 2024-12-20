@@ -1,46 +1,22 @@
 import argparse
 import logging
 from collections.abc import Callable
-from functools import partial
 from typing import Any
 
-import matplotlib.pyplot as plt
-import numpy as np
-import numpy.typing as npt
 import torch
-from PIL import Image
 
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
-from birder.introspection import attention_rollout
-from birder.introspection import gradcam
-from birder.introspection import guided_backprop
+from birder.introspection import AttentionRolloutInterpreter
+from birder.introspection import GradCamInterpreter
+from birder.introspection import GuidedBackpropInterpreter
 from birder.net.base import BaseNet
 from birder.transforms.classification import inference_preset
 
 
-def _swin_reshape_transform(tensor: torch.Tensor, height: int, width: int) -> torch.Tensor:
-    result = tensor.reshape(tensor.size(0), height, width, tensor.size(3))
-
-    # Bring the channels to the first dimension like in CNNs
-    result = result.transpose(2, 3).transpose(1, 2)
-
-    return result
-
-
-def _deprocess_image(img: npt.NDArray[np.float32]) -> npt.NDArray[np.uint8]:
-    """
-    See https://github.com/jacobgil/keras-grad-cam/blob/master/grad-cam.py#L65
-    """
-
-    img = img - np.mean(img)
-    img = img / (np.std(img) + 1e-5)
-    img = img * 0.1
-    img = img + 0.5
-    img = np.clip(img, 0, 1)
-
-    return np.array(img * 255).astype(np.uint8)
+def _nhwc_reshape_transform(tensor: torch.Tensor) -> torch.Tensor:
+    return tensor.permute(0, 3, 1, 2).contiguous()
 
 
 def show_attn_rollout(
@@ -50,19 +26,9 @@ def show_attn_rollout(
     transform: Callable[..., torch.Tensor],
     device: torch.device,
 ) -> None:
-    img = Image.open(args.image_path)
-    input_tensor = transform(img).unsqueeze(dim=0).to(device)
-
-    ar_net = attention_rollout.AttentionRollout(net, args.attn_layer_name)
-    attn_rollout = ar_net(input_tensor, args.discard_ratio, args.head_fusion)
-    mask = Image.fromarray(attn_rollout.numpy())
-
-    _, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 8))
-    ax1.imshow(img.resize((args.size, args.size)))
-    ax2.matshow(np.array(mask.resize((args.size, args.size))))
-    ax3.matshow(np.array(mask.resize((args.size, args.size))))
-    ax3.imshow(img.resize((args.size, args.size)), alpha=0.4)
-    plt.show()
+    ar = AttentionRolloutInterpreter(net, device, transform, args.attn_layer_name, args.discard_ratio, args.head_fusion)
+    result = ar.interpret(args.image_path)
+    result.show()
 
 
 def show_guided_backprop(
@@ -72,24 +38,14 @@ def show_guided_backprop(
     transform: Callable[..., torch.Tensor],
     device: torch.device,
 ) -> None:
-    img = Image.open(args.image_path)
-    rgb_img = np.array(img.resize((args.size, args.size))).astype(np.float32) / 255.0
-
-    input_tensor = transform(img).unsqueeze(dim=0).to(device)
-
     if args.target is not None:
         target = class_to_idx[args.target]
     else:
         target = None
 
-    guided_bp = guided_backprop.GuidedBackpropReLUModel(net)
-    bp_img = guided_bp(input_tensor, target_category=target)
-    bp_img = _deprocess_image(bp_img * rgb_img)
-
-    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
-    ax1.imshow(bp_img)
-    ax2.imshow(rgb_img)
-    plt.show()
+    guided_bp = GuidedBackpropInterpreter(net, device, transform)
+    result = guided_bp.interpret(args.image_path, target_class=target)
+    result.show()
 
 
 def show_grad_cam(
@@ -99,37 +55,22 @@ def show_grad_cam(
     transform: Callable[..., torch.Tensor],
     device: torch.device,
 ) -> None:
-    if args.network.startswith("swin_") is True:
-        if args.reshape_size is None:
-            args.reshape_size = int(args.size / (2**5))
-
-        reshape_transform = partial(_swin_reshape_transform, height=args.reshape_size, width=args.reshape_size)
-
+    if args.channels_last is True:
+        reshape_transform = _nhwc_reshape_transform
     else:
         reshape_transform = None
 
-    img = Image.open(args.image_path)
-    rgb_img = np.array(img.resize((args.size, args.size))).astype(np.float32) / 255.0
-
     block = getattr(net, args.block_name)
     target_layer = block[args.layer_num]
-    input_tensor = transform(img).unsqueeze(dim=0).to(device)
 
-    grad_cam = gradcam.GradCAM(net, target_layer, reshape_transform=reshape_transform)
     if args.target is not None:
-        target = gradcam.ClassifierOutputTarget(class_to_idx[args.target])
-
+        target = class_to_idx[args.target]
     else:
         target = None
 
-    grayscale_cam = grad_cam(input_tensor, target=target)
-    grayscale_cam = grayscale_cam[0, :]
-    visualization = gradcam.show_cam_on_image(rgb_img, grayscale_cam)
-
-    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
-    ax1.imshow(visualization)
-    ax2.imshow(rgb_img)
-    plt.show()
+    grad_cam = GradCamInterpreter(net, device, transform, target_layer, reshape_transform=reshape_transform)
+    result = grad_cam.interpret(args.image_path, target_class=target)
+    result.show()
 
 
 def set_parser(subparsers: Any) -> None:
@@ -147,7 +88,7 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools introspection --method guided-backprop -n efficientnet_v2_s "
             "-e 0 'data/training/European goldfinch/000300.jpeg'\n"
             "python -m birder.tools introspection --method gradcam -n swin_transformer_v1_b -e 85 --layer-num -4 "
-            "--reshape-size 20 data/training/Fieldfare/000002.jpeg\n"
+            "--channels-last data/training/Fieldfare/000002.jpeg\n"
             "python -m birder.tools introspection --method attn-rollout -n vitreg4_b16 -t mim -e 100 "
             " data/validation/Bluethroat/000013.jpeg\n"
         ),
@@ -177,7 +118,9 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--layer-num", type=int, default=-1, help="target layer, index for target block (gradcam only)"
     )
-    subparser.add_argument("--reshape-size", type=int, help="2d projection for transformer models (gradcam only)")
+    subparser.add_argument(
+        "--channels-last", default=False, action="store_true", help="channels last model, like swin (gradcam only)"
+    )
     subparser.add_argument(
         "--attn-layer-name", type=str, default="self_attention", help="attention layer name (attn-rollout only)"
     )

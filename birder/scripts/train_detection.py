@@ -254,9 +254,6 @@ def train(args: argparse.Namespace) -> None:
         backbone_lr=args.backbone_lr,
     )
     optimizer = training_utils.get_optimizer(parameters, args)
-    if args.compile_opt is True:
-        optimizer.step = torch.compile(optimizer.step, fullgraph=False)
-
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
         optimizer,
@@ -269,6 +266,8 @@ def train(args: argparse.Namespace) -> None:
         args.lr_step_gamma,
         args.lr_power,
     )
+    if args.compile_opt is True:
+        optimizer.step = torch.compile(optimizer.step, fullgraph=False)
 
     # Gradient scaler and AMP related tasks
     (scaler, amp_dtype) = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
