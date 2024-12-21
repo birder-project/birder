@@ -14,7 +14,6 @@ from torch.utils.data import DataLoader
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
-from birder.common.lib import get_network_name
 from birder.conf import settings
 from birder.dataloader.webdataset import make_wds_loader
 from birder.datasets.directory import make_image_dataset
@@ -73,7 +72,7 @@ def predict(args: argparse.Namespace) -> None:
 
         logging.info(f"Using device {device}")
 
-    network_name = get_network_name(args.network, net_param=args.net_param, tag=args.tag)
+    network_name = lib.get_network_name(args.network, net_param=args.net_param, tag=args.tag)
     (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
         device,
         args.network,

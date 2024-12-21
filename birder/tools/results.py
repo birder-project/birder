@@ -141,9 +141,10 @@ def set_parser(subparsers: Any) -> None:
             "--classes Mallard Unknown Wallcreeper\n"
             "python -m birder.tools results results/maxvit_2_154_e0_288px_crop1.0_6286.csv "
             "results/inception_next_1_160_e0_384px_crop1.0_6762.csv --print\n"
-            "python -m birder.tools results results/convnext_v2_4_214_e0_448px_crop1.0_10682.csv "
+            "python -m birder.tools results results/convnext_v2_base_214_e0_448px_crop1.0_10682.csv "
             '--prob-hist "Common kestrel" "Lesser kestrel"\n'
-            "python3 tool.py results results/squeezenet_il-common_367_e0_259px_crop1.0_13029.csv --most-confused\n"
+            "python -m birder.tools results results/squeezenet_il-common_367_e0_259px_crop1.0_13029.csv "
+            "--most-confused\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

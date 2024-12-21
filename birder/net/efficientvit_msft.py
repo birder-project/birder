@@ -527,3 +527,18 @@ registry.register_alias(
     EfficientViT_MSFT,
     config={"embed_dims": [192, 288, 384], "depths": [1, 3, 4], "num_heads": [3, 3, 4], "kernels": [7, 5, 3, 3]},
 )
+
+registry.register_weights(
+    "efficientvit_msft_m0_il-common",
+    {
+        "description": "EfficientViT (MSFT) M0 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 8.9,
+                "sha256": "f1ff44ac458b72ccdf442ce5516ee01e305d0ba3123e5512a5b1579a9ae8d422",
+            }
+        },
+        "net": {"network": "efficientvit_msft_m0", "tag": "il-common"},
+    },
+)

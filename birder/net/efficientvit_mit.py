@@ -764,3 +764,18 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
+
+registry.register_weights(
+    "efficientvit_mit_b0_il-common",
+    {
+        "description": "EfficientViT (MIT) B0 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 10.0,
+                "sha256": "421197ed3bef179bb52db8675a5de5aa962ae2999e1f8d5459c87db5d956d138",
+            }
+        },
+        "net": {"network": "efficientvit_mit_b0", "tag": "il-common"},
+    },
+)

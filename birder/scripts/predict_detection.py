@@ -1,6 +1,8 @@
 import argparse
+import json
 import logging
 import time
+from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -15,6 +17,7 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
+from birder.datasets.coco import CocoInference
 from birder.datasets.directory import make_image_dataset
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
@@ -22,7 +25,7 @@ from birder.transforms.detection import batch_images
 from birder.transforms.detection import inference_preset
 
 
-# pylint: disable=too-many-locals
+# pylint: disable=too-many-locals,too-many-branches
 def predict(args: argparse.Namespace) -> None:
     if args.gpu is True:
         device = torch.device("cuda")
@@ -32,8 +35,19 @@ def predict(args: argparse.Namespace) -> None:
     if args.parallel is True and torch.cuda.device_count() > 1:
         logging.info(f"Using {torch.cuda.device_count()} {device} devices")
     else:
+        if args.gpu_id is not None:
+            torch.cuda.set_device(args.gpu_id)
+
         logging.info(f"Using device {device}")
 
+    network_name = lib.get_detection_network_name(
+        args.network,
+        net_param=args.net_param,
+        tag=args.tag,
+        backbone=args.backbone,
+        backbone_param=args.backbone_param,
+        backbone_tag=args.backbone_tag,
+    )
     (net, class_to_idx, signature, rgb_stats) = fs_ops.load_detection_model(
         device,
         args.network,
@@ -83,7 +97,17 @@ def predict(args: argparse.Namespace) -> None:
         color_list.append(rgb)
 
     batch_size = args.batch_size
-    dataset = make_image_dataset(args.data_path, {}, transforms=inference_preset(args.size, rgb_stats))
+    if args.coco_json_path is not None:
+        labeled = True
+        root_path = Path(args.data_path[0])
+        dataset = CocoInference(root_path, args.coco_json_path, transforms=inference_preset(args.size, rgb_stats))
+        assert dataset.class_to_idx == class_to_idx
+    else:
+        labeled = False
+        root_path = Path("")
+        dataset = make_image_dataset(args.data_path, {}, transforms=inference_preset(args.size, rgb_stats))
+
+    num_samples = len(dataset)
     inference_loader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -93,16 +117,25 @@ def predict(args: argparse.Namespace) -> None:
     )
 
     tic = time.time()
+    sample_paths: list[str] = []
+    detections_list: list[dict[str, Any]] = []
+    target_list: list[dict[str, Any]] = []
     with tqdm(total=len(dataset), initial=0, unit="images", unit_scale=True, leave=False) as progress:
-        for file_paths, inputs, _ in inference_loader:
+        for file_paths, inputs, targets in inference_loader:
             # Predict
             inputs = [i.to(device) for i in inputs]
             inputs = batch_images(inputs)
             with torch.amp.autocast(device.type, enabled=args.amp):
                 (detections, _) = net(inputs)
 
+            sample_paths.extend(file_paths)
+            detections_list.extend(detections)
+            target_list.extend(targets)
+
             # Metrics
-            # TBD
+            if labeled is True:
+                pass
+                # TBD
 
             # Show flags
             if args.show is True:
@@ -116,7 +149,7 @@ def predict(args: argparse.Namespace) -> None:
                     label_names = [f"{class_list[i]}: {s:.3f}" for i, s in zip(labels, scores)]
                     colors = [color_list[label] for label in labels]
 
-                    img = decode_image(file_path)
+                    img = decode_image(root_path.joinpath(file_path))
                     (orig_w, orig_h) = img.shape[1:]
                     w_ratio = orig_w / w
                     h_ratio = orig_h / h
@@ -148,6 +181,28 @@ def predict(args: argparse.Namespace) -> None:
     (minutes, seconds) = divmod(toc - tic, 60)
     logging.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {len(dataset):,} samples ({rate:.2f} samples/sec)")
 
+    # Save output
+    epoch_str = ""
+    if args.epoch is not None:
+        epoch_str = f"_e{args.epoch}"
+
+    base_output_path = f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size}px_{num_samples}"
+    if args.suffix is not None:
+        base_output_path = f"{base_output_path}_{args.suffix}"
+
+    if args.save_output is True:
+        detections = [{k: v.cpu().numpy().tolist() for k, v in detection.items()} for detection in detections_list]
+        output = dict(zip(sample_paths, detections))
+        output["class_to_idx"] = class_to_idx
+        output_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_output.json")
+        logging.info(f"Saving output at {output_path}")
+        with open(output_path, "w", encoding="utf-8") as handle:
+            json.dump(output, handle, indent=2)
+
+    # Handle results
+    if args.save_results is True:
+        raise NotImplementedError
+
 
 def get_args_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -161,6 +216,9 @@ def get_args_parser() -> argparse.ArgumentParser:
             "-e 0 --show --gpu --compile data/detection_data/training\n"
             "python predict_detection.py --network faster_rcnn --backbone resnext_101 "
             "-e 0 --min-score 0.25 --gpu --show --shuffle data/detection_data/validation\n"
+            "python predict_detection.py --network faster_rcnn -t coco --backbone csp_resnet_50 "
+            "--backbone-tag imagenet1k -e 0 --batch-size 1 --gpu --gpu-id 1 "
+            "--coco-json-path data/detection_data/validation_annotations_coco.json data/detection_data"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -221,8 +279,13 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch-size", type=int, default=8, metavar="N", help="the batch size")
     parser.add_argument("--show", default=False, action="store_true", help="show image predictions")
     parser.add_argument("--shuffle", default=False, action="store_true", help="predict samples in random order")
+    parser.add_argument("--save-results", default=False, action="store_true", help="save results object")
+    parser.add_argument("--save-output", default=False, action="store_true", help="save raw output as CSV")
+    parser.add_argument("--suffix", type=str, help="add suffix to output file")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
+    parser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use (ignored in parallel mode)")
     parser.add_argument("--parallel", default=False, action="store_true", help="use multiple gpu's")
+    parser.add_argument("--coco-json-path", type=str, help="COCO json path")
     parser.add_argument("data_path", nargs="+", help="data files path (directories and files)")
 
     return parser
@@ -234,6 +297,7 @@ def validate_args(args: argparse.Namespace) -> None:
     assert args.parallel is False or (args.parallel is True and args.gpu is True)
     assert args.parallel is False or args.compile is False
     assert args.compile is False or args.compile_backbone is False
+    assert args.coco_json_path is None or len(args.data_path) == 1
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

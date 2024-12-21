@@ -117,7 +117,7 @@ Other tags:
 
 Net Param: The number following the model name (e.g., 50, 1.0, 0.5), called the `net_param`, represents a specific configuration choice for the network. It represents a specific configuration choice for the network, which can affect aspects such as model size or complexity.
 
-Epoch Number (optional): The last part of the model name may include an underscore followed by a number (e.g., `_0`, `_200`), which represents the epoch.
+Epoch Number (optional): The last part of the model name may include an underscore followed by a number (e.g., `0`, `200`), which represents the epoch.
 
 For instance, *resnext_50_intermediate_300* represents a ResNeXt model with a `net_param` of 50 that underwent intermediate training and is from epoch 300.
 
