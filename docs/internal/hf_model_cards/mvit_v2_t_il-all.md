@@ -16,12 +16,12 @@ The species list is derived from data available at <https://www.israbirding.com/
 
 - **Model Type:** Image classification and detection backbone
 - **Model Stats:**
-  - Params (M): 23.9
-  - Input image size: 384 x 384
+    - Params (M): 23.9
+    - Input image size: 384 x 384
 - **Dataset:** il-all (550 classes)
 
 - **Papers:**
-  - MViTv2: Improved Multiscale Vision Transformers for Classification and Detection: <https://arxiv.org/abs/2112.01526>
+    - MViTv2: Improved Multiscale Vision Transformers for Classification and Detection: <https://arxiv.org/abs/2112.01526>
 
 ## Model Usage
 

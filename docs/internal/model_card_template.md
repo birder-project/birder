@@ -14,12 +14,12 @@ license: apache-2.0
 
 - **Model Type:** Image classification and detection backbone
 - **Model Stats:**
-  - Params (M): <NUM_PARAMS>
-  - Input image size: <SIZE_x_SIZE>
+    - Params (M): <NUM_PARAMS>
+    - Input image size: <SIZE_x_SIZE>
 - **Dataset:** <DATASET_(NUM_CLASSES)>
 
 - **Papers:**
-  - <PAPER_TITLE>: <PAPER_LINK>
+    - <PAPER_TITLE>: <PAPER_LINK>
 
 ## Model Usage
 

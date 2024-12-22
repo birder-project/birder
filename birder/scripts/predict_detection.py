@@ -11,7 +11,6 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision.io import decode_image
 from torchvision.utils import draw_bounding_boxes
-from tqdm import tqdm
 
 from birder.common import cli
 from birder.common import fs_ops
@@ -19,10 +18,57 @@ from birder.common import lib
 from birder.conf import settings
 from birder.datasets.coco import CocoInference
 from birder.datasets.directory import make_image_dataset
+from birder.inference.detection import infer_dataloader
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.transforms.detection import batch_images
+from birder.results.detection import Results
 from birder.transforms.detection import inference_preset
+
+
+def show_detections(
+    img_path: str,
+    input_tensor: torch.Tensor,
+    detection: dict[str, torch.Tensor],
+    score_threshold: float,
+    class_list: list[str],
+    color_list: list[tuple[int, ...]],
+    root_path: Path,
+) -> None:
+    (w, h) = input_tensor.shape[1:]
+    scores = detection["scores"]
+    idxs = torch.where(scores > score_threshold)
+    scores = scores[idxs]
+    boxes = detection["boxes"][idxs]
+    labels = detection["labels"][idxs]
+    label_names = [f"{class_list[i]}: {s:.3f}" for i, s in zip(labels, scores)]
+    colors = [color_list[label] for label in labels]
+
+    img = decode_image(root_path.joinpath(img_path))
+    (orig_w, orig_h) = img.shape[1:]
+    w_ratio = orig_w / w
+    h_ratio = orig_h / h
+    adjusted_boxes = boxes * torch.tensor([h_ratio, w_ratio, h_ratio, w_ratio]).to(input_tensor.device)
+
+    if adjusted_boxes.size(0) == 0:
+        result_with_boxes = img
+    else:
+        result_with_boxes = draw_bounding_boxes(
+            image=img,
+            boxes=adjusted_boxes,
+            labels=label_names,
+            colors=colors,
+            width=3,
+            font="DejaVuSans",
+            font_size=14,
+        )
+
+    fig = plt.figure(num=img_path, figsize=(12, 9))
+    ax = fig.add_subplot(1, 1, 1)
+    ax.imshow(np.transpose(result_with_boxes, [1, 2, 0]))
+    ax.axis("off")
+
+    plt.tight_layout()
+    plt.show()
 
 
 # pylint: disable=too-many-locals,too-many-branches
@@ -101,7 +147,8 @@ def predict(args: argparse.Namespace) -> None:
         labeled = True
         root_path = Path(args.data_path[0])
         dataset = CocoInference(root_path, args.coco_json_path, transforms=inference_preset(args.size, rgb_stats))
-        assert dataset.class_to_idx == class_to_idx
+        if dataset.class_to_idx != class_to_idx:
+            logging.warning("Dataset class to index differs from model")
     else:
         labeled = False
         root_path = Path("")
@@ -116,65 +163,37 @@ def predict(args: argparse.Namespace) -> None:
         collate_fn=lambda batch: tuple(zip(*batch)),
     )
 
+    show_flag = args.show is True
+
+    def batch_callback(
+        file_paths: list[str],
+        inputs: torch.Tensor,
+        detections: list[dict[str, torch.Tensor]],
+        _targets: list[dict[str, Any]],
+    ) -> None:
+        # Show flags
+        if show_flag is True:
+            for img_path, input_tensor, detection in zip(file_paths, inputs, detections):
+                show_detections(
+                    img_path,
+                    input_tensor,
+                    detection,
+                    score_threshold=score_threshold,
+                    class_list=class_list,
+                    color_list=color_list,
+                    root_path=root_path,
+                )
+
     tic = time.time()
-    sample_paths: list[str] = []
-    detections_list: list[dict[str, Any]] = []
-    target_list: list[dict[str, Any]] = []
-    with tqdm(total=len(dataset), initial=0, unit="images", unit_scale=True, leave=False) as progress:
-        for file_paths, inputs, targets in inference_loader:
-            # Predict
-            inputs = [i.to(device) for i in inputs]
-            inputs = batch_images(inputs)
-            with torch.amp.autocast(device.type, enabled=args.amp):
-                (detections, _) = net(inputs)
-
-            sample_paths.extend(file_paths)
-            detections_list.extend(detections)
-            target_list.extend(targets)
-
-            # Metrics
-            if labeled is True:
-                pass
-                # TBD
-
-            # Show flags
-            if args.show is True:
-                (w, h) = inputs[0].shape[1:]
-                for file_path, detection in zip(file_paths, detections):
-                    scores = detection["scores"]
-                    idxs = torch.where(scores > score_threshold)
-                    scores = scores[idxs]
-                    boxes = detection["boxes"][idxs]
-                    labels = detection["labels"][idxs]
-                    label_names = [f"{class_list[i]}: {s:.3f}" for i, s in zip(labels, scores)]
-                    colors = [color_list[label] for label in labels]
-
-                    img = decode_image(root_path.joinpath(file_path))
-                    (orig_w, orig_h) = img.shape[1:]
-                    w_ratio = orig_w / w
-                    h_ratio = orig_h / h
-                    adjusted_boxes = boxes * torch.tensor([h_ratio, w_ratio, h_ratio, w_ratio]).to(device)
-
-                    result_with_boxes = draw_bounding_boxes(
-                        image=img,
-                        boxes=adjusted_boxes,
-                        labels=label_names,
-                        colors=colors,
-                        width=3,
-                        font="DejaVuSans",
-                        font_size=14,
-                    )
-
-                    fig = plt.figure(num=file_path, figsize=(12, 9))
-                    ax = fig.add_subplot(1, 1, 1)
-                    ax.imshow(np.transpose(result_with_boxes, [1, 2, 0]))
-                    ax.axis("off")
-
-                    plt.tight_layout()
-                    plt.show()
-
-            # Update progress bar
-            progress.update(n=batch_size)
+    with torch.inference_mode():
+        (sample_paths, detections, targets) = infer_dataloader(
+            device,
+            net,
+            inference_loader,
+            args.amp,
+            num_samples,
+            batch_callback=batch_callback,
+        )
 
     toc = time.time()
     rate = len(dataset) / (toc - tic)
@@ -191,8 +210,8 @@ def predict(args: argparse.Namespace) -> None:
         base_output_path = f"{base_output_path}_{args.suffix}"
 
     if args.save_output is True:
-        detections = [{k: v.cpu().numpy().tolist() for k, v in detection.items()} for detection in detections_list]
-        output = dict(zip(sample_paths, detections))
+        detection_list = [{k: v.cpu().numpy().tolist() for k, v in detection.items()} for detection in detections]
+        output = dict(zip(sample_paths, detection_list))
         output["class_to_idx"] = class_to_idx
         output_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_output.json")
         logging.info(f"Saving output at {output_path}")
@@ -200,8 +219,16 @@ def predict(args: argparse.Namespace) -> None:
             json.dump(output, handle, indent=2)
 
     # Handle results
-    if args.save_results is True:
-        raise NotImplementedError
+    if labeled is True:
+        results = Results(sample_paths, targets, detections, class_to_idx)
+        if args.save_results is True:
+            results.save(f"{base_output_path}.json")
+
+        # Log short report
+
+    else:
+        if args.save_results is True:
+            logging.warning("Annotations not provided, unable to save results")
 
 
 def get_args_parser() -> argparse.ArgumentParser:

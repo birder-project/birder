@@ -16,12 +16,12 @@ The species list is derived from data available at <https://www.israbirding.com/
 
 - **Model Type:** Image classification and detection backbone
 - **Model Stats:**
-  - Params (M): 28.0
-  - Input image size: 384 x 384
+    - Params (M): 28.0
+    - Input image size: 384 x 384
 - **Dataset:** il-all (550 classes)
 
 - **Papers:**
-  - DaViT: Dual Attention Vision Transformers: <https://arxiv.org/abs/2204.03645>
+    - DaViT: Dual Attention Vision Transformers: <https://arxiv.org/abs/2204.03645>
 
 ## Model Usage
 

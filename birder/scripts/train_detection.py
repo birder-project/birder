@@ -509,7 +509,7 @@ def train(args: argparse.Namespace) -> None:
                     (detections, losses) = eval_model(inputs)
 
                 for target in targets:
-                    # TorchMetrics can't handle "empty" images, we don't want to remove them...
+                    # TorchMetrics can't handle "empty" images
                     if "boxes" not in target:
                         target["boxes"] = torch.tensor([], dtype=torch.float, device=device)
                         target["labels"] = torch.tensor([], dtype=torch.int64, device=device)

@@ -16,12 +16,12 @@ The species list is derived from data available at <https://www.israbirding.com/
 
 - **Model Type:** Image classification and detection backbone
 - **Model Stats:**
-  - Params (M): 3.0
-  - Input image size: 256 x 256
+    - Params (M): 3.0
+    - Input image size: 256 x 256
 - **Dataset:** il-common (371 classes)
 
 - **Papers:**
-  - XCiT: Cross-Covariance Image Transformers: <https://arxiv.org/abs/2106.09681>
+    - XCiT: Cross-Covariance Image Transformers: <https://arxiv.org/abs/2106.09681>
 
 ## Model Usage
 

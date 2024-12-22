@@ -4,9 +4,9 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 
 ## Table of Contents
 
-* [General Training Guidelines](#general-training-guidelines)
-* [Network Specific Training Procedures](#network-specific-training-procedures)
-* [Common Dataset Training Scenarios](#common-dataset-training-scenarios)
+- [General Training Guidelines](#general-training-guidelines)
+- [Network Specific Training Procedures](#network-specific-training-procedures)
+- [Common Dataset Training Scenarios](#common-dataset-training-scenarios)
 
 ## General Training Guidelines
 
@@ -16,109 +16,109 @@ Most networks train more effectively with growing resolution and augmentation as
 
 Intermediate training on weakly supervised dataset:
 
-* Run without EMA (Exponential Moving Average)
-* Use higher weight decay
-* Maintain the same learning rate and number of epochs
-* Use the same augmentations
-* Use the lowest resolution for the model (usually 256x256)
+- Run without EMA (Exponential Moving Average)
+- Use higher weight decay
+- Maintain the same learning rate and number of epochs
+- Use the same augmentations
+- Use the lowest resolution for the model (usually 256x256)
 
 On fine-tuning phase
 
-* Run only the last training phase (highest resolution)
-* Limit to at most 30% of the total epochs
-* Apply a small layer-decay (0.98 - 0.99)
-* Consider using a slightly lower learning rate
+- Run only the last training phase (highest resolution)
+- Limit to at most 30% of the total epochs
+- Apply a small layer-decay (0.98 - 0.99)
+- Consider using a slightly lower learning rate
 
 ## Network Specific Training Procedures
 
-* [AlexNet](#alexnet)
-* [BiFormer](#biformer)
-* [CaiT](#cait)
-* [CoaT](#coat)
-* [ConvMixer](#convmixer)
-* [ConvNeXt v1](#convnext-v1)
-* [ConvNeXt v2](#convnext-v2)
-* [CrossViT](#crossvit)
-* [CSPNet](#cspnet)
-* [CSWin Transformer](#cswin-transformer)
-* [Darknet](#darknet)
-* [DaViT](#davit)
-* [DeiT](#deit)
-* [DeiT3](#deit3)
-* [DenseNet](#densenet)
-* [DPN](#dpn)
-* [EdgeNeXt](#edgenext)
-* [EdgeViT](#edgevit)
-* [EfficientFormer v1](#efficientformer-v1)
-* [EfficientFormer v2](#efficientformer-v2)
-* [EfficientNet Lite](#efficientnet-lite)
-* [EfficientNet v1](#efficientnet-v1)
-* [EfficientNet v2](#efficientnet-v2)
-* [EfficientViT MIT](#efficientvit-mit)
-* [EfficientViT MSFT](#efficientvit-msft)
-* [FasterNet](#fasternet)
-* [FastViT](#fastvit)
-* [FocalNet](#focalnet)
-* [GhostNet v1](#ghostnet-v1)
-* [GhostNet v2](#ghostnet-v2)
-* [Hiera](#hiera)
-* [HieraDet](#hieradet)
-* [iFormer](#iformer)
-* [InceptionNeXt](#inceptionnext)
-* [Inception-ResNet v2](#inception-resnet-v2)
-* [Inception v3](#inception-v3)
-* [Inception v4](#inception-v4)
-* [LeViT](#levit)
-* [MaxViT](#maxvit)
-* [MetaFormer](#metaformer)
-* [MnasNet](#mnasnet)
-* [Mobilenet v1](#mobilenet-v1)
-* [Mobilenet v2](#mobilenet-v2)
-* [Mobilenet v3 Large](#mobilenet-v3-large)
-* [Mobilenet v3 Small](#mobilenet-v3-small)
-* [Mobilenet v4](#mobilenet-v4)
-* [Mobilenet v4 Hybrid](#mobilenet-v4-hybrid)
-* [MobileOne](#mobileone)
-* [MobileViT v1](#mobilevit-v1)
-* [MobileViT v2](#mobilevit-v2)
-* [MogaNet](#moganet)
-* [MViT v2](#mvit-v2)
-* [Next-ViT](#next-vit)
-* [NFNet](#nfnet)
-* [PiT](#pit)
-* [PVT v1](#pvt-v1)
-* [PVT v2](#pvt-v2)
-* [RDNet](#rdnet)
-* [RegNet](#regnet)
-* [RepGhost](#repghost)
-* [RepVgg](#repvgg)
-* [ResMLP](#resmlp)
-* [ResNeSt](#resnest)
-* [ResNet v1](#resnet-v1)
-* [ResNet v2](#resnet-v2)
-* [ResNeXt](#resnext)
-* [SE ResNet v1](#se-resnet-v1)
-* [SE ResNet v2](#se-resnet-v2)
-* [SE ResNeXt](#se-resnext)
-* [Sequencer2d](#sequencer2d)
-* [ShuffleNet v1](#shufflenet-v1)
-* [ShuffleNet v2](#shufflenet-v2)
-* [Simple ViT](#simple-vit)
-* [SqueezeNet](#squeezenet)
-* [SqueezeNext](#squeezenext)
-* [Swin Transformer v1](#swin-transformer-v1)
-* [Swin Transformer v2](#swin-transformer-v2)
-* [Tiny ViT](#tiny-vit)
-* [UniFormer](#uniformer)
-* [VAN](#van)
-* [VGG](#vgg)
-* [VGG Reduced](#vgg-reduced)
-* [ViT](#vit)
-* [ViT SAM](#vit-sam)
-* [ViTReg](#vitreg)
-* [Wide ResNet](#wide-resnet)
-* [Xception](#xception)
-* [XCiT](#xcit)
+- [AlexNet](#alexnet)
+- [BiFormer](#biformer)
+- [CaiT](#cait)
+- [CoaT](#coat)
+- [ConvMixer](#convmixer)
+- [ConvNeXt v1](#convnext-v1)
+- [ConvNeXt v2](#convnext-v2)
+- [CrossViT](#crossvit)
+- [CSPNet](#cspnet)
+- [CSWin Transformer](#cswin-transformer)
+- [Darknet](#darknet)
+- [DaViT](#davit)
+- [DeiT](#deit)
+- [DeiT3](#deit3)
+- [DenseNet](#densenet)
+- [DPN](#dpn)
+- [EdgeNeXt](#edgenext)
+- [EdgeViT](#edgevit)
+- [EfficientFormer v1](#efficientformer-v1)
+- [EfficientFormer v2](#efficientformer-v2)
+- [EfficientNet Lite](#efficientnet-lite)
+- [EfficientNet v1](#efficientnet-v1)
+- [EfficientNet v2](#efficientnet-v2)
+- [EfficientViT MIT](#efficientvit-mit)
+- [EfficientViT MSFT](#efficientvit-msft)
+- [FasterNet](#fasternet)
+- [FastViT](#fastvit)
+- [FocalNet](#focalnet)
+- [GhostNet v1](#ghostnet-v1)
+- [GhostNet v2](#ghostnet-v2)
+- [Hiera](#hiera)
+- [HieraDet](#hieradet)
+- [iFormer](#iformer)
+- [InceptionNeXt](#inceptionnext)
+- [Inception-ResNet v2](#inception-resnet-v2)
+- [Inception v3](#inception-v3)
+- [Inception v4](#inception-v4)
+- [LeViT](#levit)
+- [MaxViT](#maxvit)
+- [MetaFormer](#metaformer)
+- [MnasNet](#mnasnet)
+- [Mobilenet v1](#mobilenet-v1)
+- [Mobilenet v2](#mobilenet-v2)
+- [Mobilenet v3 Large](#mobilenet-v3-large)
+- [Mobilenet v3 Small](#mobilenet-v3-small)
+- [Mobilenet v4](#mobilenet-v4)
+- [Mobilenet v4 Hybrid](#mobilenet-v4-hybrid)
+- [MobileOne](#mobileone)
+- [MobileViT v1](#mobilevit-v1)
+- [MobileViT v2](#mobilevit-v2)
+- [MogaNet](#moganet)
+- [MViT v2](#mvit-v2)
+- [Next-ViT](#next-vit)
+- [NFNet](#nfnet)
+- [PiT](#pit)
+- [PVT v1](#pvt-v1)
+- [PVT v2](#pvt-v2)
+- [RDNet](#rdnet)
+- [RegNet](#regnet)
+- [RepGhost](#repghost)
+- [RepVgg](#repvgg)
+- [ResMLP](#resmlp)
+- [ResNeSt](#resnest)
+- [ResNet v1](#resnet-v1)
+- [ResNet v2](#resnet-v2)
+- [ResNeXt](#resnext)
+- [SE ResNet v1](#se-resnet-v1)
+- [SE ResNet v2](#se-resnet-v2)
+- [SE ResNeXt](#se-resnext)
+- [Sequencer2d](#sequencer2d)
+- [ShuffleNet v1](#shufflenet-v1)
+- [ShuffleNet v2](#shufflenet-v2)
+- [Simple ViT](#simple-vit)
+- [SqueezeNet](#squeezenet)
+- [SqueezeNext](#squeezenext)
+- [Swin Transformer v1](#swin-transformer-v1)
+- [Swin Transformer v2](#swin-transformer-v2)
+- [Tiny ViT](#tiny-vit)
+- [UniFormer](#uniformer)
+- [VAN](#van)
+- [VGG](#vgg)
+- [VGG Reduced](#vgg-reduced)
+- [ViT](#vit)
+- [ViT SAM](#vit-sam)
+- [ViTReg](#vitreg)
+- [Wide ResNet](#wide-resnet)
+- [Xception](#xception)
+- [XCiT](#xcit)
 
 ### AlexNet
 
@@ -291,7 +291,7 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --opt adamw --lr
 Optional intermediate training
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag intermediate --opt adamw --lr 0.0008 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 10 --batch-size 256 --epochs 100 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag intermediate --opt adamw --lr 0.0008 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 10 --batch-size 256 --epochs 100 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --compile-opt --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 Optional intermediate training: linear probing
@@ -787,7 +787,7 @@ torchrun --nproc_per_node=2 train.py --network fastvit_sa24 --opt adamw --lr 0.0
 #### FastViT: MobileClip i0
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobileclip_i0 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 128 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+torchrun --nproc_per_node=2 train.py --network mobileclip_i0 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 #### FastViT: MobileClip i2

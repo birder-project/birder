@@ -28,19 +28,19 @@ Our model names follow a systematic pattern that encodes important information a
 
 ### Training Indicators
 
-* **intermediate**: Models trained in two stages - first on a large weakly-labeled dataset, then fine-tuned on curated data
-* **mim**: Models that utilized masked image modeling pre-training
-* **quantized**: Models optimized for reduced memory and computation requirements
-* **reparameterized**: Models restructured for optimized inference
+- **intermediate**: Models trained in two stages - first on a large weakly-labeled dataset, then fine-tuned on curated data
+- **mim**: Models that utilized masked image modeling pre-training
+- **quantized**: Models optimized for reduced memory and computation requirements
+- **reparameterized**: Models restructured for optimized inference
 
 ### Geographical Tags
 
 Indicates the geographical region or scope of the training data:
 
-* **il-common**: Specialized for common bird species in Israel
-* **il-all**: Covers all bird species found in Israel
-* **arabian-peninsula**: Comprehensive coverage of bird species in the Arabian Peninsula
-* **eu-all**: Trained on all European bird species
+- **il-common**: Specialized for common bird species in Israel
+- **il-all**: Covers all bird species found in Israel
+- **arabian-peninsula**: Comprehensive coverage of bird species in the Arabian Peninsula
+- **eu-all**: Trained on all European bird species
 
 ## Choosing a Model
 
@@ -48,14 +48,14 @@ Consider these factors when selecting a model:
 
 1. **Geographical Relevance**: Choose models with tags matching your region for best accuracy
 2. **Computational Resources**:
-    * For mobile/edge devices: Consider `quantized` models
-    * For server deployment: Full models may provide better accuracy
+    - For mobile/edge devices: Consider `quantized` models
+    - For server deployment: Full models may provide better accuracy
 3. **Task Requirements**:
-    * Single bird identification: Use classification models
-    * Multiple birds per image: Choose detection models
+    - Single bird identification: Use classification models
+    - Multiple birds per image: Choose detection models
 4. **Dataset Size**:
-    * Small datasets: Consider `mim` or `intermediate` models for better generalization
-    * Large datasets: Any model type suitable
+    - Small datasets: Consider `mim` or `intermediate` models for better generalization
+    - Large datasets: Any model type suitable
 
 ## Example Usage
 

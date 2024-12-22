@@ -19,7 +19,7 @@ from birder.dataloader.webdataset import make_wds_loader
 from birder.datasets.directory import make_image_dataset
 from birder.datasets.webdataset import make_wds_dataset
 from birder.datasets.webdataset import wds_size
-from birder.inference import classification
+from birder.inference.classification import infer_dataloader
 from birder.results.classification import Results
 from birder.results.gui import show_top_k
 from birder.transforms.classification import inference_preset
@@ -160,7 +160,7 @@ def predict(args: argparse.Namespace) -> None:
 
     tic = time.time()
     with torch.inference_mode():
-        (sample_paths, outs, labels, embedding_list) = classification.infer_dataloader(
+        (sample_paths, outs, labels, embedding_list) = infer_dataloader(
             device,
             net,
             inference_loader,

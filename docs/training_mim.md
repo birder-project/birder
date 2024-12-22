@@ -4,9 +4,9 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 
 ## Image Pre-training
 
-* [FCMAE](#fcmae)
-* [MAE ViT](#mae-vit)
-* [SimMIM](#simmim)
+- [FCMAE](#fcmae)
+- [MAE ViT](#mae-vit)
+- [SimMIM](#simmim)
 
 ### FCMAE
 

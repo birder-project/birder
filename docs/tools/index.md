@@ -24,22 +24,22 @@ python -m birder.tools [TOOL_NAME] --help
 
 ### Available Tools
 
-* adversarial
-* avg-model
-* [convert-model](convert-model.md)
-* [ensemble-model](ensemble-model.md)
-* fetch-model
-* introspection
-* labelme-to-coco
-* list-models
-* model-info
-* [pack](pack.md)
-* quantize-model
-* [results](results.md)
-* show-det-iterator
-* show-iterator
-* similarity
-* stats
-* verify-directory
+- adversarial
+- avg-model
+- [convert-model](convert-model.md)
+- [ensemble-model](ensemble-model.md)
+- fetch-model
+- introspection
+- labelme-to-coco
+- list-models
+- model-info
+- [pack](pack.md)
+- quantize-model
+- [results](results.md)
+- show-det-iterator
+- show-iterator
+- similarity
+- stats
+- verify-directory
 
 Each tool is documented in detail on its respective page. Click on a tool name to view its full documentation.

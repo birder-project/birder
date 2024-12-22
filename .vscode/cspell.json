@@ -95,6 +95,7 @@
     "fontsize",
     "fontweight",
     "fromarray",
+    "fullgraph",
     "gelu",
     "getbands",
     "ghostnet",
