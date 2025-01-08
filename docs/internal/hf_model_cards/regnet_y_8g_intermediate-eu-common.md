@@ -20,7 +20,7 @@ The species list is derived from the Collins bird guide [^1].
 - **Model Stats:**
     - Params (M): 38.8
     - Input image size: 384 x 384
-- **Dataset:** eu-common (708 classes)
+- **Dataset:** eu-common (707 classes)
 
 - **Papers:**
     - Designing Network Design Spaces: <https://arxiv.org/abs/2003.13678>

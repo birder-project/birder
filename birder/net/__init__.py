@@ -30,6 +30,7 @@ from birder.net.ghostnet_v1 import GhostNet_v1
 from birder.net.ghostnet_v2 import GhostNet_v2
 from birder.net.hiera import Hiera
 from birder.net.hieradet import HieraDet
+from birder.net.hornet import HorNet
 from birder.net.iformer import iFormer
 from birder.net.inception_next import Inception_NeXt
 from birder.net.inception_resnet_v2 import Inception_ResNet_v2
@@ -120,6 +121,7 @@ __all__ = [
     "GhostNet_v2",
     "Hiera",
     "HieraDet",
+    "HorNet",
     "iFormer",
     "Inception_NeXt",
     "Inception_ResNet_v2",

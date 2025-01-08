@@ -28,6 +28,7 @@ def make_wds_loader(
         batch_size=None,
         num_workers=num_workers,
         prefetch_factor=prefetch_factor,
+        collate_fn=None,
         pin_memory=pin_memory,
         drop_last=not partial,
     )
@@ -35,6 +36,8 @@ def make_wds_loader(
     if shuffle is True:
         # Shuffle and re-batch to mix samples from different workers
         dataloader = dataloader.unbatched().shuffle(1000).batched(batch_size, collation_fn=collate_fn, partial=partial)
+    elif collate_fn is not default_collation_fn:
+        dataloader = dataloader.unbatched().batched(batch_size, collation_fn=collate_fn, partial=partial)
 
     dataloader = dataloader.with_epoch(len(dataset) // (batch_size * world_size))
 

@@ -35,6 +35,12 @@ Check for duplicated rows in a class file
 List missing classes in training directory
 `comm -23 <(sort data/eu-common_classes.txt) <(ls data/training | sort)`
 
+Find non latin-1 characters
+`LC_ALL=C find . -name '*[! -~]*'`
+
+Find incorrect data directory classes
+`find . -type d -regextype posix-extended -regex '.*/[^/]*[[:space:]]([A-Z][^[:space:]/]*)?$'`
+
 ## Useful Websites
 
 <https://www.israbirding.com/checklist/>

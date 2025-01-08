@@ -308,3 +308,18 @@ registry.register_alias(
     CaiT,
     config={"embed_dim": 768, "depth": 48, "num_heads": 16, "init_values": 1e-6, "drop_path_rate": 0.4},
 )
+
+registry.register_weights(
+    "cait_xxs24_il-common",
+    {
+        "description": "CaiT XXS-24 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 45.4,
+                "sha256": "1e7b3ba14b34b3d849eb0c86720e15804631e91ed51c74352c96e289583b5883",
+            }
+        },
+        "net": {"network": "cait_xxs24", "tag": "il-common"},
+    },
+)

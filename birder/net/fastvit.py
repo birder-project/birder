@@ -261,10 +261,10 @@ class PatchEmbed(nn.Module):
 
 
 class LayerScale2d(nn.Module):
-    def __init__(self, dim: int, init_values: float, inplace: bool = False) -> None:
+    def __init__(self, dim: int, init_value: float, inplace: bool = False) -> None:
         super().__init__()
         self.inplace = inplace
-        self.gamma = nn.Parameter(init_values * torch.ones(dim, 1, 1))
+        self.gamma = nn.Parameter(init_value * torch.ones(dim, 1, 1), requires_grad=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.inplace is True:
@@ -1071,5 +1071,19 @@ registry.register_weights(
             }
         },
         "net": {"network": "fastvit_sa12", "tag": "il-common_reparameterized", "reparameterized": True},
+    },
+)
+registry.register_weights(
+    "mobileclip_i0_il-common",
+    {
+        "description": "MobileClip i0 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 43.5,
+                "sha256": "f6599c5c5373d0928add5747c9e6524d5273b24c3c580a1c7b80acc7c10fd655",
+            }
+        },
+        "net": {"network": "mobileclip_i0", "tag": "il-common"},
     },
 )

@@ -71,7 +71,9 @@ class ViTDet(Faster_RCNN):
         anchor_sizes = [[32], [64], [128], [256], [512]]
         aspect_ratios = [[0.5, 1.0, 2.0]] * len(anchor_sizes)
         rpn_anchor_generator = AnchorGenerator(anchor_sizes, aspect_ratios)
-        rpn_head = RPNHead(self.backbone_with_fpn.out_channels, rpn_anchor_generator.num_anchors_per_location()[0])
+        rpn_head = RPNHead(
+            self.backbone_with_fpn.out_channels, rpn_anchor_generator.num_anchors_per_location()[0], conv_depth=2
+        )
 
         rpn_pre_nms_top_n = {"training": rpn_pre_nms_top_n_train, "testing": rpn_pre_nms_top_n_test}
         rpn_post_nms_top_n = {"training": rpn_post_nms_top_n_train, "testing": rpn_post_nms_top_n_test}

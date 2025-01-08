@@ -2,6 +2,14 @@
 
 ## Compact Madness
 
+### CaiT
+
+#### CaiT: Extra Extra Small 24
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cait_xxs24 --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### CoaT
 
 #### CoaT: Tiny

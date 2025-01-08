@@ -579,7 +579,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 148.5,
-                "sha256": "2dc5360b800d0d1673a3f06d11321d2c17deb59346977690c5c8999ecd425371",
+                "sha256": "96ac500880672ab4cf0dd6de92742a131c238ca49e6fb6040de543528c071147",
             }
         },
         "net": {"network": "regnet_y_8g", "tag": "intermediate-eu-common"},

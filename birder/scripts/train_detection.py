@@ -805,7 +805,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "-j",
         "--num-workers",
         type=int,
-        default=8,
+        default=16,
         metavar="N",
         help="number of preprocessing workers",
     )

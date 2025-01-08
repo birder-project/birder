@@ -350,7 +350,7 @@ def train(args: argparse.Namespace) -> None:
             shuffle=False,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
-            collate_fn=collate_fn,
+            collate_fn=None,
             world_size=args.world_size,
             pin_memory=True,
         )
@@ -791,7 +791,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "-j",
         "--num-workers",
         type=int,
-        default=8,
+        default=16,
         metavar="N",
         help="number of preprocessing workers",
     )
