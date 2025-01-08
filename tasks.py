@@ -422,6 +422,7 @@ def model_pre_publish(_ctx, model, net_param=None, tag=None, epoch=None, reparam
     num_params = sum(p.numel() for p in net.parameters())
     num_params = round(num_params / 1_000_000, 1)
     size = lib.get_size_from_signature(signature)
+    num_outputs = lib.get_num_labels_from_signature(signature)
 
     # Check if model already in manifest
     if registry.pretrained_exists(network_name) is False:
@@ -445,6 +446,7 @@ def model_pre_publish(_ctx, model, net_param=None, tag=None, epoch=None, reparam
         model_card = template.replace("<MODEL_NAME>", network_name)
         model_card = model_card.replace("<NUM_PARAMS>", str(num_params))
         model_card = model_card.replace("<SIZE_x_SIZE>", f"{size[0]} x {size[1]}")
+        model_card = model_card.replace("<NUM_CLASSES>", str(num_outputs))
 
         echo(f"Writing model card at {model_card_path}...")
         with open(model_card_path, mode="w", encoding="utf-8") as handle:

@@ -372,7 +372,7 @@ def load_model(
 
     elif st is True:
         assert _HAS_SAFETENSORS, "'pip install safetensors' to use .safetensors"
-        with safetensors.safe_open(path, framework="pt", device="cpu") as f:  # type: ignore[attr-defined]
+        with safetensors.safe_open(path, framework="pt", device="cpu") as f:  # type: ignore[misc]
             extra_files = f.metadata()
 
         class_to_idx = json.loads(extra_files["class_to_idx"])
@@ -477,7 +477,7 @@ def load_detection_model(
 
     elif st is True:
         assert _HAS_SAFETENSORS, "'pip install safetensors' to use .safetensors"
-        with safetensors.safe_open(path, framework="pt", device="cpu") as f:  # type: ignore[attr-defined]
+        with safetensors.safe_open(path, framework="pt", device="cpu") as f:  # type: ignore[misc]
             extra_files = f.metadata()
 
         class_to_idx = json.loads(extra_files["class_to_idx"])

@@ -477,3 +477,22 @@ registry.register_alias(
         "drop_path_rate": 0.5,
     },
 )
+
+registry.register_weights(
+    "iformer_s_arabian-peninsula",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/regnet_y_8g_intermediate-eu-common/"
+            "resolve/main/regnet_y_8g_intermediate-eu-common.pt"
+        ),
+        "description": "iFormer small model trained on the arabian-peninsula dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 79.5,
+                "sha256": "7fb046700d78ca6c76328523a77b837c23ead717a1cc2b14331756fe94db46b0",
+            }
+        },
+        "net": {"network": "iformer_s", "tag": "arabian-peninsula"},
+    },
+)

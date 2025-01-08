@@ -6,20 +6,22 @@ library_name: birder
 license: apache-2.0
 ---
 
-# Model Card for <MODEL_NAME>
+# Model Card for iformer_s_arabian-peninsula
 
-<SHORT_DESCRIPTION>
+iFormer image classification model. This model was trained on the `arabian-peninsula` dataset (all the relevant bird species found in the Arabian peninsula inc. rarities).
+
+The species list is derived from data available at <https://avibase.bsc-eoc.org/checklist.jsp?region=ARA>.
 
 ## Model Details
 
 - **Model Type:** Image classification and detection backbone
 - **Model Stats:**
-    - Params (M): <NUM_PARAMS>
-    - Input image size: <SIZE_x_SIZE>
-- **Dataset:** <DATASET_NAME> (<NUM_CLASSES>)
+    - Params (M): 20.8
+    - Input image size: 384 x 384
+- **Dataset:** arabian-peninsula (735)
 
 - **Papers:**
-    - <PAPER_TITLE>: <PAPER_LINK>
+    - Inception Transformer: <https://arxiv.org/abs/2205.12956>
 
 ## Model Usage
 
@@ -29,7 +31,7 @@ license: apache-2.0
 import birder
 from birder.inference.classification import infer_image
 
-(net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model("<MODEL_NAME>", inference=True)
+(net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model("iformer_s_arabian-peninsula", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(signature)
@@ -48,7 +50,7 @@ image = "path/to/image.jpeg"  # or a PIL image
 import birder
 from birder.inference.classification import infer_image
 
-(net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model("<MODEL_NAME>", inference=True)
+(net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model("iformer_s_arabian-peninsula", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(signature)
@@ -67,7 +69,7 @@ image = "path/to/image.jpeg"  # or a PIL image
 from PIL import Image
 import birder
 
-(net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model("<MODEL_NAME>", inference=True)
+(net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model("iformer_s_arabian-peninsula", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(signature)
@@ -89,5 +91,13 @@ print([(k, v.size()) for k, v in features.items()])
 ## Citation
 
 ```bibtex
-<BibTeX>
+@misc{si2022inceptiontransformer,
+      title={Inception Transformer}, 
+      author={Chenyang Si and Weihao Yu and Pan Zhou and Yichen Zhou and Xinchao Wang and Shuicheng Yan},
+      year={2022},
+      eprint={2205.12956},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2205.12956}, 
+}
 ```

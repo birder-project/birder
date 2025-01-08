@@ -169,7 +169,7 @@ def mean_and_std(args: argparse.Namespace) -> None:
             progress.update(n=batch_size)
 
     std = np.sqrt(mean_squares - np.square(mean))
-    rgb_stats = {"mean": tuple(mean.round(decimals=4)), "std": tuple(std.round(decimals=4))}
+    rgb_stats = {"mean": mean.round(decimals=4).tolist(), "std": std.round(decimals=4).tolist()}
     logging.info(f"mean: {rgb_stats['mean']}")
     logging.info(f"std: {rgb_stats['std']}")
 

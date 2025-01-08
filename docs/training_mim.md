@@ -222,31 +222,25 @@ torchrun --nproc_per_node=2 train_mim.py --network mae_vit --encoder vitreg4_b16
 Optional intermediate training: first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vitreg4_b16 --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --wd 0.3 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network vitreg4_b16 --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vitreg4_b16 --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 320 --wd 0.3 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body
+torchrun --nproc_per_node=2 train.py --network vitreg4_b16 --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
 ```
 
 Next, full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vitreg4_b16 --tag mim --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 15 --epochs 100 --size 320 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.8 --resume-epoch 10
+torchrun --nproc_per_node=2 train.py --network vitreg4_b16 --tag mim --opt adamw --lr 0.0004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 15 --epochs 110 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.75 --resume-epoch 10
 ```
 
-At epoch 75 increase resolution
+At epoch 80 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vitreg4_b16 --tag mim --opt adamw --lr 0.00004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --epochs 100 --size 384 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.8 --resume-epoch 75
-```
-
-At epoch 80 increase resolution again
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vitreg4_b16 --tag mim --opt adamw --lr 0.00002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 32 --epochs 100 --size 448 --wd 0.3 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.8 --resume-epoch 80
+torchrun --nproc_per_node=2 train.py --network vitreg4_b16 --tag mim --opt adamw --lr 0.00004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --epochs 110 --size 384 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.75 --resume-epoch 80
 ```
 
 #### MAE ViT: ViT l16
@@ -258,13 +252,13 @@ torchrun --nproc_per_node=2 train_mim.py --network mae_vit --encoder vit_l16 --o
 Optional intermediate training: first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --lr 0.3 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --epochs 10 --size 256 --wd 0.00002 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --lr 0.3 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --lr 0.3 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --epochs 10 --size 320 --wd 0.00002 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
+torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --lr 0.3 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
 ```
 
 Next, full fine-tuning with layer-wise learning rate decay
@@ -273,16 +267,10 @@ Next, full fine-tuning with layer-wise learning rate decay
 torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --warmup-epochs 20 --epochs 100 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.8 --resume-epoch 10
 ```
 
-At epoch 75 increase resolution
+At epoch 80 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --lr 0.01 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 16 --epochs 100 --size 384 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.8 --resume-epoch 75
-```
-
-At epoch 80 increase resolution again
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --lr 0.0075 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 16 --epochs 100 --size 448 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.8 --resume-epoch 80
+torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --lr 0.01 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 16 --epochs 100 --size 384 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.8 --resume-epoch 80
 ```
 
 ### SimMIM
