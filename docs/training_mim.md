@@ -196,7 +196,7 @@ torchrun --nproc_per_node=2 train.py --network hiera_abswin_base --tag mim --opt
 #### MAE Hiera: Hiera AbsWin Base Plus
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_abswin_base_plus --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 800 --batch-size 128 --wd 0.05 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_abswin_base_plus --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 400 --batch-size 256 --wd 0.05 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 ### MAE ViT

@@ -482,8 +482,8 @@ registry.register_weights(
     "iformer_s_arabian-peninsula",
     {
         "url": (
-            "https://huggingface.co/birder-project/regnet_y_8g_intermediate-eu-common/"
-            "resolve/main/regnet_y_8g_intermediate-eu-common.pt"
+            "https://huggingface.co/birder-project/iformer_s_arabian-peninsula/"
+            "resolve/main/iformer_s_arabian-peninsula.pt"
         ),
         "description": "iFormer small model trained on the arabian-peninsula dataset",
         "resolution": (384, 384),
