@@ -16,7 +16,7 @@ license: apache-2.0
 - **Model Stats:**
     - Params (M): <NUM_PARAMS>
     - Input image size: <SIZE_x_SIZE>
-- **Dataset:** <DATASET_NAME> (<NUM_CLASSES>)
+- **Dataset:** <DATASET_NAME> (<NUM_CLASSES> classes)
 
 - **Papers:**
     - <PAPER_TITLE>: <PAPER_LINK>

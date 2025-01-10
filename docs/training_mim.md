@@ -142,13 +142,13 @@ torchrun --nproc_per_node=2 train.py --network regnet_y_8g --tag mim --lr 0.001 
 #### MAE Hiera: Hiera Small
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_small --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 400 --batch-size 256 --wd 0.05 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_small --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 400 --batch-size 512 --wd 0.05 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 #### MAE Hiera: Hiera AbsWin Tiny
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_abswin_tiny --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 400 --batch-size 256 --wd 0.05 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_abswin_tiny --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 400 --batch-size 512 --wd 0.05 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Optional intermediate training: first stage - linear probing
@@ -172,13 +172,13 @@ torchrun --nproc_per_node=2 train.py --network hiera_abswin_tiny --tag mim --opt
 #### MAE Hiera: Hiera AbsWin Small
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_abswin_small --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 400 --batch-size 256 --wd 0.05 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_abswin_small --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 400 --batch-size 512 --wd 0.05 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 #### MAE Hiera: Hiera AbsWin Base
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_abswin_base --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 400 --batch-size 256 --wd 0.05 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_abswin_base --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 400 --batch-size 512 --wd 0.05 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Fine-tuning, first stage - linear probing

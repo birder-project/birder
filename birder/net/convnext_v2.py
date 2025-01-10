@@ -281,3 +281,21 @@ registry.register_weights(
         "net": {"network": "convnext_v2_atto", "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "convnext_v2_tiny_intermediate-eu-common",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/convnext_v2_tiny_intermediate-eu-common/"
+            "resolve/main/convnext_v2_tiny_intermediate-eu-common.pt"
+        ),
+        "description": "ConvNeXt v2 tiny model with intermediate training, then fine-tuned on the eu-common dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 108.5,
+                "sha256": "a0da4037acda6c50c9032a6462a810082aa79193bdec26203d98fdfdad699fc4",
+            }
+        },
+        "net": {"network": "convnext_v2_tiny", "tag": "intermediate-eu-common"},
+    },
+)
