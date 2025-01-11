@@ -46,7 +46,6 @@ def show_iterator(args: argparse.Namespace) -> None:
 
         dataset = make_wds_dataset(
             wds_path,
-            batch_size,
             dataset_size=dataset_size,
             shuffle=True,
             samples_names=False,
@@ -102,7 +101,6 @@ def show_iterator(args: argparse.Namespace) -> None:
             data_loader = make_wds_loader(
                 dataset,
                 batch_size,
-                shuffle=False,  # Shuffle is done at the wds dataset
                 num_workers=1,
                 prefetch_factor=1,
                 collate_fn=collate_fn,

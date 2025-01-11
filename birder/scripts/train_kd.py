@@ -101,7 +101,6 @@ def train(args: argparse.Namespace) -> None:
 
         training_dataset = make_wds_dataset(
             wds_path,
-            args.batch_size,
             dataset_size=dataset_size,
             shuffle=True,
             samples_names=False,
@@ -115,7 +114,6 @@ def train(args: argparse.Namespace) -> None:
 
         validation_dataset = make_wds_dataset(
             wds_path,
-            args.batch_size,
             dataset_size=dataset_size,
             shuffle=False,
             samples_names=False,
@@ -344,18 +342,17 @@ def train(args: argparse.Namespace) -> None:
         training_loader = make_wds_loader(
             training_dataset,
             batch_size,
-            shuffle=False,  # Shuffle is done at the wds dataset
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
             collate_fn=collate_fn,
             world_size=args.world_size,
             pin_memory=True,
+            partial=not args.drop_last,
         )
 
         validation_loader = make_wds_loader(
             validation_dataset,
             batch_size,
-            shuffle=False,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
             collate_fn=None,
@@ -372,6 +369,7 @@ def train(args: argparse.Namespace) -> None:
             prefetch_factor=args.prefetch_factor,
             collate_fn=collate_fn,
             pin_memory=True,
+            drop_last=args.drop_last,
         )
         validation_loader = DataLoader(
             validation_dataset,
@@ -820,6 +818,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--prefetch-factor", type=int, metavar="N", help="number of batches loaded in advance by each worker"
     )
+    parser.add_argument("--drop-last", default=False, action="store_true", help="drop the last incomplete batch")
     parser.add_argument("--amp", default=False, action="store_true", help="use torch.amp for mixed precision training")
     parser.add_argument(
         "--amp-dtype",

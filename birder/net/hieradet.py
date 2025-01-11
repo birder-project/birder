@@ -386,7 +386,7 @@ registry.register_alias(
         "global_pos_size": (14, 14),
         "global_att_blocks": [12, 16, 20],
         "window_spec": [8, 4, 14, 7],
-        "drop_path_rate": 0.2,
+        "drop_path_rate": 0.1,
     },
 )
 registry.register_alias(

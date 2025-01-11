@@ -25,7 +25,6 @@ def wds_image_decoder(key: str, data: bytes) -> torch.Tensor:
 
 def make_wds_dataset(
     wds_path: str,
-    batch_size: int,
     dataset_size: int,
     shuffle: bool,
     samples_names: bool,
@@ -45,7 +44,7 @@ def make_wds_dataset(
     if samples_names is True:
         dataset = dataset.map(decode_sample_name)
 
-    dataset = dataset.map(transform).batched(batch_size, partial=True)
+    dataset = dataset.map(transform)
 
     return dataset
 

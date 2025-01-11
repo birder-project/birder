@@ -629,7 +629,7 @@ registry.register_alias(
         "embed_dim": 112,
         "num_heads": 2,
         "abs_win_pos_embed": False,
-        "drop_path_rate": 0.2,
+        "drop_path_rate": 0.1,
     },
 )
 registry.register_alias(
@@ -697,7 +697,7 @@ registry.register_alias(
         "embed_dim": 112,
         "num_heads": 2,
         "abs_win_pos_embed": True,
-        "drop_path_rate": 0.2,
+        "drop_path_rate": 0.1,
     },
 )
 registry.register_alias(

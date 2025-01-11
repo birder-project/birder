@@ -116,7 +116,6 @@ def predict(args: argparse.Namespace) -> None:
         num_samples = dataset_size
         dataset = make_wds_dataset(
             wds_path,
-            batch_size,
             dataset_size=dataset_size,
             shuffle=args.shuffle,
             samples_names=True,
@@ -125,7 +124,6 @@ def predict(args: argparse.Namespace) -> None:
         inference_loader = make_wds_loader(
             dataset,
             batch_size,
-            shuffle=False,  # Shuffle is done at the wds dataset
             num_workers=8,
             prefetch_factor=2,
             collate_fn=None,
@@ -320,7 +318,7 @@ def validate_args(args: argparse.Namespace) -> None:
     assert args.parallel is False or args.compile is False
     assert args.wds is False or len(args.data_path) == 1
     assert args.wds is False or (
-        args.show is False and args.show_mistakes is False and args.show_out_of_k is False and args.show_class is False
+        args.show is False and args.show_mistakes is False and args.show_out_of_k is False and args.show_class is None
     )
 
 

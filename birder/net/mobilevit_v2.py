@@ -365,3 +365,17 @@ registry.register_weights(
         "net": {"network": "mobilevit_v2", "net_param": 1, "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "mobilevit_v2_1.5_il-common",
+    {
+        "description": "MobileViT v2 with width multiplier of 1.5 trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 38.8,
+                "sha256": "acd28c3ee653b62c69ad765c1d99827cea5051deb6dbdd7b9c8d7612782c86a3",
+            }
+        },
+        "net": {"network": "mobilevit_v2", "net_param": 1.5, "tag": "il-common"},
+    },
+)

@@ -401,7 +401,7 @@ registry.register_alias(
 registry.register_alias(
     "cswin_transformer_b",
     CSWin_Transformer,
-    config={"embed_dim": 96, "depths": [2, 4, 32, 2], "num_heads": [2, 4, 8, 16], "drop_path_rate": 0.5},
+    config={"embed_dim": 96, "depths": [2, 4, 32, 2], "num_heads": [4, 8, 16, 32], "drop_path_rate": 0.5},
 )
 registry.register_alias(
     "cswin_transformer_l",
