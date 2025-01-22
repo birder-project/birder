@@ -300,8 +300,11 @@ def get_wd_custom_keys(args: argparse.Namespace) -> list[tuple[str, float]]:
             "mask_token",
             "pos_embed",
             "pos_embedding",
+            "pos_embed_win",
             "position_embedding",
             "relative_position_bias_table",
+            "rel_pos_h",
+            "rel_pos_w",
             "decoder_embed",
         ]:
             custom_keys_weight_decay.append((key, args.transformer_embedding_decay))

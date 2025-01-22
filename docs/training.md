@@ -1556,7 +1556,7 @@ torchrun --nproc_per_node=2 train.py --network regnet_y_800m --lr 0.8 --lr-sched
 #### RegNet: Y 1600 MF
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network regnet_y_1600m --lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --ra-sampler --ra-reps 2
+torchrun --nproc_per_node=2 train.py --network regnet_y_1_6g --lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --ra-sampler --ra-reps 2
 ```
 
 #### RegNet: Y 8 GF
@@ -1611,6 +1611,12 @@ Optional intermediate training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network regnet_y_16g --tag intermediate --lr 0.2 --lr-scheduler cosine --warmup-epochs 5 --batch-size 64 --size 256 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+```
+
+#### RegNet: Z 500 MF
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regnet_z_500m --lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 100 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --ra-sampler --ra-reps 2
 ```
 
 ### RepGhost
@@ -1828,13 +1834,13 @@ torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s --opt adamw
 Optional intermediate training
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s -t intermediate --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --size 192 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 5 --drop-last --amp --compile --save-frequency 1 --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s -t intermediate --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --size 224 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 5 --drop-last --amp --compile --save-frequency 1 --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 Optional intermediate training: increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s -t intermediate --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --size 256 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 5 --drop-last --amp --compile --save-frequency 1 --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed --resume-epoch 120
+torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s -t intermediate --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --size 256 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 5 --drop-last --amp --compile --save-frequency 1 --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed --resume-epoch 120 --load-states
 ```
 
 #### Swin Transformer v2: Base

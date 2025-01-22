@@ -9,6 +9,7 @@ Paper "Designing Network Design Spaces", https://arxiv.org/abs/2003.13678
 
 import math
 from collections import OrderedDict
+from collections.abc import Callable
 from collections.abc import Iterator
 from functools import partial
 from typing import Any
@@ -139,6 +140,7 @@ class BottleneckTransform(nn.Module):
         group_width: int,
         bottleneck_multiplier: float,
         se_ratio: float,
+        activation_layer: Callable[..., nn.Module] = nn.ReLU,
     ) -> None:
         super().__init__()
         w_b = int(round(width_out * bottleneck_multiplier))
@@ -148,11 +150,28 @@ class BottleneckTransform(nn.Module):
         if width_se_out == 0:
             se_block = nn.Identity()
         else:
-            se_block = SqueezeExcitation(input_channels=w_b, squeeze_channels=width_se_out)
+            se_block = SqueezeExcitation(input_channels=w_b, squeeze_channels=width_se_out, activation=activation_layer)
 
         self.block = nn.Sequential(
-            Conv2dNormActivation(width_in, w_b, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
-            Conv2dNormActivation(w_b, w_b, kernel_size=(3, 3), stride=stride, padding=(1, 1), groups=g, bias=False),
+            Conv2dNormActivation(
+                width_in,
+                w_b,
+                kernel_size=(1, 1),
+                stride=(1, 1),
+                padding=(0, 0),
+                activation_layer=activation_layer,
+                bias=False,
+            ),
+            Conv2dNormActivation(
+                w_b,
+                w_b,
+                kernel_size=(3, 3),
+                stride=stride,
+                padding=(1, 1),
+                groups=g,
+                activation_layer=activation_layer,
+                bias=False,
+            ),
             se_block,
             Conv2dNormActivation(
                 w_b, width_out, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False, activation_layer=None
@@ -413,22 +432,22 @@ registry.register_alias(
     config={"depth": 16, "w_0": 56, "w_a": 35.73, "w_m": 2.28, "group_width": 16, "se_ratio": 0.0},
 )
 registry.register_alias(
-    "regnet_x_1600m",
+    "regnet_x_1_6g",
     RegNet,
     config={"depth": 18, "w_0": 80, "w_a": 34.01, "w_m": 2.25, "group_width": 24, "se_ratio": 0.0},
 )
 registry.register_alias(
-    "regnet_x_3200m",
+    "regnet_x_3_2g",
     RegNet,
     config={"depth": 25, "w_0": 88, "w_a": 26.31, "w_m": 2.25, "group_width": 48, "se_ratio": 0.0},
 )
 registry.register_alias(
-    "regnet_x_4000m",
+    "regnet_x_4g",
     RegNet,
     config={"depth": 23, "w_0": 96, "w_a": 38.65, "w_m": 2.43, "group_width": 40, "se_ratio": 0.0},
 )
 registry.register_alias(
-    "regnet_x_6400m",
+    "regnet_x_6_4g",
     RegNet,
     config={"depth": 17, "w_0": 184, "w_a": 60.83, "w_m": 2.07, "group_width": 56, "se_ratio": 0.0},
 )
@@ -475,22 +494,22 @@ registry.register_alias(
     config={"depth": 14, "w_0": 56, "w_a": 38.84, "w_m": 2.4, "group_width": 16, "se_ratio": 0.25},
 )
 registry.register_alias(
-    "regnet_y_1600m",
+    "regnet_y_1_6g",
     RegNet,
     config={"depth": 27, "w_0": 48, "w_a": 20.71, "w_m": 2.65, "group_width": 24, "se_ratio": 0.25},
 )
 registry.register_alias(
-    "regnet_y_3200m",
+    "regnet_y_3_2g",
     RegNet,
     config={"depth": 21, "w_0": 80, "w_a": 42.63, "w_m": 2.66, "group_width": 24, "se_ratio": 0.25},
 )
 registry.register_alias(
-    "regnet_y_4000m",
+    "regnet_y_4g",
     RegNet,
     config={"depth": 22, "w_0": 96, "w_a": 31.41, "w_m": 2.24, "group_width": 64, "se_ratio": 0.25},
 )
 registry.register_alias(
-    "regnet_y_6400m",
+    "regnet_y_6_4g",
     RegNet,
     config={"depth": 25, "w_0": 112, "w_a": 33.22, "w_m": 2.27, "group_width": 72, "se_ratio": 0.25},
 )

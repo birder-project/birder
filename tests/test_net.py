@@ -129,6 +129,7 @@ class TestNet(unittest.TestCase):
             ("rdnet_t"),
             ("regnet_x_200m"),
             ("regnet_y_200m"),
+            ("regnet_z_500m"),
             ("repghost", 1),
             ("repvgg_a0"),
             ("resmlp_12", None, False, 1, 0),  # No resize support
@@ -275,6 +276,7 @@ class TestNet(unittest.TestCase):
             ("pvt_v2_b0"),
             ("rdnet_t"),
             ("regnet_y_200m"),
+            ("regnet_z_500m"),
             ("repghost", 1),
             ("repvgg_a0"),
             ("resnest_14", None, 2),
@@ -342,6 +344,7 @@ class TestNet(unittest.TestCase):
             ("nextvit_s", None, True),
             ("regnet_x_200m", None, False),
             ("regnet_y_200m", None, False),
+            ("regnet_z_500m", None, False),
             ("simple_vit_b32", None, False),
             ("swin_transformer_v2_t", None, True),
             ("swin_transformer_v2_w2_t", None, True),

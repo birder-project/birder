@@ -185,7 +185,7 @@ class CaiT(BaseNet):
         init_values: float = self.config["init_values"]
         drop_path_rate: float = self.config["drop_path_rate"]
 
-        self.patch_size = patch_size = (16, 16)
+        self.patch_size = patch_size
         self.patch_embed = PatchEmbed(self.input_channels, embed_dim, patch_size)
         num_patches = (self.size // patch_size[0]) * (self.size // patch_size[1])
 

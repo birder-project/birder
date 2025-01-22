@@ -631,7 +631,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         description="Train classification model using Knowledge Distillation",
         epilog=(
             "Usage examples:\n"
-            "python train_kd.py --type soft --teacher convnext_v2_tiny --teacher-epoch 0 --student regnet_y_1600m "
+            "python train_kd.py --type soft --teacher convnext_v2_tiny --teacher-epoch 0 --student regnet_y_1_6g "
             "--lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 "
             "--size 256 --epochs 100 --wd 0.00005 --mixup-alpha 0.2 --aug-level 3\n"
             "python train_kd.py --type hard --teacher convnext_v2_base --student mobilenet_v4_m --lr 0.8 "

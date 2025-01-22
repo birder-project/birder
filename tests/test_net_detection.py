@@ -25,7 +25,7 @@ class TestNetDetection(unittest.TestCase):
         [
             ("deformable_detr", None, ("fasternet_t0", None)),
             ("deformable_detr_boxref", None, ("regnet_x_200m", None)),
-            ("detr", None, ("regnet_y_1600m", None)),
+            ("detr", None, ("regnet_y_1_6g", None)),
             ("efficientdet_d0", None, ("efficientnet_v1_b0", None)),
             ("faster_rcnn", None, ("resnet_v2_18", None)),
             ("fcos", None, ("tiny_vit_5m", None)),

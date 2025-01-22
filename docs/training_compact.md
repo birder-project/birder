@@ -390,6 +390,12 @@ torchrun --nproc_per_node=2 train.py --network regnet_y_400m --tag il-common --l
 torchrun --nproc_per_node=2 train.py --network regnet_y_600m --tag il-common --lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 140 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --ra-sampler --ra-reps 2 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+#### RegNet: Z 500 MF
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regnet_z_500m --tag il-common --lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 140 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --ra-sampler --ra-reps 2 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### RepGhost
 
 #### RepGhost: 1 (100)

@@ -58,6 +58,7 @@ from birder.net.pvt_v1 import PVT_v1
 from birder.net.pvt_v2 import PVT_v2
 from birder.net.rdnet import RDNet
 from birder.net.regnet import RegNet
+from birder.net.regnet_z import RegNet_Z
 from birder.net.repghost import RepGhost
 from birder.net.repvgg import RepVgg
 from birder.net.resmlp import ResMLP
@@ -149,6 +150,7 @@ __all__ = [
     "PVT_v2",
     "RDNet",
     "RegNet",
+    "RegNet_Z",
     "RepGhost",
     "RepVgg",
     "ResMLP",
