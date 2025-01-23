@@ -252,7 +252,7 @@ torchrun --nproc_per_node=2 train.py --network vitreg4_b16 --tag mim --opt adamw
 #### MAE ViT: ViT l16
 
 ```sh
-torchrun --nproc_per_node=2 train_mim.py --network mae_vit --encoder vit_l16 --opt adamw --lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --batch-size 128 --wd 0.05 --encoder-model-config drop_path_rate=0.0 --amp --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 train_mim.py --network mae_vit --encoder vit_l16 --opt adamw --lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --batch-size 256 --wd 0.05 --encoder-model-config drop_path_rate=0.0 --amp --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Optional intermediate training: first stage - linear probing

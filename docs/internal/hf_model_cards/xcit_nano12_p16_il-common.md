@@ -8,7 +8,7 @@ license: apache-2.0
 
 # Model Card for xcit_nano12_p16_il-common
 
-XCiT image classification model. This model was trained on the `il-common` dataset (common bird species found in Israel).
+A XCiT image classification model. This model was trained on the `il-common` dataset, which contains common bird species found in Israel.
 
 The species list is derived from data available at <https://www.israbirding.com/checklist/>.
 
@@ -39,9 +39,9 @@ size = birder.get_size_from_signature(signature)
 # Create an inference transform
 transform = birder.classification_transform(size, rgb_stats)
 
-image = "path/to/image.jpeg"  # or a PIL image
+image = "path/to/image.jpeg"  # or a PIL image, must be loaded in RGB format
 (out, _) = infer_image(net, image, transform)
-# out is a NumPy array with shape of (1, num_classes)
+# out is a NumPy array with shape of (1, num_classes), representing class probabilities.
 ```
 
 ### Image Embeddings

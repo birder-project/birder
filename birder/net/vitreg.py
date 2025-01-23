@@ -94,3 +94,25 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
+
+registry.register_weights(
+    "vitreg4_b16_mim-intermediate-il-common",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/vitreg4_b16_mim-intermediate-il-common/resolve/"
+            "main/vitreg4_b16_mim-intermediate-il-common.pt"
+        ),
+        "description": (
+            "ViTReg4 b16 model with MIM pretraining and intermediate training, "
+            "then fine-tuned on the il-common dataset"
+        ),
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 328.7,
+                "sha256": "3d1564be46b23081c76aa87c7e90324214b6ced899d4b38d59d1a4154b13f01c",
+            },
+        },
+        "net": {"network": "vitreg4_b16", "tag": "mim-intermediate-il-common"},
+    },
+)

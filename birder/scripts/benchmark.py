@@ -84,6 +84,7 @@ def benchmark(args: argparse.Namespace) -> None:
 
         net.eval()
         if args.compile is True:
+            torch.compiler.reset()
             net = torch.compile(net)
 
         sample_shape = (args.batch_size, input_channels) + size
@@ -127,7 +128,7 @@ def benchmark(args: argparse.Namespace) -> None:
 
     results_df = pl.DataFrame(results)
 
-    if args.append is True:
+    if args.append is True and existing_df is not None:
         include_header = False
         mode = "a"
     else:

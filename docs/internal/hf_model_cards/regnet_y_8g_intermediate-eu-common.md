@@ -8,7 +8,7 @@ license: apache-2.0
 
 # Model Card for regnet_y_8g_intermediate-eu-common
 
-RegNet Y image classification model. The model follows a two-stage training process: first undergoing intermediate training on a large-scale dataset containing diverse bird species from around the world, then fine-tuned specifically on the `eu-common` dataset containing common European bird species.
+A RegNet Y image classification model. The model follows a two-stage training process: first undergoing intermediate training on a large-scale dataset containing diverse bird species from around the world, then fine-tuned specifically on the `eu-common` dataset containing common European bird species.
 
 The species list is derived from the Collins bird guide [^1].
 
@@ -41,9 +41,9 @@ size = birder.get_size_from_signature(signature)
 # Create an inference transform
 transform = birder.classification_transform(size, rgb_stats)
 
-image = "path/to/image.jpeg"  # or a PIL image
+image = "path/to/image.jpeg"  # or a PIL image, must be loaded in RGB format
 (out, _) = infer_image(net, image, transform)
-# out is a NumPy array with shape of (1, num_classes)
+# out is a NumPy array with shape of (1, num_classes), representing class probabilities.
 ```
 
 ### Image Embeddings

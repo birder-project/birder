@@ -8,7 +8,7 @@ license: apache-2.0
 
 # Model Card for davit_tiny_il-all
 
-A Dual Attention Vision Transformer (DaViT) image classification model. This model was trained on the `il-all` dataset (all the relevant bird species found in Israel inc. rarities).
+A Dual Attention Vision Transformer (DaViT) image classification model. This model was trained on the `il-all` dataset, encompassing all relevant bird species found in Israel, including rarities.
 
 The species list is derived from data available at <https://www.israbirding.com/checklist/>.
 
@@ -39,9 +39,9 @@ size = birder.get_size_from_signature(signature)
 # Create an inference transform
 transform = birder.classification_transform(size, rgb_stats)
 
-image = "path/to/image.jpeg"  # or a PIL image
+image = "path/to/image.jpeg"  # or a PIL image, must be loaded in RGB format
 (out, _) = infer_image(net, image, transform)
-# out is a NumPy array with shape of (1, num_classes)
+# out is a NumPy array with shape of (1, num_classes), representing class probabilities.
 ```
 
 ### Image Embeddings

@@ -628,7 +628,9 @@ def load_pretrained_model(
     )
 
 
-def load_model_with_cfg(cfg: dict[str, Any] | str | Path, weights_path: Optional[str | Path]) -> torch.nn.Module:
+def load_model_with_cfg(
+    cfg: dict[str, Any] | str | Path, weights_path: Optional[str | Path]
+) -> tuple[torch.nn.Module, dict[str, Any]]:
     """
     Loads a neural network model based on a configuration dictionary or configuration file path and optional weights.
 
@@ -687,7 +689,7 @@ def load_model_with_cfg(cfg: dict[str, Any] | str | Path, weights_path: Optional
         net.reparameterize_model()
 
     if weights_path is None:
-        return net
+        return (net, cfg)
 
     if isinstance(weights_path, str):
         weights_path = Path(weights_path)
@@ -702,7 +704,7 @@ def load_model_with_cfg(cfg: dict[str, Any] | str | Path, weights_path: Optional
 
     net.load_state_dict(model_state)
 
-    return net
+    return (net, cfg)
 
 
 def save_pts(

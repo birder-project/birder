@@ -56,9 +56,19 @@ RESULTS_PATH = "il-common-v1"
 ```{python}
 def get_model_name_and_num_parameters(file_name: str, tag: str = PATTERN) -> tuple[str, str, int]:
     reparameterized = False
+    intermediate = False
+    mim = False
     if file_name.find("reparameterized") != -1:
         reparameterized = True
         file_name = file_name.replace("_reparameterized", "")
+    if file_name.find("intermediate") != -1:
+        intermediate = True
+        file_name = file_name.replace("_intermediate", "")
+        file_name = file_name.replace("-intermediate", "")
+    if file_name.find("mim") != -1:
+        mim = True
+        file_name = file_name.replace("_mim", "")
+        file_name = file_name.replace("-mim", "")
 
     file_name = file_name.split("/")[-1]
     num_classes = file_name[file_name.find(tag) + len(tag) + 1 :]
@@ -256,6 +266,7 @@ chart.show()
 
 ```{python}
 combination_df = compare_results_df.select("device", "batch_size", "compile", "amp").unique()
+combination_df = combination_df.drop_nulls()
 for combination in combination_df.iter_rows(named=True):
     df = compare_results_df.filter(**combination)
 
