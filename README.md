@@ -2,13 +2,13 @@
 
 Birder is an open-source computer vision framework for wildlife image analysis, focusing on avian species.
 
-* [Introduction](#introduction)
-* [Setup](#setup)
-* [Getting Started](#getting-started)
-* [Pre-trained Models](#pre-trained-models)
-* [Detection](#detection)
-* [Licenses](#licenses)
-* [Acknowledgments](#acknowledgments)
+- [Introduction](#introduction)
+- [Setup](#setup)
+- [Getting Started](#getting-started)
+- [Pre-trained Models](#pre-trained-models)
+- [Detection](#detection)
+- [Licenses](#licenses)
+- [Acknowledgments](#acknowledgments)
 
 ## Introduction
 
@@ -18,13 +18,13 @@ For comprehensive documentation, tutorials, and more visit the main documentatio
 
 The project features:
 
-* A diverse collection of classification and detection models
-* Support for self-supervised pre-training
-* Knowledge distillation training (teacher-student)
-* Custom utilities and data augmentation techniques
-* Comprehensive training scripts
-* Advanced error analysis tools
-* Extensive documentation and tutorials (hopefully...)
+- A diverse collection of classification and detection models
+- Support for self-supervised pre-training
+- Knowledge distillation training (teacher-student)
+- Custom utilities and data augmentation techniques
+- Comprehensive training scripts
+- Advanced error analysis tools
+- Extensive documentation and tutorials (hopefully...)
 
 Unlike projects that aim to reproduce ImageNet training results from common papers, Birder is tailored specifically for practical applications in ornithology, conservation, and wildlife photography.
 
@@ -107,13 +107,13 @@ Architecture: The first part of the model name indicates the core neural network
 
 Training indicators:
 
-* intermediate: Signifies models that underwent a two-stage training process, beginning with a large-scale weakly labeled dataset before fine-tuning on the primary dataset
-* mim: Indicates models that leveraged self-supervised pre-training techniques, primarily Masked Autoencoder (MAE), prior to supervised training
+- intermediate: Signifies models that underwent a two-stage training process, beginning with a large-scale weakly labeled dataset before fine-tuning on the primary dataset
+- mim: Indicates models that leveraged self-supervised pre-training techniques, primarily Masked Autoencoder (MAE), prior to supervised training
 
 Other tags:
 
-* quantized: Model that has been quantized to reduce the computational and memory costs of running inference
-* reparameterized: Model that has been restructured to simplify its architecture for optimized inference performance
+- quantized: Model that has been quantized to reduce the computational and memory costs of running inference
+- reparameterized: Model that has been restructured to simplify its architecture for optimized inference performance
 
 Net Param: The number following the model name (e.g., 50, 1.0, 0.5), called the `net_param`, represents a specific configuration choice for the network. It represents a specific configuration choice for the network, which can affect aspects such as model size or complexity.
 
@@ -128,15 +128,15 @@ This approach allows our models to learn rich, general-purpose visual representa
 
 The pre-training dataset comprises:
 
-* iNaturalist 2021 (~3.3M)
-* WebVision-2.0 (~1.5M random subset)
-* imagenet-w21-webp-wds (~1M random subset)
-* SA-1B (~220K random subset of 20 chunks)
-* COCO (~120K)
-* NABirds (~48K)
-* Birdsnap v1.1 (~44K)
-* CUB-200 2011 (~18K)
-* The Birder dataset (~5M)
+- iNaturalist 2021 (~3.3M)
+- WebVision-2.0 (~1.5M random subset)
+- imagenet-w21-webp-wds (~1M random subset)
+- SA-1B (~220K random subset of 20 chunks)
+- COCO (~120K)
+- NABirds (~48K)
+- Birdsnap v1.1 (~44K)
+- CUB-200 2011 (~18K)
+- The Birder dataset (~5M)
 
 Total: ~11M images
 
@@ -154,9 +154,9 @@ Birder is currently a personal project in active development. As the sole develo
 
 However, I greatly appreciate the interest and support from the community. If you have suggestions, find bugs, or want to provide feedback, please feel free to:
 
-* Open an issue in the project's issue tracker
-* Use the project and share your experiences
-* Star the repository if you find it useful
+- Open an issue in the project's issue tracker
+- Use the project and share your experiences
+- Star the repository if you find it useful
 
 While I may not be able to incorporate external contributions at this stage, your input is valuable and helps shape the direction of Birder. I'll update this section if the contribution policy changes in the future.
 
@@ -189,10 +189,10 @@ Birder owes much to the work of others in computer vision, machine learning, and
 
 Special thanks to:
 
-* **Ross Wightman**: His work on [PyTorch Image Models (timm)](https://github.com/huggingface/pytorch-image-models) greatly inspired the design and approach of Birder.
+- **Ross Wightman**: His work on [PyTorch Image Models (timm)](https://github.com/huggingface/pytorch-image-models) greatly inspired the design and approach of Birder.
 
-* **Image Contributors**:
-  * Yaron Schmid - from [YS Wildlife](https://www.yswildlifephotography.com/who-we-are)
+- **Image Contributors**:
+    - Yaron Schmid - from [YS Wildlife](https://www.yswildlifephotography.com/who-we-are)
 
   for their generous donations of bird photographs.
 

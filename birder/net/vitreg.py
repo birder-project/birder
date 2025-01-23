@@ -95,6 +95,25 @@ registry.register_alias(
     },
 )
 
+
+registry.register_weights(
+    "vitreg4_b16_mim_200",
+    {
+        "url": "https://huggingface.co/birder-project/vitreg4_b16_mim/resolve/main/vitreg4_b16_mim_200.pt",
+        "description": (
+            "ViTReg4 b16 image encoder pre-trained using Masked Image Modeling (MIM). "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 327.4,
+                "sha256": "6b044cd7834293e344309f809070db3fe9ede489478e7549ad96255f9d76b329",
+            },
+        },
+        "net": {"network": "vitreg4_b16", "tag": "mim"},
+    },
+)
 registry.register_weights(
     "vitreg4_b16_mim-intermediate-il-common",
     {

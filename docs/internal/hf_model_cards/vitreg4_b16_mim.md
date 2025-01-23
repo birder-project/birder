@@ -16,7 +16,7 @@ A ViTReg4-B16 image encoder pre-trained using Masked Image Modeling (MIM). This 
 - **Model Stats:**
     - Params (M): 85.8
     - Input image size: 224 x 224
-- **Dataset:** TODO
+- **Dataset:** Trained on a diverse dataset of approximately 11M images, including a substantial collection of bird imagery (50% of the dataset)
 
 - **Papers:**
     - An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale: <https://arxiv.org/abs/2010.11929>
@@ -26,6 +26,27 @@ A ViTReg4-B16 image encoder pre-trained using Masked Image Modeling (MIM). This 
 ## Model Usage
 
 ### Image Embeddings
+
+```python
+import birder
+from PIL import Image
+
+(net, _, signature, rgb_stats) = birder.load_pretrained_model("vitreg4_b16_mim_200", inference=True)
+
+# Get the image size the model was trained on
+size = birder.get_size_from_signature(signature)
+
+# Create an inference transform
+transform = birder.classification_transform(size, rgb_stats)
+
+image = Image.open("path/to/image.jpeg")
+input_tensor = transform(image).unsqueeze(dim=0)
+with torch.inference_mode():
+    embedding = net.embedding(input_tensor)
+    # embedding is a tensor with shape of (1, embedding_size)
+```
+
+Alternatively using `load_model_with_cfg` function
 
 ```python
 import birder
@@ -43,8 +64,9 @@ transform = birder.classification_transform(size, cfg["rgb_stats"])
 
 image = Image.open("path/to/image.jpeg")
 input_tensor = transform(image).unsqueeze(dim=0)
-embedding = net.embedding(input_tensor)
-# embedding is a tensor with shape of (1, embedding_size)
+with torch.inference_mode():
+    embedding = net.embedding(input_tensor)
+    # embedding is a tensor with shape of (1, embedding_size)
 ```
 
 ## Citation
