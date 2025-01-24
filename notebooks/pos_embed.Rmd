@@ -1,0 +1,233 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.16.6
+  kernelspec:
+    display_name: birder
+    language: python
+    name: birder
+---
+
+```{python}
+import sys
+
+import matplotlib.pyplot as plt
+import torch
+import torch.nn.functional as F
+```
+
+```{python}
+sys.path.append("..")
+```
+
+```{python}
+from birder.common import fs_ops
+from birder.common import lib
+```
+
+```{python}
+# %cd ..
+```
+
+```{python}
+device = torch.device("cpu")
+```
+
+## ViT
+
+```{python}
+(net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+    device, "vitreg4_b16", path="models/vitreg4_b16_mim_225.pt", inference=True
+)
+# (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+#     device, "vit_l16", path="models/vit_l16_mim_362.pt", inference=True
+# )
+# size = lib.get_size_from_signature(signature)
+# size = (size[0] // net.patch_size, size[1] // net.patch_size)
+```
+
+```{python}
+num_prefix_tokens = 1 + net.num_reg_tokens
+pos_embedding = net.pos_embedding[:, num_prefix_tokens:]
+pos_embedding.size()
+```
+
+```{python}
+similarity = pos_embedding.squeeze() @ pos_embedding.squeeze().T
+plt.matshow(similarity.numpy())
+```
+
+```{python}
+net.adjust_size(256)
+```
+
+```{python}
+pos_embedding = net.pos_embedding[:, num_prefix_tokens:]
+pos_embedding.size()
+```
+
+```{python}
+similarity = pos_embedding.squeeze() @ pos_embedding.squeeze().T
+plt.matshow(similarity.detach().numpy())
+```
+
+## Hiera
+
+```{python}
+(net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+    device, "hiera_abswin_base", path="models/hiera_abswin_base_mim_100.pt", inference=True
+)
+```
+
+```{python}
+pos_embedding = net._get_pos_embed()
+pos_embedding.size()
+```
+
+```{python}
+similarity = pos_embedding.squeeze() @ pos_embedding.squeeze().T
+plt.matshow(similarity.numpy())
+```
+
+```{python}
+net.adjust_size(256)
+```
+
+```{python}
+pos_embedding = net._get_pos_embed()
+pos_embedding.size()
+```
+
+```{python}
+similarity = pos_embedding.squeeze() @ pos_embedding.squeeze().T
+plt.matshow(similarity.detach().numpy())
+```
+
+## CaiT
+
+```{python}
+(net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+    device, "cait_xxs24", path="models/cait_xxs24_il-common.pt", inference=True
+)
+```
+
+```{python}
+pos_embedding = net.pos_embed
+pos_embedding.size()
+```
+
+```{python}
+similarity = pos_embedding.squeeze() @ pos_embedding.squeeze().T
+plt.matshow(similarity.numpy())
+```
+
+```{python}
+net.adjust_size(320)
+```
+
+```{python}
+pos_embedding = net.pos_embed
+pos_embedding.size()
+```
+
+```{python}
+similarity = pos_embedding.squeeze() @ pos_embedding.squeeze().T
+plt.matshow(similarity.detach().numpy())
+```
+
+## Swin Transformer v2
+
+```{python}
+(net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+    device, "swin_transformer_v2_s", path="models/swin_transformer_v2_s_intermediate_65.pt", inference=True
+)
+```
+
+```{python}
+net.body[0][0].attn.relative_coords_table.size(), net.body[0][0].attn.relative_position_index.size()
+```
+
+```{python}
+pos_embedding = net.body[0][0].attn.relative_coords_table.reshape(1, -1, 2)
+pos_embedding.size()
+```
+
+```{python}
+similarity = pos_embedding.squeeze() @ pos_embedding.squeeze().T
+plt.matshow(similarity.detach().numpy())
+```
+
+```{python}
+pos_embedding = net.body[1][1].attn.relative_coords_table.reshape(1, -1, 2)
+pos_embedding.size()
+```
+
+```{python}
+similarity = pos_embedding.squeeze() @ pos_embedding.squeeze().T
+plt.matshow(similarity.detach().numpy())
+```
+
+```{python}
+pos_embedding = net.body[3][2].attn.relative_coords_table.reshape(1, -1, 2)
+pos_embedding.size()
+```
+
+```{python}
+similarity = pos_embedding.squeeze() @ pos_embedding.squeeze().T
+plt.matshow(similarity.detach().numpy())
+```
+
+```{python}
+net.adjust_size(256)
+```
+
+```{python}
+pos_embedding = net.body[0][0].attn.relative_coords_table.reshape(1, -1, 2)
+pos_embedding.size()
+```
+
+```{python}
+similarity = pos_embedding.squeeze() @ pos_embedding.squeeze().T
+plt.matshow(similarity.detach().numpy())
+```
+
+## iFormer
+
+```{python}
+(net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+    device, "iformer_s", path="models/iformer_s_arabian-peninsula.pt", inference=True
+)
+```
+
+```{python}
+pos_embedding = net.body[1].pos_embed.reshape(1, -1, 96)
+pos_embedding.size()
+```
+
+```{python}
+similarity = pos_embedding.squeeze() @ pos_embedding.squeeze().T
+plt.matshow(similarity.detach().numpy())
+```
+
+```{python}
+net.adjust_size(448)
+```
+
+```{python}
+pos_embedding = net.body[1].pos_embed.reshape(1, -1, 96)
+pos_embedding.size()
+```
+
+```{python}
+similarity = pos_embedding.squeeze() @ pos_embedding.squeeze().T
+plt.matshow(similarity.detach().numpy())
+```
+
+```{python}
+
+```

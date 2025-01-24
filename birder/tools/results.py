@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.table import Table
 
 from birder.common import cli
+from birder.conf import settings
 from birder.results.classification import Results
 from birder.results.classification import compare_results
 from birder.results.gui import ROC
@@ -155,6 +156,12 @@ def set_parser(subparsers: Any) -> None:
         help="print results table",
     )
     subparser.add_argument(
+        "--save-summary",
+        default=False,
+        action="store_true",
+        help="save results summary as csv",
+    )
+    subparser.add_argument(
         "--print-mistakes", default=False, action="store_true", help="print only classes with non-perfect f1-score"
     )
     subparser.add_argument("--classes", default=[], type=str, nargs="+", help="class names to compare")
@@ -207,6 +214,15 @@ def main(args: argparse.Namespace) -> None:
         print_report(results_dict)
         if len(args.classes) > 0:
             print_per_class_report(results_dict, args.classes)
+
+    if args.save_summary is True:
+        summary_path = settings.RESULTS_DIR.joinpath("summary.csv")
+        if summary_path.exists() is True:
+            logging.warning(f"Summary already exists '{summary_path}', skipping...")
+        else:
+            logging.info(f"Writing results summary at '{summary_path}...")
+            results_df = compare_results(results_dict)
+            results_df.write_csv(summary_path)
 
     if args.list_mistakes is True:
         for name, results in results_dict.items():

@@ -428,3 +428,22 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
+
+registry.register_weights(
+    "vit_l16_mim_200",
+    {
+        "url": "https://huggingface.co/birder-project/vit_l16_mim/resolve/main/vit_l16_mim_200.pt",
+        "description": (
+            "ViT l16 image encoder pre-trained using Masked Image Modeling (MIM). "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 1157.1,
+                "sha256": "003b15a79cd528339de1b19304bbd04fd5885df36b80e19202cd6ef6f8ffbed1",
+            },
+        },
+        "net": {"network": "vit_l16", "tag": "mim"},
+    },
+)

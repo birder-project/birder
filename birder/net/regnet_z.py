@@ -266,3 +266,18 @@ registry.register_alias(
     RegNet_Z,
     config={"depth": 28, "w_0": 48, "w_a": 14.5, "w_m": 2.226, "group_width": 8, "num_features": 1536},
 )
+
+registry.register_weights(
+    "regnet_z_500m_il-common",
+    {
+        "description": "RegNet Z 500m model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 25.1,
+                "sha256": "b2cc5c9f5c5e4693d8fe12e2d5eddaa28ce25d9ea38e14ea67ec09706aa24ea9",
+            }
+        },
+        "net": {"network": "regnet_z_500m", "tag": "il-common"},
+    },
+)

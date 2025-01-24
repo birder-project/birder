@@ -95,7 +95,6 @@ registry.register_alias(
     },
 )
 
-
 registry.register_weights(
     "vitreg4_b16_mim_200",
     {

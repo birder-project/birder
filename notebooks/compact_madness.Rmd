@@ -121,9 +121,6 @@ def get_pretrained_name(file_name: str) -> int:
 results_dict = {}
 for result_file in settings.RESULTS_DIR.joinpath(RESULTS_PATH).glob(f"*{PATTERN}*"):
     results_dict[result_file.stem] = Results.load(result_file)
-
-# for result_file in settings.RESULTS_DIR.joinpath("il-common-v0").glob(f"*{PATTERN}*"):
-#     results_dict[result_file.stem] = Results.load(result_file)
 ```
 
 ```{python}
