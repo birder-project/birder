@@ -1,0 +1,186 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.16.6
+  kernelspec:
+    display_name: birder
+    language: python
+    name: birder
+---
+
+```{python}
+IMAGE = "data/validation/Bluethroat/000013.jpeg"
+```
+
+```{python}
+# %cd ..
+```
+
+```{python}
+import birder
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from birder.common import fs_ops
+from birder.common import lib
+from birder.datasets.directory import make_image_dataset
+from birder.transforms.classification import inference_preset
+from PIL import Image
+```
+
+```{python}
+device = torch.device("cpu")
+(net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+    device, "vitreg4_b16", tag="mim-intermediate", epoch=75, inference=True
+)
+idx_to_class = {v: k for k, v in class_to_idx.items()}
+size = lib.get_size_from_signature(signature)
+transform = inference_preset(size, rgb_stats, 1.0)
+# transform = inference_preset((512, 512), rgb_stats, 1.0)
+# net.adjust_size(512)
+```
+
+```{python}
+img = Image.open(IMAGE)
+plt.imshow(img.resize(size))
+
+x_ticks = np.arange(0, size[0], 16)
+y_ticks = np.arange(0, size[1], 16)
+x_labels = [str(i) for i in range(16)]
+y_labels = [str(i) for i in range(16)]
+plt.gca().set_xticks(x_ticks)
+plt.gca().set_yticks(y_ticks)
+plt.gca().set_xticklabels(x_labels)
+plt.gca().set_yticklabels(y_labels)
+
+plt.grid(which="major", linewidth=0.72, color="k")
+plt.tight_layout()
+```
+
+```{python}
+input_tensor = transform(img).unsqueeze(dim=0).to(device)
+```
+
+```{python}
+idx_to_class[net(input_tensor).argmax().item()]
+```
+
+```{python}
+vis_tokens = net.conv_proj(input_tensor)
+kernels = vis_tokens.squeeze().cpu().detach().numpy()
+```
+
+```{python}
+plt.matshow(kernels.mean(axis=0))
+```
+
+```{python}
+plt.matshow(kernels[17])
+```
+
+## Encoding
+
+```{python}
+def show(x: torch.Tensor) -> None:
+    (B, HW, L) = x.size()
+    x = x[:, net.num_special_tokens :]
+    x = x.permute(0, 2, 1)
+    x = x.reshape(B, L, size[0] // 16, size[1] // 16)
+    x = x.squeeze()
+    plt.matshow(x.mean(axis=0))
+
+def show_plane(x: torch.Tensor, channel: int) -> None:
+    (B, HW, L) = x.size()
+    x = x[:, net.num_special_tokens :]
+    x = x.permute(0, 2, 1)
+    x = x.reshape(B, L, size[0] // 16, size[1] // 16)
+    x = x.squeeze()
+    plt.matshow(x[channel])
+```
+
+```{python}
+x = net.patch_embed(vis_tokens)
+```
+
+```{python}
+batch_class_token = net.class_token.expand(x.shape[0], -1, -1)
+x = torch.concat([batch_class_token, x], dim=1)
+
+batch_reg_tokens = net.reg_tokens.expand(x.shape[0], -1, -1)
+x = torch.concat([batch_reg_tokens, x], dim=1)
+
+x = x + net.pos_embedding
+x.size()
+```
+
+```{python}
+(B, N, L) = x.size()  # N = H*W
+b1 = net.encoder.block[0].ln1(x)
+show(b1)
+```
+
+```{python}
+num_heads = net.encoder.block[0].self_attention.num_heads
+head_dim = net.encoder.block[0].self_attention.head_dim
+
+z = b1 @ net.encoder.block[0].self_attention.in_proj_weight.T + net.encoder.block[0].self_attention.in_proj_bias
+qkv = z.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
+(q, k, v) = qkv.unbind(0)
+show(v.transpose(1, 2).reshape(B, N, L))
+```
+
+```{python}
+scale_factor = 1 / np.sqrt(q.size(-1))
+attn_weight = q @ k.transpose(-2, -1) * scale_factor
+attn_weight = torch.softmax(attn_weight, dim=-1)
+z = attn_weight @ v
+z = z.transpose(1, 2).reshape(B, N, L)
+show(z)
+```
+
+```{python}
+z = net.encoder.block[0].self_attention.out_proj(z)
+show(z)
+```
+
+```{python}
+b1 = z + x
+show(b1)
+```
+
+```{python}
+b2 = net.encoder.block[0].ln2(b1)
+show(b2)
+```
+
+```{python}
+b2 = net.encoder.block[0].mlp(b2)
+show(b2)
+```
+
+```{python}
+z = b1 + b2
+show(z)
+```
+
+```{python}
+show_plane(z, 17)
+```
+
+```{python}
+# Verify the calculation
+torch.equal(z, net.encoder.block[0](x))
+```
+
+```{python}
+
+```
+
+```{python}
+
+```

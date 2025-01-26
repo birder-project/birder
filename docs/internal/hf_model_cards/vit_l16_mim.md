@@ -27,6 +27,7 @@ A ViT-L16 image encoder pre-trained using Masked Image Modeling (MIM). This mode
 ### Image Embeddings
 
 ```python
+import torch
 import birder
 from PIL import Image
 

@@ -28,6 +28,7 @@ A ViTReg4-B16 image encoder pre-trained using Masked Image Modeling (MIM). This 
 ### Image Embeddings
 
 ```python
+import torch
 import birder
 from PIL import Image
 
@@ -49,6 +50,7 @@ with torch.inference_mode():
 Alternatively using `load_model_with_cfg` function
 
 ```python
+import torch
 import birder
 from PIL import Image
 

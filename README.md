@@ -70,7 +70,7 @@ Create a data directory and download an example image:
 
 ```sh
 mkdir data
-wget https://f000.backblazeb2.com/file/birder/data/img_001.jpeg -O data/img_001.jpeg
+wget https://huggingface.co/spaces/birder-project/birder-image-classification/resolve/main/Eurasian%20teal.jpeg -O data/img_001.jpeg
 ```
 
 To classify bird images, use the `birder-predict` script as follows:
