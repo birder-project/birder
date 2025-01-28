@@ -126,21 +126,7 @@ For instance, *resnext_50_intermediate_300* represents a ResNeXt model with a `n
 Our pre-training process utilizes a diverse collection of image datasets.
 This approach allows our models to learn rich, general-purpose visual representations before fine-tuning on specific bird classification tasks.
 
-The pre-training dataset comprises:
-
-- iNaturalist 2021 (~3.3M)
-- WebVision-2.0 (~1.5M random subset)
-- imagenet-w21-webp-wds (~1M random subset)
-- SA-1B (~220K random subset of 20 chunks)
-- COCO (~120K)
-- NABirds (~48K)
-- Birdsnap v1.1 (~44K)
-- CUB-200 2011 (~18K)
-- The Birder dataset (~5M)
-
-Total: ~11M images
-
-This carefully curated mix of datasets balances general visual knowledge with domain-specific bird imagery, enhancing the model's overall performance.
+The pre-training dataset is composed of a mix of general images and bird specific imagery to improve downstream performance on the bird classification tasks.
 
 For detailed information about these datasets, including descriptions, citations, and licensing details, please refer to [docs/public_datasets.md](docs/public_datasets.md).
 

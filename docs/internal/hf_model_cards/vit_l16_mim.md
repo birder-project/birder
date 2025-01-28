@@ -16,7 +16,16 @@ A ViT-L16 image encoder pre-trained using Masked Image Modeling (MIM). This mode
 - **Model Stats:**
     - Params (M): 303.3
     - Input image size: 224 x 224
-- **Dataset:** Trained on a diverse dataset of approximately 11M images, including a substantial collection of bird imagery (50% of the dataset)
+- **Dataset:** Trained on a diverse dataset of approximately 11M images, including:
+    - iNaturalist 2021 (~3.3M)
+    - WebVision-2.0 (~1.5M random subset)
+    - imagenet-w21-webp-wds (~1M random subset)
+    - SA-1B (~220K random subset of 20 chunks)
+    - COCO (~120K)
+    - NABirds (~48K)
+    - Birdsnap v1.1 (~44K)
+    - CUB-200 2011 (~18K)
+    - The Birder dataset (~5M, private dataset)
 
 - **Papers:**
     - An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale: <https://arxiv.org/abs/2010.11929>
