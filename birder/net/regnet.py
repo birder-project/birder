@@ -545,6 +545,21 @@ registry.register_alias(
 )
 
 registry.register_weights(
+    "regnet_x_400m_il-common",
+    {
+        "description": "RegNet X 400m model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 20.3,
+                "sha256": "c20ea88412fd2d85e28426dcb8300d38bc0fea856e7d6afff2a616fa0363c06d",
+            }
+        },
+        "net": {"network": "regnet_x_400m", "tag": "il-common"},
+    },
+)
+
+registry.register_weights(
     "regnet_y_200m_il-common",
     {
         "description": "RegNet Y 200m model trained on the il-common dataset",

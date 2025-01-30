@@ -490,7 +490,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 79.5,
-                "sha256": "7fb046700d78ca6c76328523a77b837c23ead717a1cc2b14331756fe94db46b0",
+                "sha256": "28ccab8f908e2d8129bb968d2142b5f7d851f0f1e9d522c7b76512d223a944de",
             }
         },
         "net": {"network": "iformer_s", "tag": "arabian-peninsula"},

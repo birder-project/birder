@@ -372,6 +372,18 @@ torchrun --nproc_per_node=2 train.py --network pvt_v2_b1 --tag il-common --opt a
 
 ### RegNet
 
+#### RegNet: X 200 MF
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regnet_x_200m --tag il-common --lr 0.4 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 140 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+#### RegNet: X 400 MF
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regnet_x_400m --tag il-common --lr 0.4 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 140 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --ra-sampler --ra-reps 2 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 #### RegNet: Y 200 MF
 
 ```sh

@@ -2,6 +2,7 @@
 tags:
 - image-classification
 - birder
+- pytorch
 library_name: birder
 license: apache-2.0
 ---
@@ -19,6 +20,8 @@ The species list is derived from data available at <https://www.israbirding.com/
     - Params (M): 86.1
     - Input image size: 256 x 256
 - **Dataset:** il-common (371 classes)
+    - Intermediate training involved ~5000 species from asia, europe and eastern africa
+    - Epoch 200 checkpoint of [vitreg4_b16_mim](https://huggingface.co/birder-project/vitreg4_b16_mim)
 
 - **Papers:**
     - An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale: <https://arxiv.org/abs/2010.11929>

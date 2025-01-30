@@ -859,6 +859,8 @@ def get_args_parser() -> argparse.ArgumentParser:
 
 
 def validate_args(args: argparse.Namespace) -> None:
+    args.data_path = str(args.data_path)
+    args.val_path = str(args.val_path)
     assert args.teacher is not None
     assert args.student is not None
     assert 0.5 > args.smoothing_alpha >= 0, "Smoothing alpha must be in range of [0, 0.5)"

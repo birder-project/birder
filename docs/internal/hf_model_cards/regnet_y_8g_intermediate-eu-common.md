@@ -2,6 +2,7 @@
 tags:
 - image-classification
 - birder
+- pytorch
 library_name: birder
 license: apache-2.0
 ---
@@ -21,6 +22,7 @@ The species list is derived from the Collins bird guide [^1].
     - Params (M): 38.8
     - Input image size: 384 x 384
 - **Dataset:** eu-common (707 classes)
+    - Intermediate training involved ~2000 species from asia and europe
 
 - **Papers:**
     - Designing Network Design Spaces: <https://arxiv.org/abs/2003.13678>

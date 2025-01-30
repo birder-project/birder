@@ -23,7 +23,8 @@ class TestTrainFlow(unittest.TestCase):
         birder.load_pretrained_model(model_name, progress_bar=False)
 
         # Download dataset
-        TestDataset(download=True, progress_bar=False)
+        training_dataset = TestDataset(download=True, progress_bar=False)
+        validation_dataset = TestDataset(split="validation")
 
         # Linear probing
         model_info = registry.get_pretrained_info(model_name)
@@ -42,8 +43,8 @@ class TestTrainFlow(unittest.TestCase):
             epochs=1,
             size=64,
             cpu=True,
-            data_path="data/TestDataset/training",
-            val_path="data/TestDataset/validation",
+            data_path=training_dataset.root,
+            val_path=validation_dataset.root,
         )
         train.train(args)
 

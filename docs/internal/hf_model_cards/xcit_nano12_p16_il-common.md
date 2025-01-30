@@ -2,6 +2,7 @@
 tags:
 - image-classification
 - birder
+- pytorch
 library_name: birder
 license: apache-2.0
 ---

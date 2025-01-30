@@ -630,7 +630,10 @@ def get_args_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--pretrained", default=False, action="store_true", help="start with pretrained version of specified network"
+        "--pretrained",
+        default=False,
+        action="store_true",
+        help="start with pretrained version of specified network, reset the classification head",
     )
     parser.add_argument("--reset-head", default=False, action="store_true", help="reset the classification head")
     parser.add_argument(
@@ -840,6 +843,8 @@ def get_args_parser() -> argparse.ArgumentParser:
 
 
 def validate_args(args: argparse.Namespace) -> None:
+    args.data_path = str(args.data_path)
+    args.val_path = str(args.val_path)
     assert args.network is not None
     assert (
         args.pretrained is False or args.resume_epoch is None
