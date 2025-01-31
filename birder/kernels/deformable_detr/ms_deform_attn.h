@@ -6,6 +6,8 @@
 **************************************************************************************************
 * Modified from https://github.com/chengdazhi/Deformable-Convolution-V2-PyTorch/tree/pytorch_1.0.0
 **************************************************************************************************
+* Modified from https://github.com/huggingface/transformers/pull/35979/files
+**************************************************************************************************
 */
 
 #pragma once
@@ -26,7 +28,7 @@ ms_deform_attn_forward(
     const at::Tensor &attn_weight,
     const int im2col_step)
 {
-    if (value.type().is_cuda())
+    if (value.is_cuda())
     {
 #ifdef WITH_CUDA
         return ms_deform_attn_cuda_forward(
@@ -48,7 +50,7 @@ ms_deform_attn_backward(
     const at::Tensor &grad_output,
     const int im2col_step)
 {
-    if (value.type().is_cuda())
+    if (value.is_cuda())
     {
 #ifdef WITH_CUDA
         return ms_deform_attn_cuda_backward(

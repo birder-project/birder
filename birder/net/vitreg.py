@@ -134,3 +134,24 @@ registry.register_weights(
         "net": {"network": "vitreg4_b16", "tag": "mim-intermediate-il-common"},
     },
 )
+registry.register_weights(
+    "vitreg4_b16_mim-intermediate-arabian-peninsula",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/vitreg4_b16_mim-intermediate-arabian-peninsula/resolve/"
+            "main/vitreg4_b16_mim-intermediate-arabian-peninsula.pt"
+        ),
+        "description": (
+            "ViTReg4 b16 model with MIM pretraining and intermediate training, "
+            "then fine-tuned on the arabian-peninsula dataset"
+        ),
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 330.7,
+                "sha256": "e011f931a5a4d96ef21283d70911a55ea649eadfefa9c163a48b996797f0d9da",
+            },
+        },
+        "net": {"network": "vitreg4_b16", "tag": "mim-intermediate-arabian-peninsula"},
+    },
+)
