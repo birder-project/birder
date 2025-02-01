@@ -495,3 +495,25 @@ registry.register_alias(
         "window_scale_factor": 2,
     },
 )
+
+registry.register_weights(
+    "swin_transformer_v2_s_intermediate-arabian-peninsula",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/swin_transformer_v2_s_intermediate-arabian-peninsula/resolve/"
+            "main/swin_transformer_v2_s_intermediate-arabian-peninsula.pt"
+        ),
+        "description": (
+            "Swin Transformer v2 small model with intermediate training, "
+            "then fine-tuned on the arabian-peninsula dataset"
+        ),
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 193.0,
+                "sha256": "766706779aef6b55860cabd5712bcb758f463896100645648f917495214dd478",
+            },
+        },
+        "net": {"network": "swin_transformer_v2_s", "tag": "intermediate-arabian-peninsula"},
+    },
+)

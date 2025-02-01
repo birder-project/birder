@@ -140,6 +140,7 @@ def train(args: argparse.Namespace) -> None:
         collate_fn = None  # type: ignore
 
     # Initialize network
+    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size,) + (args.channels, args.size, args.size)  # B, C, H, W
     network_name = get_network_name(args.network, net_param=args.net_param, tag=args.tag)
 
@@ -156,7 +157,6 @@ def train(args: argparse.Namespace) -> None:
         )
         if args.reset_head is True:
             net.reset_classifier(len(class_to_idx))
-            net.to(device)
         else:
             assert class_to_idx == class_to_idx_saved
 
@@ -171,7 +171,6 @@ def train(args: argparse.Namespace) -> None:
             new_size=args.size,
         )
         net.reset_classifier(len(class_to_idx))
-        net.to(device)
 
     else:
         net = registry.net_factory(
@@ -181,8 +180,9 @@ def train(args: argparse.Namespace) -> None:
             net_param=args.net_param,
             config=args.model_config,
             size=args.size,
-        ).to(device)
+        )
 
+    net.to(device, dtype=model_dtype)
     if args.freeze_body is True:
         net.freeze(freeze_classifier=False, unfreeze_features=args.unfreeze_features)
 
@@ -293,7 +293,7 @@ def train(args: argparse.Namespace) -> None:
         net_for_info,
         device=device,
         input_size=sample_shape,
-        dtypes=[torch.float32],
+        dtypes=[model_dtype],
         col_names=["input_size", "output_size", "kernel_size", "num_params"],
         depth=4,
         verbose=1 if args.rank == 0 else 0,
@@ -308,7 +308,7 @@ def train(args: argparse.Namespace) -> None:
     signature = get_signature(input_shape=sample_shape, num_outputs=num_outputs)
     if args.rank == 0:
         with torch.no_grad():
-            summary_writer.add_graph(net_for_info, torch.rand(sample_shape, device=device))
+            summary_writer.add_graph(net_for_info, torch.rand(sample_shape, device=device, dtype=model_dtype))
 
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
@@ -404,7 +404,7 @@ def train(args: argparse.Namespace) -> None:
         optimizer.zero_grad()
 
         for i, (inputs, targets) in enumerate(training_loader):
-            inputs = inputs.to(device, non_blocking=True)
+            inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
             targets = targets.to(device, non_blocking=True)
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
@@ -498,7 +498,7 @@ def train(args: argparse.Namespace) -> None:
 
         with torch.inference_mode():
             for inputs, targets in validation_loader:
-                inputs = inputs.to(device, non_blocking=True)
+                inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
                 targets = targets.to(device, non_blocking=True)
                 with torch.amp.autocast("cuda", enabled=args.amp):
                     outputs = eval_model(inputs)
@@ -800,6 +800,13 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--prefetch-factor", type=int, metavar="N", help="number of batches loaded in advance by each worker"
     )
     parser.add_argument("--drop-last", default=False, action="store_true", help="drop the last incomplete batch")
+    parser.add_argument(
+        "--model-dtype",
+        type=str,
+        choices=["float32", "float16", "bfloat16"],
+        default="float32",
+        help="model dtype to use",
+    )
     parser.add_argument("--amp", default=False, action="store_true", help="use torch.amp for mixed precision training")
     parser.add_argument(
         "--amp-dtype",
@@ -864,6 +871,7 @@ def validate_args(args: argparse.Namespace) -> None:
         registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION) is True
     ), "Unknown network, see list-models tool for available options"
     assert args.freeze_bn is False or args.sync_bn is False, "Cannot freeze-bn and sync-bn are mutually exclusive"
+    assert args.amp is False or args.model_dtype == "float32"
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

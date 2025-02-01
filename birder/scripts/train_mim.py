@@ -107,6 +107,7 @@ def train(args: argparse.Namespace) -> None:
         args.stop_epoch += 1
 
     # Initialize network
+    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size,) + (args.channels, args.size, args.size)  # B, C, H, W
     encoder_name = get_network_name(args.encoder, net_param=args.encoder_param, tag="mim")
     network_name = get_mim_network_name(
@@ -142,8 +143,9 @@ def train(args: argparse.Namespace) -> None:
         )
         net = registry.mim_net_factory(
             args.network, encoder, net_param=args.net_param, config=args.model_config, size=args.size
-        ).to(device)
+        )
 
+    net.to(device, dtype=model_dtype)
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
@@ -226,7 +228,7 @@ def train(args: argparse.Namespace) -> None:
         net_for_info,
         device=device,
         input_size=sample_shape,
-        dtypes=[torch.float32],
+        dtypes=[model_dtype],
         col_names=["input_size", "output_size", "kernel_size", "num_params"],
         depth=4,
         verbose=1 if args.rank == 0 else 0,
@@ -310,7 +312,7 @@ def train(args: argparse.Namespace) -> None:
 
         for i, data in enumerate(training_loader):
             inputs = data[input_idx]
-            inputs = inputs.to(device, non_blocking=True)
+            inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
 
             # Zero the parameter gradients
             optimizer.zero_grad()
@@ -583,6 +585,13 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--prefetch-factor", type=int, metavar="N", help="number of batches loaded in advance by each worker"
     )
+    parser.add_argument(
+        "--model-dtype",
+        type=str,
+        choices=["float32", "float16", "bfloat16"],
+        default="float32",
+        help="model dtype to use",
+    )
     parser.add_argument("--amp", default=False, action="store_true", help="use torch.amp for mixed precision training")
     parser.add_argument(
         "--amp-dtype",
@@ -640,6 +649,7 @@ def validate_args(args: argparse.Namespace) -> None:
     assert (
         registry.exists(args.encoder, net_type=PreTrainEncoder) is True
     ), "Unknown encoder, see list-models tool for available options"
+    assert args.amp is False or args.model_dtype == "float32"
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

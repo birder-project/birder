@@ -393,12 +393,7 @@ def get_scheduler(
 def get_amp_scaler(amp: bool, amp_dtype_str: str) -> tuple[Optional[torch.amp.GradScaler], Optional[torch.dtype]]:
     if amp is True:
         scaler = torch.amp.GradScaler("cuda")
-        if amp_dtype_str == "float16":
-            amp_dtype = torch.float16
-        elif amp_dtype_str == "bfloat16":
-            amp_dtype = torch.bfloat16
-        else:
-            raise ValueError(f"Unknown dtype {amp_dtype_str}")
+        amp_dtype = getattr(torch, amp_dtype_str)
 
     else:
         scaler = None

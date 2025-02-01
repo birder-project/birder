@@ -29,7 +29,7 @@ class TestTrainFlow(unittest.TestCase):
         # Linear probing
         model_info = registry.get_pretrained_info(model_name)
         network = model_info["net"]["network"]
-        net_param = net_param = model_info["net"].get("net_param", None)
+        net_param = model_info["net"].get("net_param", None)
         tag = model_info["net"].get("tag", None)
         args = train.args_from_dict(
             network=network,

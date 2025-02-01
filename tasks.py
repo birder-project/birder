@@ -327,7 +327,7 @@ def pack_intermediate(ctx, size=384, suffix=settings.PACK_PATH_SUFFIX):
     )
     ctx.run(
         f"python tool.py pack -j 12 --suffix {suffix} --size {size} --max-size 200 --class-file "
-        "data/training_packed/classes.txt data/validation data/raw_data_validation",
+        "data/training_packed/classes.txt data/validation",
         echo=True,
         pty=True,
         warn=True,

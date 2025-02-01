@@ -841,6 +841,24 @@ At epoch 220 increase resolution again
 torchrun --nproc_per_node=2 train.py --network focalnet_s_lrf --opt adamw --lr 1e-3 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 16 --epochs 300 --size 448 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile --rgb-mode none --resume-epoch 220 --load-states
 ```
 
+#### FocalNet: Base LRF
+
+```sh
+torchrun --nproc_per_node=2 train.py --network focalnet_b_lrf --opt adamw --lr 1e-3 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 20 --batch-size 128 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile --rgb-mode none
+```
+
+Optional intermediate training
+
+```sh
+torchrun --nproc_per_node=2 train.py --network focalnet_b_lrf --tag intermediate --opt adamw --lr 1e-3 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 5 --batch-size 128 --epochs 90 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --model-config drop_path_rate=0.2 --amp --compile --rgb-mode none --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+```
+
+Optional intermediate training: linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network focalnet_b_lrf --tag intermediate --opt adamw --lr 1e-4 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --epochs 10 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --aug-level 3 --clip-grad-norm 5 --amp --compile --rgb-mode none --resume-epoch 0
+```
+
 ### GhostNet v1
 
 #### GhostNet v1: 0.5 (50)
