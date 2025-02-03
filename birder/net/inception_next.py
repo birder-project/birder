@@ -112,8 +112,7 @@ class InceptionNeXtBlock(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         identity = x
         x = self.layer_scale * self.block(x)
-        x = self.stochastic_depth(x)
-        x += identity
+        x = self.stochastic_depth(x) + identity
 
         return x
 

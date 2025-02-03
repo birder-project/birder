@@ -164,8 +164,7 @@ class InvertedResidual(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.shortcut is True:
-            x = self.stochastic_depth(x)
-            return x + self.block(x)
+            return x + self.stochastic_depth(self.block(x))
 
         return self.block(x)
 
@@ -255,8 +254,7 @@ class UniversalInvertedBottleneck(nn.Module):
         x = self.proj_conv(x)
         x = self.layer_scale(x)
         if self.shortcut is True:
-            x = self.stochastic_depth(x)
-            return x + shortcut
+            return self.stochastic_depth(x) + shortcut
 
         return x
 

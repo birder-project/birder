@@ -497,7 +497,107 @@ torchrun --nproc_per_node=2 train.py --network deit_b16 --tag intermediate --opt
 
 ### DeiT3
 
-Same as DeiT
+#### DeiT3: t16
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_t16 --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 600 --size 256 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --fast-matmul --compile
+```
+
+#### DeiT3: s16
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_s16 --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 600 --size 256 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --amp --compile
+```
+
+Fine-tuning, increase resolution
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_s16 --opt adamw --lr 0.00001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 5 --epochs 20 --size 384 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --clip-grad-norm 1 --model-config drop_path_rate=0.0 --amp --compile --resume-epoch 0
+```
+
+#### DeiT3: m16
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_m16 --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 800 --size 256 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --amp --compile
+```
+
+Fine-tuning, increase resolution
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_m16 --opt adamw --lr 0.00001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 5 --epochs 20 --size 384 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --clip-grad-norm 1 --model-config drop_path_rate=0.0 --amp --compile --resume-epoch 0
+```
+
+Optional intermediate training
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_m16 --tag intermediate --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 5 --epochs 240 --size 256 --wd 0.02 --smoothing-alpha 0.1 --cutmix --aug-level 2 --model-ema --clip-grad-norm 1 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+```
+
+Optional intermediate training: linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_m16 --tag intermediate --opt adamw --lr 1e-4 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --epochs 10 --size 256 --wd 0.01 --smoothing-alpha 0.1 --aug-level 3 --clip-grad-norm 5 --amp --compile --resume-epoch 0
+```
+
+Optional intermediate training: fine-tuning
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_m16 --tag intermediate --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 5 --epochs 50 --size 256 --wd 0.02 --smoothing-alpha 0.1 --cutmix --aug-level 2 --model-ema --clip-grad-norm 1 --amp --compile --resume-epoch 0
+```
+
+#### DeiT3: b16
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_b16 --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 800 --size 224 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --amp --compile
+```
+
+Fine-tuning, increase resolution
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_b16 --opt adamw --lr 0.00001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 5 --epochs 20 --size 256 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --clip-grad-norm 1 --amp --compile --resume-epoch 0
+```
+
+Fine-tuning, increase resolution again
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_b16 --opt adamw --lr 0.00001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 32 --warmup-epochs 5 --epochs 20 --size 384 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --clip-grad-norm 1 --amp --compile --resume-epoch 0
+```
+
+Optional intermediate training
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_b16 --tag intermediate --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 64 --warmup-epochs 5 --epochs 240 --size 256 --wd 0.02 --smoothing-alpha 0.1 --cutmix --aug-level 2 --model-ema --clip-grad-norm 1 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+```
+
+Optional intermediate training: linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_b16 --tag intermediate --opt adamw --lr 1e-4 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --epochs 10 --size 256 --wd 0.01 --smoothing-alpha 0.1 --aug-level 3 --clip-grad-norm 5 --amp --compile --resume-epoch 0
+```
+
+Optional intermediate training: fine-tuning
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_b16 --tag intermediate --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 5 --epochs 50 --size 256 --wd 0.02 --smoothing-alpha 0.1 --cutmix --aug-level 2 --model-ema --clip-grad-norm 1 --amp --compile --resume-epoch 0
+```
+
+#### DeiT3: l16
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_l16 --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 800 --size 192 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --amp --compile
+```
+
+Fine-tuning, increase resolution
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_l16 --opt adamw --lr 0.00001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 5 --epochs 20 --size 256 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --clip-grad-norm 1 --amp --compile --resume-epoch 0
+```
+
+Fine-tuning, increase resolution again
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_l16 --opt adamw --lr 0.00001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 32 --warmup-epochs 5 --epochs 20 --size 384 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --clip-grad-norm 1 --amp --compile --resume-epoch 0
+```
 
 ### DenseNet
 
@@ -850,7 +950,7 @@ torchrun --nproc_per_node=2 train.py --network focalnet_b_lrf --opt adamw --lr 1
 Optional intermediate training
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network focalnet_b_lrf --tag intermediate --opt adamw --lr 1e-3 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 5 --batch-size 128 --epochs 90 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --model-config drop_path_rate=0.2 --amp --compile --rgb-mode none --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network focalnet_b_lrf --tag intermediate --opt adamw --lr 1e-3 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 5 --batch-size 128 --epochs 90 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 5 --model-config drop_path_rate=0.2 --amp --compile --rgb-mode none --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 Optional intermediate training: linear probing
@@ -1176,13 +1276,13 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v4_s --opt adamw --lr 0
 #### Mobilenet v4: Medium
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v4_m --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 5 --batch-size 256 --size 256 --epochs 500 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --fast-matmul --compile
+torchrun --nproc_per_node=2 train.py --network mobilenet_v4_m --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 5 --batch-size 256 --size 256 --epochs 500 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --clip-grad-norm 5 --fast-matmul --compile
 ```
 
 #### Mobilenet v4: Large
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v4_l --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 20 --batch-size 256 --size 256 --epochs 500 --wd 0.2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+torchrun --nproc_per_node=2 train.py --network mobilenet_v4_l --opt adamw --lr 0.0025 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 20 --batch-size 256 --size 256 --epochs 500 --wd 0.2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --clip-grad-norm 5 --amp --compile
 ```
 
 ### Mobilenet v4 Hybrid
@@ -1190,13 +1290,13 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v4_l --opt adamw --lr 0
 #### Mobilenet v4 Hybrid: Medium
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v4_hybrid_m --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 20 --batch-size 256 --size 256 --epochs 500 --wd 0.15 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+torchrun --nproc_per_node=2 train.py --network mobilenet_v4_hybrid_m --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 20 --batch-size 256 --size 256 --epochs 500 --wd 0.15 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --clip-grad-norm 5 --amp --compile
 ```
 
 #### Mobilenet v4 Hybrid: Large
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v4_hybrid_l --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 20 --batch-size 256 --size 256 --epochs 500 --wd 0.2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+torchrun --nproc_per_node=2 train.py --network mobilenet_v4_hybrid_l --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 20 --batch-size 256 --size 256 --epochs 500 --wd 0.2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --clip-grad-norm 5 --amp --amp-dtype bfloat16 --compile
 ```
 
 ### MobileOne
@@ -1698,7 +1798,7 @@ Same as ResNet v1
 #### ResNet v2: 50, ResNet strikes back procedure
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network resnet_v2_50 --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 128 --epochs 200 --size 256 --wd 0.01 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2
+torchrun --nproc_per_node=2 train.py --network resnet_v2_50 --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 128 --epochs 200 --size 256 --wd 0.01 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --bce-loss
 ```
 
 ### ResNeXt

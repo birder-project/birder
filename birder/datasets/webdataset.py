@@ -39,7 +39,7 @@ def make_wds_dataset(
         return_keys = ["__url__", "__key__"] + return_keys
 
     dataset = dataset.with_length(dataset_size).decode("pil").to_tuple(*return_keys)
-    # dataset = dataset.with_length(dataset_size).map(wds_image_decoder).to_tuple(*return_keys)
+    # dataset = dataset.with_length(dataset_size).decode(wds_image_decoder).to_tuple(*return_keys)
 
     if samples_names is True:
         dataset = dataset.map(decode_sample_name)

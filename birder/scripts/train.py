@@ -11,6 +11,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import torch
 import torch.amp
+import torch.nn.functional as F
 import torch.utils.data
 import torchinfo
 import torchmetrics
@@ -207,7 +208,11 @@ def train(args: argparse.Namespace) -> None:
         custom_keys_weight_decay=custom_keys_weight_decay,
         layer_decay=args.layer_decay,
     )
-    criterion = torch.nn.CrossEntropyLoss(label_smoothing=args.smoothing_alpha)
+    if args.bce_loss is True:
+        criterion = torch.nn.BCEWithLogitsLoss()
+    else:
+        criterion = torch.nn.CrossEntropyLoss(label_smoothing=args.smoothing_alpha)
+
     optimizer = training_utils.get_optimizer(parameters, args)
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
@@ -406,6 +411,11 @@ def train(args: argparse.Namespace) -> None:
         for i, (inputs, targets) in enumerate(training_loader):
             inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
             targets = targets.to(device, non_blocking=True)
+            if args.bce_loss:
+                if targets.ndim == 1:
+                    targets = F.one_hot(targets, num_classes=num_outputs)  # pylint:disable=not-callable
+
+                targets = targets.gt(args.bce_threshold).to(dtype=inputs.dtype)
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
 
@@ -746,6 +756,8 @@ def get_args_parser() -> argparse.ArgumentParser:
         default="birder",
         help="rgb mean and std to use for normalization",
     )
+    parser.add_argument("--bce-loss", default=False, action="store_true", help="enable BCE loss")
+    parser.add_argument("--bce-threshold", type=float, default=0.0, help="threshold for binarizing soft BCE targets")
     parser.add_argument("--epochs", type=int, default=100, metavar="N", help="number of training epochs")
     parser.add_argument(
         "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi step training)"
@@ -872,6 +884,7 @@ def validate_args(args: argparse.Namespace) -> None:
     ), "Unknown network, see list-models tool for available options"
     assert args.freeze_bn is False or args.sync_bn is False, "Cannot freeze-bn and sync-bn are mutually exclusive"
     assert args.amp is False or args.model_dtype == "float32"
+    assert args.bce_loss is False or args.smoothing_alpha == 0.0
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

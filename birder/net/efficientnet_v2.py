@@ -100,8 +100,7 @@ class FusedMBConv(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         branch = self.block(x)
         if self.use_res_connect is True:
-            branch = self.stochastic_depth(branch)
-            branch += x
+            return x + self.stochastic_depth(branch)
 
         return branch
 

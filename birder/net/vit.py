@@ -51,6 +51,19 @@ def adjust_position_embedding(
     return nn.Parameter(torch.concat([pos_embedding_prefix, pos_embedding], dim=1))
 
 
+class LayerScale(nn.Module):
+    def __init__(self, dim: int, init_values: float, inplace: bool = False) -> None:
+        super().__init__()
+        self.inplace = inplace
+        self.gamma = nn.Parameter(init_values * torch.ones(dim), requires_grad=True)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.inplace is True:
+            return x.mul_(self.gamma)
+
+        return x * self.gamma
+
+
 class PatchEmbed(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -81,6 +94,7 @@ class EncoderBlock(nn.Module):
         attention_dropout: float,
         drop_path: float,
         activation_layer: Callable[..., nn.Module],
+        layer_scale_init_value: Optional[float] = None,
     ) -> None:
         super().__init__()
         self.need_attn = False
@@ -92,6 +106,10 @@ class EncoderBlock(nn.Module):
         self.ln1 = nn.LayerNorm(hidden_dim, eps=1e-6)
         self.self_attention = nn.MultiheadAttention(hidden_dim, num_heads, dropout=attention_dropout, batch_first=True)
         self.drop_path1 = StochasticDepth(drop_path, mode="row")
+        if layer_scale_init_value is not None:
+            self.layer_scale_1 = LayerScale(hidden_dim, layer_scale_init_value)
+        else:
+            self.layer_scale_1 = nn.Identity()
 
         # MLP block
         self.ln2 = nn.LayerNorm(hidden_dim, eps=1e-6)
@@ -99,6 +117,10 @@ class EncoderBlock(nn.Module):
             hidden_dim, [mlp_dim, hidden_dim], activation_layer=activation_layer, inplace=None, dropout=dropout
         )
         self.drop_path2 = StochasticDepth(drop_path, mode="row")
+        if layer_scale_init_value is not None:
+            self.layer_scale_2 = LayerScale(hidden_dim, layer_scale_init_value)
+        else:
+            self.layer_scale_2 = nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # torch._assert(x.dim() == 3, f"Expected (batch_size, seq_length, hidden_dim) got {x.size()}")
@@ -106,10 +128,12 @@ class EncoderBlock(nn.Module):
         (branch1, _) = self.self_attention(
             branch1, branch1, branch1, need_weights=self.need_attn, average_attn_weights=False
         )
+        branch1 = self.layer_scale_1(branch1)
         branch1 = self.drop_path1(branch1) + x
 
         branch2 = self.ln2(branch1)
         branch2 = self.mlp(branch2)
+        branch2 = self.layer_scale_2(branch2)
 
         x = self.drop_path2(branch2) + branch1
 
@@ -129,6 +153,7 @@ class Encoder(nn.Module):
         dropout: float,
         attention_dropout: float,
         dpr: list[float],
+        layer_scale_init_value: Optional[float] = None,
     ) -> None:
         super().__init__()
         layers = []
@@ -145,6 +170,7 @@ class Encoder(nn.Module):
                     attention_dropout,
                     dpr[i],
                     activation_layer=nn.GELU,
+                    layer_scale_init_value=layer_scale_init_value,
                 )
             )
 

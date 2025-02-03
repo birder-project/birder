@@ -35,7 +35,6 @@ class DeiT(BaseNet):
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[int] = None,
-        pos_embed_class: bool = True,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -59,7 +58,6 @@ class DeiT(BaseNet):
         self.num_special_tokens = 2
         self.attention_dropout = attention_dropout
         self.dropout = dropout
-        self.pos_embed_class = pos_embed_class
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
         self.conv_proj = nn.Conv2d(
@@ -76,13 +74,11 @@ class DeiT(BaseNet):
 
         # Add a class token
         self.class_token = nn.Parameter(torch.zeros(1, 1, hidden_dim))
-        if pos_embed_class is True:
-            seq_length += 1
+        seq_length += 1
 
         # Add distillation token
         self.dist_token = nn.Parameter(torch.zeros(1, 1, hidden_dim))
-        if pos_embed_class is True:
-            seq_length += 1
+        seq_length += 1
 
         # Add positional embedding
         self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, hidden_dim).normal_(std=0.02))  # from BERT
@@ -144,12 +140,8 @@ class DeiT(BaseNet):
         batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
         batch_dist_token = self.dist_token.expand(x.shape[0], -1, -1)
 
-        if self.pos_embed_class is True:
-            x = torch.concat([batch_class_token, batch_dist_token, x], dim=1)
-            x = x + self.pos_embedding
-        else:
-            x = x + self.pos_embedding
-            x = torch.concat([batch_class_token, batch_dist_token, x], dim=1)
+        x = torch.concat([batch_class_token, batch_dist_token, x], dim=1)
+        x = x + self.pos_embedding
 
         x = self.encoder(x)
         x = self.norm(x)
@@ -184,10 +176,7 @@ class DeiT(BaseNet):
 
         # Sort out sizes
         num_pos_tokens = self.pos_embedding.shape[1]
-        if self.pos_embed_class is True:
-            num_prefix_tokens = 2
-        else:
-            num_prefix_tokens = 0
+        num_prefix_tokens = 2
 
         # Add back class tokens
         self.pos_embedding = nn.Parameter(

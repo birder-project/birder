@@ -317,8 +317,6 @@ torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder nextvit_b --
 torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder swin_transformer_v2_s --opt adamw --lr 0.0001 --lr-scheduler cosine --warmup-epochs 10 --batch-size 128 --wd 0.05 --clip-grad-norm 1 --encoder-model-config drop_path_rate=0.0 --amp --amp-dtype bfloat16 --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
-After N epochs, switch to float16
-
 Fine-tuning, first stage - linear probing
 
 ```sh
@@ -337,15 +335,11 @@ torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s --tag mim -
 torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder swin_transformer_v2_b --opt adamw --lr 0.0001 --lr-scheduler cosine --warmup-epochs 10 --batch-size 128 --wd 0.05 --clip-grad-norm 1 --encoder-model-config drop_path_rate=0.0 --amp --amp-dtype bfloat16 --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
-After N epochs, switch to float16
-
 #### SimMIM: Swin Transformer v2 w2 Base
 
 ```sh
 torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder swin_transformer_v2_w2_b --opt adamw --lr 0.0001 --lr-scheduler cosine --warmup-epochs 10 --batch-size 64 --wd 0.05 --clip-grad-norm 1 --encoder-model-config drop_path_rate=0.0 --amp --amp-dtype bfloat16 --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
-
-After N epochs, switch to float16
 
 Fine-tuning, first stage - linear probing
 
