@@ -104,14 +104,6 @@ class DeiT3(BaseNet):
             nn.init.zeros_(self.classifier.weight)
             nn.init.zeros_(self.classifier.bias)
 
-    def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
-        for param in self.parameters():
-            param.requires_grad = False
-
-        if freeze_classifier is False:
-            for param in self.classifier.parameters():
-                param.requires_grad = True
-
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         # Reshape and permute the input tensor
         x = self.conv_proj(x)

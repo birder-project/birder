@@ -59,7 +59,7 @@ torchrun --nproc_per_node=2 train.py --network deit_t16 --tag il-common --opt ad
 #### DeiT3: t16
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network deit3_t16 --tag il-common --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 600 --size 256 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+torchrun --nproc_per_node=2 train.py --network deit3_t16 --tag il-common --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 600 --size 256 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --bce-threshold 0.05 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### EdgeNeXt

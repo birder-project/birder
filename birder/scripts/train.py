@@ -411,18 +411,19 @@ def train(args: argparse.Namespace) -> None:
         for i, (inputs, targets) in enumerate(training_loader):
             inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
             targets = targets.to(device, non_blocking=True)
+            loss_targets = targets
             if args.bce_loss:
-                if targets.ndim == 1:
-                    targets = F.one_hot(targets, num_classes=num_outputs)  # pylint:disable=not-callable
+                if loss_targets.ndim == 1:
+                    loss_targets = F.one_hot(loss_targets, num_classes=num_outputs)  # pylint:disable=not-callable
 
-                targets = targets.gt(args.bce_threshold).to(dtype=inputs.dtype)
+                loss_targets = loss_targets.gt(args.bce_threshold).to(dtype=inputs.dtype)
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
 
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
                 outputs = net(inputs)
-                loss = criterion(outputs, targets)
+                loss = criterion(outputs, loss_targets)
 
             # if grad_accum_steps > 1:
             #     loss = loss / grad_accum_steps
@@ -510,9 +511,14 @@ def train(args: argparse.Namespace) -> None:
             for inputs, targets in validation_loader:
                 inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
                 targets = targets.to(device, non_blocking=True)
+                loss_targets = targets
+                if args.bce_loss:
+                    loss_targets = F.one_hot(loss_targets, num_classes=num_outputs)  # pylint:disable=not-callable
+                    loss_targets = loss_targets.to(dtype=inputs.dtype)
+
                 with torch.amp.autocast("cuda", enabled=args.amp):
                     outputs = eval_model(inputs)
-                    val_loss = criterion(outputs, targets)
+                    val_loss = criterion(outputs, loss_targets)
 
                 # Statistics
                 running_val_loss += val_loss.item() * inputs.size(0)

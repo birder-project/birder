@@ -500,13 +500,13 @@ torchrun --nproc_per_node=2 train.py --network deit_b16 --tag intermediate --opt
 #### DeiT3: t16
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network deit3_t16 --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 600 --size 256 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --fast-matmul --compile
+torchrun --nproc_per_node=2 train.py --network deit3_t16 --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 600 --size 256 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --bce-threshold 0.05 --fast-matmul --compile
 ```
 
 #### DeiT3: s16
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network deit3_s16 --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 600 --size 256 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --amp --compile
+torchrun --nproc_per_node=2 train.py --network deit3_s16 --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 600 --size 256 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --bce-threshold 0.05 --amp --compile
 ```
 
 Fine-tuning, increase resolution
@@ -518,7 +518,7 @@ torchrun --nproc_per_node=2 train.py --network deit3_s16 --opt adamw --lr 0.0000
 #### DeiT3: m16
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network deit3_m16 --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 800 --size 256 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --amp --compile
+torchrun --nproc_per_node=2 train.py --network deit3_m16 --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 800 --size 256 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --bce-threshold 0.05 --amp --compile
 ```
 
 Fine-tuning, increase resolution
@@ -548,7 +548,7 @@ torchrun --nproc_per_node=2 train.py --network deit3_m16 --tag intermediate --op
 #### DeiT3: b16
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network deit3_b16 --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 800 --size 224 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --amp --compile
+torchrun --nproc_per_node=2 train.py --network deit3_b16 --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 800 --size 224 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --bce-threshold 0.05 --amp --compile
 ```
 
 Fine-tuning, increase resolution
@@ -584,7 +584,7 @@ torchrun --nproc_per_node=2 train.py --network deit3_b16 --tag intermediate --op
 #### DeiT3: l16
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network deit3_l16 --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 800 --size 192 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --amp --compile
+torchrun --nproc_per_node=2 train.py --network deit3_l16 --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 800 --size 192 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --bce-threshold 0.05 --amp --compile
 ```
 
 Fine-tuning, increase resolution
@@ -1282,7 +1282,7 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v4_m --opt adamw --lr 0
 #### Mobilenet v4: Large
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v4_l --opt adamw --lr 0.0025 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 20 --batch-size 256 --size 256 --epochs 500 --wd 0.2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --clip-grad-norm 5 --amp --compile
+torchrun --nproc_per_node=2 train.py --network mobilenet_v4_l --opt adamw --lr 0.00225 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 20 --batch-size 256 --size 256 --epochs 500 --wd 0.2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --clip-grad-norm 5 --amp --compile
 ```
 
 ### Mobilenet v4 Hybrid
@@ -1296,7 +1296,7 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v4_hybrid_m --opt adamw
 #### Mobilenet v4 Hybrid: Large
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v4_hybrid_l --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 20 --batch-size 256 --size 256 --epochs 500 --wd 0.2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --clip-grad-norm 5 --amp --amp-dtype bfloat16 --compile
+torchrun --nproc_per_node=2 train.py --network mobilenet_v4_hybrid_l --opt adamw --lr 0.0025 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 20 --batch-size 256 --size 256 --epochs 500 --wd 0.2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --clip-grad-norm 5 --amp --amp-dtype bfloat16 --compile
 ```
 
 ### MobileOne
@@ -1798,7 +1798,7 @@ Same as ResNet v1
 #### ResNet v2: 50, ResNet strikes back procedure
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network resnet_v2_50 --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 128 --epochs 200 --size 256 --wd 0.01 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --bce-loss
+torchrun --nproc_per_node=2 train.py --network resnet_v2_50 --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 128 --epochs 200 --size 256 --wd 0.01 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --bce-loss --bce-threshold 0.2
 ```
 
 ### ResNeXt
