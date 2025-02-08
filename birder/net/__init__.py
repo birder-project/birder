@@ -57,6 +57,7 @@ from birder.net.pit import PiT
 from birder.net.pvt_v1 import PVT_v1
 from birder.net.pvt_v2 import PVT_v2
 from birder.net.rdnet import RDNet
+from birder.net.regionvit import RegionViT
 from birder.net.regnet import RegNet
 from birder.net.regnet_z import RegNet_Z
 from birder.net.repghost import RepGhost
@@ -149,6 +150,7 @@ __all__ = [
     "PVT_v1",
     "PVT_v2",
     "RDNet",
+    "RegionViT",
     "RegNet",
     "RegNet_Z",
     "RepGhost",

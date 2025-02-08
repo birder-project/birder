@@ -90,6 +90,7 @@ On fine-tuning phase
 - [PVT v1](#pvt-v1)
 - [PVT v2](#pvt-v2)
 - [RDNet](#rdnet)
+- [RegionViT](#regionvit)
 - [RegNet](#regnet)
 - [RepGhost](#repghost)
 - [RepVgg](#repvgg)
@@ -1631,6 +1632,50 @@ torchrun --nproc_per_node=2 train.py --network rdnet_s --opt adamw --lr 0.001 --
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network rdnet_b --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 64 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --amp --compile
+```
+
+### RegionViT
+
+#### RegionViT: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regionvit_t --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 50 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile
+```
+
+#### RegionViT: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regionvit_s --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 50 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 3 --amp --compile
+```
+
+#### RegionViT: Medium
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regionvit_m --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 50 --epochs 300 --size 256 --wd 0.05 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 3 --amp --compile
+```
+
+Optional intermediate training
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regionvit_m --tag intermediate --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 5 --epochs 120 --size 256 --wd 0.01 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+```
+
+Optional intermediate training: linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regionvit_m --tag intermediate --opt adamw --lr 1e-4 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --epochs 10 --size 256 --wd 0.01 --smoothing-alpha 0.1 --aug-level 3 --amp --compile --resume-epoch 0
+```
+
+Optional intermediate training: fine-tuning
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regionvit_m --tag intermediate --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --epochs 30 --size 256 --wd 1e-8 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 3 --amp --compile --resume-epoch 0
+```
+
+#### RegionViT: Base
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regionvit_b --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 50 --epochs 300 --size 256 --wd 0.05 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 3 --amp --compile
 ```
 
 ### RegNet

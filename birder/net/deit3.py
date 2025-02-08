@@ -220,17 +220,17 @@ registry.register_alias(
     },
 )
 
-# registry.register_weights(
-#     "deit3_t16_il-common",
-#     {
-#         "description": "DeiT3 tiny model trained on the il-common dataset",
-#         "resolution": (256, 256),
-#         "formats": {
-#             "pt": {
-#                 "file_size": 21.7,
-#                 "sha256": "a883c5240cd3f8b6b003218e6016e18d01f8a5243481acbeeb3cbc3bf68a76af",
-#             }
-#         },
-#         "net": {"network": "deit3_t16", "tag": "il-common"},
-#     },
-# )
+registry.register_weights(
+    "deit3_t16_il-common",
+    {
+        "description": "DeiT3 tiny model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 21.5,
+                "sha256": "6cd9749a9522f8ff61088e38702553fb1c4d2547b417c499652e3bfa6a81e77a",
+            }
+        },
+        "net": {"network": "deit3_t16", "tag": "il-common"},
+    },
+)

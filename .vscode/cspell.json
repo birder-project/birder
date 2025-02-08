@@ -201,6 +201,7 @@
     "randperm",
     "rcnn",
     "rdnet",
+    "regionvit",
     "regnet",
     "relu",
     "reparam",
