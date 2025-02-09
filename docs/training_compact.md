@@ -378,6 +378,14 @@ torchrun --nproc_per_node=2 train.py --network pvt_v2_b0 --tag il-common --opt a
 torchrun --nproc_per_node=2 train.py --network pvt_v2_b1 --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### RegionViT
+
+#### RegionViT: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regionvit_t --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 50 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### RegNet
 
 #### RegNet: X 200 MF

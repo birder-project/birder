@@ -54,7 +54,7 @@ min-similarity-lines=10
 
 [BASIC]
 # Good variable names which should always be accepted, separated by a comma.
-good-names=A,B,C,D,H,L,N,P,W,ax,bn,by,dx,dy,e,f,fs,g,h,i,j,k,m,n,p,pt,q,sr,to,ts,tx,v,w,x,x0,x1,x2,x3,x4,x5,x6,y
+good-names=A,B,C,D,G,H,L,N,P,W,ax,bn,by,dx,dy,e,f,fs,g,h,i,j,k,m,n,p,pt,q,sr,to,ts,tx,v,w,x,x0,x1,x2,x3,x4,x5,x6,y
 
 # Regular expression which should only match function or class names that do
 # not require a docstring. Use ^(?!__init__$)_ to also check __init__.

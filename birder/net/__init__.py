@@ -5,6 +5,7 @@ from birder.net.coat import CoaT
 from birder.net.convmixer import ConvMixer
 from birder.net.convnext_v1 import ConvNeXt_v1
 from birder.net.convnext_v2 import ConvNeXt_v2
+from birder.net.crossformer import CrossFormer
 from birder.net.crossvit import CrossViT
 from birder.net.cspnet import CSPNet
 from birder.net.cswin_transformer import CSWin_Transformer
@@ -98,6 +99,7 @@ __all__ = [
     "ConvMixer",
     "ConvNeXt_v1",
     "ConvNeXt_v2",
+    "CrossFormer",
     "CrossViT",
     "CSPNet",
     "CSWin_Transformer",

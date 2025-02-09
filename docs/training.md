@@ -38,6 +38,7 @@ On fine-tuning phase
 - [ConvMixer](#convmixer)
 - [ConvNeXt v1](#convnext-v1)
 - [ConvNeXt v2](#convnext-v2)
+- [CrossFormer](#crossformer)
 - [CrossViT](#crossvit)
 - [CSPNet](#cspnet)
 - [CSWin Transformer](#cswin-transformer)
@@ -354,6 +355,32 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_large --opt adamw --l
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network convnext_v2_huge --opt adamw --lr 0.0008 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 10 --batch-size 4 --epochs 100 --size 384 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+### CrossFormer
+
+#### CrossFormer: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network crossformer_t --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+#### CrossFormer: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network crossformer_t --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+#### CrossFormer: Base
+
+```sh
+torchrun --nproc_per_node=2 train.py --network crossformer_t --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+#### CrossFormer: Large
+
+```sh
+torchrun --nproc_per_node=2 train.py --network crossformer_t --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 ### CrossViT

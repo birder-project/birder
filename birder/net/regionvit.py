@@ -45,10 +45,8 @@ def convert_to_flatten_layout(
 
     (B, C, H, W) = patch_tokens.size()
     kernel_size = (H // h_ks, W // w_ks)
-    tmp = F.unfold(patch_tokens, kernel_size=kernel_size, stride=kernel_size, padding=(0, 0))  # Nx(Cxksxks)x(H/sxK/s)
-    patch_tokens = (
-        tmp.transpose(1, 2).reshape(-1, C, kernel_size[0] * kernel_size[1]).transpose(-2, -1)
-    )  # (NxH/sxK/s)x(ksxks)xC
+    tmp = F.unfold(patch_tokens, kernel_size=kernel_size, dilation=(1, 1), padding=(0, 0), stride=kernel_size)
+    patch_tokens = tmp.transpose(1, 2).reshape(-1, C, kernel_size[0] * kernel_size[1]).transpose(-2, -1)
 
     if need_mask is True:
         (bh_sk_s, ksks, C) = patch_tokens.size()
@@ -196,7 +194,7 @@ class AttentionWithRelPos(nn.Module):
 
         if mask is not None:
             mask = mask.unsqueeze(1).expand(-1, self.num_heads, -1, -1)
-            attn = attn.masked_fill(mask == 0, float("-inf"))
+            attn = attn.masked_fill(mask == 0, -65000)
 
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
@@ -297,14 +295,11 @@ class R2LAttentionFFN(nn.Module):
         else:
             self.expand = nn.Identity()
 
-        self.output_channels = output_channels
-        self.input_channels = input_channels
-
     def forward(self, xs: tuple[torch.Tensor, int], mask: Optional[torch.Tensor]) -> torch.Tensor:
         (out, B) = xs
         cls_tokens = out[:, 0:1, ...]
 
-        C = cls_tokens.shape[-1]
+        C = cls_tokens.size(-1)
         cls_tokens = cls_tokens.reshape(B, -1, C)  # (N)x(H/sxW/s)xC
         cls_tokens = cls_tokens + self.drop_path(self.attn(self.norm0(cls_tokens)))  # (N)x(H/sxK/s)xC
 
@@ -353,7 +348,7 @@ class Projection(nn.Module):
         return (cls_tokens, patch_tokens)
 
 
-class ConvAttBlock(nn.Module):
+class ConvAttStage(nn.Module):
     def __init__(
         self,
         input_channels: int,
@@ -372,9 +367,9 @@ class ConvAttBlock(nn.Module):
         assert window_size[0] == window_size[1]
         self.proj = Projection(input_channels, output_channels, pool=pool)
 
-        self.block = nn.ModuleList()
+        self.blocks = nn.ModuleList()
         for i in range(num_blocks):
-            self.block.append(
+            self.blocks.append(
                 R2LAttentionFFN(
                     output_channels,
                     output_channels,
@@ -393,7 +388,7 @@ class ConvAttBlock(nn.Module):
     def forward(self, cls_tokens: torch.Tensor, patch_tokens: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         (cls_tokens, patch_tokens) = self.proj(cls_tokens, patch_tokens)
         (out, mask, p_r, p_b, B, C, H, W) = convert_to_flatten_layout(cls_tokens, patch_tokens, self.ws[0])
-        for blk in self.block:
+        for blk in self.blocks:
             out = blk((out, B), mask)
 
         (cls_tokens, patch_tokens) = convert_to_spatial_layout(out, B, C, H, W, self.ws, mask, p_r, p_b)
@@ -439,7 +434,7 @@ class RegionViT(DetectorBackbone):
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
         for i in range(num_stages):
-            stage = ConvAttBlock(
+            stage = ConvAttStage(
                 embed_dims[i],
                 embed_dims[i + 1],
                 window_size=(window_size, window_size),
