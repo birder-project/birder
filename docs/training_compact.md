@@ -212,6 +212,14 @@ torchrun --nproc_per_node=2 train.py --network mobileclip_i0 --tag il-common --o
 torchrun --nproc_per_node=2 train.py --network ghostnet_v2 --net-param 1 --tag il-common --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --warmup-epochs 3 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### InceptionNeXt
+
+#### InceptionNeXt: Atto
+
+```sh
+torchrun --nproc_per_node=2 train.py --network inception_next_a --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 5 --batch-size 256 --epochs 450 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### LeViT
 
 #### LeViT: 128s
@@ -290,6 +298,12 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v4_s --tag il-common --
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v4_m --tag il-common --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 5 --batch-size 256 --size 256 --epochs 500 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --clip-grad-norm 5 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+#### Mobilenet v4: Large
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mobilenet_v4_l --tag il-common --opt adamw --lr 0.00225 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 20 --batch-size 256 --size 256 --epochs 500 --wd 0.2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --clip-grad-norm 5 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### Mobilenet v4 Hybrid

@@ -98,11 +98,15 @@ class InceptionNeXtBlock(nn.Module):
         channels: int,
         mlp_ratio: float,
         layer_scale: float,
+        band_kernel_size: int,
+        branch_ratio: float,
         stochastic_depth_prob: float,
     ) -> None:
         super().__init__()
         self.block = nn.Sequential(
-            InceptionDWConv2d(channels, square_kernel_size=3, band_kernel_size=11, branch_ratio=0.125),
+            InceptionDWConv2d(
+                channels, square_kernel_size=3, band_kernel_size=band_kernel_size, branch_ratio=branch_ratio
+            ),
             nn.BatchNorm2d(channels),
             ConvMLP(channels, hidden_features=int(mlp_ratio * channels), out_features=channels),
         )
@@ -127,6 +131,8 @@ class InceptionNeXtStage(nn.Module):
         drop_path_rates: list[float],
         mlp_ratio: float,
         layer_scale: float,
+        band_kernel_size: int,
+        branch_ratio: float,
     ) -> None:
         super().__init__()
         if stride > 1:
@@ -152,6 +158,8 @@ class InceptionNeXtStage(nn.Module):
                     channels=out_channels,
                     mlp_ratio=mlp_ratio,
                     layer_scale=layer_scale,
+                    band_kernel_size=band_kernel_size,
+                    branch_ratio=branch_ratio,
                     stochastic_depth_prob=drop_path_rates[i],
                 )
             )
@@ -186,6 +194,8 @@ class Inception_NeXt(DetectorBackbone):
         mlp_ratios = [4, 4, 4, 3]
         channels: list[int] = self.config["channels"]
         num_layers: list[int] = self.config["num_layers"]
+        band_kernel_size: int = self.config["band_kernel_size"]
+        branch_ratio: float = self.config["branch_ratio"]
         drop_path_rate: float = self.config["drop_path_rate"]
 
         self.stem = Conv2dNormActivation(
@@ -219,6 +229,8 @@ class Inception_NeXt(DetectorBackbone):
                 drop_path_rates=dp_rates[i],
                 mlp_ratio=mlp_ratios[i],
                 layer_scale=layer_scale,
+                band_kernel_size=band_kernel_size,
+                branch_ratio=branch_ratio,
             )
             return_channels.append(out_chs)
             prev_chs = out_chs
@@ -283,22 +295,57 @@ class Inception_NeXt(DetectorBackbone):
 
 
 registry.register_alias(
+    "inception_next_a",
+    Inception_NeXt,
+    config={
+        "channels": [40, 80, 160, 320],
+        "num_layers": [2, 2, 6, 2],
+        "band_kernel_size": 9,
+        "branch_ratio": 0.25,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
     "inception_next_t",
     Inception_NeXt,
-    config={"channels": [96, 192, 384, 768], "num_layers": [3, 3, 9, 3], "drop_path_rate": 0.1},
+    config={
+        "channels": [96, 192, 384, 768],
+        "num_layers": [3, 3, 9, 3],
+        "band_kernel_size": 11,
+        "branch_ratio": 0.125,
+        "drop_path_rate": 0.1,
+    },
 )
 registry.register_alias(
     "inception_next_s",
     Inception_NeXt,
-    config={"channels": [96, 192, 384, 768], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.3},
+    config={
+        "channels": [96, 192, 384, 768],
+        "num_layers": [3, 3, 27, 3],
+        "band_kernel_size": 11,
+        "branch_ratio": 0.125,
+        "drop_path_rate": 0.3,
+    },
 )
 registry.register_alias(
     "inception_next_b",
     Inception_NeXt,
-    config={"channels": [128, 256, 512, 1024], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.4},
+    config={
+        "channels": [128, 256, 512, 1024],
+        "num_layers": [3, 3, 27, 3],
+        "band_kernel_size": 11,
+        "branch_ratio": 0.125,
+        "drop_path_rate": 0.4,
+    },
 )
 registry.register_alias(
     "inception_next_l",
     Inception_NeXt,
-    config={"channels": [192, 384, 768, 1536], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.5},
+    config={
+        "channels": [192, 384, 768, 1536],
+        "num_layers": [3, 3, 27, 3],
+        "band_kernel_size": 11,
+        "branch_ratio": 0.125,
+        "drop_path_rate": 0.5,
+    },
 )

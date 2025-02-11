@@ -34,6 +34,7 @@ from birder.net.hieradet import HieraDet
 from birder.net.hornet import HorNet
 from birder.net.iformer import iFormer
 from birder.net.inception_next import Inception_NeXt
+from birder.net.inception_resnet_v1 import Inception_ResNet_v1
 from birder.net.inception_resnet_v2 import Inception_ResNet_v2
 from birder.net.inception_v3 import Inception_v3
 from birder.net.inception_v4 import Inception_v4
@@ -128,6 +129,7 @@ __all__ = [
     "HorNet",
     "iFormer",
     "Inception_NeXt",
+    "Inception_ResNet_v1",
     "Inception_ResNet_v2",
     "Inception_v3",
     "Inception_v4",

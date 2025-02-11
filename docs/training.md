@@ -67,6 +67,7 @@ On fine-tuning phase
 - [HorNet](#hornet)
 - [iFormer](#iformer)
 - [InceptionNeXt](#inceptionnext)
+- [Inception-ResNet v1](#inception-resnet-v1)
 - [Inception-ResNet v2](#inception-resnet-v2)
 - [Inception v3](#inception-v3)
 - [Inception v4](#inception-v4)
@@ -1111,16 +1112,28 @@ torchrun --nproc_per_node=2 train.py --network iformer_l --opt adamw --lr 0.001 
 
 ### InceptionNeXt
 
+#### InceptionNeXt: Atto
+
+```sh
+torchrun --nproc_per_node=2 train.py --network inception_next_a --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 5 --batch-size 256 --epochs 450 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --fast-matmul --compile
+```
+
 #### InceptionNeXt: Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network inception_next_s --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 10 --batch-size 64 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 3 --model-ema --ra-sampler --ra-reps 2
+torchrun --nproc_per_node=2 train.py --network inception_next_s --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 20 --batch-size 64 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile
 ```
 
 #### InceptionNeXt: Base
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network inception_next_b --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 10 --batch-size 32 --epochs 300 --size 288 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+torchrun --nproc_per_node=2 train.py --network inception_next_b --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 20 --batch-size 32 --epochs 300 --size 288 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile
+```
+
+### Inception-ResNet v1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network inception_resnet_v1 --lr-scheduler cosine --batch-size 128 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3
 ```
 
 ### Inception-ResNet v2
