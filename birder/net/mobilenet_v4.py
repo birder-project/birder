@@ -566,3 +566,20 @@ registry.register_weights(
         "net": {"network": "mobilenet_v4_l", "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "mobilenet_v4_l_eu-common",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/mobilenet_v4_l_eu-common/resolve/main/mobilenet_v4_l_eu-common.pt"
+        ),
+        "description": "MobileNet v4 large model trained on the eu-common dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 123.7,
+                "sha256": "e1a24218a2ee2c5ae3ea7247553ba09fac47bced00dd531a33c7ce06ab49f689",
+            }
+        },
+        "net": {"network": "mobilenet_v4_l", "tag": "eu-common"},
+    },
+)
