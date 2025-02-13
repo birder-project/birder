@@ -115,16 +115,17 @@ class DenseStage(nn.Module):
 
         self.layers = nn.ModuleList()
         for i in range(num_block):
-            layer = DenseBlock(
-                num_input_features=num_input_features,
-                growth_rate=growth_rate,
-                bottleneck_width_ratio=bottleneck_width_ratio,
-                drop_path_rate=drop_path_rates[i],
-                block_type=block_type,
-                ls_init_value=ls_init_value,
+            self.layers.append(
+                DenseBlock(
+                    num_input_features=num_input_features,
+                    growth_rate=growth_rate,
+                    bottleneck_width_ratio=bottleneck_width_ratio,
+                    drop_path_rate=drop_path_rates[i],
+                    block_type=block_type,
+                    ls_init_value=ls_init_value,
+                )
             )
             num_input_features += growth_rate
-            self.layers.add_module(f"dense_block{i}", layer)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         features = [x]

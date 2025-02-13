@@ -434,7 +434,7 @@ class RegionViT(DetectorBackbone):
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
         for i in range(num_stages):
-            stage = ConvAttStage(
+            stages[f"stage{i+1}"] = ConvAttStage(
                 embed_dims[i],
                 embed_dims[i + 1],
                 window_size=(window_size, window_size),
@@ -447,7 +447,6 @@ class RegionViT(DetectorBackbone):
                 attn_drop_rate=0.0,
                 drop_rate=0.0,
             )
-            stages[f"stage{i+1}"] = stage
             return_channels.append(embed_dims[i + 1])
 
         self.body = SequentialWithTwo(stages)

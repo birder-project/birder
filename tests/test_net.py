@@ -68,7 +68,7 @@ class TestNet(unittest.TestCase):
             ("csp_resnext_50"),
             ("csp_darknet_53"),
             ("csp_se_resnet_50"),
-            ("cswin_transformer_t"),
+            ("cswin_transformer_t"),  # PT2 fails
             ("darknet_53"),
             ("davit_tiny"),
             ("deit_t16", None, True),
@@ -96,7 +96,7 @@ class TestNet(unittest.TestCase):
             ("hiera_abswin_tiny"),
             ("hieradet_tiny"),
             ("hornet_tiny_7x7"),
-            ("hornet_tiny_gf"),
+            ("hornet_tiny_gf"),  # PT2 fails
             ("iformer_s"),
             ("inception_next_t"),
             ("inception_resnet_v1"),
@@ -149,10 +149,12 @@ class TestNet(unittest.TestCase):
             ("simple_vit_b32"),
             ("squeezenet", None, True),
             ("squeezenext", 0.5),
+            ("starnet_esm05"),
             ("swin_transformer_v1_t"),
             ("swin_transformer_v2_t"),
             ("swin_transformer_v2_w2_t"),
             ("tiny_vit_5m"),
+            ("transnext_micro"),
             ("uniformer_s"),
             ("van_b0"),
             ("vgg_11"),
@@ -188,12 +190,17 @@ class TestNet(unittest.TestCase):
             embedding = n.embedding(torch.rand((batch_size, 3, size, size))).flatten()
             self.assertEqual(len(embedding), n.embedding_size * batch_size)
 
+        # Test TorchScript support
         if n.scriptable is True:
             torch.jit.script(n)
         else:
             n.eval()
             torch.jit.trace(n, example_inputs=torch.rand((batch_size, 3, size, size)))
             n.train()
+
+        # Test PT2
+        # batch_dim = torch.export.Dim("batch", min=1, max=4096)
+        # torch.export.export(n, (torch.randn(2, 3, size, size),), dynamic_shapes={"x": {0: batch_dim}})
 
         # Adjust size
         if size_step != 0:
@@ -295,9 +302,11 @@ class TestNet(unittest.TestCase):
             ("shufflenet_v1", 8),
             ("shufflenet_v2", 1),
             ("squeezenext", 0.5),
+            ("starnet_esm05"),
             ("swin_transformer_v1_t"),
             ("swin_transformer_v2_t"),
             ("tiny_vit_5m"),
+            ("transnext_micro"),
             ("uniformer_s"),
             ("van_b0"),
             ("vgg_11"),

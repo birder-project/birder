@@ -110,9 +110,11 @@ On fine-tuning phase
 - [Simple ViT](#simple-vit)
 - [SqueezeNet](#squeezenet)
 - [SqueezeNext](#squeezenext)
+- [StarNet](#starnet)
 - [Swin Transformer v1](#swin-transformer-v1)
 - [Swin Transformer v2](#swin-transformer-v2)
 - [Tiny ViT](#tiny-vit)
+- [TransNeXt](#transnext)
 - [UniFormer](#uniformer)
 - [VAN](#van)
 - [VGG](#vgg)
@@ -1994,6 +1996,26 @@ torchrun --nproc_per_node=2 train.py --network squeezenet --lr 0.04 --lr-schedul
 torchrun --nproc_per_node=2 train.py --network squeezenext --net-param 2 --lr 0.4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.8 --batch-size 128 --wd 0.0001 --warmup-epochs 5 --epochs 120 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --fast-matmul --compile
 ```
 
+### StarNet
+
+#### StarNet: ESM10
+
+```sh
+torchrun --nproc_per_node=2 train.py --network starnet_esm10 --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --fast-matmul --compile
+```
+
+#### StarNet: S1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network starnet_s1 --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --fast-matmul --compile
+```
+
+#### StarNet: S4
+
+```sh
+torchrun --nproc_per_node=2 train.py --network starnet_s4 --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --fast-matmul --compile
+```
+
 ### Swin Transformer v1
 
 #### Swin Transformer v1: Tiny
@@ -2100,6 +2122,26 @@ torchrun --nproc_per_node=2 train.py --network tiny_vit_11m --opt adamw --lr 0.0
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network tiny_vit_21m --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+```
+
+### TransNeXt
+
+#### TransNeXt: Micro
+
+```sh
+torchrun --nproc_per_node=2 train.py --network transnext_micro --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --clip-grad-norm 1 --amp --compile
+```
+
+#### TransNeXt: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network transnext_tiny --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 64 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --clip-grad-norm 1 --amp --compile
+```
+
+#### TransNeXt: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network transnext_small --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --clip-grad-norm 1 --amp --compile
 ```
 
 ### UniFormer

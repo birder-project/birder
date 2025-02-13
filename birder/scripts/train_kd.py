@@ -10,6 +10,7 @@ import argparse
 import json
 import logging
 import math
+import os
 import sys
 import time
 import typing
@@ -814,7 +815,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "-j",
         "--num-workers",
         type=int,
-        default=16,
+        default=max(os.cpu_count() // 4, 4),  # type: ignore[operator]
         metavar="N",
         help="number of preprocessing workers",
     )

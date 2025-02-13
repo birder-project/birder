@@ -58,7 +58,7 @@ def pt2_export(
 ) -> None:
     signature["inputs"][0]["data_shape"][0] = 2  # Set batch size
     sample_shape = signature["inputs"][0]["data_shape"]
-    batch_dim = torch.export.Dim("batch", min=1)
+    batch_dim = torch.export.Dim("batch", min=1, max=4096)
     exported_net = torch.export.export(
         net, (torch.randn(*sample_shape, device=device),), dynamic_shapes={"x": {0: batch_dim}}
     )

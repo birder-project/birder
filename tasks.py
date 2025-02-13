@@ -403,7 +403,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
 
 @task
-def model_pre_publish(_ctx, model, net_param=None, tag=None, epoch=None, reparameterized=False):
+def model_pre_publish(_ctx, model, net_param=None, tag=None, epoch=None, reparameterized=False, hf=True):
     """
     Generate data required for publishing a model
     """
@@ -437,20 +437,21 @@ def model_pre_publish(_ctx, model, net_param=None, tag=None, epoch=None, reparam
         print(f'"sha256": "{sha256}"')
 
     # Check if HF model card already exist
-    model_card_path = pathlib.Path(HF_DOCS_DIR).joinpath(f"{network_name}.md")
-    if model_card_path.exists() is False:
-        echo("Model card does not exist, creating from template")
-        with open(HF_MODEL_CARD_TEMPLATE, mode="r", encoding="utf-8") as handle:
-            template = handle.read()
+    if hf is True:
+        model_card_path = pathlib.Path(HF_DOCS_DIR).joinpath(f"{network_name}.md")
+        if model_card_path.exists() is False:
+            echo("Model card does not exist, creating from template")
+            with open(HF_MODEL_CARD_TEMPLATE, mode="r", encoding="utf-8") as handle:
+                template = handle.read()
 
-        model_card = template.replace("<MODEL_NAME>", network_name)
-        model_card = model_card.replace("<NUM_PARAMS>", str(num_params))
-        model_card = model_card.replace("<SIZE_x_SIZE>", f"{size[0]} x {size[1]}")
-        model_card = model_card.replace("<NUM_CLASSES>", str(num_outputs))
+            model_card = template.replace("<MODEL_NAME>", network_name)
+            model_card = model_card.replace("<NUM_PARAMS>", str(num_params))
+            model_card = model_card.replace("<SIZE_x_SIZE>", f"{size[0]} x {size[1]}")
+            model_card = model_card.replace("<NUM_CLASSES>", str(num_outputs))
 
-        echo(f"Writing model card at {model_card_path}...")
-        with open(model_card_path, mode="w", encoding="utf-8") as handle:
-            handle.write(model_card)
+            echo(f"Writing model card at {model_card_path}...")
+            with open(model_card_path, mode="w", encoding="utf-8") as handle:
+                handle.write(model_card)
 
 
 @task

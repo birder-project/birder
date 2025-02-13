@@ -552,3 +552,17 @@ registry.register_weights(
         "net": {"network": "mobilenet_v4_m", "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "mobilenet_v4_l_il-common",
+    {
+        "description": "MobileNet v4 large model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 122.0,
+                "sha256": "29910ed6bf756648d2887ba0e4f9d8def6231e0ae40978dab92759705db85d1f",
+            }
+        },
+        "net": {"network": "mobilenet_v4_l", "tag": "il-common"},
+    },
+)

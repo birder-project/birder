@@ -349,3 +349,18 @@ registry.register_alias(
         "drop_path_rate": 0.5,
     },
 )
+
+registry.register_weights(
+    "inception_next_a_il-common",
+    {
+        "description": "InceptionNeXt atto model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 13.7,
+                "sha256": "c9e451c8dc44727acedfac400cee9d14eac5ba6b4edbfe79efcfd8802453c506",
+            }
+        },
+        "net": {"network": "inception_next_a", "tag": "il-common"},
+    },
+)

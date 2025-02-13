@@ -9,7 +9,7 @@ https://arxiv.org/abs/2010.04159
 
 Changes from original:
 * Removed masking / padding and nested tensors (images are resized at the dataloader)
-* Removed support for two stage / box refinement
+* Removed two stage support
 * Zero cost matrix elements on overflow (HungarianMatcher)
 """
 

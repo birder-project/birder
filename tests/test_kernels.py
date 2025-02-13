@@ -41,3 +41,38 @@ class TestKernels(unittest.TestCase):
             value, value_spatial_shapes, sampling_locations, attention_weights
         )
         self.assertEqual(output_torch.size(), (1, 34000, 256))
+
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+    def test_swattention(self) -> None:
+        device = torch.device("cuda")
+        swattention = load_kernel.load_swattention()
+        self.assertIsNotNone(swattention)
+
+        q_norm_scaled = torch.rand(1, 2, 3136, 24, device=device)
+        k_local = torch.rand(1, 2, 3136, 24, device=device)
+        relative_pos_bias_local = torch.rand(2, 9, device=device)
+        H = 56
+        W = 56
+        window_size = 3
+        num_threads = 32
+        attn_local = swattention.qk_rpb_forward(  # type: ignore
+            q_norm_scaled, k_local, relative_pos_bias_local, H, W, window_size, num_threads
+        )
+        self.assertEqual(attn_local.size(), (1, 2, 3136, 9))
+
+        with torch.amp.autocast("cuda"):
+            attn_local = swattention.qk_rpb_forward(  # type: ignore
+                q_norm_scaled, k_local, relative_pos_bias_local, H, W, window_size, num_threads
+            )
+
+        self.assertEqual(attn_local.size(), (1, 2, 3136, 9))
+
+        attn_local = torch.rand(1, 2, 3136, 9, device=device)
+        v_local = torch.rand(1, 2, 3136, 9, device=device)
+        x_local = swattention.av_forward(attn_local, v_local, H, W, window_size, num_threads)  # type: ignore
+        self.assertEqual(x_local.size(), (1, 2, 3136, 9))
+
+        with torch.amp.autocast("cuda"):
+            x_local = swattention.av_forward(attn_local, v_local, H, W, window_size, num_threads)  # type: ignore
+
+        self.assertEqual(x_local.size(), (1, 2, 3136, 9))

@@ -21,7 +21,7 @@ pylint~=3.3.4
 requests~=2.32.3
 safetensors~=0.5.2
 setuptools
-tensorboard~=2.18.0
+tensorboard~=2.19.0
 torchprofile==0.0.4
 twine~=6.1.0
 types-requests~=2.32.0

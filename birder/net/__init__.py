@@ -78,9 +78,11 @@ from birder.net.shufflenet_v2 import ShuffleNet_v2
 from birder.net.simple_vit import Simple_ViT
 from birder.net.squeezenet import SqueezeNet
 from birder.net.squeezenext import SqueezeNext
+from birder.net.starnet import StarNet
 from birder.net.swin_transformer_v1 import Swin_Transformer_v1
 from birder.net.swin_transformer_v2 import Swin_Transformer_v2
 from birder.net.tiny_vit import Tiny_ViT
+from birder.net.transnext import TransNeXt
 from birder.net.uniformer import UniFormer
 from birder.net.van import VAN
 from birder.net.vgg import Vgg
@@ -173,9 +175,11 @@ __all__ = [
     "Simple_ViT",
     "SqueezeNet",
     "SqueezeNext",
+    "StarNet",
     "Swin_Transformer_v1",
     "Swin_Transformer_v2",
     "Tiny_ViT",
+    "TransNeXt",
     "UniFormer",
     "VAN",
     "Vgg",
