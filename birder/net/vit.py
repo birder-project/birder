@@ -218,7 +218,6 @@ class ViT(PreTrainEncoder):
         drop_path_rate: float = self.config["drop_path_rate"]
 
         torch._assert(image_size % patch_size == 0, "Input shape indivisible by patch size!")
-        self.image_size = image_size
         self.patch_size = patch_size
         self.hidden_dim = hidden_dim
         self.mlp_dim = mlp_dim

@@ -239,6 +239,8 @@ class TestNet(unittest.TestCase):
             ("cswin_transformer_t"),
             ("darknet_53"),
             ("davit_tiny"),
+            ("deit3_t16"),
+            ("deit3_reg4_t16"),
             ("densenet_121"),
             ("edgenext_xxs"),
             ("edgevit_xxs"),

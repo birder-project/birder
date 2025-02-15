@@ -154,7 +154,7 @@ def predict(args: argparse.Namespace) -> None:
         # Show flags
         if show_flag is True:
             for img_path, prob, label in zip(file_paths, out, batch_labels):
-                handle_show_flags(args, img_path, prob, label, class_to_idx)
+                handle_show_flags(args, img_path, prob, label, class_to_idx)  # type: ignore[arg-type]
 
     tic = time.time()
     with torch.inference_mode():

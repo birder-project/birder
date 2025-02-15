@@ -15,7 +15,6 @@ from functools import partial
 from typing import Any
 from typing import Optional
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 from scipy import interpolate
@@ -526,7 +525,7 @@ class MaxViT(DetectorBackbone, PreTrainEncoder):
         # Pre-compute the stochastic depth probabilities from 0 to stochastic_depth_prob
         # since we have N blocks with L layers, we will have N * L probabilities uniformly distributed
         # over the range [0, stochastic_depth_prob]
-        p_stochastic = np.linspace(0, drop_path_rate, sum(block_layers)).tolist()
+        p_stochastic = torch.linspace(0, drop_path_rate, sum(block_layers)).tolist()
 
         p_idx = 0
         stages: OrderedDict[str, nn.Module] = OrderedDict()

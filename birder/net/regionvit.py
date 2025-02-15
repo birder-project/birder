@@ -295,17 +295,15 @@ class R2LAttentionFFN(nn.Module):
         else:
             self.expand = nn.Identity()
 
-    def forward(self, xs: tuple[torch.Tensor, int], mask: Optional[torch.Tensor]) -> torch.Tensor:
-        (out, B) = xs
-        cls_tokens = out[:, 0:1, ...]
-
+    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor], batch_size: int) -> torch.Tensor:
+        cls_tokens = x[:, 0:1, ...]
         C = cls_tokens.size(-1)
-        cls_tokens = cls_tokens.reshape(B, -1, C)  # (N)x(H/sxW/s)xC
+        cls_tokens = cls_tokens.reshape(batch_size, -1, C)  # (N)x(H/sxW/s)xC
         cls_tokens = cls_tokens + self.drop_path(self.attn(self.norm0(cls_tokens)))  # (N)x(H/sxK/s)xC
 
         cls_tokens = cls_tokens.reshape(-1, 1, C)  # (NxH/sxK/s)x1xC
 
-        out = torch.concat((cls_tokens, out[:, 1:, ...]), dim=1)
+        out = torch.concat((cls_tokens, x[:, 1:, ...]), dim=1)
 
         out = out + self.drop_path(self.attn(self.norm1(out), patch_attn=True, mask=mask))
         identity = self.expand(out)
@@ -389,7 +387,7 @@ class ConvAttStage(nn.Module):
         (cls_tokens, patch_tokens) = self.proj(cls_tokens, patch_tokens)
         (out, mask, p_r, p_b, B, C, H, W) = convert_to_flatten_layout(cls_tokens, patch_tokens, self.ws[0])
         for blk in self.blocks:
-            out = blk((out, B), mask)
+            out = blk(out, mask, B)
 
         (cls_tokens, patch_tokens) = convert_to_spatial_layout(out, B, C, H, W, self.ws, mask, p_r, p_b)
 

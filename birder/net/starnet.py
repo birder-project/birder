@@ -237,3 +237,18 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
+
+registry.register_weights(
+    "starnet_esm10_il-common",
+    {
+        "description": "StarNet extremely small model 1M trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 3.7,
+                "sha256": "74f49aff37993c8cb3d76adba72318a37e09816173505b180bb4353699a4dbdc",
+            }
+        },
+        "net": {"network": "starnet_esm10", "tag": "il-common"},
+    },
+)

@@ -110,7 +110,7 @@ class AttentionRolloutInterpreter(Interpreter):
 
         # Resize attention map to match image size
         attention_img = Image.fromarray(attention_map.numpy())
-        attention_img = attention_img.resize(rgb_img.shape[:2])
+        attention_img = attention_img.resize(rgb_img.shape[:2])  # type: ignore[arg-type]
         attention_arr = np.array(attention_img)
         visualization = show_mask_on_image(rgb_img, attention_arr, image_weight=0.4)
 

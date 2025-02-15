@@ -13,13 +13,13 @@ import torch
 from torch import nn
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 from birder.net.vit import Encoder
 from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
 
 
-class DeiT3(BaseNet):
+class DeiT3(DetectorBackbone):
     default_size = 224
     block_group_regex = r"encoder\.block\.(\d+)"
 
@@ -50,7 +50,6 @@ class DeiT3(BaseNet):
         drop_path_rate: float = self.config["drop_path_rate"]
 
         torch._assert(image_size % patch_size == 0, "Input shape indivisible by patch size!")
-        self.image_size = image_size
         self.patch_size = patch_size
         self.hidden_dim = hidden_dim
         self.mlp_dim = mlp_dim
@@ -101,6 +100,8 @@ class DeiT3(BaseNet):
         )
         self.norm = nn.LayerNorm(hidden_dim, eps=1e-6)
 
+        self.return_stages = ["neck"]  # Actually meaningless, but for completeness
+        self.return_channels = [hidden_dim]
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
 
@@ -116,20 +117,64 @@ class DeiT3(BaseNet):
             nn.init.zeros_(self.classifier.weight)
             nn.init.zeros_(self.classifier.bias)
 
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.conv_proj(x)
+        x = self.patch_embed(x)
+
+        batch_special_tokens = self.class_token.expand(x.shape[0], -1, -1)
+        if self.reg_tokens is not None:
+            batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
+            batch_special_tokens = torch.concat([batch_reg_tokens, batch_special_tokens], dim=1)
+
+        if self.pos_embed_class is True:
+            x = torch.concat([batch_special_tokens, x], dim=1)
+            x = x + self.pos_embedding
+        else:
+            x = x + self.pos_embedding
+            x = torch.concat([batch_special_tokens, x], dim=1)
+
+        x = self.encoder(x)
+        x = self.norm(x)
+
+        x = x[:, self.num_special_tokens :]
+        x = x.permute(0, 2, 1)
+        (B, C, _) = x.size()
+        x = x.reshape(B, C, self.size // self.patch_size, self.size // self.patch_size)
+
+        return {self.return_stages[0]: x}
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.patch_embed.parameters():
+            param.requires_grad = False
+
+        self.pos_embedding.requires_grad = False
+
+        for idx, module in enumerate(self.encoder.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
+
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
         # Expand the class token to the full batch
-        batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
+        batch_special_tokens = self.class_token.expand(x.shape[0], -1, -1)
+
+        # Expand the register tokens to the full batch
+        if self.reg_tokens is not None:
+            batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
+            batch_special_tokens = torch.concat([batch_reg_tokens, batch_special_tokens], dim=1)
 
         if self.pos_embed_class is True:
-            x = torch.concat([batch_class_token, x], dim=1)
+            x = torch.concat([batch_special_tokens, x], dim=1)
             x = x + self.pos_embedding
         else:
             x = x + self.pos_embedding
-            x = torch.concat([batch_class_token, x], dim=1)
+            x = torch.concat([batch_special_tokens, x], dim=1)
 
         x = self.encoder(x)
         x = self.norm(x)
