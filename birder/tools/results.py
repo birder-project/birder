@@ -190,7 +190,8 @@ def main(args: argparse.Namespace) -> None:
     results_dict: dict[str, Results] = {}
     for results_file in args.result_files:
         results = Results.load(results_file)
-        results_dict[results_file] = results
+        result_name = results_file.split("/")[-1]
+        results_dict[result_name] = results
 
     if args.print is True:
         if args.print_mistakes is True and len(results_dict) > 1:

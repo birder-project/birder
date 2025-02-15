@@ -71,8 +71,8 @@ def get_model_name_and_num_parameters(file_name: str, tag: str = PATTERN) -> tup
         file_name = file_name.replace("-mim", "")
 
     file_name = file_name.split("/")[-1]
-    num_classes = file_name[file_name.find(tag) + len(tag) + 1 :]
-    num_classes = int(num_classes.split("_")[0])
+    num_classes_str = file_name[file_name.find(tag) + len(tag) + 1 :]
+    num_classes = int(num_classes_str.split("_")[0])
     model_name = file_name[: file_name.find(tag) - 1]
     if model_name in registry.all_nets:
         net_param = None
@@ -104,7 +104,7 @@ def get_resolution(file_name: str) -> int:
 ```
 
 ```{python}
-def get_pretrained_name(file_name: str) -> int:
+def get_pretrained_name(file_name: str) -> str:
     if file_name.find("reparameterized") != -1:
         pattern = "reparameterized"
     else:

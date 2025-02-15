@@ -42,6 +42,9 @@ where = ["."]
 include = ["birder*"]
 namespaces = false
 
+[tool.setuptools.package-data]
+birder = ["**/*.cpp", "**/*.hpp", "**/*.cu", "**/*.cuh"]
+
 [tool.setuptools.dynamic]
 version = { attr = "birder.version.__version__" }
 dependencies = { file = ["requirements/requirements.txt"] }
