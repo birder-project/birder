@@ -62,6 +62,12 @@ torchrun --nproc_per_node=2 train.py --network deit_t16 --tag il-common --opt ad
 torchrun --nproc_per_node=2 train.py --network deit3_t16 --tag il-common --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 600 --size 256 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --bce-threshold 0.05 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+#### DeiT3: reg4 t16
+
+```sh
+torchrun --nproc_per_node=2 train.py --network deit3_reg4_t16 --tag il-common --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 600 --size 256 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --bce-threshold 0.05 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### EdgeNeXt
 
 #### EdgeNeXt: Extra Extra Small
@@ -500,6 +506,26 @@ torchrun --nproc_per_node=2 train.py --network squeezenext --net-param 1 --tag i
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network squeezenext --net-param 2 --tag il-common --lr 0.4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.8 --batch-size 128 --size 259 --wd 0.0001 --warmup-epochs 5 --epochs 120 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+### StarNet
+
+#### StarNet: ESM05
+
+```sh
+torchrun --nproc_per_node=2 train.py --network starnet_esm05 --tag il-common --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --fast-matmul --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+#### StarNet: ESM10
+
+```sh
+torchrun --nproc_per_node=2 train.py --network starnet_esm10 --tag il-common --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --fast-matmul --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+#### StarNet: S1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network starnet_s1 --tag il-common --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### Tiny ViT

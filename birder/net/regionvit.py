@@ -566,3 +566,18 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
+
+registry.register_weights(
+    "regionvit_t_il-common",
+    {
+        "description": "RegionViT tiny model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 52.3,
+                "sha256": "3d09b7578f114598186f7f90a0593999f80e6d5f647d46ebd8a8119e4f532fe1",
+            }
+        },
+        "net": {"network": "regionvit_t", "tag": "il-common"},
+    },
+)

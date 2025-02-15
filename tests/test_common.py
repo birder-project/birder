@@ -212,6 +212,7 @@ class TestTrainingUtils(unittest.TestCase):
                 "num_heads": 12,
                 "hidden_dim": 768,
                 "mlp_dim": 3072,
+                "num_reg_tokens": 0,
                 "drop_path_rate": 0.0,
             },
         )

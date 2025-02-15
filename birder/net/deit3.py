@@ -1,5 +1,7 @@
 """
 Paper "DeiT III: Revenge of the ViT", https://arxiv.org/abs/2204.07118
+and
+Paper "Vision Transformers Need Registers", https://arxiv.org/abs/2309.16588
 """
 
 import logging
@@ -44,6 +46,7 @@ class DeiT3(BaseNet):
         num_heads: int = self.config["num_heads"]
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
+        num_reg_tokens: int = self.config["num_reg_tokens"]
         drop_path_rate: float = self.config["drop_path_rate"]
 
         torch._assert(image_size % patch_size == 0, "Input shape indivisible by patch size!")
@@ -51,7 +54,8 @@ class DeiT3(BaseNet):
         self.patch_size = patch_size
         self.hidden_dim = hidden_dim
         self.mlp_dim = mlp_dim
-        self.num_special_tokens = 1
+        self.num_reg_tokens = num_reg_tokens
+        self.num_special_tokens = 1 + self.num_reg_tokens
         self.attention_dropout = attention_dropout
         self.dropout = dropout
         self.pos_embed_class = pos_embed_class
@@ -73,6 +77,14 @@ class DeiT3(BaseNet):
         self.class_token = nn.Parameter(torch.zeros(1, 1, hidden_dim))
         if pos_embed_class is True:
             seq_length += 1
+
+        # Add optional register tokens
+        if self.num_reg_tokens > 0:
+            self.reg_tokens = nn.Parameter(torch.zeros(1, self.num_reg_tokens, hidden_dim))
+            if pos_embed_class is True:
+                seq_length += self.num_reg_tokens
+        else:
+            self.reg_tokens = None
 
         # Add positional embedding
         self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, hidden_dim).normal_(std=0.02))  # from BERT
@@ -121,7 +133,7 @@ class DeiT3(BaseNet):
 
         x = self.encoder(x)
         x = self.norm(x)
-        x = x[:, 0]
+        x = x[:, self.num_reg_tokens]
 
         return x
 
@@ -135,7 +147,7 @@ class DeiT3(BaseNet):
         # Sort out sizes
         num_pos_tokens = self.pos_embedding.shape[1]
         if self.pos_embed_class is True:
-            num_prefix_tokens = 1
+            num_prefix_tokens = 1 + self.num_reg_tokens
         else:
             num_prefix_tokens = 0
 
@@ -156,6 +168,7 @@ registry.register_alias(
         "num_heads": 3,
         "hidden_dim": 192,
         "mlp_dim": 768,
+        "num_reg_tokens": 0,
         "drop_path_rate": 0.0,
     },
 )
@@ -168,6 +181,20 @@ registry.register_alias(
         "num_heads": 6,
         "hidden_dim": 384,
         "mlp_dim": 1536,
+        "num_reg_tokens": 0,
+        "drop_path_rate": 0.05,
+    },
+)
+registry.register_alias(
+    "deit3_s14",
+    DeiT3,
+    config={
+        "patch_size": 14,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "num_reg_tokens": 0,
         "drop_path_rate": 0.05,
     },
 )
@@ -180,6 +207,20 @@ registry.register_alias(
         "num_heads": 8,
         "hidden_dim": 512,
         "mlp_dim": 2048,
+        "num_reg_tokens": 0,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "deit3_m14",
+    DeiT3,
+    config={
+        "patch_size": 14,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
+        "num_reg_tokens": 0,
         "drop_path_rate": 0.1,
     },
 )
@@ -192,6 +233,20 @@ registry.register_alias(
         "num_heads": 12,
         "hidden_dim": 768,
         "mlp_dim": 3072,
+        "num_reg_tokens": 0,
+        "drop_path_rate": 0.2,
+    },
+)
+registry.register_alias(
+    "deit3_b14",
+    DeiT3,
+    config={
+        "patch_size": 14,
+        "num_layers": 12,
+        "num_heads": 12,
+        "hidden_dim": 768,
+        "mlp_dim": 3072,
+        "num_reg_tokens": 0,
         "drop_path_rate": 0.2,
     },
 )
@@ -204,7 +259,34 @@ registry.register_alias(
         "num_heads": 16,
         "hidden_dim": 1024,
         "mlp_dim": 4096,
+        "num_reg_tokens": 0,
         "drop_path_rate": 0.45,
+    },
+)
+registry.register_alias(
+    "deit3_l14",
+    DeiT3,
+    config={
+        "patch_size": 14,
+        "num_layers": 24,
+        "num_heads": 16,
+        "hidden_dim": 1024,
+        "mlp_dim": 4096,
+        "num_reg_tokens": 0,
+        "drop_path_rate": 0.45,
+    },
+)
+registry.register_alias(
+    "deit3_h16",
+    DeiT3,
+    config={
+        "patch_size": 16,
+        "num_layers": 32,
+        "num_heads": 16,
+        "hidden_dim": 1280,
+        "mlp_dim": 5120,
+        "num_reg_tokens": 0,
+        "drop_path_rate": 0.55,
     },
 )
 registry.register_alias(
@@ -216,6 +298,152 @@ registry.register_alias(
         "num_heads": 16,
         "hidden_dim": 1280,
         "mlp_dim": 5120,
+        "num_reg_tokens": 0,
+        "drop_path_rate": 0.55,
+    },
+)
+
+# With registers
+registry.register_alias(
+    "deit3_reg4_t16",
+    DeiT3,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 3,
+        "hidden_dim": 192,
+        "mlp_dim": 768,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "deit3_reg4_s16",
+    DeiT3,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.05,
+    },
+)
+registry.register_alias(
+    "deit3_reg4_s14",
+    DeiT3,
+    config={
+        "patch_size": 14,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.05,
+    },
+)
+registry.register_alias(
+    "deit3_reg4_m16",
+    DeiT3,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "deit3_reg4_m14",
+    DeiT3,
+    config={
+        "patch_size": 14,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "deit3_reg4_b16",
+    DeiT3,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 12,
+        "hidden_dim": 768,
+        "mlp_dim": 3072,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.2,
+    },
+)
+registry.register_alias(
+    "deit3_reg4_b14",
+    DeiT3,
+    config={
+        "patch_size": 14,
+        "num_layers": 12,
+        "num_heads": 12,
+        "hidden_dim": 768,
+        "mlp_dim": 3072,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.2,
+    },
+)
+registry.register_alias(
+    "deit3_reg4_l16",
+    DeiT3,
+    config={
+        "patch_size": 16,
+        "num_layers": 24,
+        "num_heads": 16,
+        "hidden_dim": 1024,
+        "mlp_dim": 4096,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.45,
+    },
+)
+registry.register_alias(
+    "deit3_reg4_l14",
+    DeiT3,
+    config={
+        "patch_size": 14,
+        "num_layers": 24,
+        "num_heads": 16,
+        "hidden_dim": 1024,
+        "mlp_dim": 4096,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.45,
+    },
+)
+registry.register_alias(
+    "deit3_reg4_h16",
+    DeiT3,
+    config={
+        "patch_size": 16,
+        "num_layers": 32,
+        "num_heads": 16,
+        "hidden_dim": 1280,
+        "mlp_dim": 5120,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.55,
+    },
+)
+registry.register_alias(
+    "deit3_reg4_h14",
+    DeiT3,
+    config={
+        "patch_size": 14,
+        "num_layers": 32,
+        "num_heads": 16,
+        "hidden_dim": 1280,
+        "mlp_dim": 5120,
+        "num_reg_tokens": 4,
         "drop_path_rate": 0.55,
     },
 )

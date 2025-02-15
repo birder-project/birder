@@ -635,7 +635,7 @@ def get_args_parser() -> argparse.ArgumentParser:
 
 
 def validate_args(args: argparse.Namespace) -> None:
-    args.data_path = str(args.data_path)
+    args.data_path = [str(p) for p in args.data_path]
     assert args.network is not None
     assert args.load_states is False or (
         args.load_states is True and args.resume_epoch is not None

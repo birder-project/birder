@@ -73,6 +73,7 @@ class TestNet(unittest.TestCase):
             ("davit_tiny"),
             ("deit_t16", None, True),
             ("deit3_t16"),
+            ("deit3_reg4_t16"),
             ("densenet_121"),
             ("dpn_92"),
             ("edgenext_xxs"),

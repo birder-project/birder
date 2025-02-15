@@ -718,3 +718,18 @@ registry.register_alias(
         "drop_path_rate": 0.6,
     },
 )
+
+registry.register_weights(
+    "transnext_micro_il-common",
+    {
+        "description": "TransNeXt micro model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 48.2,
+                "sha256": "2945ab2da656e944a44835c9ed04b06339cdc8e5baea4386de1f077a60ec4e0d",
+            }
+        },
+        "net": {"network": "transnext_micro", "tag": "il-common"},
+    },
+)

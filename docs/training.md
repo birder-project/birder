@@ -121,7 +121,6 @@ On fine-tuning phase
 - [VGG Reduced](#vgg-reduced)
 - [ViT](#vit)
 - [ViT SAM](#vit-sam)
-- [ViTReg](#vitreg)
 - [Wide ResNet](#wide-resnet)
 - [Xception](#xception)
 - [XCiT](#xcit)
@@ -1998,10 +1997,16 @@ torchrun --nproc_per_node=2 train.py --network squeezenext --net-param 2 --lr 0.
 
 ### StarNet
 
+#### StarNet: ESM05
+
+```sh
+torchrun --nproc_per_node=2 train.py --network starnet_esm05 --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --fast-matmul
+```
+
 #### StarNet: ESM10
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network starnet_esm10 --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --fast-matmul --compile
+torchrun --nproc_per_node=2 train.py --network starnet_esm10 --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --fast-matmul
 ```
 
 #### StarNet: S1
@@ -2217,10 +2222,6 @@ torchrun --nproc_per_node=2 train.py --network vit_h14 --lr 0.3 --lr-scheduler c
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_sam_b16 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.1 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
-
-### ViTReg
-
-Same as ViT
 
 ### Wide ResNet
 
