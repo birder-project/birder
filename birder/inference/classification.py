@@ -54,8 +54,8 @@ def infer_batch(
 ) -> tuple[npt.NDArray[np.float32], Optional[npt.NDArray[np.float32]]]:
     if return_embedding is True:
         embedding_tensor: torch.Tensor = net.embedding(inputs)
-        out: npt.NDArray[np.float32] = F.softmax(net.classify(embedding_tensor), dim=1).cpu().numpy()
-        embedding: Optional[npt.NDArray[np.float32]] = embedding_tensor.cpu().numpy()
+        out: npt.NDArray[np.float32] = F.softmax(net.classify(embedding_tensor), dim=1).cpu().float().numpy()
+        embedding: Optional[npt.NDArray[np.float32]] = embedding_tensor.cpu().float().numpy()
 
     elif tta is True:
         embedding = None
@@ -68,11 +68,11 @@ def infer_batch(
         for tta_input in tta_inputs:
             outs.append(F.softmax(net(t(tta_input)), dim=1))
 
-        out = torch.stack(outs).mean(axis=0).cpu().numpy()
+        out = torch.stack(outs).mean(axis=0).cpu().float().numpy()
 
     else:
         embedding = None
-        out = F.softmax(net(inputs), dim=1).cpu().numpy()
+        out = F.softmax(net(inputs), dim=1).cpu().float().numpy()
 
     return (out, embedding)
 
@@ -83,6 +83,7 @@ def infer_dataloader(
     dataloader: DataLoader,
     return_embedding: bool = False,
     tta: bool = False,
+    model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
     num_samples: Optional[int] = None,
     batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], list[int]], None]] = None,
@@ -105,6 +106,8 @@ def infer_dataloader(
         Whether to return embeddings along with the outputs.
     tta
         Run inference with oversampling.
+    model_dtype
+        The base dtype to use.
     amp
         Whether to use automatic mixed precision.
     num_samples
@@ -134,7 +137,7 @@ def infer_dataloader(
       allowing for real-time analysis or logging of results.
     """
 
-    net.to(device)
+    net.to(device, dtype=model_dtype)
     embedding_list: list[npt.NDArray[np.float32]] = []
     out_list: list[npt.NDArray[np.float32]] = []
     labels: list[int] = []
@@ -143,7 +146,7 @@ def infer_dataloader(
     with tqdm(total=num_samples, initial=0, unit="images", unit_scale=True, leave=False) as progress:
         for file_paths, inputs, targets in dataloader:
             # Inference
-            inputs = inputs.to(device)
+            inputs = inputs.to(device, dtype=model_dtype)
 
             with torch.amp.autocast(device.type, enabled=amp):
                 (out, embedding) = infer_batch(net, inputs, return_embedding=return_embedding, tta=tta)
@@ -174,11 +177,12 @@ def evaluate(
     dataloader: DataLoader,
     class_to_idx: dict[str, int],
     tta: bool = False,
+    model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
     num_samples: Optional[int] = None,
 ) -> Results:
     (sample_paths, outs, labels, _) = infer_dataloader(
-        device, net, dataloader, tta=tta, amp=amp, num_samples=num_samples
+        device, net, dataloader, tta=tta, model_dtype=model_dtype, amp=amp, num_samples=num_samples
     )
     results = Results(sample_paths, labels, list(class_to_idx.keys()), outs)
 

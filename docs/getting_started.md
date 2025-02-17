@@ -111,7 +111,7 @@ transform = birder.classification_transform(size, rgb_stats)
 
 # Perform inference on an image
 image = "data/img_001.jpeg"  # Path to your image
-(out, top_predictions) = infer_image(net, image, transform)
+(out, _) = infer_image(net, image, transform)
 ```
 
 Alternatively, you can load Birder models directly using Torch Hub:

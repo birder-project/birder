@@ -408,6 +408,9 @@ def model_pre_publish(_ctx, model, net_param=None, tag=None, epoch=None, reparam
     Generate data required for publishing a model
     """
 
+    if net_param is not None:
+        net_param = float(net_param)
+
     network_name = fs_ops.get_network_name(model, net_param, tag)
 
     (net, _, signature, _) = fs_ops.load_model(

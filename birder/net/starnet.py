@@ -252,3 +252,17 @@ registry.register_weights(
         "net": {"network": "starnet_esm10", "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "starnet_s1_il-common",
+    {
+        "description": "StarNet S1 model 1M trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 10.6,
+                "sha256": "b997d7ec49c1b6dc1dbc1f12204d34d1fce8114072e7e72b9fe6df989863143b",
+            }
+        },
+        "net": {"network": "starnet_s1", "tag": "il-common"},
+    },
+)

@@ -54,7 +54,7 @@ RESULTS_PATH = "il-common-v1"
 ## Helper Functions
 
 ```{python}
-def get_model_name_and_num_parameters(file_name: str, tag: str = PATTERN) -> tuple[str, str, int]:
+def get_model_name_and_num_parameters(file_name: str, tag: str = PATTERN) -> tuple[str, str, int, bool, bool]:
     reparameterized = False
     intermediate = False
     mim = False
@@ -92,7 +92,7 @@ def get_model_name_and_num_parameters(file_name: str, tag: str = PATTERN) -> tup
     else:
         model_type = model.__class__.__name__
 
-    return (model_name.replace("_", " "), model_type.replace("_", " "), info["num_params"])
+    return (model_name.replace("_", " "), model_type.replace("_", " "), info["num_params"], intermediate, mim)
 ```
 
 ```{python}
@@ -118,26 +118,31 @@ def get_pretrained_name(file_name: str) -> str:
 ## Data Loading and Processing
 
 ```{python}
-results_dict = {}
-for result_file in settings.RESULTS_DIR.joinpath(RESULTS_PATH).glob(f"*{PATTERN}*"):
-    results_dict[result_file.stem] = Results.load(result_file)
+# results_dict = {}
+# for result_file in settings.RESULTS_DIR.joinpath(RESULTS_PATH).glob(f"*{PATTERN}*"):
+#     results_dict[result_file.stem] = Results.load(result_file)
+
+# compare_results_df = compare_results(results_dict)
+compare_results_df = pl.read_csv(f"results/summary_{PATTERN}.csv")
 ```
 
 ```{python}
-compare_results_df = compare_results(results_dict)
-
 num_param = []
 model_names = []
 model_types = []
 pretrained_names = []
 resolution = []
+intermediate = []
+mim = []
 for file_name in compare_results_df["File name"]:
-    (model_name, model_type, count) = get_model_name_and_num_parameters(file_name)
+    (model_name, model_type, count, intermediate_trn, mim_trn) = get_model_name_and_num_parameters(file_name)
     num_param.append(count / 1e6)
     model_names.append(model_name)
     model_types.append(model_type)
     pretrained_names.append(get_pretrained_name(file_name))
     resolution.append(get_resolution(file_name))
+    intermediate.append(intermediate_trn)
+    mim.append(mim_trn)
 
 compare_results_df = compare_results_df.with_columns(
     pl.Series("Parameters (M)", num_param),
@@ -145,6 +150,8 @@ compare_results_df = compare_results_df.with_columns(
     pl.Series("Model name", model_names),
     pl.Series("Model type", model_types),
     pl.Series("Pretrained name", pretrained_names),
+    pl.Series("Intermediate", intermediate),
+    pl.Series("MIM", mim),
 )
 ```
 
@@ -192,6 +199,12 @@ compare_results_df = compare_results_df.select(
     "amp",
 )
 compare_results_df = compare_results_df.rename({"samples_per_sec": "Samples / sec"})
+```
+
+### Save Processed Output
+
+```{python}
+compare_results_df.write_csv(settings.RESULTS_DIR.joinpath(f"results_{PATTERN}.csv"))
 ```
 
 ## Visualize Results
@@ -262,6 +275,8 @@ def plot_acc_rate(rate_compare_results_df: pl.DataFrame, width: int = 900, heigh
 ```
 
 ```{python}
+compare_results_df = pl.read_csv(settings.RESULTS_DIR.joinpath(f"results_{PATTERN}.csv"))
+
 # Parameter count
 param_compare_results_df = compare_results_df.unique(subset=["Model name"]).sort("Parameters (M)", descending=False)
 param_compare_results_df = param_compare_results_df.with_columns(

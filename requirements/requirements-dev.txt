@@ -1,14 +1,14 @@
 -r requirements.txt
 
 altair~=5.5.0
-bandit~=1.8.2
+bandit~=1.8.3
 black~=25.1.0
 build~=1.2.2
 bumpver~=2024.1130
 captum~=0.7.0
 coverage~=7.6.11
 flake8-pep585~=0.1.7
-flake8~=7.1.1
+flake8~=7.1.2
 invoke~=2.2.0
 ipython~=8.32.0
 isort~=6.0.0

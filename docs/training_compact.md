@@ -210,6 +210,20 @@ torchrun --nproc_per_node=2 train.py --network fastvit_sa12 --tag il-common --op
 torchrun --nproc_per_node=2 train.py --network mobileclip_i0 --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### GhostNet v1
+
+#### GhostNet v1: 0.5 (50)
+
+```sh
+torchrun --nproc_per_node=2 train.py --network ghostnet_v1 --net-param 0.5 --tag il-common --lr 0.4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --batch-size 512 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+#### GhostNet v1: 1 (100)
+
+```sh
+torchrun --nproc_per_node=2 train.py --network ghostnet_v1 --net-param 1 --tag il-common --lr 0.4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --batch-size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### GhostNet v2
 
 #### GhostNet v2: 1 (100)
@@ -231,7 +245,27 @@ torchrun --nproc_per_node=2 train.py --network inception_next_a --tag il-common 
 #### LeViT: 128s
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network levit_128s --tag il-common --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --model-ema-decay 0.9998 --clip-grad-norm 1 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+torchrun --nproc_per_node=2 train.py --network levit_128s --tag il-common --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --model-ema-decay 0.9998 --clip-grad-norm 1 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+#### LeViT: 128
+
+```sh
+torchrun --nproc_per_node=2 train.py --network levit_128 --tag il-common --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --model-ema-decay 0.9998 --clip-grad-norm 1 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+### MetaFormer
+
+#### MetaFormer: PoolFormer v1 s12
+
+```sh
+torchrun --nproc_per_node=2 train.py --network poolformer_v1_s12 --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --size 256 --warmup-epochs 5 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile
+```
+
+#### MetaFormer: PoolFormer v2 s12
+
+```sh
+torchrun --nproc_per_node=2 train.py --network poolformer_v2_s12 --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --size 256 --warmup-epochs 5 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile
 ```
 
 ### MnasNet

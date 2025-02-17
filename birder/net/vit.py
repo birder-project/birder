@@ -606,7 +606,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/vitreg4_b16_mim/resolve/main/vitreg4_b16_mim_200.pt",
         "description": (
-            "ViTReg4 b16 image encoder pre-trained using Masked Image Modeling (MIM). "
+            "ViTReg4 b16 image encoder pre-trained using Masked Image Modeling (MIM) for 200 epochs. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -614,6 +614,24 @@ registry.register_weights(
             "pt": {
                 "file_size": 327.4,
                 "sha256": "6b044cd7834293e344309f809070db3fe9ede489478e7549ad96255f9d76b329",
+            },
+        },
+        "net": {"network": "vitreg4_b16", "tag": "mim"},
+    },
+)
+registry.register_weights(
+    "vitreg4_b16_mim_300",
+    {
+        "url": "https://huggingface.co/birder-project/vitreg4_b16_mim/resolve/main/vitreg4_b16_mim_300.pt",
+        "description": (
+            "ViTReg4 b16 image encoder pre-trained using Masked Image Modeling (MIM) for 300 epochs. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 327.4,
+                "sha256": "e0df2e79f8ed0612d12c736cc6317be1b9b354e468715a5077366f7676fdd2ce",
             },
         },
         "net": {"network": "vitreg4_b16", "tag": "mim"},

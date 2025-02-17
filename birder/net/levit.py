@@ -555,3 +555,17 @@ registry.register_weights(
         "net": {"network": "levit_128s", "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "levit_128_il-common",
+    {
+        "description": "LeViT 128 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 33.6,
+                "sha256": "877006385c7bb9c9a48bb602803c10075a752f522941f085b241e5dfcdc77f9c",
+            }
+        },
+        "net": {"network": "levit_128", "tag": "il-common"},
+    },
+)

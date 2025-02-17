@@ -86,6 +86,7 @@ def predict(args: argparse.Namespace) -> None:
 
         logging.info(f"Using device {device}")
 
+    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     network_name = lib.get_detection_network_name(
         args.network,
         net_param=args.net_param,
@@ -190,6 +191,7 @@ def predict(args: argparse.Namespace) -> None:
             device,
             net,
             inference_loader,
+            model_dtype,
             args.amp,
             num_samples,
             batch_callback=batch_callback,
@@ -206,6 +208,8 @@ def predict(args: argparse.Namespace) -> None:
         epoch_str = f"_e{args.epoch}"
 
     base_output_path = f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size}px_{num_samples}"
+    if args.model_dtype != "float32":
+        base_output_path = f"{base_output_path}_{args.model_dtype}"
     if args.suffix is not None:
         base_output_path = f"{base_output_path}_{args.suffix}"
 
@@ -296,6 +300,13 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--compile-backbone", default=False, action="store_true", help="enable backbone only compilation"
     )
     parser.add_argument(
+        "--model-dtype",
+        type=str,
+        choices=["float32", "float16", "bfloat16"],
+        default="float32",
+        help="model dtype to use",
+    )
+    parser.add_argument(
         "--amp", default=False, action="store_true", help="use torch.amp.autocast for mixed precision inference"
     )
     parser.add_argument(
@@ -324,6 +335,7 @@ def validate_args(args: argparse.Namespace) -> None:
     assert args.parallel is False or (args.parallel is True and args.gpu is True)
     assert args.parallel is False or args.compile is False
     assert args.compile is False or args.compile_backbone is False
+    assert args.amp is False or args.model_dtype == "float32"
     assert args.coco_json_path is None or len(args.data_path) == 1
 
 

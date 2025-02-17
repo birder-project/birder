@@ -42,7 +42,7 @@ import torch
 import birder
 from PIL import Image
 
-(net, _, signature, rgb_stats) = birder.load_pretrained_model("vitreg4_b16_mim_200", inference=True)
+(net, _, signature, rgb_stats) = birder.load_pretrained_model("vitreg4_b16_mim_300", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(signature)
@@ -65,7 +65,7 @@ import birder
 from PIL import Image
 
 # Must first download the model files
-(net, cfg) = birder.load_model_with_cfg("models/vitreg4_b16_mim.json", "models/vitreg4_b16_mim_200.pt")
+(net, cfg) = birder.load_model_with_cfg("models/vitreg4_b16_mim.json", "models/vitreg4_b16_mim_300.pt")
 net.eval()
 
 # Get the image size the model was trained on

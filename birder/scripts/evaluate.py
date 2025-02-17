@@ -26,6 +26,7 @@ def evaluate(args: argparse.Namespace) -> None:
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
+    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     model_list = birder.list_pretrained_models(args.filter)
     for model_name in model_list:
         (net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model(
@@ -45,7 +46,7 @@ def evaluate(args: argparse.Namespace) -> None:
         inference_loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=8)
         with torch.inference_mode():
             results = birder.evaluate_classification(
-                device, net, inference_loader, class_to_idx, args.tta, args.amp, num_samples=num_samples
+                device, net, inference_loader, class_to_idx, args.tta, model_dtype, args.amp, num_samples=num_samples
             )
 
         logging.info(f"{model_name}: accuracy={results.accuracy:.3f}")
@@ -70,6 +71,13 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--filter", type=str, help="models to evaluate (fnmatch type filter)")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
+        "--model-dtype",
+        type=str,
+        choices=["float32", "float16", "bfloat16"],
+        default="float32",
+        help="model dtype to use",
+    )
+    parser.add_argument(
         "--amp", default=False, action="store_true", help="use torch.amp.autocast for mixed precision inference"
     )
     parser.add_argument(
@@ -89,10 +97,15 @@ def get_args_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def validate_args(args: argparse.Namespace) -> None:
+    assert args.amp is False or args.model_dtype == "float32"
+
+
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:
     parser = get_args_parser()
     args = argparse.Namespace(**kwargs)
     args = parser.parse_args([], args)
+    validate_args(args)
 
     return args
 
@@ -100,6 +113,7 @@ def args_from_dict(**kwargs: Any) -> argparse.Namespace:
 def main() -> None:
     parser = get_args_parser()
     args = parser.parse_args()
+    validate_args(args)
 
     if settings.RESULTS_DIR.joinpath(args.dir).exists() is False:
         logging.info(f"Creating {settings.RESULTS_DIR.joinpath(args.dir)} directory...")

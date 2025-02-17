@@ -19,6 +19,7 @@ def infer_dataloader(
     device: torch.device,
     net: torch.nn.Module | torch.ScriptModule,
     dataloader: DataLoader,
+    model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
     num_samples: Optional[int] = None,
     batch_callback: Optional[
@@ -39,6 +40,8 @@ def infer_dataloader(
         The model to use for inference.
     dataloader
         The DataLoader containing the dataset to perform inference on.
+    model_dtype
+        The base dtype to use.
     amp
         Whether to use automatic mixed precision.
     num_samples
@@ -67,7 +70,7 @@ def infer_dataloader(
       allowing for real-time analysis or logging of results.
     """
 
-    net.to(device)
+    net.to(device, dtype=model_dtype)
     detections_list: list[dict[str, torch.Tensor]] = []
     target_list: list[dict[str, Any]] = []
     sample_paths: list[str] = []
@@ -75,7 +78,7 @@ def infer_dataloader(
     with tqdm(total=num_samples, initial=0, unit="images", unit_scale=True, leave=False) as progress:
         for file_paths, inputs, targets in dataloader:
             # Inference
-            inputs = [i.to(device) for i in inputs]
+            inputs = [i.to(device, dtype=model_dtype) for i in inputs]
             inputs = batch_images(inputs)
 
             with torch.amp.autocast(device.type, enabled=amp):
