@@ -48,7 +48,7 @@ from birder.tools.model_info import get_model_info
 
 ```{python}
 PATTERN = "il-common"
-RESULTS_PATH = "il-common-v1"
+RESULTS_PATH = "il-common"
 ```
 
 ## Helper Functions
@@ -284,8 +284,10 @@ param_compare_results_df = param_compare_results_df.with_columns(
 )
 param_compare_results_df = param_compare_results_df.drop("Samples / sec", "device", "ms / sample")
 chart = plot_acc_param(param_compare_results_df)
-# chart.show()
-chart.layer[0].encoding.x.scale = alt.Scale(domain=[0.5, 7.5])
+# chart.layer[0].encoding.x.scale = alt.Scale(domain=[0.5, 7.5])
+x_max = param_compare_results_df["Parameters (M)"].quantile(0.9)
+x_min = param_compare_results_df["Parameters (M)"].quantile(0.1)
+chart.layer[0].encoding.x.scale = alt.Scale(domain=[x_min, x_max])
 chart.show()
 ```
 

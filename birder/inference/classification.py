@@ -54,7 +54,7 @@ def infer_batch(
 ) -> tuple[npt.NDArray[np.float32], Optional[npt.NDArray[np.float32]]]:
     if return_embedding is True:
         embedding_tensor: torch.Tensor = net.embedding(inputs)
-        out: npt.NDArray[np.float32] = F.softmax(net.classify(embedding_tensor), dim=1).cpu().float().numpy()
+        out = F.softmax(net.classify(embedding_tensor), dim=1)
         embedding: Optional[npt.NDArray[np.float32]] = embedding_tensor.cpu().float().numpy()
 
     elif tta is True:
@@ -68,13 +68,13 @@ def infer_batch(
         for tta_input in tta_inputs:
             outs.append(F.softmax(net(t(tta_input)), dim=1))
 
-        out = torch.stack(outs).mean(axis=0).cpu().float().numpy()
+        out = torch.stack(outs).mean(axis=0)
 
     else:
         embedding = None
-        out = F.softmax(net(inputs), dim=1).cpu().float().numpy()
+        out = F.softmax(net(inputs), dim=1)
 
-    return (out, embedding)
+    return (out.cpu().float().numpy(), embedding)
 
 
 def infer_dataloader(

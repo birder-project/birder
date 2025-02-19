@@ -383,6 +383,15 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
         warn=True,
     )
 
+    # CUDA
+    ctx.run(
+        f"python benchmark.py --filter '{fn}' --bench-iter 100 --batch-size 512 "
+        f"--gpu --gpu-id {gpu_id} --fast-matmul --suffix {suffix} --append",
+        echo=True,
+        pty=True,
+        warn=True,
+    )
+
     # Compiled CUDA
     ctx.run(
         f"python benchmark.py --filter '{fn}' --bench-iter 100 --batch-size 512 "

@@ -89,6 +89,17 @@ def benchmark(args: argparse.Namespace) -> None:
 
         sample_shape = (args.batch_size, input_channels) + size
 
+        # Sanity
+        logging.info(f"Sanity check for {model_name}")
+        with torch.inference_mode():
+            with torch.amp.autocast(device.type, enabled=args.amp):
+                for _ in range(args.warmup):
+                    try:
+                        output = net(torch.randn(sample_shape, device=device))
+                    except Exception:  # pylint: disable=broad-exception-caught
+                        logging.warning(f"Aborting {model_name} !!!")
+                        continue
+
         # Warmup
         logging.info(f"Starting warmup for {model_name}")
         with torch.inference_mode():

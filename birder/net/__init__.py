@@ -76,6 +76,7 @@ from birder.net.sequencer2d import Sequencer2d
 from birder.net.shufflenet_v1 import ShuffleNet_v1
 from birder.net.shufflenet_v2 import ShuffleNet_v2
 from birder.net.simple_vit import Simple_ViT
+from birder.net.smt import SMT
 from birder.net.squeezenet import SqueezeNet
 from birder.net.squeezenext import SqueezeNext
 from birder.net.starnet import StarNet
@@ -172,6 +173,7 @@ __all__ = [
     "ShuffleNet_v1",
     "ShuffleNet_v2",
     "Simple_ViT",
+    "SMT",
     "SqueezeNet",
     "SqueezeNext",
     "StarNet",

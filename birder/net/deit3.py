@@ -507,3 +507,17 @@ registry.register_weights(
         "net": {"network": "deit3_t16", "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "deit3_reg4_t16_il-common",
+    {
+        "description": "DeiT3 reg4 tiny model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 21.5,
+                "sha256": "6806a5ae7d45f1c84b25e9869a9cbc7de94368fe9573dc3777acf2da8c83dc4e",
+            }
+        },
+        "net": {"network": "deit3_reg4_t16", "tag": "il-common"},
+    },
+)

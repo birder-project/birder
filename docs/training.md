@@ -1995,6 +1995,44 @@ torchrun --nproc_per_node=2 train.py --network simple_vit_l32 --opt adamw --lr 0
 torchrun --nproc_per_node=2 train.py --network simple_vit_l16 --lr 0.3 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 16 --warmup-epochs 15 --epochs 400 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
+### SMT
+
+### SMT: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network smt_t --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --clip-grad-norm 5 --fast-matmul --compile
+```
+
+### SMT: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network smt_s --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --clip-grad-norm 5 --amp --compile
+```
+
+Optional intermediate training
+
+```sh
+torchrun --nproc_per_node=2 train.py --network smt_s --tag intermediate --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 5 --epochs 90 --size 256 --wd 0.05 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --clip-grad-norm 5 --amp --compile --save-frequency 1 --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+```
+
+Optional intermediate training: linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network smt_s --tag intermediate --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --wd 0.01 --smoothing-alpha 0.1 --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
+```
+
+Optional intermediate training: fine-tuning
+
+```sh
+torchrun --nproc_per_node=2 train.py --network smt_s --tag intermediate --opt adamw --lr 0.00002 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 5 --epochs 40 --size 256 --wd 0.05 --grad-accum-steps 2 --smoothing-alpha 0.1 --aug-level 4 --model-ema --clip-grad-norm 5 --model-config drop_path_rate=0.1 --amp --compile --resume-epoch 10
+```
+
+### SMT: Base
+
+```sh
+torchrun --nproc_per_node=2 train.py --network smt_b --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 64 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --clip-grad-norm 5 --amp --compile
+```
+
 ### SqueezeNet
 
 ```sh
@@ -2076,13 +2114,13 @@ torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s --opt adamw
 Optional intermediate training
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s -t intermediate --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --size 224 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 5 --drop-last --amp --compile --save-frequency 1 --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s --tag intermediate --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --size 224 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 5 --drop-last --amp --compile --save-frequency 1 --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
 ```
 
 Optional intermediate training: increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s -t intermediate --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --size 256 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 5 --drop-last --amp --compile --save-frequency 1 --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed --resume-epoch 120 --load-states
+torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s --tag intermediate --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --size 256 --warmup-epochs 20 --epochs 200 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 5 --drop-last --amp --compile --save-frequency 1 --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed --resume-epoch 120 --load-states
 ```
 
 #### Swin Transformer v2: Base

@@ -208,7 +208,7 @@ class CrossStage(nn.Module):
         (xs, xb) = x.split(self.expand_channels // 2, dim=1)
         xb = self.blocks(xb)
         xb = self.conv_transition_b(xb).contiguous()
-        out = self.conv_transition(torch.cat([xs, xb], dim=1))
+        out = self.conv_transition(torch.concat([xs, xb], dim=1))
 
         return out
 

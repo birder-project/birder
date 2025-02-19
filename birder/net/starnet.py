@@ -166,76 +166,27 @@ class StarNet(DetectorBackbone):
 
 # Extremely Small Models
 registry.register_alias(
-    "starnet_esm05",
-    StarNet,
-    config={
-        "base_dim": 16,
-        "depths": [1, 1, 3, 1],
-        "mlp_ratio": 3.0,
-        "drop_path_rate": 0.0,
-    },
+    "starnet_esm05", StarNet, config={"base_dim": 16, "depths": [1, 1, 3, 1], "mlp_ratio": 3.0, "drop_path_rate": 0.0}
 )
 registry.register_alias(
-    "starnet_esm10",
-    StarNet,
-    config={
-        "base_dim": 20,
-        "depths": [1, 2, 4, 1],
-        "mlp_ratio": 4.0,
-        "drop_path_rate": 0.0,
-    },
+    "starnet_esm10", StarNet, config={"base_dim": 20, "depths": [1, 2, 4, 1], "mlp_ratio": 4.0, "drop_path_rate": 0.0}
 )
 registry.register_alias(
-    "starnet_esm15",
-    StarNet,
-    config={
-        "base_dim": 24,
-        "depths": [1, 2, 4, 2],
-        "mlp_ratio": 3.0,
-        "drop_path_rate": 0.0,
-    },
+    "starnet_esm15", StarNet, config={"base_dim": 24, "depths": [1, 2, 4, 2], "mlp_ratio": 3.0, "drop_path_rate": 0.0}
 )
 
 # StarNets
 registry.register_alias(
-    "starnet_s1",
-    StarNet,
-    config={
-        "base_dim": 24,
-        "depths": [2, 2, 8, 3],
-        "mlp_ratio": 4.0,
-        "drop_path_rate": 0.0,
-    },
+    "starnet_s1", StarNet, config={"base_dim": 24, "depths": [2, 2, 8, 3], "mlp_ratio": 4.0, "drop_path_rate": 0.0}
 )
 registry.register_alias(
-    "starnet_s2",
-    StarNet,
-    config={
-        "base_dim": 32,
-        "depths": [1, 2, 6, 2],
-        "mlp_ratio": 4.0,
-        "drop_path_rate": 0.0,
-    },
+    "starnet_s2", StarNet, config={"base_dim": 32, "depths": [1, 2, 6, 2], "mlp_ratio": 4.0, "drop_path_rate": 0.0}
 )
 registry.register_alias(
-    "starnet_s3",
-    StarNet,
-    config={
-        "base_dim": 32,
-        "depths": [2, 2, 8, 4],
-        "mlp_ratio": 4.0,
-        "drop_path_rate": 0.0,
-    },
+    "starnet_s3", StarNet, config={"base_dim": 32, "depths": [2, 2, 8, 4], "mlp_ratio": 4.0, "drop_path_rate": 0.0}
 )
 registry.register_alias(
-    "starnet_s4",
-    StarNet,
-    config={
-        "base_dim": 32,
-        "depths": [3, 3, 12, 5],
-        "mlp_ratio": 4.0,
-        "drop_path_rate": 0.1,
-    },
+    "starnet_s4", StarNet, config={"base_dim": 32, "depths": [3, 3, 12, 5], "mlp_ratio": 4.0, "drop_path_rate": 0.1}
 )
 
 registry.register_weights(

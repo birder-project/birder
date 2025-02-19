@@ -161,6 +161,7 @@ def set_parser(subparsers: Any) -> None:
         action="store_true",
         help="save results summary as csv",
     )
+    subparser.add_argument("--summary-suffix", type=str, help="add suffix to summary file")
     subparser.add_argument(
         "--print-mistakes", default=False, action="store_true", help="print only classes with non-perfect f1-score"
     )
@@ -217,7 +218,11 @@ def main(args: argparse.Namespace) -> None:
             print_per_class_report(results_dict, args.classes)
 
     if args.save_summary is True:
-        summary_path = settings.RESULTS_DIR.joinpath("summary.csv")
+        if args.summary_suffix is not None:
+            summary_path = settings.RESULTS_DIR.joinpath(f"summary_{args.summary_suffix}.csv")
+        else:
+            summary_path = settings.RESULTS_DIR.joinpath("summary.csv")
+
         if summary_path.exists() is True:
             logging.warning(f"Summary already exists '{summary_path}', skipping...")
         else:
