@@ -71,7 +71,8 @@ def get_model_name_and_num_parameters(file_name: str, tag: str = PATTERN) -> tup
         file_name = file_name.replace("-mim", "")
 
     file_name = file_name.split("/")[-1]
-    num_classes_str = file_name[file_name.find(tag) + len(tag) + 1 :]
+    tag_end_idx = file_name.find("_", file_name.find(tag))
+    num_classes_str = file_name[tag_end_idx + 1 :]
     num_classes = int(num_classes_str.split("_")[0])
     model_name = file_name[: file_name.find(tag) - 1]
     if model_name in registry.all_nets:
@@ -96,8 +97,9 @@ def get_model_name_and_num_parameters(file_name: str, tag: str = PATTERN) -> tup
 ```
 
 ```{python}
-def get_resolution(file_name: str) -> int:
-    file_name = file_name[: file_name.find("px")]
+def get_resolution(file_name: str, tag: str = PATTERN) -> int:
+    tag_end_idx = file_name.find("_", file_name.find(tag))
+    file_name = file_name[: file_name.find("px", tag_end_idx)]
     resolution = file_name.rsplit("_", 1)[1]
 
     return int(resolution)

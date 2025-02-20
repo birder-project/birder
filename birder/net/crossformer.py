@@ -473,3 +473,22 @@ registry.register_alias(
     CrossFormer,
     config={"embed_dim": 128, "depths": [2, 2, 18, 2], "num_heads": [4, 8, 16, 32], "drop_path_rate": 0.5},
 )
+
+registry.register_weights(
+    "crossformer_s_arabian-peninsula256px",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/crossformer_s_arabian-peninsula/"
+            "resolve/main/crossformer_s_arabian-peninsula256px.pt"
+        ),
+        "description": "CrossFormer small model trained on the arabian-peninsula dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 116.7,
+                "sha256": "24feadef6e7921702fade34487bfcf65f0656151e2a00ede6a8ae719534d68c6",
+            }
+        },
+        "net": {"network": "crossformer_s", "tag": "arabian-peninsula256px"},
+    },
+)

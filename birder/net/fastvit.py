@@ -1087,3 +1087,17 @@ registry.register_weights(
         "net": {"network": "mobileclip_i0", "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "mobileclip_i0_il-common_reparameterized",
+    {
+        "description": "MobileClip i0 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 42.9,
+                "sha256": "aec9bf62c0eaa12943158b056e7cef2fa93ebd78519080ad18bfacc5ef006670",
+            }
+        },
+        "net": {"network": "mobileclip_i0", "tag": "il-common_reparameterized", "reparameterized": True},
+    },
+)

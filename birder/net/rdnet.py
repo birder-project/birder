@@ -312,3 +312,22 @@ registry.register_alias(
         "drop_path_rate": 0.5,
     },
 )
+
+registry.register_weights(
+    "rdnet_s_arabian-peninsula256px",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/rdnet_s_arabian-peninsula/"
+            "resolve/main/rdnet_s_arabian-peninsula256px.pt"
+        ),
+        "description": "RDNet small model trained on the arabian-peninsula dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 191.3,
+                "sha256": "db19d6a637b3f88c397fb89cc97d0db99f6921c3042cf0ee0ecc98ed77012b47",
+            }
+        },
+        "net": {"network": "rdnet_s", "tag": "arabian-peninsula256px"},
+    },
+)
