@@ -106,11 +106,11 @@ def predict(args: argparse.Namespace) -> None:
         net = torch.nn.DataParallel(net)
 
     if args.size is None:
-        args.size = lib.get_size_from_signature(signature)[0]
+        args.size = lib.get_size_from_signature(signature)
         logging.debug(f"Using size={args.size}")
 
     batch_size = args.batch_size
-    inference_transform = inference_preset((args.size, args.size), rgb_stats, args.center_crop)
+    inference_transform = inference_preset(args.size, rgb_stats, args.center_crop)
     if args.wds is True:
         (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.data_path[0]))
         dataset_size = wds_size(wds_path, device)
@@ -184,7 +184,7 @@ def predict(args: argparse.Namespace) -> None:
         epoch_str = f"_e{args.epoch}"
 
     base_output_path = (
-        f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size}px_crop{args.center_crop}_{num_samples}"
+        f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size[0]}px_crop{args.center_crop}_{num_samples}"
     )
     if args.tta is True:
         base_output_path = f"{base_output_path}_tta"
@@ -296,7 +296,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
     )
     parser.add_argument("--tta", default=False, action="store_true", help="test time augmentation (oversampling)")
-    parser.add_argument("--size", type=int, help="image size for inference (defaults to model signature)")
+    parser.add_argument(
+        "--size", type=int, nargs="+", metavar=("H", "W"), help="image size for inference (defaults to model signature)"
+    )
     parser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
     parser.add_argument("--center-crop", type=float, default=1.0, help="Center crop ratio to use during inference")
     parser.add_argument("--show", default=False, action="store_true", help="show image predictions")
@@ -332,6 +334,7 @@ def validate_args(args: argparse.Namespace) -> None:
     assert args.wds is False or (
         args.show is False and args.show_mistakes is False and args.show_out_of_k is False and args.show_class is None
     )
+    args.size = cli.parse_size(args.size)
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

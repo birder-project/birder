@@ -306,8 +306,6 @@ class DaViTStage(nn.Module):
 
 
 class DaViT(DetectorBackbone):
-    default_size = 224
-
     def __init__(
         self,
         input_channels: int,
@@ -315,7 +313,7 @@ class DaViT(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -324,7 +322,7 @@ class DaViT(DetectorBackbone):
         mlp_ratio = 4.0
         qkv_bias = True
         down_kernel_size = 2
-        window_size = (int(self.size / (2**5)), int(self.size / (2**5)))
+        window_size = (int(self.size[0] / (2**5)), int(self.size[1] / (2**5)))
         depths: list[int] = self.config["depths"]
         dims: list[int] = self.config["dims"]
         heads: list[int] = self.config["heads"]
@@ -399,14 +397,14 @@ class DaViT(DetectorBackbone):
         x = self.body(x)
         return self.features(x)
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        new_window_size = (int(self.size / (2**5)), int(self.size / (2**5)))
+        new_window_size = (int(new_size[0] / (2**5)), int(new_size[1] / (2**5)))
         for m in self.body.modules():
             if isinstance(m, SpatialBlock):
                 m.window_size = new_window_size

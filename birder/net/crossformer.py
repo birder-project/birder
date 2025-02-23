@@ -149,7 +149,7 @@ class CrossFormerBlock(nn.Module):
         dim: int,
         input_resolution: tuple[int, int],
         num_heads: int,
-        group_size: int,
+        group_size: tuple[int, int],
         use_lda: bool,
         mlp_ratio: float,
         qkv_bias: bool,
@@ -164,14 +164,17 @@ class CrossFormerBlock(nn.Module):
         self.group_size = group_size
         self.use_lda = use_lda
         self.mlp_ratio = mlp_ratio
-        if min(self.input_resolution) <= self.group_size:
+        if self.input_resolution[0] <= self.group_size[0]:
             self.use_lda = False
-            self.group_size = min(self.input_resolution)
+            self.group_size = (self.input_resolution[0], self.group_size[1])
+        if self.input_resolution[1] <= self.group_size[1]:
+            self.use_lda = False
+            self.group_size = (self.group_size[0], self.input_resolution[1])
 
         self.norm1 = nn.LayerNorm(dim)
         self.attn = Attention(
             dim,
-            group_size=(self.group_size, self.group_size),
+            group_size=self.group_size,
             num_heads=num_heads,
             qkv_bias=qkv_bias,
             attn_drop=attn_drop,
@@ -192,19 +195,19 @@ class CrossFormerBlock(nn.Module):
         x = x.view(B, H, W, C)
 
         # Group embeddings
-        G = self.group_size
+        (GH, GW) = self.group_size  # pylint: disable=invalid-name
         if self.use_lda is False:
-            x = x.reshape(B, H // G, G, W // G, G, C).permute(0, 1, 3, 2, 4, 5)
+            x = x.reshape(B, H // GH, GH, W // GW, GW, C).permute(0, 1, 3, 2, 4, 5)
         else:
-            x = x.reshape(B, G, H // G, G, W // G, C).permute(0, 2, 4, 1, 3, 5)
+            x = x.reshape(B, GH, H // GH, GW, W // GW, C).permute(0, 2, 4, 1, 3, 5)
 
-        x = x.reshape(int(B * H * W // G**2), int(G**2), C)  # TorchScript issue with the power operator
+        x = x.reshape(int(B * H * W // (GH * GW)), GH * GW, C)
 
         # Attention
         x = self.attn(x)  # nW*B, G*G, C
 
         # Un-group embeddings
-        x = x.reshape(B, H // G, W // G, G, G, C)
+        x = x.reshape(B, H // GH, W // GW, GH, GW, C)
         if self.use_lda is False:
             x = x.permute(0, 1, 3, 2, 4, 5).reshape(B, H, W, C)
         else:
@@ -263,7 +266,7 @@ class CrossFormerStage(nn.Module):
         input_resolution: tuple[int, int],
         depth: int,
         num_heads: int,
-        group_size: int,
+        group_size: tuple[int, int],
         mlp_ratio: float,
         qkv_bias: bool,
         proj_drop: float,
@@ -308,8 +311,6 @@ class CrossFormerStage(nn.Module):
 
 
 class CrossFormer(DetectorBackbone):
-    default_size = 224
-
     def __init__(
         self,
         input_channels: int,
@@ -317,7 +318,7 @@ class CrossFormer(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -329,11 +330,11 @@ class CrossFormer(DetectorBackbone):
         depths: list[int] = self.config["depths"]
         num_heads: list[int] = self.config["num_heads"]
         drop_path_rate: float = self.config["drop_path_rate"]
-        group_size = int(self.size / (2**5))
+        group_size = (int(self.size[0] / (2**5)), int(self.size[1] / (2**5)))
 
         self.patch_sizes = patch_sizes
         self.patch_embed = PatchEmbed(patch_sizes=patch_sizes, in_channels=self.input_channels, embed_dim=embed_dim)
-        patch_resolution = (self.size // patch_sizes[0], self.size // patch_sizes[0])
+        patch_resolution = (self.size[0] // patch_sizes[0], self.size[1] // patch_sizes[0])
 
         dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
         num_stages = len(depths)
@@ -418,14 +419,14 @@ class CrossFormer(DetectorBackbone):
         x = self.body(x)
         return self.features(x)
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        new_patch_resolution = (new_size // self.patch_sizes[0], new_size // self.patch_sizes[0])
+        new_patch_resolution = (new_size[0] // self.patch_sizes[0], new_size[1] // self.patch_sizes[0])
         input_resolution = new_patch_resolution
         for mod in self.body.modules():
             if isinstance(mod, CrossFormerStage):
@@ -438,17 +439,19 @@ class CrossFormer(DetectorBackbone):
 
                 mod.resolution = input_resolution
 
-        new_group_size = int(new_size / (2**5))
+        new_group_size = (int(new_size[0] / (2**5)), int(new_size[1] / (2**5)))
         for m in self.body.modules():
             if isinstance(m, CrossFormerBlock):
                 m.group_size = new_group_size
-                if min(m.input_resolution) <= m.group_size:
+                if m.input_resolution[0] <= m.group_size[0]:
                     m.use_lda = False
-                    m.group_size = min(m.input_resolution)
+                    m.group_size = (m.input_resolution[0], m.group_size[1])
+                if m.input_resolution[1] <= m.group_size[1]:
+                    m.use_lda = False
+                    m.group_size = (m.group_size[0], m.input_resolution[1])
 
             elif isinstance(m, Attention):
-                group_size = (new_group_size, new_group_size)
-                m.group_size = group_size
+                m.group_size = new_group_size
                 m.define_bias_table()
                 m.define_relative_position_index()
 

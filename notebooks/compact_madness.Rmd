@@ -47,8 +47,8 @@ from birder.tools.model_info import get_model_info
 ```
 
 ```{python}
-PATTERN = "il-common"
-RESULTS_PATH = "il-common"
+PATTERN = "arabian-peninsula"
+RESULTS_PATH = "arabian-peninsula"
 ```
 
 ## Helper Functions
@@ -174,6 +174,7 @@ compare_results_df = compare_results_df.filter(~pl.col("File name").is_in(names_
 
 ```{python}
 benchmark_df = pl.read_csv(settings.RESULTS_DIR.joinpath(f"benchmark_{PATTERN}.csv"))
+benchmark_df = benchmark_df.with_columns(pl.col("model_name").str.replace(r"\d+px$", ""))
 compare_results_df = compare_results_df.join(benchmark_df, left_on="Pretrained name", right_on="model_name", how="left")
 compare_results_df = compare_results_df.with_columns(
     (1000 * (1 / pl.col("samples_per_sec"))).alias("ms / sample"),
@@ -195,12 +196,15 @@ compare_results_df = compare_results_df.select(
     ),
     "Parameters (M)",
     "samples_per_sec",
+    "peak_memory",
     "device",
     "batch_size",
     "compile",
     "amp",
 )
-compare_results_df = compare_results_df.rename({"samples_per_sec": "Samples / sec"})
+compare_results_df = compare_results_df.rename(
+    {"samples_per_sec": "Samples / sec", "peak_memory": "Peak GPU memory (MB)"}
+)
 ```
 
 ### Save Processed Output
@@ -230,6 +234,46 @@ def plot_acc_param(param_compare_results_df: pl.DataFrame, width: int = 900, hei
 
     chart = base + text + frontier
     return chart.properties(title="Accuray vs Parameter Count", width=width, height=height).configure_scale(zero=False)
+```
+
+```{python}
+def plot_acc_memory(memory_compare_results_df: pl.DataFrame, width: int = 900, height: int = 640) -> alt.LayerChart:
+    batch_size = memory_compare_results_df["batch_size"][0]
+    amp = memory_compare_results_df["amp"][0]
+    df = memory_compare_results_df.select(
+        "Model name",
+        "Model type",
+        "Accuracy",
+        "Top-3 accuracy",
+        "Resolution",
+        "Peak GPU memory (MB)",
+        "Parameters (M)",
+        "Pareto frontier (mem)",
+    )
+    base = df.plot.point(
+        x="Peak GPU memory (MB)",
+        y="Accuracy",
+        color="Model type",
+        shape="Resolution:N",
+        tooltip=[
+            "Peak GPU memory (MB)",
+            "Parameters (M)",
+            "Accuracy",
+            "Top-3 accuracy",
+            "Model name",
+            "Model type",
+            "Resolution",
+        ],
+    )
+    text = base.mark_text(align="center", baseline="middle", dy=-10).encode(text="Model name")
+    frontier = df.plot.line(x="Peak GPU memory (MB)", y="Pareto frontier (mem)").mark_line(
+        interpolate="step-after", color="red", strokeWidth=0.3, strokeDash=(2, 2)
+    )
+
+    chart = base + text + frontier
+    return chart.properties(
+        title=f"Accuray vs GPU Memory (batch size={batch_size}, amp={amp})", width=width, height=height
+    ).configure_scale(zero=False)
 ```
 
 ```{python}
@@ -294,7 +338,26 @@ chart.show()
 ```
 
 ```{python}
-combination_df = compare_results_df.select("device", "batch_size", "compile", "amp").unique()
+# Memory usage
+memory_compare_results_df = compare_results_df.drop_nulls(subset=["Peak GPU memory (MB)"])
+memory_compare_results_df = memory_compare_results_df.unique(subset=["Model name"]).sort(
+    "Peak GPU memory (MB)", descending=False
+)
+memory_compare_results_df = memory_compare_results_df.with_columns(
+    pl.col("Accuracy").cum_max().alias("Pareto frontier (mem)")
+)
+memory_compare_results_df = memory_compare_results_df.drop("Samples / sec", "device", "ms / sample")
+chart = plot_acc_memory(memory_compare_results_df)
+x_max = memory_compare_results_df["Peak GPU memory (MB)"].quantile(0.9)
+x_min = memory_compare_results_df["Peak GPU memory (MB)"].quantile(0.1)
+chart.layer[0].encoding.x.scale = alt.Scale(domain=[x_min, x_max])
+chart.show()
+```
+
+```{python}
+combination_df = (
+    compare_results_df.drop_nulls(subset=["ms / sample"]).select("device", "batch_size", "compile", "amp").unique()
+)
 combination_df = combination_df.drop_nulls()
 for combination in combination_df.iter_rows(named=True):
     df = compare_results_df.filter(**combination)

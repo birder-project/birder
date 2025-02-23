@@ -274,7 +274,6 @@ class SwinTransformerBlock(nn.Module):
 
 # pylint: disable=invalid-name
 class Swin_Transformer_v1(DetectorBackbone):
-    default_size = 224
     block_group_regex = r"body\.stage\d+\.(\d+)"
 
     def __init__(
@@ -284,15 +283,14 @@ class Swin_Transformer_v1(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
         mlp_ratio = 4.0
-        base_window_size = int(self.size / (2**5))
-        window_size = (base_window_size, base_window_size)
+        window_size = (int(self.size[0] / (2**5)), int(self.size[1] / (2**5)))
         patch_size: tuple[int, int] = self.config["patch_size"]
         embed_dim: int = self.config["embed_dim"]
         depths: list[int] = self.config["depths"]
@@ -393,16 +391,18 @@ class Swin_Transformer_v1(DetectorBackbone):
         x = self.body(x)
         return self.features(x)
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
+        old_size = self.size
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         for m in self.body.modules():
             if isinstance(m, SwinTransformerBlock):
-                new_window_size = (new_size // (2**5), new_size // (2**5))
+                old_window_size = (old_size[0] // (2**5), old_size[1] // (2**5))
+                new_window_size = (new_size[0] // (2**5), new_size[1] // (2**5))
                 m.attn.window_size = new_window_size
                 shift_size_w = m.attn.shift_size[0]
                 shift_size_h = m.attn.shift_size[1]
@@ -418,12 +418,11 @@ class Swin_Transformer_v1(DetectorBackbone):
 
                 # Interpolate relative_position_bias_table, adapted from
                 # https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/pos_embed_rel.py
+                src_size = (2 * old_window_size[0] - 1, 2 * old_window_size[1] - 1)
                 dst_size = (2 * new_window_size[0] - 1, 2 * new_window_size[1] - 1)
                 rel_pos_bias = m.attn.relative_position_bias_table
                 rel_pos_bias = rel_pos_bias.detach()
-
-                (src_num_pos, num_attn_heads) = rel_pos_bias.shape
-                src_size = (int(src_num_pos**0.5), int(src_num_pos**0.5))
+                num_attn_heads = rel_pos_bias.size(1)
 
                 def _calc(src: int, dst: int) -> list[float]:
                     (left, right) = 1.01, 1.5

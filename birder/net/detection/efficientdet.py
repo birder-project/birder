@@ -526,7 +526,7 @@ class RegressionHead(HeadNet):
 
 
 class EfficientDet(DetectionBaseNet):
-    default_size = 640
+    default_size = (640, 640)
 
     def __init__(
         self,
@@ -535,7 +535,7 @@ class EfficientDet(DetectionBaseNet):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -569,7 +569,7 @@ class EfficientDet(DetectionBaseNet):
         self.backbone.return_stages = self.backbone.return_stages[-3:]
 
         self.bifpn = BiFpn(
-            image_size=(self.size, self.size),
+            image_size=self.size,
             min_level=min_level,
             max_level=max_level,
             num_levels=num_levels,

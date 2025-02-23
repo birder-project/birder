@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.16.6
+      jupytext_version: 1.16.7
   kernelspec:
     display_name: birder
     language: python
@@ -22,16 +22,12 @@ import torch.nn.functional as F
 ```
 
 ```{python}
-sys.path.append("..")
+# %cd ..
 ```
 
 ```{python}
 from birder.common import fs_ops
 from birder.common import lib
-```
-
-```{python}
-# %cd ..
 ```
 
 ```{python}
@@ -42,7 +38,7 @@ device = torch.device("cpu")
 
 ```{python}
 (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
-    device, "vitreg4_b16", path="models/vitreg4_b16_mim_225.pt", inference=True
+    device, "vitreg4_b16", path="models/vitreg4_b16_mim_300.pt", inference=True
 )
 # (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
 #     device, "vit_l16", path="models/vit_l16_mim_362.pt", inference=True
@@ -63,7 +59,7 @@ plt.matshow(similarity.numpy())
 ```
 
 ```{python}
-net.adjust_size(256)
+net.adjust_size((256, 256))
 ```
 
 ```{python}
@@ -80,7 +76,7 @@ plt.matshow(similarity.detach().numpy())
 
 ```{python}
 (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
-    device, "hiera_abswin_base", path="models/hiera_abswin_base_mim_100.pt", inference=True
+    device, "hiera_abswin_base", path="models/hiera_abswin_base_mim_250.pt", inference=True
 )
 ```
 
@@ -95,7 +91,7 @@ plt.matshow(similarity.numpy())
 ```
 
 ```{python}
-net.adjust_size(256)
+net.adjust_size((256, 256))
 ```
 
 ```{python}
@@ -127,7 +123,7 @@ plt.matshow(similarity.numpy())
 ```
 
 ```{python}
-net.adjust_size(320)
+net.adjust_size((320, 320))
 ```
 
 ```{python}
@@ -183,7 +179,7 @@ plt.matshow(similarity.detach().numpy())
 ```
 
 ```{python}
-net.adjust_size(256)
+net.adjust_size((256, 256))
 ```
 
 ```{python}
@@ -215,7 +211,7 @@ plt.matshow(similarity.detach().numpy())
 ```
 
 ```{python}
-net.adjust_size(448)
+net.adjust_size((448, 448))
 ```
 
 ```{python}

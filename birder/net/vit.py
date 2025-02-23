@@ -1,14 +1,18 @@
 """
 ViT, adapted from
 https://github.com/pytorch/vision/blob/main/torchvision/models/vision_transformer.py
+and
+https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/vision_transformer.py
 
 Paper "An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale",
 https://arxiv.org/abs/2010.11929
 and
 Paper "Vision Transformers Need Registers", https://arxiv.org/abs/2309.16588
+and
+Paper "Getting ViT in Shape: Scaling Laws for Compute-Optimal Model Design", https://arxiv.org/abs/2305.13035
 """
 
-# Reference license: BSD 3-Clause
+# Reference license: BSD 3-Clause and Apache-2.0
 
 import logging
 import math
@@ -28,14 +32,15 @@ from birder.net.base import PreTrainEncoder
 
 
 def adjust_position_embedding(
-    num_pos_tokens: int, pos_embedding: torch.Tensor, new_base_size: int, num_prefix_tokens: int
+    pos_embedding: torch.Tensor,
+    old_base_size: tuple[int, int],
+    new_base_size: tuple[int, int],
+    num_prefix_tokens: int,
 ) -> torch.Tensor:
     """
     Adapted from
     https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/pos_embed.py
     """
-
-    old_size = int(math.sqrt(num_pos_tokens - num_prefix_tokens))
 
     pos_embedding_prefix = pos_embedding[:, :num_prefix_tokens]
     pos_embedding = pos_embedding[:, num_prefix_tokens:]
@@ -44,13 +49,63 @@ def adjust_position_embedding(
     embed_dim = pos_embedding.shape[-1]
     orig_dtype = pos_embedding.dtype
     pos_embedding = pos_embedding.float()  # Interpolate needs float32
-    pos_embedding = pos_embedding.reshape(1, old_size, old_size, -1).permute(0, 3, 1, 2)
-    pos_embedding = F.interpolate(pos_embedding, size=(new_base_size, new_base_size), mode="bicubic", antialias=True)
+    pos_embedding = pos_embedding.reshape(1, old_base_size[0], old_base_size[1], -1).permute(0, 3, 1, 2)
+    pos_embedding = F.interpolate(pos_embedding, size=new_base_size, mode="bicubic", antialias=True)
     pos_embedding = pos_embedding.permute(0, 2, 3, 1).reshape(1, -1, embed_dim)
     pos_embedding = pos_embedding.to(orig_dtype)
 
-    # Add back class tokens
+    # Add back special tokens
     return nn.Parameter(torch.concat([pos_embedding_prefix, pos_embedding], dim=1))
+
+
+class MultiHeadAttentionPool(nn.Module):
+    """
+    Adapted from:
+    https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/attention_pool.py#L12
+    """
+
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        mlp_dim: int,
+        qkv_bias: bool,
+        latent_len: int = 1,
+    ) -> None:
+        super().__init__()
+        assert dim % num_heads == 0
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.scale = self.head_dim**-0.5
+
+        self.latent_len = latent_len
+        self.latent = nn.Parameter(torch.zeros(1, self.latent_len, dim))
+
+        self.q = nn.Linear(dim, dim, bias=qkv_bias)
+        self.kv = nn.Linear(dim, dim * 2, bias=qkv_bias)
+        self.proj = nn.Linear(dim, dim)
+
+        self.norm = nn.LayerNorm(dim)
+        self.mlp = MLP(dim, [mlp_dim, dim], activation_layer=nn.GELU, inplace=None)
+
+        # Weight initialization
+        nn.init.trunc_normal_(self.latent, std=dim**-0.5)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        (B, N, C) = x.size()
+
+        q_latent = self.latent.expand(B, self.latent_len, -1)
+        q = self.q(q_latent).reshape(B, self.latent_len, self.num_heads, self.head_dim).transpose(1, 2)
+
+        kv = self.kv(x).reshape(B, N, 2, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
+        (k, v) = kv.unbind(0)
+
+        x = F.scaled_dot_product_attention(q, k, v, scale=self.scale)  # pylint:disable=not-callable
+        x = x.transpose(1, 2).reshape(B, self.latent_len, C)
+        x = self.proj(x)
+        x = x + self.mlp(self.norm(x))
+
+        return x
 
 
 class LayerScale(nn.Module):
@@ -190,7 +245,6 @@ class Encoder(nn.Module):
 
 
 class ViT(PreTrainEncoder):
-    default_size = 224
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -200,7 +254,7 @@ class ViT(PreTrainEncoder):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -215,9 +269,11 @@ class ViT(PreTrainEncoder):
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
         num_reg_tokens: int = self.config["num_reg_tokens"]
+        attn_pool_head: bool = self.config.get("attn_pool_head", False)
         drop_path_rate: float = self.config["drop_path_rate"]
 
-        torch._assert(image_size % patch_size == 0, "Input shape indivisible by patch size!")
+        torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
+        torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         self.patch_size = patch_size
         self.hidden_dim = hidden_dim
         self.mlp_dim = mlp_dim
@@ -237,16 +293,22 @@ class ViT(PreTrainEncoder):
         )
         self.patch_embed = PatchEmbed()
 
-        seq_length = (image_size // patch_size) ** 2
+        seq_length = (image_size[0] // patch_size) * (image_size[1] // patch_size)
+        self.num_special_tokens = 0
 
         # Add a class token
-        self.class_token = nn.Parameter(torch.zeros(1, 1, hidden_dim))
-        seq_length += 1
+        if attn_pool_head is False:
+            self.class_token = nn.Parameter(torch.zeros(1, 1, hidden_dim))
+            seq_length += 1
+            self.num_special_tokens += 1
+        else:
+            self.class_token = None
 
         # Add optional register tokens
         if self.num_reg_tokens > 0:
             self.reg_tokens = nn.Parameter(torch.zeros(1, self.num_reg_tokens, hidden_dim))
             seq_length += self.num_reg_tokens
+            self.num_special_tokens += self.num_reg_tokens
         else:
             self.reg_tokens = None
 
@@ -263,6 +325,11 @@ class ViT(PreTrainEncoder):
             dpr,
         )
         self.norm = nn.LayerNorm(hidden_dim, eps=1e-6)
+
+        if attn_pool_head is True:
+            self.attn_pool = MultiHeadAttentionPool(hidden_dim, num_heads, mlp_dim, qkv_bias=True, latent_len=1)
+        else:
+            self.attn_pool = nn.Identity()
 
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
@@ -290,6 +357,18 @@ class ViT(PreTrainEncoder):
             nn.init.zeros_(self.classifier.weight)
             nn.init.zeros_(self.classifier.bias)
 
+    def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
+        for param in self.parameters():
+            param.requires_grad = False
+
+        if freeze_classifier is False:
+            for param in self.classifier.parameters():
+                param.requires_grad = True
+
+        if unfreeze_features is True:
+            for param in self.attn_pool.parameters():
+                param.requires_grad = True
+
     def masked_encoding(
         self, x: torch.Tensor, mask_ratio: float, _mask_token: Optional[torch.Tensor] = None
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -298,7 +377,7 @@ class ViT(PreTrainEncoder):
         x = self.patch_embed(x)
 
         # Add pos embedding without special tokens
-        x = x + self.pos_embedding[:, self.num_reg_tokens + 1 :, :]
+        x = x + self.pos_embedding[:, self.num_special_tokens :, :]
 
         # Masking: length -> length * mask_ratio
         # Perform per-sample random masking by per-sample shuffling.
@@ -326,9 +405,10 @@ class ViT(PreTrainEncoder):
         x = x_masked
 
         # Append class and register tokens
-        cls_token = self.class_token + self.pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
-        batch_class_token = cls_token.expand(x.shape[0], -1, -1)
-        x = torch.concat((batch_class_token, x), dim=1)
+        if self.class_token is not None:
+            cls_token = self.class_token + self.pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
+            batch_class_token = cls_token.expand(x.shape[0], -1, -1)
+            x = torch.concat((batch_class_token, x), dim=1)
 
         if self.reg_tokens is not None:
             reg_tokens = self.reg_tokens + self.pos_embedding[:, 0 : self.num_reg_tokens, :]
@@ -347,8 +427,9 @@ class ViT(PreTrainEncoder):
         x = self.patch_embed(x)
 
         # Expand the class token to the full batch
-        batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
-        x = torch.concat([batch_class_token, x], dim=1)
+        if self.class_token is not None:
+            batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
+            x = torch.concat([batch_class_token, x], dim=1)
 
         # Expand the register tokens to the full batch
         if self.reg_tokens is not None:
@@ -358,24 +439,30 @@ class ViT(PreTrainEncoder):
         x = x + self.pos_embedding
         x = self.encoder(x)
         x = self.norm(x)
+        x = self.attn_pool(x)
+
+        if self.class_token is None:
+            # Return attention pool latent
+            return x[:, 0]
 
         # Classifier "token" as used by standard language architectures
         return x[:, self.num_reg_tokens]
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
+        old_size = self.size
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
-
-        # Sort out sizes
-        num_pos_tokens = self.pos_embedding.shape[1]
 
         # Add back class tokens
         self.pos_embedding = nn.Parameter(
             adjust_position_embedding(
-                num_pos_tokens, self.pos_embedding, new_size // self.patch_size, 1 + self.num_reg_tokens
+                self.pos_embedding,
+                (old_size[0] // self.patch_size, old_size[1] // self.patch_size),
+                (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
+                self.num_special_tokens,
             )
         )
 
@@ -581,12 +668,70 @@ registry.register_alias(
     },
 )
 
+# Shape-optimized vision transformer (SoViT)
+registry.register_alias(
+    "vit_so150m_p14",
+    ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 18,
+        "num_heads": 16,
+        "hidden_dim": 880,
+        "mlp_dim": 2320,
+        "num_reg_tokens": 0,
+        "drop_path_rate": 0.1,
+        "attn_pool_head": True,
+    },
+)
+registry.register_alias(
+    "vit_so400m_p14",
+    ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 27,
+        "num_heads": 16,
+        "hidden_dim": 1152,
+        "mlp_dim": 4304,
+        "num_reg_tokens": 0,
+        "drop_path_rate": 0.1,
+        "attn_pool_head": True,
+    },
+)
+registry.register_alias(
+    "vitreg4_so150m_p14",
+    ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 18,
+        "num_heads": 16,
+        "hidden_dim": 880,
+        "mlp_dim": 2320,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.1,
+        "attn_pool_head": True,
+    },
+)
+registry.register_alias(
+    "vitreg4_so400m_p14",
+    ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 27,
+        "num_heads": 16,
+        "hidden_dim": 1152,
+        "mlp_dim": 4304,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.1,
+        "attn_pool_head": True,
+    },
+)
+
 registry.register_weights(
     "vit_l16_mim_200",
     {
         "url": "https://huggingface.co/birder-project/vit_l16_mim/resolve/main/vit_l16_mim_200.pt",
         "description": (
-            "ViT l16 image encoder pre-trained using Masked Image Modeling (MIM). "
+            "ViT l16 image encoder pre-trained using Masked Image Modeling (MIM) for 200 epochs. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),

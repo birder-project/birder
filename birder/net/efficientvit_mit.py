@@ -524,8 +524,6 @@ class Stem(nn.Sequential):
 
 # pylint: disable=invalid-name
 class EfficientViT_MIT(DetectorBackbone):
-    default_size = 224
-
     # pylint: disable=too-many-locals
     def __init__(
         self,
@@ -534,7 +532,7 @@ class EfficientViT_MIT(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"

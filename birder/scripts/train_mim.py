@@ -83,7 +83,7 @@ def train(args: argparse.Namespace) -> None:
             dataset_size=dataset_size,
             shuffle=True,
             samples_names=False,
-            transform=training_preset((args.size, args.size), args.aug_level, rgb_stats),
+            transform=training_preset(args.size, args.aug_level, rgb_stats),
         )
         input_idx = 0
 
@@ -91,7 +91,7 @@ def train(args: argparse.Namespace) -> None:
         training_dataset = make_image_dataset(
             args.data_path,
             {},
-            transforms=training_preset((args.size, args.size), args.aug_level, rgb_stats),
+            transforms=training_preset(args.size, args.aug_level, rgb_stats),
             loader=pil_loader if args.img_loader == "pil" else _tv_loader,
         )
         input_idx = 1
@@ -109,7 +109,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Initialize network
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
-    sample_shape = (batch_size,) + (args.channels, args.size, args.size)  # B, C, H, W
+    sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
     encoder_name = get_network_name(args.encoder, net_param=args.encoder_param, tag="mim")
     network_name = get_mim_network_name(
         args.network,
@@ -538,7 +538,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="power of the polynomial (for polynomial scheduler only)",
     )
     parser.add_argument("--channels", type=int, default=3, metavar="N", help="no. of image channels")
-    parser.add_argument("--size", type=int, help="image size (defaults to network recommendation)")
+    parser.add_argument(
+        "--size", type=int, nargs="+", metavar=("H", "W"), help="image size (defaults to network recommendation)"
+    )
     parser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
     parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
     parser.add_argument(
@@ -651,6 +653,7 @@ def validate_args(args: argparse.Namespace) -> None:
         registry.exists(args.encoder, net_type=PreTrainEncoder) is True
     ), "Unknown encoder, see list-models tool for available options"
     assert args.amp is False or args.model_dtype == "float32"
+    args.size = cli.parse_size(args.size)
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

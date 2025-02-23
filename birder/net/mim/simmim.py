@@ -57,7 +57,7 @@ def norm_targets(targets: torch.Tensor, patch_size: int) -> torch.Tensor:
 
 
 class SimMIM(MIMBaseNet):
-    default_size = 192
+    default_size = (192, 192)
 
     def __init__(
         self,
@@ -65,7 +65,7 @@ class SimMIM(MIMBaseNet):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"

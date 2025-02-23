@@ -36,11 +36,9 @@ def evaluate(args: argparse.Namespace) -> None:
             net = torch.compile(net)
 
         if args.size is None:
-            size = birder.get_size_from_signature(signature)
-        else:
-            size = (args.size, args.size)
+            args.size = birder.get_size_from_signature(signature)
 
-        transform = birder.classification_transform(size, rgb_stats, args.center_crop)
+        transform = birder.classification_transform(args.size, rgb_stats, args.center_crop)
         dataset = make_image_dataset(args.data_path, class_to_idx, transforms=transform)
         num_samples = len(dataset)
         inference_loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=8)
@@ -51,7 +49,7 @@ def evaluate(args: argparse.Namespace) -> None:
 
         logging.info(f"{model_name}: accuracy={results.accuracy:.3f}")
         base_output_path = (
-            f"{args.dir}/{model_name}_{len(class_to_idx)}_{size[0]}px_crop{args.center_crop}_{num_samples}"
+            f"{args.dir}/{model_name}_{len(class_to_idx)}_{args.size[0]}px_crop{args.center_crop}_{num_samples}"
         )
 
         results.save(f"{base_output_path}.csv")
@@ -84,7 +82,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
     )
     parser.add_argument("--tta", default=False, action="store_true", help="test time augmentation (oversampling)")
-    parser.add_argument("--size", type=int, help="image size for inference (defaults to model signature)")
+    parser.add_argument(
+        "--size", type=int, nargs="+", metavar=("H", "W"), help="image size for inference (defaults to model signature)"
+    )
     parser.add_argument("--batch-size", type=int, default=64, metavar="N", help="the batch size")
     parser.add_argument("--center-crop", type=float, default=1.0, help="Center crop ratio to use during inference")
     parser.add_argument(
@@ -99,6 +99,7 @@ def get_args_parser() -> argparse.ArgumentParser:
 
 def validate_args(args: argparse.Namespace) -> None:
     assert args.amp is False or args.model_dtype == "float32"
+    args.size = cli.parse_size(args.size)
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

@@ -40,7 +40,7 @@ def apply_fusion_head(head: nn.Module, x: torch.Tensor) -> torch.Tensor:
 
 # pylint: disable=invalid-name
 class MAE_Hiera(MIMBaseNet):
-    default_size = 224
+    default_size = (224, 224)
 
     def __init__(
         self,
@@ -48,7 +48,7 @@ class MAE_Hiera(MIMBaseNet):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"

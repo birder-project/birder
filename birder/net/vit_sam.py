@@ -204,7 +204,6 @@ class EncoderBlock(nn.Module):
 
 # pylint: disable=invalid-name
 class ViT_SAM(DetectorBackbone, PreTrainEncoder):
-    default_size = 224
     block_group_regex = r"body\.(\d+)"
 
     def __init__(
@@ -214,7 +213,7 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -232,7 +231,8 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
         global_attn_indexes: list[int] = self.config["global_attn_indexes"]
         drop_path_rate: float = self.config["drop_path_rate"]
 
-        torch._assert(image_size % patch_size == 0, "Input shape indivisible by patch size!")
+        torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
+        torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         self.patch_size = patch_size
         self.hidden_dim = hidden_dim
         self.global_attn_indexes = global_attn_indexes
@@ -248,7 +248,7 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
 
         # Absolute position embedding
         self.pos_embedding = nn.Parameter(
-            torch.zeros(1, image_size // patch_size, image_size // patch_size, hidden_dim)
+            torch.zeros(1, image_size[0] // patch_size, image_size[1] // patch_size, hidden_dim)
         )
 
         layers = []
@@ -262,7 +262,7 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
                     drop_path=dpr[i],
                     use_rel_pos=use_rel_pos,
                     window_size=window_size if i not in global_attn_indexes else 0,
-                    input_size=(image_size // patch_size, image_size // patch_size),
+                    input_size=(image_size[0] // patch_size, image_size[1] // patch_size),
                 )
             )
 
@@ -297,7 +297,7 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
         self.embedding_size = out_channels
         self.classifier = self.create_classifier()
 
-        self.encoding_size = hidden_dim * (image_size // patch_size) ** 2
+        self.encoding_size = hidden_dim * (image_size[0] // patch_size) * (image_size[1] // patch_size)
         self.decoder_block = partial(
             MAEDecoderBlock,
             16,
@@ -374,14 +374,15 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
 
         return x
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        new_base_size = new_size // self.patch_size
+        new_base_size_h = new_size[0] // self.patch_size
+        new_base_size_w = new_size[1] // self.patch_size
         for idx, m in enumerate(self.body):
             if idx not in self.global_attn_indexes:
                 continue
@@ -399,8 +400,8 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
                 rel_pos_h = rel_pos_h.unsqueeze(0)
                 rel_pos_w = rel_pos_w.unsqueeze(0)
 
-                rel_pos_h = F.interpolate(rel_pos_h, size=2 * new_base_size - 1, mode="linear")
-                rel_pos_w = F.interpolate(rel_pos_w, size=2 * new_base_size - 1, mode="linear")
+                rel_pos_h = F.interpolate(rel_pos_h, size=2 * new_base_size_h - 1, mode="linear")
+                rel_pos_w = F.interpolate(rel_pos_w, size=2 * new_base_size_w - 1, mode="linear")
                 rel_pos_h = rel_pos_h.squeeze(0)
                 rel_pos_w = rel_pos_w.squeeze(0)
                 rel_pos_h = rel_pos_h.permute(1, 0)
@@ -415,7 +416,7 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
         pos_embedding = self.pos_embedding.float()
         pos_embedding = pos_embedding.permute(0, 3, 1, 2)
         pos_embedding = F.interpolate(
-            pos_embedding, size=(new_base_size, new_base_size), mode="bicubic", antialias=True
+            pos_embedding, size=(new_base_size_h, new_base_size_w), mode="bicubic", antialias=True
         )
         pos_embedding = pos_embedding.permute(0, 2, 3, 1)
         pos_embedding = pos_embedding.to(orig_dtype)
@@ -429,11 +430,16 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
         The relative position embedding and "neck" convolutions are left intact.
         """
 
+        # NOTE: SoVit variant not supported
+
         # Remove all special token
-        del state_dict["class_token"]
-        reg_tokens = 0
+        num_special_tokens = 0
+        if "class_token" in state_dict:
+            num_special_tokens += 1
+            del state_dict["class_token"]
+
         if "reg_tokens" in state_dict:
-            reg_tokens = state_dict["reg_tokens"].size(1)
+            num_special_tokens += state_dict["reg_tokens"].size(1)
             del state_dict["reg_tokens"]
 
         # Remove final norm
@@ -446,9 +452,13 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
             del state_dict["classifier.bias"]
 
         # Adjust pos_embedding
-        state_dict["pos_embedding"] = state_dict["pos_embedding"][:, reg_tokens + 1 :, :]
+        if state_dict["pos_embedding"].ndim == 2:
+            state_dict["pos_embedding"] = state_dict["pos_embedding"][num_special_tokens:, :]
+        else:
+            state_dict["pos_embedding"] = state_dict["pos_embedding"][:, num_special_tokens:, :]
+
         state_dict["pos_embedding"] = state_dict["pos_embedding"].reshape(
-            1, self.size // self.patch_size, self.size // self.patch_size, -1
+            1, self.size[0] // self.patch_size, self.size[1] // self.patch_size, -1
         )
 
         # Modify encoder weight names

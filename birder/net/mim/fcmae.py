@@ -19,7 +19,7 @@ from birder.net.mim.base import MIMBaseNet
 
 
 class FCMAE(MIMBaseNet):
-    default_size = 224
+    default_size = (224, 224)
 
     def __init__(
         self,
@@ -27,7 +27,7 @@ class FCMAE(MIMBaseNet):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"

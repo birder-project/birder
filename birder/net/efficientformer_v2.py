@@ -390,8 +390,6 @@ class EfficientFormerStage(nn.Module):
 
 # pylint: disable=invalid-name
 class EfficientFormer_v2(DetectorBackbone):
-    default_size = 224
-
     def __init__(
         self,
         input_channels: int,
@@ -399,7 +397,7 @@ class EfficientFormer_v2(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -442,7 +440,7 @@ class EfficientFormer_v2(DetectorBackbone):
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
         for i in range(num_stages):
-            curr_resolution = (math.ceil(self.size / stride), math.ceil(self.size / stride))
+            curr_resolution = (math.ceil(self.size[0] / stride), math.ceil(self.size[1] / stride))
             stages[f"stage{i+1}"] = EfficientFormerStage(
                 prev_dim,
                 embed_dims[i],
@@ -547,27 +545,29 @@ class EfficientFormer_v2(DetectorBackbone):
 
         return x
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
+        old_size = self.size
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        new_base = new_size // 4
+        old_base = (old_size[0] // 4, old_size[1] // 4)
+        new_base = (new_size[0] // 4, new_size[1] // 4)
         for stage in self.body.modules():
             if isinstance(stage, EfficientFormerStage):
                 if stage.downsample is True:
                     if stage.downsample_block.attn is not None:
                         attn = stage.downsample_block.attn
-                        attn.resolution = (new_base, new_base)
-                        attn.resolution2 = (math.ceil(new_base / 2), math.ceil(new_base / 2))
+                        attn.resolution = new_base
+                        attn.resolution2 = (math.ceil(new_base[0] / 2), math.ceil(new_base[1] / 2))
                         attn.N = attn.resolution[0] * attn.resolution[1]
                         attn.N2 = attn.resolution2[0] * attn.resolution2[1]
 
                         # Interpolate attention_biases
                         attn.attention_biases = nn.Parameter(
-                            interpolate_attention_bias(attn.attention_biases, new_base)
+                            interpolate_attention_bias(attn.attention_biases, old_base, new_base)
                         )
 
                         k_pos = torch.stack(
@@ -586,27 +586,30 @@ class EfficientFormer_v2(DetectorBackbone):
                         rel_pos = (rel_pos[0] * attn.resolution[1]) + rel_pos[1]
                         attn.attention_bias_idxs = nn.Buffer(torch.LongTensor(rel_pos), persistent=False)
 
-                    new_base = new_base // 2
+                    old_base = (old_base[0] // 2, old_base[1] // 2)
+                    new_base = (new_base[0] // 2, new_base[1] // 2)
 
                 for m in stage.modules():
                     if isinstance(m, EfficientFormerBlock):
+                        c_old_base = old_base
                         c_new_base = new_base
                         if m.token_mixer is not None and m.use_attn is True and m.stride is not None:
-                            c_new_base = math.ceil(new_base / m.stride)
+                            c_old_base = (math.ceil(old_base[0] / m.stride), math.ceil(old_base[1] / m.stride))
+                            c_new_base = (math.ceil(new_base[0] / m.stride), math.ceil(new_base[1] / m.stride))
 
                         if m.token_mixer is not None:
-                            m.token_mixer.resolution = (c_new_base, c_new_base)
+                            m.token_mixer.resolution = c_new_base
                             m.token_mixer.N = m.token_mixer.resolution[0] * m.token_mixer.resolution[1]
 
                             m.token_mixer.attention_biases = nn.Parameter(
-                                interpolate_attention_bias(m.token_mixer.attention_biases, c_new_base)
+                                interpolate_attention_bias(m.token_mixer.attention_biases, c_old_base, c_new_base)
                             )
 
                             pos = torch.stack(
-                                torch.meshgrid(torch.arange(c_new_base), torch.arange(c_new_base), indexing="ij")
+                                torch.meshgrid(torch.arange(c_new_base[0]), torch.arange(c_new_base[1]), indexing="ij")
                             ).flatten(1)
                             rel_pos = (pos[..., :, None] - pos[..., None, :]).abs()
-                            rel_pos = (rel_pos[0] * c_new_base) + rel_pos[1]
+                            rel_pos = (rel_pos[0] * c_new_base[1]) + rel_pos[1]
                             m.token_mixer.attention_bias_idxs = nn.Buffer(torch.LongTensor(rel_pos), persistent=False)
 
 

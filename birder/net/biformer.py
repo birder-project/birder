@@ -122,7 +122,7 @@ def regional_routing_attention_torch(
 
 
 class BiLevelRoutingAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int, n_win: int, topk: int, side_dwconv: int) -> None:
+    def __init__(self, dim: int, num_heads: int, n_win_h: int, n_win_w: int, topk: int, side_dwconv: int) -> None:
         super().__init__()
         self.num_heads = num_heads
         self.head_dim = dim // self.num_heads
@@ -138,14 +138,15 @@ class BiLevelRoutingAttention(nn.Module):
             groups=dim,
         )
         self.topk = topk
-        self.n_win = n_win  # Number of windows per row/col
+        self.n_win_h = n_win_h
+        self.n_win_w = n_win_w
 
         self.qkv_linear = nn.Conv2d(dim, 3 * dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.output_linear = nn.Conv2d(dim, dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         (_, _, H, W) = x.size()
-        region_size = (H // self.n_win, W // self.n_win)
+        region_size = (H // self.n_win_h, W // self.n_win_w)
 
         # Linear projection
         qkv = self.qkv_linear(x)
@@ -272,7 +273,8 @@ class BiFormerBlock(nn.Module):
         self,
         dim: int,
         num_heads: int,
-        n_win: int,
+        n_win_h: int,
+        n_win_w: int,
         topk: int,
         mlp_ratio: float,
         side_dwconv: int,
@@ -284,7 +286,7 @@ class BiFormerBlock(nn.Module):
         self.norm1 = LayerNorm2d(dim, eps=1e-6)
         if topk > 0:
             self.attn = BiLevelRoutingAttention(
-                dim=dim, num_heads=num_heads, n_win=n_win, topk=topk, side_dwconv=side_dwconv
+                dim=dim, num_heads=num_heads, n_win_h=n_win_h, n_win_w=n_win_w, topk=topk, side_dwconv=side_dwconv
             )
         elif topk == -1:
             self.attn = Attention(dim, num_heads=8, qkv_bias=False, attn_drop=0.0, proj_drop=0.0)
@@ -331,7 +333,8 @@ class BiFormerStage(nn.Module):
         dim: int,
         out_dim: int,
         num_heads: int,
-        n_win: int,
+        n_win_h: int,
+        n_win_w: int,
         topk: int,
         mlp_ratio: float,
         side_dwconv: int,
@@ -356,7 +359,8 @@ class BiFormerStage(nn.Module):
                 BiFormerBlock(
                     out_dim,
                     num_heads=num_heads,
-                    n_win=n_win,
+                    n_win_h=n_win_h,
+                    n_win_w=n_win_w,
                     topk=topk,
                     mlp_ratio=mlp_ratio,
                     side_dwconv=side_dwconv,
@@ -375,8 +379,6 @@ class BiFormerStage(nn.Module):
 
 
 class BiFormer(DetectorBackbone):
-    default_size = 224
-
     def __init__(
         self,
         input_channels: int,
@@ -384,7 +386,7 @@ class BiFormer(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -399,7 +401,8 @@ class BiFormer(DetectorBackbone):
         qk_dims: list[int] = self.config["qk_dims"]
         layer_scale_init_value: Optional[float] = self.config["layer_scale_init_value"]
         drop_path_rate: float = self.config["drop_path_rate"]
-        n_win = self.size // 32
+        n_win_h = self.size[0] // 32
+        n_win_w = self.size[1] // 32
 
         self.stem = nn.Sequential(
             Conv2dNormActivation(
@@ -433,7 +436,8 @@ class BiFormer(DetectorBackbone):
                 prev_dim,
                 embed_dims[i],
                 num_heads=n_heads[i],
-                n_win=n_win,
+                n_win_h=n_win_h,
+                n_win_w=n_win_w,
                 topk=topks[i],
                 mlp_ratio=mlp_ratios[i],
                 side_dwconv=side_dwconv,
@@ -493,17 +497,19 @@ class BiFormer(DetectorBackbone):
         x = self.body(x)
         return self.features(x)
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        n_win = new_size // 32
+        n_win_h = new_size[0] // 32
+        n_win_w = new_size[1] // 32
         for m in self.modules():
             if isinstance(m, BiLevelRoutingAttention):
-                m.n_win = n_win
+                m.n_win_h = n_win_h
+                m.n_win_w = n_win_w
 
 
 registry.register_alias(

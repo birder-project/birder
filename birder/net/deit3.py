@@ -20,7 +20,6 @@ from birder.net.vit import adjust_position_embedding
 
 
 class DeiT3(DetectorBackbone):
-    default_size = 224
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -30,7 +29,7 @@ class DeiT3(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -49,7 +48,8 @@ class DeiT3(DetectorBackbone):
         num_reg_tokens: int = self.config["num_reg_tokens"]
         drop_path_rate: float = self.config["drop_path_rate"]
 
-        torch._assert(image_size % patch_size == 0, "Input shape indivisible by patch size!")
+        torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
+        torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         self.patch_size = patch_size
         self.hidden_dim = hidden_dim
         self.mlp_dim = mlp_dim
@@ -70,7 +70,7 @@ class DeiT3(DetectorBackbone):
         )
         self.patch_embed = PatchEmbed()
 
-        seq_length = (image_size // patch_size) ** 2
+        seq_length = (image_size[0] // patch_size) * (image_size[1] // patch_size)
 
         # Add a class token
         self.class_token = nn.Parameter(torch.zeros(1, 1, hidden_dim))
@@ -139,7 +139,7 @@ class DeiT3(DetectorBackbone):
         x = x[:, self.num_special_tokens :]
         x = x.permute(0, 2, 1)
         (B, C, _) = x.size()
-        x = x.reshape(B, C, self.size // self.patch_size, self.size // self.patch_size)
+        x = x.reshape(B, C, self.size[0] // self.patch_size, self.size[1] // self.patch_size)
 
         return {self.return_stages[0]: x}
 
@@ -182,15 +182,15 @@ class DeiT3(DetectorBackbone):
 
         return x
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
+        old_size = self.size
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         # Sort out sizes
-        num_pos_tokens = self.pos_embedding.shape[1]
         if self.pos_embed_class is True:
             num_prefix_tokens = 1 + self.num_reg_tokens
         else:
@@ -199,7 +199,10 @@ class DeiT3(DetectorBackbone):
         # Add back class tokens
         self.pos_embedding = nn.Parameter(
             adjust_position_embedding(
-                num_pos_tokens, self.pos_embedding, new_size // self.patch_size, num_prefix_tokens
+                self.pos_embedding,
+                (old_size[0] // self.patch_size, old_size[1] // self.patch_size),
+                (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
+                num_prefix_tokens,
             )
         )
 

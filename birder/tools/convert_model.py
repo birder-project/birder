@@ -182,7 +182,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--force", action="store_true", help="override existing model")
 
     format_group = subparser.add_mutually_exclusive_group(required=True)
-    format_group.add_argument("--resize", type=int, help="resize model (pt)")
+    format_group.add_argument("--resize", type=int, nargs="+", metavar=("H", "W"), help="resize model (pt)")
     format_group.add_argument("--reparameterize", default=False, action="store_true", help="reparameterize model")
     format_group.add_argument("--pts", default=False, action="store_true", help="convert to TorchScript model")
     format_group.add_argument(
@@ -204,6 +204,7 @@ def set_parser(subparsers: Any) -> None:
 # pylint: disable=too-many-branches
 def main(args: argparse.Namespace) -> None:
     assert args.trace is False or (args.trace is True and (args.pts is True or args.lite is True or args.onnx is True))
+    args.size = cli.parse_size(args.size)
 
     # Load model
     device = torch.device("cpu")
@@ -250,7 +251,7 @@ def main(args: argparse.Namespace) -> None:
     net.eval()
 
     if args.resize is not None:
-        network_name = f"{network_name}_{args.resize}px"
+        network_name = f"{network_name}_{args.resize[0]}px"
 
     model_path = fs_ops.model_path(
         network_name,
@@ -268,8 +269,8 @@ def main(args: argparse.Namespace) -> None:
     logging.info(f"Saving converted model {model_path}...")
     if args.resize is not None:
         net.adjust_size(args.resize)
-        signature["inputs"][0]["data_shape"][2] = args.resize
-        signature["inputs"][0]["data_shape"][3] = args.resize
+        signature["inputs"][0]["data_shape"][2] = args.resize[0]
+        signature["inputs"][0]["data_shape"][3] = args.resize[1]
         fs_ops.checkpoint_model(
             network_name,
             args.epoch,

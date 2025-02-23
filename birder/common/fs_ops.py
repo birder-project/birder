@@ -217,7 +217,7 @@ def load_checkpoint(
     config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
     epoch: Optional[int] = None,
-    new_size: Optional[int] = None,
+    new_size: Optional[tuple[int, int]] = None,
 ) -> tuple[BaseNet, dict[str, int], dict[str, Any], dict[str, Any], dict[str, Any]]:
     network_name = get_network_name(network, net_param, tag)
     path = model_path(network_name, epoch=epoch)
@@ -228,8 +228,8 @@ def load_checkpoint(
 
     signature: SignatureType = model_dict["signature"]
     input_channels = lib.get_channels_from_signature(signature)
-    num_classes = signature["outputs"][0]["data_shape"][1]
-    size = lib.get_size_from_signature(signature)[0]
+    num_classes = lib.get_num_labels_from_signature(signature)
+    size = lib.get_size_from_signature(signature)
     net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, config=config, size=size)
     net.load_state_dict(model_dict["state"])
     if new_size is not None:
@@ -266,7 +266,7 @@ def load_mim_checkpoint(
     signature: MIMSignatureType = model_dict["signature"]
     input_channels = lib.get_channels_from_signature(signature)
     num_classes = 0
-    size = lib.get_size_from_signature(signature)[0]
+    size = lib.get_size_from_signature(signature)
     net_encoder = registry.net_factory(
         encoder, input_channels, num_classes, net_param=encoder_param, config=encoder_config, size=size
     )
@@ -291,7 +291,7 @@ def load_detection_checkpoint(
     backbone_config: Optional[dict[str, Any]] = None,
     backbone_tag: Optional[str],
     epoch: Optional[int] = None,
-    new_size: Optional[int] = None,
+    new_size: Optional[tuple[int, int]] = None,
 ) -> tuple[DetectionBaseNet, dict[str, int], dict[str, Any], dict[str, Any], dict[str, Any]]:
     network_name = get_detection_network_name(
         network,
@@ -309,8 +309,8 @@ def load_detection_checkpoint(
 
     signature: DetectionSignatureType = model_dict["signature"]
     input_channels = lib.get_channels_from_signature(signature)
-    num_classes = signature["num_labels"]
-    size = lib.get_size_from_signature(signature)[0]
+    num_classes = lib.get_num_labels_from_signature(signature)
+    size = lib.get_size_from_signature(signature)
     net_backbone = registry.net_factory(
         backbone, input_channels, num_classes, net_param=backbone_param, config=backbone_config, size=size
     )
@@ -339,7 +339,7 @@ def load_model(
     config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
     epoch: Optional[int] = None,
-    new_size: Optional[int] = None,
+    new_size: Optional[tuple[int, int]] = None,
     quantized: bool = False,
     inference: bool,
     reparameterized: bool = False,
@@ -380,7 +380,7 @@ def load_model(
         rgb_stats = json.loads(extra_files["rgb_stats"])
         input_channels = lib.get_channels_from_signature(signature)
         num_classes = lib.get_num_labels_from_signature(signature)
-        size = lib.get_size_from_signature(signature)[0]
+        size = lib.get_size_from_signature(signature)
 
         model_state: dict[str, Any] = safetensors.torch.load_file(path, device=device.type)
         net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, config=config, size=size)
@@ -398,7 +398,7 @@ def load_model(
         signature = model_dict["signature"]
         input_channels = lib.get_channels_from_signature(signature)
         num_classes = lib.get_num_labels_from_signature(signature)
-        size = lib.get_size_from_signature(signature)[0]
+        size = lib.get_size_from_signature(signature)
 
         net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, config=config, size=size)
         if reparameterized is True:
@@ -438,7 +438,7 @@ def load_detection_model(
     backbone_tag: Optional[str] = None,
     backbone_reparameterized: bool = False,
     epoch: Optional[int] = None,
-    new_size: Optional[int] = None,
+    new_size: Optional[tuple[int, int]] = None,
     quantized: bool = False,
     inference: bool,
     pts: bool = False,
@@ -485,7 +485,7 @@ def load_detection_model(
         rgb_stats = json.loads(extra_files["rgb_stats"])
         input_channels = lib.get_channels_from_signature(signature)
         num_classes = lib.get_num_labels_from_signature(signature)
-        size = lib.get_size_from_signature(signature)[0]
+        size = lib.get_size_from_signature(signature)
 
         model_state: dict[str, Any] = safetensors.torch.load_file(path, device=device.type)
         net_backbone = registry.net_factory(
@@ -511,7 +511,7 @@ def load_detection_model(
         signature = model_dict["signature"]
         input_channels = lib.get_channels_from_signature(signature)
         num_classes = lib.get_num_labels_from_signature(signature)
-        size = lib.get_size_from_signature(signature)[0]
+        size = lib.get_size_from_signature(signature)
 
         net_backbone = registry.net_factory(
             backbone, input_channels, num_classes, net_param=backbone_param, config=backbone_config, size=size
@@ -661,7 +661,7 @@ def load_model_with_cfg(
 
     input_channels = lib.get_channels_from_signature(signature)
     num_classes = lib.get_num_labels_from_signature(signature)
-    size = lib.get_size_from_signature(signature)[0]
+    size = lib.get_size_from_signature(signature)
 
     if "backbone" in cfg:
         if cfg["backbone_alias"] is not None:

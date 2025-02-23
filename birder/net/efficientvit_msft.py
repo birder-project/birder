@@ -120,7 +120,7 @@ class CascadedGroupAttention(nn.Module):
         key_dim: int,
         num_heads: int,
         attn_ratio: float,
-        resolution: int,
+        resolution: tuple[int, int],
         kernels: list[int],
     ) -> None:
         super().__init__()
@@ -154,7 +154,7 @@ class CascadedGroupAttention(nn.Module):
             Conv2dNorm(self.d * num_heads, dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bn_weight_init=0.0),
         )
 
-        points = list(itertools.product(range(resolution), range(resolution)))
+        points = list(itertools.product(range(resolution[0]), range(resolution[1])))
         N = len(points)
         attention_offsets: dict[tuple[int, int], int] = {}
         idxs = []
@@ -208,16 +208,16 @@ class LocalWindowAttention(nn.Module):
         key_dim: int,
         num_heads: int,
         attn_ratio: float,
-        resolution: int,
-        window_resolution: int,
+        resolution: tuple[int, int],
+        window_resolution: tuple[int, int],
         kernels: list[int],
     ) -> None:
         super().__init__()
         self.resolution = resolution
-        assert window_resolution > 0, "window_size must be greater than 0"
+        assert window_resolution[0] > 0 and window_resolution[1] > 0, "window_size must be greater than 0"
 
         self.window_resolution = window_resolution
-        window_resolution = min(window_resolution, resolution)
+        window_resolution = (min(window_resolution[0], resolution[0]), min(window_resolution[1], resolution[1]))
         self.attn = CascadedGroupAttention(
             dim,
             key_dim,
@@ -228,30 +228,30 @@ class LocalWindowAttention(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        H = self.resolution
-        W = self.resolution
+        H = self.resolution[0]
+        W = self.resolution[1]
         (B, C, _, _) = x.size()
 
-        if H <= self.window_resolution and W <= self.window_resolution:
+        if H <= self.window_resolution[0] and W <= self.window_resolution[1]:
             x = self.attn(x)
         else:
             x = x.permute(0, 2, 3, 1)
-            pad_b = (self.window_resolution - H % self.window_resolution) % self.window_resolution
-            pad_r = (self.window_resolution - W % self.window_resolution) % self.window_resolution
+            pad_b = (self.window_resolution[0] - H % self.window_resolution[0]) % self.window_resolution[0]
+            pad_r = (self.window_resolution[1] - W % self.window_resolution[1]) % self.window_resolution[1]
             x = F.pad(x, (0, 0, 0, pad_r, 0, pad_b))
 
             p_h = H + pad_b
             p_w = W + pad_r
-            n_h = p_h // self.window_resolution
-            n_w = p_w // self.window_resolution
+            n_h = p_h // self.window_resolution[0]
+            n_w = p_w // self.window_resolution[1]
 
             # Window partition, BHWC -> B(nHh)(nWw)C -> BnHnWhwC -> (BnHnW)hwC -> (BnHnW)Chw
-            x = x.view(B, n_h, self.window_resolution, n_w, self.window_resolution, C).transpose(2, 3)
-            x = x.reshape(B * n_h * n_w, self.window_resolution, self.window_resolution, C).permute(0, 3, 1, 2)
+            x = x.view(B, n_h, self.window_resolution[0], n_w, self.window_resolution[1], C).transpose(2, 3)
+            x = x.reshape(B * n_h * n_w, self.window_resolution[0], self.window_resolution[1], C).permute(0, 3, 1, 2)
             x = self.attn(x)
 
             # Window reverse, (BnHnW)Chw -> (BnHnW)hwC -> BnHnWhwC -> B(nHh)(nWw)C -> BHWC
-            x = x.permute(0, 2, 3, 1).view(B, n_h, n_w, self.window_resolution, self.window_resolution, C)
+            x = x.permute(0, 2, 3, 1).view(B, n_h, n_w, self.window_resolution[0], self.window_resolution[1], C)
             x = x.transpose(2, 3).reshape(B, p_h, p_w, C)
             x = x[:, :H, :W].contiguous()
             x = x.permute(0, 3, 1, 2)
@@ -266,8 +266,8 @@ class EfficientVitBlock(nn.Module):
         key_dim: int,
         num_heads: int,
         attn_ratio: float,
-        resolution: int,
-        window_resolution: int,
+        resolution: tuple[int, int],
+        window_resolution: tuple[int, int],
         kernels: list[int],
     ) -> None:
         super().__init__()
@@ -316,14 +316,14 @@ class EfficientVitStage(torch.nn.Module):
         downsample: bool,
         num_heads: int,
         attn_ratio: float,
-        resolution: int,
-        window_resolution: int,
+        resolution: tuple[int, int],
+        window_resolution: tuple[int, int],
         kernels: list[int],
         depth: int,
     ) -> None:
         super().__init__()
         if downsample is True:
-            self.resolution = (resolution - 1) // 2 + 1
+            self.resolution = ((resolution[0] - 1) // 2 + 1, (resolution[1] - 1) // 2 + 1)
             self.downsample = nn.Sequential(
                 ResidualDrop(
                     Conv2dNorm(in_dim, in_dim, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=in_dim),
@@ -360,8 +360,6 @@ class EfficientVitStage(torch.nn.Module):
 
 # pylint: disable=invalid-name
 class EfficientViT_MSFT(DetectorBackbone):
-    default_size = 224
-
     def __init__(
         self,
         input_channels: int,
@@ -369,7 +367,7 @@ class EfficientViT_MSFT(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -381,8 +379,8 @@ class EfficientViT_MSFT(DetectorBackbone):
         depths: list[int] = self.config["depths"]
         num_heads: list[int] = self.config["num_heads"]
         kernels: list[int] = self.config["kernels"]
-        window_size = [int(img_size / (2**5))] * len(depths)
-        resolution = img_size // 16
+        window_size = [(int(img_size[0] / (2**5)), int(img_size[1] / (2**5)))] * len(depths)
+        resolution = (img_size[0] // 16, img_size[1] // 16)
         attn_ratio = [embed_dims[i] / (key_dims[i] * num_heads[i]) for i in range(len(embed_dims))]
 
         self.stem = nn.Sequential(
@@ -455,29 +453,37 @@ class EfficientViT_MSFT(DetectorBackbone):
         x = self.body(x)
         return self.features(x)
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
+        old_size = self.size
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        resolution = new_size // 16
-        window_size = int(new_size / (2**5))
+        old_resolution = (old_size[0] // 16, old_size[1] // 16)
+        old_window_size = (int(old_size[0] / (2**5)), int(old_size[1] / (2**5)))
+        resolution = (new_size[0] // 16, new_size[1] // 16)
+        window_size = (int(new_size[0] / (2**5)), int(new_size[1] / (2**5)))
         for module in self.body.children():  # pylint: disable=too-many-nested-blocks
             if isinstance(module, EfficientVitStage):
                 if not isinstance(module.downsample, nn.Identity):
-                    resolution = (resolution - 1) // 2 + 1
+                    old_resolution = ((old_resolution[0] - 1) // 2 + 1, (old_resolution[1] - 1) // 2 + 1)
+                    resolution = ((resolution[0] - 1) // 2 + 1, (resolution[1] - 1) // 2 + 1)
 
                 module.resolution = resolution
                 for m in module.modules():
                     if isinstance(m, EfficientVitBlock):
                         m.mixer.m.resolution = resolution
                         m.mixer.m.window_resolution = window_size
-                        window_resolution = min(window_size, resolution)
+                        old_window_resolution = (
+                            min(old_window_size[0], old_resolution[0]),
+                            min(old_window_size[1], old_resolution[1]),
+                        )
+                        window_resolution = (min(window_size[0], resolution[0]), min(window_size[1], resolution[1]))
 
                         # Interpolate attention_biases
-                        points = list(itertools.product(range(window_resolution), range(window_resolution)))
+                        points = list(itertools.product(range(window_resolution[0]), range(window_resolution[1])))
                         N = len(points)
                         attention_offsets: dict[tuple[int, int], int] = {}
                         idxs = []
@@ -490,7 +496,9 @@ class EfficientViT_MSFT(DetectorBackbone):
                                 idxs.append(attention_offsets[offset])
 
                         m.mixer.m.attn.attention_biases = nn.Parameter(
-                            interpolate_attention_bias(m.mixer.m.attn.attention_biases, window_resolution)
+                            interpolate_attention_bias(
+                                m.mixer.m.attn.attention_biases, old_window_resolution, window_resolution
+                            )
                         )
                         m.mixer.m.attn.attention_bias_idxs = nn.Buffer(
                             torch.LongTensor(idxs).view(N, N), persistent=False

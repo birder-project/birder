@@ -157,7 +157,6 @@ class LayerScaleBlock(nn.Module):
 
 
 class CaiT(BaseNet):
-    default_size = 224
     block_group_regex = r"block1\.(\d+)"  # ClassAttentionBlock combined with the head
 
     def __init__(
@@ -167,7 +166,7 @@ class CaiT(BaseNet):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -187,7 +186,7 @@ class CaiT(BaseNet):
 
         self.patch_size = patch_size
         self.patch_embed = PatchEmbed(self.input_channels, embed_dim, patch_size)
-        num_patches = (self.size // patch_size[0]) * (self.size // patch_size[1])
+        num_patches = (self.size[0] // patch_size[0]) * (self.size[1] // patch_size[1])
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim))
@@ -257,19 +256,22 @@ class CaiT(BaseNet):
 
         return x[:, 0]
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
+        old_size = self.size
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        # Sort out sizes
-        num_pos_tokens = self.pos_embed.shape[1]
-
         # Add back class tokens
         self.pos_embed = nn.Parameter(
-            adjust_position_embedding(num_pos_tokens, self.pos_embed, new_size // self.patch_size[0], 0)
+            adjust_position_embedding(
+                self.pos_embed,
+                (old_size[0] // self.patch_size[0], old_size[1] // self.patch_size[1]),
+                (new_size[0] // self.patch_size[0], new_size[1] // self.patch_size[1]),
+                0,
+            )
         )
 
 

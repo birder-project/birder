@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
 from urllib.request import Request
@@ -59,6 +60,23 @@ class FlexibleDictAction(argparse.Action):
 
         except ValueError as e:
             parser.error(f"Invalid input format for {option_string}: {e}")
+
+
+def parse_size(args_size: Optional[Sequence[int] | int]) -> Optional[tuple[int, int]]:
+    if args_size is None:
+        return None
+
+    if isinstance(args_size, Sequence):
+        if len(args_size) == 1:
+            return (args_size[0], args_size[0])
+        if len(args_size) == 2:
+            return (args_size[0], args_size[1])
+
+        raise ValueError("Invalid size format. Use either a single value for square or two values for height and width")
+
+    args_size = int(args_size)
+
+    return (args_size, args_size)
 
 
 def calc_sha256(file_path: str | Path) -> str:

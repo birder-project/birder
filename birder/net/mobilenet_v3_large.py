@@ -114,7 +114,6 @@ class InvertedResidual(nn.Module):
 
 # pylint: disable=invalid-name
 class MobileNet_v3_Large(DetectorBackbone):
-    default_size = 224
     auto_register = True
 
     def __init__(
@@ -124,7 +123,7 @@ class MobileNet_v3_Large(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
         large: bool = True,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)

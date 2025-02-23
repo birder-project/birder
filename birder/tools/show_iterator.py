@@ -28,9 +28,9 @@ from birder.transforms.classification import training_preset
 def show_iterator(args: argparse.Namespace) -> None:
     reverse_transform = reverse_preset(get_rgb_stats("birder"))
     if args.mode == "training":
-        transform = training_preset((args.size, args.size), args.aug_level, get_rgb_stats("birder"))
+        transform = training_preset(args.size, args.aug_level, get_rgb_stats("birder"))
     elif args.mode == "inference":
-        transform = inference_preset((args.size, args.size), get_rgb_stats("birder"), args.center_crop)
+        transform = inference_preset(args.size, get_rgb_stats("birder"), args.center_crop)
     else:
         raise ValueError(f"Unknown mode={args.mode}")
 
@@ -162,7 +162,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--mode", type=str, choices=["training", "inference"], default="training", help="iterator mode"
     )
-    subparser.add_argument("--size", type=int, default=224, help="image size")
+    subparser.add_argument("--size", type=int, nargs="+", default=[224], metavar=("H", "W"), help="image size")
     subparser.add_argument(
         "--aug-level",
         type=int,
@@ -192,4 +192,5 @@ def main(args: argparse.Namespace) -> None:
     if args.aa is True:
         args.aug_level = -1
 
+    args.size = cli.parse_size(args.size)
     show_iterator(args)

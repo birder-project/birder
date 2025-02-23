@@ -42,7 +42,7 @@ def main() -> None:
             "python -m birder.tools quantize-model -n convnext_v2 -p 4 -e 0 --qbackend x86\n"
             "python -m birder.tools results results/inception_resnet_v2_105_e100_3150.csv --print --pr-curve\n"
             "python -m birder.tools show-det-iterator --mode inference --size 640 --batch\n"
-            "python -m birder.tools show-iterator --mode training --size 256 --aug-level 3\n"
+            "python -m birder.tools show-iterator --mode training --size 256 320 --aug-level 3\n"
             "python -m birder.tools similarity -n efficientnet_v2_l -e 0 --limit 15 data/*/*crane\n"
             "python -m birder.tools stats --class-graph\n"
             "python -m birder.tools verify-directory data/testing\n"

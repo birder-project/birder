@@ -259,8 +259,6 @@ class EfficientFormerStage(nn.Module):
 
 # pylint: disable=invalid-name
 class EfficientFormer_v1(BaseNet):
-    default_size = 224
-
     def __init__(
         self,
         input_channels: int,
@@ -268,13 +266,13 @@ class EfficientFormer_v1(BaseNet):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
-        resolution = int(self.size / (2**5))
+        resolution = (int(self.size[0] / (2**5)), int(self.size[1] / (2**5)))
         layer_scale_init_value = 1e-5
         embed_dims: tuple[int, int, int, int] = self.config["embed_dims"]
         depths: tuple[int, int, int, int] = (3, 2, 6, 4)
@@ -304,7 +302,7 @@ class EfficientFormer_v1(BaseNet):
                     downsample=downsample[i],
                     num_vit=num_vit if i == last_stage else 0,
                     mlp_ratio=4.0,
-                    resolution=(resolution, resolution),
+                    resolution=resolution,
                     proj_drop=0.0,
                     drop_path=dpr[i],
                     layer_scale_init_value=layer_scale_init_value,
@@ -370,23 +368,27 @@ class EfficientFormer_v1(BaseNet):
 
         return x
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
+        old_size = self.size
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        resolution = int(new_size / (2**5))
+        old_resolution = (int(old_size[0] / (2**5)), int(old_size[1] / (2**5)))
+        resolution = (int(new_size[0] / (2**5)), int(new_size[1] / (2**5)))
         for m in self.body.modules():
             if isinstance(m, Attention):
-                m.attention_biases = nn.Parameter(interpolate_attention_bias(m.attention_biases, resolution))
+                m.attention_biases = nn.Parameter(
+                    interpolate_attention_bias(m.attention_biases, old_resolution, resolution)
+                )
 
                 pos = torch.stack(
-                    torch.meshgrid(torch.arange(resolution), torch.arange(resolution), indexing="ij")
+                    torch.meshgrid(torch.arange(resolution[0]), torch.arange(resolution[1]), indexing="ij")
                 ).flatten(1)
                 rel_pos = (pos[..., :, None] - pos[..., None, :]).abs()
-                rel_pos = (rel_pos[0] * resolution) + rel_pos[1]
+                rel_pos = (rel_pos[0] * resolution[1]) + rel_pos[1]
                 m.attention_bias_idxs = nn.Buffer(rel_pos)
 
 

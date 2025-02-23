@@ -37,8 +37,8 @@ class TestNetDetection(unittest.TestCase):
     )
     def test_net_detection(self, network_name: str, net_param: Optional[float], encoder: tuple[str, float]) -> None:
         backbone = registry.net_factory(encoder[0], 3, 10, net_param=encoder[1])
-        n = registry.detection_net_factory(network_name, 10, backbone, net_param=net_param, size=256)
-        size = 256  # Just for faster tests
+        size = (256, 256)  # Just for faster tests
+        n = registry.detection_net_factory(network_name, 10, backbone, net_param=net_param, size=size)
         backbone.adjust_size(size)
 
         # Ensure config is serializable
@@ -46,7 +46,7 @@ class TestNetDetection(unittest.TestCase):
 
         # Test network
         n.eval()
-        out = n(torch.rand((1, 3, size, size)))
+        out = n(torch.rand((1, 3, *size)))
         (detections, losses) = out
         self.assertEqual(len(losses), 0)
         for detection in detections:
@@ -55,11 +55,11 @@ class TestNetDetection(unittest.TestCase):
 
         # Reset classifier
         n.reset_classifier(20)
-        n(torch.rand((1, 3, size, size)))
+        n(torch.rand((1, 3, *size)))
 
         n.train()
         out = n(
-            torch.rand((1, 3, size, size)),
+            torch.rand((1, 3, *size)),
             targets=[
                 {
                     "boxes": torch.tensor([[10.1, 10.1, 30.2, 40.2]]),
@@ -80,5 +80,5 @@ class TestNetDetection(unittest.TestCase):
             torch.jit.script(n)
         else:
             n.eval()
-            torch.jit.trace(n, example_inputs=torch.rand((1, 3, size, size)))
+            torch.jit.trace(n, example_inputs=torch.rand((1, 3, *size)))
             n.train()

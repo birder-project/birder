@@ -100,8 +100,6 @@ class Pooling(nn.Module):
 
 
 class PiT(DetectorBackbone):
-    default_size = 224
-
     def __init__(
         self,
         input_channels: int,
@@ -109,13 +107,13 @@ class PiT(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
-        image_size = (self.size, self.size)
+        image_size = self.size
         patch_size: tuple[int, int] = self.config["patch_size"]
         patch_stride: tuple[int, int] = self.config["patch_stride"]
         depths: list[int] = self.config["depths"]
@@ -246,15 +244,15 @@ class PiT(DetectorBackbone):
 
         return x
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        height = (new_size - self.patch_size[0]) // self.patch_stride[0] + 1
-        width = (new_size - self.patch_size[1]) // self.patch_stride[1] + 1
+        height = (new_size[0] - self.patch_size[0]) // self.patch_stride[0] + 1
+        width = (new_size[1] - self.patch_size[1]) // self.patch_stride[1] + 1
 
         self.pos_embed = nn.Parameter(
             F.interpolate(self.pos_embed.data, (height, width), mode="bicubic"), requires_grad=True

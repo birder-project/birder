@@ -8,7 +8,6 @@ Paper "MaxViT: Multi-Axis Vision Transformer", https://arxiv.org/abs/2204.01697
 # Reference license: BSD 3-Clause
 
 import logging
-import math
 from collections import OrderedDict
 from collections.abc import Callable
 from functools import partial
@@ -132,7 +131,7 @@ class MBConv(nn.Module):
 
 
 class RelativePositionalMultiHeadAttention(nn.Module):
-    def __init__(self, feat_dim: int, head_dim: int, max_seq_len: int) -> None:
+    def __init__(self, feat_dim: int, head_dim: int, h: int, w: int) -> None:
         super().__init__()
 
         if feat_dim % head_dim != 0:
@@ -140,17 +139,17 @@ class RelativePositionalMultiHeadAttention(nn.Module):
 
         self.n_heads = feat_dim // head_dim
         self.head_dim = head_dim
-        self.size = int(math.sqrt(max_seq_len))
-        self.max_seq_len = max_seq_len
+        self.size = (h, w)
+        self.max_seq_len = self.size[0] * self.size[1]
 
         self.to_qkv = nn.Linear(feat_dim, self.n_heads * self.head_dim * 3)
         self.scale_factor = feat_dim**-0.5
 
         self.merge = nn.Linear(self.head_dim * self.n_heads, feat_dim)
         self.relative_position_bias_table = nn.Parameter(
-            torch.empty(((2 * self.size - 1) * (2 * self.size - 1), self.n_heads), dtype=torch.float32),
+            torch.empty(((2 * self.size[0] - 1) * (2 * self.size[1] - 1), self.n_heads), dtype=torch.float32),
         )
-        self.relative_position_index = nn.Buffer(_get_relative_position_index(self.size, self.size))
+        self.relative_position_index = nn.Buffer(_get_relative_position_index(self.size[0], self.size[1]))
 
         # Initialize with truncated normal the bias
         nn.init.trunc_normal_(self.relative_position_bias_table, std=0.02)
@@ -202,16 +201,16 @@ class WindowPartition(nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
-    def forward(self, x: torch.Tensor, p: int) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, p: tuple[int, int]) -> torch.Tensor:
         (B, C, H, W) = x.size()
-        P = p
+        (PH, PW) = p  # pylint: disable=invalid-name
 
         # Chunk up H and W dimensions
-        x = x.reshape(B, C, H // P, P, W // P, P)
+        x = x.reshape(B, C, H // PH, PH, W // PW, PW)
         x = x.permute(0, 2, 4, 3, 5, 1)
 
         # Collapse P * P dimension
-        x = x.reshape(B, (H // P) * (W // P), P * P, C)
+        x = x.reshape(B, (H // PH) * (W // PW), PH * PW, C)
 
         return x
 
@@ -221,19 +220,20 @@ class WindowDepartition(nn.Module):
         super().__init__()
 
     # pylint: disable=invalid-name
-    def forward(self, x: torch.Tensor, p: int, h_partitions: int, w_partitions: int) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, p: tuple[int, int], h_partitions: int, w_partitions: int) -> torch.Tensor:
         (B, _G, _PP, C) = x.size()
-        P = p
-        (HP, WP) = h_partitions, w_partitions
+        (PH, PW) = p  # pylint: disable=invalid-name
+        HP = h_partitions
+        WP = w_partitions
 
         # Split P * P dimension into 2 P tile dimension
-        x = x.reshape(B, HP, WP, P, P, C)
+        x = x.reshape(B, HP, WP, PH, PW, C)
 
         # Permute into B, C, HP, P, WP, P
         x = x.permute(0, 5, 1, 3, 2, 4)
 
         # Reshape into B, C, H, W
-        x = x.reshape(B, C, HP * P, WP * P)
+        x = x.reshape(B, C, HP * PH, WP * PW)
 
         return x
 
@@ -247,7 +247,7 @@ class PartitionAttentionLayer(nn.Module):
         self,
         in_channels: int,
         head_dim: int,
-        partition_size: int,
+        partition_size: tuple[int, int],
         partition_type: str,
         grid_size: tuple[int, int],
         mlp_ratio: int,
@@ -261,7 +261,7 @@ class PartitionAttentionLayer(nn.Module):
 
         self.n_heads = in_channels // head_dim
         self.head_dim = head_dim
-        self.n_partitions = grid_size[0] // partition_size
+        self.n_partitions = (grid_size[0] // partition_size[0], grid_size[1] // partition_size[1])
         self.partition_type = partition_type
         self.grid_size = grid_size
 
@@ -275,13 +275,13 @@ class PartitionAttentionLayer(nn.Module):
             self.p = self.n_partitions
             self.g = partition_size
 
-        self.gh = self.grid_size[0] // self.p
-        self.gw = self.grid_size[1] // self.p
+        self.gh = self.grid_size[0] // self.p[0]
+        self.gw = self.grid_size[1] // self.p[1]
 
         # Undefined behavior if H or W are not divisible by p
         # https://github.com/google-research/maxvit/blob/da76cf0d8a6ec668cc31b399c4126186da7da944/maxvit/models/maxvit.py#L766
         torch._assert(
-            self.grid_size[0] % self.p == 0 and self.grid_size[1] % self.p == 0,
+            self.grid_size[0] % self.p[0] == 0 and self.grid_size[1] % self.p[1] == 0,
             f"Grid size must be divisible by partition size. Got grid size of "
             f"{self.grid_size} and partition size of {self.p}",
         )
@@ -293,7 +293,7 @@ class PartitionAttentionLayer(nn.Module):
 
         self.attn_layer = nn.Sequential(
             norm_layer(in_channels),
-            RelativePositionalMultiHeadAttention(in_channels, head_dim, partition_size**2),
+            RelativePositionalMultiHeadAttention(in_channels, head_dim, partition_size[0], partition_size[1]),
             nn.Dropout(attention_dropout),
         )
 
@@ -336,7 +336,7 @@ class MaxVitLayer(nn.Module):
         mlp_dropout: float,
         attention_dropout: float,
         p_stochastic_dropout: float,
-        partition_size: int,
+        partition_size: tuple[int, int],
         grid_size: tuple[int, int],
     ) -> None:
         super().__init__()
@@ -402,7 +402,7 @@ class MaxVitBlock(nn.Module):
         mlp_dropout: float,
         attention_dropout: float,
         # Partitioning parameters
-        partition_size: int,
+        partition_size: tuple[int, int],
         input_grid_size: tuple[int, int],
         # Number of layers
         n_layers: int,
@@ -449,7 +449,6 @@ class MaxVitBlock(nn.Module):
 
 
 class MaxViT(DetectorBackbone, PreTrainEncoder):
-    default_size = 224
     block_group_regex = r"body\.stage\d+\.block\.(\d+)"
 
     # pylint: disable=too-many-locals
@@ -460,20 +459,20 @@ class MaxViT(DetectorBackbone, PreTrainEncoder):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
         assert self.size is not None, "must set size"
 
-        image_size = (self.size, self.size)
+        image_size = self.size
         squeeze_ratio = 0.25
         expansion_ratio = 4
         mlp_ratio = 4
         mlp_dropout = 0.0
         attention_dropout = 0.0
-        partition_size = int(self.size / (2**5))
+        partition_size = (int(self.size[0] / (2**5)), int(self.size[1] / (2**5)))
         block_channels: list[int] = self.config["block_channels"]
         block_layers: list[int] = self.config["block_layers"]
         stem_channels: int = self.config["stem_channels"]
@@ -484,7 +483,7 @@ class MaxViT(DetectorBackbone, PreTrainEncoder):
         # Undefined behavior if H or W are not divisible by p
         block_input_sizes = _make_block_input_shapes(image_size, len(block_channels))
         for idx, block_input_size in enumerate(block_input_sizes):
-            if block_input_size[0] % partition_size != 0 or block_input_size[1] % partition_size != 0:
+            if block_input_size[0] % partition_size[0] != 0 or block_input_size[1] % partition_size[1] != 0:
                 raise ValueError(
                     f"Input size {block_input_size} of block {idx} is not divisible by partition size "
                     f"{partition_size}. Consider changing the partition size or the input size.\n"
@@ -658,23 +657,26 @@ class MaxViT(DetectorBackbone, PreTrainEncoder):
             nn.Linear(embed_dim, self.num_classes, bias=False),
         )
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        new_grid_size = _get_conv_output_shape((new_size, new_size), kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+        new_grid_size = _get_conv_output_shape(new_size, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
         new_grid_size = _get_conv_output_shape(new_grid_size, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
-        self.partition_size = int(new_size / (2**5))
+        self.partition_size = (int(new_size[0] / (2**5)), int(new_size[1] / (2**5)))
         for m in self.body.modules():
             if isinstance(m, MaxVitBlock):
                 m.grid_size = _get_conv_output_shape(new_grid_size, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
                 for layer in m.block:
                     for i in range(1, 3):
                         mod = layer.layers[i]  # PartitionAttentionLayer
-                        mod.n_partitions = new_grid_size[0] // self.partition_size
+                        mod.n_partitions = (
+                            new_grid_size[0] // self.partition_size[0],
+                            new_grid_size[1] // self.partition_size[1],
+                        )
                         mod.grid_size = new_grid_size
 
                         if mod.partition_type == "window":
@@ -685,30 +687,33 @@ class MaxViT(DetectorBackbone, PreTrainEncoder):
                             mod.p = mod.n_partitions
                             mod.g = self.partition_size
 
-                        mod.gh = mod.grid_size[0] // mod.p
-                        mod.gw = mod.grid_size[1] // mod.p
+                        mod.gh = mod.grid_size[0] // mod.p[0]
+                        mod.gw = mod.grid_size[1] // mod.p[1]
 
                         # Undefined behavior if H or W are not divisible by p
                         # https://github.com/google-research/maxvit/blob/da76cf0d8a6ec668cc31b399c4126186da7da944/maxvit/models/maxvit.py#L766
                         torch._assert(  # pylint: disable=protected-access
-                            mod.grid_size[0] % mod.p == 0 and mod.grid_size[1] % mod.p == 0,
+                            mod.grid_size[0] % mod.p[0] == 0 and mod.grid_size[1] % mod.p[1] == 0,
                             f"Grid size must be divisible by partition size. Got grid size of "
                             f"{mod.grid_size} and partition size of {mod.p}",
                         )
 
                         attn = mod.attn_layer[1]  # RelativePositionalMultiHeadAttention
+                        old_attn_size = attn.size
                         attn.size = self.partition_size
-                        attn.max_seq_len = self.partition_size**2
-                        attn.relative_position_index = nn.Buffer(_get_relative_position_index(attn.size, attn.size))
+                        attn.max_seq_len = self.partition_size[0] * self.partition_size[1]
+                        attn.relative_position_index = nn.Buffer(
+                            _get_relative_position_index(attn.size[0], attn.size[1])
+                        )
 
                         # Interpolate relative_position_bias_table, adapted from
                         # https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/pos_embed_rel.py
-                        dst_size = (2 * attn.size - 1, 2 * attn.size - 1)
+                        dst_size = (2 * attn.size[0] - 1, 2 * attn.size[1] - 1)
                         rel_pos_bias = attn.relative_position_bias_table
                         rel_pos_bias = rel_pos_bias.detach()
 
-                        (src_num_pos, num_attn_heads) = rel_pos_bias.shape
-                        src_size = (int(src_num_pos**0.5), int(src_num_pos**0.5))
+                        num_attn_heads = rel_pos_bias.size(1)
+                        src_size = (2 * old_attn_size[0] - 1, 2 * old_attn_size[1] - 1)
 
                         def _calc(src: int, dst: int) -> list[float]:
                             (left, right) = 1.01, 1.5

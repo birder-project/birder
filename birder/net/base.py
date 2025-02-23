@@ -44,10 +44,11 @@ def make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> i
 
 
 class BaseNet(nn.Module):
-    default_size: int
+    default_size: tuple[int, int] = (224, 224)
     block_group_regex: Optional[str]
     auto_register = False
     scriptable = True
+    square_only = False
     task = str(Task.IMAGE_CLASSIFICATION)
 
     def __init_subclass__(cls) -> None:
@@ -69,7 +70,7 @@ class BaseNet(nn.Module):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__()
         self.input_channels = input_channels
@@ -87,7 +88,12 @@ class BaseNet(nn.Module):
         else:
             self.size = self.default_size
 
-        assert isinstance(self.size, int)
+        assert isinstance(self.size, tuple)
+        assert isinstance(self.size[0], int)
+        assert isinstance(self.size[1], int)
+        if self.square_only is True:
+            assert self.size[0] == self.size[1]
+
         self.classifier: nn.Module
         self.embedding_size: int
 
@@ -104,11 +110,14 @@ class BaseNet(nn.Module):
         self.num_classes = num_classes
         self.classifier = self.create_classifier()
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         """
         Override this when one time adjustments for different resolutions is required.
         This should run after load_state_dict.
         """
+
+        if self.square_only is True:
+            assert new_size[0] == new_size[1]
 
         self.size = new_size
 
@@ -142,7 +151,7 @@ class PreTrainEncoder(BaseNet):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         self.encoding_size: int
@@ -162,7 +171,7 @@ class DetectorBackbone(BaseNet):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         self.return_stages = ["stage1", "stage2", "stage3", "stage4"]
@@ -201,24 +210,19 @@ def pos_embedding_sin_cos_2d(
 
 
 def interpolate_attention_bias(
-    attention_bias: torch.Tensor, new_resolution: int, mode: Literal["bilinear", "bicubic"] = "bicubic"
+    attention_bias: torch.Tensor,
+    old_resolution: tuple[int, int],
+    new_resolution: tuple[int, int],
+    mode: Literal["bilinear", "bicubic"] = "bicubic",
 ) -> torch.Tensor:
-    (H, L) = attention_bias.size()
-
-    # Assuming square base resolution
-    ws = int(L**0.5)
+    (H, _) = attention_bias.size()
 
     # Interpolate
     orig_dtype = attention_bias.dtype
     attention_bias = attention_bias.float()  # Interpolate needs float32
-    attention_bias = attention_bias.reshape(1, ws, ws, H).permute(0, 3, 1, 2)
-    attention_bias = F.interpolate(
-        attention_bias,
-        size=(new_resolution, new_resolution),
-        mode=mode,
-        antialias=True,
-    )
-    attention_bias = attention_bias.permute(0, 2, 3, 1).reshape(H, new_resolution * new_resolution)
+    attention_bias = attention_bias.reshape(1, old_resolution[0], old_resolution[1], H).permute(0, 3, 1, 2)
+    attention_bias = F.interpolate(attention_bias, size=new_resolution, mode=mode, antialias=True)
+    attention_bias = attention_bias.permute(0, 2, 3, 1).reshape(H, new_resolution[0] * new_resolution[1])
     attention_bias = attention_bias.to(orig_dtype)
 
     return attention_bias

@@ -259,13 +259,13 @@ torchrun --nproc_per_node=2 train.py --network levit_128 --tag il-common --opt a
 #### MetaFormer: PoolFormer v1 s12
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network poolformer_v1_s12 --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --size 256 --warmup-epochs 5 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile
+torchrun --nproc_per_node=2 train.py --network poolformer_v1_s12 --tag il-common --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --size 256 --warmup-epochs 5 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 #### MetaFormer: PoolFormer v2 s12
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network poolformer_v2_s12 --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --size 256 --warmup-epochs 5 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile
+torchrun --nproc_per_node=2 train.py --network poolformer_v2_s12 --tag il-common --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --size 256 --warmup-epochs 5 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### MnasNet
@@ -520,6 +520,14 @@ torchrun --nproc_per_node=2 train.py --network shufflenet_v2 --net-param 1 --tag
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network shufflenet_v2 --net-param 2 --tag il-common --lr 0.5 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 300 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+### SMT
+
+### SMT: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network smt_t --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --clip-grad-norm 5 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### SqueezeNet

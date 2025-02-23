@@ -2000,7 +2000,7 @@ torchrun --nproc_per_node=2 train.py --network simple_vit_l16 --lr 0.3 --lr-sche
 ### SMT: Tiny
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network smt_t --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --clip-grad-norm 5 --fast-matmul --compile
+torchrun --nproc_per_node=2 train.py --network smt_t --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --clip-grad-norm 5 --amp --compile
 ```
 
 ### SMT: Small
@@ -2263,6 +2263,12 @@ torchrun --nproc_per_node=2 train.py --network vit_l16 --lr 0.3 --lr-scheduler c
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_h14 --lr 0.3 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 8 --warmup-epochs 10 --epochs 400 --size 336 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+#### ViT: SoViT 150m p14
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_so150m_p14 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
 ### ViT SAM

@@ -27,7 +27,7 @@ def get_mim_signature(input_shape: tuple[int, ...]) -> MIMSignatureType:
 
 
 class MIMBaseNet(nn.Module):
-    default_size: int
+    default_size: tuple[int, int]
     task = str(Task.MASKED_IMAGE_MODELING)
 
     def __init_subclass__(cls) -> None:
@@ -40,7 +40,7 @@ class MIMBaseNet(nn.Module):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__()
         self.input_channels = encoder.input_channels
@@ -58,7 +58,9 @@ class MIMBaseNet(nn.Module):
         else:
             self.size = self.default_size
 
-        assert isinstance(self.size, int)
+        assert isinstance(self.size, tuple)
+        assert isinstance(self.size[0], int)
+        assert isinstance(self.size[1], int)
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         raise NotImplementedError

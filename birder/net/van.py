@@ -157,8 +157,6 @@ class VANStage(nn.Module):
 
 
 class VAN(DetectorBackbone):
-    default_size = 224
-
     def __init__(
         self,
         input_channels: int,
@@ -166,7 +164,7 @@ class VAN(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -221,7 +219,7 @@ class VAN(DetectorBackbone):
                 fan_out //= m.groups
                 nn.init.trunc_normal_(m.weight, std=math.sqrt(2.0 / fan_out))
                 if m.bias is not None:
-                    m.bias.data.zero_()
+                    nn.init.zeros_(m.bias)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         out = {}

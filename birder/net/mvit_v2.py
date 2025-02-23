@@ -137,7 +137,7 @@ class MultiScaleAttention(nn.Module):
         self,
         dim: int,
         dim_out: int,
-        input_size: int,
+        input_size: tuple[int, int],
         num_heads: int,
         qkv_bias: bool,
         kernel_q: tuple[int, int],
@@ -150,7 +150,6 @@ class MultiScaleAttention(nn.Module):
 
         self.num_heads = num_heads
         self.dim_out = dim_out
-        self.input_size = input_size
         self.stride_q = stride_q
         self.stride_kv = stride_kv
         head_dim = dim_out // num_heads
@@ -209,12 +208,15 @@ class MultiScaleAttention(nn.Module):
             self.norm_v = None
 
         # Relative pos embedding
-        q_size = input_size // stride_q[1] if len(stride_q) > 0 else input_size
-        kv_size = input_size // stride_kv[1] if len(stride_kv) > 0 else input_size
-        rel_sp_dim = 2 * max(q_size, kv_size) - 1
+        q_size_h = input_size[0] // stride_q[0]
+        q_size_w = input_size[1] // stride_q[1]
+        kv_size_h = input_size[0] // stride_kv[0]
+        kv_size_w = input_size[1] // stride_kv[1]
+        rel_sp_dim_h = 2 * max(q_size_h, kv_size_h) - 1
+        rel_sp_dim_w = 2 * max(q_size_w, kv_size_w) - 1
 
-        self.rel_pos_h = nn.Parameter(torch.zeros(rel_sp_dim, head_dim))
-        self.rel_pos_w = nn.Parameter(torch.zeros(rel_sp_dim, head_dim))
+        self.rel_pos_h = nn.Parameter(torch.zeros(rel_sp_dim_h, head_dim))
+        self.rel_pos_w = nn.Parameter(torch.zeros(rel_sp_dim_w, head_dim))
         nn.init.trunc_normal_(self.rel_pos_h, std=0.02)
         nn.init.trunc_normal_(self.rel_pos_w, std=0.02)
 
@@ -268,7 +270,7 @@ class MultiScaleBlock(nn.Module):
         dim: int,
         dim_out: int,
         num_heads: int,
-        input_size: int,
+        input_size: tuple[int, int],
         mlp_ratio: float,
         qkv_bias: bool,
         kernel_q: tuple[int, int],
@@ -371,7 +373,7 @@ class MultiScaleVitStage(nn.Module):
         dim_out: int,
         depth: int,
         num_heads: int,
-        input_size: int,
+        input_size: tuple[int, int],
         mlp_ratio: float,
         qkv_bias: bool,
         kernel_q: tuple[int, int],
@@ -410,7 +412,7 @@ class MultiScaleVitStage(nn.Module):
             )
             dim = out_dims[i]
             if i == 0:
-                input_size = input_size // stride_q[0]
+                input_size = (input_size[0] // stride_q[0], input_size[1] // stride_q[1])
 
     def forward(self, x: torch.Tensor, hw_shape: tuple[int, int]) -> tuple[torch.Tensor, tuple[int, int]]:
         for blk in self.blocks:
@@ -421,8 +423,6 @@ class MultiScaleVitStage(nn.Module):
 
 # pylint: disable=invalid-name
 class MViT_v2(DetectorBackbone):
-    default_size = 224
-
     # pylint: disable=too-many-locals
     def __init__(
         self,
@@ -431,7 +431,7 @@ class MViT_v2(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -472,7 +472,7 @@ class MViT_v2(DetectorBackbone):
         dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
-        input_size = img_size // 4
+        input_size = (img_size[0] // 4, img_size[1] // 4)
         for i in range(num_stages):
             if dim_mul_in_att is True:
                 dim_out = embed_dims[i]
@@ -498,7 +498,7 @@ class MViT_v2(DetectorBackbone):
             stages[f"stage{i+1}"] = stage
             return_channels.append(dim_out)
             embed_dim = dim_out
-            input_size = input_size // stride_q[i][0]
+            input_size = (input_size[0] // stride_q[i][0], input_size[1] // stride_q[i][1])
 
         self.body = SequentialWithShape(stages)
         self.norm = nn.LayerNorm(embed_dim)
@@ -559,41 +559,44 @@ class MViT_v2(DetectorBackbone):
 
         return x
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        input_size = new_size // 4
+        input_size = (new_size[0] // 4, new_size[1] // 4)
         for i, module in enumerate(self.body.children()):
             if isinstance(module, MultiScaleVitStage):
                 idx = 0
                 for m in module.modules():
                     if isinstance(m, MultiScaleBlock):
-                        q_size = input_size // m.attn.stride_q[1] if len(m.attn.stride_q) > 0 else input_size
-                        kv_size = input_size // m.attn.stride_kv[1] if len(m.attn.stride_kv) > 0 else input_size
-                        rel_sp_dim = 2 * max(q_size, kv_size) - 1
+                        q_size_h = input_size[0] // m.attn.stride_q[0]
+                        q_size_w = input_size[1] // m.attn.stride_q[1]
+                        kv_size_h = input_size[0] // m.attn.stride_kv[0]
+                        kv_size_w = input_size[1] // m.attn.stride_kv[1]
+                        rel_sp_dim_h = 2 * max(q_size_h, kv_size_h) - 1
+                        rel_sp_dim_w = 2 * max(q_size_w, kv_size_w) - 1
 
                         rel_pos_h = m.attn.rel_pos_h
                         rel_pos_h_resized = F.interpolate(
                             rel_pos_h.reshape(1, rel_pos_h.shape[0], -1).permute(0, 2, 1),
-                            size=rel_sp_dim,
+                            size=rel_sp_dim_h,
                             mode="linear",
                         )
                         rel_pos_w = m.attn.rel_pos_w
                         rel_pos_w_resized = F.interpolate(
                             rel_pos_w.reshape(1, rel_pos_w.shape[0], -1).permute(0, 2, 1),
-                            size=rel_sp_dim,
+                            size=rel_sp_dim_w,
                             mode="linear",
                         )
 
-                        m.attn.rel_pos_h = nn.Parameter(rel_pos_h_resized.reshape(-1, rel_sp_dim).permute(1, 0))
-                        m.attn.rel_pos_w = nn.Parameter(rel_pos_w_resized.reshape(-1, rel_sp_dim).permute(1, 0))
+                        m.attn.rel_pos_h = nn.Parameter(rel_pos_h_resized.reshape(-1, rel_sp_dim_h).permute(1, 0))
+                        m.attn.rel_pos_w = nn.Parameter(rel_pos_w_resized.reshape(-1, rel_sp_dim_w).permute(1, 0))
 
                         if idx == 0:
-                            input_size = input_size // self.stride_q[i][0]
+                            input_size = (input_size[0] // self.stride_q[i][0], input_size[1] // self.stride_q[i][1])
 
                         idx += 1
 

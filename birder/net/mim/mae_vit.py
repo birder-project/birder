@@ -26,7 +26,7 @@ from birder.net.vit_sam import ViT_SAM
 
 # pylint: disable=invalid-name
 class MAE_ViT(MIMBaseNet):
-    default_size = 224
+    default_size = (224, 224)
 
     def __init__(
         self,
@@ -34,7 +34,7 @@ class MAE_ViT(MIMBaseNet):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -53,8 +53,8 @@ class MAE_ViT(MIMBaseNet):
 
         # Fixed sin-cos embedding
         pos_embedding = pos_embedding_sin_cos_2d(
-            h=self.size // self.patch_size,
-            w=self.size // self.patch_size,
+            h=self.size[0] // self.patch_size,
+            w=self.size[1] // self.patch_size,
             dim=decoder_embed_dim,
             num_special_tokens=self.encoder.num_special_tokens,
         )

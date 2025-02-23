@@ -275,7 +275,6 @@ class XCABlock(nn.Module):
 
 
 class XCiT(DetectorBackbone):
-    default_size = 224
     block_group_regex = r"block1\.stage\d+\.(\d+)"  # ClassAttentionBlock combined with the head
 
     def __init__(
@@ -285,7 +284,7 @@ class XCiT(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"

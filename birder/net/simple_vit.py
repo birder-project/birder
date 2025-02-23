@@ -29,7 +29,6 @@ from birder.net.vit import PatchEmbed
 
 # pylint: disable=invalid-name
 class Simple_ViT(PreTrainEncoder):
-    default_size = 224
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -39,7 +38,7 @@ class Simple_ViT(PreTrainEncoder):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -53,8 +52,8 @@ class Simple_ViT(PreTrainEncoder):
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
 
-        torch._assert(image_size % patch_size == 0, "Input shape indivisible by patch size!")
-        self.image_size = image_size
+        torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
+        torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         self.patch_size = patch_size
         self.hidden_dim = hidden_dim
         self.mlp_dim = mlp_dim
@@ -74,8 +73,8 @@ class Simple_ViT(PreTrainEncoder):
 
         # Add positional embedding
         pos_embedding = pos_embedding_sin_cos_2d(
-            h=image_size // patch_size,
-            w=image_size // patch_size,
+            h=image_size[0] // patch_size,
+            w=image_size[1] // patch_size,
             dim=hidden_dim,
             num_special_tokens=self.num_special_tokens,
         )
@@ -91,7 +90,7 @@ class Simple_ViT(PreTrainEncoder):
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
 
-        self.encoding_size = hidden_dim * (image_size // patch_size) ** 2
+        self.encoding_size = hidden_dim * (image_size[0] // patch_size) * (image_size[1] // patch_size)
         self.decoder_block = partial(
             EncoderBlock,
             16,
@@ -164,7 +163,7 @@ class Simple_ViT(PreTrainEncoder):
         x = x.permute(0, 2, 1)
         return self.features(x)
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
@@ -173,8 +172,8 @@ class Simple_ViT(PreTrainEncoder):
 
         # Sort out sizes
         pos_embedding = pos_embedding_sin_cos_2d(
-            h=new_size // self.patch_size,
-            w=new_size // self.patch_size,
+            h=new_size[0] // self.patch_size,
+            w=new_size[1] // self.patch_size,
             dim=self.hidden_dim,
             num_special_tokens=self.num_special_tokens,
         )

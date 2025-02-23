@@ -38,8 +38,8 @@ def avg_models(
 
             signature: SignatureType = model_dict["signature"]
             input_channels = lib.get_channels_from_signature(signature)
-            num_classes = signature["outputs"][0]["data_shape"][1]
-            size = lib.get_size_from_signature(signature)[0]
+            num_classes = lib.get_num_labels_from_signature(signature)
+            size = lib.get_size_from_signature(signature)
 
             net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
             if reparameterized is True:

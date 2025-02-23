@@ -316,7 +316,6 @@ class HieraBlock(nn.Module):
 
 
 class Hiera(DetectorBackbone, PreTrainEncoder):
-    default_size = 224
     scriptable = False
     block_group_regex = r"body\.stage\d+\.(\d+)"
 
@@ -328,13 +327,13 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
-        image_size = (self.size, self.size)
+        image_size = self.size
         mask_unit_size = (8, 8)
         q_stride = (2, 2)
         q_pool = 3
@@ -547,15 +546,16 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
 
         return x
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
+        old_size = self.size
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         if self.pos_embed_win is not None:
-            global_pos_size = (new_size // 2**4, new_size // 2**4)
+            global_pos_size = (new_size[0] // 2**4, new_size[1] // 2**4)
             pos_embed = F.interpolate(
                 self.pos_embed,
                 size=global_pos_size,
@@ -565,22 +565,23 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
             self.pos_embed = nn.Parameter(pos_embed)
 
         else:
-            # Sort out sizes
-            num_pos_tokens = self.pos_embed.shape[1]
-
-            # Add back class tokens
             self.pos_embed = nn.Parameter(
-                adjust_position_embedding(num_pos_tokens, self.pos_embed, new_size // self.patch_stride[0], 0)
+                adjust_position_embedding(
+                    self.pos_embed,
+                    (old_size[0] // self.patch_stride[0], old_size[1] // self.patch_stride[1]),
+                    (new_size[0] // self.patch_stride[0], new_size[1] // self.patch_stride[1]),
+                    0,
+                )
             )
 
         # Re-init vars
-        self.tokens_spatial_shape = [i // s for i, s in zip((new_size, new_size), self.patch_stride)]
+        self.tokens_spatial_shape = [i // s for i, s in zip(new_size, self.patch_stride)]
         self.mask_spatial_shape = [i // s for i, s in zip(self.tokens_spatial_shape, self.mask_unit_size)]
 
         # Re-init rolls
-        self.unroll = Unroll((new_size, new_size), self.patch_stride, [self.q_stride] * len(self.stage_ends[:-1]))
+        self.unroll = Unroll(new_size, self.patch_stride, [self.q_stride] * len(self.stage_ends[:-1]))
         self.reroll = Reroll(
-            (new_size, new_size),
+            new_size,
             self.patch_stride,
             [self.q_stride] * len(self.stage_ends[:-1]),
             self.stage_ends,

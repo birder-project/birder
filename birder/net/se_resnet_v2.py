@@ -18,7 +18,7 @@ class SE_ResNet_v2(ResNet_v2):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(
             input_channels, num_classes, net_param=net_param, config=config, size=size, squeeze_excitation=True

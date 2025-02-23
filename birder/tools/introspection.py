@@ -110,7 +110,9 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
     subparser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use")
-    subparser.add_argument("--size", type=int, help="image size for inference (defaults to model signature)")
+    subparser.add_argument(
+        "--size", type=int, nargs="+", metavar=("H", "W"), help="image size for inference (defaults to model signature)"
+    )
     subparser.add_argument(
         "--target", type=str, help="target class, leave empty to use predicted class (gradcam and guided-backprop only)"
     )
@@ -142,6 +144,7 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
+    args.size = cli.parse_size(args.size)
     if args.gpu is True:
         device = torch.device("cuda")
     else:
@@ -158,16 +161,14 @@ def main(args: argparse.Namespace) -> None:
         net_param=args.net_param,
         tag=args.tag,
         epoch=args.epoch,
+        new_size=args.size,
         inference=False,
         reparameterized=args.reparameterized,
     )
     if args.size is None:
-        args.size = lib.get_size_from_signature(signature)[0]
+        args.size = lib.get_size_from_signature(signature)
 
-    else:
-        net.adjust_size(args.size)
-
-    transform = inference_preset((args.size, args.size), rgb_stats, 1.0)
+    transform = inference_preset(args.size, rgb_stats, 1.0)
 
     if args.method == "gradcam":
         show_grad_cam(args, net, class_to_idx, transform, device)

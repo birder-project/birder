@@ -263,7 +263,7 @@ class PositionEmbeddingSine(nn.Module):
 
 
 class DETR(DetectionBaseNet):
-    default_size = 640
+    default_size = (640, 640)
     auto_register = True
 
     def __init__(
@@ -273,7 +273,7 @@ class DETR(DetectionBaseNet):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"

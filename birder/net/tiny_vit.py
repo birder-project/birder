@@ -216,7 +216,7 @@ class TinyVitBlock(nn.Module):
         self,
         dim: int,
         num_heads: int,
-        window_size: int,
+        window_size: tuple[int, int],
         mlp_ratio: float,
         drop: float,
         drop_path: list[float],
@@ -230,7 +230,7 @@ class TinyVitBlock(nn.Module):
         self.mlp_ratio = mlp_ratio
         head_dim = dim // num_heads
 
-        window_resolution = (window_size, window_size)
+        window_resolution = window_size
         self.attn = Attention(dim, head_dim, num_heads, attn_ratio=1, resolution=window_resolution)
         self.drop_path1 = StochasticDepth(drop_path, mode="row")
 
@@ -246,31 +246,32 @@ class TinyVitBlock(nn.Module):
         L = H * W
 
         shortcut = x
-        if H == self.window_size and W == self.window_size:
+        if H == self.window_size[0] and W == self.window_size[1]:
             x = x.reshape(B, L, C)
             x = self.attn(x)
             x = x.view(B, H, W, C)
         else:
-            pad_b = (self.window_size - H % self.window_size) % self.window_size
-            pad_r = (self.window_size - W % self.window_size) % self.window_size
+            pad_b = (self.window_size[0] - H % self.window_size[0]) % self.window_size[0]
+            pad_r = (self.window_size[1] - W % self.window_size[1]) % self.window_size[1]
             padding = pad_b > 0 or pad_r > 0
             if padding:
                 x = F.pad(x, (0, 0, 0, pad_r, 0, pad_b))
 
             # Window partition
-            (pH, pW) = H + pad_b, W + pad_r  # pylint:disable=invalid-name
-            nH = pH // self.window_size  # pylint:disable=invalid-name
-            nW = pW // self.window_size  # pylint:disable=invalid-name
+            pH = H + pad_b  # pylint:disable=invalid-name
+            pW = W + pad_r  # pylint:disable=invalid-name
+            nH = pH // self.window_size[0]  # pylint:disable=invalid-name
+            nW = pW // self.window_size[1]  # pylint:disable=invalid-name
             x = (
-                x.view(B, nH, self.window_size, nW, self.window_size, C)
+                x.view(B, nH, self.window_size[0], nW, self.window_size[1], C)
                 .transpose(2, 3)
-                .reshape(B * nH * nW, self.window_size * self.window_size, C)
+                .reshape(B * nH * nW, self.window_size[0] * self.window_size[1], C)
             )
 
             x = self.attn(x)
 
             # Window reverse
-            x = x.view(B, nH, nW, self.window_size, self.window_size, C).transpose(2, 3).reshape(B, pH, pW, C)
+            x = x.view(B, nH, nW, self.window_size[0], self.window_size[1], C).transpose(2, 3).reshape(B, pH, pW, C)
 
             if padding:
                 x = x[:, :H, :W].contiguous()
@@ -292,7 +293,7 @@ class TinyVitStage(nn.Module):
         out_dim: int,
         depth: int,
         num_heads: int,
-        window_size: int,
+        window_size: tuple[int, int],
         mlp_ratio: float,
         drop: float,
         drop_path: list[list[float]],
@@ -334,7 +335,6 @@ class TinyVitStage(nn.Module):
 
 # pylint: disable=invalid-name
 class Tiny_ViT(DetectorBackbone):
-    default_size = 224
     block_group_regex = r"body\.stage\d+\.blocks\.(\d+)"
 
     def __init__(
@@ -344,7 +344,7 @@ class Tiny_ViT(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -355,7 +355,10 @@ class Tiny_ViT(DetectorBackbone):
         depths: list[int] = self.config["depths"]
         num_heads: list[int] = self.config["num_heads"]
         drop_path_rate: float = self.config["drop_path_rate"]
-        window_sizes = [int(self.size / (2**5) * scale) for scale in self.window_scale_factors]
+        window_sizes = [
+            (int(self.size[0] / (2**5) * scale), int(self.size[1] / (2**5) * scale))
+            for scale in self.window_scale_factors
+        ]
 
         self.stem = PatchEmbed(in_channels=self.input_channels, out_channels=embed_dims[0])
 
@@ -427,28 +430,37 @@ class Tiny_ViT(DetectorBackbone):
         x = self.body(x)
         return self.features(x)
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
+        old_size = self.size
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        window_sizes = [int(new_size / (2**5) * scale) for scale in self.window_scale_factors]
+        old_window_sizes = [
+            (int(old_size[0] / (2**5) * scale), int(old_size[1] / (2**5) * scale))
+            for scale in self.window_scale_factors
+        ]
+        window_sizes = [
+            (int(new_size[0] / (2**5) * scale), int(new_size[1] / (2**5) * scale))
+            for scale in self.window_scale_factors
+        ]
         idx = 0
         for stage in self.body:
             if isinstance(stage, TinyVitStage):
                 for m in stage.modules():
                     if isinstance(m, TinyVitBlock):
                         m.window_size = window_sizes[idx]
-                        window_resolution = (window_sizes[idx], window_sizes[idx])
 
                         # This will update the index buffer
-                        m.attn.define_bias_idxs(window_resolution)
+                        m.attn.define_bias_idxs(window_sizes[idx])
 
                         # Interpolate the actual table
                         m.attn.attention_biases = nn.Parameter(
-                            interpolate_attention_bias(m.attn.attention_biases, window_resolution[0], mode="bilinear")
+                            interpolate_attention_bias(
+                                m.attn.attention_biases, old_window_sizes[idx], window_sizes[idx], mode="bilinear"
+                            )
                         )
 
             idx += 1

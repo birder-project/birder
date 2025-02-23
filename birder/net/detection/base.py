@@ -38,7 +38,7 @@ def get_detection_signature(input_shape: tuple[int, ...], num_outputs: int) -> D
 
 
 class DetectionBaseNet(nn.Module):
-    default_size: int
+    default_size: tuple[int, int]
     auto_register = False
     scriptable = True
     task = str(Task.OBJECT_DETECTION)
@@ -58,7 +58,7 @@ class DetectionBaseNet(nn.Module):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__()
         self.input_channels = backbone.input_channels
@@ -78,12 +78,14 @@ class DetectionBaseNet(nn.Module):
         else:
             self.size = self.default_size
 
-        assert isinstance(self.size, int)
+        assert isinstance(self.size, tuple)
+        assert isinstance(self.size[0], int)
+        assert isinstance(self.size[1], int)
 
     def reset_classifier(self, num_classes: int) -> None:
         raise NotImplementedError
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         """
         Override this when one time adjustments for different resolutions is required.
         This should run after load_state_dict.

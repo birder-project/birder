@@ -253,7 +253,7 @@ class InceptionTransformerStage(nn.Module):
         drop_path: list[float],
         layer_scale_init_value: Optional[float],
         depth: int,
-        num_patches: int,
+        resolution: tuple[int, int],
         downsample: bool,
     ) -> None:
         super().__init__()
@@ -265,7 +265,7 @@ class InceptionTransformerStage(nn.Module):
             assert dim == out_dim
             self.downsample = nn.Identity()
 
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, num_patches, out_dim))
+        self.pos_embed = nn.Parameter(torch.zeros(1, resolution[0], resolution[1], out_dim))
         layers = []
         for i in range(depth):
             layers.append(
@@ -299,8 +299,6 @@ class InceptionTransformerStage(nn.Module):
 
 # pylint: disable=invalid-name
 class iFormer(DetectorBackbone):
-    default_size = 224
-
     def __init__(
         self,
         input_channels: int,
@@ -308,7 +306,7 @@ class iFormer(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -347,7 +345,7 @@ class iFormer(DetectorBackbone):
         )
 
         head_index = 0
-        num_patches = img_size // 4
+        resolution = (img_size[0] // 4, img_size[1] // 4)
         prev_dim = embed_dims[0]
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
@@ -365,12 +363,12 @@ class iFormer(DetectorBackbone):
                 drop_path=dpr[i],
                 layer_scale_init_value=layer_scale_init_value if i >= 2 else None,
                 depth=depths[i],
-                num_patches=num_patches,
+                resolution=resolution,
                 downsample=i > 0,
             )
             return_channels.append(embed_dims[i])
             prev_dim = embed_dims[i]
-            num_patches = num_patches // 2
+            resolution = (resolution[0] // 2, resolution[1] // 2)
             head_index = head_index + depths[i]
 
         self.body = nn.Sequential(stages)
@@ -423,22 +421,22 @@ class iFormer(DetectorBackbone):
         x = self.body(x)
         return self.features(x)
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        num_patches = new_size // 4
+        resolution = (new_size[0] // 4, new_size[1] // 4)
         for stage in self.body.modules():
             if isinstance(stage, InceptionTransformerStage):
                 stage.pos_embed = nn.Parameter(
-                    F.interpolate(
-                        stage.pos_embed.permute(0, 3, 1, 2), size=(num_patches, num_patches), mode="bilinear"
-                    ).permute(0, 2, 3, 1)
+                    F.interpolate(stage.pos_embed.permute(0, 3, 1, 2), size=resolution, mode="bilinear").permute(
+                        0, 2, 3, 1
+                    )
                 )
-                num_patches = num_patches // 2
+                resolution = (resolution[0] // 2, resolution[1] // 2)
 
 
 registry.register_alias(

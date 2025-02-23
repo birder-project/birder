@@ -183,7 +183,6 @@ class MultiScaleBlock(nn.Module):
 
 
 class HieraDet(DetectorBackbone):
-    default_size = 224
     block_group_regex = r"body\.stage\d+\.(\d+)"
 
     # pylint: disable=too-many-locals
@@ -194,7 +193,7 @@ class HieraDet(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"

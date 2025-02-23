@@ -95,7 +95,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--mode", type=str, choices=["training", "inference"], default="training", help="iterator mode"
     )
-    subparser.add_argument("--size", type=int, default=512, help="image size")
+    subparser.add_argument("--size", type=int, nargs="+", default=[512], metavar=("H", "W"), help="image size")
     subparser.add_argument(
         "--aug-level",
         type=int,
@@ -119,4 +119,5 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
+    args.size = cli.parse_size(args.size)
     show_det_iterator(args)

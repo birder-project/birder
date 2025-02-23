@@ -15,23 +15,23 @@ class TestInference(unittest.TestCase):
         n = net.GhostNet_v2(3, 10, net_param=1)
 
         with self.assertRaises(RuntimeError):
-            classification.infer_batch(n, torch.rand((1, 3, size, size)))
+            classification.infer_batch(n, torch.rand((1, 3, *size)))
 
         with torch.inference_mode():
-            (out, embed) = classification.infer_batch(n, torch.rand((1, 3, size, size)))
+            (out, embed) = classification.infer_batch(n, torch.rand((1, 3, *size)))
             self.assertIsNone(embed)
             self.assertEqual(len(out), 1)
             self.assertEqual(len(out[0]), 10)
             self.assertAlmostEqual(sum(out[0]), 1, places=5)
 
-            (out, embed) = classification.infer_batch(n, torch.rand((1, 3, size, size)), return_embedding=True)
+            (out, embed) = classification.infer_batch(n, torch.rand((1, 3, *size)), return_embedding=True)
             self.assertIsNotNone(embed)
             self.assertEqual(len(embed), 1)  # type: ignore
             self.assertEqual(len(out), 1)
             self.assertEqual(len(out[0]), 10)
             self.assertAlmostEqual(sum(out[0]), 1, places=5)
 
-            (out, embed) = classification.infer_batch(n, torch.rand((1, 3, size, size)), tta=True)
+            (out, embed) = classification.infer_batch(n, torch.rand((1, 3, *size)), tta=True)
             self.assertIsNone(embed)
             self.assertEqual(len(out), 1)
             self.assertEqual(len(out[0]), 10)

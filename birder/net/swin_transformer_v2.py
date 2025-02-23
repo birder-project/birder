@@ -145,19 +145,19 @@ class SwinTransformerBlock(nn.Module):
         super().__init__()
 
         self.input_resolution = input_resolution
-        window_size_w = window_size[0]
-        window_size_h = window_size[1]
-        shift_size_w = shift_size[0]
-        shift_size_h = shift_size[1]
-        if self.input_resolution[0] <= window_size_w:
-            shift_size_w = 0
-            window_size_w = self.input_resolution[0]
-        if self.input_resolution[1] <= window_size_h:
+        window_size_h = window_size[0]
+        window_size_w = window_size[1]
+        shift_size_h = shift_size[0]
+        shift_size_w = shift_size[1]
+        if self.input_resolution[0] <= window_size_h:
             shift_size_h = 0
-            window_size_h = self.input_resolution[1]
+            window_size_h = self.input_resolution[0]
+        if self.input_resolution[1] <= window_size_w:
+            shift_size_w = 0
+            window_size_w = self.input_resolution[1]
 
-        window_size = (window_size_w, window_size_h)
-        shift_size = (shift_size_w, shift_size_h)
+        window_size = (window_size_h, window_size_w)
+        shift_size = (shift_size_h, shift_size_w)
 
         self.norm1 = nn.LayerNorm(dim, eps=1e-5)
         self.attn = ShiftedWindowAttention(
@@ -187,7 +187,7 @@ class SwinTransformerBlock(nn.Module):
 
 # pylint: disable=invalid-name
 class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder):
-    default_size = 256
+    default_size = (256, 256)
     block_group_regex = r"body\.stage\d+\.(\d+)"
 
     # pylint: disable=too-many-locals
@@ -198,7 +198,7 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -211,8 +211,9 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder):
         drop_path_rate: float = self.config["drop_path_rate"]
         self.window_scale_factor: int = self.config["window_scale_factor"]
         mlp_ratio = 4.0
-        base_window_size = int(self.size / (2**5)) * self.window_scale_factor
-        window_size = (base_window_size, base_window_size)
+        window_size_h = int(self.size[0] / (2**5)) * self.window_scale_factor
+        window_size_w = int(self.size[1] / (2**5)) * self.window_scale_factor
+        window_size = (window_size_h, window_size_w)
 
         self.stem = nn.Sequential(
             nn.Conv2d(
@@ -227,7 +228,7 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder):
             nn.LayerNorm(embed_dim, eps=1e-5),
         )
 
-        resolution = (self.size // patch_size[0], self.size // patch_size[1])
+        resolution = (self.size[0] // patch_size[0], self.size[1] // patch_size[1])
         total_stage_blocks = sum(depths)
         stage_block_id = 0
         stages: OrderedDict[str, nn.Module] = OrderedDict()
@@ -351,7 +352,7 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder):
         x = self.body(x)
         return self.features(x)
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
@@ -361,36 +362,37 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder):
 
         for m in self.body.modules():
             if isinstance(m, SwinTransformerBlock):
-                base_window_size = int(new_size / (2**5)) * self.window_scale_factor
-                new_window_size = (base_window_size, base_window_size)
+                new_window_size_h = int(new_size[0] / (2**5)) * self.window_scale_factor
+                new_window_size_w = int(new_size[1] / (2**5)) * self.window_scale_factor
+                new_window_size = (new_window_size_h, new_window_size_w)
 
-                shift_size_w = m.attn.shift_size[0]
-                shift_size_h = m.attn.shift_size[1]
-                window_size_w = new_window_size[0]
-                window_size_h = new_window_size[1]
+                shift_size_h = m.attn.shift_size[0]
+                shift_size_w = m.attn.shift_size[1]
+                window_size_h = new_window_size[0]
+                window_size_w = new_window_size[1]
 
                 # Adjust resolution
-                scale_w = old_size // m.input_resolution[0]
-                scale_h = old_size // m.input_resolution[1]
-                m.input_resolution = (new_size // scale_w, new_size // scale_h)
+                scale_h = old_size[0] // m.input_resolution[0]
+                scale_w = old_size[1] // m.input_resolution[1]
+                m.input_resolution = (new_size[0] // scale_h, new_size[1] // scale_w)
 
-                if m.input_resolution[0] <= window_size_w:
-                    shift_size_w = 0
-                    window_size_w = m.input_resolution[0]
-
-                if m.input_resolution[1] <= window_size_h:
+                if m.input_resolution[0] <= window_size_h:
                     shift_size_h = 0
-                    window_size_h = m.input_resolution[1]
+                    window_size_h = m.input_resolution[0]
 
-                m.attn.window_size = (window_size_w, window_size_h)
+                if m.input_resolution[1] <= window_size_w:
+                    shift_size_w = 0
+                    window_size_w = m.input_resolution[1]
+
+                m.attn.window_size = (window_size_h, window_size_w)
 
                 if m.attn.shift_size[0] != 0:
-                    shift_size_w = m.attn.window_size[0] // 2
+                    shift_size_h = m.attn.window_size[0] // 2
 
                 if m.attn.shift_size[1] != 0:
-                    shift_size_h = m.attn.window_size[1] // 2
+                    shift_size_w = m.attn.window_size[1] // 2
 
-                m.attn.shift_size = (shift_size_w, shift_size_h)
+                m.attn.shift_size = (shift_size_h, shift_size_w)
 
                 m.attn.define_relative_position_bias_table()
                 m.attn.define_relative_position_index()

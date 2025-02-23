@@ -183,7 +183,7 @@ class ModelRegistry:
     def pretrained_exists(self, model_name: str) -> bool:
         return model_name in self._pretrained_nets
 
-    def get_default_size(self, model_name: str) -> int:
+    def get_default_size(self, model_name: str) -> tuple[int, int]:
         net = self._get_model_by_name(model_name)
         return net.default_size
 
@@ -198,7 +198,7 @@ class ModelRegistry:
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> "BaseNet":
         return self._nets[name](input_channels, num_classes, net_param=net_param, config=config, size=size)
 
@@ -210,7 +210,7 @@ class ModelRegistry:
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> "DetectionBaseNet":
         return self._detection_nets[name](num_classes, backbone, net_param=net_param, config=config, size=size)
 
@@ -221,7 +221,7 @@ class ModelRegistry:
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> "MIMBaseNet":
         return self._mim_nets[name](encoder, net_param=net_param, config=config, size=size)
 

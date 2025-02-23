@@ -198,8 +198,6 @@ class PyramidVisionTransformerStage(nn.Module):
 
 # pylint: disable=invalid-name
 class PVT_v1(DetectorBackbone):
-    default_size = 224
-
     def __init__(
         self,
         input_channels: int,
@@ -207,7 +205,7 @@ class PVT_v1(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -225,7 +223,7 @@ class PVT_v1(DetectorBackbone):
             in_channels=self.input_channels,
             embed_dim=embed_dims[0],
         )
-        img_size = self.size // 4
+        img_size = (self.size[0] // 4, self.size[1] // 4)
 
         dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
         num_stages = len(depths)
@@ -243,7 +241,7 @@ class PVT_v1(DetectorBackbone):
                 qkv_bias=True,
                 downsample=i > 0,
                 cls_token=i == num_stages - 1,
-                img_size=(img_size // (2**i), img_size // (2**i)),
+                img_size=(img_size[0] // (2**i), img_size[1] // (2**i)),
                 proj_drop=0.0,
                 attn_drop=0.0,
                 drop_path=dpr[i],
@@ -296,20 +294,21 @@ class PVT_v1(DetectorBackbone):
         x = self.body(x)
         return x[:, 0]
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
+        old_size = self.size
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        s = new_size // 4
+        old_s = (old_size[0] // 4, old_size[1] // 4)
+        s = (new_size[0] // 4, new_size[1] // 4)
         for m in self.body.modules():
             if isinstance(m, PyramidVisionTransformerStage):
-                num_patches = m.pos_embed.size(1)
-
-                m.pos_embed = nn.Parameter(adjust_position_embedding(num_patches, m.pos_embed, s, 0))
-                s = s // 2
+                m.pos_embed = nn.Parameter(adjust_position_embedding(m.pos_embed, old_s, s, 0))
+                old_s = (old_s[0] // 2, old_s[1] // 2)
+                s = (s[0] // 2, s[1] // 2)
 
 
 registry.register_alias("pvt_v1_t", PVT_v1, config={"depths": [2, 2, 2, 2], "drop_path_rate": 0.1})

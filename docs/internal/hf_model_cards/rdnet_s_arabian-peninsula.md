@@ -13,12 +13,14 @@ An RDNet image classification model. This model was trained on the `arabian-peni
 
 The species list is derived from data available at <https://avibase.bsc-eoc.org/checklist.jsp?region=ARA>.
 
+Note: A 256 x 256 variant of this model is available as `rdnet_s_arabian-peninsula256px`.
+
 ## Model Details
 
 - **Model Type:** Image classification and detection backbone
 - **Model Stats:**
     - Params (M): 50.1
-    - Input image size: 256 x 256
+    - Input image size: 384 x 384
 - **Dataset:** arabian-peninsula (735 classes)
 
 - **Papers:**
@@ -32,7 +34,8 @@ The species list is derived from data available at <https://avibase.bsc-eoc.org/
 import birder
 from birder.inference.classification import infer_image
 
-(net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model("rdnet_s_arabian-peninsula256px", inference=True)
+(net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model("rdnet_s_arabian-peninsula", inference=True)
+# Note: A 256x256 variant is available as "rdnet_s_arabian-peninsula256px"
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(signature)
@@ -51,7 +54,7 @@ image = "path/to/image.jpeg"  # or a PIL image, must be loaded in RGB format
 import birder
 from birder.inference.classification import infer_image
 
-(net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model("rdnet_s_arabian-peninsula256px", inference=True)
+(net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model("rdnet_s_arabian-peninsula", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(signature)
@@ -70,7 +73,7 @@ image = "path/to/image.jpeg"  # or a PIL image
 from PIL import Image
 import birder
 
-(net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model("rdnet_s_arabian-peninsula256px", inference=True)
+(net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model("rdnet_s_arabian-peninsula", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(signature)

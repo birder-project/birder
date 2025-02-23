@@ -137,8 +137,6 @@ class DenseStage(nn.Module):
 
 
 class RDNet(DetectorBackbone):
-    default_size = 224
-
     # pylint: disable=too-many-locals
     def __init__(
         self,
@@ -147,7 +145,7 @@ class RDNet(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -329,5 +327,23 @@ registry.register_weights(
             }
         },
         "net": {"network": "rdnet_s", "tag": "arabian-peninsula256px"},
+    },
+)
+registry.register_weights(
+    "rdnet_s_arabian-peninsula",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/rdnet_s_arabian-peninsula/"
+            "resolve/main/rdnet_s_arabian-peninsula.pt"
+        ),
+        "description": "RDNet small model trained on the arabian-peninsula dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 191.3,
+                "sha256": "b3905cbae41dd71451d3508be45f6f2ab939bc23c49df512e5eb35513d8d6601",
+            }
+        },
+        "net": {"network": "rdnet_s", "tag": "arabian-peninsula"},
     },
 )

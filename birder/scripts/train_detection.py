@@ -128,7 +128,7 @@ def train(args: argparse.Namespace) -> None:
         args.stop_epoch += 1
 
     # Initialize network
-    sample_shape = (batch_size,) + (args.channels, args.size, args.size)  # B, C, H, W
+    sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
     network_name = lib.get_detection_network_name(
         args.network,
         net_param=args.net_param,
@@ -578,6 +578,8 @@ def train(args: argparse.Namespace) -> None:
             args.model_config = json.dumps(args.model_config)
         if args.backbone_model_config is not None:
             args.backbone_model_config = json.dumps(args.backbone_model_config)
+        if args.size is not None:
+            args.size = json.dumps(args.size)
 
         # Save all args
         val_metrics = validation_metrics.compute()
@@ -739,7 +741,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--grad-accum-steps", type=int, default=1, metavar="N", help="number of steps to accumulate gradients"
     )
     parser.add_argument("--channels", type=int, default=3, metavar="N", help="no. of image channels")
-    parser.add_argument("--size", type=int, help="image size (defaults to network recommendation)")
+    parser.add_argument(
+        "--size", type=int, nargs="+", metavar=("H", "W"), help="image size (defaults to network recommendation)"
+    )
     parser.add_argument(
         "--freeze-backbone-bn",
         default=False,
@@ -906,6 +910,7 @@ def validate_args(args: argparse.Namespace) -> None:
         registry.exists(args.backbone, net_type=DetectorBackbone) is True
     ), "Unknown backbone, see list-models tool for available options"
     assert args.compile is False or args.compile_backbone is False
+    args.size = cli.parse_size(args.size)
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

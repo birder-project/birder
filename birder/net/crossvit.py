@@ -215,12 +215,12 @@ class MultiScaleBlock(nn.Module):
         return outs
 
 
-def _compute_num_patches(img_size: list[int], patches: list[int]) -> list[int]:
-    return [i // p * i // p for i, p in zip(img_size, patches)]
+def _compute_num_patches(img_size: list[tuple[int, int]], patches: list[int]) -> list[int]:
+    return [(i[0] // p) * (i[1] // p) for i, p in zip(img_size, patches)]
 
 
 class CrossViT(BaseNet):
-    default_size = 240
+    default_size = (240, 240)
 
     # pylint: disable=too-many-locals
     def __init__(
@@ -230,7 +230,7 @@ class CrossViT(BaseNet):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -248,7 +248,7 @@ class CrossViT(BaseNet):
         multi_conv: bool = self.config["multi_conv"]
         drop_path_rate: float = self.config["drop_path_rate"]
 
-        image_size = [self.size] * len(patch_size)
+        image_size = [(self.size[0], self.size[1])] * len(patch_size)
         num_patches = _compute_num_patches(image_size, patch_size)
         self.patch_size = patch_size
         self.num_branches = len(patch_size)
@@ -341,24 +341,22 @@ class CrossViT(BaseNet):
 
         return out
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
+        old_size = self.size
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         # Sort out sizes
-        image_size = [new_size] * len(self.patch_size)
-        num_patches = _compute_num_patches(image_size, self.patch_size)
         for i in range(self.num_branches):
-            num_pos_tokens = self.pos_embed[i].shape[1]
-
-            # Add back class tokens
+            old_h = old_size[0] // self.patch_size[i]
+            old_w = old_size[1] // self.patch_size[i]
+            h = new_size[0] // self.patch_size[i]
+            w = new_size[1] // self.patch_size[i]
             self.pos_embed[i] = nn.Parameter(
-                adjust_position_embedding(
-                    num_pos_tokens, self.pos_embed[i], int(num_patches[i] ** 0.5), num_prefix_tokens=1
-                )
+                adjust_position_embedding(self.pos_embed[i], (old_h, old_w), (h, w), num_prefix_tokens=1)
             )
 
 

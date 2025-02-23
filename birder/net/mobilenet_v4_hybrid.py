@@ -17,6 +17,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
+from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
@@ -167,7 +168,7 @@ class MultiQueryAttention(nn.Module):
 
 
 class MultiQueryAttentionBlock(nn.Module):
-    def __init__(self, cnf: MultiQueryAttentionBlockConfig) -> None:
+    def __init__(self, cnf: MultiQueryAttentionBlockConfig, stochastic_depth_prob: float) -> None:
         super().__init__()
 
         self.input_norm = nn.BatchNorm2d(cnf.in_channels)
@@ -182,21 +183,20 @@ class MultiQueryAttentionBlock(nn.Module):
             cnf.dropout,
         )
         self.layer_scale = LayerScale2d(cnf.in_channels, 1e-5)
+        self.stochastic_depth = StochasticDepth(stochastic_depth_prob, mode="row")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         shortcut = x
         x = self.input_norm(x)
         x = self.multi_query_attention(x)
         x = self.layer_scale(x)
-        x = x + shortcut
+        x = self.stochastic_depth(x) + shortcut
 
         return x
 
 
 # pylint: disable=invalid-name
 class MobileNet_v4_Hybrid(DetectorBackbone):
-    default_size = 224
-
     # pylint: disable=too-many-branches
     def __init__(
         self,
@@ -205,7 +205,7 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -354,7 +354,7 @@ class MobileNet_v4_Hybrid(DetectorBackbone):
                 layers.append(UniversalInvertedBottleneck(block_settings, 1e-5, sd_prob))
 
             elif isinstance(block_settings, MultiQueryAttentionBlockConfig):
-                layers.append(MultiQueryAttentionBlock(block_settings))
+                layers.append(MultiQueryAttentionBlock(block_settings, sd_prob))
 
             else:
                 raise ValueError("Unknown config")
@@ -460,7 +460,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 39.7,
-                "sha256": "24867fba1e8f834fca60f43c825d63402a0e223c010e313ea5119a79bef37a7d",
+                "sha256": "220df49e08ea49e24f30dcc777bf48c7aaea4aaa5909b56c931f41747381d390",
             }
         },
         "net": {"network": "mobilenet_v4_hybrid_m", "tag": "il-common"},

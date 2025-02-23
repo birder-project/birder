@@ -128,7 +128,7 @@ def predict(args: argparse.Namespace) -> None:
         net = torch.nn.DataParallel(net)
 
     if args.size is None:
-        args.size = lib.get_size_from_signature(signature)[0]
+        args.size = lib.get_size_from_signature(signature)
         logging.debug(f"Using size={args.size}")
 
     score_threshold = args.min_score
@@ -207,7 +207,7 @@ def predict(args: argparse.Namespace) -> None:
     if args.epoch is not None:
         epoch_str = f"_e{args.epoch}"
 
-    base_output_path = f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size}px_{num_samples}"
+    base_output_path = f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size[0]}px_{num_samples}"
     if args.model_dtype != "float32":
         base_output_path = f"{base_output_path}_{args.model_dtype}"
     if args.suffix is not None:
@@ -313,7 +313,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
     )
     parser.add_argument("--min-score", type=float, default=0.5, help="prediction score threshold")
-    parser.add_argument("--size", type=int, help="image size for inference (defaults to model signature)")
+    parser.add_argument(
+        "--size", type=int, nargs="+", metavar=("H", "W"), help="image size for inference (defaults to model signature)"
+    )
     parser.add_argument("--batch-size", type=int, default=8, metavar="N", help="the batch size")
     parser.add_argument("--show", default=False, action="store_true", help="show image predictions")
     parser.add_argument("--shuffle", default=False, action="store_true", help="predict samples in random order")
@@ -337,6 +339,7 @@ def validate_args(args: argparse.Namespace) -> None:
     assert args.compile is False or args.compile_backbone is False
     assert args.amp is False or args.model_dtype == "float32"
     assert args.coco_json_path is None or len(args.data_path) == 1
+    args.size = cli.parse_size(args.size)
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

@@ -39,6 +39,6 @@ class TestNetMIM(unittest.TestCase):
         _ = json.dumps(n.config)
 
         # Test network
-        out = n(torch.rand((1, 3, size, size)))
+        out = n(torch.rand((1, 3, *size)))
         for key in ["loss", "pred", "mask"]:
             self.assertFalse(torch.isnan(out[key]).any())

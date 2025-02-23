@@ -302,8 +302,6 @@ class LevitStage(nn.Module):
 
 
 class LeViT(BaseNet):
-    default_size = 224
-
     def __init__(
         self,
         input_channels: int,
@@ -311,7 +309,7 @@ class LeViT(BaseNet):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -359,7 +357,7 @@ class LeViT(BaseNet):
             PatchEmbed(),
         )
 
-        resolution = (self.size // 16, self.size // 16)
+        resolution = (self.size[0] // 16, self.size[1] // 16)
         in_dim = embed_dim[0]
         num_stages = len(depths)
         stages: OrderedDict[str, nn.Module] = OrderedDict()
@@ -437,14 +435,16 @@ class LeViT(BaseNet):
 
         return x
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
+        old_size = self.size
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        resolution = (new_size // 16, new_size // 16)
+        old_resolution = (old_size[0] // 16, old_size[1] // 16)
+        resolution = (new_size[0] // 16, new_size[1] // 16)
         for stage in self.body:
             if isinstance(stage, LevitStage):
                 for m in stage.modules():
@@ -453,7 +453,9 @@ class LeViT(BaseNet):
                         m.q[0].resolution = resolution
 
                         # Interpolate attention biases
-                        m.attention_biases = nn.Parameter(interpolate_attention_bias(m.attention_biases, resolution[0]))
+                        m.attention_biases = nn.Parameter(
+                            interpolate_attention_bias(m.attention_biases, old_resolution, resolution)
+                        )
 
                         # Rebuild attention bias indices
                         k_pos = torch.stack(
@@ -470,11 +472,14 @@ class LeViT(BaseNet):
                         rel_pos = (rel_pos[0] * resolution[1]) + rel_pos[1]
                         m.attention_bias_idxs = nn.Buffer(rel_pos, persistent=False)
 
+                        old_resolution = ((old_resolution[0] - 1) // 2 + 1, (old_resolution[1] - 1) // 2 + 1)
                         resolution = ((resolution[0] - 1) // 2 + 1, (resolution[1] - 1) // 2 + 1)
 
                     elif isinstance(m, Attention):
                         # Interpolate attention biases
-                        m.attention_biases = nn.Parameter(interpolate_attention_bias(m.attention_biases, resolution[0]))
+                        m.attention_biases = nn.Parameter(
+                            interpolate_attention_bias(m.attention_biases, old_resolution, resolution)
+                        )
 
                         # Rebuild attention bias indices
                         pos = torch.stack(

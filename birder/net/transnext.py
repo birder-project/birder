@@ -539,8 +539,6 @@ class TransNeXtStage(nn.Module):
 
 
 class TransNeXt(DetectorBackbone):
-    default_size = 224
-
     def __init__(
         self,
         input_channels: int,
@@ -548,7 +546,7 @@ class TransNeXt(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -571,7 +569,7 @@ class TransNeXt(DetectorBackbone):
         return_channels: list[int] = []
         for i in range(num_stages):
             stages[f"stage{i+1}"] = TransNeXtStage(
-                input_resolution=(self.size // (2 ** (i + 2)), self.size // (2 ** (i + 2))),
+                input_resolution=(self.size[0] // (2 ** (i + 2)), self.size[1] // (2 ** (i + 2))),
                 sr_ratio=sr_ratio[i],
                 patch_size=patch_size * 2 - 1 if i == 0 else 3,
                 stride=patch_size if i == 0 else 2,
@@ -636,7 +634,7 @@ class TransNeXt(DetectorBackbone):
         x = self.body(x)
         return self.features(x)
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
@@ -646,7 +644,7 @@ class TransNeXt(DetectorBackbone):
         i = 0
         for m in self.body.modules():
             if isinstance(m, TransNeXtStage):
-                input_resolution = (new_size // (2 ** (i + 2)), new_size // (2 ** (i + 2)))
+                input_resolution = (new_size[0] // (2 ** (i + 2)), new_size[1] // (2 ** (i + 2)))
                 sr_ratio = self.sr_ratio[i]
                 (relative_pos_index, relative_coords_table) = get_relative_position_cpb(
                     query_size=input_resolution,

@@ -222,7 +222,7 @@ class InceptionBlockC(nn.Module):
 
 # pylint: disable=invalid-name
 class Inception_v4(DetectorBackbone):
-    default_size = 299
+    default_size = (299, 299)
     auto_register = True
 
     def __init__(
@@ -232,7 +232,7 @@ class Inception_v4(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"

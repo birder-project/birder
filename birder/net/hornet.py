@@ -230,7 +230,7 @@ class HorStage(nn.Module):
 
 
 class HorNet(DetectorBackbone):
-    default_size = 224
+    square_only = True
 
     def __init__(
         self,
@@ -239,7 +239,7 @@ class HorNet(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -256,7 +256,7 @@ class HorNet(DetectorBackbone):
         dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
         num_stages = len(depths)
         dims = [base_dim, base_dim * 2, base_dim * 4, base_dim * 8]
-        gn_conv_h = [self.size // 4, self.size // 8, self.size // 16, self.size // 32]
+        gn_conv_h = [self.size[0] // 4, self.size[0] // 8, self.size[0] // 16, self.size[0] // 32]
         gn_conv_w = [(h // 2) + 1 for h in gn_conv_h]
 
         self.stem = nn.Sequential(
@@ -328,14 +328,14 @@ class HorNet(DetectorBackbone):
         x = self.body(x)
         return self.features(x)
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        gn_conv_h = [new_size // 4, new_size // 8, new_size // 16, new_size // 32]
+        gn_conv_h = [new_size[0] // 4, new_size[0] // 8, new_size[0] // 16, new_size[0] // 32]
         gn_conv_w = [(h // 2) + 1 for h in gn_conv_h]
         for i, module in enumerate(self.body.children()):
             if isinstance(module, HorStage):

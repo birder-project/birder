@@ -91,8 +91,6 @@ class ResidualBlock(nn.Module):
 
 # pylint: disable=invalid-name
 class ResNet_v2(DetectorBackbone):
-    default_size = 224
-
     def __init__(
         self,
         input_channels: int,
@@ -100,7 +98,7 @@ class ResNet_v2(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
         squeeze_excitation: bool = False,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)

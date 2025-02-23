@@ -46,7 +46,15 @@ def windows2img(img_splits_hw: torch.Tensor, h_sp: int, w_sp: int, H: int, W: in
 
 
 class LePEAttention(nn.Module):
-    def __init__(self, dim: int, resolution: int, idx: int, split_size: int, num_heads: int, attn_drop: float) -> None:
+    def __init__(
+        self,
+        dim: int,
+        resolution: tuple[int, int],
+        idx: int,
+        split_size: tuple[int, int],
+        num_heads: int,
+        attn_drop: float,
+    ) -> None:
         super().__init__()
         self.resolution = resolution
         self.split_size = split_size
@@ -62,20 +70,20 @@ class LePEAttention(nn.Module):
 
     def assign_sp_shape(self) -> None:
         if self.idx == -1:
-            self.h_sp = self.resolution
-            self.w_sp = self.resolution
+            self.h_sp = self.resolution[0]
+            self.w_sp = self.resolution[1]
         elif self.idx == 0:
-            self.h_sp = self.resolution
-            self.w_sp = self.split_size
+            self.h_sp = self.resolution[0]
+            self.w_sp = self.split_size[1]
         elif self.idx == 1:
-            self.h_sp = self.split_size
-            self.w_sp = self.resolution
+            self.h_sp = self.split_size[0]
+            self.w_sp = self.resolution[1]
         else:
             raise ValueError("unsupported idx")
 
     def im2cswin(self, x: torch.Tensor) -> torch.Tensor:
         (B, _, C) = x.size()
-        x = x.transpose(-2, -1).contiguous().view(B, C, self.resolution, self.resolution)
+        x = x.transpose(-2, -1).contiguous().view(B, C, self.resolution[0], self.resolution[1])
         x = img2windows(x, self.h_sp, self.w_sp)
         x = x.reshape(-1, self.h_sp * self.w_sp, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3).contiguous()
 
@@ -83,8 +91,8 @@ class LePEAttention(nn.Module):
 
     def get_lepe(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         (B, _, C) = x.size()
-        H = self.resolution
-        W = self.resolution
+        H = self.resolution[0]
+        W = self.resolution[1]
         x = x.transpose(-2, -1).contiguous().view(B, C, H, W)
 
         h_sp = self.h_sp
@@ -116,21 +124,22 @@ class LePEAttention(nn.Module):
         x = (attn @ v) + lepe
         x = x.transpose(1, 2).reshape(-1, self.h_sp * self.w_sp, C)  # B head N N @ B head N C
 
-        x = windows2img(x, self.h_sp, self.w_sp, self.resolution, self.resolution).view(B, -1, C)
+        x = windows2img(x, self.h_sp, self.w_sp, self.resolution[0], self.resolution[1]).view(B, -1, C)
 
         return x
 
 
 class MergeBlock(nn.Module):
-    def __init__(self, dim: int, dim_out: int) -> None:
+    def __init__(self, dim: int, dim_out: int, resolution: tuple[int, int]) -> None:
         super().__init__()
         self.conv = nn.Conv2d(dim, dim_out, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
         self.norm = nn.LayerNorm(dim_out)
+        self.resolution = resolution
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, L, C) = x.size()
-        H = int(math.sqrt(L))
-        W = H
+        (B, _, C) = x.size()
+        H = self.resolution[0]
+        W = self.resolution[1]
         x = x.transpose(-2, -1).contiguous().view(B, C, H, W)
         x = self.conv(x)
         (B, C) = x.shape[:2]
@@ -144,9 +153,9 @@ class CSWinBlock(nn.Module):
     def __init__(
         self,
         dim: int,
-        resolution: int,
+        resolution: tuple[int, int],
         num_heads: int,
-        split_size: int,
+        split_size: tuple[int, int],
         mlp_ratio: float,
         qkv_bias: bool,
         proj_drop: float,
@@ -157,7 +166,7 @@ class CSWinBlock(nn.Module):
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
         self.norm1 = nn.LayerNorm(dim)
 
-        if resolution == split_size:
+        if resolution[0] == split_size[0] and resolution[1] == split_size[1]:
             self.branch_num = 1
         else:
             self.branch_num = 2
@@ -223,9 +232,9 @@ class CSWinStage(nn.Module):
     def __init__(
         self,
         dim: int,
-        resolution: int,
+        resolution: tuple[int, int],
         num_heads: int,
-        split_size: int,
+        split_size: tuple[int, int],
         mlp_ratio: float,
         qkv_bias: bool,
         proj_drop: float,
@@ -236,7 +245,7 @@ class CSWinStage(nn.Module):
     ) -> None:
         super().__init__()
         if downsample is True:
-            self.downsample = MergeBlock(dim, dim * 2)
+            self.downsample = MergeBlock(dim, dim * 2, resolution=(resolution[0] * 2, resolution[1] * 2))
             dim = dim * 2
         else:
             self.downsample = nn.Identity()
@@ -268,8 +277,6 @@ class CSWinStage(nn.Module):
 
 # pylint: disable=invalid-name
 class CSWin_Transformer(DetectorBackbone):
-    default_size = 224
-
     def __init__(
         self,
         input_channels: int,
@@ -277,7 +284,7 @@ class CSWin_Transformer(DetectorBackbone):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -288,7 +295,12 @@ class CSWin_Transformer(DetectorBackbone):
         num_heads: list[int] = self.config["num_heads"]
         drop_path_rate: float = self.config["drop_path_rate"]
         mlp_ratio = 4.0
-        self.split_size = [1, 2, int(self.size / (2**5)), int(self.size / (2**5))]
+        self.split_size = [
+            (1, 1),
+            (2, 2),
+            (int(self.size[0] / (2**5)), int(self.size[1] / (2**5))),
+            (int(self.size[0] / (2**5)), int(self.size[1] / (2**5))),
+        ]
 
         self.stem = nn.Sequential(
             nn.Conv2d(self.input_channels, embed_dim, kernel_size=(7, 7), stride=(4, 4), padding=(2, 2)),
@@ -305,7 +317,7 @@ class CSWin_Transformer(DetectorBackbone):
         for i in range(num_stages):
             stages[f"stage{i+1}"] = CSWinStage(
                 curr_dim,
-                resolution=self.size // (2 ** (i + 2)),
+                resolution=(self.size[0] // (2 ** (i + 2)), self.size[1] // (2 ** (i + 2))),
                 num_heads=num_heads[i],
                 split_size=self.split_size[i],
                 mlp_ratio=mlp_ratio,
@@ -362,29 +374,29 @@ class CSWin_Transformer(DetectorBackbone):
         x = self.body(x)
         return self.features(x)
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
-        old_size = self.size
         logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
-        new_base = new_size // 4
+        new_base = (new_size[0] // 4, new_size[1] // 4)
         idx = 0
         for stage in self.body.modules():
             if isinstance(stage, CSWinStage):
                 for m in stage.modules():
-                    if isinstance(m, CSWinBlock):
+                    if isinstance(m, MergeBlock):
+                        m.resolution = (new_base[0] * 2, new_base[1] * 2)
+
+                    elif isinstance(m, CSWinBlock):
                         for attn in m.attentions:
                             attn.resolution = new_base
-                            if self.split_size[idx] == old_size // 32:
-                                attn.split_size = new_size // 32
-
+                            attn.split_size = (new_size[0] // 32, new_size[1] // 32)
                             attn.assign_sp_shape()
 
-                new_base = new_base // 2
-                self.split_size[idx] = new_size // 32
+                new_base = (new_base[0] // 2, new_base[1] // 2)
+                self.split_size[idx] = (new_size[0] // 32, new_size[1] // 32)
                 idx += 1
 
 

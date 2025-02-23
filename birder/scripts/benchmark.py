@@ -217,7 +217,6 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
     )
-    # parser.add_argument("--size", type=int, help="image size for inference (defaults to model signature)")
     parser.add_argument("--batch-size", type=int, default=1, metavar="N", help="the batch size")
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")

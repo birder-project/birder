@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.16.6
+      jupytext_version: 1.16.7
   kernelspec:
     display_name: birder
     language: python
@@ -15,7 +15,6 @@ jupyter:
 
 ```{python}
 import logging
-import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,7 +24,7 @@ from PIL import Image
 ```
 
 ```{python}
-sys.path.append("..")
+# %cd ..
 ```
 
 ```{python}
@@ -42,10 +41,6 @@ plt.rcParams["figure.figsize"] = [24, 24]
 ```
 
 ```{python}
-# %cd ..
-```
-
-```{python}
 def show_image(image, title=""):
     mean = np.array((0.5189, 0.5255, 0.4845))
     std = np.array((0.2124, 0.2083, 0.2555))
@@ -57,15 +52,15 @@ def show_image(image, title=""):
 ```
 
 ```{python}
-network = "mae_vit"
-encoder = "vitreg4_b16"
-encoder_param = None
-size = 224
-
 # network = "mae_vit"
-# encoder = "vit_l16"
+# encoder = "vitreg4_b16"
 # encoder_param = None
 # size = 224
+
+network = "mae_vit"
+encoder = "vit_l16"
+encoder_param = None
+size = 224
 
 # network = "mae_hiera"
 # encoder = "hiera_abswin_tiny"

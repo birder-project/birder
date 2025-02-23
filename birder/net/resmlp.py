@@ -51,8 +51,6 @@ class LayerScaleMLP(nn.Module):
 
 
 class ResMLP(BaseNet):
-    default_size = 224
-
     def __init__(
         self,
         input_channels: int,
@@ -60,7 +58,7 @@ class ResMLP(BaseNet):
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
-        size: Optional[int] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
@@ -74,7 +72,7 @@ class ResMLP(BaseNet):
         drop_path_rate: float = self.config["drop_path_rate"]
 
         self.patch_embed = PatchEmbed(self.input_channels, embed_dim, patch_size)
-        num_patches = (self.size // patch_size[0]) * (self.size // patch_size[1])
+        num_patches = (self.size[0] // patch_size[0]) * (self.size[1] // patch_size[1])
 
         dpr = [drop_path_rate for _ in range(depth)]
         blocks = []
@@ -108,7 +106,7 @@ class ResMLP(BaseNet):
         x = self.body(x)
         return self.features(x)
 
-    def adjust_size(self, new_size: int) -> None:
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 

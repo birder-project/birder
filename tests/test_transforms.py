@@ -60,5 +60,5 @@ class TestTransforms(unittest.TestCase):
         self.assertEqual(images[0][0][9][9].item(), 1)
 
         # Presets
-        detection.training_preset(256, 0, classification.get_rgb_stats("none"))
-        detection.inference_preset(256, classification.get_rgb_stats("none"))
+        detection.training_preset((256, 256), 0, classification.get_rgb_stats("none"))
+        detection.inference_preset((256, 256), classification.get_rgb_stats("none"))

@@ -79,7 +79,7 @@ def train(args: argparse.Namespace) -> None:
             dataset_size=dataset_size,
             shuffle=True,
             samples_names=False,
-            transform=training_preset((args.size, args.size), args.aug_level, rgb_stats),
+            transform=training_preset(args.size, args.aug_level, rgb_stats),
         )
         (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.val_path))
         if args.wds_val_size is not None:
@@ -93,7 +93,7 @@ def train(args: argparse.Namespace) -> None:
             dataset_size=dataset_size,
             shuffle=False,
             samples_names=False,
-            transform=inference_preset((args.size, args.size), rgb_stats, 1.0),
+            transform=inference_preset(args.size, rgb_stats, 1.0),
         )
         if args.wds_class_file is None:
             args.wds_class_file = str(Path(args.data_path).joinpath(settings.CLASS_LIST_NAME))
@@ -103,12 +103,12 @@ def train(args: argparse.Namespace) -> None:
     else:
         training_dataset = ImageFolder(
             args.data_path,
-            transform=training_preset((args.size, args.size), args.aug_level, rgb_stats),
+            transform=training_preset(args.size, args.aug_level, rgb_stats),
             loader=decode_image,
         )
         validation_dataset = ImageFolder(
             args.val_path,
-            transform=inference_preset((args.size, args.size), rgb_stats, 1.0),
+            transform=inference_preset(args.size, rgb_stats, 1.0),
             loader=decode_image,
             allow_empty=True,
         )
@@ -143,7 +143,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Initialize network
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
-    sample_shape = (batch_size,) + (args.channels, args.size, args.size)  # B, C, H, W
+    sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
     network_name = get_network_name(args.network, net_param=args.net_param, tag=args.tag)
 
     if args.resume_epoch is not None:
@@ -585,6 +585,8 @@ def train(args: argparse.Namespace) -> None:
             args.lr_steps = json.dumps(args.lr_steps)
         if args.model_config is not None:
             args.model_config = json.dumps(args.model_config)
+        if args.size is not None:
+            args.size = json.dumps(args.size)
 
         # Save all args
         metrics = training_metrics.compute()
@@ -735,7 +737,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--grad-accum-steps", type=int, default=1, metavar="N", help="number of steps to accumulate gradients"
     )
     parser.add_argument("--channels", type=int, default=3, metavar="N", help="no. of image channels")
-    parser.add_argument("--size", type=int, help="image size (defaults to network recommendation)")
+    parser.add_argument(
+        "--size", type=int, nargs="+", metavar=("H", "W"), help="image size (defaults to network recommendation)"
+    )
     parser.add_argument(
         "--freeze-bn",
         default=False,
@@ -892,6 +896,7 @@ def validate_args(args: argparse.Namespace) -> None:
     assert args.freeze_bn is False or args.sync_bn is False, "Cannot freeze-bn and sync-bn are mutually exclusive"
     assert args.amp is False or args.model_dtype == "float32"
     assert args.bce_loss is False or args.smoothing_alpha == 0.0
+    args.size = cli.parse_size(args.size)
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:
