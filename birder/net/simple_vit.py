@@ -54,6 +54,7 @@ class Simple_ViT(PreTrainEncoder):
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         self.patch_size = patch_size
+        self.num_layers = num_layers
         self.hidden_dim = hidden_dim
         self.mlp_dim = mlp_dim
         self.num_special_tokens = 0
@@ -118,6 +119,7 @@ class Simple_ViT(PreTrainEncoder):
         mask_ratio: float,
         kept_mask_ratio: Optional[float] = None,
         mask_token: Optional[torch.Tensor] = None,
+        return_all_features: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         if kept_mask_ratio is None:
             kept_mask_ratio = mask_ratio
@@ -156,8 +158,13 @@ class Simple_ViT(PreTrainEncoder):
         x = x_masked
 
         # Apply transformer
-        x = self.encoder(x)
-        x = self.norm(x)
+        if return_all_features is True:
+            xs = self.encoder.forward_features(x)
+            xs[-1] = self.norm(xs[-1])
+            x = torch.stack(xs, dim=-1)
+        else:
+            x = self.encoder(x)
+            x = self.norm(x)
 
         return (x, mask, ids_restore)
 

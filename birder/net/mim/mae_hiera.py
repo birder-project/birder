@@ -231,4 +231,5 @@ class MAE_Hiera(MIMBaseNet):
         (latent, mask) = self.forward_encoder(x)
         (pred, pred_mask) = self.forward_decoder(latent, mask)
         loss = self.forward_loss(x, pred, ~pred_mask)
+
         return {"loss": loss, "pred": pred, "mask": mask}

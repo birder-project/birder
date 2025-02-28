@@ -238,6 +238,14 @@ class Encoder(nn.Module):
 
         return x
 
+    def forward_features(self, x: torch.Tensor) -> list[torch.Tensor]:
+        xs = []
+        for blk in self.block:
+            x = blk(x)
+            xs.append(x)
+
+        return xs
+
     def set_need_attn(self) -> None:
         for b in self.block:
             b.set_need_attn()
@@ -275,6 +283,7 @@ class ViT(PreTrainEncoder):
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         self.patch_size = patch_size
+        self.num_layers = num_layers
         self.hidden_dim = hidden_dim
         self.mlp_dim = mlp_dim
         self.num_reg_tokens = num_reg_tokens
@@ -375,6 +384,7 @@ class ViT(PreTrainEncoder):
         mask_ratio: float,
         kept_mask_ratio: Optional[float] = None,
         mask_token: Optional[torch.Tensor] = None,
+        return_all_features: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         if kept_mask_ratio is None:
             kept_mask_ratio = mask_ratio
@@ -424,8 +434,13 @@ class ViT(PreTrainEncoder):
             x = torch.concat([batch_reg_tokens, x], dim=1)
 
         # Apply transformer
-        x = self.encoder(x)
-        x = self.norm(x)
+        if return_all_features is True:
+            xs = self.encoder.forward_features(x)
+            xs[-1] = self.norm(xs[-1])
+            x = torch.stack(xs, dim=-1)
+        else:
+            x = self.encoder(x)
+            x = self.norm(x)
 
         return (x, mask, ids_restore)
 

@@ -17,7 +17,6 @@ class TestNetMIM(unittest.TestCase):
         [
             ("crossmae", None, ("simple_vit_b32", None)),
             ("crossmae", None, ("vit_b32", None)),
-            ("crossmae", None, ("vit_sam_b16", None)),
             ("crossmae", None, ("vitreg4_b32", None)),
             ("crossmae", None, ("vit_so150m_p14_ap", None)),
             ("fcmae", None, ("convnext_v2_atto", None)),

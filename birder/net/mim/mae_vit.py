@@ -137,4 +137,5 @@ class MAE_ViT(MIMBaseNet):
         (latent, mask, ids_restore) = self.encoder.masked_encoding(x, self.mask_ratio)
         pred = self.forward_decoder(latent, ids_restore)
         loss = self.forward_loss(x, pred, mask)
+
         return {"loss": loss, "pred": pred, "mask": mask}

@@ -21,7 +21,17 @@ from birder.net.base import pos_embedding_sin_cos_2d
 from birder.net.mim.base import MIMBaseNet
 from birder.net.simple_vit import Simple_ViT
 from birder.net.vit import ViT
-from birder.net.vit_sam import ViT_SAM
+
+
+class WeightedFeatureMaps(nn.Module):
+    def __init__(self, k: int, decoder_depth: int) -> None:
+        super().__init__()
+        self.linear = nn.Linear(k, decoder_depth, bias=False)
+
+    def forward(self, stacked_feature_maps: torch.Tensor) -> torch.Tensor:
+        output = self.linear(stacked_feature_maps)
+
+        return output
 
 
 class CrossAttention(nn.Module):
@@ -76,7 +86,7 @@ class CrossMAE(MIMBaseNet):
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
         assert self.config is None, "config not supported"
-        assert isinstance(self.encoder, (ViT, Simple_ViT, ViT_SAM))
+        assert isinstance(self.encoder, (ViT, Simple_ViT))
 
         self.mask_ratio = 0.75
         self.kept_mask_ratio = 0.25
@@ -84,6 +94,13 @@ class CrossMAE(MIMBaseNet):
         encoder_dim = self.encoder.hidden_dim
         decoder_embed_dim = 512
         decoder_depth = 8
+
+        self.wfm = WeightedFeatureMaps(self.encoder.num_layers, decoder_depth=decoder_depth)
+        self.decoder_norms = nn.ModuleList()
+        for _ in range(decoder_depth - 1):
+            self.decoder_norms.append(nn.LayerNorm(encoder_dim, eps=1e-6))
+
+        self.decoder_norms.append(nn.Identity())  # Last norm uses the encoder native norm
 
         self.mask_token = nn.Parameter(torch.zeros(1, 1, decoder_embed_dim))
 
@@ -161,9 +178,10 @@ class CrossMAE(MIMBaseNet):
 
     def forward_decoder(self, memory: torch.Tensor, mask: torch.Tensor, ids_restore: torch.Tensor) -> torch.Tensor:
         x = self.mask_tokens_grid(mask, ids_restore)
+        memory = self.wfm(memory)
 
-        for layer in self.decoder_layers:
-            x = layer(x, memory)
+        for i, layer in enumerate(self.decoder_layers):
+            x = layer(x, self.decoder_norms[i](memory[..., i]))
 
         x = self.decoder_norm(x)
         x = self.pred(x)
@@ -186,7 +204,10 @@ class CrossMAE(MIMBaseNet):
         return loss
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        (latent, mask, ids_restore) = self.encoder.masked_encoding(x, self.mask_ratio, self.kept_mask_ratio)
+        (latent, mask, ids_restore) = self.encoder.masked_encoding(
+            x, self.mask_ratio, self.kept_mask_ratio, return_all_features=True  # type: ignore[call-arg]
+        )
         pred = self.forward_decoder(latent, mask, ids_restore)
         loss = self.forward_loss(x, pred, mask)
+
         return {"loss": loss, "pred": pred, "mask": mask}
