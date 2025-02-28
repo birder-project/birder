@@ -50,6 +50,7 @@
     "convnext",
     "convolutional",
     "crossformer",
+    "crossmae",
     "crossvit",
     "cspnet",
     "cswin",

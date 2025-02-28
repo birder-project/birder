@@ -61,7 +61,7 @@ class TestRegistry(unittest.TestCase):
                     url = f"{settings.REGISTRY_BASE_UTL}/{model_name}.{model_format}"
 
                 resp = requests.head(url, timeout=5, allow_redirects=True)
-                self.assertEqual(resp.status_code, 200)
+                self.assertEqual(resp.status_code, 200, f"{model_name} not found at {url}")
                 self.assertGreater(int(resp.headers["Content-Length"]), 100000)
 
 

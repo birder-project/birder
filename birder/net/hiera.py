@@ -444,7 +444,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
 
             elif isinstance(m, nn.LayerNorm):
                 nn.init.constant_(m.bias, 0.02)
-                nn.init.constant_(m.weight, 1.0)
+                nn.init.ones_(m.weight)
 
         nn.init.trunc_normal_(self.pos_embed, std=0.02)
         if self.pos_embed_win is not None:
@@ -497,7 +497,11 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
                 param.requires_grad = False
 
     def masked_encoding(
-        self, x: torch.Tensor, mask_ratio: float, mask_token: Optional[torch.Tensor] = None
+        self,
+        x: torch.Tensor,
+        mask_ratio: float,
+        kept_mask_ratio: Optional[float] = None,
+        mask_token: Optional[torch.Tensor] = None,
     ) -> tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
         B = x.size(0)
 

@@ -164,7 +164,11 @@ class PreTrainEncoder(BaseNet):
         self.decoder_block: Callable[[int], nn.Module]
 
     def masked_encoding(
-        self, x: torch.Tensor, mask_ratio: float, mask_token: Optional[torch.Tensor] = None
+        self,
+        x: torch.Tensor,
+        mask_ratio: float,
+        kept_mask_ratio: Optional[float] = None,
+        mask_token: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, ...]:
         raise NotImplementedError
 

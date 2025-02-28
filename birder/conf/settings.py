@@ -48,7 +48,7 @@ LOGGING: dict[str, Any] = {
         "console": {"class": "logging.StreamHandler", "level": "DEBUG", "formatter": "verbose"},
     },
     "loggers": {
-        "birder": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": True},
+        "birder": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
     },
 }
 

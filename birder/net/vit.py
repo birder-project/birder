@@ -370,8 +370,15 @@ class ViT(PreTrainEncoder):
                 param.requires_grad = True
 
     def masked_encoding(
-        self, x: torch.Tensor, mask_ratio: float, _mask_token: Optional[torch.Tensor] = None
+        self,
+        x: torch.Tensor,
+        mask_ratio: float,
+        kept_mask_ratio: Optional[float] = None,
+        mask_token: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        if kept_mask_ratio is None:
+            kept_mask_ratio = mask_ratio
+
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
         x = self.patch_embed(x)
@@ -384,6 +391,7 @@ class ViT(PreTrainEncoder):
         # Per-sample shuffling is done by argsort random noise.
         (N, L, D) = x.shape  # batch, length, dim
         len_keep = int(L * (1 - mask_ratio))
+        len_masked = int(L * (mask_ratio - kept_mask_ratio))
 
         noise = torch.rand(N, L, device=x.device)  # Noise in [0, 1]
 
@@ -397,7 +405,7 @@ class ViT(PreTrainEncoder):
 
         # Generate the binary mask: 0 is keep, 1 is remove
         mask = torch.ones([N, L], device=x.device)
-        mask[:, :len_keep] = 0
+        mask[:, : len_keep + len_masked] = 0
 
         # Un-shuffle to get the binary mask
         mask = torch.gather(mask, dim=1, index=ids_restore)
@@ -584,6 +592,19 @@ registry.register_alias(
     ViT,
     config={
         "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 12,
+        "hidden_dim": 768,
+        "mlp_dim": 3072,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "vitreg4_b14",
+    ViT,
+    config={
+        "patch_size": 14,
         "num_layers": 12,
         "num_heads": 12,
         "hidden_dim": 768,

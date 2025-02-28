@@ -154,7 +154,7 @@ class SimMIM(MIMBaseNet):
         return loss
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        (latent, mask) = self.encoder.masked_encoding(x, self.mask_ratio, self.mask_token)
+        (latent, mask) = self.encoder.masked_encoding(x, self.mask_ratio, mask_token=self.mask_token)
         pred = self.forward_decoder(latent)
         loss = self.forward_loss(x, pred, mask)
         return {"loss": loss, "pred": pred, "mask": mask}

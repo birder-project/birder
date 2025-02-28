@@ -525,7 +525,8 @@ def setup_file_logging(log_file_path: str | Path) -> None:
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.INFO)
 
-    logger.addHandler(file_handler)
+    birder_logger = logging.getLogger("birder")
+    birder_logger.addHandler(file_handler)
 
 
 def get_grad_norm(parameters: Iterator[torch.Tensor], norm_type: float = 2) -> float:

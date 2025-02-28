@@ -385,7 +385,7 @@ class TestNet(unittest.TestCase):
         if mask_token is True:
             mt = torch.zeros(1, 1, 1, n.encoding_size)
 
-        outs = n.masked_encoding(torch.rand((1, 3, *size)), 0.6, mt)
+        outs = n.masked_encoding(torch.rand((1, 3, *size)), 0.6, mask_token=mt)
         for out in outs:
             if isinstance(out, (tuple, list)):  # Hierarchical MIM
                 for o in out:

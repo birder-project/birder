@@ -4,10 +4,25 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 
 ## Image Pre-training
 
+- [CrossMAE](#crossmae)
 - [FCMAE](#fcmae)
 - [MAE Hiera](#mae-hiera)
 - [MAE ViT](#mae-vit)
 - [SimMIM](#simmim)
+
+### CrossMAE
+
+#### CrossMAE: ViTReg4 b14
+
+```sh
+torchrun --nproc_per_node=2 train_mim.py --network crossmae --encoder vitreg4_b14 --opt adamw --lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --batch-size 512 --wd 0.05 --encoder-model-config drop_path_rate=0.0 --amp --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
+
+Fine-tuning, first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vitreg4_b14 --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
+```
 
 ### FCMAE
 

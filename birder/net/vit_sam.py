@@ -329,11 +329,19 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
                 param.requires_grad = False
 
     def masked_encoding(
-        self, x: torch.Tensor, mask_ratio: float, _mask_token: Optional[torch.Tensor] = None
+        self,
+        x: torch.Tensor,
+        mask_ratio: float,
+        kept_mask_ratio: Optional[float] = None,
+        mask_token: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        if kept_mask_ratio is None:
+            kept_mask_ratio = mask_ratio
+
         (B, _, H, W) = x.shape
         L = (H // self.patch_size) * (W // self.patch_size)
         len_keep = int(L * (1 - mask_ratio))
+        len_masked = int(L * (mask_ratio - kept_mask_ratio))
 
         noise = torch.randn(B, L, device=x.device)
 
@@ -343,7 +351,7 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
 
         # Generate the binary mask: 0 is keep 1 is remove
         mask = torch.ones([B, L], device=x.device)
-        mask[:, :len_keep] = 0
+        mask[:, : len_keep + len_masked] = 0
 
         # Un-shuffle to get the binary mask
         mask = torch.gather(mask, dim=1, index=ids_restore)
