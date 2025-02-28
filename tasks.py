@@ -375,6 +375,15 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
         warn=True,
     )
 
+    # CPU single thread
+    ctx.run(
+        f"python benchmark.py --filter '{fn}' --repeats 2 --bench-iter 60 --single-thread "
+        f"--suffix {suffix} --append",
+        echo=True,
+        pty=True,
+        warn=True,
+    )
+
     # Compiled CPU
     ctx.run(
         f"python benchmark.py --filter '{fn}' --compile --suffix {suffix} --append",
@@ -393,7 +402,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
     # CUDA
     ctx.run(
-        f"python benchmark.py --filter '{fn}' --bench-iter 100 --batch-size 512 "
+        f"python benchmark.py --filter '{fn}' --bench-iter 50 --batch-size 512 "
         f"--gpu --gpu-id {gpu_id} --fast-matmul --suffix {suffix} --append",
         echo=True,
         pty=True,
@@ -402,7 +411,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
     # Compiled CUDA
     ctx.run(
-        f"python benchmark.py --filter '{fn}' --bench-iter 100 --batch-size 512 "
+        f"python benchmark.py --filter '{fn}' --bench-iter 50 --batch-size 512 "
         f"--compile --gpu --gpu-id {gpu_id} --fast-matmul --suffix {suffix} --append",
         echo=True,
         pty=True,
@@ -411,7 +420,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
     # Compiled CUDA with AMP
     ctx.run(
-        f"python benchmark.py --filter '{fn}' --bench-iter 100 --batch-size 512 "
+        f"python benchmark.py --filter '{fn}' --bench-iter 50 --batch-size 512 "
         f"--compile --gpu --gpu-id {gpu_id} --amp --suffix {suffix} --append",
         echo=True,
         pty=True,
@@ -420,7 +429,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
     # CUDA Memory
     ctx.run(
-        f"python benchmark.py --filter '{fn}' --bench-iter 100 --batch-size 1 "
+        f"python benchmark.py --filter '{fn}' --batch-size 1 "
         f"--gpu --gpu-id {gpu_id} --fast-matmul --memory --suffix {suffix} --append",
         echo=True,
         pty=True,

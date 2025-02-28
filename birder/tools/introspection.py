@@ -14,6 +14,8 @@ from birder.introspection import GuidedBackpropInterpreter
 from birder.net.base import BaseNet
 from birder.transforms.classification import inference_preset
 
+logger = logging.getLogger(__name__)
+
 
 def _nhwc_reshape_transform(tensor: torch.Tensor) -> torch.Tensor:
     return tensor.permute(0, 3, 1, 2).contiguous()
@@ -153,7 +155,7 @@ def main(args: argparse.Namespace) -> None:
     if args.gpu_id is not None:
         torch.cuda.set_device(args.gpu_id)
 
-    logging.info(f"Using device {device}")
+    logger.info(f"Using device {device}")
 
     (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
         device,

@@ -7,7 +7,6 @@ Paper "MaxViT: Multi-Axis Vision Transformer", https://arxiv.org/abs/2204.01697
 
 # Reference license: BSD 3-Clause
 
-import logging
 from collections import OrderedDict
 from collections.abc import Callable
 from functools import partial
@@ -321,7 +320,6 @@ class PartitionAttentionLayer(nn.Module):
 
 
 class MaxVitLayer(nn.Module):
-    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         in_channels: int,
@@ -385,7 +383,6 @@ class MaxVitLayer(nn.Module):
 
 
 class MaxVitBlock(nn.Module):
-    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         # Conv parameters
@@ -661,7 +658,6 @@ class MaxViT(DetectorBackbone, PreTrainEncoder):
         if new_size == self.size:
             return
 
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         new_grid_size = _get_conv_output_shape(new_size, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))

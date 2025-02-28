@@ -18,6 +18,8 @@ from torchvision.datasets.folder import pil_loader
 from birder.conf import settings
 from birder.results.classification import Results
 
+logger = logging.getLogger(__name__)
+
 
 def show_top_k(
     image_path: str, out: npt.NDArray[np.float32], class_to_idx: dict[str, int], label: Optional[int | str] = None
@@ -28,13 +30,13 @@ def show_top_k(
     probabilities: list[float] = []
     predicted_class_names: list[str] = []
 
-    logging.debug(f"'{image_path}'")
+    logger.debug(f"'{image_path}'")
     for idx in np.argsort(out)[::-1][: settings.TOP_K]:
         probabilities.append(out[idx])
         predicted_class_names.append(idx_to_class[idx])
-        logging.debug(f"{idx_to_class[idx]:<25}: {out[idx]:.4f}")
+        logger.debug(f"{idx_to_class[idx]:<25}: {out[idx]:.4f}")
 
-    logging.debug("---")
+    logger.debug("---")
 
     fig = plt.figure(num=image_path)
     gs = matplotlib.gridspec.GridSpec(2, 1, height_ratios=[2, 1])
@@ -79,7 +81,7 @@ class ConfusionMatrix:
                 **{name: self.results.confusion_matrix[:, i] for i, name in enumerate(self.results.label_names)},
             }
         )
-        logging.info(f"Saving confusion matrix at {path}")
+        logger.info(f"Saving confusion matrix at {path}")
         cnf_df.write_csv(path)
 
     def show(self) -> None:

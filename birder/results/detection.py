@@ -8,6 +8,8 @@ from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
 from birder.conf import settings
 
+logger = logging.getLogger(__name__)
+
 MetricsType = TypedDict(
     "MetricsType",
     {
@@ -129,11 +131,11 @@ class Results:
         output["class_to_idx"] = self._class_to_idx
 
         if settings.RESULTS_DIR.exists() is False:
-            logging.info(f"Creating {settings.RESULTS_DIR} directory...")
+            logger.info(f"Creating {settings.RESULTS_DIR} directory...")
             settings.RESULTS_DIR.mkdir(parents=True)
 
         results_path = settings.RESULTS_DIR.joinpath(name)
-        logging.info(f"Saving results at {results_path}")
+        logger.info(f"Saving results at {results_path}")
 
         with open(results_path, "w", encoding="utf-8") as handle:
             json.dump(output, handle, indent=2)

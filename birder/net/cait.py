@@ -9,7 +9,6 @@ https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/cait.p
 
 # Reference license: Apache-2.0 and Apache-2.0
 
-import logging
 from typing import Any
 from typing import Optional
 
@@ -261,7 +260,6 @@ class CaiT(BaseNet):
             return
 
         old_size = self.size
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         # Add back class tokens

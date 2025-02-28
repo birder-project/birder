@@ -1,6 +1,10 @@
 import os
+import random
 from typing import Any
 from typing import Optional
+
+import numpy as np
+import torch
 
 from birder.model_registry import registry
 from birder.net.base import BaseNet
@@ -11,6 +15,13 @@ from birder.net.detection.base import DetectionSignatureType
 from birder.net.mim.base import MIMBaseNet
 from birder.transforms.classification import RGBType
 from birder.version import __version__
+
+
+def set_random_seeds(seed: int) -> None:
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
 
 
 def get_size_from_signature(signature: SignatureType | DetectionSignatureType) -> tuple[int, int]:

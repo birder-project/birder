@@ -76,10 +76,10 @@ notes=FIXME,TODO
 
 [DESIGN]
 # Maximum number of arguments for function / method.
-max-args=14
+max-args=15
 
 # Maximum number of positional arguments (see R0917).
-max-positional-arguments=14
+max-positional-arguments=15
 
 # Maximum number of locals for function / method body.
 max-locals=25

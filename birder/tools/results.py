@@ -19,6 +19,8 @@ from birder.results.gui import ConfusionMatrix
 from birder.results.gui import PrecisionRecall
 from birder.results.gui import ProbabilityHistogram
 
+logger = logging.getLogger(__name__)
+
 
 def print_per_class_report(results_dict: dict[str, Results], classes: list[str]) -> None:
     console = Console()
@@ -196,7 +198,7 @@ def main(args: argparse.Namespace) -> None:
 
     if args.print is True:
         if args.print_mistakes is True and len(results_dict) > 1:
-            logging.warning("Cannot print mistakes in compare mode. processing only the first file")
+            logger.warning("Cannot print mistakes in compare mode. processing only the first file")
 
         if args.print_mistakes is True:
             (result_name, results) = next(iter(results_dict.items()))
@@ -224,9 +226,9 @@ def main(args: argparse.Namespace) -> None:
             summary_path = settings.RESULTS_DIR.joinpath("summary.csv")
 
         if summary_path.exists() is True:
-            logging.warning(f"Summary already exists '{summary_path}', skipping...")
+            logger.warning(f"Summary already exists '{summary_path}', skipping...")
         else:
-            logging.info(f"Writing results summary at '{summary_path}...")
+            logger.info(f"Writing results summary at '{summary_path}...")
             results_df = compare_results(results_dict)
             results_df.write_csv(summary_path)
 
@@ -234,17 +236,17 @@ def main(args: argparse.Namespace) -> None:
         for name, results in results_dict.items():
             mistakes = sorted(list(results.mistakes["sample"]))
             print("\n".join(mistakes))
-            logging.info(f"{len(results.mistakes):,} mistakes found at {name}")
+            logger.info(f"{len(results.mistakes):,} mistakes found at {name}")
 
     if args.list_out_of_k is True:
         for name, results in results_dict.items():
             out_of_k = sorted(list(results.out_of_top_k["sample"]))
             print("\n".join(out_of_k))
-            logging.info(f"{len(results.out_of_top_k):,} out of k found at {name}")
+            logger.info(f"{len(results.out_of_top_k):,} out of k found at {name}")
 
     if args.cnf is True:
         if len(results_dict) > 1:
-            logging.warning("Cannot compare confusion matrix, processing only the first file")
+            logger.warning("Cannot compare confusion matrix, processing only the first file")
 
         results = next(iter(results_dict.values()))
         if len(args.classes) > 0:
@@ -294,14 +296,14 @@ def main(args: argparse.Namespace) -> None:
 
     if args.prob_hist is not None:
         if len(results_dict) > 1:
-            logging.warning("Cannot compare probability histograms, processing only the first file")
+            logger.warning("Cannot compare probability histograms, processing only the first file")
 
         results = next(iter(results_dict.values()))
         ProbabilityHistogram(results).show(*args.prob_hist)
 
     if args.most_confused is True:
         if len(results_dict) > 1:
-            logging.warning("Cannot compare, processing only the first file")
+            logger.warning("Cannot compare, processing only the first file")
 
         results = next(iter(results_dict.values()))
         print_most_confused_pairs(results)

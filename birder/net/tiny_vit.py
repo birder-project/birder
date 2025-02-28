@@ -10,7 +10,6 @@ Changes from original:
 
 # Reference license: Apache-2.0
 
-import logging
 from collections import OrderedDict
 from typing import Any
 from typing import Optional
@@ -435,7 +434,6 @@ class Tiny_ViT(DetectorBackbone):
             return
 
         old_size = self.size
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         old_window_sizes = [

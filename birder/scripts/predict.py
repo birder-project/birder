@@ -24,6 +24,8 @@ from birder.results.classification import Results
 from birder.results.gui import show_top_k
 from birder.transforms.classification import inference_preset
 
+logger = logging.getLogger(__name__)
+
 
 def handle_show_flags(
     args: argparse.Namespace,
@@ -65,12 +67,12 @@ def predict(args: argparse.Namespace) -> None:
         device = torch.device("cpu")
 
     if args.parallel is True and torch.cuda.device_count() > 1:
-        logging.info(f"Using {torch.cuda.device_count()} {device} devices")
+        logger.info(f"Using {torch.cuda.device_count()} {device} devices")
     else:
         if args.gpu_id is not None:
             torch.cuda.set_device(args.gpu_id)
 
-        logging.info(f"Using device {device}")
+        logger.info(f"Using device {device}")
 
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     network_name = lib.get_network_name(args.network, net_param=args.net_param, tag=args.tag)
@@ -88,11 +90,12 @@ def predict(args: argparse.Namespace) -> None:
         pts=args.pts,
         pt2=args.pt2,
         st=args.st,
+        dtype=model_dtype,
     )
 
     if args.show_class is not None:
         if args.show_class not in class_to_idx:
-            logging.warning("Select show class is not part of the model classes")
+            logger.warning("Select show class is not part of the model classes")
 
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
@@ -107,7 +110,7 @@ def predict(args: argparse.Namespace) -> None:
 
     if args.size is None:
         args.size = lib.get_size_from_signature(signature)
-        logging.debug(f"Using size={args.size}")
+        logger.debug(f"Using size={args.size}")
 
     batch_size = args.batch_size
     inference_transform = inference_preset(args.size, rgb_stats, args.center_crop)
@@ -174,7 +177,7 @@ def predict(args: argparse.Namespace) -> None:
     toc = time.time()
     rate = len(outs) / (toc - tic)
     (minutes, seconds) = divmod(toc - tic, 60)
-    logging.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {len(outs):,} samples ({rate:.2f} samples/sec)")
+    logger.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {len(outs):,} samples ({rate:.2f} samples/sec)")
 
     label_names = list(class_to_idx.keys())
 
@@ -204,7 +207,7 @@ def predict(args: argparse.Namespace) -> None:
         )
         embeddings_df = embeddings_df.sort("sample", descending=False)
         embeddings_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_embeddings.csv")
-        logging.info(f"Saving embeddings at {embeddings_path}")
+        logger.info(f"Saving embeddings at {embeddings_path}")
         embeddings_df.write_csv(embeddings_path)
 
     # Save output
@@ -218,7 +221,7 @@ def predict(args: argparse.Namespace) -> None:
         )
         output_df = output_df.sort("sample", descending=False)
         output_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_output.csv")
-        logging.info(f"Saving output at {output_path}")
+        logger.info(f"Saving output at {output_path}")
         output_df.write_csv(output_path)
 
     # Handle results
@@ -230,14 +233,14 @@ def predict(args: argparse.Namespace) -> None:
         results.log_short_report()
 
     else:
-        logging.warning("No labeled samples found")
+        logger.warning("No labeled samples found")
 
     # Summary
     if args.summary is True:
         summary_df = results.prediction_names.value_counts(sort=True)
         indent_size = summary_df["prediction_names"].str.len_chars().max() + 2  # type: ignore[operator]
         for specie_name, count in summary_df.iter_rows():
-            logging.info(f"{specie_name:<{indent_size}} {count}")
+            logger.info(f"{specie_name:<{indent_size}} {count}")
 
 
 def get_args_parser() -> argparse.ArgumentParser:
@@ -352,7 +355,7 @@ def main() -> None:
     validate_args(args)
 
     if settings.RESULTS_DIR.exists() is False:
-        logging.info(f"Creating {settings.RESULTS_DIR} directory...")
+        logger.info(f"Creating {settings.RESULTS_DIR} directory...")
         settings.RESULTS_DIR.mkdir(parents=True)
 
     predict(args)

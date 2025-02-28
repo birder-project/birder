@@ -4,7 +4,6 @@ and
 Paper "Vision Transformers Need Registers", https://arxiv.org/abs/2309.16588
 """
 
-import logging
 import math
 from typing import Any
 from typing import Optional
@@ -45,7 +44,7 @@ class DeiT3(DetectorBackbone):
         num_heads: int = self.config["num_heads"]
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
-        num_reg_tokens: int = self.config["num_reg_tokens"]
+        num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
@@ -187,7 +186,6 @@ class DeiT3(DetectorBackbone):
             return
 
         old_size = self.size
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         # Sort out sizes
@@ -216,7 +214,6 @@ registry.register_alias(
         "num_heads": 3,
         "hidden_dim": 192,
         "mlp_dim": 768,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.0,
     },
 )
@@ -229,7 +226,6 @@ registry.register_alias(
         "num_heads": 6,
         "hidden_dim": 384,
         "mlp_dim": 1536,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.05,
     },
 )
@@ -242,7 +238,6 @@ registry.register_alias(
         "num_heads": 6,
         "hidden_dim": 384,
         "mlp_dim": 1536,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.05,
     },
 )
@@ -255,7 +250,6 @@ registry.register_alias(
         "num_heads": 8,
         "hidden_dim": 512,
         "mlp_dim": 2048,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.1,
     },
 )
@@ -268,7 +262,6 @@ registry.register_alias(
         "num_heads": 8,
         "hidden_dim": 512,
         "mlp_dim": 2048,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.1,
     },
 )
@@ -281,7 +274,6 @@ registry.register_alias(
         "num_heads": 12,
         "hidden_dim": 768,
         "mlp_dim": 3072,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.2,
     },
 )
@@ -294,7 +286,6 @@ registry.register_alias(
         "num_heads": 12,
         "hidden_dim": 768,
         "mlp_dim": 3072,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.2,
     },
 )
@@ -307,7 +298,6 @@ registry.register_alias(
         "num_heads": 16,
         "hidden_dim": 1024,
         "mlp_dim": 4096,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.45,
     },
 )
@@ -320,7 +310,6 @@ registry.register_alias(
         "num_heads": 16,
         "hidden_dim": 1024,
         "mlp_dim": 4096,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.45,
     },
 )
@@ -333,7 +322,6 @@ registry.register_alias(
         "num_heads": 16,
         "hidden_dim": 1280,
         "mlp_dim": 5120,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.55,
     },
 )
@@ -346,7 +334,6 @@ registry.register_alias(
         "num_heads": 16,
         "hidden_dim": 1280,
         "mlp_dim": 5120,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.55,
     },
 )

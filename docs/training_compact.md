@@ -259,13 +259,13 @@ torchrun --nproc_per_node=2 train.py --network levit_128 --tag il-common --opt a
 #### MetaFormer: PoolFormer v1 s12
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network poolformer_v1_s12 --tag il-common --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --size 256 --warmup-epochs 5 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+torchrun --nproc_per_node=2 train.py --network poolformer_v1_s12 --tag il-common --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --size 256 --warmup-epochs 5 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 #### MetaFormer: PoolFormer v2 s12
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network poolformer_v2_s12 --tag il-common --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --size 256 --warmup-epochs 5 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+torchrun --nproc_per_node=2 train.py --network poolformer_v2_s12 --tag il-common --opt adamw --lr 0.004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --size 256 --warmup-epochs 5 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### MnasNet
@@ -606,4 +606,14 @@ torchrun --nproc_per_node=2 train.py --network xcit_nano12_p16 --tag il-common -
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network xcit_nano12_p8 --tag il-common --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 30 --epochs 400 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+## Knowledge Distillation
+
+### DeiT (kd)
+
+#### DeiT t16 with a ConvNeXt v2 Tiny teacher
+
+```sh
+torchrun --nproc_per_node=2 train_kd.py --type deit --teacher convnext_v2_tiny --teacher-tag intermediate-il-common --student deit_t16 --student-tag dist-il-common --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```

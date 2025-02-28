@@ -41,7 +41,7 @@ import torch
 import birder
 from PIL import Image
 
-(net, _, signature, rgb_stats) = birder.load_pretrained_model("vit_l16_mim_200", inference=True)
+(net, _, signature, rgb_stats) = birder.load_pretrained_model("vit_l16_mim_400", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(signature)

@@ -8,7 +8,6 @@ https://arxiv.org/abs/2207.14284
 
 # Reference license: MIT
 
-import logging
 from collections import OrderedDict
 from typing import Any
 from typing import Optional
@@ -332,7 +331,6 @@ class HorNet(DetectorBackbone):
         if new_size == self.size:
             return
 
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         gn_conv_h = [new_size[0] // 4, new_size[0] // 8, new_size[0] // 16, new_size[0] // 32]

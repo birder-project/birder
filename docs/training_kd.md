@@ -26,20 +26,6 @@ torchrun --nproc_per_node=2 train_kd.py --type deit --teacher regnet_y_8g --teac
 torchrun --nproc_per_node=2 train_kd.py --type deit --teacher regnet_y_8g --teacher-tag intermediate --teacher-epoch 0 --student deit_b16 --student-tag dist --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 5 --epochs 300 --size 384 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
 ```
 
-### DeiT3
-
-#### DeiT3 t16 with a RegNet Y 8 GF teacher
-
-```sh
-torchrun --nproc_per_node=2 train_kd.py --type deit --teacher regnet_y_8g --teacher-tag intermediate --teacher-epoch 0 --student deit3_t16 --student-tag dist --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
-```
-
-#### DeiT3 s16 with a RegNet Y 8 GF teacher
-
-```sh
-torchrun --nproc_per_node=2 train_kd.py --type deit --teacher regnet_y_8g --teacher-tag intermediate --teacher-epoch 0 --student deit3_s16 --student-tag dist --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 5 --epochs 300 --size 384 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
-```
-
 ### Tiny ViT
 
 #### Tiny ViT 5M with a ViT L16 teacher

@@ -24,6 +24,8 @@ from birder.net.base import DetectorBackbone
 from birder.results.detection import Results
 from birder.transforms.detection import inference_preset
 
+logger = logging.getLogger(__name__)
+
 
 def show_detections(
     img_path: str,
@@ -79,12 +81,12 @@ def predict(args: argparse.Namespace) -> None:
         device = torch.device("cpu")
 
     if args.parallel is True and torch.cuda.device_count() > 1:
-        logging.info(f"Using {torch.cuda.device_count()} {device} devices")
+        logger.info(f"Using {torch.cuda.device_count()} {device} devices")
     else:
         if args.gpu_id is not None:
             torch.cuda.set_device(args.gpu_id)
 
-        logging.info(f"Using device {device}")
+        logger.info(f"Using device {device}")
 
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     network_name = lib.get_detection_network_name(
@@ -114,6 +116,7 @@ def predict(args: argparse.Namespace) -> None:
         pts=args.pts,
         pt2=args.pt2,
         st=args.st,
+        dtype=model_dtype,
     )
 
     if args.fast_matmul is True or args.amp is True:
@@ -129,7 +132,7 @@ def predict(args: argparse.Namespace) -> None:
 
     if args.size is None:
         args.size = lib.get_size_from_signature(signature)
-        logging.debug(f"Using size={args.size}")
+        logger.debug(f"Using size={args.size}")
 
     score_threshold = args.min_score
     class_list = list(class_to_idx.keys())
@@ -149,7 +152,7 @@ def predict(args: argparse.Namespace) -> None:
         root_path = Path(args.data_path[0])
         dataset = CocoInference(root_path, args.coco_json_path, transforms=inference_preset(args.size, rgb_stats))
         if dataset.class_to_idx != class_to_idx:
-            logging.warning("Dataset class to index differs from model")
+            logger.warning("Dataset class to index differs from model")
     else:
         labeled = False
         root_path = Path("")
@@ -200,7 +203,7 @@ def predict(args: argparse.Namespace) -> None:
     toc = time.time()
     rate = len(dataset) / (toc - tic)
     (minutes, seconds) = divmod(toc - tic, 60)
-    logging.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {len(dataset):,} samples ({rate:.2f} samples/sec)")
+    logger.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {len(dataset):,} samples ({rate:.2f} samples/sec)")
 
     # Save output
     epoch_str = ""
@@ -218,7 +221,7 @@ def predict(args: argparse.Namespace) -> None:
         output = dict(zip(sample_paths, detection_list))
         output["class_to_idx"] = class_to_idx
         output_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_output.json")
-        logging.info(f"Saving output at {output_path}")
+        logger.info(f"Saving output at {output_path}")
         with open(output_path, "w", encoding="utf-8") as handle:
             json.dump(output, handle, indent=2)
 
@@ -232,7 +235,7 @@ def predict(args: argparse.Namespace) -> None:
 
     else:
         if args.save_results is True:
-            logging.warning("Annotations not provided, unable to save results")
+            logger.warning("Annotations not provided, unable to save results")
 
 
 def get_args_parser() -> argparse.ArgumentParser:
@@ -357,7 +360,7 @@ def main() -> None:
     validate_args(args)
 
     if settings.RESULTS_DIR.exists() is False:
-        logging.info(f"Creating {settings.RESULTS_DIR} directory...")
+        logger.info(f"Creating {settings.RESULTS_DIR} directory...")
         settings.RESULTS_DIR.mkdir(parents=True)
 
     predict(args)

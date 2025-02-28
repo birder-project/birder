@@ -281,6 +281,24 @@ registry.register_weights(
     },
 )
 registry.register_weights(
+    "convnext_v2_tiny_intermediate-il-common",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/convnext_v2_tiny_intermediate-il-common/"
+            "resolve/main/convnext_v2_tiny_intermediate-il-common.pt"
+        ),
+        "description": "ConvNeXt v2 tiny model with intermediate training, then fine-tuned on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 107.5,
+                "sha256": "590b74dbf39aa1d6356b9001d5505c00ac97b7399fa994efc58c7e14fd4f668a",
+            }
+        },
+        "net": {"network": "convnext_v2_tiny", "tag": "intermediate-il-common"},
+    },
+)
+registry.register_weights(
     "convnext_v2_tiny_intermediate-eu-common",
     {
         "url": (

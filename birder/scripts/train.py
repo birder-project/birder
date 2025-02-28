@@ -40,6 +40,8 @@ from birder.transforms.classification import get_rgb_stats
 from birder.transforms.classification import inference_preset
 from birder.transforms.classification import training_preset
 
+logger = logging.getLogger(__name__)
+
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
@@ -50,7 +52,7 @@ def train(args: argparse.Namespace) -> None:
     if args.aa is True:
         args.aug_level = -1
 
-    logging.info(f"Using size={args.size}")
+    logger.info(f"Using size={args.size}")
 
     if args.cpu is True:
         device = torch.device("cpu")
@@ -117,9 +119,9 @@ def train(args: argparse.Namespace) -> None:
 
     assert args.model_ema is False or args.model_ema_steps <= len(training_dataset) / args.batch_size
 
-    logging.info(f"Using device {device}:{device_id}")
-    logging.info(f"Training on {len(training_dataset):,} samples")
-    logging.info(f"Validating on {len(validation_dataset):,} samples")
+    logger.info(f"Using device {device}:{device_id}")
+    logger.info(f"Training on {len(training_dataset):,} samples")
+    logger.info(f"Validating on {len(validation_dataset):,} samples")
 
     num_outputs = len(class_to_idx)
     batch_size: int = args.batch_size
@@ -132,7 +134,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Set data iterators
     if args.mixup_alpha is not None or args.cutmix is True:
-        logging.debug("Mixup / cutmix collate activated")
+        logger.debug("Mixup / cutmix collate activated")
         t = get_mixup_cutmix(args.mixup_alpha, num_outputs, args.cutmix)
 
         def collate_fn(batch: Any) -> Any:
@@ -248,7 +250,7 @@ def train(args: argparse.Namespace) -> None:
 
     last_lr = max(scheduler.get_last_lr())
     if args.plot_lr is True:
-        logging.info("Fast forwarding scheduler...")
+        logger.info("Fast forwarding scheduler...")
         lrs = []
         for _ in range(begin_epoch, epochs):
             optimizer.step()
@@ -308,7 +310,7 @@ def train(args: argparse.Namespace) -> None:
     # Training logs
     training_log_name = training_utils.training_log_name(network_name, device)
     training_log_path = settings.TRAINING_RUNS_PATH.joinpath(training_log_name)
-    logging.info(f"Logging training run at {training_log_path}")
+    logger.info(f"Logging training run at {training_log_path}")
     summary_writer = SummaryWriter(training_log_path)
 
     signature = get_signature(input_shape=sample_shape, num_outputs=num_outputs)
@@ -385,7 +387,7 @@ def train(args: argparse.Namespace) -> None:
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
 
     # Training loop
-    logging.info(f"Starting training with learning rate of {last_lr}")
+    logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
@@ -492,10 +494,10 @@ def train(args: argparse.Namespace) -> None:
 
         # Epoch training metrics
         epoch_loss = training_utils.reduce_across_processes(epoch_loss, device)
-        logging.info(f"Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
+        logger.info(f"Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
 
         for metric, value in training_metrics.compute().items():
-            logging.info(f"Epoch {epoch}/{epochs-1} {metric}: {value:.4f}")
+            logger.info(f"Epoch {epoch}/{epochs-1} {metric}: {value:.4f}")
 
         # Validation
         eval_model.eval()
@@ -540,7 +542,7 @@ def train(args: argparse.Namespace) -> None:
         scheduler.step()
         if last_lr != scheduler.get_last_lr()[0]:
             last_lr = scheduler.get_last_lr()[0]
-            logging.info(f"Updated learning rate to: {last_lr}")
+            logger.info(f"Updated learning rate to: {last_lr}")
 
         if args.rank == 0:
             summary_writer.add_scalars("loss", {"validation": epoch_val_loss}, epoch * len(training_dataset))
@@ -548,9 +550,9 @@ def train(args: argparse.Namespace) -> None:
                 summary_writer.add_scalars("performance", {metric: value}, epoch * len(training_dataset))
 
             # Epoch validation metrics
-            logging.info(f"Epoch {epoch}/{epochs-1} validation_loss: {epoch_val_loss:.4f}")
+            logger.info(f"Epoch {epoch}/{epochs-1} validation_loss: {epoch_val_loss:.4f}")
             for metric, value in validation_metrics_dict.items():
-                logging.info(f"Epoch {epoch}/{epochs-1} {metric}: {value:.4f}")
+                logger.info(f"Epoch {epoch}/{epochs-1} {metric}: {value:.4f}")
 
             # Checkpoint model
             if epoch % args.save_frequency == 0:
@@ -569,8 +571,8 @@ def train(args: argparse.Namespace) -> None:
         # Epoch timing
         toc = time.time()
         (minutes, seconds) = divmod(toc - tic, 60)
-        logging.info(f"Time cost: {int(minutes):0>2}m{seconds:04.1f}s")
-        logging.info("---")
+        logger.info(f"Time cost: {int(minutes):0>2}m{seconds:04.1f}s")
+        logger.info("---")
 
     # Save model hyperparameters with metrics
     if args.rank == 0:
@@ -914,7 +916,7 @@ def main() -> None:
     validate_args(args)
 
     if settings.MODELS_DIR.exists() is False:
-        logging.info(f"Creating {settings.MODELS_DIR} directory...")
+        logger.info(f"Creating {settings.MODELS_DIR} directory...")
         settings.MODELS_DIR.mkdir(parents=True)
 
     train(args)

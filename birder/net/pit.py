@@ -10,7 +10,6 @@ Changes from original:
 
 # Reference license: Apache-2.0
 
-import logging
 from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any
@@ -248,7 +247,6 @@ class PiT(DetectorBackbone):
         if new_size == self.size:
             return
 
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         height = (new_size[0] - self.patch_size[0]) // self.patch_stride[0] + 1

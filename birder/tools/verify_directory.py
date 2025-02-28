@@ -12,6 +12,8 @@ from tqdm import tqdm
 from birder.common import cli
 from birder.conf import settings
 
+logger = logging.getLogger(__name__)
+
 
 def verify_directory(args: argparse.Namespace) -> None:
     _ = settings.LOGGING
@@ -42,7 +44,7 @@ def verify_directory(args: argparse.Namespace) -> None:
                         progress.update(batch_size)
 
                 except (OSError, RuntimeError) as e:
-                    logging.warning(
+                    logger.warning(
                         f"File at batch no. {idx} (batch size = {batch_size}, "
                         f"{(idx-1) * batch_size + args.start}) failed to load {e}"
                     )
@@ -53,14 +55,14 @@ def verify_directory(args: argparse.Namespace) -> None:
                         img = dataset.loader(img_path)
                         img = transform(img)
                         if img.size(0) != 3:
-                            logging.warning(f"File {img_path} failed to load {img.size()}")
+                            logger.warning(f"File {img_path} failed to load {img.size()}")
 
                     except (OSError, RuntimeError) as e:
-                        logging.warning(f"File {img_path} failed to load {e}")
+                        logger.warning(f"File {img_path} failed to load {e}")
 
                     progress.update(1)
 
-        logging.info(f"Finished {data_path}")
+        logger.info(f"Finished {data_path}")
 
 
 def set_parser(subparsers: Any) -> None:

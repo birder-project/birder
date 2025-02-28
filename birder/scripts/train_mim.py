@@ -40,6 +40,8 @@ from birder.transforms.classification import RGBMode
 from birder.transforms.classification import get_rgb_stats
 from birder.transforms.classification import training_preset
 
+logger = logging.getLogger(__name__)
+
 
 def _tv_loader(path: str) -> torch.Tensor:
     if path.endswith(".webp") is True:  # Memory leak in TV webp
@@ -55,7 +57,7 @@ def train(args: argparse.Namespace) -> None:
         # Prefer mim size over encoder default size
         args.size = registry.get_default_size(args.network)
 
-    logging.info(f"Using size={args.size}")
+    logger.info(f"Using size={args.size}")
 
     if args.cpu is True:
         device = torch.device("cpu")
@@ -96,8 +98,8 @@ def train(args: argparse.Namespace) -> None:
         )
         input_idx = 1
 
-    logging.info(f"Using device {device}:{device_id}")
-    logging.info(f"Training on {len(training_dataset):,} samples")
+    logger.info(f"Using device {device}:{device_id}")
+    logger.info(f"Training on {len(training_dataset):,} samples")
 
     batch_size: int = args.batch_size
     begin_epoch = 1
@@ -197,7 +199,7 @@ def train(args: argparse.Namespace) -> None:
 
     last_lr = max(scheduler.get_last_lr())
     if args.plot_lr is True:
-        logging.info("Fast forwarding scheduler...")
+        logger.info("Fast forwarding scheduler...")
         lrs = []
         for epoch in range(begin_epoch, epochs):
             optimizer.step()
@@ -238,7 +240,7 @@ def train(args: argparse.Namespace) -> None:
     # Training logs
     training_log_name = training_utils.training_log_name(network_name, device)
     training_log_path = settings.TRAINING_RUNS_PATH.joinpath(training_log_name)
-    logging.info(f"Logging training run at {training_log_path}")
+    logger.info(f"Logging training run at {training_log_path}")
     summary_writer = SummaryWriter(training_log_path)
 
     signature = get_mim_signature(input_shape=sample_shape)
@@ -293,7 +295,7 @@ def train(args: argparse.Namespace) -> None:
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
 
     # Training loop
-    logging.info(f"Starting training with learning rate of {last_lr}")
+    logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
@@ -363,13 +365,13 @@ def train(args: argparse.Namespace) -> None:
 
         # Epoch training metrics
         epoch_loss = training_utils.reduce_across_processes(epoch_loss, device)
-        logging.info(f"Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
+        logger.info(f"Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
 
         # Learning rate scheduler update
         scheduler.step()
         if last_lr != scheduler.get_last_lr()[0]:
             last_lr = scheduler.get_last_lr()[0]
-            logging.info(f"Updated learning rate to: {last_lr}")
+            logger.info(f"Updated learning rate to: {last_lr}")
 
         if args.rank == 0:
             # Checkpoint model
@@ -400,8 +402,8 @@ def train(args: argparse.Namespace) -> None:
         # Epoch timing
         toc = time.time()
         (minutes, seconds) = divmod(toc - tic, 60)
-        logging.info(f"Time cost: {int(minutes):0>2}m{seconds:04.1f}s")
-        logging.info("---")
+        logger.info(f"Time cost: {int(minutes):0>2}m{seconds:04.1f}s")
+        logger.info("---")
 
     summary_writer.close()
 
@@ -671,7 +673,7 @@ def main() -> None:
     validate_args(args)
 
     if settings.MODELS_DIR.exists() is False:
-        logging.info(f"Creating {settings.MODELS_DIR} directory...")
+        logger.info(f"Creating {settings.MODELS_DIR} directory...")
         settings.MODELS_DIR.mkdir(parents=True)
 
     train(args)

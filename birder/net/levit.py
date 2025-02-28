@@ -10,7 +10,6 @@ Changes from original:
 
 # Reference license: BSD 3-Clause
 
-import logging
 from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any
@@ -440,7 +439,6 @@ class LeViT(BaseNet):
             return
 
         old_size = self.size
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         old_resolution = (old_size[0] // 16, old_size[1] // 16)

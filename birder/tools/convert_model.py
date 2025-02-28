@@ -21,6 +21,8 @@ from birder.net.detection.base import DetectionSignatureType
 from birder.transforms.classification import RGBType
 from birder.version import __version__
 
+logger = logging.getLogger(__name__)
+
 
 def reparameterize(
     net: torch.nn.Module,
@@ -31,7 +33,7 @@ def reparameterize(
     network_name: str,
 ) -> None:
     if reparameterize_available(net) is False:
-        logging.error("Reparameterize not supported for this network")
+        logger.error("Reparameterize not supported for this network")
     else:
         net.reparameterize_model()
         network_name = lib.get_network_name(network_name, net_param=None, tag="reparameterized")
@@ -99,7 +101,7 @@ def onnx_export(
 
     signature["inputs"][0]["data_shape"][0] = 0
 
-    logging.info("Saving class to index json...")
+    logger.info("Saving class to index json...")
     with open(f"{model_path}_class_to_idx.json", "w", encoding="utf-8") as handle:
         json.dump(class_to_idx, handle, indent=2)
 
@@ -112,7 +114,7 @@ def config_export(
     net: torch.nn.Module, signature: SignatureType | DetectionSignatureType, rgb_stats: RGBType, model_path: str | Path
 ) -> None:
     model_config = lib.get_network_config(net, signature, rgb_stats)
-    logging.info("Saving model config json...")
+    logger.info("Saving model config json...")
     with open(f"{model_path}_config.json", "w", encoding="utf-8") as handle:
         json.dump(model_config, handle, indent=2)
 
@@ -263,10 +265,10 @@ def main(args: argparse.Namespace) -> None:
         onnx=args.onnx or args.onnx_dynamo,
     )
     if model_path.exists() is True and args.force is False and args.reparameterize is False and args.config is False:
-        logging.warning("Converted model already exists... aborting")
+        logger.warning("Converted model already exists... aborting")
         raise SystemExit(1)
 
-    logging.info(f"Saving converted model {model_path}...")
+    logger.info(f"Saving converted model {model_path}...")
     if args.resize is not None:
         net.adjust_size(args.resize)
         signature["inputs"][0]["data_shape"][2] = args.resize[0]

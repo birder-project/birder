@@ -6,7 +6,7 @@ Paper "ConvNeXt V2: Co-designing and Scaling ConvNets with Masked Autoencoders",
 https://arxiv.org/abs/2301.00808
 """
 
-# Reference license: Attribution-NonCommercial 4.0 International
+# Reference license: MIT
 
 from typing import Any
 from typing import Optional

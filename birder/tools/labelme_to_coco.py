@@ -13,6 +13,8 @@ from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
 
+logger = logging.getLogger(__name__)
+
 
 def _create_annotation(
     points: tuple[tuple[float, float], tuple[float, float]], label: int, image_id: int, annotation_id: int
@@ -64,7 +66,7 @@ def labelme_to_coco(args: argparse.Namespace) -> None:
             skip = False
             for shapes in data["shapes"]:
                 if shapes["label"] not in class_to_idx:
-                    logging.debug(f"Found unknown label: {shapes['label']}, skipping image {data['imagePath']}")
+                    logger.debug(f"Found unknown label: {shapes['label']}, skipping image {data['imagePath']}")
                     skip = True
                     break
 
@@ -81,12 +83,12 @@ def labelme_to_coco(args: argparse.Namespace) -> None:
 
         for shapes in data["shapes"]:
             if shapes["shape_type"] != "rectangle":
-                logging.error("Only detection rectangles are supported, aborting...")
+                logger.error("Only detection rectangles are supported, aborting...")
                 raise SystemExit(1)
 
             label = shapes["label"]
             if label not in class_to_idx:
-                logging.error(f"Found unknown label: {label}, aborting...")
+                logger.error(f"Found unknown label: {label}, aborting...")
                 raise SystemExit(1)
 
             points = shapes["points"]
@@ -116,11 +118,11 @@ def labelme_to_coco(args: argparse.Namespace) -> None:
     coco["annotations"] = annotation_list
 
     # Save
-    logging.info(f"Saving COCO file at {target_path}...")
+    logger.info(f"Saving COCO file at {target_path}...")
     with open(target_path, "w", encoding="utf-8") as handle:
         json.dump(coco, handle, indent=2)
 
-    logging.info(f"Written {len(image_list)} images with {len(annotation_list)} annotations")
+    logger.info(f"Written {len(image_list)} images with {len(annotation_list)} annotations")
 
 
 def set_parser(subparsers: Any) -> None:

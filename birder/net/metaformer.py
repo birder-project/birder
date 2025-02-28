@@ -806,3 +806,32 @@ registry.register_alias(
         "mlp_head_dropout": 0.5,
     },
 )
+
+registry.register_weights(
+    "poolformer_v1_s12_il-common",
+    {
+        "description": "PoolFormer v1 small 12 layers trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 44.3,
+                "sha256": "4a968765a2a50957c0cdb24c9c57979e24b408161a915552dcd1b3650721b831",
+            }
+        },
+        "net": {"network": "poolformer_v1_s12", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "poolformer_v2_s12_il-common",
+    {
+        "description": "PoolFormer v2 small 12 layers trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 44.2,
+                "sha256": "13f44e64994336c91e9ae0778c60c32372baf0b3ea86070df36d69cdf5bc7df6",
+            }
+        },
+        "net": {"network": "poolformer_v2_s12", "tag": "il-common"},
+    },
+)

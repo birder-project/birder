@@ -10,7 +10,6 @@ and as used as an image encoder at the paper "Segment Anything", https://arxiv.o
 
 # Reference license: Apache-2.0
 
-import logging
 from functools import partial
 from typing import Any
 from typing import Optional
@@ -378,7 +377,6 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
         if new_size == self.size:
             return
 
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         new_base_size_h = new_size[0] // self.patch_size

@@ -13,6 +13,8 @@ from birder.common import cli
 from birder.conf import settings
 from birder.model_registry import registry
 
+logger = logging.getLogger(__name__)
+
 
 def dummy(arg: Any) -> None:
     type(arg)
@@ -22,24 +24,24 @@ def throughput_benchmark(
     net: torch.nn.Module, device: torch.device, sample_shape: tuple[int, ...], model_name: str, args: argparse.Namespace
 ) -> float:
     # Sanity
-    logging.info(f"Sanity check for {model_name}")
+    logger.info(f"Sanity check for {model_name}")
     with torch.inference_mode():
         with torch.amp.autocast(device.type, enabled=args.amp):
             try:
                 output = net(torch.rand(sample_shape, device=device))
             except Exception:  # pylint: disable=broad-exception-caught
-                logging.warning(f"Aborting {model_name} !!!")
+                logger.warning(f"Aborting {model_name} !!!")
                 return -1.0
 
     # Warmup
-    logging.info(f"Starting warmup for {model_name}")
+    logger.info(f"Starting warmup for {model_name}")
     with torch.inference_mode():
         with torch.amp.autocast(device.type, enabled=args.amp):
             for _ in range(args.warmup):
                 output = net(torch.rand(sample_shape, device=device))
 
     # Benchmark
-    logging.info(f"Starting benchmark for {model_name}")
+    logger.info(f"Starting benchmark for {model_name}")
     with torch.inference_mode():
         with torch.amp.autocast(device.type, enabled=args.amp):
             t_start = time.perf_counter()
@@ -58,7 +60,7 @@ def throughput_benchmark(
 def memory_benchmark(
     sync_peak_memory: Any, sample_shape: tuple[int, ...], model_name: str, args: argparse.Namespace
 ) -> None:
-    logging.info(f"Starting memory benchmark for {model_name}")
+    logger.info(f"Starting memory benchmark for {model_name}")
     if args.gpu is True:
         device = torch.device("cuda")
     else:
@@ -74,7 +76,8 @@ def memory_benchmark(
     with torch.inference_mode():
         with torch.amp.autocast(device.type, enabled=args.amp):
             sample = torch.rand(sample_shape, device=device)
-            _ = net(sample)
+            for _ in range(5):
+                net(sample)
 
     peak_memory: float = torch.cuda.max_memory_allocated(device)
     sync_peak_memory.value = peak_memory
@@ -91,10 +94,10 @@ def benchmark(args: argparse.Namespace) -> None:
 
     benchmark_path = settings.RESULTS_DIR.joinpath(f"{output_path}.csv")
     if benchmark_path.exists() is True and args.append is False:  # pylint: disable=no-else-raise
-        logging.warning("Benchmark file already exists... aborting")
+        logger.warning("Benchmark file already exists... aborting")
         raise SystemExit(1)
     elif benchmark_path.exists() is True:
-        logging.info(f"Loading {benchmark_path}...")
+        logger.info(f"Loading {benchmark_path}...")
         existing_df = pl.read_csv(benchmark_path)
     else:
         existing_df = None
@@ -107,10 +110,14 @@ def benchmark(args: argparse.Namespace) -> None:
     if args.gpu_id is not None:
         torch.cuda.set_device(args.gpu_id)
 
-    logging.info(f"Using device {device}")
+    logger.info(f"Using device {device}")
 
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
+
+    if args.single_thread is True:
+        torch.set_num_threads(1)
+        torch.set_num_interop_threads(1)
 
     input_channels = 3
     results = []
@@ -125,6 +132,7 @@ def benchmark(args: argparse.Namespace) -> None:
                 **{
                     "model_name": model_name,
                     "device": device.type,
+                    "single_thread": args.single_thread,
                     "compile": args.compile,
                     "amp": args.amp,
                     "fast_matmul": args.fast_matmul,
@@ -134,7 +142,7 @@ def benchmark(args: argparse.Namespace) -> None:
                 }
             ).is_empty()
             if combination_exists is False:
-                logging.info(f"{model_name} at the current configuration is already on file, skipping...")
+                logger.info(f"{model_name} at the current configuration is already on file, skipping...")
                 continue
 
         sample_shape = (args.batch_size, input_channels) + size
@@ -146,7 +154,7 @@ def benchmark(args: argparse.Namespace) -> None:
             p.start()
             p.join()
             peak_memory = sync_peak_memory.value / (1024 * 1024)
-            logging.info(f"{model_name} used {peak_memory:.2f}MB")
+            logger.info(f"{model_name} used {peak_memory:.2f}MB")
         else:
             # Initialize model
             (net, _, _, _) = birder.load_pretrained_model(model_name, inference=True, device=device)
@@ -161,12 +169,13 @@ def benchmark(args: argparse.Namespace) -> None:
 
             num_samples = args.repeats * args.bench_iter * args.batch_size
             samples_per_sec = num_samples / t_elapsed
-            logging.info(f"{model_name} ran at {samples_per_sec:.2f} samples / sec")
+            logger.info(f"{model_name} ran at {samples_per_sec:.2f} samples / sec")
 
         results.append(
             {
                 "model_name": model_name,
                 "device": device.type,
+                "single_thread": args.single_thread,
                 "compile": args.compile,
                 "amp": args.amp,
                 "fast_matmul": args.fast_matmul,
@@ -188,7 +197,7 @@ def benchmark(args: argparse.Namespace) -> None:
         include_header = True
         mode = "w"
 
-    logging.info(f"Saving results at {benchmark_path}")
+    logger.info(f"Saving results at {benchmark_path}")
     with open(benchmark_path, mode=mode, encoding="utf-8") as handle:
         results_df.write_csv(handle, include_header=include_header)
 
@@ -219,6 +228,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--batch-size", type=int, default=1, metavar="N", help="the batch size")
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
+    parser.add_argument("--single-thread", default=False, action="store_true", help="use CPU with a single thread")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
     parser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use")
     parser.add_argument("--warmup", type=int, default=20, metavar="N", help="number of warmup iterations")
@@ -231,6 +241,7 @@ def get_args_parser() -> argparse.ArgumentParser:
 
 
 def validate_args(args: argparse.Namespace) -> None:
+    assert args.single_thread is False or args.gpu is False
     assert args.memory is False or args.gpu is True
     assert args.memory is False or args.compile is False
 
@@ -250,7 +261,7 @@ def main() -> None:
     validate_args(args)
 
     if settings.RESULTS_DIR.exists() is False:
-        logging.info(f"Creating {settings.RESULTS_DIR} directory...")
+        logger.info(f"Creating {settings.RESULTS_DIR} directory...")
         settings.RESULTS_DIR.mkdir(parents=True)
 
     benchmark(args)

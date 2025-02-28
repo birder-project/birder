@@ -8,7 +8,6 @@ https://arxiv.org/abs/2012.12877
 
 # Reference license: Apache-2.0
 
-import logging
 import math
 from typing import Any
 from typing import Optional
@@ -161,7 +160,7 @@ class DeiT(BaseNet):
         if self.training is True and self.distillation_output is True:
             x = torch.stack([x_cls, x_dist], dim=1)
         else:
-            # Classifier "token" as an average of both tokens (during normal training or inference)
+            # Classifier "token" as an average of both tokens (during regular training or inference)
             x = (x_cls + x_dist) / 2
 
         return x
@@ -171,7 +170,6 @@ class DeiT(BaseNet):
             return
 
         old_size = self.size
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         # Sort out sizes
@@ -237,5 +235,21 @@ registry.register_weights(
             }
         },
         "net": {"network": "deit_t16", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "deit_t16_dist-il-common",
+    {
+        "description": (
+            "DeiT tiny model trained using distillation from a ConvNeXt v2 tiny teacher on the il-common dataset"
+        ),
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 21.7,
+                "sha256": "fafd0c3c65f9c35318f449f60485f640917736ee7b44056be55c2226909ffdb8",
+            }
+        },
+        "net": {"network": "deit_t16", "tag": "dist-il-common"},
     },
 )

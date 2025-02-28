@@ -10,7 +10,6 @@ https://arxiv.org/abs/2205.01580
 
 # Reference license: BSD 3-Clause and MIT
 
-import logging
 import math
 from functools import partial
 from typing import Any
@@ -167,7 +166,6 @@ class Simple_ViT(PreTrainEncoder):
         if new_size == self.size:
             return
 
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         # Sort out sizes

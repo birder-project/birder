@@ -73,7 +73,6 @@ class SimMIM(MIMBaseNet):
         assert isinstance(
             self.encoder, (MaxViT, NextViT, Swin_Transformer_v2)
         ), "Only MaxViT and Swin Transformer v2 are supported as an encoder for this network"
-        self.encoder: MaxViT | NextViT | Swin_Transformer_v2
 
         self.mask_ratio = 0.6
         self.patch_size = 32

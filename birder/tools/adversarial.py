@@ -15,6 +15,8 @@ from birder.common import lib
 from birder.transforms.classification import inference_preset
 from birder.transforms.classification import reverse_preset
 
+logger = logging.getLogger(__name__)
+
 
 def show_pgd(args: argparse.Namespace) -> None:
     if args.gpu is True:
@@ -25,7 +27,7 @@ def show_pgd(args: argparse.Namespace) -> None:
     if args.gpu_id is not None:
         torch.cuda.set_device(args.gpu_id)
 
-    logging.info(f"Using device {device}")
+    logger.info(f"Using device {device}")
 
     (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
         device,
@@ -78,7 +80,7 @@ def show_fgsm(args: argparse.Namespace) -> None:
     if args.gpu_id is not None:
         torch.cuda.set_device(args.gpu_id)
 
-    logging.info(f"Using device {device}")
+    logger.info(f"Using device {device}")
 
     (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
         device,

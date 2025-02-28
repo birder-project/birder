@@ -6,6 +6,8 @@ from birder.common import cli
 from birder.conf import settings
 from birder.model_registry import registry
 
+logger = logging.getLogger(__name__)
+
 
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
@@ -38,18 +40,18 @@ def main(args: argparse.Namespace) -> None:
     ), "Unknown model, see list-models tool for available options"
 
     if settings.MODELS_DIR.exists() is False:
-        logging.info(f"Creating {settings.MODELS_DIR} directory...")
+        logger.info(f"Creating {settings.MODELS_DIR} directory...")
         settings.MODELS_DIR.mkdir(parents=True)
 
     model_info = registry.get_pretrained_info(args.model_name)
     if args.format not in model_info["formats"]:
-        logging.warning(f"Available formats for {args.model_name} are: {list(model_info['formats'].keys())}")
+        logger.warning(f"Available formats for {args.model_name} are: {list(model_info['formats'].keys())}")
         raise SystemExit(1)
 
     model_file = f"{args.model_name}.{args.format}"
     dst = settings.MODELS_DIR.joinpath(model_file)
     if dst.exists() is True and args.force is False:
-        logging.warning(f"File {model_file} already exists... aborting")
+        logger.warning(f"File {model_file} already exists... aborting")
         raise SystemExit(1)
 
     if "url" in model_info:

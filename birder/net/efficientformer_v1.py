@@ -13,7 +13,6 @@ Changes from original:
 
 # Reference license: Apache-2.0 (both)
 
-import logging
 from typing import Any
 from typing import Optional
 
@@ -373,7 +372,6 @@ class EfficientFormer_v1(BaseNet):
             return
 
         old_size = self.size
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         old_resolution = (int(old_size[0] / (2**5)), int(old_size[1] / (2**5)))

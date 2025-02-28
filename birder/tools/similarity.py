@@ -24,11 +24,13 @@ from birder.datasets.directory import make_image_dataset
 from birder.inference import classification
 from birder.transforms.classification import inference_preset
 
+logger = logging.getLogger(__name__)
+
 
 # pylint: disable=too-many-locals
 def similarity(args: argparse.Namespace) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logging.info(f"Using device {device}")
+    logger.info(f"Using device {device}")
 
     (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
         device,
@@ -71,9 +73,9 @@ def similarity(args: argparse.Namespace) -> None:
     toc = time.time()
     rate = len(dataset) / (toc - tic)
     (minutes, seconds) = divmod(toc - tic, 60)
-    logging.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {len(dataset)} samples ({rate:.2f} samples/sec)")
+    logger.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {len(dataset)} samples ({rate:.2f} samples/sec)")
 
-    logging.info("Processing similarity...")
+    logger.info("Processing similarity...")
 
     if args.cosine is True:
         distance_arr = pdist(embeddings, metric="cosine")
@@ -108,7 +110,7 @@ def similarity(args: argparse.Namespace) -> None:
         ax1.set_title(pair["sample_1"])
         ax2.imshow(Image.open(pair["sample_2"]))
         ax2.set_title(pair["sample_2"])
-        logging.info(f"{pair['distance']:.3f} distance between {pair['sample_1']} and {pair['sample_2']}")
+        logger.info(f"{pair['distance']:.3f} distance between {pair['sample_1']} and {pair['sample_2']}")
         fig.suptitle(f"Distance = {pair['distance']:.3f} ({idx+1}/{len(distance_df):,})")
         plt.tight_layout()
         plt.show()

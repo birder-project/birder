@@ -14,7 +14,6 @@ Paper "Getting ViT in Shape: Scaling Laws for Compute-Optimal Model Design", htt
 
 # Reference license: BSD 3-Clause and Apache-2.0
 
-import logging
 import math
 from collections.abc import Callable
 from functools import partial
@@ -268,7 +267,8 @@ class ViT(PreTrainEncoder):
         num_heads: int = self.config["num_heads"]
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
-        num_reg_tokens: int = self.config["num_reg_tokens"]
+        num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
+        class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
         drop_path_rate: float = self.config["drop_path_rate"]
 
@@ -297,7 +297,7 @@ class ViT(PreTrainEncoder):
         self.num_special_tokens = 0
 
         # Add a class token
-        if attn_pool_head is False:
+        if class_token is True:
             self.class_token = nn.Parameter(torch.zeros(1, 1, hidden_dim))
             seq_length += 1
             self.num_special_tokens += 1
@@ -442,8 +442,7 @@ class ViT(PreTrainEncoder):
         x = self.attn_pool(x)
 
         if self.class_token is None:
-            # Return attention pool latent
-            return x[:, 0]
+            return x.mean(dim=1)
 
         # Classifier "token" as used by standard language architectures
         return x[:, self.num_reg_tokens]
@@ -453,7 +452,6 @@ class ViT(PreTrainEncoder):
             return
 
         old_size = self.size
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         # Add back class tokens
@@ -479,7 +477,6 @@ registry.register_alias(
         "num_heads": 12,
         "hidden_dim": 768,
         "mlp_dim": 3072,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.0,
     },
 )
@@ -492,7 +489,6 @@ registry.register_alias(
         "num_heads": 12,
         "hidden_dim": 768,
         "mlp_dim": 3072,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.0,
     },
 )
@@ -505,7 +501,6 @@ registry.register_alias(
         "num_heads": 12,
         "hidden_dim": 768,
         "mlp_dim": 3072,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.0,
     },
 )
@@ -518,7 +513,6 @@ registry.register_alias(
         "num_heads": 16,
         "hidden_dim": 1024,
         "mlp_dim": 4096,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.1,
     },
 )
@@ -531,7 +525,6 @@ registry.register_alias(
         "num_heads": 16,
         "hidden_dim": 1024,
         "mlp_dim": 4096,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.1,
     },
 )
@@ -544,7 +537,6 @@ registry.register_alias(
         "num_heads": 16,
         "hidden_dim": 1024,
         "mlp_dim": 4096,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.1,
     },
 )
@@ -557,7 +549,6 @@ registry.register_alias(
         "num_heads": 16,
         "hidden_dim": 1280,
         "mlp_dim": 5120,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.1,
     },
 )
@@ -570,7 +561,6 @@ registry.register_alias(
         "num_heads": 16,
         "hidden_dim": 1280,
         "mlp_dim": 5120,
-        "num_reg_tokens": 0,
         "drop_path_rate": 0.1,
     },
 )
@@ -670,7 +660,7 @@ registry.register_alias(
 
 # Shape-optimized vision transformer (SoViT)
 registry.register_alias(
-    "vit_so150m_p14",
+    "vit_so150m_p14_ap",
     ViT,
     config={
         "patch_size": 14,
@@ -678,13 +668,13 @@ registry.register_alias(
         "num_heads": 16,
         "hidden_dim": 880,
         "mlp_dim": 2320,
-        "num_reg_tokens": 0,
-        "drop_path_rate": 0.1,
+        "class_token": False,
         "attn_pool_head": True,
+        "drop_path_rate": 0.1,
     },
 )
 registry.register_alias(
-    "vit_so400m_p14",
+    "vit_so400m_p14_ap",
     ViT,
     config={
         "patch_size": 14,
@@ -692,13 +682,13 @@ registry.register_alias(
         "num_heads": 16,
         "hidden_dim": 1152,
         "mlp_dim": 4304,
-        "num_reg_tokens": 0,
-        "drop_path_rate": 0.1,
+        "class_token": False,
         "attn_pool_head": True,
+        "drop_path_rate": 0.1,
     },
 )
 registry.register_alias(
-    "vitreg4_so150m_p14",
+    "vitreg4_so150m_p14_ap",
     ViT,
     config={
         "patch_size": 14,
@@ -707,12 +697,13 @@ registry.register_alias(
         "hidden_dim": 880,
         "mlp_dim": 2320,
         "num_reg_tokens": 4,
-        "drop_path_rate": 0.1,
+        "class_token": False,
         "attn_pool_head": True,
+        "drop_path_rate": 0.1,
     },
 )
 registry.register_alias(
-    "vitreg4_so400m_p14",
+    "vitreg4_so400m_p14_ap",
     ViT,
     config={
         "patch_size": 14,
@@ -721,8 +712,9 @@ registry.register_alias(
         "hidden_dim": 1152,
         "mlp_dim": 4304,
         "num_reg_tokens": 4,
-        "drop_path_rate": 0.1,
+        "class_token": False,
         "attn_pool_head": True,
+        "drop_path_rate": 0.1,
     },
 )
 
@@ -739,6 +731,24 @@ registry.register_weights(
             "pt": {
                 "file_size": 1157.1,
                 "sha256": "003b15a79cd528339de1b19304bbd04fd5885df36b80e19202cd6ef6f8ffbed1",
+            },
+        },
+        "net": {"network": "vit_l16", "tag": "mim"},
+    },
+)
+registry.register_weights(
+    "vit_l16_mim_400",
+    {
+        "url": "https://huggingface.co/birder-project/vit_l16_mim/resolve/main/vit_l16_mim_400.pt",
+        "description": (
+            "ViT l16 image encoder pre-trained using Masked Image Modeling (MIM) for 400 epochs. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 1157.1,
+                "sha256": "c6083c6532996addaf4efe29276aa55f9a3c77984f862f720c6131f86b847994",
             },
         },
         "net": {"network": "vit_l16", "tag": "mim"},

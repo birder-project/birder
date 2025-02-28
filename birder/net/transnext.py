@@ -7,7 +7,6 @@ Paper "TransNeXt: Robust Foveal Visual Perception for Vision Transformers", http
 
 # Reference license: Apache-2.0
 
-import logging
 import math
 from collections import OrderedDict
 from typing import Any
@@ -472,7 +471,6 @@ class OverlapPatchEmbed(nn.Module):
 
 
 class TransNeXtStage(nn.Module):
-    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         input_resolution: tuple[int, int],
@@ -638,7 +636,6 @@ class TransNeXt(DetectorBackbone):
         if new_size == self.size:
             return
 
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         i = 0

@@ -54,7 +54,6 @@ class MAE_Hiera(MIMBaseNet):
         assert self.net_param is None, "net-param not supported"
         assert self.config is None, "config not supported"
         assert isinstance(self.encoder, (Hiera,))
-        self.encoder: Hiera
 
         self.mask_ratio = 0.6
         encoder_dim = self.encoder.encoding_size

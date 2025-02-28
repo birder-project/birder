@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 from functools import partial
 from typing import Any
@@ -11,6 +12,8 @@ from torch import nn
 
 from birder.model_registry import Task
 from birder.model_registry import registry
+
+logger = logging.getLogger(__name__)
 
 DataShapeType = TypedDict("DataShapeType", {"data_shape": list[int]})
 SignatureType = TypedDict("SignatureType", {"inputs": list[DataShapeType], "outputs": list[DataShapeType]})
@@ -115,10 +118,13 @@ class BaseNet(nn.Module):
         Override this when one time adjustments for different resolutions is required.
         This should run after load_state_dict.
         """
+        if new_size == self.size:
+            return
 
         if self.square_only is True:
             assert new_size[0] == new_size[1]
 
+        logger.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         self.size = new_size
 
     def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:

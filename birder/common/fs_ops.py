@@ -34,17 +34,19 @@ try:
 except ImportError:
     _HAS_SAFETENSORS = False
 
+logger = logging.getLogger(__name__)
+
 
 def write_signature(network_name: str, signature: SignatureType | DetectionSignatureType) -> None:
     signature_file = settings.MODELS_DIR.joinpath(f"{network_name}.json")
-    logging.info(f"Writing {signature_file}")
+    logger.info(f"Writing {signature_file}")
     with open(signature_file, "w", encoding="utf-8") as handle:
         json.dump(signature, handle, indent=2)
 
 
 def read_signature(network_name: str) -> SignatureType | DetectionSignatureType:
     signature_file = settings.MODELS_DIR.joinpath(f"{network_name}.json")
-    logging.info(f"Reading {signature_file}")
+    logger.info(f"Reading {signature_file}")
     with open(signature_file, "r", encoding="utf-8") as handle:
         signature: SignatureType | DetectionSignatureType = json.load(handle)
 
@@ -56,14 +58,14 @@ def write_config(
 ) -> None:
     model_config = lib.get_network_config(net, signature, rgb_stats)
     config_file = settings.MODELS_DIR.joinpath(f"{network_name}.json")
-    logging.info(f"Writing {config_file}")
+    logger.info(f"Writing {config_file}")
     with open(config_file, "w", encoding="utf-8") as handle:
         json.dump(model_config, handle, indent=2)
 
 
 def read_config(network_name: str) -> dict[str, Any]:
     config_file = settings.MODELS_DIR.joinpath(f"{network_name}.json")
-    logging.info(f"Reading {config_file}")
+    logger.info(f"Reading {config_file}")
     with open(config_file, "r", encoding="utf-8") as handle:
         model_config: dict[str, Any] = json.load(handle)
 
@@ -71,7 +73,7 @@ def read_config(network_name: str) -> dict[str, Any]:
 
 
 def read_config_from_path(path: str | Path) -> dict[str, Any]:
-    logging.info(f"Reading {path}")
+    logger.info(f"Reading {path}")
     with open(path, "r", encoding="utf-8") as handle:
         model_config: dict[str, Any] = json.load(handle)
 
@@ -80,7 +82,7 @@ def read_config_from_path(path: str | Path) -> dict[str, Any]:
 
 def read_class_file(path: str | Path) -> dict[str, int]:
     if Path(path).exists() is False:
-        logging.warning(f"Class file '{path}' not found... class_to_idx returns empty")
+        logger.warning(f"Class file '{path}' not found... class_to_idx returns empty")
         return {}
 
     with open(path, "r", encoding="utf-8") as handle:
@@ -177,7 +179,7 @@ def checkpoint_model(
 ) -> None:
     path = model_path(network_name, epoch=epoch)
     states_path = model_path(network_name, epoch=epoch, states=True)
-    logging.info(f"Saving model checkpoint {path}...")
+    logger.info(f"Saving model checkpoint {path}...")
     torch.save(
         {
             "state": net.state_dict(),
@@ -201,7 +203,7 @@ def _load_states(states_path: Path, device: torch.device) -> tuple[dict[str, Any
         scaler_state = states_dict["scaler_state"]
 
     else:
-        logging.warning(f"States file '{states_path}' not found")
+        logger.warning(f"States file '{states_path}' not found")
         optimizer_state = {}
         scheduler_state = {}
         scaler_state = {}
@@ -222,7 +224,7 @@ def load_checkpoint(
     network_name = get_network_name(network, net_param, tag)
     path = model_path(network_name, epoch=epoch)
     states_path = model_path(network_name, epoch=epoch, states=True)
-    logging.info(f"Loading model from {path} on device {device}...")
+    logger.info(f"Loading model from {path} on device {device}...")
 
     model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)
 
@@ -259,7 +261,7 @@ def load_mim_checkpoint(
     )
     path = model_path(network_name, epoch=epoch, pts=False)
     states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
-    logging.info(f"Loading model from {path} on device {device}...")
+    logger.info(f"Loading model from {path} on device {device}...")
 
     model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)
 
@@ -303,7 +305,7 @@ def load_detection_checkpoint(
     )
     path = model_path(network_name, epoch=epoch, pts=False)
     states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
-    logging.info(f"Loading model from {path} on device {device}...")
+    logger.info(f"Loading model from {path} on device {device}...")
 
     model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)
 
@@ -346,12 +348,13 @@ def load_model(
     pts: bool = False,
     pt2: bool = False,
     st: bool = False,
+    dtype: Optional[torch.dtype] = None,
 ) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], SignatureType, RGBType]:
     if path is None:
         _network_name = get_network_name(network, net_param, tag)
         path = model_path(_network_name, epoch=epoch, quantized=quantized, pts=pts, pt2=pt2, st=st)
 
-    logging.info(f"Loading model from {path} on device {device}...")
+    logger.info(f"Loading model from {path} on device {device}...")
 
     if pts is True:
         extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_stats": ""}
@@ -412,6 +415,8 @@ def load_model(
         class_to_idx = model_dict["class_to_idx"]
         rgb_stats = model_dict["rgb_stats"]
 
+    if dtype is not None:
+        net.to(dtype)
     if inference is True:
         for param in net.parameters():
             param.requires_grad = False
@@ -444,6 +449,7 @@ def load_detection_model(
     pts: bool = False,
     pt2: bool = False,
     st: bool = False,
+    dtype: Optional[torch.dtype] = None,
 ) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], DetectionSignatureType, RGBType]:
     if path is None:
         _network_name = get_detection_network_name(
@@ -456,7 +462,7 @@ def load_detection_model(
         )
         path = model_path(_network_name, epoch=epoch, quantized=quantized, pts=pts, pt2=pt2, st=st)
 
-    logging.info(f"Loading model from {path} on device {device}...")
+    logger.info(f"Loading model from {path} on device {device}...")
 
     if pts is True:
         extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_stats": ""}
@@ -533,6 +539,8 @@ def load_detection_model(
         class_to_idx = model_dict["class_to_idx"]
         rgb_stats = model_dict["rgb_stats"]
 
+    if dtype is not None:
+        net.to(dtype)
     if inference is True:
         for param in net.parameters():
             param.requires_grad = False
@@ -548,6 +556,7 @@ def load_pretrained_model(
     dst: Optional[str | Path] = None,
     inference: bool = False,
     device: Optional[torch.device] = None,
+    dtype: Optional[torch.dtype] = None,
     progress_bar: bool = True,
 ) -> tuple[BaseNet | DetectionBaseNet, dict[str, int], SignatureType | DetectionSignatureType, RGBType]:
     """
@@ -564,6 +573,9 @@ def load_pretrained_model(
         Flag to prepare the model for inference mode.
     device
         The device to load the model on (cpu/cuda).
+    dtype
+        Data type for model parameters and computations (e.g., torch.float32, torch.float16).
+        Determines precision of numerical operations.
     progress_bar
         Whether to display a progress bar during file download.
 
@@ -579,10 +591,18 @@ def load_pretrained_model(
     -----
         - Creates the models directory if it doesn't exist.
         - Downloads the model weights if not already present locally.
+        - When inference=True, the model is set to evaluation mode with gradient calculation disabled.
+        - If device is None, it will default to CPU.
+
+    Examples
+    --------
+        >>> (net, class_to_idx, signature, rgb_stats) = load_pretrained_model("mobilenet_v4_l_eu-common")
+        >>> (net, class_to_idx, signature, rgb_stats) = load_pretrained_model(
+        ...     "rdnet_s_arabian-peninsula", inference=True, device=torch.device("cuda"))
     """
 
     if settings.MODELS_DIR.exists() is False:
-        logging.info(f"Creating {settings.MODELS_DIR} directory...")
+        logger.info(f"Creating {settings.MODELS_DIR} directory...")
         settings.MODELS_DIR.mkdir(parents=True)
 
     model_info = registry.get_pretrained_info(weights)
@@ -615,6 +635,7 @@ def load_pretrained_model(
             backbone_tag=model_info["backbone"].get("tag", None),
             backbone_reparameterized=model_info["backbone"].get("reparameterized", False),
             inference=inference,
+            dtype=dtype,
         )
 
     return load_model(
@@ -625,6 +646,7 @@ def load_pretrained_model(
         tag=model_info["net"].get("tag", None),
         reparameterized=model_info["net"].get("reparameterized", False),
         inference=inference,
+        dtype=dtype,
     )
 
 

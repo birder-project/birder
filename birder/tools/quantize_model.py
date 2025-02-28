@@ -21,6 +21,8 @@ from birder.common.lib import get_network_name
 from birder.conf import settings
 from birder.transforms.classification import inference_preset
 
+logger = logging.getLogger(__name__)
+
 
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
@@ -81,7 +83,7 @@ def main(args: argparse.Namespace) -> None:
     network_name = get_network_name(args.network, net_param=args.net_param, tag=args.tag)
     model_path = fs_ops.model_path(network_name, epoch=args.epoch, quantized=True, pts=True)
     if model_path.exists() is True and args.force is False:
-        logging.warning("Quantized model already exists... aborting")
+        logger.warning("Quantized model already exists... aborting")
         raise SystemExit(1)
 
     if args.gpu is True:
@@ -135,10 +137,10 @@ def main(args: argparse.Namespace) -> None:
 
     toc = time.time()
     (minutes, seconds) = divmod(toc - tic, 60)
-    logging.info(f"{int(minutes):0>2}m{seconds:04.1f}s to quantize model")
+    logger.info(f"{int(minutes):0>2}m{seconds:04.1f}s to quantize model")
 
     model_path = fs_ops.model_path(network_name, epoch=args.epoch, quantized=True, pts=True)
-    logging.info(f"Saving quantized TorchScript model {model_path}...")
+    logger.info(f"Saving quantized TorchScript model {model_path}...")
 
     # Convert to TorchScript
     scripted_module = torch.jit.script(net)
@@ -147,10 +149,10 @@ def main(args: argparse.Namespace) -> None:
     if args.qbackend == "qnnpack":
         model_path = fs_ops.model_path(network_name, epoch=args.epoch, quantized=True, lite=True)
         if model_path.exists() is True and args.force is False:
-            logging.warning("Quantized model lite already exists... aborting")
+            logger.warning("Quantized model lite already exists... aborting")
             raise SystemExit(1)
 
-        logging.info(f"Saving quantized TorchScript model {model_path}...")
+        logger.info(f"Saving quantized TorchScript model {model_path}...")
         optimized_scripted_module = optimize_for_mobile(scripted_module)
         optimized_scripted_module._save_for_lite_interpreter(  # pylint: disable=protected-access
             str(model_path),

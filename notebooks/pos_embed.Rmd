@@ -28,10 +28,24 @@ import torch.nn.functional as F
 ```{python}
 from birder.common import fs_ops
 from birder.common import lib
+from birder.net.base import pos_embedding_sin_cos_2d
 ```
 
 ```{python}
 device = torch.device("cpu")
+```
+
+## Simple ViT
+
+```{python}
+pos_embedding = pos_embedding_sin_cos_2d(14, 14, 768, 0)
+plt.matshow(pos_embedding.numpy())
+```
+
+```{python}
+pos_embedding = pos_embedding_sin_cos_2d(14, 14, 768, 0)
+similarity = pos_embedding.squeeze() @ pos_embedding.squeeze().T
+plt.matshow(similarity.numpy())
 ```
 
 ## ViT

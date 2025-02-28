@@ -12,6 +12,8 @@ from birder.common.lib import get_network_name
 from birder.model_registry import registry
 from birder.net.base import SignatureType
 
+logger = logging.getLogger(__name__)
+
 
 def avg_models(
     network: str, net_param: Optional[float], tag: Optional[str], reparameterized: bool, epochs: list[int], force: bool
@@ -22,19 +24,19 @@ def avg_models(
     for idx, epoch in enumerate(epochs):
         network_name = get_network_name(network, net_param, tag)
         path = fs_ops.model_path(network_name, epoch=epoch)
-        logging.info(f"Loading model from {path}...")
+        logger.info(f"Loading model from {path}...")
 
         model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)
         state_list.append(model_dict["state"])
 
         if idx == 0:
-            logging.info(f"Copying signature from epoch {epoch}")
+            logger.info(f"Copying signature from epoch {epoch}")
             for key in model_dict:
                 if key in ("state", "signature"):
                     continue
 
                 aux_data[key] = model_dict[key]
-                logging.info(f"Copying {key} from epoch {epoch}")
+                logger.info(f"Copying {key} from epoch {epoch}")
 
             signature: SignatureType = model_dict["signature"]
             input_channels = lib.get_channels_from_signature(signature)
@@ -48,7 +50,7 @@ def avg_models(
             net.to(device)
 
     # Average state
-    logging.info("Calculating averages...")
+    logger.info("Calculating averages...")
     avg_state = {}
     for state_name in state_list[0]:
         params = torch.empty((len(state_list),) + state_list[0][state_name].size())
@@ -63,10 +65,10 @@ def avg_models(
     # Save model
     model_path = fs_ops.model_path(network_name, epoch=0)
     if model_path.exists() is True and force is False:
-        logging.warning("Averaged model already exists... aborting")
+        logger.warning("Averaged model already exists... aborting")
         raise SystemExit(1)
 
-    logging.info(f"Saving model checkpoint {model_path}...")
+    logger.info(f"Saving model checkpoint {model_path}...")
     torch.save(
         {
             "state": net.state_dict(),

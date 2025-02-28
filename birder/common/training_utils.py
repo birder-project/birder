@@ -18,6 +18,8 @@ import torch.utils.data
 import torch.utils.data.distributed
 from torchvision.ops import FrozenBatchNorm2d
 
+logger = logging.getLogger(__name__)
+
 OptimizerType = Literal["sgd", "rmsprop", "adamw"]
 SchedulerType = Literal["constant", "step", "multistep", "cosine", "polynomial"]
 
@@ -209,7 +211,7 @@ def optimizer_parameter_groups(
         group_map = {}
         num_layers = count_layers(model)
         if layer_decay is not None:
-            logging.warning("Assigning lr scaling (layer decay) without a block group map")
+            logger.warning("Assigning lr scaling (layer decay) without a block group map")
 
     # Build layer scale
     layer_scales = []
@@ -228,7 +230,7 @@ def optimizer_parameter_groups(
         (module, prefix) = module_stack_with_prefix.pop()
         if id(module) in visited_modules:
             if user_warned is False:
-                logging.info("Found duplicated parameters (probably a module alias)")
+                logger.info("Found duplicated parameters (probably a module alias)")
                 user_warned = True
 
             skip_module = True
@@ -434,7 +436,7 @@ def init_distributed_mode(args: argparse.Namespace) -> None:
         args.gpu = int(os.environ["LOCAL_RANK"])
 
     else:
-        logging.info("Not using distributed mode")
+        logger.info("Not using distributed mode")
         args.rank = 0
         args.distributed = False
         if args.gpu is not None:
@@ -446,7 +448,7 @@ def init_distributed_mode(args: argparse.Namespace) -> None:
 
     torch.cuda.set_device(args.gpu)
     args.dist_backend = "nccl"
-    logging.info(f"Distributed init (rank {args.rank}): {args.dist_url}")
+    logger.info(f"Distributed init (rank {args.rank}): {args.dist_url}")
     dist.init_process_group(
         backend=args.dist_backend, init_method=args.dist_url, world_size=args.world_size, rank=args.rank
     )
@@ -523,7 +525,7 @@ def setup_file_logging(log_file_path: str | Path) -> None:
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.INFO)
 
-    logging.root.addHandler(file_handler)
+    logger.addHandler(file_handler)
 
 
 def get_grad_norm(parameters: Iterator[torch.Tensor], norm_type: float = 2) -> float:

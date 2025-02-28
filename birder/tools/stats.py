@@ -17,6 +17,8 @@ from tqdm import tqdm
 from birder.common import cli
 from birder.conf import settings
 
+logger = logging.getLogger(__name__)
+
 
 def detection_object_count(directory: Path) -> tuple[Counter[str], int]:
     """
@@ -83,28 +85,28 @@ def set_size(_args: argparse.Namespace) -> None:
     training_dataset = ImageFolder(settings.TRAINING_DATA_PATH)
     validation_dataset = ImageFolder(settings.VALIDATION_DATA_PATH)
     testing_dataset = ImageFolder(settings.TESTING_DATA_PATH)
-    logging.info(
+    logger.info(
         f"Training:   {len(training_dataset):,} samples with {len(training_dataset.classes)} classes "
         f"(average of {round(len(training_dataset) / len(training_dataset.classes))} per class)"
     )
-    logging.info(
+    logger.info(
         f"Validation: {len(validation_dataset):,} samples with {len(validation_dataset.classes)} classes "
         f"(average of {round(len(validation_dataset) / len(validation_dataset.classes))} per class)"
     )
-    logging.info(
+    logger.info(
         f"Testing:    {len(testing_dataset):,} samples with {len(testing_dataset.classes)} classes "
         f"(average of {round(len(testing_dataset) / len(testing_dataset.classes))} per class)"
     )
-    logging.info(
+    logger.info(
         f"Total of {len(training_dataset) + len(validation_dataset) + len(testing_dataset):,} " "classification samples"
     )
 
-    logging.info("---")
+    logger.info("---")
     (training_detection_count, training_file_count) = detection_object_count(
         settings.TRAINING_DETECTION_ANNOTATIONS_PATH
     )
     if training_file_count > 0:
-        logging.info(
+        logger.info(
             f"Detection training:   {training_file_count:,} samples containing "
             f"{sum(training_detection_count.values()):,} "
             f"objects with {len(training_detection_count.keys())} classes (average of "
@@ -115,30 +117,30 @@ def set_size(_args: argparse.Namespace) -> None:
         settings.VALIDATION_DETECTION_ANNOTATIONS_PATH
     )
     if validation_file_count > 0:
-        logging.info(
+        logger.info(
             f"Detection validation: {validation_file_count:,} samples containing "
             f"{sum(validation_detection_count.values()):,} "
             f"objects with {len(validation_detection_count.keys())} classes (average of "
             f"{sum(validation_detection_count.values()) / validation_file_count:.1f} objects per sample)"
         )
 
-    logging.info(f"Total of {training_file_count + validation_file_count:,} detection samples")
+    logger.info(f"Total of {training_file_count + validation_file_count:,} detection samples")
 
-    logging.info("---")
+    logger.info("---")
     weak_dataset = ImageFolder(settings.WEAKLY_LABELED_DATA_PATH)
-    logging.info(
+    logger.info(
         f"Weakly labeled: {len(weak_dataset):,} samples with {len(weak_dataset.classes)} classes "
         f"(average of {round(len(weak_dataset) / len(weak_dataset.classes))} per class)"
     )
     weak_val_dataset = ImageFolder(settings.WEAKLY_VAL_LABELED_DATA_PATH)
-    logging.info(
+    logger.info(
         f"Weakly labeled validation: {len(weak_val_dataset):,} samples with {len(weak_val_dataset.classes)} classes "
         f"(average of {round(len(weak_val_dataset) / len(weak_val_dataset.classes))} per class)"
     )
 
-    logging.info("---")
+    logger.info("---")
     num_classes = len(set(training_dataset.class_to_idx.keys()).union(set(weak_dataset.class_to_idx.keys())))
-    logging.info(f"Total of {num_classes} unique classes")
+    logger.info(f"Total of {num_classes} unique classes")
 
 
 def mean_and_std(args: argparse.Namespace) -> None:
@@ -170,8 +172,8 @@ def mean_and_std(args: argparse.Namespace) -> None:
 
     std = np.sqrt(mean_squares - np.square(mean))
     rgb_stats = {"mean": mean.round(decimals=4).tolist(), "std": std.round(decimals=4).tolist()}
-    logging.info(f"mean: {rgb_stats['mean']}")
-    logging.info(f"std: {rgb_stats['std']}")
+    logger.info(f"mean: {rgb_stats['mean']}")
+    logger.info(f"std: {rgb_stats['std']}")
 
 
 def set_parser(subparsers: Any) -> None:

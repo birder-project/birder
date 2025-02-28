@@ -14,6 +14,8 @@ from urllib.request import urlopen
 
 from tqdm import tqdm
 
+logger = logging.getLogger(__name__)
+
 
 class ArgumentHelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawTextHelpFormatter):
     pass
@@ -107,9 +109,9 @@ def download_file(
             return
 
         if override is False:
-            logging.warning("Found existing file with different SHA256, aborting...")
+            logger.warning("Found existing file with different SHA256, aborting...")
 
-        logging.warning("Overriding existing file with different SHA256")
+        logger.warning("Overriding existing file with different SHA256")
 
     file_size = None
     req = Request(url, headers={"User-Agent": "birder.datahub"})
@@ -144,7 +146,7 @@ def download_file(
             raise RuntimeError(f'invalid hash value (expected "{expected_sha256}", got "{digest}")')
 
         shutil.move(f.name, dst)
-        logging.info(f"Finished, file saved at {dst}")
+        logger.info(f"Finished, file saved at {dst}")
 
     finally:
         f.close()

@@ -47,8 +47,8 @@ from birder.tools.model_info import get_model_info
 ```
 
 ```{python}
-PATTERN = "arabian-peninsula"
-RESULTS_PATH = "arabian-peninsula"
+PATTERN = "il-common"
+RESULTS_PATH = "il-common"
 ```
 
 ## Helper Functions
@@ -58,6 +58,7 @@ def get_model_name_and_num_parameters(file_name: str, tag: str = PATTERN) -> tup
     reparameterized = False
     intermediate = False
     mim = False
+    dist = False
     if file_name.find("reparameterized") != -1:
         reparameterized = True
         file_name = file_name.replace("_reparameterized", "")
@@ -69,6 +70,10 @@ def get_model_name_and_num_parameters(file_name: str, tag: str = PATTERN) -> tup
         mim = True
         file_name = file_name.replace("_mim", "")
         file_name = file_name.replace("-mim", "")
+    if file_name.find("dist") != -1:
+        dist = True
+        file_name = file_name.replace("_dist", "")
+        file_name = file_name.replace("-dist", "")
 
     file_name = file_name.split("/")[-1]
     tag_end_idx = file_name.find("_", file_name.find(tag))
@@ -87,13 +92,16 @@ def get_model_name_and_num_parameters(file_name: str, tag: str = PATTERN) -> tup
         model.reparameterize_model()
         model_name += " (r)"
 
+    if dist is True:
+        model_name += " (d)"
+
     info = get_model_info(model)
     if "model_registry.model_registry" in model.__class__.__module__:
         model_type = model.__class__.__bases__[0].__name__
     else:
         model_type = model.__class__.__name__
 
-    return (model_name.replace("_", " "), model_type.replace("_", " "), info["num_params"], intermediate, mim)
+    return (model_name.replace("_", " "), model_type.replace("_", " "), info["num_params"], intermediate, mim, dist)
 ```
 
 ```{python}
@@ -136,8 +144,9 @@ pretrained_names = []
 resolution = []
 intermediate = []
 mim = []
+dist = []
 for file_name in compare_results_df["File name"]:
-    (model_name, model_type, count, intermediate_trn, mim_trn) = get_model_name_and_num_parameters(file_name)
+    (model_name, model_type, count, intermediate_trn, mim_trn, dist_trn) = get_model_name_and_num_parameters(file_name)
     num_param.append(count / 1e6)
     model_names.append(model_name)
     model_types.append(model_type)
@@ -145,6 +154,7 @@ for file_name in compare_results_df["File name"]:
     resolution.append(get_resolution(file_name))
     intermediate.append(intermediate_trn)
     mim.append(mim_trn)
+    dist.append(dist_trn)
 
 compare_results_df = compare_results_df.with_columns(
     pl.Series("Parameters (M)", num_param),
@@ -154,6 +164,7 @@ compare_results_df = compare_results_df.with_columns(
     pl.Series("Pretrained name", pretrained_names),
     pl.Series("Intermediate", intermediate),
     pl.Series("MIM", mim),
+    pl.Series("Distilled", dist),
 )
 ```
 
@@ -165,7 +176,9 @@ df = compare_results_df.with_columns(
         pl.col("Model name").str.ends_with(" (r)").alias("has_r_suffix"),
     ]
 )
-df = df.filter(df["base_name"].is_duplicated()).sort(by=["base_name", "has_r_suffix"], descending=[False, False])
+df = df.filter(df[["base_name", "Resolution"]].is_duplicated()).sort(
+    by=["base_name", "has_r_suffix"], descending=[False, False]
+)
 names_to_drop = df.unique("base_name", keep="first")["File name"]
 compare_results_df = compare_results_df.filter(~pl.col("File name").is_in(names_to_drop))
 ```
@@ -175,15 +188,15 @@ compare_results_df = compare_results_df.filter(~pl.col("File name").is_in(names_
 ```{python}
 benchmark_df = pl.read_csv(settings.RESULTS_DIR.joinpath(f"benchmark_{PATTERN}.csv"))
 benchmark_df = benchmark_df.with_columns(pl.col("model_name").str.replace(r"\d+px$", ""))
-compare_results_df = compare_results_df.join(benchmark_df, left_on="Pretrained name", right_on="model_name", how="left")
+compare_results_df = compare_results_df.join(
+    benchmark_df, left_on=["Pretrained name", "Resolution"], right_on=["model_name", "size"], how="left"
+)
 compare_results_df = compare_results_df.with_columns(
     (1000 * (1 / pl.col("samples_per_sec"))).alias("ms / sample"),
 )
 
 # Filter relevant benchmark data
-compare_results_df = compare_results_df.filter(
-    (pl.col("Resolution") == pl.col("size")) | (pl.col("ms / sample").is_null())  # Not benchmarked yet
-)
+# compare_results_df = compare_results_df.filter((pl.col("ms / sample").is_null() & pl.col("peak_memory").is_null()))
 ```
 
 ```{python}
@@ -201,6 +214,8 @@ compare_results_df = compare_results_df.select(
     "batch_size",
     "compile",
     "amp",
+    "single_thread",
+    "torch_version",
 )
 compare_results_df = compare_results_df.rename(
     {"samples_per_sec": "Samples / sec", "peak_memory": "Peak GPU memory (MB)"}
@@ -324,7 +339,9 @@ def plot_acc_rate(rate_compare_results_df: pl.DataFrame, width: int = 900, heigh
 compare_results_df = pl.read_csv(settings.RESULTS_DIR.joinpath(f"results_{PATTERN}.csv"))
 
 # Parameter count
-param_compare_results_df = compare_results_df.unique(subset=["Model name"]).sort("Parameters (M)", descending=False)
+param_compare_results_df = compare_results_df.unique(subset=["Model name", "Resolution"]).sort(
+    "Parameters (M)", descending=False
+)
 param_compare_results_df = param_compare_results_df.with_columns(
     pl.col("Accuracy").cum_max().alias("Pareto frontier (p)")
 )
@@ -340,7 +357,7 @@ chart.show()
 ```{python}
 # Memory usage
 memory_compare_results_df = compare_results_df.drop_nulls(subset=["Peak GPU memory (MB)"])
-memory_compare_results_df = memory_compare_results_df.unique(subset=["Model name"]).sort(
+memory_compare_results_df = memory_compare_results_df.unique(subset=["Model name", "Resolution"]).sort(
     "Peak GPU memory (MB)", descending=False
 )
 memory_compare_results_df = memory_compare_results_df.with_columns(
@@ -356,14 +373,16 @@ chart.show()
 
 ```{python}
 combination_df = (
-    compare_results_df.drop_nulls(subset=["ms / sample"]).select("device", "batch_size", "compile", "amp").unique()
+    compare_results_df.drop_nulls(subset=["ms / sample"])
+    .select("device", "batch_size", "compile", "amp", "single_thread")
+    .unique()
 )
 combination_df = combination_df.drop_nulls()
 for combination in combination_df.iter_rows(named=True):
     df = compare_results_df.filter(**combination)
 
     # Device rate
-    device_compare_results_df = df.unique(subset=["Model name"]).sort("ms / sample", descending=False)
+    device_compare_results_df = df.unique(subset=["Model name", "Resolution"]).sort("ms / sample", descending=False)
     device_compare_results_df = device_compare_results_df.with_columns(
         pl.col("Accuracy").cum_max().alias("Pareto frontier (ms)")
     )

@@ -19,6 +19,8 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.conf import settings
 
+logger = logging.getLogger(__name__)
+
 
 class CustomImageFolder(ImageFolder):
     def __init__(
@@ -51,7 +53,7 @@ def _save_classes(pack_path: Path, class_to_idx: dict[str, int]) -> None:
     class_list_path = pack_path.joinpath("classes.txt")
     doc = "\n".join(list(class_to_idx.keys()))
 
-    logging.info(f"Saving class list at {class_list_path}")
+    logger.info(f"Saving class list at {class_list_path}")
     with open(class_list_path, "w", encoding="utf-8") as handle:
         handle.write(doc)
 
@@ -172,7 +174,7 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
     if args.jobs == -1:
         args.jobs = multiprocessing.cpu_count()
 
-    logging.info(f"Running {args.jobs} read processes and 1 write process")
+    logger.info(f"Running {args.jobs} read processes and 1 write process")
 
     q_in = []  # type: ignore
     for _ in range(args.jobs):
@@ -219,14 +221,14 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
 
     if args.type == "wds":
         (wds_path, num_shards) = fs_ops.wds_braces_from_path(pack_path)
-        logging.info(f"Packed {len(dataset):,} samples into {num_shards} shards at {wds_path}")
+        logger.info(f"Packed {len(dataset):,} samples into {num_shards} shards at {wds_path}")
     elif args.type == "directory":
-        logging.info(f"Packed {len(dataset):,} samples")
+        logger.info(f"Packed {len(dataset):,} samples")
 
     toc = time.time()
     rate = len(dataset) / (toc - tic)
     (minutes, seconds) = divmod(toc - tic, 60)
-    logging.info(f"{int(minutes):0>2}m{seconds:04.1f}s to pack {len(dataset):,} samples ({rate:.2f} samples/sec)")
+    logger.info(f"{int(minutes):0>2}m{seconds:04.1f}s to pack {len(dataset):,} samples ({rate:.2f} samples/sec)")
 
 
 def set_parser(subparsers: Any) -> None:
@@ -270,11 +272,11 @@ def main(args: argparse.Namespace) -> None:
     args.max_size = args.max_size * 1e6
     pack_path = Path(f"{Path(args.data_path[0])}_{args.suffix}")
     if pack_path.exists() is False:
-        logging.info(f"Creating {pack_path} directory...")
+        logger.info(f"Creating {pack_path} directory...")
         pack_path.mkdir(parents=True)
 
     else:
-        logging.warning("Directory already exists... aborting")
+        logger.warning("Directory already exists... aborting")
         raise SystemExit(1)
 
     pack(args, pack_path)

@@ -13,7 +13,6 @@ Changes from original:
 
 # Reference license: Apache-2.0
 
-import logging
 import math
 from collections import OrderedDict
 from typing import Any
@@ -551,7 +550,6 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
             return
 
         old_size = self.size
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         if self.pos_embed_win is not None:

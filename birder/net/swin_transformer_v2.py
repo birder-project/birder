@@ -11,7 +11,6 @@ Changes from original:
 
 # Reference license: BSD 3-Clause and MIT
 
-import logging
 from collections import OrderedDict
 from typing import Any
 from typing import Optional
@@ -357,7 +356,6 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder):
             return
 
         old_size = self.size
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         for m in self.body.modules():

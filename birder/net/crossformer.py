@@ -11,7 +11,6 @@ Changes from original:
 
 # Reference license: MIT
 
-import logging
 from collections import OrderedDict
 from typing import Any
 from typing import Optional
@@ -201,7 +200,7 @@ class CrossFormerBlock(nn.Module):
         else:
             x = x.reshape(B, GH, H // GH, GW, W // GW, C).permute(0, 2, 4, 1, 3, 5)
 
-        x = x.reshape(int(B * H * W // (GH * GW)), GH * GW, C)
+        x = x.reshape(B * H * W // (GH * GW), GH * GW, C)
 
         # Attention
         x = self.attn(x)  # nW*B, G*G, C
@@ -423,7 +422,6 @@ class CrossFormer(DetectorBackbone):
         if new_size == self.size:
             return
 
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         new_patch_resolution = (new_size[0] // self.patch_sizes[0], new_size[1] // self.patch_sizes[0])
@@ -493,5 +491,23 @@ registry.register_weights(
             }
         },
         "net": {"network": "crossformer_s", "tag": "arabian-peninsula256px"},
+    },
+)
+registry.register_weights(
+    "crossformer_s_arabian-peninsula",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/crossformer_s_arabian-peninsula/"
+            "resolve/main/crossformer_s_arabian-peninsula.pt"
+        ),
+        "description": "CrossFormer small model trained on the arabian-peninsula dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 118.3,
+                "sha256": "94936dfb3f641cbd227b90ada937eb5055e176fa95f517711e14315b2e0b9405",
+            }
+        },
+        "net": {"network": "crossformer_s", "tag": "arabian-peninsula"},
     },
 )

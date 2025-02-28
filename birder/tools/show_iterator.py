@@ -23,6 +23,8 @@ from birder.transforms.classification import inference_preset
 from birder.transforms.classification import reverse_preset
 from birder.transforms.classification import training_preset
 
+logger = logging.getLogger(__name__)
+
 
 # pylint: disable=too-many-locals,too-many-branches
 def show_iterator(args: argparse.Namespace) -> None:
@@ -42,7 +44,7 @@ def show_iterator(args: argparse.Namespace) -> None:
 
         else:
             dataset_size = wds_size(wds_path, 1)
-            logging.info(f"WDS dataset size is {dataset_size:,}")
+            logger.info(f"WDS dataset size is {dataset_size:,}")
 
         dataset = make_wds_dataset(
             wds_path,

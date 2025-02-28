@@ -40,7 +40,6 @@ class MAE_ViT(MIMBaseNet):
         assert self.net_param is None, "net-param not supported"
         assert self.config is None, "config not supported"
         assert isinstance(self.encoder, (ViT, Simple_ViT, ViT_SAM))
-        self.encoder: ViT | Simple_ViT | ViT_SAM
 
         self.mask_ratio = 0.75
         self.patch_size = self.encoder.patch_size

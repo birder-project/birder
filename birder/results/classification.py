@@ -17,6 +17,8 @@ from sklearn.metrics import confusion_matrix
 
 from birder.conf import settings
 
+logger = logging.getLogger(__name__)
+
 
 def top_k_accuracy_score(y_true: npt.NDArray[Any], y_pred: npt.NDArray[np.float64], top_k: int) -> list[int]:
     """
@@ -281,35 +283,35 @@ class Results:
         highest_precision = report_df[report_df["Precision"].arg_max()]  # type: ignore[index]
         highest_recall = report_df[report_df["Recall"].arg_max()]  # type: ignore[index]
 
-        logging.info(f"Accuracy {self._accuracy:.3f} on {self._valid_length} samples ({self._num_mistakes} mistakes)")
-        logging.info(
+        logger.info(f"Accuracy {self._accuracy:.3f} on {self._valid_length} samples ({self._num_mistakes} mistakes)")
+        logger.info(
             f"Top-{settings.TOP_K} accuracy {self._top_k:.3f} on {self._valid_length} samples "
             f"({self._num_out_of_top_k} samples out of top-{settings.TOP_K})"
         )
 
-        logging.info(
+        logger.info(
             f"Lowest precision {lowest_precision['Precision'][0]:.3f} for '{lowest_precision['Class name'][0]}' "
             f"({lowest_precision['False negative'][0]} false negatives, "
             f"{lowest_precision['False positive'][0]} false positives)"
         )
-        logging.info(
+        logger.info(
             f"Lowest recall {lowest_recall['Recall'][0]:.3f} for '{lowest_recall['Class name'][0]}' "
             f"({lowest_recall['False negative'][0]} false negatives, "
             f"{lowest_recall['False positive'][0]} false positives)"
         )
 
-        logging.info(
+        logger.info(
             f"Highest precision {highest_precision['Precision'][0]:.3f} for '{highest_precision['Class name'][0]}' "
             f"({highest_precision['False negative'][0]} false negatives, "
             f"{highest_precision['False positive'][0]} false positives)"
         )
-        logging.info(
+        logger.info(
             f"Highest recall {highest_recall['Recall'][0]:.3f} for '{highest_recall['Class name'][0]}' "
             f"({highest_recall['False negative'][0]} false negatives, "
             f"{highest_recall['False positive'][0]} false positives)"
         )
         if self.missing_labels is True:
-            logging.warning(
+            logger.warning(
                 f"{len(self) - self._valid_length} of the samples did not have labels, metrics calculated only on "
                 f"{self._valid_length} out of total {len(self)} samples"
             )
@@ -403,11 +405,11 @@ class Results:
         """
 
         if settings.RESULTS_DIR.exists() is False:
-            logging.info(f"Creating {settings.RESULTS_DIR} directory...")
+            logger.info(f"Creating {settings.RESULTS_DIR} directory...")
             settings.RESULTS_DIR.mkdir(parents=True)
 
         results_path = settings.RESULTS_DIR.joinpath(name)
-        logging.info(f"Saving results at {results_path}")
+        logger.info(f"Saving results at {results_path}")
 
         # Write label names list
         with open(results_path, "w", encoding="utf-8") as handle:

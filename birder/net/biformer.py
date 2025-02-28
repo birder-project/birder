@@ -12,7 +12,6 @@ Changes from original:
 
 # Reference license: Apache-2.0
 
-import logging
 from collections import OrderedDict
 from typing import Any
 from typing import Optional
@@ -501,7 +500,6 @@ class BiFormer(DetectorBackbone):
         if new_size == self.size:
             return
 
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         n_win_h = new_size[0] // 32

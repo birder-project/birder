@@ -7,6 +7,8 @@ import torch
 from birder.common import cli
 from birder.common import fs_ops
 
+logger = logging.getLogger(__name__)
+
 
 class Ensemble(torch.nn.Module):
     def __init__(self, module_list: torch.nn.ModuleList) -> None:
@@ -69,10 +71,10 @@ def main(args: argparse.Namespace) -> None:
         raise ValueError("All networks must have the same class to index definition")
 
     if [signature_list[0]] * len(signature_list) != signature_list:
-        logging.warning(f"Networks signatures differ, using signature={signature_list[0]}")
+        logger.warning(f"Networks signatures differ, using signature={signature_list[0]}")
 
     if [rgb_stats_list[0]] * len(rgb_stats_list) != rgb_stats_list:
-        logging.warning(f"Networks rgb values differ, using rgb values of {rgb_stats_list[0]}")
+        logger.warning(f"Networks rgb values differ, using rgb values of {rgb_stats_list[0]}")
 
     signature = signature_list[0]
     class_to_idx = class_to_idx_list[0]
@@ -82,10 +84,10 @@ def main(args: argparse.Namespace) -> None:
     network_name = "ensemble"
     model_path = fs_ops.model_path(network_name, pts=args.pts, pt2=args.pt2)
     if model_path.exists() is True and args.force is False:
-        logging.warning("Ensemble already exists... aborting")
+        logger.warning("Ensemble already exists... aborting")
         raise SystemExit(1)
 
-    logging.info(f"Saving model {model_path}...")
+    logger.info(f"Saving model {model_path}...")
     if args.pt2 is True:
         signature["inputs"][0]["data_shape"][0] = 2  # Set batch size
         sample_shape = signature["inputs"][0]["data_shape"]

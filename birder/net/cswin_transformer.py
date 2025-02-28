@@ -11,7 +11,6 @@ Changes from original:
 
 # Reference license: MIT
 
-import logging
 import math
 from collections import OrderedDict
 from typing import Any
@@ -378,7 +377,6 @@ class CSWin_Transformer(DetectorBackbone):
         if new_size == self.size:
             return
 
-        logging.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         super().adjust_size(new_size)
 
         new_base = (new_size[0] // 4, new_size[1] // 4)

@@ -11,6 +11,8 @@ from birder.common import cli
 from birder.conf import settings
 from birder.datasets.directory import make_image_dataset
 
+logger = logging.getLogger(__name__)
+
 
 def evaluate(args: argparse.Namespace) -> None:
     if args.gpu is True:
@@ -21,7 +23,7 @@ def evaluate(args: argparse.Namespace) -> None:
     if args.gpu_id is not None:
         torch.cuda.set_device(args.gpu_id)
 
-    logging.info(f"Using device {device}")
+    logger.info(f"Using device {device}")
 
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
@@ -30,7 +32,7 @@ def evaluate(args: argparse.Namespace) -> None:
     model_list = birder.list_pretrained_models(args.filter)
     for model_name in model_list:
         (net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model(
-            model_name, inference=True, device=device
+            model_name, inference=True, device=device, dtype=model_dtype
         )
         if args.compile is True:
             net = torch.compile(net)
@@ -47,7 +49,7 @@ def evaluate(args: argparse.Namespace) -> None:
                 device, net, inference_loader, class_to_idx, args.tta, model_dtype, args.amp, num_samples=num_samples
             )
 
-        logging.info(f"{model_name}: accuracy={results.accuracy:.3f}")
+        logger.info(f"{model_name}: accuracy={results.accuracy:.3f}")
         base_output_path = (
             f"{args.dir}/{model_name}_{len(class_to_idx)}_{args.size[0]}px_crop{args.center_crop}_{num_samples}"
         )
@@ -117,7 +119,7 @@ def main() -> None:
     validate_args(args)
 
     if settings.RESULTS_DIR.joinpath(args.dir).exists() is False:
-        logging.info(f"Creating {settings.RESULTS_DIR.joinpath(args.dir)} directory...")
+        logger.info(f"Creating {settings.RESULTS_DIR.joinpath(args.dir)} directory...")
         settings.RESULTS_DIR.joinpath(args.dir).mkdir(parents=True)
 
     evaluate(args)
