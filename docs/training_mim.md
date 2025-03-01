@@ -24,7 +24,31 @@ Fine-tuning, first stage - linear probing
 torchrun --nproc_per_node=2 train.py --network vitreg4_b14 --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
 ```
 
+#### CrossMAE: SoViT reg4 150m p14
+
+```sh
+torchrun --nproc_per_node=2 train_mim.py --network crossmae --encoder vitreg4_so150m_p14_ap --opt adamw --lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --batch-size 256 --wd 0.05 --encoder-model-config drop_path_rate=0.0 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
+
+Optional intermediate training: first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vitreg4_so150m_p14_ap --tag mim-intermediate --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --unfreeze-features --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+```
+
 ### FCMAE
+
+#### FCMAE: ConvNeXt v2 Atto
+
+```sh
+torchrun --nproc_per_node=2 train_mim.py --network fcmae --encoder convnext_v2_atto --opt adamw --lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --batch-size 512 --epochs 400 --wd 0.05 --encoder-model-config drop_path_rate=0.0 --fast-matmul --compile --find-unused-parameters --data-path data/training
+```
+
+Fine-tuning, first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network convnext_v2_atto --tag mim --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --smoothing-alpha 0.1 --aug-level 2 --fast-matmul --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
+```
 
 #### FCMAE: ConvNeXt v2 Nano
 

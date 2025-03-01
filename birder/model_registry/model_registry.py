@@ -170,7 +170,7 @@ class ModelRegistry:
 
         Returns
         -------
-            Sorted models list (by model group) of pretrained networks.
+        Sorted models list (by model group) of pretrained networks.
         """
 
         model_list = list(self._pretrained_nets.keys())

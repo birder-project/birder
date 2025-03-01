@@ -58,7 +58,7 @@ def undo_windowing(x: torch.Tensor, shape: tuple[int, int], mu_shape: list[int])
 
     Returns
     -------
-        Tensor with shape of [B, #MUy*MUy, #MUx*MUx, C]
+    Tensor with shape of [B, #MUy*MUy, #MUx*MUx, C]
     """
 
     D = len(shape)

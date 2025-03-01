@@ -1,4 +1,4 @@
-matplotlib~=3.10.0
+matplotlib~=3.10.1
 numpy~=2.2.3
 onnx~=1.17.0
 onnxscript~=0.2.1

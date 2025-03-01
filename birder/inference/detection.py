@@ -56,10 +56,10 @@ def infer_dataloader(
 
     Returns
     -------
-        A tuple containing three elements:
-        - list[str]: A list of all processed file paths.
-        - list[dict[str, torch.Tensor]]: A list of detection dictionaries.
-        - list[dict[str, Any]]: A list of all targets.
+    A tuple containing three elements:
+    - list[str]: A list of all processed file paths.
+    - list[dict[str, torch.Tensor]]: A list of detection dictionaries.
+    - list[dict[str, Any]]: A list of all targets.
 
     Notes
     -----

@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.16.6
+      jupytext_version: 1.16.7
   kernelspec:
     display_name: birder
     language: python
@@ -50,7 +50,7 @@ torch.set_float32_matmul_precision("high")
 ```{python}
 device = torch.device("cuda:1")
 (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
-    device, "convnext_v2_tiny", tag="raw384px", epoch=40, inference=True
+    device, "convnext_v2_tiny", tag="raw384px", epoch=0, inference=True
 )
 ```
 
@@ -93,7 +93,7 @@ def batch_callback(file_paths: list[str], out: npt.NDArray[np.float32], batch_la
 
 ```{python}
 with torch.inference_mode():
-    (sample_paths, outs, labels, embedding_list) = infer_dataloader(
+    inference_iter = infer_dataloader(
         device,
         net,
         inference_loader,
@@ -102,7 +102,10 @@ with torch.inference_mode():
         amp=AMP,
         num_samples=num_samples,
         batch_callback=batch_callback,
+        chunk_size=32000,
     )
+    for sample_paths, outs, labels, embedding_list in inference_iter:
+        pass
 ```
 
 ```{python}

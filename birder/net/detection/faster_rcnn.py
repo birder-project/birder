@@ -49,9 +49,9 @@ class BalancedPositiveNegativeSampler:
 
         Returns
         -------
-            returns two lists of binary masks for each image.
-            The first list contains the positive elements that were selected,
-            and the second list the negative example
+        returns two lists of binary masks for each image.
+        The first list contains the positive elements that were selected,
+        and the second list the negative example
         """
 
         pos_idx = []

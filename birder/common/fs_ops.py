@@ -581,24 +581,24 @@ def load_pretrained_model(
 
     Returns
     -------
-        A tuple containing four elements:
-        - A PyTorch module (neural network model) loaded with pre-trained weights.
-        - Class to index mapping.
-        - A signature defining the expected input and output tensor shapes.
-        - The model's RGB processing type.
+    A tuple containing four elements:
+    - A PyTorch module (neural network model) loaded with pre-trained weights.
+    - Class to index mapping.
+    - A signature defining the expected input and output tensor shapes.
+    - The model's RGB processing type.
 
     Notes
     -----
-        - Creates the models directory if it doesn't exist.
-        - Downloads the model weights if not already present locally.
-        - When inference=True, the model is set to evaluation mode with gradient calculation disabled.
-        - If device is None, it will default to CPU.
+    - Creates the models directory if it doesn't exist.
+    - Downloads the model weights if not already present locally.
+    - When inference=True, the model is set to evaluation mode with gradient calculation disabled.
+    - If device is None, it will default to CPU.
 
     Examples
     --------
-        >>> (net, class_to_idx, signature, rgb_stats) = load_pretrained_model("mobilenet_v4_l_eu-common")
-        >>> (net, class_to_idx, signature, rgb_stats) = load_pretrained_model(
-        ...     "rdnet_s_arabian-peninsula", inference=True, device=torch.device("cuda"))
+    >>> (net, class_to_idx, signature, rgb_stats) = load_pretrained_model("mobilenet_v4_l_eu-common")
+    >>> (net, class_to_idx, signature, rgb_stats) = load_pretrained_model(
+    ...     "rdnet_s_arabian-peninsula", inference=True, device=torch.device("cuda"))
     """
 
     if settings.MODELS_DIR.exists() is False:
@@ -666,7 +666,7 @@ def load_model_with_cfg(
 
     Returns
     -------
-        A PyTorch neural network model, optionally loaded with pre-trained weights.
+    A PyTorch neural network model, optionally loaded with pre-trained weights.
     """
 
     if not isinstance(cfg, dict):

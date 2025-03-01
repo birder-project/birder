@@ -1,7 +1,8 @@
 [flake8]
 # E203: whitespace before ':' - handled by black
+# E704: multiple statements on one line - handled by black
 # W503: line break before binary operator - handled by black
-ignore = E203,W503
+ignore = E203,E704,W503
 
 max-line-length = 120
 exclude =

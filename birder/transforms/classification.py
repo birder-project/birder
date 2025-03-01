@@ -96,7 +96,7 @@ class RandomMixup(nn.Module):
 
         Returns
         -------
-            Randomly transformed batch.
+        Randomly transformed batch.
 
         Raises
         ------

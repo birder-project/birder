@@ -582,8 +582,8 @@ class Matcher(nn.Module):
 
         Returns
         -------
-            an N tensor where N[i] is a matched gt in [0, M - 1] or a negative
-            value indicating that prediction i could not be matched
+        an N tensor where N[i] is a matched gt in [0, M - 1] or a negative
+        value indicating that prediction i could not be matched
         """
 
         if match_quality_matrix.numel() == 0:
