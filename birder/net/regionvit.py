@@ -125,7 +125,7 @@ class LayerNorm2d(nn.Module):
     def __init__(self, channels: int, eps: float = 1e-5) -> None:
         super().__init__()
 
-        self.eps = torch.tensor(eps)
+        self.eps = nn.Buffer(torch.tensor(eps))
         self.weight = nn.Parameter(torch.ones(1, channels, 1, 1))
         self.bias = nn.Parameter(torch.zeros(1, channels, 1, 1))
 
@@ -573,7 +573,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 52.3,
-                "sha256": "3d09b7578f114598186f7f90a0593999f80e6d5f647d46ebd8a8119e4f532fe1",
+                "sha256": "06c9aff4086d5cb892da6dc20d7cf383e1c7e0a112948ec235615b1a4930fa5f",
             }
         },
         "net": {"network": "regionvit_t", "tag": "il-common"},

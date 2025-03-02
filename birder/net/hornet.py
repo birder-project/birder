@@ -30,7 +30,7 @@ class ChannelsFirstLayerNorm(nn.Module):
         super().__init__()
         self.weight = nn.Parameter(torch.ones(dim))
         self.bias = nn.Parameter(torch.zeros(dim))
-        self.eps = eps
+        self.eps = nn.Buffer(torch.tensor(eps))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         u = x.mean(1, keepdim=True)
