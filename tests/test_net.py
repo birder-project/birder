@@ -59,6 +59,7 @@ class TestNet(unittest.TestCase):
             ("cait_xxs24"),
             ("coat_tiny"),
             ("coat_lite_tiny"),
+            ("conv2former_n"),
             ("convmixer_768_32"),
             ("convnext_v1_tiny"),
             ("convnext_v2_atto"),
@@ -94,10 +95,10 @@ class TestNet(unittest.TestCase):
             ("ghostnet_v1", 1),
             ("ghostnet_v2", 1),
             ("hiera_tiny"),
-            ("hiera_abswin_tiny"),
+            ("hiera_abswin_tiny"),  # No bfloat16 support
             ("hieradet_tiny"),
             ("hornet_tiny_7x7"),
-            ("hornet_tiny_gf"),  # PT2 fails
+            ("hornet_tiny_gf"),  # PT2 fails, no bfloat16 support
             ("iformer_s"),
             ("inception_next_t"),
             ("inception_resnet_v1"),
@@ -227,11 +228,17 @@ class TestNet(unittest.TestCase):
             out = n(torch.rand((batch_size, 3, *size)))
             self.assertEqual(out.numel(), 200 * batch_size)
 
+        # Test modified dtype
+        # n.to(torch.bfloat16)
+        # out = n(torch.rand((batch_size, 3, *size), dtype=torch.bfloat16))
+        # self.assertEqual(out.numel(), 200 * batch_size)
+
     @parameterized.expand(  # type: ignore[misc]
         [
             ("biformer_t"),
             ("coat_tiny"),
             ("coat_lite_tiny"),
+            ("conv2former_n"),
             ("convnext_v1_tiny"),
             ("convnext_v2_tiny"),
             ("crossformer_t"),

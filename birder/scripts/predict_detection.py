@@ -27,6 +27,17 @@ from birder.transforms.detection import inference_preset
 logger = logging.getLogger(__name__)
 
 
+def save_output(
+    output_path: Path, sample_paths: list[str], class_to_idx: dict[str, int], detections: list[dict[str, torch.Tensor]]
+) -> None:
+    detection_list = [{k: v.cpu().numpy().tolist() for k, v in detection.items()} for detection in detections]
+    output = dict(zip(sample_paths, detection_list))
+    output["class_to_idx"] = class_to_idx
+    logger.info(f"Saving output at {output_path}")
+    with open(output_path, "w", encoding="utf-8") as handle:
+        json.dump(output, handle, indent=2)
+
+
 def show_detections(
     img_path: str,
     input_tensor: torch.Tensor,
@@ -188,6 +199,20 @@ def predict(args: argparse.Namespace) -> None:
                     root_path=root_path,
                 )
 
+    # Sort out output file names
+    epoch_str = ""
+    if args.epoch is not None:
+        epoch_str = f"_e{args.epoch}"
+
+    base_output_path = f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size[0]}px_{num_samples}"
+    if args.model_dtype != "float32":
+        base_output_path = f"{base_output_path}_{args.model_dtype}"
+    if args.suffix is not None:
+        base_output_path = f"{base_output_path}_{args.suffix}"
+
+    output_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_output.json")
+
+    # Inference
     tic = time.time()
     with torch.inference_mode():
         (sample_paths, detections, targets) = infer_dataloader(
@@ -206,24 +231,8 @@ def predict(args: argparse.Namespace) -> None:
     logger.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {len(dataset):,} samples ({rate:.2f} samples/sec)")
 
     # Save output
-    epoch_str = ""
-    if args.epoch is not None:
-        epoch_str = f"_e{args.epoch}"
-
-    base_output_path = f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size[0]}px_{num_samples}"
-    if args.model_dtype != "float32":
-        base_output_path = f"{base_output_path}_{args.model_dtype}"
-    if args.suffix is not None:
-        base_output_path = f"{base_output_path}_{args.suffix}"
-
     if args.save_output is True:
-        detection_list = [{k: v.cpu().numpy().tolist() for k, v in detection.items()} for detection in detections]
-        output = dict(zip(sample_paths, detection_list))
-        output["class_to_idx"] = class_to_idx
-        output_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_output.json")
-        logger.info(f"Saving output at {output_path}")
-        with open(output_path, "w", encoding="utf-8") as handle:
-            json.dump(output, handle, indent=2)
+        save_output(output_path, sample_paths, class_to_idx, detections)
 
     # Handle results
     if labeled is True:

@@ -551,8 +551,8 @@ def train(args: argparse.Namespace) -> None:
 
         # Learning rate scheduler update
         scheduler.step()
-        if last_lr != scheduler.get_last_lr()[0]:
-            last_lr = scheduler.get_last_lr()[0]
+        if last_lr != max(scheduler.get_last_lr()):
+            last_lr = max(scheduler.get_last_lr())
             logger.info(f"Updated learning rate to: {last_lr}")
 
         if args.rank == 0:

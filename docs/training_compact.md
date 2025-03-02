@@ -24,6 +24,14 @@ torchrun --nproc_per_node=2 train.py --network coat_tiny --tag il-common --opt a
 torchrun --nproc_per_node=2 train.py --network coat_lite_tiny --tag il-common --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### Conv2Former
+
+#### Conv2Former: Nano
+
+```sh
+torchrun --nproc_per_node=2 train.py --network conv2former_n --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 512 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### ConvNeXt v2
 
 #### ConvNeXt v2: Atto

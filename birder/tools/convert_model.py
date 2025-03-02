@@ -206,7 +206,7 @@ def set_parser(subparsers: Any) -> None:
 # pylint: disable=too-many-branches
 def main(args: argparse.Namespace) -> None:
     assert args.trace is False or (args.trace is True and (args.pts is True or args.lite is True or args.onnx is True))
-    args.size = cli.parse_size(args.size)
+    args.resize = cli.parse_size(args.resize)
 
     # Load model
     device = torch.device("cpu")

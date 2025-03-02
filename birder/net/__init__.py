@@ -2,6 +2,7 @@ from birder.net.alexnet import AlexNet
 from birder.net.biformer import BiFormer
 from birder.net.cait import CaiT
 from birder.net.coat import CoaT
+from birder.net.conv2former import Conv2Former
 from birder.net.convmixer import ConvMixer
 from birder.net.convnext_v1 import ConvNeXt_v1
 from birder.net.convnext_v2 import ConvNeXt_v2
@@ -99,6 +100,7 @@ __all__ = [
     "BiFormer",
     "CaiT",
     "CoaT",
+    "Conv2Former",
     "ConvMixer",
     "ConvNeXt_v1",
     "ConvNeXt_v2",

@@ -54,6 +54,8 @@ class Results:
         label_names: list[str],
         output: npt.NDArray[np.float32],
         predictions: Optional[npt.NDArray[np.int_]] = None,
+        *,
+        lazy: bool = True,
     ):
         """
         Initialize a result object
@@ -70,10 +72,16 @@ class Results:
             Probability of each class for each sample.
         predictions
             Prediction of each sample.
+        lazy
+            If True, metrics and computed properties will be lazily evaluated (computed only when accessed).
+            If False, all metrics will be computed during initialization.
         """
 
         assert len(label_names) == len(output[0]), "Model output and label name list do not match"
         assert len(sample_list) == len(output), "Each output must have a sample name"
+
+        if predictions is None:
+            predictions = output.argmax(axis=1)
 
         names = [label_names[label] if label != -1 else "" for label in labels]
         self._label_names = label_names
@@ -83,8 +91,6 @@ class Results:
                 **{f"{i}": output[:, i] for i in range(output.shape[-1])},
             }
         )
-        if predictions is None:
-            predictions = output_df.select(pl.concat_list(pl.all()).list.arg_max()).to_numpy().flatten()
 
         self._results_df = pl.DataFrame(
             {"sample": sample_list, "label": labels, "label_name": names, "prediction": predictions}
@@ -100,20 +106,16 @@ class Results:
         # Calculate metrics
         if self.missing_all_labels is False:
             self.valid_idx = self.labels != -1
-            self._valid_length: int = np.sum(self.valid_idx)
+            self._valid_length: int = np.sum(self.valid_idx).item()
             accuracy: int = int(
                 accuracy_score(self.labels[self.valid_idx], self.predictions[self.valid_idx], normalize=False)
             )
             self._num_mistakes = self._valid_length - accuracy
             self._accuracy = accuracy / self._valid_length
 
-            self._top_k_indices = top_k_accuracy_score(
-                self.labels[self.valid_idx], self.output[self.valid_idx], top_k=settings.TOP_K
-            )
-            self._num_out_of_top_k = self._valid_length - len(self._top_k_indices)
-            self._top_k = len(self._top_k_indices) / self._valid_length
-
-            self._confusion_matrix = confusion_matrix(self.labels, self.predictions)
+            if lazy is False:
+                _ = self.top_k
+                _ = self.confusion_matrix
 
     def __len__(self) -> int:
         return len(self._results_df)
@@ -131,6 +133,10 @@ class Results:
         lines = [head] + ["    " + line for line in body]
 
         return "\n".join(lines)
+
+    @cached_property
+    def _top_k_indices(self) -> list[int]:
+        return top_k_accuracy_score(self.labels[self.valid_idx], self.output[self.valid_idx], top_k=settings.TOP_K)
 
     @property
     def labels(self) -> npt.NDArray[np.int_]:
@@ -177,21 +183,25 @@ class Results:
         return self._results_df.with_row_index().filter(~pl.col("index").is_in(self._top_k_indices)).drop("index")
 
     @property
+    def num_out_of_top_k(self) -> int:
+        return self._valid_length - len(self._top_k_indices)
+
+    @property
     def accuracy(self) -> float:
         return self._accuracy
 
-    @property
+    @cached_property
     def top_k(self) -> float:
-        return self._top_k
+        return len(self._top_k_indices) / self._valid_length
 
     @property
     def macro_f1_score(self) -> float:
         report_df = self.detailed_report()
         return report_df["F1-score"].mean()  # type: ignore
 
-    @property
+    @cached_property
     def confusion_matrix(self) -> npt.NDArray[np.int_]:
-        return self._confusion_matrix  # type: ignore
+        return confusion_matrix(self.labels, self.predictions)  # type: ignore
 
     def most_confused(self, n: int = 10) -> pl.DataFrame:
         cnf_matrix = self.confusion_matrix.copy()
@@ -231,6 +241,10 @@ class Results:
         del raw_report_dict["macro avg"]
         del raw_report_dict["weighted avg"]
 
+        # Pre-compute row and column sums for the confusion matrix
+        cm_row_sums = np.sum(self.confusion_matrix, axis=1)
+        cm_col_sums = np.sum(self.confusion_matrix, axis=0)
+
         row_list = []
         for class_idx, metrics in raw_report_dict.items():
             class_num = int(class_idx)
@@ -246,13 +260,9 @@ class Results:
             label_name = self._label_names[class_num]
 
             # Calculate additional metrics
-            item_index = np.where(self.unique_labels == class_num)[0][0]
-            false_negative = (
-                np.sum(self._confusion_matrix[item_index, :]) - self._confusion_matrix[item_index][item_index]
-            )
-            false_positive = (
-                np.sum(self._confusion_matrix[:, item_index]) - self._confusion_matrix[item_index][item_index]
-            )
+            item_index = np.asarray(self.unique_labels == class_num).nonzero()[0][0]
+            false_negative = cm_row_sums[item_index] - self.confusion_matrix[item_index][item_index]
+            false_positive = cm_col_sums[item_index] - self.confusion_matrix[item_index][item_index]
 
             # Save metrics
             row_list.append(
@@ -283,10 +293,10 @@ class Results:
         highest_precision = report_df[report_df["Precision"].arg_max()]  # type: ignore[index]
         highest_recall = report_df[report_df["Recall"].arg_max()]  # type: ignore[index]
 
-        logger.info(f"Accuracy {self._accuracy:.3f} on {self._valid_length} samples ({self._num_mistakes} mistakes)")
+        logger.info(f"Accuracy {self.accuracy:.3f} on {self._valid_length} samples ({self._num_mistakes} mistakes)")
         logger.info(
-            f"Top-{settings.TOP_K} accuracy {self._top_k:.3f} on {self._valid_length} samples "
-            f"({self._num_out_of_top_k} samples out of top-{settings.TOP_K})"
+            f"Top-{settings.TOP_K} accuracy {self.top_k:.3f} on {self._valid_length} samples "
+            f"({self.num_out_of_top_k} samples out of top-{settings.TOP_K})"
         )
 
         logger.info(
@@ -376,13 +386,13 @@ class Results:
         console.print(table)
 
         accuracy_text = Text()
-        accuracy_text.append(f"Accuracy {self._accuracy:.3f} on {self._valid_length} samples (")
+        accuracy_text.append(f"Accuracy {self.accuracy:.3f} on {self._valid_length} samples (")
         accuracy_text.append(f"{self._num_mistakes}", style="bold")
         accuracy_text.append(" mistakes)")
 
         top_k_text = Text()
-        top_k_text.append(f"Top-{settings.TOP_K} accuracy {self._top_k:.3f} on {self._valid_length} samples (")
-        top_k_text.append(f"{self._num_out_of_top_k}", style="bold")
+        top_k_text.append(f"Top-{settings.TOP_K} accuracy {self.top_k:.3f} on {self._valid_length} samples (")
+        top_k_text.append(f"{self.num_out_of_top_k}", style="bold")
         top_k_text.append(f" samples out of top-{settings.TOP_K})")
 
         console.print(accuracy_text)
@@ -394,14 +404,16 @@ class Results:
                 f"{self._valid_length} out of total {len(self)} samples"
             )
 
-    def save(self, name: str) -> None:
+    def save(self, name: str, append: bool = False) -> None:
         """
         Save results object to file
 
         Parameters
         ----------
         name
-            output file name.
+            Output file name.
+        append
+            Append result data to existing results file.
         """
 
         if settings.RESULTS_DIR.exists() is False:
@@ -409,17 +421,22 @@ class Results:
             settings.RESULTS_DIR.mkdir(parents=True)
 
         results_path = settings.RESULTS_DIR.joinpath(name)
-        logger.info(f"Saving results at {results_path}")
+        if append is False:
+            logger.info(f"Saving results at {results_path}")
 
-        # Write label names list
-        with open(results_path, "w", encoding="utf-8") as handle:
-            handle.write("," * Results.num_desc_cols)
-            handle.write(",".join(self._label_names))
-            handle.write(os.linesep)
+            # Write label names list
+            with open(results_path, "w", encoding="utf-8") as handle:
+                handle.write("," * Results.num_desc_cols)
+                handle.write(",".join(self._label_names))
+                handle.write(os.linesep)
 
-        # Write the data frame
-        with open(results_path, "a", encoding="utf-8") as handle:
-            self._results_df.write_csv(handle)
+            # Write the data frame
+            with open(results_path, "a", encoding="utf-8") as handle:
+                self._results_df.write_csv(handle)
+        else:
+            logger.info(f"Adding results to {results_path}")
+            with open(results_path, "a", encoding="utf-8") as handle:
+                self._results_df.write_csv(handle, include_header=False)
 
     @staticmethod
     def load(path: str) -> "Results":
@@ -429,7 +446,7 @@ class Results:
         Parameters
         ----------
         path
-            path to load from.
+            Path to load from.
         """
 
         # Read label names

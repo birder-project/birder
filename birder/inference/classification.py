@@ -94,6 +94,13 @@ def infer_dataloader_iter(
     batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], list[int]], None]] = None,
     chunk_size: Optional[float] = None,
 ) -> Iterator[DataloaderInferenceResult]:
+    """
+    See infer_dataloader for full documentation.
+
+    This function yields results in chunks and is used by infer_dataloader to
+    implement both its chunked and non-chunked behavior.
+    """
+
     if chunk_size is None:
         chunk_size = float("inf")
 

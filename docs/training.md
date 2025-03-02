@@ -35,6 +35,7 @@ On fine-tuning phase
 - [BiFormer](#biformer)
 - [CaiT](#cait)
 - [CoaT](#coat)
+- [Conv2Former](#conv2former)
 - [ConvMixer](#convmixer)
 - [ConvNeXt v1](#convnext-v1)
 - [ConvNeXt v2](#convnext-v2)
@@ -201,6 +202,50 @@ torchrun --nproc_per_node=2 train.py --network coat_lite_small --opt adamw --lr 
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network coat_lite_medium --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 32 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
+```
+
+### Conv2Former
+
+#### Conv2Former: Nano
+
+```sh
+torchrun --nproc_per_node=2 train.py --network conv2former_n --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 512 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile
+```
+
+#### Conv2Former: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network conv2former_t --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile
+```
+
+#### Conv2Former: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network conv2former_s --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 128 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile
+```
+
+Optional intermediate training
+
+```sh
+torchrun --nproc_per_node=2 train.py --network conv2former_s --tag intermediate --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 128 --epochs 90 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --compile-opt --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+```
+
+Optional intermediate training: linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network conv2former_s --tag intermediate --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
+```
+
+Optional intermediate training: fine-tuning
+
+```sh
+torchrun --nproc_per_node=2 train.py --network conv2former_s --tag intermediate --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-8 --batch-size 128 --epochs 40 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --resume-epoch 10
+```
+
+#### Conv2Former: Base
+
+```sh
+torchrun --nproc_per_node=2 train.py --network conv2former_b --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 64 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile
 ```
 
 ### ConvMixer

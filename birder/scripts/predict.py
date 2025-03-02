@@ -19,12 +19,53 @@ from birder.dataloader.webdataset import make_wds_loader
 from birder.datasets.directory import make_image_dataset
 from birder.datasets.webdataset import make_wds_dataset
 from birder.datasets.webdataset import wds_size
-from birder.inference.classification import infer_dataloader
+from birder.inference.classification import infer_dataloader_iter
 from birder.results.classification import Results
 from birder.results.gui import show_top_k
 from birder.transforms.classification import inference_preset
 
 logger = logging.getLogger(__name__)
+
+
+def save_embeddings(
+    embeddings_path: Path, sample_paths: list[str], embedding_list: list[npt.NDArray[np.float32]], append: bool
+) -> None:
+    embeddings = np.concatenate(embedding_list, axis=0)
+    embeddings_df = pl.DataFrame(embeddings)
+    embeddings_df = pl.DataFrame(
+        {
+            "sample": sample_paths,
+            **{f"{i}": embeddings[:, i] for i in range(embeddings.shape[-1])},
+        }
+    )
+    embeddings_df = embeddings_df.sort("sample", descending=False)
+    if append is False:
+        logger.info(f"Saving embeddings at {embeddings_path}")
+        embeddings_df.write_csv(embeddings_path)
+    else:
+        logger.info(f"Adding embeddings to {embeddings_path}")
+        with open(embeddings_path, "a", encoding="utf-8") as handle:
+            embeddings_df.write_csv(handle, include_header=False)
+
+
+def save_output(
+    output_path: Path, sample_paths: list[str], label_names: list[str], outs: npt.NDArray[np.float32], append: bool
+) -> None:
+    output_df = pl.DataFrame(
+        {
+            "sample": sample_paths,
+            "prediction": np.array(label_names)[outs.argmax(axis=1)],
+            **{name: outs[:, i] for i, name in enumerate(label_names)},
+        }
+    )
+    output_df = output_df.sort("sample", descending=False)
+    if append is False:
+        logger.info(f"Saving output at {output_path}")
+        output_df.write_csv(output_path)
+    else:
+        logger.info(f"Adding output to {output_path}")
+        with open(output_path, "a", encoding="utf-8") as handle:
+            output_df.write_csv(handle, include_header=False)
 
 
 def handle_show_flags(
@@ -160,28 +201,7 @@ def predict(args: argparse.Namespace) -> None:
             for img_path, prob, label in zip(file_paths, out, batch_labels):
                 handle_show_flags(args, img_path, prob, label, class_to_idx)  # type: ignore[arg-type]
 
-    tic = time.time()
-    with torch.inference_mode():
-        (sample_paths, outs, labels, embedding_list) = infer_dataloader(
-            device,
-            net,
-            inference_loader,
-            args.save_embedding,
-            args.tta,
-            model_dtype,
-            args.amp,
-            num_samples,
-            batch_callback=batch_callback,
-        )
-
-    toc = time.time()
-    rate = len(outs) / (toc - tic)
-    (minutes, seconds) = divmod(toc - tic, 60)
-    logger.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {len(outs):,} samples ({rate:.2f} samples/sec)")
-
-    label_names = list(class_to_idx.keys())
-
-    # Save embeddings
+    # Sort out output file names
     epoch_str = ""
     if args.epoch is not None:
         epoch_str = f"_e{args.epoch}"
@@ -196,48 +216,62 @@ def predict(args: argparse.Namespace) -> None:
     if args.suffix is not None:
         base_output_path = f"{base_output_path}_{args.suffix}"
 
-    if args.save_embedding is True:
-        embeddings = np.concatenate(embedding_list, axis=0)
-        embeddings_df = pl.DataFrame(embeddings)
-        embeddings_df = pl.DataFrame(
-            {
-                "sample": sample_paths,
-                **{f"{i}": embeddings[:, i] for i in range(embeddings.shape[-1])},
-            }
-        )
-        embeddings_df = embeddings_df.sort("sample", descending=False)
-        embeddings_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_embeddings.csv")
-        logger.info(f"Saving embeddings at {embeddings_path}")
-        embeddings_df.write_csv(embeddings_path)
+    embeddings_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_embeddings.csv")
+    output_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_output.csv")
+    label_names = list(class_to_idx.keys())
 
-    # Save output
-    if args.save_output is True:
-        output_df = pl.DataFrame(
-            {
-                "sample": sample_paths,
-                "prediction": np.array(label_names)[outs.argmax(axis=1)],
-                **{name: outs[:, i] for i, name in enumerate(label_names)},
-            }
-        )
-        output_df = output_df.sort("sample", descending=False)
-        output_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_output.csv")
-        logger.info(f"Saving output at {output_path}")
-        output_df.write_csv(output_path)
+    # Inference
+    tic = time.time()
+    infer_iter = infer_dataloader_iter(
+        device,
+        net,
+        inference_loader,
+        args.save_embedding,
+        args.tta,
+        model_dtype,
+        args.amp,
+        num_samples,
+        batch_callback=batch_callback,
+        chunk_size=args.chunk_size,
+    )
+    append = False
+    summary_list = []
+    with torch.inference_mode():
+        for sample_paths, outs, labels, embedding_list in infer_iter:
+            # Save embeddings
+            if args.save_embedding is True:
+                save_embeddings(embeddings_path, sample_paths, embedding_list, append=append)
 
-    # Handle results
-    results = Results(sample_paths, labels, label_names, output=outs)
-    if results.missing_all_labels is False:
-        if args.save_results is True:
-            results.save(f"{base_output_path}.csv")
+            # Save output
+            if args.save_output is True:
+                save_output(output_path, sample_paths, label_names, outs, append=append)
 
-        results.log_short_report()
+            # Handle results
+            results = Results(sample_paths, labels, label_names, output=outs)
+            if results.missing_all_labels is False:
+                if args.save_results is True:
+                    results.save(f"{base_output_path}.csv", append=append)
+                if args.chunk_size is None:
+                    results.log_short_report()
 
-    else:
-        logger.warning("No labeled samples found")
+            else:
+                logger.warning("No labeled samples found")
 
-    # Summary
+            # Summary
+            if args.summary is True:
+                summary_list.append(results.prediction_names.value_counts())
+
+            append = True
+
+    toc = time.time()
+    rate = num_samples / (toc - tic)
+    (minutes, seconds) = divmod(toc - tic, 60)
+    logger.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {num_samples:,} samples ({rate:.2f} samples/sec)")
+
+    #  Print summary
     if args.summary is True:
-        summary_df = results.prediction_names.value_counts(sort=True)
+        summary_df = pl.concat(summary_list).group_by("prediction_names").agg(pl.col("count").sum())
+        summary_df = summary_df.sort(by="count", descending=True)
         indent_size = summary_df["prediction_names"].str.len_chars().max() + 2  # type: ignore[operator]
         for specie_name, count in summary_df.iter_rows():
             logger.info(f"{specie_name:<{indent_size}} {count}")
@@ -303,6 +337,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--size", type=int, nargs="+", metavar=("H", "W"), help="image size for inference (defaults to model signature)"
     )
     parser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
+    parser.add_argument(
+        "--chunk-size", type=int, metavar="N", help="process in chunks of N samples to reduce memory usage"
+    )
     parser.add_argument("--center-crop", type=float, default=1.0, help="Center crop ratio to use during inference")
     parser.add_argument("--show", default=False, action="store_true", help="show image predictions")
     parser.add_argument("--show-top-below", type=float, help="show when top prediction is below given threshold")

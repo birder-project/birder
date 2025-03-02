@@ -47,7 +47,13 @@ torchrun --nproc_per_node=2 train_mim.py --network fcmae --encoder convnext_v2_a
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_atto --tag mim --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --smoothing-alpha 0.1 --aug-level 2 --fast-matmul --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
+torchrun --nproc_per_node=2 train.py --network convnext_v2_atto --tag mim --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --smoothing-alpha 0.2 --aug-level 2 --fast-matmul --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
+```
+
+Next, full fine-tuning with layer-wise learning rate decay
+
+```sh
+torchrun --nproc_per_node=2 train.py --network convnext_v2_atto --tag mim --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 600 --size 256 --wd 0.3 --smoothing-alpha 0.2 --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile --layer-decay 0.9 --resume-epoch 0
 ```
 
 #### FCMAE: ConvNeXt v2 Nano
