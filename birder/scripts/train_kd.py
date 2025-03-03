@@ -177,7 +177,7 @@ def train(args: argparse.Namespace) -> None:
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
-        (student, class_to_idx_saved, optimizer_state, scheduler_state, scaler_state) = fs_ops.load_checkpoint(
+        (student, class_to_idx_saved, training_states) = fs_ops.load_checkpoint(
             device,
             args.student,
             net_param=args.student_param,
@@ -197,6 +197,7 @@ def train(args: argparse.Namespace) -> None:
             config=args.student_model_config,
             size=args.size,
         )
+        training_states = fs_ops.TrainingStates.empty()
 
     teacher.to(device, dtype=model_dtype)
     student.to(device, dtype=model_dtype)
@@ -254,13 +255,13 @@ def train(args: argparse.Namespace) -> None:
 
     # Load states
     if args.load_states is True:
-        optimizer.load_state_dict(optimizer_state)  # pylint: disable=possibly-used-before-assignment
-        scheduler.load_state_dict(scheduler_state)  # pylint: disable=possibly-used-before-assignment
+        optimizer.load_state_dict(training_states.optimizer_state)
+        scheduler.load_state_dict(training_states.scheduler_state)
         if scaler is not None:
-            scaler.load_state_dict(scaler_state)  # pylint: disable=possibly-used-before-assignment
+            scaler.load_state_dict(training_states.scaler_state)
 
     elif args.load_scheduler is True:
-        scheduler.load_state_dict(scheduler_state)
+        scheduler.load_state_dict(training_states.scheduler_state)
         last_lrs = scheduler.get_last_lr()
         for g, last_lr in zip(optimizer.param_groups, last_lrs):
             g["lr"] = last_lr
@@ -275,16 +276,24 @@ def train(args: argparse.Namespace) -> None:
 
     # Model EMA
     if args.model_ema is True:
+        model_base = net_without_ddp  # Original model without DDP wrapper, will be saved as training state
         model_ema = training_utils.ema_model(args, net_without_ddp, device=device)
-        model_to_save = model_ema.module
-        eval_model = model_ema
+        if training_states.ema_model_state is not None:
+            logger.info("Setting model EMA weights...")
+            model_ema.module.load_state_dict(training_states.ema_model_state)
+
+        model_to_save = model_ema.module  # Save EMA model weights as default weights
+        eval_model = model_ema  # Use EMA for evaluation
 
     else:
+        model_base = None
         model_to_save = net_without_ddp
         eval_model = student
 
     if args.compile is True and hasattr(model_to_save, "_orig_mod") is True:
         model_to_save = model_to_save._orig_mod  # pylint: disable=protected-access
+    if args.compile is True and hasattr(model_base, "_orig_mod") is True:
+        model_base = model_base._orig_mod  # type: ignore[union-attr] # pylint: disable=protected-access
 
     # Define metrics
     training_metrics = torchmetrics.MetricCollection(
@@ -577,6 +586,7 @@ def train(args: argparse.Namespace) -> None:
                     optimizer,
                     scheduler,
                     scaler,
+                    model_base,
                 )
 
         # Epoch timing
@@ -628,6 +638,7 @@ def train(args: argparse.Namespace) -> None:
             optimizer,
             scheduler,
             scaler,
+            model_base,
         )
 
     training_utils.shutdown_distributed_mode(args)

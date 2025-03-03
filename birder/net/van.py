@@ -279,3 +279,17 @@ registry.register_weights(
         "net": {"network": "van_b0", "tag": "il-common"},
     },
 )
+# registry.register_weights(
+#     "van_b2_arabian-peninsula256px",
+#     {
+#         "description": "VAN B2 model trained on the arabian-peninsula dataset",
+#         "resolution": (256, 256),
+#         "formats": {
+#             "pt": {
+#                 "file_size": 101.2,
+#                 "sha256": "fda34cdc4f87833dcb3eab29480305ea63d23575f0947c2757edbafed3ab5759",
+#             },
+#         },
+#         "net": {"network": "van_b2", "tag": "arabian-peninsula256px"},
+#     },
+# )

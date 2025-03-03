@@ -123,7 +123,7 @@ def train(args: argparse.Namespace) -> None:
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
-        (net, optimizer_state, scheduler_state, scaler_state) = fs_ops.load_mim_checkpoint(
+        (net, training_states) = fs_ops.load_mim_checkpoint(
             device,
             args.network,
             net_param=args.net_param,
@@ -147,6 +147,7 @@ def train(args: argparse.Namespace) -> None:
         net = registry.mim_net_factory(
             args.network, encoder, net_param=args.net_param, config=args.model_config, size=args.size
         )
+        training_states = fs_ops.TrainingStates.empty()
 
     net.to(device, dtype=model_dtype)
     if args.fast_matmul is True or args.amp is True:
@@ -186,13 +187,13 @@ def train(args: argparse.Namespace) -> None:
 
     # Load states
     if args.load_states is True:
-        optimizer.load_state_dict(optimizer_state)  # pylint: disable=possibly-used-before-assignment
-        scheduler.load_state_dict(scheduler_state)  # pylint: disable=possibly-used-before-assignment
+        optimizer.load_state_dict(training_states.optimizer_state)
+        scheduler.load_state_dict(training_states.scheduler_state)
         if scaler is not None:
-            scaler.load_state_dict(scaler_state)  # pylint: disable=possibly-used-before-assignment
+            scaler.load_state_dict(training_states.scaler_state)
 
     elif args.load_scheduler is True:
-        scheduler.load_state_dict(scheduler_state)
+        scheduler.load_state_dict(training_states.scheduler_state)
         last_lrs = scheduler.get_last_lr()
         for g, last_lr in zip(optimizer.param_groups, last_lrs):
             g["lr"] = last_lr
@@ -386,6 +387,7 @@ def train(args: argparse.Namespace) -> None:
                     optimizer,
                     scheduler,
                     scaler,
+                    None,
                 )
                 fs_ops.checkpoint_model(
                     encoder_name,
@@ -397,6 +399,7 @@ def train(args: argparse.Namespace) -> None:
                     optimizer=None,
                     scheduler=None,
                     scaler=None,
+                    model_base=None,
                 )
 
         # Epoch timing
@@ -419,6 +422,7 @@ def train(args: argparse.Namespace) -> None:
             optimizer,
             scheduler,
             scaler,
+            None,
         )
         fs_ops.checkpoint_model(
             encoder_name,
@@ -427,9 +431,10 @@ def train(args: argparse.Namespace) -> None:
             encoder_signature,
             {},
             rgb_stats,
-            optimizer,
-            scheduler,
-            scaler,
+            optimizer=None,
+            scheduler=None,
+            scaler=None,
+            model_base=None,
         )
 
     training_utils.shutdown_distributed_mode(args)

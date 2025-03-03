@@ -47,6 +47,7 @@ def reparameterize(
             optimizer=None,
             scheduler=None,
             scaler=None,
+            model_base=None,
         )
 
 
@@ -283,6 +284,7 @@ def main(args: argparse.Namespace) -> None:
             optimizer=None,
             scheduler=None,
             scaler=None,
+            model_base=None,
         )
 
     elif args.reparameterize is True:

@@ -523,7 +523,16 @@ def sam_from_vit(_ctx, network, tag=None, epoch=None):
 
     # Save model
     fs_ops.checkpoint_model(
-        sam_network, epoch, sam, signature, class_to_idx, rgb_stats, optimizer=None, scheduler=None, scaler=None
+        sam_network,
+        epoch,
+        sam,
+        signature,
+        class_to_idx,
+        rgb_stats,
+        optimizer=None,
+        scheduler=None,
+        scaler=None,
+        model_base=None,
     )
 
 
@@ -565,4 +574,5 @@ def hieradet_from_hiera(_ctx, network, tag=None, epoch=None):
         optimizer=None,
         scheduler=None,
         scaler=None,
+        model_base=None,
     )

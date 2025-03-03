@@ -4,6 +4,7 @@ import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
+from typing import NamedTuple
 from typing import Optional
 
 import torch
@@ -111,7 +112,6 @@ def model_path(
 
     if epoch is not None:
         file_name = f"{network_name}_{epoch}"
-
     else:
         file_name = network_name
 
@@ -120,22 +120,16 @@ def model_path(
 
     if states is True:
         file_name = f"{file_name}_states"
-
     elif lite is True:
         file_name = f"{file_name}.ptl"
-
     elif pt2 is True:
         file_name = f"{file_name}.pt2"
-
     elif st is True:
         file_name = f"{file_name}.safetensors"
-
     elif onnx is True:
         file_name = f"{file_name}.onnx"
-
     elif pts is True:
         file_name = f"{file_name}.pts"
-
     else:
         file_name = f"{file_name}.pt"
 
@@ -147,6 +141,7 @@ def _checkpoint_states(
     optimizer: Optional[torch.optim.Optimizer],
     scheduler: Optional[torch.optim.lr_scheduler._LRScheduler],
     scaler: Optional[torch.amp.grad_scaler.GradScaler],
+    model_base: Optional[torch.nn.Module],
 ) -> None:
     if optimizer is None or scheduler is None:
         return
@@ -156,11 +151,17 @@ def _checkpoint_states(
     else:
         scaler_state = None
 
+    if model_base is not None:
+        model_base_state = model_base.state_dict()
+    else:
+        model_base_state = None
+
     torch.save(
         {
             "optimizer_state": optimizer.state_dict(),
             "scheduler_state": scheduler.state_dict(),
             "scaler_state": scaler_state,
+            "model_base_state": model_base_state,
         },
         states_path,
     )
@@ -176,6 +177,7 @@ def checkpoint_model(
     optimizer: Optional[torch.optim.Optimizer],
     scheduler: Optional[torch.optim.lr_scheduler._LRScheduler],
     scaler: Optional[torch.amp.grad_scaler.GradScaler],
+    model_base: Optional[torch.nn.Module],
 ) -> None:
     path = model_path(network_name, epoch=epoch)
     states_path = model_path(network_name, epoch=epoch, states=True)
@@ -192,23 +194,38 @@ def checkpoint_model(
         path,
     )
 
-    _checkpoint_states(states_path, optimizer, scheduler, scaler)
+    _checkpoint_states(states_path, optimizer, scheduler, scaler, model_base)
 
 
-def _load_states(states_path: Path, device: torch.device) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+class TrainingStates(NamedTuple):
+    optimizer_state: Optional[dict[str, Any]]
+    scheduler_state: Optional[dict[str, Any]]
+    scaler_state: Optional[dict[str, Any]]
+    model_base_state: Optional[dict[str, Any]]
+    ema_model_state: Optional[dict[str, Any]] = None
+
+    @classmethod
+    def empty(cls) -> "TrainingStates":
+        return cls(None, None, None, None)
+
+
+def _load_states(states_path: Path, device: torch.device) -> TrainingStates:
     if states_path.exists() is True:
         states_dict: dict[str, Any] = torch.load(states_path, map_location=device, weights_only=True)
-        optimizer_state = states_dict["optimizer_state"]
-        scheduler_state = states_dict["scheduler_state"]
-        scaler_state = states_dict["scaler_state"]
+        return TrainingStates(
+            optimizer_state=states_dict["optimizer_state"],
+            scheduler_state=states_dict["scheduler_state"],
+            scaler_state=states_dict["scaler_state"],
+            model_base_state=states_dict["model_base_state"],
+        )
 
-    else:
-        logger.warning(f"States file '{states_path}' not found")
-        optimizer_state = {}
-        scheduler_state = {}
-        scaler_state = {}
+    return TrainingStates.empty()
 
-    return (optimizer_state, scheduler_state, scaler_state)
+
+class CheckpointStates(NamedTuple):
+    net: BaseNet
+    class_to_idx: dict[str, int]
+    training_states: TrainingStates
 
 
 def load_checkpoint(
@@ -220,28 +237,46 @@ def load_checkpoint(
     tag: Optional[str] = None,
     epoch: Optional[int] = None,
     new_size: Optional[tuple[int, int]] = None,
-) -> tuple[BaseNet, dict[str, int], dict[str, Any], dict[str, Any], dict[str, Any]]:
+) -> CheckpointStates:
     network_name = get_network_name(network, net_param, tag)
     path = model_path(network_name, epoch=epoch)
     states_path = model_path(network_name, epoch=epoch, states=True)
+
+    # Load model and training states
     logger.info(f"Loading model from {path} on device {device}...")
-
     model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)
+    training_states = _load_states(states_path, device)
 
+    # Extract auxiliary data
+    class_to_idx: dict[str, int] = model_dict["class_to_idx"]
     signature: SignatureType = model_dict["signature"]
     input_channels = lib.get_channels_from_signature(signature)
     num_classes = lib.get_num_labels_from_signature(signature)
     size = lib.get_size_from_signature(signature)
+
+    # Initialize network and restore checkpoint state
     net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, config=config, size=size)
-    net.load_state_dict(model_dict["state"])
+
+    # When a checkpoint was trained with EMA:
+    #   The primary weights in the checkpoint file are the EMA weights
+    #   The base_state contain the non-EMA weights
+    if training_states.model_base_state is not None:
+        net.load_state_dict(training_states.model_base_state)
+        training_states = training_states._replace(ema_model_state=model_dict["state"])
+    else:
+        net.load_state_dict(model_dict["state"])
+
     if new_size is not None:
         net.adjust_size(new_size)
 
     net.to(device)
-    class_to_idx: dict[str, int] = model_dict["class_to_idx"]
-    (optimizer_state, scheduler_state, scaler_state) = _load_states(states_path, device)
 
-    return (net, class_to_idx, optimizer_state, scheduler_state, scaler_state)
+    return CheckpointStates(net, class_to_idx, training_states)
+
+
+class MIMCheckpointStates(NamedTuple):
+    net: MIMBaseNet
+    training_states: TrainingStates
 
 
 def load_mim_checkpoint(
@@ -255,20 +290,25 @@ def load_mim_checkpoint(
     encoder_config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
     epoch: Optional[int] = None,
-) -> tuple[MIMBaseNet, dict[str, Any], dict[str, Any], dict[str, Any]]:
+) -> MIMCheckpointStates:
     network_name = get_mim_network_name(
         network, net_param=net_param, encoder=encoder, encoder_param=encoder_param, tag=tag
     )
     path = model_path(network_name, epoch=epoch, pts=False)
     states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
+
+    # Load model and training states
     logger.info(f"Loading model from {path} on device {device}...")
-
     model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)
+    training_states = _load_states(states_path, device)
 
+    # Extract auxiliary data
     signature: MIMSignatureType = model_dict["signature"]
     input_channels = lib.get_channels_from_signature(signature)
     num_classes = 0
     size = lib.get_size_from_signature(signature)
+
+    # Initialize network and restore checkpoint state
     net_encoder = registry.net_factory(
         encoder, input_channels, num_classes, net_param=encoder_param, config=encoder_config, size=size
     )
@@ -276,9 +316,13 @@ def load_mim_checkpoint(
     net.load_state_dict(model_dict["state"])
     net.to(device)
 
-    (optimizer_state, scheduler_state, scaler_state) = _load_states(states_path, device)
+    return MIMCheckpointStates(net, training_states)
 
-    return (net, optimizer_state, scheduler_state, scaler_state)
+
+class DetectionCheckpointStates(NamedTuple):
+    net: DetectionBaseNet
+    class_to_idx: dict[str, int]
+    training_states: TrainingStates
 
 
 def load_detection_checkpoint(
@@ -294,7 +338,7 @@ def load_detection_checkpoint(
     backbone_tag: Optional[str],
     epoch: Optional[int] = None,
     new_size: Optional[tuple[int, int]] = None,
-) -> tuple[DetectionBaseNet, dict[str, int], dict[str, Any], dict[str, Any], dict[str, Any]]:
+) -> DetectionCheckpointStates:
     network_name = get_detection_network_name(
         network,
         net_param=net_param,
@@ -305,30 +349,42 @@ def load_detection_checkpoint(
     )
     path = model_path(network_name, epoch=epoch, pts=False)
     states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
+
+    # Load model and training states
     logger.info(f"Loading model from {path} on device {device}...")
-
     model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)
+    training_states = _load_states(states_path, device)
 
+    # Extract auxiliary data
+    class_to_idx: dict[str, int] = model_dict["class_to_idx"]
     signature: DetectionSignatureType = model_dict["signature"]
     input_channels = lib.get_channels_from_signature(signature)
     num_classes = lib.get_num_labels_from_signature(signature)
     size = lib.get_size_from_signature(signature)
+
+    # Initialize network and restore checkpoint state
     net_backbone = registry.net_factory(
         backbone, input_channels, num_classes, net_param=backbone_param, config=backbone_config, size=size
     )
     net = registry.detection_net_factory(
         network, num_classes, net_backbone, net_param=net_param, config=config, size=size
     )
-    net.load_state_dict(model_dict["state"])
+
+    # When a checkpoint was trained with EMA:
+    #   The primary weights in the checkpoint file are the EMA weights
+    #   The base_state contain the non-EMA weights
+    if training_states.model_base_state is not None:
+        net.load_state_dict(training_states.model_base_state)
+        training_states = training_states._replace(ema_model_state=model_dict["state"])
+    else:
+        net.load_state_dict(model_dict["state"])
+
     if new_size is not None:
         net.adjust_size(new_size)
 
     net.to(device)
 
-    class_to_idx: dict[str, int] = model_dict["class_to_idx"]
-    (optimizer_state, scheduler_state, scaler_state) = _load_states(states_path, device)
-
-    return (net, class_to_idx, optimizer_state, scheduler_state, scaler_state)
+    return DetectionCheckpointStates(net, class_to_idx, training_states)
 
 
 # pylint: disable=too-many-locals

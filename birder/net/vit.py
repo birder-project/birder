@@ -287,7 +287,6 @@ class ViT(PreTrainEncoder):
         self.hidden_dim = hidden_dim
         self.mlp_dim = mlp_dim
         self.num_reg_tokens = num_reg_tokens
-        self.num_special_tokens = 1 + self.num_reg_tokens
         self.attention_dropout = attention_dropout
         self.dropout = dropout
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule

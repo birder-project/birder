@@ -14,6 +14,7 @@ from rich.text import Text
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix
+from sklearn.metrics import f1_score
 
 from birder.conf import settings
 
@@ -148,7 +149,9 @@ class Results:
 
     @cached_property
     def unique_labels(self) -> npt.NDArray[np.int_]:
-        return np.unique(np.concatenate([self.labels, self.predictions], axis=0))  # type: ignore
+        return (  # type: ignore
+            np.unique(np.concatenate([self.labels[self.valid_idx], self.predictions[self.valid_idx]], axis=0))
+        )
 
     @property
     def missing_labels(self) -> bool:
@@ -196,12 +199,11 @@ class Results:
 
     @property
     def macro_f1_score(self) -> float:
-        report_df = self.detailed_report()
-        return report_df["F1-score"].mean()  # type: ignore
+        return f1_score(self.labels[self.valid_idx], self.predictions[self.valid_idx], average="macro")  # type: ignore
 
     @cached_property
     def confusion_matrix(self) -> npt.NDArray[np.int_]:
-        return confusion_matrix(self.labels, self.predictions)  # type: ignore
+        return confusion_matrix(self.labels[self.valid_idx], self.predictions[self.valid_idx])  # type: ignore
 
     def most_confused(self, n: int = 10) -> pl.DataFrame:
         cnf_matrix = self.confusion_matrix.copy()
