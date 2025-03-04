@@ -280,7 +280,12 @@ def train(args: argparse.Namespace) -> None:
         model_ema = training_utils.ema_model(args, net_without_ddp, device=device)
         if training_states.ema_model_state is not None:
             logger.info("Setting model EMA weights...")
-            model_ema.module.load_state_dict(training_states.ema_model_state)
+            if args.compile is True and hasattr(model_ema.module, "_orig_mod") is True:
+                model_ema.module._orig_mod.load_state_dict(  # pylint: disable=protected-access
+                    training_states.ema_model_state
+                )
+            else:
+                model_ema.module.load_state_dict(training_states.ema_model_state)
 
         model_to_save = model_ema.module  # Save EMA model weights as default weights
         eval_model = model_ema  # Use EMA for evaluation
