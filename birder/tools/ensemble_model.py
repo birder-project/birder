@@ -58,13 +58,11 @@ def main(args: argparse.Namespace) -> None:
     signature_list = []
     rgb_stats_list = []
     for network in args.networks:
-        (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
-            device, network, inference=True, pts=args.pts, pt2=args.pt2
-        )
+        (net, model_info) = fs_ops.load_model(device, network, inference=True, pts=args.pts, pt2=args.pt2)
         nets.append(net)
-        class_to_idx_list.append(class_to_idx)
-        signature_list.append(signature)
-        rgb_stats_list.append(rgb_stats)
+        class_to_idx_list.append(model_info.class_to_idx)
+        signature_list.append(model_info.signature)
+        rgb_stats_list.append(model_info.rgb_stats)
 
     # Ensure all have the same class to index definitions
     if [class_to_idx_list[0]] * len(class_to_idx_list) != class_to_idx_list:

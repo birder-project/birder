@@ -117,7 +117,7 @@ def predict(args: argparse.Namespace) -> None:
 
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     network_name = lib.get_network_name(args.network, net_param=args.net_param, tag=args.tag)
-    (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+    (net, (class_to_idx, signature, rgb_stats)) = fs_ops.load_model(
         device,
         args.network,
         net_param=args.net_param,

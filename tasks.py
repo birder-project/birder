@@ -6,12 +6,14 @@ import polars as pl
 import torch
 from invoke import Exit
 from invoke import task
+from jinja2 import Template
 
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
 from birder.model_registry import registry
+from birder.net.base import DetectorBackbone
 from birder.tools.stats import detection_object_count
 from birder.tools.stats import directory_label_count
 
@@ -26,7 +28,7 @@ DEFAULT_COLOR = COLOR_GRAY
 
 PROJECT_DIR = "birder"
 HF_DOCS_DIR = "docs/internal/hf_model_cards"
-HF_MODEL_CARD_TEMPLATE = "docs/internal/model_card_template.md"
+HF_MODEL_CARD_TEMPLATE = "docs/internal/model_card_template.md.j2"
 
 
 def echo(msg: str, color: int = DEFAULT_COLOR) -> None:
@@ -448,7 +450,7 @@ def model_pre_publish(_ctx, model, net_param=None, tag=None, epoch=None, reparam
 
     network_name = fs_ops.get_network_name(model, net_param, tag)
 
-    (net, _, signature, _) = fs_ops.load_model(
+    (net, model_info) = fs_ops.load_model(
         torch.device("cpu"),
         model,
         net_param=net_param,
@@ -459,12 +461,12 @@ def model_pre_publish(_ctx, model, net_param=None, tag=None, epoch=None, reparam
     )
     num_params = sum(p.numel() for p in net.parameters())
     num_params = round(num_params / 1_000_000, 1)
-    size = lib.get_size_from_signature(signature)
-    num_outputs = lib.get_num_labels_from_signature(signature)
+    size = lib.get_size_from_signature(model_info.signature)
+    num_outputs = lib.get_num_labels_from_signature(model_info.signature)
 
     # Check if model already in manifest
     if registry.pretrained_exists(network_name) is False:
-        echo("Model not in manifest, generating ModelInfo information")
+        echo("Model not in manifest, generating ModelMetadata information")
         path = fs_ops.model_path(network_name, epoch=epoch)
         file_size = pathlib.Path(path).stat().st_size
         file_size = round(file_size / 1024 / 1024, 1)
@@ -480,12 +482,27 @@ def model_pre_publish(_ctx, model, net_param=None, tag=None, epoch=None, reparam
         if model_card_path.exists() is False:
             echo("Model card does not exist, creating from template")
             with open(HF_MODEL_CARD_TEMPLATE, mode="r", encoding="utf-8") as handle:
-                template = handle.read()
+                template_str = handle.read()
 
-            model_card = template.replace("<MODEL_NAME>", network_name)
-            model_card = model_card.replace("<NUM_PARAMS>", str(num_params))
-            model_card = model_card.replace("<SIZE_x_SIZE>", f"{size[0]} x {size[1]}")
-            model_card = model_card.replace("<NUM_CLASSES>", str(num_outputs))
+            template = Template(template_str)
+            if isinstance(net, DetectorBackbone):
+                detector_backbone = True
+                out = net.detection_features(torch.rand((1, 3, *size)))
+                feature_map_shapes = [(k, v.size()) for k, v in out.items()]
+            else:
+                detector_backbone = False
+                print("Feature maps not supported")
+                feature_map_shapes = []
+
+            model_card = template.render(
+                model_name=network_name,
+                num_params=num_params,
+                size=size,
+                num_outputs=num_outputs,
+                embedding_size=net.embedding_size,
+                detector_backbone=detector_backbone,
+                feature_map_shapes=feature_map_shapes,
+            )
 
             echo(f"Writing model card at {model_card_path}...")
             with open(model_card_path, mode="w", encoding="utf-8") as handle:
@@ -512,13 +529,11 @@ def sam_from_vit(_ctx, network, tag=None, epoch=None):
 
     # Load model
     device = torch.device("cpu")
-    (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
-        device, network, tag=tag, epoch=epoch, inference=False
-    )
-    size = lib.get_size_from_signature(signature)[0]
-    channels = lib.get_channels_from_signature(signature)
+    (net, model_info) = fs_ops.load_model(device, network, tag=tag, epoch=epoch, inference=False)
+    size = lib.get_size_from_signature(model_info.signature)
+    channels = lib.get_channels_from_signature(model_info.signature)
 
-    sam = registry.net_factory(sam_network, channels, len(class_to_idx), size=size)
+    sam = registry.net_factory(sam_network, channels, len(model_info.class_to_idx), size=size)
     sam.load_vit_weights(net.state_dict())
 
     # Save model
@@ -526,9 +541,9 @@ def sam_from_vit(_ctx, network, tag=None, epoch=None):
         sam_network,
         epoch,
         sam,
-        signature,
-        class_to_idx,
-        rgb_stats,
+        model_info.signature,
+        model_info.class_to_idx,
+        model_info.rgb_stats,
         optimizer=None,
         scheduler=None,
         scaler=None,
@@ -554,13 +569,11 @@ def hieradet_from_hiera(_ctx, network, tag=None, epoch=None):
 
     # Load model
     device = torch.device("cpu")
-    (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
-        device, network, tag=tag, epoch=epoch, inference=False
-    )
-    size = lib.get_size_from_signature(signature)[0]
-    channels = lib.get_channels_from_signature(signature)
+    (net, model_info) = fs_ops.load_model(device, network, tag=tag, epoch=epoch, inference=False)
+    size = lib.get_size_from_signature(model_info.signature)
+    channels = lib.get_channels_from_signature(model_info.signature)
 
-    hieradet = registry.net_factory(hieradet_network, channels, len(class_to_idx), size=size)
+    hieradet = registry.net_factory(hieradet_network, channels, len(model_info.class_to_idx), size=size)
     hieradet.load_hiera_weights(net.state_dict())
 
     # Save model
@@ -568,9 +581,9 @@ def hieradet_from_hiera(_ctx, network, tag=None, epoch=None):
         hieradet_network,
         epoch,
         hieradet,
-        signature,
-        class_to_idx,
-        rgb_stats,
+        model_info.signature,
+        model_info.class_to_idx,
+        model_info.rgb_stats,
         optimizer=None,
         scheduler=None,
         scaler=None,

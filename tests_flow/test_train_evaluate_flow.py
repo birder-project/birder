@@ -27,10 +27,10 @@ class TestTrainFlow(unittest.TestCase):
         validation_dataset = TestDataset(split="validation")
 
         # Linear probing
-        model_info = registry.get_pretrained_info(model_name)
-        network = model_info["net"]["network"]
-        net_param = model_info["net"].get("net_param", None)
-        tag = model_info["net"].get("tag", None)
+        model_metadata = registry.get_pretrained_metadata(model_name)
+        network = model_metadata["net"]["network"]
+        net_param = model_metadata["net"].get("net_param", None)
+        tag = model_metadata["net"].get("tag", None)
         args = train.args_from_dict(
             network=network,
             net_param=net_param,
@@ -50,7 +50,7 @@ class TestTrainFlow(unittest.TestCase):
 
         # Check checkpoint is valid
         device = torch.device("cpu")
-        (net, class_to_idx, signature, rgb_stats) = load_model(
+        (net, (class_to_idx, signature, rgb_stats)) = load_model(
             device, network, net_param=net_param, tag=tag, epoch=1, inference=True
         )
         self.assertEqual(len(class_to_idx), signature["outputs"][0]["data_shape"][1])

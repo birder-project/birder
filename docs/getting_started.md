@@ -101,13 +101,13 @@ import birder
 from birder.inference.classification import infer_image
 
 # Load a pre-trained model
-(net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model("efficientnet_v2_s_il-common", inference=True)
+(net, model_info) = birder.load_pretrained_model("efficientnet_v2_s_il-common", inference=True)
 
 # Get the image size the model was trained on
-size = birder.get_size_from_signature(signature)
+size = birder.get_size_from_signature(model_info.signature)
 
 # Create an inference transform
-transform = birder.classification_transform(size, rgb_stats)
+transform = birder.classification_transform(size, model_info.rgb_stats)
 
 # Perform inference on an image
 image = "data/img_001.jpeg"  # Path to your image

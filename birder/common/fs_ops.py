@@ -387,6 +387,12 @@ def load_detection_checkpoint(
     return DetectionCheckpointStates(net, class_to_idx, training_states)
 
 
+class ModelInfo(NamedTuple):
+    class_to_idx: dict[str, int]
+    signature: SignatureType
+    rgb_stats: RGBType
+
+
 # pylint: disable=too-many-locals
 def load_model(
     device: torch.device,
@@ -405,7 +411,7 @@ def load_model(
     pt2: bool = False,
     st: bool = False,
     dtype: Optional[torch.dtype] = None,
-) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], SignatureType, RGBType]:
+) -> tuple[torch.nn.Module | torch.ScriptModule, ModelInfo]:
     if path is None:
         _network_name = get_network_name(network, net_param, tag)
         path = model_path(_network_name, epoch=epoch, quantized=quantized, pts=pts, pt2=pt2, st=st)
@@ -480,7 +486,13 @@ def load_model(
         if pt2 is False:  # Remove when GraphModule add support for 'eval'
             net.eval()
 
-    return (net, class_to_idx, signature, rgb_stats)
+    return (net, ModelInfo(class_to_idx, signature, rgb_stats))
+
+
+class DetectionModelInfo(NamedTuple):
+    class_to_idx: dict[str, int]
+    signature: DetectionSignatureType
+    rgb_stats: RGBType
 
 
 # pylint: disable=too-many-locals,too-many-arguments
@@ -506,7 +518,7 @@ def load_detection_model(
     pt2: bool = False,
     st: bool = False,
     dtype: Optional[torch.dtype] = None,
-) -> tuple[torch.nn.Module | torch.ScriptModule, dict[str, int], DetectionSignatureType, RGBType]:
+) -> tuple[torch.nn.Module | torch.ScriptModule, DetectionModelInfo]:
     if path is None:
         _network_name = get_detection_network_name(
             network,
@@ -603,7 +615,7 @@ def load_detection_model(
 
         net.eval()
 
-    return (net, class_to_idx, signature, rgb_stats)
+    return (net, DetectionModelInfo(class_to_idx, signature, rgb_stats))
 
 
 def load_pretrained_model(
@@ -614,7 +626,7 @@ def load_pretrained_model(
     device: Optional[torch.device] = None,
     dtype: Optional[torch.dtype] = None,
     progress_bar: bool = True,
-) -> tuple[BaseNet | DetectionBaseNet, dict[str, int], SignatureType | DetectionSignatureType, RGBType]:
+) -> tuple[BaseNet | DetectionBaseNet, ModelInfo | DetectionModelInfo]:
     """
     Loads a pre-trained model from the model registry or a specified destination.
 
@@ -652,8 +664,8 @@ def load_pretrained_model(
 
     Examples
     --------
-    >>> (net, class_to_idx, signature, rgb_stats) = load_pretrained_model("mobilenet_v4_l_eu-common")
-    >>> (net, class_to_idx, signature, rgb_stats) = load_pretrained_model(
+    >>> (net, model_info) = load_pretrained_model("mobilenet_v4_l_eu-common")
+    >>> (net, model_info) = load_pretrained_model(
     ...     "rdnet_s_arabian-peninsula", inference=True, device=torch.device("cuda"))
     """
 
@@ -661,46 +673,46 @@ def load_pretrained_model(
         logger.info(f"Creating {settings.MODELS_DIR} directory...")
         settings.MODELS_DIR.mkdir(parents=True)
 
-    model_info = registry.get_pretrained_info(weights)
-    assert "pt" in model_info["formats"], "Can only load pt type files"
+    model_metadata = registry.get_pretrained_metadata(weights)
+    assert "pt" in model_metadata["formats"], "Can only load pt type files"
 
     model_file = f"{weights}.pt"
     if dst is None:
         dst = settings.MODELS_DIR.joinpath(model_file)
 
-    if "url" in model_info:
-        url = model_info["url"]
+    if "url" in model_metadata:
+        url = model_metadata["url"]
     else:
         url = f"{settings.REGISTRY_BASE_UTL}/{model_file}"
 
-    cli.download_file(url, dst, model_info["formats"]["pt"]["sha256"], progress_bar=progress_bar)
+    cli.download_file(url, dst, model_metadata["formats"]["pt"]["sha256"], progress_bar=progress_bar)
 
     if device is None:
         device = torch.device("cpu")
 
-    if "backbone" in model_info:
+    if "backbone" in model_metadata:
         return load_detection_model(
             device,
-            model_info["net"]["network"],
+            model_metadata["net"]["network"],
             path=dst,
-            net_param=model_info["net"].get("net_param", None),
-            tag=model_info["net"].get("tag", None),
-            reparameterized=model_info["net"].get("reparameterized", False),
-            backbone=model_info["backbone"]["network"],
-            backbone_param=model_info["backbone"].get("net_param", None),
-            backbone_tag=model_info["backbone"].get("tag", None),
-            backbone_reparameterized=model_info["backbone"].get("reparameterized", False),
+            net_param=model_metadata["net"].get("net_param", None),
+            tag=model_metadata["net"].get("tag", None),
+            reparameterized=model_metadata["net"].get("reparameterized", False),
+            backbone=model_metadata["backbone"]["network"],
+            backbone_param=model_metadata["backbone"].get("net_param", None),
+            backbone_tag=model_metadata["backbone"].get("tag", None),
+            backbone_reparameterized=model_metadata["backbone"].get("reparameterized", False),
             inference=inference,
             dtype=dtype,
         )
 
     return load_model(
         device,
-        model_info["net"]["network"],
+        model_metadata["net"]["network"],
         path=dst,
-        net_param=model_info["net"].get("net_param", None),
-        tag=model_info["net"].get("tag", None),
-        reparameterized=model_info["net"].get("reparameterized", False),
+        net_param=model_metadata["net"].get("net_param", None),
+        tag=model_metadata["net"].get("tag", None),
+        reparameterized=model_metadata["net"].get("reparameterized", False),
         inference=inference,
         dtype=dtype,
     )

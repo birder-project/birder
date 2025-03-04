@@ -43,9 +43,9 @@ def main(args: argparse.Namespace) -> None:
         logger.info(f"Creating {settings.MODELS_DIR} directory...")
         settings.MODELS_DIR.mkdir(parents=True)
 
-    model_info = registry.get_pretrained_info(args.model_name)
-    if args.format not in model_info["formats"]:
-        logger.warning(f"Available formats for {args.model_name} are: {list(model_info['formats'].keys())}")
+    model_metadata = registry.get_pretrained_metadata(args.model_name)
+    if args.format not in model_metadata["formats"]:
+        logger.warning(f"Available formats for {args.model_name} are: {list(model_metadata['formats'].keys())}")
         raise SystemExit(1)
 
     model_file = f"{args.model_name}.{args.format}"
@@ -54,9 +54,9 @@ def main(args: argparse.Namespace) -> None:
         logger.warning(f"File {model_file} already exists... aborting")
         raise SystemExit(1)
 
-    if "url" in model_info:
-        url = model_info["url"]
+    if "url" in model_metadata:
+        url = model_metadata["url"]
     else:
         url = f"{settings.REGISTRY_BASE_UTL}/{model_file}"
 
-    cli.download_file(url, dst, model_info["formats"][args.format]["sha256"], override=args.force)
+    cli.download_file(url, dst, model_metadata["formats"][args.format]["sha256"], override=args.force)

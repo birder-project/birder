@@ -74,7 +74,7 @@ def main(args: argparse.Namespace) -> None:
     device = torch.device("cpu")
     signature: SignatureType | DetectionSignatureType
     if args.backbone is None:
-        (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+        (net, (class_to_idx, signature, rgb_stats)) = fs_ops.load_model(
             device,
             args.network,
             net_param=args.net_param,
@@ -85,7 +85,7 @@ def main(args: argparse.Namespace) -> None:
         )
 
     else:
-        (net, class_to_idx, signature, rgb_stats) = fs_ops.load_detection_model(
+        (net, (class_to_idx, signature, rgb_stats)) = fs_ops.load_detection_model(
             device,
             args.network,
             net_param=args.net_param,

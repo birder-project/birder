@@ -69,7 +69,7 @@ def memory_benchmark(
     if args.gpu_id is not None:
         torch.cuda.set_device(args.gpu_id)
 
-    (net, _, _, _) = birder.load_pretrained_model(model_name, inference=True, device=device)
+    (net, _) = birder.load_pretrained_model(model_name, inference=True, device=device)
 
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats(device)
@@ -123,8 +123,8 @@ def benchmark(args: argparse.Namespace) -> None:
     results = []
     model_list = birder.list_pretrained_models(args.filter)
     for model_name in model_list:
-        model_info = registry.get_pretrained_info(model_name)
-        size = model_info["resolution"]
+        model_metadata = registry.get_pretrained_metadata(model_name)
+        size = model_metadata["resolution"]
 
         # Check if model already benchmarked at this configuration
         if existing_df is not None:
@@ -157,7 +157,7 @@ def benchmark(args: argparse.Namespace) -> None:
             logger.info(f"{model_name} used {peak_memory:.2f}MB")
         else:
             # Initialize model
-            (net, _, _, _) = birder.load_pretrained_model(model_name, inference=True, device=device)
+            (net, _) = birder.load_pretrained_model(model_name, inference=True, device=device)
             if args.compile is True:
                 torch.compiler.reset()
                 net = torch.compile(net)

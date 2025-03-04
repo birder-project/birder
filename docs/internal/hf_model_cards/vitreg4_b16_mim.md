@@ -42,19 +42,19 @@ import torch
 import birder
 from PIL import Image
 
-(net, _, signature, rgb_stats) = birder.load_pretrained_model("vitreg4_b16_mim_300", inference=True)
+(net, model_info) = birder.load_pretrained_model("vitreg4_b16_mim_300", inference=True)
 
 # Get the image size the model was trained on
-size = birder.get_size_from_signature(signature)
+size = birder.get_size_from_signature(model_info.signature)
 
 # Create an inference transform
-transform = birder.classification_transform(size, rgb_stats)
+transform = birder.classification_transform(size, model_info.rgb_stats)
 
 image = Image.open("path/to/image.jpeg")
 input_tensor = transform(image).unsqueeze(dim=0)
 with torch.inference_mode():
     embedding = net.embedding(input_tensor)
-    # embedding is a tensor with shape of (1, embedding_size)
+    # embedding is a tensor with shape of (1, 768)
 ```
 
 Alternatively using `load_model_with_cfg` function

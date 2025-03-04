@@ -18,8 +18,8 @@ NetworkInfoType = TypedDict(
     },
 )
 
-ModelInfoType = TypedDict(
-    "ModelInfoType",
+ModelMetadataType = TypedDict(
+    "ModelMetadataType",
     {
         "url": NotRequired[str],
         "description": str,
@@ -30,4 +30,4 @@ ModelInfoType = TypedDict(
     },
 )
 
-REGISTRY_MANIFEST: dict[str, ModelInfoType] = {}
+REGISTRY_MANIFEST: dict[str, ModelMetadataType] = {}

@@ -91,14 +91,14 @@ def main(args: argparse.Namespace) -> None:
             table.add_column("Resolution", justify="right")
             table.add_column("Description")
             for model_name in model_list:
-                model_info = registry.get_pretrained_info(model_name)
-                for format_name, format_info in model_info["formats"].items():
+                model_metadata = registry.get_pretrained_metadata(model_name)
+                for format_name, format_info in model_metadata["formats"].items():
                     table.add_row(
                         model_name,
                         format_name,
                         f"{format_info['file_size']}MB",
-                        "x".join(str(x) for x in model_info["resolution"]),
-                        model_info["description"],
+                        "x".join(str(x) for x in model_metadata["resolution"]),
+                        model_metadata["description"],
                     )
 
             console.print(table)

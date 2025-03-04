@@ -29,7 +29,7 @@ def show_pgd(args: argparse.Namespace) -> None:
 
     logger.info(f"Using device {device}")
 
-    (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+    (net, (class_to_idx, signature, rgb_stats)) = fs_ops.load_model(
         device,
         args.network,
         net_param=args.net_param,
@@ -39,8 +39,8 @@ def show_pgd(args: argparse.Namespace) -> None:
         reparameterized=args.reparameterized,
     )
     label_names = list(class_to_idx.keys())
-    size = lib.get_size_from_signature(signature)[0]
-    transform = inference_preset((size, size), rgb_stats, 1.0)
+    size = lib.get_size_from_signature(signature)
+    transform = inference_preset(size, rgb_stats, 1.0)
     reverse_transform = reverse_preset(rgb_stats)
 
     img: Image.Image = Image.open(args.image_path)
@@ -52,7 +52,7 @@ def show_pgd(args: argparse.Namespace) -> None:
     else:
         target = None
 
-    img = img.resize((size, size))
+    img = img.resize(size)
     pgd_response = pgd(input_tensor, target=target)
     perturbation = reverse_transform(pgd_response.adv_img).cpu().detach().numpy().squeeze()
     pgd_img = np.moveaxis(perturbation, 0, 2)
@@ -82,7 +82,7 @@ def show_fgsm(args: argparse.Namespace) -> None:
 
     logger.info(f"Using device {device}")
 
-    (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+    (net, (class_to_idx, signature, rgb_stats)) = fs_ops.load_model(
         device,
         args.network,
         net_param=args.net_param,
@@ -92,8 +92,8 @@ def show_fgsm(args: argparse.Namespace) -> None:
         reparameterized=args.reparameterized,
     )
     label_names = list(class_to_idx.keys())
-    size = lib.get_size_from_signature(signature)[0]
-    transform = inference_preset((size, size), rgb_stats, 1.0)
+    size = lib.get_size_from_signature(signature)
+    transform = inference_preset(size, rgb_stats, 1.0)
 
     img: Image.Image = Image.open(args.image_path)
     input_tensor = transform(img).unsqueeze(dim=0).to(device)
@@ -104,7 +104,7 @@ def show_fgsm(args: argparse.Namespace) -> None:
     else:
         target = None
 
-    img = img.resize((size, size))
+    img = img.resize(size)
     fgsm_response = fgsm(input_tensor, target=target)
     perturbation = fgsm_response.perturbation.cpu().detach().numpy().squeeze()
     fgsm_img = (np.array(img).astype(np.float32) / 255.0) + np.moveaxis(perturbation, 0, 2)

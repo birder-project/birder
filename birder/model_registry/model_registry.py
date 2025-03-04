@@ -90,7 +90,7 @@ class ModelRegistry:
 
         self.aliases[alias] = type(alias, (net_type,), {"net_param": net_param, "config": config})
 
-    def register_weights(self, name: str, weights_info: manifest.ModelInfoType) -> None:
+    def register_weights(self, name: str, weights_info: manifest.ModelMetadataType) -> None:
         if name in self._pretrained_nets:
             warnings.warn(f"Weights {name} is already registered", UserWarning)
 
@@ -187,7 +187,7 @@ class ModelRegistry:
         net = self._get_model_by_name(model_name)
         return net.default_size
 
-    def get_pretrained_info(self, model_name: str) -> manifest.ModelInfoType:
+    def get_pretrained_metadata(self, model_name: str) -> manifest.ModelMetadataType:
         return self._pretrained_nets[model_name]
 
     def net_factory(

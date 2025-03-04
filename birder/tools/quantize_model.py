@@ -92,7 +92,7 @@ def main(args: argparse.Namespace) -> None:
         device = torch.device("cpu")
 
     # Load model
-    (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+    (net, (class_to_idx, signature, rgb_stats)) = fs_ops.load_model(
         device,
         args.network,
         net_param=args.net_param,
@@ -103,10 +103,10 @@ def main(args: argparse.Namespace) -> None:
     )
     net.eval()
     task = net.task
-    size = lib.get_size_from_signature(signature)[0]
+    size = lib.get_size_from_signature(signature)
 
     # Set calibration data
-    full_dataset = ImageFolder(args.data_path, transform=inference_preset((size, size), rgb_stats, 1.0))
+    full_dataset = ImageFolder(args.data_path, transform=inference_preset(size, rgb_stats, 1.0))
     calibration_dataset = Subset(full_dataset, indices=list(range(args.batch_size * args.num_calibration_batches)))
     calibration_data_loader = DataLoader(
         calibration_dataset,

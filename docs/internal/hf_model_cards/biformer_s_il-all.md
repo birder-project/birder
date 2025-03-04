@@ -32,17 +32,17 @@ The species list is derived from data available at <https://www.israbirding.com/
 import birder
 from birder.inference.classification import infer_image
 
-(net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model("biformer_s_il-all", inference=True)
+(net, model_info) = birder.load_pretrained_model("biformer_s_il-all", inference=True)
 
 # Get the image size the model was trained on
-size = birder.get_size_from_signature(signature)
+size = birder.get_size_from_signature(model_info.signature)
 
 # Create an inference transform
-transform = birder.classification_transform(size, rgb_stats)
+transform = birder.classification_transform(size, model_info.rgb_stats)
 
 image = "path/to/image.jpeg"  # or a PIL image, must be loaded in RGB format
 (out, _) = infer_image(net, image, transform)
-# out is a NumPy array with shape of (1, num_classes), representing class probabilities.
+# out is a NumPy array with shape of (1, 550), representing class probabilities.
 ```
 
 ### Image Embeddings
@@ -51,17 +51,17 @@ image = "path/to/image.jpeg"  # or a PIL image, must be loaded in RGB format
 import birder
 from birder.inference.classification import infer_image
 
-(net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model("biformer_s_il-all", inference=True)
+(net, model_info) = birder.load_pretrained_model("biformer_s_il-all", inference=True)
 
 # Get the image size the model was trained on
-size = birder.get_size_from_signature(signature)
+size = birder.get_size_from_signature(model_info.signature)
 
 # Create an inference transform
-transform = birder.classification_transform(size, rgb_stats)
+transform = birder.classification_transform(size, model_info.rgb_stats)
 
 image = "path/to/image.jpeg"  # or a PIL image
 (out, embedding) = infer_image(net, image, transform, return_embedding=True)
-# embedding is a NumPy array with shape of (1, embedding_size)
+# embedding is a NumPy array with shape of (1, 512)
 ```
 
 ### Detection Feature Map
@@ -70,23 +70,23 @@ image = "path/to/image.jpeg"  # or a PIL image
 from PIL import Image
 import birder
 
-(net, class_to_idx, signature, rgb_stats) = birder.load_pretrained_model("biformer_s_il-all", inference=True)
+(net, model_info) = birder.load_pretrained_model("biformer_s_il-all", inference=True)
 
 # Get the image size the model was trained on
-size = birder.get_size_from_signature(signature)
+size = birder.get_size_from_signature(model_info.signature)
 
 # Create an inference transform
-transform = birder.classification_transform(size, rgb_stats)
+transform = birder.classification_transform(size, model_info.rgb_stats)
 
 image = Image.open("path/to/image.jpeg")
 features = net.detection_features(transform(image).unsqueeze(0))
 # features is a dict (stage name -> torch.Tensor)
 print([(k, v.size()) for k, v in features.items()])
 # Output example:
-# [('stage1', torch.Size([1, 96, 96, 96])),
-#  ('stage2', torch.Size([1, 192, 48, 48])),
-#  ('stage3', torch.Size([1, 384, 24, 24])),
-#  ('stage4', torch.Size([1, 768, 12, 12]))]
+# [('stage1', torch.Size([1, 64, 96, 96])),
+#  ('stage2', torch.Size([1, 128, 48, 48])),
+#  ('stage3', torch.Size([1, 256, 24, 24])),
+#  ('stage4', torch.Size([1, 512, 12, 12]))]
 ```
 
 ## Citation

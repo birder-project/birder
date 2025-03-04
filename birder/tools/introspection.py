@@ -157,7 +157,7 @@ def main(args: argparse.Namespace) -> None:
 
     logger.info(f"Using device {device}")
 
-    (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+    (net, model_info) = fs_ops.load_model(
         device,
         args.network,
         net_param=args.net_param,
@@ -168,13 +168,13 @@ def main(args: argparse.Namespace) -> None:
         reparameterized=args.reparameterized,
     )
     if args.size is None:
-        args.size = lib.get_size_from_signature(signature)
+        args.size = lib.get_size_from_signature(model_info.signature)
 
-    transform = inference_preset(args.size, rgb_stats, 1.0)
+    transform = inference_preset(args.size, model_info.rgb_stats, 1.0)
 
     if args.method == "gradcam":
-        show_grad_cam(args, net, class_to_idx, transform, device)
+        show_grad_cam(args, net, model_info.class_to_idx, transform, device)
     elif args.method == "guided-backprop":
-        show_guided_backprop(args, net, class_to_idx, transform, device)
+        show_guided_backprop(args, net, model_info.class_to_idx, transform, device)
     elif args.method == "attn-rollout":
-        show_attn_rollout(args, net, class_to_idx, transform, device)
+        show_attn_rollout(args, net, model_info.class_to_idx, transform, device)

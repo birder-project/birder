@@ -53,10 +53,10 @@ class TestRegistry(unittest.TestCase):
 
     @unittest.skipUnless(os.environ.get("NETWORK_TESTS", False), "Avoid tests that require network access")
     def test_manifest(self) -> None:
-        for model_name, model_info in registry._pretrained_nets.items():
-            for model_format in model_info["formats"]:
-                if "url" in model_info:
-                    url = model_info["url"]
+        for model_name, model_metadata in registry._pretrained_nets.items():
+            for model_format in model_metadata["formats"]:
+                if "url" in model_metadata:
+                    url = model_metadata["url"]
                 else:
                     url = f"{settings.REGISTRY_BASE_UTL}/{model_name}.{model_format}"
 

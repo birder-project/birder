@@ -32,7 +32,7 @@ def similarity(args: argparse.Namespace) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device {device}")
 
-    (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+    (net, (class_to_idx, signature, rgb_stats)) = fs_ops.load_model(
         device,
         args.network,
         net_param=args.net_param,
@@ -42,11 +42,9 @@ def similarity(args: argparse.Namespace) -> None:
         reparameterized=args.reparameterized,
     )
 
-    size = lib.get_size_from_signature(signature)[0]
+    size = lib.get_size_from_signature(signature)
     batch_size = 32
-    dataset = make_image_dataset(
-        args.data_path, class_to_idx, transforms=inference_preset((size, size), rgb_stats, 1.0)
-    )
+    dataset = make_image_dataset(args.data_path, class_to_idx, transforms=inference_preset(size, rgb_stats, 1.0))
     inference_loader = DataLoader(
         dataset,
         batch_size=batch_size,
