@@ -93,12 +93,12 @@ print([(k, v.size()) for k, v in features.items()])
 
 ```bibtex
 @misc{si2022inceptiontransformer,
-      title={Inception Transformer}, 
+      title={Inception Transformer},
       author={Chenyang Si and Weihao Yu and Pan Zhou and Yichen Zhou and Xinchao Wang and Shuicheng Yan},
       year={2022},
       eprint={2205.12956},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2205.12956}, 
+      url={https://arxiv.org/abs/2205.12956},
 }
 ```

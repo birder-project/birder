@@ -93,12 +93,12 @@ print([(k, v.size()) for k, v in features.items()])
 
 ```bibtex
 @misc{li2022mvitv2improvedmultiscalevision,
-      title={MViTv2: Improved Multiscale Vision Transformers for Classification and Detection}, 
+      title={MViTv2: Improved Multiscale Vision Transformers for Classification and Detection},
       author={Yanghao Li and Chao-Yuan Wu and Haoqi Fan and Karttikeya Mangalam and Bo Xiong and Jitendra Malik and Christoph Feichtenhofer},
       year={2022},
       eprint={2112.01526},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2112.01526}, 
+      url={https://arxiv.org/abs/2112.01526},
 }
 ```

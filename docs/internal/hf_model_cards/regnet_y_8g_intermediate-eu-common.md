@@ -96,12 +96,12 @@ print([(k, v.size()) for k, v in features.items()])
 
 ```bibtex
 @misc{radosavovic2020designingnetworkdesignspaces,
-      title={Designing Network Design Spaces}, 
+      title={Designing Network Design Spaces},
       author={Ilija Radosavovic and Raj Prateek Kosaraju and Ross Girshick and Kaiming He and Piotr Dollár},
       year={2020},
       eprint={2003.13678},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2003.13678}, 
+      url={https://arxiv.org/abs/2003.13678},
 }
 ```

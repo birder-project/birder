@@ -60,22 +60,22 @@ with torch.inference_mode():
 
 ```bibtex
 @misc{dosovitskiy2021imageworth16x16words,
-      title={An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale}, 
+      title={An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale},
       author={Alexey Dosovitskiy and Lucas Beyer and Alexander Kolesnikov and Dirk Weissenborn and Xiaohua Zhai and Thomas Unterthiner and Mostafa Dehghani and Matthias Minderer and Georg Heigold and Sylvain Gelly and Jakob Uszkoreit and Neil Houlsby},
       year={2021},
       eprint={2010.11929},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2010.11929}, 
+      url={https://arxiv.org/abs/2010.11929},
 }
 
 @misc{he2021maskedautoencodersscalablevision,
-      title={Masked Autoencoders Are Scalable Vision Learners}, 
+      title={Masked Autoencoders Are Scalable Vision Learners},
       author={Kaiming He and Xinlei Chen and Saining Xie and Yanghao Li and Piotr Dollár and Ross Girshick},
       year={2021},
       eprint={2111.06377},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2111.06377}, 
+      url={https://arxiv.org/abs/2111.06377},
 }
 ```

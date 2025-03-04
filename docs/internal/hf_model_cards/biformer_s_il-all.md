@@ -93,12 +93,12 @@ print([(k, v.size()) for k, v in features.items()])
 
 ```bibtex
 @misc{zhu2023biformervisiontransformerbilevel,
-      title={BiFormer: Vision Transformer with Bi-Level Routing Attention}, 
+      title={BiFormer: Vision Transformer with Bi-Level Routing Attention},
       author={Lei Zhu and Xinjiang Wang and Zhanghan Ke and Wayne Zhang and Rynson Lau},
       year={2023},
       eprint={2303.08810},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2303.08810}, 
+      url={https://arxiv.org/abs/2303.08810},
 }
 ```
