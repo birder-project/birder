@@ -83,6 +83,16 @@ CUB_200_2011.tgz
 - link: <https://data.caltech.edu/records/65de6-vp158/files/CUB_200_2011.tgz?download=1>
 - md5: 97eceeb196236b17998738112f37df78
 
+## Google Landmarks Dataset v2 (GLDv2)
+
+Dataset paper: <https://arxiv.org/abs/2004.01804>
+
+Main website: <https://storage.googleapis.com/gld-v2/web/index.html>
+
+There are about ~4.2M images.
+
+License: The annotations are licensed by Google under CC BY 4.0 license.
+
 ## ImageNet 1K
 
 Main website: <https://image-net.org/index.php>

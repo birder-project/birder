@@ -2,7 +2,7 @@
 ResNet v2, adapted from
 https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/resnetv2.py
 
-Paper "https://arxiv.org/abs/1603.05027", https://arxiv.org/abs/1603.05027
+Paper "Identity Mappings in Deep Residual Networks", https://arxiv.org/abs/1603.05027
 """
 
 # Reference license: Apache-2.0

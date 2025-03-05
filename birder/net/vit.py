@@ -27,6 +27,7 @@ from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
+from birder.net.base import DetectorBackbone
 from birder.net.base import PreTrainEncoder
 
 
@@ -251,7 +252,7 @@ class Encoder(nn.Module):
             b.set_need_attn()
 
 
-class ViT(PreTrainEncoder):
+class ViT(DetectorBackbone, PreTrainEncoder):
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -285,10 +286,7 @@ class ViT(PreTrainEncoder):
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
-        self.mlp_dim = mlp_dim
         self.num_reg_tokens = num_reg_tokens
-        self.attention_dropout = attention_dropout
-        self.dropout = dropout
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
         self.conv_proj = nn.Conv2d(
@@ -339,6 +337,8 @@ class ViT(PreTrainEncoder):
         else:
             self.attn_pool = nn.Identity()
 
+        self.return_stages = ["neck"]  # Actually meaningless, but for completeness
+        self.return_channels = [hidden_dim]
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
 
@@ -376,6 +376,44 @@ class ViT(PreTrainEncoder):
         if unfreeze_features is True:
             for param in self.attn_pool.parameters():
                 param.requires_grad = True
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.conv_proj(x)
+        x = self.patch_embed(x)
+
+        # Expand the class token to the full batch
+        if self.class_token is not None:
+            batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
+            x = torch.concat([batch_class_token, x], dim=1)
+
+        # Expand the register tokens to the full batch
+        if self.reg_tokens is not None:
+            batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
+            x = torch.concat([batch_reg_tokens, x], dim=1)
+
+        x = x + self.pos_embedding
+        x = self.encoder(x)
+        x = self.norm(x)
+
+        x = x[:, self.num_special_tokens :]
+        x = x.permute(0, 2, 1)
+        (B, C, _) = x.size()
+        x = x.reshape(B, C, self.size[0] // self.patch_size, self.size[1] // self.patch_size)
+
+        return {self.return_stages[0]: x}
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.conv_proj.parameters():
+            param.requires_grad = False
+
+        self.pos_embedding.requires_grad = False
+
+        for idx, module in enumerate(self.encoder.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad = False
 
     def masked_encoding(
         self,
@@ -831,8 +869,8 @@ registry.register_weights(
     "vitreg4_b16_mim-intermediate-il-common",
     {
         "url": (
-            "https://huggingface.co/birder-project/vitreg4_b16_mim-intermediate-il-common/resolve/"
-            "main/vitreg4_b16_mim-intermediate-il-common.pt"
+            "https://huggingface.co/birder-project/vitreg4_b16_mim-intermediate-il-common/"
+            "resolve/main/vitreg4_b16_mim-intermediate-il-common.pt"
         ),
         "description": (
             "ViTReg4 b16 model with MIM pretraining and intermediate training, "
@@ -852,8 +890,8 @@ registry.register_weights(
     "vitreg4_b16_mim-intermediate-arabian-peninsula",
     {
         "url": (
-            "https://huggingface.co/birder-project/vitreg4_b16_mim-intermediate-arabian-peninsula/resolve/"
-            "main/vitreg4_b16_mim-intermediate-arabian-peninsula.pt"
+            "https://huggingface.co/birder-project/vitreg4_b16_mim-intermediate-arabian-peninsula/"
+            "resolve/main/vitreg4_b16_mim-intermediate-arabian-peninsula.pt"
         ),
         "description": (
             "ViTReg4 b16 model with MIM pretraining and intermediate training, "

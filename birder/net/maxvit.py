@@ -197,9 +197,6 @@ class SwapAxes(nn.Module):
 
 
 class WindowPartition(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-
     def forward(self, x: torch.Tensor, p: tuple[int, int]) -> torch.Tensor:
         (B, C, H, W) = x.size()
         (PH, PW) = p  # pylint: disable=invalid-name
@@ -215,9 +212,6 @@ class WindowPartition(nn.Module):
 
 
 class WindowDepartition(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-
     # pylint: disable=invalid-name
     def forward(self, x: torch.Tensor, p: tuple[int, int], h_partitions: int, w_partitions: int) -> torch.Tensor:
         (B, _G, _PP, C) = x.size()

@@ -2,8 +2,9 @@
 FCOS, adapted from
 https://github.com/pytorch/vision/blob/main/torchvision/models/detection/fcos.py
 
-Paper "FCOS: A simple and strong anchor-free object detector",
-https://arxiv.org/abs/2006.09214
+Paper "FCOS: Fully Convolutional One-Stage Object Detection", https://arxiv.org/abs/1904.01355
+and
+Paper "FCOS: A simple and strong anchor-free object detector", https://arxiv.org/abs/2006.09214
 """
 
 # Reference license: BSD 3-Clause

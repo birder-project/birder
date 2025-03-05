@@ -494,3 +494,18 @@ registry.register_alias(
         "drop_path_rate": 0.5,
     },
 )
+
+registry.register_weights(
+    "smt_t_il-common",
+    {
+        "description": "SMT tiny model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 42.8,
+                "sha256": "5b6d2541ed382d85bda88cf19ebf2d8fb0adb1b6475209f17eacf4a2f428bcc0",
+            }
+        },
+        "net": {"network": "smt_t", "tag": "il-common"},
+    },
+)

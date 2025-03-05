@@ -29,6 +29,7 @@ import torch.nn.functional as F
 from birder.common import fs_ops
 from birder.common import lib
 from birder.net.base import pos_embedding_sin_cos_2d
+from birder.net.rope_vit import RoPE
 ```
 
 ```{python}
@@ -51,9 +52,7 @@ plt.matshow(similarity.numpy())
 ## ViT
 
 ```{python}
-(net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
-    device, "vitreg4_b16", path="models/vitreg4_b16_mim_300.pt", inference=True
-)
+(net, model_info) = fs_ops.load_model(device, "vitreg4_b16", path="models/vitreg4_b16_mim_300.pt", inference=True)
 # (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
 #     device, "vit_l16", path="models/vit_l16_mim_362.pt", inference=True
 # )
@@ -89,8 +88,8 @@ plt.matshow(similarity.detach().numpy())
 ## Hiera
 
 ```{python}
-(net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
-    device, "hiera_abswin_base", path="models/hiera_abswin_base_mim_250.pt", inference=True
+(net, model_info) = fs_ops.load_model(
+    device, "hiera_abswin_base", path="models/hiera_abswin_base_mim_303.pt", inference=True
 )
 ```
 
@@ -121,9 +120,7 @@ plt.matshow(similarity.detach().numpy())
 ## CaiT
 
 ```{python}
-(net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
-    device, "cait_xxs24", path="models/cait_xxs24_il-common.pt", inference=True
-)
+(net, model_info) = fs_ops.load_model(device, "cait_xxs24", path="models/cait_xxs24_il-common.pt", inference=True)
 ```
 
 ```{python}
@@ -153,7 +150,7 @@ plt.matshow(similarity.detach().numpy())
 ## Swin Transformer v2
 
 ```{python}
-(net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+(net, model_info) = fs_ops.load_model(
     device, "swin_transformer_v2_s", path="models/swin_transformer_v2_s_intermediate_65.pt", inference=True
 )
 ```
@@ -209,9 +206,7 @@ plt.matshow(similarity.detach().numpy())
 ## iFormer
 
 ```{python}
-(net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
-    device, "iformer_s", path="models/iformer_s_arabian-peninsula.pt", inference=True
-)
+(net, model_info) = fs_ops.load_model(device, "iformer_s", path="models/iformer_s_arabian-peninsula.pt", inference=True)
 ```
 
 ```{python}
@@ -238,6 +233,31 @@ similarity = pos_embedding.squeeze() @ pos_embedding.squeeze().T
 plt.matshow(similarity.detach().numpy())
 ```
 
-```{python}
+## RoPE
 
+```{python}
+rope = RoPE(192, temperature=100.0, grid_size=(16, 16))
+```
+
+```{python}
+pos_embedding = rope.pos_embed
+(sin_emb, cos_emb) = pos_embedding.tensor_split(2, -1)
+```
+
+```{python}
+sin_emb.size(), cos_emb.size()
+```
+
+```{python}
+plt.matshow(sin_emb.detach().numpy())
+```
+
+```{python}
+similarity = sin_emb.squeeze() @ sin_emb.squeeze().T
+plt.matshow(similarity.detach().numpy())
+```
+
+```{python}
+similarity = cos_emb.squeeze() @ cos_emb.squeeze().T
+plt.matshow(similarity.detach().numpy())
 ```

@@ -249,3 +249,18 @@ registry.register_alias(
     Conv2Former,
     config={"kernel_size": (11, 11), "dims": [128, 256, 512, 1024], "depths": [4, 4, 48, 4], "drop_path_rate": 0.3},
 )
+
+registry.register_weights(
+    "conv2former_n_il-common",
+    {
+        "description": "Conv2Former nano model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 54.3,
+                "sha256": "47e93b34cfd7773f2a5c64bfe3c55a63e6c943dc1f4a130d5a4711ebdc96b632",
+            }
+        },
+        "net": {"network": "conv2former_n", "tag": "il-common"},
+    },
+)

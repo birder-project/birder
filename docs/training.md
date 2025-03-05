@@ -102,6 +102,7 @@ On fine-tuning phase
 - [ResNet v1](#resnet-v1)
 - [ResNet v2](#resnet-v2)
 - [ResNeXt](#resnext)
+- [RoPE DeiT3](#rope-deit3)
 - [SE ResNet v1](#se-resnet-v1)
 - [SE ResNet v2](#se-resnet-v2)
 - [SE ResNeXt](#se-resnext)
@@ -1963,6 +1964,10 @@ At epoch 150 increase resolution
 ```sh
 torchrun --nproc_per_node=2 train.py --network resnext_101 --lr 0.04 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 10 --batch-size 32 --epochs 200 --size 384 --wd 0.001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --resume-epoch 150 --load-states
 ```
+
+### RoPE DeiT3
+
+Same as [DeiT3](#deit3)
 
 ### SE ResNet v1
 

@@ -51,15 +51,13 @@ class DeiT(BaseNet):
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         self.patch_size = patch_size
+        self.num_layers = num_layers
         self.hidden_dim = hidden_dim
-        self.mlp_dim = mlp_dim
         self.num_special_tokens = 2
-        self.attention_dropout = attention_dropout
-        self.dropout = dropout
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
         self.conv_proj = nn.Conv2d(
-            3,
+            self.input_channels,
             hidden_dim,
             kernel_size=(patch_size, patch_size),
             stride=(patch_size, patch_size),
