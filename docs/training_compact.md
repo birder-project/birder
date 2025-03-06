@@ -246,6 +246,14 @@ torchrun --nproc_per_node=2 train.py --network ghostnet_v1 --net-param 1 --tag i
 torchrun --nproc_per_node=2 train.py --network ghostnet_v2 --net-param 1 --tag il-common --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --warmup-epochs 3 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### GroupMixFormer
+
+#### GroupMixFormer: Mobile
+
+```sh
+torchrun --nproc_per_node=2 train.py --network groupmixformer_mobile --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --clip-grad-norm 5 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### InceptionNeXt
 
 #### InceptionNeXt: Atto

@@ -81,7 +81,7 @@ def train(args: argparse.Namespace) -> None:
             dataset_size=dataset_size,
             shuffle=True,
             samples_names=False,
-            transform=training_preset(args.size, args.aug_level, rgb_stats),
+            transform=training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale),
         )
         (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.val_path))
         if args.wds_val_size is not None:
@@ -105,7 +105,7 @@ def train(args: argparse.Namespace) -> None:
     else:
         training_dataset = ImageFolder(
             args.data_path,
-            transform=training_preset(args.size, args.aug_level, rgb_stats),
+            transform=training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale),
             loader=decode_image,
         )
         validation_dataset = ImageFolder(
@@ -785,6 +785,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         default="birder",
         help="rgb mean and std to use for normalization",
     )
+    parser.add_argument("--resize-min-scale", type=float, help="random resize min scale")
     parser.add_argument("--bce-loss", default=False, action="store_true", help="enable BCE loss")
     parser.add_argument("--bce-threshold", type=float, default=0.0, help="threshold for binarizing soft BCE targets")
     parser.add_argument("--epochs", type=int, default=100, metavar="N", help="number of training epochs")
@@ -913,6 +914,7 @@ def validate_args(args: argparse.Namespace) -> None:
     ), "Unknown network, see list-models tool for available options"
     assert args.freeze_bn is False or args.sync_bn is False, "Cannot freeze-bn and sync-bn are mutually exclusive"
     assert args.amp is False or args.model_dtype == "float32"
+    assert args.resize_min_scale is None or args.resize_min_scale < 1.0
     assert args.bce_loss is False or args.smoothing_alpha == 0.0
     args.size = cli.parse_size(args.size)
 

@@ -94,6 +94,7 @@ class TestNet(unittest.TestCase):
             ("focalnet_t_srf"),
             ("ghostnet_v1", 1),
             ("ghostnet_v2", 1),
+            ("groupmixformer_mobile"),
             ("hiera_tiny"),
             ("hiera_abswin_tiny"),  # No bfloat16 support
             ("hieradet_tiny"),
@@ -272,6 +273,7 @@ class TestNet(unittest.TestCase):
             ("focalnet_t_srf"),
             ("ghostnet_v1", 1),
             ("ghostnet_v2", 1),
+            ("groupmixformer_mobile"),
             ("hiera_tiny"),
             ("hiera_abswin_tiny"),
             ("hieradet_tiny"),
@@ -466,6 +468,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("focalnet_t_srf"),
             ("ghostnet_v1", 1),
             ("ghostnet_v2", 1),
+            ("groupmixformer_mobile"),
             ("hiera_tiny"),
             ("hiera_abswin_tiny"),
             ("hieradet_tiny"),

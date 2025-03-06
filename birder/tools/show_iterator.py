@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 def show_iterator(args: argparse.Namespace) -> None:
     reverse_transform = reverse_preset(get_rgb_stats("birder"))
     if args.mode == "training":
-        transform = training_preset(args.size, args.aug_level, get_rgb_stats("birder"))
+        transform = training_preset(args.size, args.aug_level, get_rgb_stats("birder"), args.resize_min_scale)
     elif args.mode == "inference":
         transform = inference_preset(args.size, get_rgb_stats("birder"), args.center_crop)
     else:
@@ -175,6 +175,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--aa", default=False, action="store_true", help="Use AutoAugment policy (ignoring aug-level)"
     )
+    subparser.add_argument("--resize-min-scale", type=float, help="random resize min scale")
     subparser.add_argument("--center-crop", type=float, default=1.0, help="Center crop ratio during inference")
     subparser.add_argument(
         "--batch", default=False, action="store_true", help="Show a batch instead of a single sample"

@@ -85,7 +85,7 @@ def train(args: argparse.Namespace) -> None:
             dataset_size=dataset_size,
             shuffle=True,
             samples_names=False,
-            transform=training_preset(args.size, args.aug_level, rgb_stats),
+            transform=training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale),
         )
         input_idx = 0
 
@@ -93,7 +93,7 @@ def train(args: argparse.Namespace) -> None:
         training_dataset = make_image_dataset(
             args.data_path,
             {},
-            transforms=training_preset(args.size, args.aug_level, rgb_stats),
+            transforms=training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale),
             loader=pil_loader if args.img_loader == "pil" else _tv_loader,
         )
         input_idx = 1
@@ -564,6 +564,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         default="birder",
         help="rgb mean and std to use for normalization",
     )
+    parser.add_argument("--resize-min-scale", type=float, default=0.3, help="random resize min scale")
     parser.add_argument("--epochs", type=int, default=800, metavar="N", help="number of training epochs")
     parser.add_argument(
         "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi step training)"
@@ -660,6 +661,7 @@ def validate_args(args: argparse.Namespace) -> None:
         registry.exists(args.encoder, net_type=PreTrainEncoder) is True
     ), "Unknown encoder, see list-models tool for available options"
     assert args.amp is False or args.model_dtype == "float32"
+    assert args.resize_min_scale is None or args.resize_min_scale < 1.0
     args.size = cli.parse_size(args.size)
 
 

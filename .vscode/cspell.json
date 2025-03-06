@@ -104,6 +104,7 @@
     "giou",
     "gradcam",
     "gridspec",
+    "groupmixformer",
     "hardsigmoid",
     "hardswish",
     "hiera",

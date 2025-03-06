@@ -336,3 +336,17 @@ registry.register_weights(
         "net": {"network": "efficientnet_v1_b1", "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "efficientnet_v1_b2_il-common",
+    {
+        "description": "EfficientNet v1 B2 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 31.8,
+                "sha256": "3a62a94364c874e9d6b8e32aeb27470d88c6b3c15d690ee623e8a59697e4cba5",
+            }
+        },
+        "net": {"network": "efficientnet_v1_b2", "tag": "il-common"},
+    },
+)

@@ -148,17 +148,21 @@ class RandomMixup(nn.Module):
         return f"{self.__class__.__name__}(num_classes={self.num_classes}, p={self.p}, alpha={self.alpha})"
 
 
-def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> Callable[..., torch.Tensor]:
+def training_preset(
+    size: tuple[int, int], level: int, rgv_values: RGBType, resize_min_scale: Optional[float] = None
+) -> Callable[..., torch.Tensor]:
     mean = rgv_values["mean"]
     std = rgv_values["std"]
 
     if level == -1:  # AutoAugment policy
+        if resize_min_scale is None:
+            resize_min_scale = 0.08
         return v2.Compose(  # type: ignore
             [
                 v2.PILToTensor(),
                 v2.RandomResizedCrop(
                     size,
-                    scale=(0.08, 1.0),
+                    scale=(resize_min_scale, 1.0),
                     ratio=(3 / 4, 4 / 3),
                     interpolation=v2.InterpolationMode.BICUBIC,
                     antialias=True,
@@ -181,12 +185,14 @@ def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> C
         )
 
     if level == 1:
+        if resize_min_scale is None:
+            resize_min_scale = 0.7
         return v2.Compose(  # type: ignore
             [
                 v2.PILToTensor(),
                 v2.RandomResizedCrop(
                     size,
-                    scale=(0.7, 1.0),
+                    scale=(resize_min_scale, 1.0),
                     ratio=(3 / 4, 4 / 3),
                     interpolation=v2.InterpolationMode.BICUBIC,
                     antialias=True,
@@ -200,12 +206,14 @@ def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> C
         )
 
     if level == 2:
+        if resize_min_scale is None:
+            resize_min_scale = 0.65
         return v2.Compose(  # type: ignore
             [
                 v2.PILToTensor(),
                 v2.RandomResizedCrop(
                     size,
-                    scale=(0.65, 1.0),
+                    scale=(resize_min_scale, 1.0),
                     ratio=(3 / 4, 4 / 3),
                     interpolation=v2.InterpolationMode.BICUBIC,
                     antialias=True,
@@ -230,12 +238,14 @@ def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> C
         )
 
     if level == 3:
+        if resize_min_scale is None:
+            resize_min_scale = 0.6
         return v2.Compose(  # type: ignore
             [
                 v2.PILToTensor(),
                 v2.RandomResizedCrop(
                     size,
-                    scale=(0.6, 1.0),
+                    scale=(resize_min_scale, 1.0),
                     ratio=(3 / 4, 4 / 3),
                     interpolation=v2.InterpolationMode.BICUBIC,
                     antialias=True,
@@ -267,12 +277,14 @@ def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> C
         )
 
     if level == 4:
+        if resize_min_scale is None:
+            resize_min_scale = 0.5
         return v2.Compose(  # type: ignore
             [
                 v2.PILToTensor(),
                 v2.RandomResizedCrop(
                     size,
-                    scale=(0.5, 1.0),
+                    scale=(resize_min_scale, 1.0),
                     ratio=(3 / 4, 4 / 3),
                     interpolation=v2.InterpolationMode.BICUBIC,
                     antialias=True,
