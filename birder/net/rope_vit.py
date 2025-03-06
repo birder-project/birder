@@ -1,18 +1,17 @@
 """
-ViT, adapted from
-https://github.com/pytorch/vision/blob/main/torchvision/models/vision_transformer.py
+RoPE ViT, adapted from
+https://github.com/naver-ai/rope-vit/blob/main/deit/models_v2_rope.py
 and
-https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/vision_transformer.py
+https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/pos_embed_sincos.py
 
-Paper "An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale",
-https://arxiv.org/abs/2010.11929
-and
-Paper "Vision Transformers Need Registers", https://arxiv.org/abs/2309.16588
-and
-Paper "Getting ViT in Shape: Scaling Laws for Compute-Optimal Model Design", https://arxiv.org/abs/2305.13035
+Paper "Rotary Position Embedding for Vision Transformer", https://arxiv.org/abs/2403.13298
+
+Changes from original:
+* Implemented only axial RoPE (EVA style RoPE)
+* Modified rotate_half (original implementation seems off)
 """
 
-# Reference license: BSD 3-Clause and Apache-2.0
+# Reference license: Apache-2.0 and Apache-2.0
 
 import math
 from collections.abc import Callable
@@ -29,114 +28,106 @@ from torchvision.ops import StochasticDepth
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import PreTrainEncoder
+from birder.net.vit import LayerScale
+from birder.net.vit import MultiHeadAttentionPool
+from birder.net.vit import PatchEmbed
+from birder.net.vit import adjust_position_embedding
 
 
-def adjust_position_embedding(
-    pos_embedding: torch.Tensor,
-    old_base_size: tuple[int, int],
-    new_base_size: tuple[int, int],
-    num_prefix_tokens: int,
-) -> torch.Tensor:
-    """
-    Adapted from
-    https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/pos_embed.py
-    """
+def build_rotary_pos_embed(
+    dim: int, temperature: float, grid_size: tuple[int, int], pt_grid_size: Optional[tuple[int, int]]
+) -> tuple[torch.Tensor, torch.Tensor]:
+    assert dim % 4 == 0
+    num_bands = dim // 4
+    exp = torch.arange(0, num_bands, 1) / num_bands
+    bands = 1.0 / (temperature**exp)
 
-    pos_embedding_prefix = pos_embedding[:, :num_prefix_tokens]
-    pos_embedding = pos_embedding[:, num_prefix_tokens:]
+    if pt_grid_size is None:
+        pt_grid_size = grid_size
 
-    # Interpolation
-    embed_dim = pos_embedding.shape[-1]
-    orig_dtype = pos_embedding.dtype
-    pos_embedding = pos_embedding.float()  # Interpolate needs float32
-    pos_embedding = pos_embedding.reshape(1, old_base_size[0], old_base_size[1], -1).permute(0, 3, 1, 2)
-    pos_embedding = F.interpolate(pos_embedding, size=new_base_size, mode="bicubic", antialias=True)
-    pos_embedding = pos_embedding.permute(0, 2, 3, 1).reshape(1, -1, embed_dim)
-    pos_embedding = pos_embedding.to(orig_dtype)
+    t = [torch.arange(s) / s * p for s, p in zip(grid_size, pt_grid_size)]
+    grid = torch.stack(torch.meshgrid(t, indexing="ij"), dim=-1)
+    grid = grid.unsqueeze(-1)
+    pos = grid * bands
+    sin_emb = pos.sin()
+    cos_emb = pos.cos()
 
-    # Add back special tokens
-    return nn.Parameter(torch.concat([pos_embedding_prefix, pos_embedding], dim=1))
+    num_spatial_dim = grid_size[0] * grid_size[1]
+
+    sin_emb = sin_emb.reshape(num_spatial_dim, -1).repeat_interleave(2, -1)
+    cos_emb = cos_emb.reshape(num_spatial_dim, -1).repeat_interleave(2, -1)
+
+    return (sin_emb, cos_emb)
 
 
-class MultiHeadAttentionPool(nn.Module):
-    """
-    Adapted from:
-    https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/attention_pool.py#L12
-    """
+def rotate_half(x: torch.Tensor) -> torch.Tensor:
+    # Taken from: https://github.com/facebookresearch/capi/blob/main/model.py
+    (x1, x2) = x.chunk(2, dim=-1)
+    return torch.concat((-x2, x1), dim=-1)
 
-    def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        mlp_dim: int,
-        qkv_bias: bool,
-        latent_len: int = 1,
-    ) -> None:
-        super().__init__()
-        assert dim % num_heads == 0
-        self.num_heads = num_heads
-        self.head_dim = dim // num_heads
-        self.scale = self.head_dim**-0.5
 
-        self.latent_len = latent_len
-        self.latent = nn.Parameter(torch.zeros(1, self.latent_len, dim))
+def apply_rotary_pos_embed(x: torch.Tensor, embed: torch.Tensor) -> torch.Tensor:
+    (sin_emb, cos_emb) = embed.tensor_split(2, dim=-1)
+    if cos_emb.ndim == 3:
+        return x * cos_emb.unsqueeze(1).expand_as(x) + rotate_half(x) * sin_emb.unsqueeze(1).expand_as(x)
 
-        self.q = nn.Linear(dim, dim, bias=qkv_bias)
-        self.kv = nn.Linear(dim, dim * 2, bias=qkv_bias)
-        self.proj = nn.Linear(dim, dim)
+    return x * cos_emb + rotate_half(x) * sin_emb
 
-        self.norm = nn.LayerNorm(dim)
-        self.mlp = MLP(dim, [mlp_dim, dim], activation_layer=nn.GELU, inplace=None)
 
-        # Weight initialization
-        nn.init.trunc_normal_(self.latent, std=dim**-0.5)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, N, C) = x.size()
-
-        q_latent = self.latent.expand(B, self.latent_len, -1)
-        q = self.q(q_latent).reshape(B, self.latent_len, self.num_heads, self.head_dim).transpose(1, 2)
-
-        kv = self.kv(x).reshape(B, N, 2, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-        (k, v) = kv.unbind(0)
-
-        x = F.scaled_dot_product_attention(q, k, v, scale=self.scale)  # pylint:disable=not-callable
-        x = x.transpose(1, 2).reshape(B, self.latent_len, C)
-        x = self.proj(x)
-        x = x + self.mlp(self.norm(x))
+class SequentialWithRope(nn.Sequential):
+    def forward(self, x: torch.Tensor, rope: torch.Tensor) -> torch.Tensor:  # pylint: disable=arguments-differ
+        for module in self:
+            x = module(x, rope)
 
         return x
 
 
-class LayerScale(nn.Module):
-    def __init__(self, dim: int, init_values: float, inplace: bool = False) -> None:
+class RoPE(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        temperature: float,
+        grid_size: tuple[int, int],
+        pt_grid_size: Optional[tuple[int, int]] = None,
+    ) -> None:
         super().__init__()
-        self.inplace = inplace
-        self.gamma = nn.Parameter(init_values * torch.ones(dim), requires_grad=True)
+        (sin_emb, cos_emb) = build_rotary_pos_embed(dim, temperature, grid_size=grid_size, pt_grid_size=pt_grid_size)
+        self.pos_embed = nn.Buffer(torch.concat((sin_emb, cos_emb), dim=-1), persistent=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.inplace is True:
-            return x.mul_(self.gamma)
-
-        return x * self.gamma
+        return apply_rotary_pos_embed(x, self.pos_embed)
 
 
-class PatchEmbed(nn.Module):
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        The entire forward is equivalent to x.flatten(2).transpose(1, 2)
-        """
+class RoPEAttention(nn.Module):
+    def __init__(self, dim: int, num_heads: int, attn_drop: float, proj_drop: float, num_special_tokens: int) -> None:
+        super().__init__()
+        assert dim % num_heads == 0, "dim should be divisible by num_heads"
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.scale = self.head_dim**-0.5
+        self.num_special_tokens = num_special_tokens
 
-        (n, hidden_dim, h, w) = x.size()
+        self.qkv = nn.Linear(dim, dim * 3)
+        self.attn_drop = nn.Dropout(attn_drop)
+        self.proj = nn.Linear(dim, dim)
+        self.proj_drop = nn.Dropout(proj_drop)
 
-        # (n, hidden_dim, h, w) -> (n, hidden_dim, (h * w))
-        x = x.reshape(n, hidden_dim, h * w)
+    def forward(self, x: torch.Tensor, rope: torch.Tensor) -> torch.Tensor:
+        (B, N, C) = x.size()
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
+        (q, k, v) = qkv.unbind(0)
 
-        # (n, hidden_dim, (h * w)) -> (n, (h * w), hidden_dim)
-        # The self attention layer expects inputs in the format (N, S, E)
-        # where S is the source sequence length, N is the batch size, E is the
-        # embedding dimension
-        x = x.permute(0, 2, 1)
+        n = self.num_special_tokens
+        q = torch.concat([q[:, :, :n, :], apply_rotary_pos_embed(q[:, :, n:, :], rope)], dim=2)
+        k = torch.concat([k[:, :, :n, :], apply_rotary_pos_embed(k[:, :, n:, :], rope)], dim=2)
+
+        x = F.scaled_dot_product_attention(  # pylint:disable=not-callable
+            q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
+        )
+
+        x = x.transpose(1, 2).reshape(B, N, C)
+        x = self.proj(x)
+        x = self.proj_drop(x)
 
         return x
 
@@ -147,6 +138,7 @@ class EncoderBlock(nn.Module):
         num_heads: int,
         hidden_dim: int,
         mlp_dim: Optional[int],
+        num_special_tokens: int,
         dropout: float,
         attention_dropout: float,
         drop_path: float,
@@ -154,50 +146,36 @@ class EncoderBlock(nn.Module):
         layer_scale_init_value: Optional[float] = None,
     ) -> None:
         super().__init__()
-        self.need_attn = False
 
         if mlp_dim is None:
             mlp_dim = hidden_dim * 4
 
         # Attention block
-        self.ln1 = nn.LayerNorm(hidden_dim, eps=1e-6)
-        self.self_attention = nn.MultiheadAttention(hidden_dim, num_heads, dropout=attention_dropout, batch_first=True)
-        self.drop_path1 = StochasticDepth(drop_path, mode="row")
+        self.norm1 = nn.LayerNorm(hidden_dim, eps=1e-6)
+        self.attn = RoPEAttention(
+            hidden_dim, num_heads, attn_drop=attention_dropout, proj_drop=dropout, num_special_tokens=num_special_tokens
+        )
         if layer_scale_init_value is not None:
             self.layer_scale_1 = LayerScale(hidden_dim, layer_scale_init_value)
         else:
             self.layer_scale_1 = nn.Identity()
 
         # MLP block
-        self.ln2 = nn.LayerNorm(hidden_dim, eps=1e-6)
+        self.norm2 = nn.LayerNorm(hidden_dim, eps=1e-6)
         self.mlp = MLP(
             hidden_dim, [mlp_dim, hidden_dim], activation_layer=activation_layer, inplace=None, dropout=dropout
         )
-        self.drop_path2 = StochasticDepth(drop_path, mode="row")
+        self.drop_path = StochasticDepth(drop_path, mode="row")
         if layer_scale_init_value is not None:
             self.layer_scale_2 = LayerScale(hidden_dim, layer_scale_init_value)
         else:
             self.layer_scale_2 = nn.Identity()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # torch._assert(x.dim() == 3, f"Expected (batch_size, seq_length, hidden_dim) got {x.size()}")
-        branch1 = self.ln1(x)
-        (branch1, _) = self.self_attention(
-            branch1, branch1, branch1, need_weights=self.need_attn, average_attn_weights=False
-        )
-        branch1 = self.layer_scale_1(branch1)
-        branch1 = self.drop_path1(branch1) + x
-
-        branch2 = self.ln2(branch1)
-        branch2 = self.mlp(branch2)
-        branch2 = self.layer_scale_2(branch2)
-
-        x = self.drop_path2(branch2) + branch1
+    def forward(self, x: torch.Tensor, rope: torch.Tensor) -> torch.Tensor:
+        x = x + self.drop_path(self.layer_scale_1(self.attn(self.norm1(x), rope)))
+        x = x + self.drop_path(self.layer_scale_2(self.mlp(self.norm2(x))))
 
         return x
-
-    def set_need_attn(self) -> None:
-        self.need_attn = True
 
 
 class Encoder(nn.Module):
@@ -207,6 +185,7 @@ class Encoder(nn.Module):
         num_heads: int,
         hidden_dim: int,
         mlp_dim: int,
+        num_special_tokens: int,
         dropout: float,
         attention_dropout: float,
         dpr: list[float],
@@ -223,6 +202,7 @@ class Encoder(nn.Module):
                     num_heads,
                     hidden_dim,
                     mlp_dim,
+                    num_special_tokens,
                     dropout,
                     attention_dropout,
                     dpr[i],
@@ -231,28 +211,52 @@ class Encoder(nn.Module):
                 )
             )
 
-        self.block = nn.Sequential(*layers)
+        self.block = SequentialWithRope(*layers)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # torch._assert(x.dim() == 3, f"Expected (batch_size, seq_length, hidden_dim) got {x.size()}")
-        x = self.block(x)
+    def forward(self, x: torch.Tensor, rope: torch.Tensor) -> torch.Tensor:
+        return self.block(x, rope)
 
-        return x
-
-    def forward_features(self, x: torch.Tensor) -> list[torch.Tensor]:
+    def forward_features(self, x: torch.Tensor, rope: torch.Tensor) -> list[torch.Tensor]:
         xs = []
         for blk in self.block:
-            x = blk(x)
+            x = blk(x, rope)
             xs.append(x)
 
         return xs
 
-    def set_need_attn(self) -> None:
-        for b in self.block:
-            b.set_need_attn()
+
+class MAEDecoderBlock(nn.Module):
+    def __init__(
+        self,
+        num_heads: int,
+        hidden_dim: int,
+        num_special_tokens: int,
+        activation_layer: Callable[..., nn.Module],
+        grid_size: tuple[int, int],
+    ) -> None:
+        super().__init__()
+        mlp_dim = hidden_dim * 4
+        self.rope = RoPE(hidden_dim // num_heads, temperature=100.0, grid_size=grid_size)
+
+        # Attention block
+        self.norm1 = nn.LayerNorm(hidden_dim, eps=1e-6)
+        self.attn = RoPEAttention(
+            hidden_dim, num_heads, attn_drop=0.0, proj_drop=0.0, num_special_tokens=num_special_tokens
+        )
+
+        # MLP block
+        self.norm2 = nn.LayerNorm(hidden_dim, eps=1e-6)
+        self.mlp = MLP(hidden_dim, [mlp_dim, hidden_dim], activation_layer=activation_layer, inplace=None, dropout=0.0)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x + self.attn(self.norm1(x), self.rope.pos_embed)
+        x = x + self.mlp(self.norm2(x))
+
+        return x
 
 
-class ViT(DetectorBackbone, PreTrainEncoder):
+# pylint: disable=invalid-name,too-many-instance-attributes
+class RoPE_ViT(DetectorBackbone, PreTrainEncoder):
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -286,6 +290,7 @@ class ViT(DetectorBackbone, PreTrainEncoder):
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
         self.patch_size = patch_size
         self.num_layers = num_layers
+        self.num_heads = num_heads
         self.hidden_dim = hidden_dim
         self.num_reg_tokens = num_reg_tokens
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
@@ -320,13 +325,22 @@ class ViT(DetectorBackbone, PreTrainEncoder):
             self.reg_tokens = None
 
         # Add positional embedding
-        self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, hidden_dim).normal_(std=0.02))  # from BERT
+        self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, hidden_dim).normal_(std=0.02))
 
+        # RoPE
+        self.rope = RoPE(
+            hidden_dim // num_heads,
+            temperature=100.0,
+            grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
+        )
+
+        # Encoder
         self.encoder = Encoder(
             num_layers,
             num_heads,
             hidden_dim,
             mlp_dim,
+            self.num_special_tokens,
             dropout,
             attention_dropout,
             dpr,
@@ -345,13 +359,11 @@ class ViT(DetectorBackbone, PreTrainEncoder):
 
         self.encoding_size = hidden_dim * seq_length
         self.decoder_block = partial(
-            EncoderBlock,
+            MAEDecoderBlock,
             16,
-            mlp_dim=None,
-            dropout=0,
-            attention_dropout=0,
-            drop_path=0,
+            num_special_tokens=self.num_special_tokens,
             activation_layer=nn.GELU,
+            grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
         )
 
         # Weight initialization
@@ -393,7 +405,7 @@ class ViT(DetectorBackbone, PreTrainEncoder):
             x = torch.concat([batch_reg_tokens, x], dim=1)
 
         x = x + self.pos_embedding
-        x = self.encoder(x)
+        x = self.encoder(x, self.rope.pos_embed)
         x = self.norm(x)
 
         x = x[:, self.num_special_tokens :]
@@ -437,7 +449,8 @@ class ViT(DetectorBackbone, PreTrainEncoder):
         # Masking: length -> length * mask_ratio
         # Perform per-sample random masking by per-sample shuffling.
         # Per-sample shuffling is done by argsort random noise.
-        (N, L, D) = x.shape  # batch, length, dim
+        (N, L, D) = x.size()  # batch, length, dim
+        rope_dim = self.rope.pos_embed.size(1)
         len_keep = int(L * (1 - mask_ratio))
         len_masked = int(L * (mask_ratio - kept_mask_ratio))
 
@@ -450,6 +463,9 @@ class ViT(DetectorBackbone, PreTrainEncoder):
         # Keep the first subset
         ids_keep = ids_shuffle[:, :len_keep]
         x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
+
+        repo = self.rope.pos_embed.unsqueeze(0).repeat(N, 1, 1)
+        rope_masked = torch.gather(repo, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, rope_dim))
 
         # Generate the binary mask: 0 is keep, 1 is remove
         mask = torch.ones([N, L], device=x.device)
@@ -473,11 +489,11 @@ class ViT(DetectorBackbone, PreTrainEncoder):
 
         # Apply transformer
         if return_all_features is True:
-            xs = self.encoder.forward_features(x)
+            xs = self.encoder.forward_features(x, rope_masked)
             xs[-1] = self.norm(xs[-1])
             x = torch.stack(xs, dim=-1)
         else:
-            x = self.encoder(x)
+            x = self.encoder(x, rope_masked)
             x = self.norm(x)
 
         return (x, mask, ids_restore)
@@ -498,7 +514,7 @@ class ViT(DetectorBackbone, PreTrainEncoder):
             x = torch.concat([batch_reg_tokens, x], dim=1)
 
         x = x + self.pos_embedding
-        x = self.encoder(x)
+        x = self.encoder(x, self.rope.pos_embed)
         x = self.norm(x)
         x = self.attn_pool(x)
 
@@ -528,10 +544,17 @@ class ViT(DetectorBackbone, PreTrainEncoder):
         # Update encoding size
         self.encoding_size = self.pos_embedding.numel()
 
+        # Adjust RoPE
+        self.rope = RoPE(
+            self.hidden_dim // self.num_heads,
+            temperature=100.0,
+            grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
+        )
+
 
 registry.register_alias(
-    "vit_b32",
-    ViT,
+    "rope_vit_b32",
+    RoPE_ViT,
     config={
         "patch_size": 32,
         "num_layers": 12,
@@ -542,8 +565,8 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vit_b16",
-    ViT,
+    "rope_vit_b16",
+    RoPE_ViT,
     config={
         "patch_size": 16,
         "num_layers": 12,
@@ -554,8 +577,8 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vit_b14",
-    ViT,
+    "rope_vit_b14",
+    RoPE_ViT,
     config={
         "patch_size": 14,
         "num_layers": 12,
@@ -566,8 +589,8 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vit_l32",
-    ViT,
+    "rope_vit_l32",
+    RoPE_ViT,
     config={
         "patch_size": 32,
         "num_layers": 24,
@@ -578,8 +601,8 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vit_l16",
-    ViT,
+    "rope_vit_l16",
+    RoPE_ViT,
     config={
         "patch_size": 16,
         "num_layers": 24,
@@ -590,8 +613,8 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vit_l14",
-    ViT,
+    "rope_vit_l14",
+    RoPE_ViT,
     config={
         "patch_size": 14,
         "num_layers": 24,
@@ -602,8 +625,8 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vit_h16",
-    ViT,
+    "rope_vit_h16",
+    RoPE_ViT,
     config={
         "patch_size": 16,
         "num_layers": 32,
@@ -614,8 +637,8 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vit_h14",
-    ViT,
+    "rope_vit_h14",
+    RoPE_ViT,
     config={
         "patch_size": 14,
         "num_layers": 32,
@@ -628,8 +651,8 @@ registry.register_alias(
 
 # With registers
 registry.register_alias(
-    "vitreg4_b32",
-    ViT,
+    "rope_vitreg4_b32",
+    RoPE_ViT,
     config={
         "patch_size": 32,
         "num_layers": 12,
@@ -641,8 +664,8 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vitreg4_b16",
-    ViT,
+    "rope_vitreg4_b16",
+    RoPE_ViT,
     config={
         "patch_size": 16,
         "num_layers": 12,
@@ -654,8 +677,8 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vitreg4_b14",
-    ViT,
+    "rope_vitreg4_b14",
+    RoPE_ViT,
     config={
         "patch_size": 14,
         "num_layers": 12,
@@ -667,8 +690,8 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vitreg4_l32",
-    ViT,
+    "rope_vitreg4_l32",
+    RoPE_ViT,
     config={
         "patch_size": 32,
         "num_layers": 24,
@@ -680,8 +703,8 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vitreg4_l16",
-    ViT,
+    "rope_vitreg4_l16",
+    RoPE_ViT,
     config={
         "patch_size": 16,
         "num_layers": 24,
@@ -693,8 +716,8 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vitreg4_l14",
-    ViT,
+    "rope_vitreg4_l14",
+    RoPE_ViT,
     config={
         "patch_size": 14,
         "num_layers": 24,
@@ -706,8 +729,8 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vitreg4_h16",
-    ViT,
+    "rope_vitreg4_h16",
+    RoPE_ViT,
     config={
         "patch_size": 16,
         "num_layers": 32,
@@ -719,8 +742,8 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vitreg4_h14",
-    ViT,
+    "rope_vitreg4_h14",
+    RoPE_ViT,
     config={
         "patch_size": 14,
         "num_layers": 32,
@@ -734,8 +757,8 @@ registry.register_alias(
 
 # Shape-optimized vision transformer (SoViT)
 registry.register_alias(
-    "vit_so150m_p14_ap",
-    ViT,
+    "rope_vit_so150m_p14_ap",
+    RoPE_ViT,
     config={
         "patch_size": 14,
         "num_layers": 18,
@@ -748,8 +771,8 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vit_so400m_p14_ap",
-    ViT,
+    "rope_vit_so400m_p14_ap",
+    RoPE_ViT,
     config={
         "patch_size": 14,
         "num_layers": 27,
@@ -762,8 +785,8 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vitreg4_so150m_p14_ap",
-    ViT,
+    "rope_vitreg4_so150m_p14_ap",
+    RoPE_ViT,
     config={
         "patch_size": 14,
         "num_layers": 18,
@@ -777,8 +800,8 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vitreg4_so400m_p14_ap",
-    ViT,
+    "rope_vitreg4_so400m_p14_ap",
+    RoPE_ViT,
     config={
         "patch_size": 14,
         "num_layers": 27,
@@ -789,122 +812,5 @@ registry.register_alias(
         "class_token": False,
         "attn_pool_head": True,
         "drop_path_rate": 0.1,
-    },
-)
-
-registry.register_weights(
-    "vit_l16_mim_200",
-    {
-        "url": "https://huggingface.co/birder-project/vit_l16_mim/resolve/main/vit_l16_mim_200.pt",
-        "description": (
-            "ViT l16 image encoder pre-trained using Masked Image Modeling (MIM) for 200 epochs. "
-            "This model has not been fine-tuned for a specific classification task"
-        ),
-        "resolution": (224, 224),
-        "formats": {
-            "pt": {
-                "file_size": 1157.1,
-                "sha256": "003b15a79cd528339de1b19304bbd04fd5885df36b80e19202cd6ef6f8ffbed1",
-            },
-        },
-        "net": {"network": "vit_l16", "tag": "mim"},
-    },
-)
-registry.register_weights(
-    "vit_l16_mim_400",
-    {
-        "url": "https://huggingface.co/birder-project/vit_l16_mim/resolve/main/vit_l16_mim_400.pt",
-        "description": (
-            "ViT l16 image encoder pre-trained using Masked Image Modeling (MIM) for 400 epochs. "
-            "This model has not been fine-tuned for a specific classification task"
-        ),
-        "resolution": (224, 224),
-        "formats": {
-            "pt": {
-                "file_size": 1157.1,
-                "sha256": "c6083c6532996addaf4efe29276aa55f9a3c77984f862f720c6131f86b847994",
-            },
-        },
-        "net": {"network": "vit_l16", "tag": "mim"},
-    },
-)
-
-# With registers
-registry.register_weights(
-    "vitreg4_b16_mim_200",
-    {
-        "url": "https://huggingface.co/birder-project/vitreg4_b16_mim/resolve/main/vitreg4_b16_mim_200.pt",
-        "description": (
-            "ViTReg4 b16 image encoder pre-trained using Masked Image Modeling (MIM) for 200 epochs. "
-            "This model has not been fine-tuned for a specific classification task"
-        ),
-        "resolution": (224, 224),
-        "formats": {
-            "pt": {
-                "file_size": 327.4,
-                "sha256": "6b044cd7834293e344309f809070db3fe9ede489478e7549ad96255f9d76b329",
-            },
-        },
-        "net": {"network": "vitreg4_b16", "tag": "mim"},
-    },
-)
-registry.register_weights(
-    "vitreg4_b16_mim_300",
-    {
-        "url": "https://huggingface.co/birder-project/vitreg4_b16_mim/resolve/main/vitreg4_b16_mim_300.pt",
-        "description": (
-            "ViTReg4 b16 image encoder pre-trained using Masked Image Modeling (MIM) for 300 epochs. "
-            "This model has not been fine-tuned for a specific classification task"
-        ),
-        "resolution": (224, 224),
-        "formats": {
-            "pt": {
-                "file_size": 327.4,
-                "sha256": "e0df2e79f8ed0612d12c736cc6317be1b9b354e468715a5077366f7676fdd2ce",
-            },
-        },
-        "net": {"network": "vitreg4_b16", "tag": "mim"},
-    },
-)
-registry.register_weights(
-    "vitreg4_b16_mim-intermediate-il-common",
-    {
-        "url": (
-            "https://huggingface.co/birder-project/vitreg4_b16_mim-intermediate-il-common/"
-            "resolve/main/vitreg4_b16_mim-intermediate-il-common.pt"
-        ),
-        "description": (
-            "ViTReg4 b16 model with MIM pretraining and intermediate training, "
-            "then fine-tuned on the il-common dataset"
-        ),
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 328.7,
-                "sha256": "3d1564be46b23081c76aa87c7e90324214b6ced899d4b38d59d1a4154b13f01c",
-            },
-        },
-        "net": {"network": "vitreg4_b16", "tag": "mim-intermediate-il-common"},
-    },
-)
-registry.register_weights(
-    "vitreg4_b16_mim-intermediate-arabian-peninsula",
-    {
-        "url": (
-            "https://huggingface.co/birder-project/vitreg4_b16_mim-intermediate-arabian-peninsula/"
-            "resolve/main/vitreg4_b16_mim-intermediate-arabian-peninsula.pt"
-        ),
-        "description": (
-            "ViTReg4 b16 model with MIM pretraining and intermediate training, "
-            "then fine-tuned on the arabian-peninsula dataset"
-        ),
-        "resolution": (384, 384),
-        "formats": {
-            "pt": {
-                "file_size": 330.7,
-                "sha256": "e011f931a5a4d96ef21283d70911a55ea649eadfefa9c163a48b996797f0d9da",
-            },
-        },
-        "net": {"network": "vitreg4_b16", "tag": "mim-intermediate-arabian-peninsula"},
     },
 )

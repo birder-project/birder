@@ -1,5 +1,5 @@
 """
-RoPE ViT, adapted from
+RoPE DeiT3, adapted from
 https://github.com/naver-ai/rope-vit/blob/main/deit/models_v2_rope.py
 and
 https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/pos_embed_sincos.py
@@ -8,201 +8,24 @@ Paper "Rotary Position Embedding for Vision Transformer", https://arxiv.org/abs/
 
 Changes from original:
 * Implemented only axial RoPE (EVA style RoPE)
+* Modified rotate_half (original implementation seems off)
 """
 
 # Reference license: Apache-2.0 and Apache-2.0
 
 import math
-from collections.abc import Callable
 from typing import Any
 from typing import Optional
 
 import torch
-import torch.nn.functional as F
 from torch import nn
-from torchvision.ops import MLP
-from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.vit import LayerScale
+from birder.net.rope_vit import Encoder
+from birder.net.rope_vit import RoPE
 from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
-
-
-def build_rotary_pos_embed(
-    dim: int, temperature: float, grid_size: tuple[int, int], pt_grid_size: Optional[tuple[int, int]]
-) -> tuple[torch.Tensor, torch.Tensor]:
-    num_bands = dim // 4
-    exp = torch.arange(0, num_bands, 1) / num_bands
-    bands = 1.0 / (temperature**exp)
-
-    if pt_grid_size is None:
-        pt_grid_size = grid_size
-
-    t = [torch.arange(s) / s * p for s, p in zip(grid_size, pt_grid_size)]
-    grid = torch.stack(torch.meshgrid(t, indexing="ij"), dim=-1)
-    grid = grid.unsqueeze(-1)
-    pos = grid * bands
-    sin_emb = pos.sin()
-    cos_emb = pos.cos()
-
-    num_spatial_dim = grid_size[0] * grid_size[1]
-
-    sin_emb = sin_emb.reshape(num_spatial_dim, -1).repeat_interleave(2, -1)
-    cos_emb = cos_emb.reshape(num_spatial_dim, -1).repeat_interleave(2, -1)
-
-    return (sin_emb, cos_emb)
-
-
-def rotate_half(x: torch.Tensor) -> torch.Tensor:
-    return torch.stack([-x[..., 1::2], x[..., ::2]], -1).reshape(x.shape)
-
-
-def apply_rotary_pos_embed(x: torch.Tensor, embed: torch.Tensor) -> torch.Tensor:
-    (sin_emb, cos_emb) = embed.tensor_split(2, -1)
-    return x * cos_emb + rotate_half(x) * sin_emb
-
-
-class SequentialWithRope(nn.Sequential):
-    def forward(self, x: torch.Tensor, rope: torch.Tensor) -> torch.Tensor:  # pylint: disable=arguments-differ
-        for module in self:
-            x = module(x, rope)
-
-        return x
-
-
-class RoPE(nn.Module):
-    def __init__(
-        self,
-        dim: int,
-        temperature: float,
-        grid_size: tuple[int, int],
-        pt_grid_size: Optional[tuple[int, int]] = None,
-    ) -> None:
-        super().__init__()
-        (sin_emb, cos_emb) = build_rotary_pos_embed(dim, temperature, grid_size=grid_size, pt_grid_size=pt_grid_size)
-        self.pos_embed = nn.Buffer(torch.concat((sin_emb, cos_emb), dim=-1), persistent=False)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return apply_rotary_pos_embed(x, self.pos_embed)
-
-
-class RoPEAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int, attn_drop: float, proj_drop: float, num_special_tokens: int) -> None:
-        super().__init__()
-        assert dim % num_heads == 0, "dim should be divisible by num_heads"
-        self.num_heads = num_heads
-        self.head_dim = dim // num_heads
-        self.scale = self.head_dim**-0.5
-        self.num_special_tokens = num_special_tokens
-
-        self.qkv = nn.Linear(dim, dim * 3)
-        self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = nn.Linear(dim, dim)
-        self.proj_drop = nn.Dropout(proj_drop)
-
-    def forward(self, x: torch.Tensor, rope: torch.Tensor) -> torch.Tensor:
-        (B, N, C) = x.size()
-        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.unbind(0)
-
-        n = self.num_special_tokens
-        q = torch.concat([q[:, :, :n, :], apply_rotary_pos_embed(q[:, :, n:, :], rope)], dim=2)
-        k = torch.concat([k[:, :, :n, :], apply_rotary_pos_embed(k[:, :, n:, :], rope)], dim=2)
-
-        x = F.scaled_dot_product_attention(  # pylint:disable=not-callable
-            q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
-        )
-
-        x = x.transpose(1, 2).reshape(B, N, C)
-        x = self.proj(x)
-        x = self.proj_drop(x)
-
-        return x
-
-
-class EncoderBlock(nn.Module):
-    def __init__(
-        self,
-        num_heads: int,
-        hidden_dim: int,
-        mlp_dim: int,
-        num_special_tokens: int,
-        dropout: float,
-        attention_dropout: float,
-        drop_path: float,
-        activation_layer: Callable[..., nn.Module],
-        layer_scale_init_value: Optional[float] = None,
-    ) -> None:
-        super().__init__()
-        self.need_attn = False
-
-        # Attention block
-        self.norm1 = nn.LayerNorm(hidden_dim, eps=1e-6)
-        self.attn = RoPEAttention(
-            hidden_dim, num_heads, attn_drop=attention_dropout, proj_drop=dropout, num_special_tokens=num_special_tokens
-        )
-        if layer_scale_init_value is not None:
-            self.layer_scale_1 = LayerScale(hidden_dim, layer_scale_init_value)
-        else:
-            self.layer_scale_1 = nn.Identity()
-
-        # MLP block
-        self.norm2 = nn.LayerNorm(hidden_dim, eps=1e-6)
-        self.mlp = MLP(
-            hidden_dim, [mlp_dim, hidden_dim], activation_layer=activation_layer, inplace=None, dropout=dropout
-        )
-        self.drop_path = StochasticDepth(drop_path, mode="row")
-        if layer_scale_init_value is not None:
-            self.layer_scale_2 = LayerScale(hidden_dim, layer_scale_init_value)
-        else:
-            self.layer_scale_2 = nn.Identity()
-
-    def forward(self, x: torch.Tensor, rope: torch.Tensor) -> torch.Tensor:
-        x = x + self.drop_path(self.layer_scale_1(self.attn(self.norm1(x), rope)))
-        x = x + self.drop_path(self.layer_scale_2(self.mlp(self.norm2(x))))
-
-        return x
-
-
-class Encoder(nn.Module):
-    def __init__(
-        self,
-        num_layers: int,
-        num_heads: int,
-        hidden_dim: int,
-        mlp_dim: int,
-        num_special_tokens: int,
-        dropout: float,
-        attention_dropout: float,
-        dpr: list[float],
-        layer_scale_init_value: Optional[float] = None,
-    ) -> None:
-        super().__init__()
-        layers = []
-        if dropout > 0.0:
-            layers.append(nn.Dropout(dropout))
-
-        for i in range(num_layers):
-            layers.append(
-                EncoderBlock(
-                    num_heads,
-                    hidden_dim,
-                    mlp_dim,
-                    num_special_tokens,
-                    dropout,
-                    attention_dropout,
-                    dpr[i],
-                    activation_layer=nn.GELU,
-                    layer_scale_init_value=layer_scale_init_value,
-                )
-            )
-
-        self.block = SequentialWithRope(*layers)
-
-    def forward(self, x: torch.Tensor, rope: torch.Tensor) -> torch.Tensor:
-        return self.block(x, rope)
 
 
 # pylint: disable=invalid-name
@@ -403,7 +226,7 @@ class RoPE_DeiT3(DetectorBackbone):
         # Adjust RoPE
         self.rope = RoPE(
             self.hidden_dim // self.num_heads,
-            temperature=10000.0,
+            temperature=100.0,
             grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
         )
 

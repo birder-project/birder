@@ -30,6 +30,7 @@ from birder.common import fs_ops
 from birder.common import lib
 from birder.net.base import pos_embedding_sin_cos_2d
 from birder.net.rope_vit import RoPE
+from birder.net.rope_vit import rotate_half
 ```
 
 ```{python}
@@ -151,7 +152,7 @@ plt.matshow(similarity.detach().numpy())
 
 ```{python}
 (net, model_info) = fs_ops.load_model(
-    device, "swin_transformer_v2_s", path="models/swin_transformer_v2_s_intermediate_65.pt", inference=True
+    device, "swin_transformer_v2_s", path="models/swin_transformer_v2_s_intermediate-arabian-peninsula.pt", inference=True
 )
 ```
 
@@ -249,11 +250,15 @@ sin_emb.size(), cos_emb.size()
 ```
 
 ```{python}
-plt.matshow(sin_emb.detach().numpy())
+plt.matshow(cos_emb.detach().numpy())
 ```
 
 ```{python}
-similarity = sin_emb.squeeze() @ sin_emb.squeeze().T
+plt.matshow(rotate_half(sin_emb).detach().numpy())
+```
+
+```{python}
+similarity = rotate_half(sin_emb).squeeze() @ rotate_half(sin_emb).squeeze().T
 plt.matshow(similarity.detach().numpy())
 ```
 

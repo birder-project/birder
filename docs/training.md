@@ -103,6 +103,7 @@ On fine-tuning phase
 - [ResNet v2](#resnet-v2)
 - [ResNeXt](#resnext)
 - [RoPE DeiT3](#rope-deit3)
+- [RoPE ViT](#rope-vit)
 - [SE ResNet v1](#se-resnet-v1)
 - [SE ResNet v2](#se-resnet-v2)
 - [SE ResNeXt](#se-resnext)
@@ -1968,6 +1969,10 @@ torchrun --nproc_per_node=2 train.py --network resnext_101 --lr 0.04 --lr-schedu
 ### RoPE DeiT3
 
 Same as [DeiT3](#deit3)
+
+### RoPE ViT
+
+Same as [ViT](#vit)
 
 ### SE ResNet v1
 

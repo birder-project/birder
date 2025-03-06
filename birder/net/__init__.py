@@ -71,6 +71,7 @@ from birder.net.resnet_v1 import ResNet_v1
 from birder.net.resnet_v2 import ResNet_v2
 from birder.net.resnext import ResNeXt
 from birder.net.rope_deit3 import RoPE_DeiT3
+from birder.net.rope_vit import RoPE_ViT
 from birder.net.se_resnet_v1 import SE_ResNet_v1
 from birder.net.se_resnet_v2 import SE_ResNet_v2
 from birder.net.se_resnext import SE_ResNeXt
@@ -170,6 +171,7 @@ __all__ = [
     "ResNet_v2",
     "ResNeXt",
     "RoPE_DeiT3",
+    "RoPE_ViT",
     "SE_ResNet_v1",
     "SE_ResNet_v2",
     "SE_ResNeXt",

@@ -255,6 +255,11 @@ registry.register_alias(
     config={"in_channels": [96, 192, 384, 768], "num_layers": [3, 3, 9, 3], "drop_path_rate": 0.2},
 )
 registry.register_alias(
+    "convnext_v2_small",  # Not in the original v2, taken from v1
+    ConvNeXt_v2,
+    config={"in_channels": [96, 192, 384, 768], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.1},
+)
+registry.register_alias(
     "convnext_v2_base",
     ConvNeXt_v2,
     config={"in_channels": [128, 256, 512, 1024], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.1},

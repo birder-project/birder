@@ -725,3 +725,22 @@ registry.register_alias(
         "drop_path_rate": 0.3,
     },
 )
+
+# registry.register_weights(
+#     "hiera_abswin_base_mim",
+#     {
+#         "url": "https://huggingface.co/birder-project/hiera_abswin_base_mim/resolve/main/hiera_abswin_base_mim.pt",
+#         "description": (
+#             "Hiera base with abswin image encoder pre-trained using Masked Image Modeling (MIM) for 400 epochs. "
+#             "This model has not been fine-tuned for a specific classification task"
+#         ),
+#         "resolution": (224, 224),
+#         "formats": {
+#             "pt": {
+#                 "file_size": 192.7,
+#                 "sha256": "c6083c6532996addaf4efe29276aa55f9a3c77984f862f720c6131f86b847994",
+#             },
+#         },
+#         "net": {"network": "hiera_abswin_base", "tag": "mim"},
+#     },
+# )

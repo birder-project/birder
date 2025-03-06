@@ -19,6 +19,7 @@ from torch import nn
 from birder.net.base import PreTrainEncoder
 from birder.net.base import pos_embedding_sin_cos_2d
 from birder.net.mim.base import MIMBaseNet
+from birder.net.rope_vit import RoPE_ViT
 from birder.net.simple_vit import Simple_ViT
 from birder.net.vit import ViT
 from birder.net.vit_sam import ViT_SAM
@@ -39,7 +40,7 @@ class MAE_ViT(MIMBaseNet):
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
         assert self.config is None, "config not supported"
-        assert isinstance(self.encoder, (ViT, Simple_ViT, ViT_SAM))
+        assert isinstance(self.encoder, (RoPE_ViT, Simple_ViT, ViT, ViT_SAM))
 
         self.mask_ratio = 0.75
         self.patch_size = self.encoder.patch_size
