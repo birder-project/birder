@@ -32,9 +32,9 @@ def get_relative_position_cpb(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     pretrain_size = query_size
     axis_qh = torch.arange(query_size[0], dtype=torch.float32)
-    axis_kh = F.adaptive_avg_pool1d(axis_qh.unsqueeze(0), key_size[0]).squeeze(0)  # pylint:disable=not-callable
+    axis_kh = F.adaptive_avg_pool1d(axis_qh.unsqueeze(0), key_size[0]).squeeze(0)  # pylint: disable=not-callable
     axis_qw = torch.arange(query_size[1], dtype=torch.float32)
-    axis_kw = F.adaptive_avg_pool1d(axis_qw.unsqueeze(0), key_size[1]).squeeze(0)  # pylint:disable=not-callable
+    axis_kw = F.adaptive_avg_pool1d(axis_qw.unsqueeze(0), key_size[1]).squeeze(0)  # pylint: disable=not-callable
     (axis_kh, axis_kw) = torch.meshgrid(axis_kh, axis_kw, indexing="ij")
     (axis_qh, axis_qw) = torch.meshgrid(axis_qh, axis_qw, indexing="ij")
 
@@ -158,7 +158,7 @@ class Attention(nn.Module):
         # Calculate attention map using sequence length scaled cosine attention and query embedding
         attn = (
             (F.normalize(q, dim=-1) + self.query_embedding)
-            * F.softplus(self.temperature)  # pylint:disable=not-callable
+            * F.softplus(self.temperature)  # pylint: disable=not-callable
             * self.seq_length_scale
         ) @ F.normalize(k, dim=-1).transpose(-2, -1) + rel_bias
 
@@ -312,7 +312,7 @@ class AggregatedAttention(nn.Module):
         q_norm = F.normalize(self.q(x).reshape(B, N, self.num_heads, self.head_dim).permute(0, 2, 1, 3), dim=-1)
         q_norm_scaled = (
             (q_norm + self.query_embedding)
-            * F.softplus(self.temperature)  # pylint:disable=not-callable
+            * F.softplus(self.temperature)  # pylint: disable=not-callable
             * self.seq_length_scale
         )
 

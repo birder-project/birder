@@ -82,7 +82,7 @@ class CrossAttention(nn.Module):
         # BNC -> BNH(C/H) -> BHN(C/H)
         v = self.wv(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
 
-        x = F.scaled_dot_product_attention(  # pylint:disable=not-callable
+        x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q, k, v, dropout_p=self.attn_drop if self.training else 0.0, scale=self.scale
         )
         x = x.transpose(1, 2).reshape(B, 1, C)  # (BH1N @ BHN(C/H)) -> BH1(C/H) -> B1H(C/H) -> B1C

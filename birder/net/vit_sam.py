@@ -141,7 +141,7 @@ class Attention(nn.Module):
         else:
             attn_bias = None
 
-        x = F.scaled_dot_product_attention(  # pylint:disable=not-callable
+        x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q, k, v, attn_mask=attn_bias, scale=self.scale
         )
 

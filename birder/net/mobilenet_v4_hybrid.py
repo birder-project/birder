@@ -153,7 +153,7 @@ class MultiQueryAttention(nn.Module):
         v = v.unsqueeze(1).contiguous()
 
         # Calculate attention score
-        attn_score = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0)  # pylint:disable=not-callable
+        attn_score = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0)  # pylint: disable=not-callable
         (B, _, _, C) = attn_score.size()
         feat_dim = C * self.num_heads
         attn_score = attn_score.transpose(1, 2)

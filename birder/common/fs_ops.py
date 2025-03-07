@@ -222,6 +222,36 @@ def _load_states(states_path: Path, device: torch.device) -> TrainingStates:
     return TrainingStates.empty()
 
 
+class SimpleCheckpointStates(NamedTuple):
+    net: torch.nn.Module
+    training_states: TrainingStates
+
+
+def load_simple_checkpoint(
+    device: torch.device, net: torch.nn.Module, network_name: str, *, epoch: Optional[int] = None
+) -> SimpleCheckpointStates:
+    path = model_path(network_name, epoch=epoch)
+    states_path = model_path(network_name, epoch=epoch, states=True)
+
+    # Load model and training states
+    logger.info(f"Loading model from {path} on device {device}...")
+    model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)
+    training_states = _load_states(states_path, device)
+
+    # When a checkpoint was trained with EMA:
+    #   The primary weights in the checkpoint file are the EMA weights
+    #   The base_state contain the non-EMA weights
+    if training_states.model_base_state is not None:
+        net.load_state_dict(training_states.model_base_state)
+        training_states = training_states._replace(ema_model_state=model_dict["state"])
+    else:
+        net.load_state_dict(model_dict["state"])
+
+    net.to(device)
+
+    return SimpleCheckpointStates(net, training_states)
+
+
 class CheckpointStates(NamedTuple):
     net: BaseNet
     class_to_idx: dict[str, int]

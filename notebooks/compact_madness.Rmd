@@ -59,21 +59,26 @@ def get_model_name_and_num_parameters(file_name: str, tag: str = PATTERN) -> tup
     intermediate = False
     mim = False
     dist = False
+    prop_list = []
     if file_name.find("reparameterized") != -1:
         reparameterized = True
         file_name = file_name.replace("_reparameterized", "")
-    if file_name.find("intermediate") != -1:
-        intermediate = True
-        file_name = file_name.replace("_intermediate", "")
-        file_name = file_name.replace("-intermediate", "")
+        prop_list.append("r")
     if file_name.find("mim") != -1:
         mim = True
         file_name = file_name.replace("_mim", "")
         file_name = file_name.replace("-mim", "")
+        prop_list.append("mim")
     if file_name.find("dist") != -1:
         dist = True
         file_name = file_name.replace("_dist", "")
         file_name = file_name.replace("-dist", "")
+        prop_list.append("d")
+    if file_name.find("intermediate") != -1:
+        intermediate = True
+        file_name = file_name.replace("_intermediate", "")
+        file_name = file_name.replace("-intermediate", "")
+        prop_list.append("i")
 
     file_name = file_name.split("/")[-1]
     tag_end_idx = file_name.find("_", file_name.find(tag))
@@ -90,10 +95,9 @@ def get_model_name_and_num_parameters(file_name: str, tag: str = PATTERN) -> tup
 
     if reparameterize_available(model) is True and reparameterized is True:
         model.reparameterize_model()
-        model_name += " (r)"
 
-    if dist is True:
-        model_name += " (d)"
+    if len(prop_list) > 0:
+        model_name += " (" + ", ".join(prop_list) + ")"
 
     info = get_model_info(model)
     if "model_registry.model_registry" in model.__class__.__module__:

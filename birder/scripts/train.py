@@ -431,7 +431,7 @@ def train(args: argparse.Namespace) -> None:
             loss_targets = targets
             if args.bce_loss:
                 if loss_targets.ndim == 1:
-                    loss_targets = F.one_hot(loss_targets, num_classes=num_outputs)  # pylint:disable=not-callable
+                    loss_targets = F.one_hot(loss_targets, num_classes=num_outputs)  # pylint: disable=not-callable
 
                 loss_targets = loss_targets.gt(args.bce_threshold).to(dtype=inputs.dtype)
 
@@ -530,7 +530,7 @@ def train(args: argparse.Namespace) -> None:
                 targets = targets.to(device, non_blocking=True)
                 loss_targets = targets
                 if args.bce_loss:
-                    loss_targets = F.one_hot(loss_targets, num_classes=num_outputs)  # pylint:disable=not-callable
+                    loss_targets = F.one_hot(loss_targets, num_classes=num_outputs)  # pylint: disable=not-callable
                     loss_targets = loss_targets.to(dtype=inputs.dtype)
 
                 with torch.amp.autocast("cuda", enabled=args.amp):
@@ -941,4 +941,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    logger = logging.getLogger(__spec__.name)
     main()

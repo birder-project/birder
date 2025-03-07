@@ -126,4 +126,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    logger = logging.getLogger(__spec__.name)
     main()

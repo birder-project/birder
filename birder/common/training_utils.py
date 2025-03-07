@@ -18,9 +18,12 @@ import torch.utils.data
 import torch.utils.data.distributed
 from torchvision.ops import FrozenBatchNorm2d
 
+from birder.optim import Lamb
+from birder.optim import Lars
+
 logger = logging.getLogger(__name__)
 
-OptimizerType = Literal["sgd", "rmsprop", "adamw"]
+OptimizerType = Literal["sgd", "rmsprop", "adam", "adamw", "lamb", "lambw", "lars"]
 SchedulerType = Literal["constant", "step", "multistep", "cosine", "polynomial"]
 
 
@@ -335,8 +338,18 @@ def get_optimizer(parameters: list[dict[str, Any]], args: argparse.Namespace) ->
             kwargs["eps"] = 0.0316
 
         optimizer = torch.optim.RMSprop(parameters, lr=args.lr, momentum=args.momentum, weight_decay=args.wd, **kwargs)
+    elif opt == "adam":
+        optimizer = torch.optim.Adam(parameters, lr=args.lr, weight_decay=args.wd, **kwargs)
     elif opt == "adamw":
         optimizer = torch.optim.AdamW(parameters, lr=args.lr, weight_decay=args.wd, **kwargs)
+    elif opt == "lamb":
+        optimizer = Lamb(parameters, lr=args.lr, weight_decay=args.wd, **kwargs)
+    elif opt == "lambw":
+        optimizer = Lamb(parameters, lr=args.lr, weight_decay=args.wd, decoupled_decay=True, **kwargs)
+    elif opt == "lars":
+        optimizer = Lars(
+            parameters, lr=args.lr, momentum=args.momentum, nesterov=args.nesterov, weight_decay=args.wd, **kwargs
+        )
     else:
         raise ValueError("Unknown optimizer")
 

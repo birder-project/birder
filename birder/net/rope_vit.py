@@ -121,7 +121,7 @@ class RoPEAttention(nn.Module):
         q = torch.concat([q[:, :, :n, :], apply_rotary_pos_embed(q[:, :, n:, :], rope)], dim=2)
         k = torch.concat([k[:, :, :n, :], apply_rotary_pos_embed(k[:, :, n:, :], rope)], dim=2)
 
-        x = F.scaled_dot_product_attention(  # pylint:disable=not-callable
+        x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
         )
 

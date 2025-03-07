@@ -91,7 +91,7 @@ class MultiScaleAttention(nn.Module):
             (H, W) = q.shape[1:3]  # Downsampled shape
             q = q.reshape(B, H * W, self.num_heads, -1)
 
-        x = F.scaled_dot_product_attention(  # pylint:disable=not-callable
+        x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q.transpose(1, 2),
             k.transpose(1, 2),
             v.transpose(1, 2),

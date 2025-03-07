@@ -100,7 +100,7 @@ class MultiHeadAttentionPool(nn.Module):
         kv = self.kv(x).reshape(B, N, 2, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
         (k, v) = kv.unbind(0)
 
-        x = F.scaled_dot_product_attention(q, k, v, scale=self.scale)  # pylint:disable=not-callable
+        x = F.scaled_dot_product_attention(q, k, v, scale=self.scale)  # pylint: disable=not-callable
         x = x.transpose(1, 2).reshape(B, self.latent_len, C)
         x = self.proj(x)
         x = x + self.mlp(self.norm(x))

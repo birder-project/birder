@@ -177,7 +177,7 @@ class WindowAttention(nn.Module):
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         (q, k, v) = qkv.unbind(0)
 
-        x = F.scaled_dot_product_attention(q, k, v, scale=self.scale)  # pylint:disable=not-callable
+        x = F.scaled_dot_product_attention(q, k, v, scale=self.scale)  # pylint: disable=not-callable
         x = x.transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
 

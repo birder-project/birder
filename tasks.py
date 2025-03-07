@@ -14,6 +14,7 @@ from birder.common import lib
 from birder.conf import settings
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.tools.pack import CustomImageFolder
 from birder.tools.stats import detection_object_count
 from birder.tools.stats import directory_label_count
 
@@ -356,6 +357,37 @@ def pack_class_file(ctx, cls, size=384):
         pty=True,
         warn=True,
     )
+
+
+@task
+def print_datasets_stats(_ctx):
+    """
+    Print stats for all datasets based on class files at the main data directory
+    """
+
+    datasets_stats = []
+    for class_file in settings.DATA_DIR.glob("*_classes.txt"):
+        class_to_idx = fs_ops.read_class_file(class_file)
+        dataset_name = class_file.stem.removesuffix("_classes")
+
+        training_dataset = CustomImageFolder(settings.TRAINING_DATA_PATH, class_to_idx=class_to_idx)
+        validation_dataset = CustomImageFolder(settings.VALIDATION_DATA_PATH, class_to_idx=class_to_idx)
+        datasets_stats.append(
+            {
+                "Name": dataset_name,
+                "Training samples": len(training_dataset),
+                "Validation samples": len(validation_dataset),
+                "Classes": len(class_to_idx),
+            }
+        )
+
+    with pl.Config(
+        tbl_formatting="MARKDOWN",
+        tbl_hide_column_data_types=True,
+        tbl_hide_dataframe_shape=True,
+        thousands_separator=True,
+    ):
+        print(pl.DataFrame(datasets_stats).sort(by="Name"))
 
 
 ######

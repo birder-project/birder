@@ -85,7 +85,7 @@ class CrossCovarianceAttn(nn.Module):
 
         q = F.normalize(q, dim=-1) * self.temperature
         k = F.normalize(k, dim=-1)
-        x = F.scaled_dot_product_attention(  # pylint:disable=not-callable
+        x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, scale=1.0
         )
 

@@ -126,7 +126,7 @@ class LowMixer(nn.Module):
         (B, N, C) = x.size()
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         (q, k, v) = qkv.unbind(0)
-        x = F.scaled_dot_product_attention(  # pylint:disable=not-callable
+        x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q, k, v, dropout_p=self.attn_drop if self.training else 0.0, scale=self.scale
         )
         x = x.transpose(2, 3).reshape(B, C, N)

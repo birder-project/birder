@@ -29,6 +29,7 @@ class Task(str, Enum):
     IMAGE_CLASSIFICATION = "image_classification"
     OBJECT_DETECTION = "object_detection"
     MASKED_IMAGE_MODELING = "masked_image_modeling"
+    SELF_SUPERVISED_LEARNING = "self_supervised_learning"
 
     __str__ = str.__str__
 

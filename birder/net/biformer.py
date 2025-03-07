@@ -152,10 +152,10 @@ class BiLevelRoutingAttention(nn.Module):
         (q, k, v) = qkv.chunk(3, dim=1)
 
         # Region-to-region routing
-        q_r = F.avg_pool2d(  # pylint:disable=not-callable
+        q_r = F.avg_pool2d(  # pylint: disable=not-callable
             q.detach(), kernel_size=region_size, stride=region_size, ceil_mode=True, count_include_pad=False
         )
-        k_r = F.avg_pool2d(  # pylint:disable=not-callable
+        k_r = F.avg_pool2d(  # pylint: disable=not-callable
             k.detach(), kernel_size=region_size, stride=region_size, ceil_mode=True, count_include_pad=False
         )
         q_r = q_r.permute(0, 2, 3, 1).flatten(1, 2)  # (n, (hw), c)
@@ -195,7 +195,7 @@ class Attention(nn.Module):
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         (q, k, v) = qkv.unbind(0)
 
-        x = F.scaled_dot_product_attention(  # pylint:disable=not-callable
+        x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
         )
         x = x.transpose(1, 2).reshape(B, N, C)
