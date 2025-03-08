@@ -178,7 +178,13 @@ def checkpoint_model(
     scheduler: Optional[torch.optim.lr_scheduler._LRScheduler],
     scaler: Optional[torch.amp.grad_scaler.GradScaler],
     model_base: Optional[torch.nn.Module],
+    *,
+    external_config: Optional[dict[str, Any]] = None,
 ) -> None:
+    kwargs = {}
+    if external_config is not None:
+        kwargs["config"] = external_config
+
     path = model_path(network_name, epoch=epoch)
     states_path = model_path(network_name, epoch=epoch, states=True)
     logger.info(f"Saving model checkpoint {path}...")
@@ -190,6 +196,7 @@ def checkpoint_model(
             "signature": signature,
             "class_to_idx": class_to_idx,
             "rgb_stats": rgb_stats,
+            **kwargs,
         },
         path,
     )
@@ -423,7 +430,7 @@ class ModelInfo(NamedTuple):
     rgb_stats: RGBType
 
 
-# pylint: disable=too-many-locals
+# pylint: disable=too-many-locals,too-many-branches
 def load_model(
     device: torch.device,
     network: str,
@@ -477,8 +484,19 @@ def load_model(
         num_classes = lib.get_num_labels_from_signature(signature)
         size = lib.get_size_from_signature(signature)
 
+        loaded_config = {}
+        if "config" in extra_files and len(extra_files["config"]) > 0:
+            loaded_config = json.loads(extra_files["config"])
+
+        # Merge configs, with external config taking precedence
+        merged_config = {**loaded_config}
+        if config is not None:
+            merged_config.update(config)
+
         model_state: dict[str, Any] = safetensors.torch.load_file(path, device=device.type)
-        net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, config=config, size=size)
+        net = registry.net_factory(
+            network, input_channels, num_classes, net_param=net_param, config=merged_config, size=size
+        )
         if reparameterized is True:
             net.reparameterize_model()
 
@@ -495,7 +513,18 @@ def load_model(
         num_classes = lib.get_num_labels_from_signature(signature)
         size = lib.get_size_from_signature(signature)
 
-        net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, config=config, size=size)
+        loaded_config = {}
+        if "config" in model_dict:
+            loaded_config = model_dict["config"]
+
+        # Merge configs, with external config taking precedence
+        merged_config = {**loaded_config}
+        if config is not None:
+            merged_config.update(config)
+
+        net = registry.net_factory(
+            network, input_channels, num_classes, net_param=net_param, config=merged_config, size=size
+        )
         if reparameterized is True:
             net.reparameterize_model()
 

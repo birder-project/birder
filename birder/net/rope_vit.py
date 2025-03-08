@@ -295,6 +295,12 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder):
         self.hidden_dim = hidden_dim
         self.num_reg_tokens = num_reg_tokens
         self.rope_temperature = 100.0
+
+        # Cast in case config was loaded from a json (no tuples),
+        # TorchScript does not accept a list when tuple expected
+        if isinstance(pt_grid_size, list):
+            pt_grid_size = tuple(pt_grid_size)  # type: ignore[unreachable]
+
         self.pt_grid_size = pt_grid_size
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
@@ -394,7 +400,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder):
             (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
             (H // self.patch_size, W // self.patch_size),
             self.num_special_tokens,
-        )
+        ).to(self.rope.pos_embed.device)
 
     def _get_rope_embed(self, H: int, W: int) -> torch.Tensor:
         if self.dynamic_size is False:

@@ -70,6 +70,12 @@ class RoPE_DeiT3(DetectorBackbone):
         self.num_special_tokens = 1 + self.num_reg_tokens
         self.pos_embed_class = pos_embed_class
         self.rope_temperature = 100.0
+
+        # Cast in case config was loaded from a json (no tuples),
+        # TorchScript does not accept a list when tuple expected
+        if isinstance(pt_grid_size, list):
+            pt_grid_size = tuple(pt_grid_size)  # type: ignore[unreachable]
+
         self.pt_grid_size = pt_grid_size
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
@@ -169,7 +175,7 @@ class RoPE_DeiT3(DetectorBackbone):
                 pt_grid_size=self.pt_grid_size,
             ),
             dim=-1,
-        )
+        ).to(self.rope.pos_embed.device)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         (H, W) = x.shape[-2:]
@@ -485,7 +491,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 21.5,
-                "sha256": "2aae83b9055ab44c2d68ad6c1d712db0b519eb1bf73dc33d5c2c021279378e9f",
+                "sha256": "3c0e1500d062d75f1b3c5f1aae5015c48b0736521c5289d039da133eefc3519f",
             }
         },
         "net": {"network": "rope_deit3_reg4_t16", "tag": "il-common"},

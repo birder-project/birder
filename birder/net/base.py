@@ -116,6 +116,7 @@ class BaseNet(nn.Module):
         self.classifier = self.create_classifier()
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
+        logger.debug(f"Setting dynamic size to: {dynamic_size}")
         self.dynamic_size = dynamic_size
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:

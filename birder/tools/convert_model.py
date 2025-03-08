@@ -186,6 +186,9 @@ def set_parser(subparsers: Any) -> None:
 
     format_group = subparser.add_mutually_exclusive_group(required=True)
     format_group.add_argument("--resize", type=int, nargs="+", metavar=("H", "W"), help="resize model (pt)")
+    format_group.add_argument(
+        "--add-config", action=cli.FlexibleDictAction, help=("add custom configuration to existing model (pt)")
+    )
     format_group.add_argument("--reparameterize", default=False, action="store_true", help="reparameterize model")
     format_group.add_argument("--pts", default=False, action="store_true", help="convert to TorchScript model")
     format_group.add_argument(
@@ -255,6 +258,8 @@ def main(args: argparse.Namespace) -> None:
 
     if args.resize is not None:
         network_name = f"{network_name}_{args.resize[0]}px"
+    elif args.add_config is not None:
+        network_name = f"{network_name}_custom_config"
 
     model_path = fs_ops.model_path(
         network_name,
@@ -285,6 +290,21 @@ def main(args: argparse.Namespace) -> None:
             scheduler=None,
             scaler=None,
             model_base=None,
+        )
+
+    elif args.add_config is not None:
+        fs_ops.checkpoint_model(
+            network_name,
+            args.epoch,
+            net,
+            signature,
+            class_to_idx,
+            rgb_stats,
+            optimizer=None,
+            scheduler=None,
+            scaler=None,
+            model_base=None,
+            external_config=args.add_config,
         )
 
     elif args.reparameterize is True:

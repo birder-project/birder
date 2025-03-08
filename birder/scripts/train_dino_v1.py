@@ -23,7 +23,6 @@ from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
-import numpy.typing as npt
 import torch
 import torch.amp
 import torch.utils.data
@@ -68,9 +67,7 @@ def _tv_loader(path: str) -> torch.Tensor:
     return decode_image(path, mode=ImageReadMode.RGB)
 
 
-def cosine_scheduler(
-    base_value: float, final_value: float, epochs: int, iter_per_epoch: int
-) -> npt.NDArray[np.float64]:
+def cosine_scheduler(base_value: float, final_value: float, epochs: int, iter_per_epoch: int) -> list[float]:
     warmup_schedule = np.array([])
 
     iters = np.arange(epochs * iter_per_epoch)
@@ -79,7 +76,7 @@ def cosine_scheduler(
     schedule = np.concatenate((warmup_schedule, schedule))
     assert len(schedule) == epochs * iter_per_epoch
 
-    return schedule
+    return schedule.tolist()  # type: ignore[return-value]
 
 
 class TrainTransform:
