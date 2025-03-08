@@ -219,7 +219,7 @@ def pos_embedding_sin_cos_2d(
     pe = torch.concat((x.sin(), x.cos(), y.sin(), y.cos()), dim=1)
 
     if num_special_tokens > 0:
-        pe = torch.concat([torch.zeros([num_special_tokens, dim]), pe], axis=0)
+        pe = torch.concat([torch.zeros([num_special_tokens, dim]), pe], dim=0)
 
     return pe
 

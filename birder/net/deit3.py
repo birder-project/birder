@@ -114,7 +114,23 @@ class DeiT3(DetectorBackbone):
             nn.init.zeros_(self.classifier.weight)
             nn.init.zeros_(self.classifier.bias)
 
+    def _get_pos_embed(self, H: int, W: int) -> torch.Tensor:
+        if self.dynamic_size is False:
+            return self.pos_embedding
+
+        if H == self.size[0] and W == self.size[1]:
+            return self.pos_embedding
+
+        return adjust_position_embedding(
+            self.pos_embedding,
+            (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
+            (H // self.patch_size, W // self.patch_size),
+            self.num_special_tokens if self.pos_embed_class is True else 0,
+        )
+
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        (H, W) = x.shape[-2:]
+
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
@@ -125,9 +141,9 @@ class DeiT3(DetectorBackbone):
 
         if self.pos_embed_class is True:
             x = torch.concat([batch_special_tokens, x], dim=1)
-            x = x + self.pos_embedding
+            x = x + self._get_pos_embed(H, W)
         else:
-            x = x + self.pos_embedding
+            x = x + self._get_pos_embed(H, W)
             x = torch.concat([batch_special_tokens, x], dim=1)
 
         x = self.encoder(x)
@@ -154,6 +170,8 @@ class DeiT3(DetectorBackbone):
                 param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        (H, W) = x.shape[-2:]
+
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
         x = self.patch_embed(x)
@@ -168,9 +186,9 @@ class DeiT3(DetectorBackbone):
 
         if self.pos_embed_class is True:
             x = torch.concat([batch_special_tokens, x], dim=1)
-            x = x + self.pos_embedding
+            x = x + self._get_pos_embed(H, W)
         else:
-            x = x + self.pos_embedding
+            x = x + self._get_pos_embed(H, W)
             x = torch.concat([batch_special_tokens, x], dim=1)
 
         x = self.encoder(x)
@@ -180,7 +198,7 @@ class DeiT3(DetectorBackbone):
         return x
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
-        assert dynamic_size is False, "Dynamic size not supported for this network"
+        self.dynamic_size = dynamic_size
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
@@ -191,7 +209,7 @@ class DeiT3(DetectorBackbone):
 
         # Sort out sizes
         if self.pos_embed_class is True:
-            num_prefix_tokens = 1 + self.num_reg_tokens
+            num_prefix_tokens = self.num_special_tokens
         else:
             num_prefix_tokens = 0
 

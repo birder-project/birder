@@ -113,6 +113,20 @@ class Simple_ViT(PreTrainEncoder):
             nn.init.zeros_(self.classifier.weight)
             nn.init.zeros_(self.classifier.bias)
 
+    def _get_pos_embed(self, H: int, W: int) -> torch.Tensor:
+        if self.dynamic_size is False:
+            return self.pos_embedding
+
+        if H == self.size[0] and W == self.size[1]:
+            return self.pos_embedding
+
+        return pos_embedding_sin_cos_2d(
+            h=H // self.patch_size,
+            w=W // self.patch_size,
+            dim=self.hidden_dim,
+            num_special_tokens=self.num_special_tokens,
+        )
+
     def masked_encoding(
         self,
         x: torch.Tensor,
@@ -169,16 +183,17 @@ class Simple_ViT(PreTrainEncoder):
         return (x, mask, ids_restore)
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        (H, W) = x.shape[-2:]
         x = self.conv_proj(x)
         x = self.patch_embed(x)
-        x = x + self.pos_embedding
+        x = x + self._get_pos_embed(H, W)
         x = self.encoder(x)
         x = self.norm(x)
         x = x.permute(0, 2, 1)
         return self.features(x)
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
-        assert dynamic_size is False, "Dynamic size not supported for this network"
+        self.dynamic_size = dynamic_size
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
@@ -215,6 +230,16 @@ registry.register_alias(
     "simple_vit_l16",
     Simple_ViT,
     config={"patch_size": 16, "num_layers": 24, "num_heads": 16, "hidden_dim": 1024, "mlp_dim": 4096},
+)
+registry.register_alias(
+    "simple_vit_l14",
+    Simple_ViT,
+    config={"patch_size": 14, "num_layers": 24, "num_heads": 16, "hidden_dim": 1024, "mlp_dim": 4096},
+)
+registry.register_alias(
+    "simple_vit_h16",
+    Simple_ViT,
+    config={"patch_size": 16, "num_layers": 32, "num_heads": 16, "hidden_dim": 1280, "mlp_dim": 5120},
 )
 registry.register_alias(
     "simple_vit_h14",

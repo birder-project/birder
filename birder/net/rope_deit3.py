@@ -24,11 +24,12 @@ from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.rope_vit import Encoder
 from birder.net.rope_vit import RoPE
+from birder.net.rope_vit import build_rotary_pos_embed
 from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
 
 
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,too-many-instance-attributes
 class RoPE_DeiT3(DetectorBackbone):
     block_group_regex = r"encoder\.block\.(\d+)"
 
@@ -56,6 +57,7 @@ class RoPE_DeiT3(DetectorBackbone):
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
+        pt_grid_size: Optional[tuple[int, int]] = self.config.get("pt_grid_size", None)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
@@ -67,6 +69,8 @@ class RoPE_DeiT3(DetectorBackbone):
         self.num_reg_tokens = num_reg_tokens
         self.num_special_tokens = 1 + self.num_reg_tokens
         self.pos_embed_class = pos_embed_class
+        self.rope_temperature = 100.0
+        self.pt_grid_size = pt_grid_size
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
         self.conv_proj = nn.Conv2d(
@@ -100,8 +104,9 @@ class RoPE_DeiT3(DetectorBackbone):
         # RoPE
         self.rope = RoPE(
             hidden_dim // num_heads,
-            temperature=100.0,
+            temperature=self.rope_temperature,
             grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
+            pt_grid_size=self.pt_grid_size,
         )
 
         # Encoder
@@ -135,7 +140,39 @@ class RoPE_DeiT3(DetectorBackbone):
             nn.init.zeros_(self.classifier.weight)
             nn.init.zeros_(self.classifier.bias)
 
+    def _get_pos_embed(self, H: int, W: int) -> torch.Tensor:
+        if self.dynamic_size is False:
+            return self.pos_embedding
+
+        if H == self.size[0] and W == self.size[1]:
+            return self.pos_embedding
+
+        return adjust_position_embedding(
+            self.pos_embedding,
+            (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
+            (H // self.patch_size, W // self.patch_size),
+            self.num_special_tokens if self.pos_embed_class is True else 0,
+        )
+
+    def _get_rope_embed(self, H: int, W: int) -> torch.Tensor:
+        if self.dynamic_size is False:
+            return self.rope.pos_embed
+
+        if H == self.size[0] and W == self.size[1]:
+            return self.rope.pos_embed
+
+        return torch.concat(
+            build_rotary_pos_embed(
+                self.hidden_dim // self.num_heads,
+                self.rope_temperature,
+                grid_size=(H // self.patch_size, W // self.patch_size),
+                pt_grid_size=self.pt_grid_size,
+            ),
+            dim=-1,
+        )
+
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        (H, W) = x.shape[-2:]
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
@@ -146,12 +183,12 @@ class RoPE_DeiT3(DetectorBackbone):
 
         if self.pos_embed_class is True:
             x = torch.concat([batch_special_tokens, x], dim=1)
-            x = x + self.pos_embedding
+            x = x + self._get_pos_embed(H, W)
         else:
-            x = x + self.pos_embedding
+            x = x + self._get_pos_embed(H, W)
             x = torch.concat([batch_special_tokens, x], dim=1)
 
-        x = self.encoder(x, self.rope.pos_embed)
+        x = self.encoder(x, self._get_rope_embed(H, W))
         x = self.norm(x)
 
         x = x[:, self.num_special_tokens :]
@@ -175,6 +212,8 @@ class RoPE_DeiT3(DetectorBackbone):
                 param.requires_grad = False
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        (H, W) = x.shape[-2:]
+
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
         x = self.patch_embed(x)
@@ -189,19 +228,19 @@ class RoPE_DeiT3(DetectorBackbone):
 
         if self.pos_embed_class is True:
             x = torch.concat([batch_special_tokens, x], dim=1)
-            x = x + self.pos_embedding
+            x = x + self._get_pos_embed(H, W)
         else:
-            x = x + self.pos_embedding
+            x = x + self._get_pos_embed(H, W)
             x = torch.concat([batch_special_tokens, x], dim=1)
 
-        x = self.encoder(x, self.rope.pos_embed)
+        x = self.encoder(x, self._get_rope_embed(H, W))
         x = self.norm(x)
         x = x[:, self.num_reg_tokens]
 
         return x
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
-        assert dynamic_size is False, "Dynamic size not supported for this network"
+        self.dynamic_size = dynamic_size
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
@@ -229,8 +268,9 @@ class RoPE_DeiT3(DetectorBackbone):
         # Adjust RoPE
         self.rope = RoPE(
             self.hidden_dim // self.num_heads,
-            temperature=100.0,
+            temperature=self.rope_temperature,
             grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
+            pt_grid_size=self.pt_grid_size,
         )
 
 

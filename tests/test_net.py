@@ -446,7 +446,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("cswin_transformer_t"),
             ("darknet_53"),
             ("davit_tiny"),
-            ("deit_t16", None),
+            ("deit_t16"),
             ("deit3_t16"),
             ("deit3_reg4_t16"),
             ("densenet_121"),
@@ -501,7 +501,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("mvit_v2_t_cls"),
             ("nextvit_s"),
             ("nfnet_f0"),
-            ("pit_t", None),
+            ("pit_t"),
             ("pvt_v1_t"),
             ("pvt_v2_b0"),
             ("rdnet_t"),
@@ -530,7 +530,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("shufflenet_v2", 1),
             ("simple_vit_b32"),
             ("smt_t"),
-            ("squeezenet", None),
+            ("squeezenet"),
             ("squeezenext", 0.5),
             ("starnet_esm05"),
             ("swin_transformer_v1_t"),
@@ -579,6 +579,41 @@ class TestNonSquareNet(unittest.TestCase):
         # Test initialization
         size = (default_size[0], default_size[1] + size_offset)
         n = registry.net_factory(network_name, 3, 100, net_param=net_param, size=size)
+        out = n(torch.rand((batch_size, 3, *size)))
+        self.assertEqual(out.numel(), 100 * batch_size)
+
+
+class TestDynamicSize(unittest.TestCase):
+    @parameterized.expand(  # type: ignore[misc]
+        [
+            ("deit3_t16"),
+            ("deit3_reg4_t16"),
+            ("rope_deit3_t16"),
+            ("rope_deit3_reg4_t16"),
+            ("rope_vit_b32"),
+            ("rope_vitreg4_b32"),
+            ("rope_vit_so150m_p14_ap", None, 1, 14),
+            ("rope_vitreg4_so150m_p14_ap", None, 1, 14),
+            ("simple_vit_b32"),
+            ("vit_b32"),
+            ("vitreg4_b32"),
+            ("vit_so150m_p14_ap", None, 1, 14),
+            ("vitreg4_so150m_p14_ap", None, 1, 14),
+        ]
+    )
+    def test_dynamic_size(
+        self,
+        network_name: str,
+        net_param: Optional[float] = None,
+        batch_size: int = 1,
+        size_step: int = 2**5,
+    ) -> None:
+        n = registry.net_factory(network_name, 3, 100, net_param=net_param)
+        default_size = n.default_size
+        n.set_dynamic_size()
+
+        # Test dynamic inference
+        size = (default_size[0] + size_step, default_size[1] + size_step)
         out = n(torch.rand((batch_size, 3, *size)))
         self.assertEqual(out.numel(), 100 * batch_size)
 
