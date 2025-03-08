@@ -200,6 +200,9 @@ class RoPE_DeiT3(DetectorBackbone):
 
         return x
 
+    def set_dynamic_size(self, dynamic_size: bool = True) -> None:
+        assert dynamic_size is False, "Dynamic size not supported for this network"
+
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
@@ -431,5 +434,20 @@ registry.register_alias(
         "mlp_dim": 4096,
         "num_reg_tokens": 4,
         "drop_path_rate": 0.45,
+    },
+)
+
+registry.register_weights(
+    "rope_deit3_reg4_t16_il-common",
+    {
+        "description": "RoPE DeiT3 reg4 tiny model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 21.5,
+                "sha256": "2aae83b9055ab44c2d68ad6c1d712db0b519eb1bf73dc33d5c2c021279378e9f",
+            }
+        },
+        "net": {"network": "rope_deit3_reg4_t16", "tag": "il-common"},
     },
 )

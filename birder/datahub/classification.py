@@ -45,7 +45,7 @@ class TestDataset(ImageFolder):
             downloaded = download_url(
                 "https://f000.backblazeb2.com/file/birder/data/TestDataset.tar",
                 src,
-                sha256="785cff9454f3ecbf46e55d54df44a7c169d522dce25976e54a451a877c3f08ca",
+                sha256="28ca71c6308742ad8ebb47d5bd3de4db1f26b3173fa568d00abc1df05b556916",
                 progress_bar=progress_bar,
             )
             if downloaded is True or self._root.exists() is False:

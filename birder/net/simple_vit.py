@@ -177,6 +177,9 @@ class Simple_ViT(PreTrainEncoder):
         x = x.permute(0, 2, 1)
         return self.features(x)
 
+    def set_dynamic_size(self, dynamic_size: bool = True) -> None:
+        assert dynamic_size is False, "Dynamic size not supported for this network"
+
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return

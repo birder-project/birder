@@ -237,14 +237,33 @@ compare_results_df.write_csv(settings.RESULTS_DIR.joinpath(f"results_{PATTERN}.c
 ```{python}
 def plot_acc_param(param_compare_results_df: pl.DataFrame, width: int = 900, height: int = 640) -> alt.LayerChart:
     df = param_compare_results_df.select(
-        "Model name", "Model type", "Accuracy", "Top-3 accuracy", "Resolution", "Parameters (M)", "Pareto frontier (p)"
+        "Model name",
+        "Model type",
+        "Accuracy",
+        "Top-3 accuracy",
+        "Resolution",
+        "Parameters (M)",
+        "Pareto frontier (p)",
+        "Intermediate",
+        "MIM",
+        "Distilled",
     )
     base = df.plot.point(
         x="Parameters (M)",
         y="Accuracy",
         color="Model type",
         shape="Resolution:N",
-        tooltip=["Parameters (M)", "Accuracy", "Top-3 accuracy", "Model name", "Model type", "Resolution"],
+        tooltip=[
+            "Parameters (M)",
+            "Accuracy",
+            "Top-3 accuracy",
+            "Model name",
+            "Model type",
+            "Resolution",
+            "Intermediate",
+            "MIM",
+            "Distilled",
+        ],
     )
     text = base.mark_text(align="center", baseline="middle", dy=-10).encode(text="Model name")
     frontier = df.plot.line(x="Parameters (M)", y="Pareto frontier (p)").mark_line(
@@ -268,6 +287,9 @@ def plot_acc_memory(memory_compare_results_df: pl.DataFrame, width: int = 900, h
         "Peak GPU memory (MB)",
         "Parameters (M)",
         "Pareto frontier (mem)",
+        "Intermediate",
+        "MIM",
+        "Distilled",
     )
     base = df.plot.point(
         x="Peak GPU memory (MB)",
@@ -282,6 +304,9 @@ def plot_acc_memory(memory_compare_results_df: pl.DataFrame, width: int = 900, h
             "Model name",
             "Model type",
             "Resolution",
+            "Intermediate",
+            "MIM",
+            "Distilled",
         ],
     )
     text = base.mark_text(align="center", baseline="middle", dy=-10).encode(text="Model name")
@@ -310,6 +335,9 @@ def plot_acc_rate(rate_compare_results_df: pl.DataFrame, width: int = 900, heigh
         "ms / sample",
         "Parameters (M)",
         "Pareto frontier (ms)",
+        "Intermediate",
+        "MIM",
+        "Distilled",
     )
     base = df.plot.point(
         x="ms / sample",
@@ -324,6 +352,9 @@ def plot_acc_rate(rate_compare_results_df: pl.DataFrame, width: int = 900, heigh
             "Model name",
             "Model type",
             "Resolution",
+            "Intermediate",
+            "MIM",
+            "Distilled",
         ],
     )
     text = base.mark_text(align="center", baseline="middle", dy=-10).encode(text="Model name")

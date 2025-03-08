@@ -97,6 +97,8 @@ class BaseNet(nn.Module):
         if self.square_only is True:
             assert self.size[0] == self.size[1]
 
+        self.dynamic_size = False
+
         self.classifier: nn.Module
         self.embedding_size: int
 
@@ -112,6 +114,9 @@ class BaseNet(nn.Module):
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes
         self.classifier = self.create_classifier()
+
+    def set_dynamic_size(self, dynamic_size: bool = True) -> None:
+        self.dynamic_size = dynamic_size
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         """

@@ -1,12 +1,14 @@
 """
-VICReg, adapted from
-https://github.com/facebookresearch/vicreg/blob/main/main_vicreg.py
+DINO v1, adapted from
+https://github.com/facebookresearch/dino/blob/main/main_dino.py
 
-Paper "VICReg: Variance-Invariance-Covariance Regularization for Self-Supervised Learning",
-https://arxiv.org/abs/2105.04906
+Paper "Emerging Properties in Self-Supervised Vision Transformers", https://arxiv.org/abs/2104.14294
+
+Changes from original:
+* Per epoch weight decay scheduling (instead of per step)
 """
 
-# Reference license: MIT
+# Reference license: Apache-2.0
 
 import argparse
 import json
@@ -20,6 +22,8 @@ from typing import Any
 from typing import Optional
 
 import matplotlib.pyplot as plt
+import numpy as np
+import numpy.typing as npt
 import torch
 import torch.amp
 import torch.utils.data
@@ -29,6 +33,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets.folder import pil_loader  # Slower but Handles external dataset quirks better
 from torchvision.io import ImageReadMode
 from torchvision.io import decode_image
+from torchvision.transforms import v2
 from torchvision.transforms.functional import pil_to_tensor
 from tqdm import tqdm
 
@@ -45,7 +50,9 @@ from birder.datasets.webdataset import wds_size
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import get_signature
-from birder.net.ssl import VICReg
+from birder.net.ssl import DINO_v1
+from birder.net.ssl.dino_v1 import DINOHead
+from birder.net.ssl.dino_v1 import DINOLoss
 from birder.transforms.classification import RGBMode
 from birder.transforms.classification import RGBType
 from birder.transforms.classification import get_rgb_stats
@@ -61,16 +68,56 @@ def _tv_loader(path: str) -> torch.Tensor:
     return decode_image(path, mode=ImageReadMode.RGB)
 
 
+def cosine_scheduler(
+    base_value: float, final_value: float, epochs: int, iter_per_epoch: int
+) -> npt.NDArray[np.float64]:
+    warmup_schedule = np.array([])
+
+    iters = np.arange(epochs * iter_per_epoch)
+    schedule = final_value + 0.5 * (base_value - final_value) * (1 + np.cos(np.pi * iters / len(iters)))
+
+    schedule = np.concatenate((warmup_schedule, schedule))
+    assert len(schedule) == epochs * iter_per_epoch
+
+    return schedule
+
+
 class TrainTransform:
     def __init__(
-        self, size: tuple[int, int], level: int, rgv_values: RGBType, resize_min_scale: Optional[float] = None
+        self,
+        size: tuple[int, int],
+        crop_size: tuple[int, int],
+        level: int,
+        rgv_values: RGBType,
+        local_crops_number: int,
+        resize_min_scale: Optional[float] = None,
     ) -> None:
-        self.transform = training_preset(size, level, rgv_values, resize_min_scale)
+        self.local_crops_number = local_crops_number
+        self.global_transform = training_preset(size, level, rgv_values, resize_min_scale)
 
-    def __call__(self, sample: Any) -> tuple[torch.Tensor, torch.Tensor]:
-        x1 = self.transform(sample)
-        x2 = self.transform(sample)
-        return (x1, x2)
+        # Local small crops
+        mean = rgv_values["mean"]
+        std = rgv_values["std"]
+        self.local_transform = v2.Compose(
+            [
+                v2.PILToTensor(),
+                v2.RandomResizedCrop(crop_size, scale=(0.1, 0.5), interpolation=v2.InterpolationMode.BICUBIC),
+                v2.RandomHorizontalFlip(p=0.5),
+                v2.RandomApply([v2.ColorJitter(brightness=0.25, contrast=0.15, hue=0.04)], p=0.8),
+                v2.RandomApply([v2.GaussianBlur(kernel_size=(3, 3), sigma=(0.5, 1.2))], p=0.5),
+                v2.ToDtype(torch.float32, scale=True),
+                v2.Normalize(mean=mean, std=std),
+            ]
+        )
+
+    def __call__(self, image: Any) -> list[torch.Tensor]:
+        crops = []
+        crops.append(self.global_transform(image))
+        crops.append(self.global_transform(image))
+        for _ in range(self.local_crops_number):
+            crops.append(self.local_transform(image))
+
+        return crops
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
@@ -94,13 +141,6 @@ def train(args: argparse.Namespace) -> None:
     else:
         torch.backends.cudnn.benchmark = True
 
-    if args.distributed is False:
-        args.lr = args.lr * args.batch_size / 256
-    else:
-        args.lr = args.lr * args.batch_size * args.world_size / 256
-
-    logger.info(f"Adjusted learning rate to: {args.lr}")
-
     rgb_stats = get_rgb_stats(args.rgb_mode)
     if args.wds is True:
         (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.data_path[0]))
@@ -114,14 +154,18 @@ def train(args: argparse.Namespace) -> None:
             dataset_size=dataset_size,
             shuffle=True,
             samples_names=True,
-            transform=TrainTransform(args.size, args.aug_level, rgb_stats, args.resize_min_scale),
+            transform=TrainTransform(
+                args.size, (96, 96), args.aug_level, rgb_stats, args.local_crops_number, args.resize_min_scale
+            ),
         )
 
     else:
         training_dataset = make_image_dataset(
             args.data_path,
             {},
-            transforms=TrainTransform(args.size, args.aug_level, rgb_stats, args.resize_min_scale),
+            transforms=TrainTransform(
+                args.size, (96, 96), args.aug_level, rgb_stats, args.local_crops_number, args.resize_min_scale
+            ),
             loader=pil_loader if args.img_loader == "pil" else _tv_loader,
         )
 
@@ -139,16 +183,16 @@ def train(args: argparse.Namespace) -> None:
     # Initialize network
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
-    backbone_name = get_network_name(args.network, net_param=args.net_param, tag="vicreg")
+    backbone_name = get_network_name(args.network, net_param=args.net_param, tag="dino-v1")
     network_name = get_mim_network_name(
-        "vicreg",
+        "dino_v1",
         net_param=None,
         encoder=args.network,
         encoder_param=args.net_param,
         tag=args.tag,
     )
 
-    backbone = registry.net_factory(
+    student_backbone = registry.net_factory(
         args.network,
         sample_shape[1],
         0,
@@ -156,39 +200,85 @@ def train(args: argparse.Namespace) -> None:
         config=args.model_config,
         size=args.size,
     )
-    net = VICReg(
-        backbone.input_channels,
-        backbone,
-        mlp_dim=args.mlp_dim,
-        batch_size=args.batch_size,
-        sim_coeff=args.sim_coeff,
-        std_coeff=args.std_coeff,
-        cov_coeff=args.cov_coeff,
-        sync_batches=args.sync_bn,
+    teacher_backbone = registry.net_factory(
+        args.network,
+        sample_shape[1],
+        0,
+        net_param=args.net_param,
+        config=args.model_config,
+        size=args.size,
     )
+    student_backbone.set_dynamic_size()
+    teacher_backbone.set_dynamic_size()
+    student_dino_head = DINOHead(
+        student_backbone.embedding_size,
+        args.out_dim,
+        use_bn=args.use_bn_in_head,
+        norm_last_layer=args.norm_last_layer,
+        num_layers=3,
+        hidden_dim=2048,
+        bottleneck_dim=256,
+    )
+    teacher_dino_head = DINOHead(
+        teacher_backbone.embedding_size,
+        args.out_dim,
+        use_bn=args.use_bn_in_head,
+        norm_last_layer=True,
+        num_layers=3,
+        hidden_dim=2048,
+        bottleneck_dim=256,
+    )
+    student = DINO_v1(student_backbone.input_channels, student_backbone, student_dino_head)
+    teacher = DINO_v1(teacher_backbone.input_channels, teacher_backbone, teacher_dino_head)
+    teacher.load_state_dict(student.state_dict())
+
+    dino_loss = DINOLoss(
+        args.out_dim,
+        args.local_crops_number + 2,  # 2 global crops + local crops number
+        args.warmup_teacher_temp,
+        args.teacher_temp,
+        args.warmup_teacher_temp_epochs,
+        args.epochs,
+        student_temp=0.1,
+        center_momentum=0.9,
+    )
+
+    net = torch.nn.ModuleDict(
+        {
+            "student": student,
+            "teacher": teacher,
+            "loss": dino_loss,
+        }
+    )
+    net.task = teacher.task
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
         (net, training_states) = fs_ops.load_simple_checkpoint(device, net, network_name, epoch=args.resume_epoch)
+        student = net["student"]
+        teacher = net["teacher"]
+        dino_loss = net["loss"]
 
     else:
         training_states = fs_ops.TrainingStates.empty()
 
     net.to(device, dtype=model_dtype)
     if args.sync_bn is True and args.distributed is True:
-        net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)
+        student = torch.nn.SyncBatchNorm.convert_sync_batchnorm(student)
+        teacher = torch.nn.SyncBatchNorm.convert_sync_batchnorm(teacher)
 
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
-    # Compile backbone
+    # Compile networks
     if args.compile is True:
-        net = torch.compile(net)
+        student = torch.compile(student)
+        teacher = torch.compile(teacher)
 
     # Define optimizer and learning rate scheduler and training parameter groups
     custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
     parameters = training_utils.optimizer_parameter_groups(
-        net,
+        student,
         args.wd,
         norm_weight_decay=args.norm_wd,
         custom_keys_weight_decay=custom_keys_weight_decay,
@@ -240,25 +330,34 @@ def train(args: argparse.Namespace) -> None:
         raise SystemExit(0)
 
     # Distributed
-    net_without_ddp = net
+    student_without_ddp = student
+    teacher_without_ddp = teacher
     if args.distributed is True:
-        net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[args.gpu])
-        net_without_ddp = net.module
+        student = torch.nn.parallel.DistributedDataParallel(student, device_ids=[args.gpu])
+        teacher = torch.nn.parallel.DistributedDataParallel(teacher, device_ids=[args.gpu])
+        student_without_ddp = student.module
+        teacher_without_ddp = teacher.module
 
-    model_to_save = net_without_ddp
-    if args.compile is True and hasattr(model_to_save, "_orig_mod") is True:
-        model_to_save = model_to_save._orig_mod  # pylint: disable=protected-access
+    # There is no backpropagation through the teacher
+    for p in teacher.parameters():
+        p.requires_grad = False
+
+    model_to_save = net
+    if args.compile is True and hasattr(model_to_save["teacher"], "_orig_mod") is True:
+        model_to_save["teacher"] = model_to_save["teacher"]._orig_mod  # pylint: disable=protected-access
+    if args.compile is True and hasattr(model_to_save["student"], "_orig_mod") is True:
+        model_to_save["student"] = model_to_save["student"]._orig_mod  # pylint: disable=protected-access
 
     # Print network summary
-    net_for_info = net_without_ddp
-    if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
-        net_for_info = net_without_ddp._orig_mod  # pylint: disable=protected-access
+    net_for_info = teacher_without_ddp
+    if args.compile is True and hasattr(teacher_without_ddp, "_orig_mod") is True:
+        net_for_info = teacher_without_ddp._orig_mod  # pylint: disable=protected-access
 
     torchinfo.summary(
         net_for_info,
         device=device,
-        input_size=(sample_shape, sample_shape),
-        dtypes=[model_dtype, model_dtype],
+        input_data={"xs": [torch.rand(sample_shape), torch.rand(sample_shape)]},
+        dtypes=[model_dtype],
         col_names=["input_size", "output_size", "kernel_size", "num_params"],
         depth=4,
         verbose=1 if args.rank == 0 else 0,
@@ -316,6 +415,11 @@ def train(args: argparse.Namespace) -> None:
         )
 
     last_batch_idx = (len(training_dataset) // batch_size) - 1  # no partial batches
+    momentum_schedule = cosine_scheduler(args.momentum_teacher, 1.0, args.epochs, last_batch_idx)
+    if args.wd_end is not None:
+        wd_schedule = cosine_scheduler(args.wd, args.wd_end, args.epochs, 1)
+    else:
+        wd_schedule = None
 
     # Enable or disable the autograd anomaly detection
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
@@ -330,6 +434,11 @@ def train(args: argparse.Namespace) -> None:
         if args.distributed is True:
             train_sampler.set_epoch(epoch)
 
+        if wd_schedule is not None:
+            for param_group in optimizer.param_groups:
+                if param_group["weight_decay"] > 0:
+                    param_group["weight_decay"] = wd_schedule[epoch - 1]
+
         if args.rank == 0:
             progress = tqdm(
                 desc=f"Epoch {epoch}/{epochs-1}",
@@ -339,16 +448,21 @@ def train(args: argparse.Namespace) -> None:
                 leave=False,
             )
 
-        for i, (_, (x, y), _) in enumerate(training_loader):
-            x = x.to(device, dtype=model_dtype, non_blocking=True)
-            y = y.to(device, dtype=model_dtype, non_blocking=True)
+        for i, (_, images, _) in enumerate(training_loader):
+            global_step = ((epoch - 1) * last_batch_idx) + i
+            images = [img.to(device, dtype=model_dtype, non_blocking=True) for img in images]
 
             # Zero the parameter gradients
             optimizer.zero_grad()
 
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                loss = net(x, y)
+                teacher_output = teacher(images[:2])  # Only the 2 global views pass through the teacher
+                student_output = student(images)
+                loss = dino_loss(student_output, teacher_output, epoch - 1)
+
+            if args.freeze_last_layer_epochs >= epoch:
+                student_without_ddp.head.cancel_last_layer_gradients()
 
             if scaler is not None:
                 scaler.scale(loss).backward()
@@ -366,8 +480,14 @@ def train(args: argparse.Namespace) -> None:
 
                 optimizer.step()
 
+            # EMA update for the teacher
+            with torch.no_grad():
+                m = momentum_schedule[global_step]
+                for param_q, param_k in zip(student.parameters(), teacher_without_ddp.parameters()):
+                    param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
+
             # Statistics
-            running_loss += loss.item() * x.size(0)
+            running_loss += loss.item() * images[0].size(0)
 
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
@@ -416,7 +536,7 @@ def train(args: argparse.Namespace) -> None:
                 fs_ops.checkpoint_model(
                     backbone_name,
                     epoch,
-                    model_to_save.backbone,
+                    model_to_save["teacher"].backbone,
                     signature,
                     {},
                     rgb_stats,
@@ -451,7 +571,7 @@ def train(args: argparse.Namespace) -> None:
         fs_ops.checkpoint_model(
             backbone_name,
             epoch,
-            model_to_save.backbone,
+            model_to_save["teacher"].backbone,
             signature,
             {},
             rgb_stats,
@@ -470,13 +590,15 @@ def get_args_parser() -> argparse.ArgumentParser:
         description="Pre-train model",
         epilog=(
             "Usage examples:\n"
-            "torchrun --nproc_per_node=2 -m birder.scripts.train_vicreg --network efficientnet_v2_m "
-            "--opt lars --lr 0.2 --lr-scheduler cosine --warmup-epochs 10 --batch-size 128 --epochs 400 "
-            "--wd 0.000001 --amp --compile --data-path data/training\n"
+            "torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network efficientnet_v2_s "
+            "--use-bn-in-head --norm-last-layer --local-crops-number 6 --teacher-temp 0.07 --opt lars "
+            "--lr 0.3 --lr-scheduler cosine --lr-cosine-min 0.001 --epochs 800 --warmup-epochs 10 "
+            "--batch-size 128 --wd 0.000001 --norm-wd 0 --bias-weight-decay 0 --amp --compile "
+            "--data-path data/training data/raw_data data/detection_data/training ~/Datasets\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
-    parser.add_argument("-n", "--network", type=str, help="the neural network to train")
+    parser.add_argument("-n", "--network", type=str, help="the neural network to use")
     parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
     parser.add_argument(
         "--model-config",
@@ -486,10 +608,50 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
-    parser.add_argument("--mlp-dim", type=int, default=8192, help="dim of the MLP expander head")
-    parser.add_argument("--sim-coeff", type=float, default=25.0, help="invariance regularization loss coefficient")
-    parser.add_argument("--std-coeff", type=float, default=25.0, help="variance regularization loss coefficient")
-    parser.add_argument("--cov-coeff", type=float, default=1.0, help="covariance regularization loss coefficient")
+    parser.add_argument("--out-dim", type=int, default=65536, help="dimensionality of the DINO head output")
+    parser.add_argument(
+        "--use-bn-in-head",
+        default=False,
+        action="store_true",
+        help="whether to use batch normalizations in projection head",
+    )
+    parser.add_argument(
+        "--norm-last-layer",
+        default=False,
+        action="store_true",
+        help=(
+            "whether or not to weight normalize the last layer of the DINO head. "
+            "set this flag with large models (vit_b)"
+        ),
+    )
+    parser.add_argument(
+        "--momentum-teacher",
+        type=float,
+        default=0.996,
+        help="base EMA parameter for teacher update, set a higher value with small batches",
+    )
+    parser.add_argument("--local-crops-number", type=int, default=8, help="number of small local views to generate")
+    parser.add_argument(
+        "--warmup-teacher-temp",
+        type=float,
+        default=0.04,
+        help="initial value for the teacher temperature, try decreasing it if the training loss does not decrease",
+    )
+    parser.add_argument(
+        "--teacher-temp", type=float, default=0.04, help="final value (after linear warmup) of the teacher temperature"
+    )
+    parser.add_argument(
+        "--warmup-teacher-temp-epochs", type=int, default=40, help="number of warmup epochs for the teacher temperature"
+    )
+    parser.add_argument(
+        "--freeze-last-layer-epochs",
+        default=1,
+        type=int,
+        help=(
+            "number of epochs during which the output layer is frozen, "
+            "try increasing this value if the loss does not decrease"
+        ),
+    )
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
         "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
@@ -505,6 +667,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--momentum", type=float, default=0.9, help="optimizer momentum")
     parser.add_argument("--nesterov", default=False, action="store_true", help="use nesterov momentum")
     parser.add_argument("--wd", type=float, default=0.0001, help="weight decay")
+    parser.add_argument("--wd-end", type=float, help="final value of the weight decay (None for constant wd)")
     parser.add_argument("--norm-wd", type=float, help="weight decay for Normalization layers")
     parser.add_argument("--bias-weight-decay", type=float, help="weight decay for bias parameters of all layers")
     parser.add_argument(

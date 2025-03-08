@@ -47,6 +47,7 @@ class VICReg(SSLBaseNet):
 
     def __init__(
         self,
+        input_channels: int,
         backbone: BaseNet,
         mlp_dim: int,
         batch_size: int,
@@ -55,7 +56,7 @@ class VICReg(SSLBaseNet):
         cov_coeff: float,
         sync_batches: bool = False,
     ) -> None:
-        super().__init__()
+        super().__init__(input_channels)
         self.backbone = backbone
         self.num_features = mlp_dim
         self.world_batch_size = batch_size * training_utils.get_world_size()

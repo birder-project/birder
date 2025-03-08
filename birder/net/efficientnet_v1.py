@@ -126,7 +126,6 @@ class EfficientNet_v1(DetectorBackbone):
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
-        drop_path_rate = 0.2
         repeats = [1, 2, 2, 3, 3, 4, 1]
         in_channels = [32, 16, 24, 40, 80, 112, 192]
         out_channels = [16, 24, 40, 80, 112, 192, 320]
@@ -136,7 +135,9 @@ class EfficientNet_v1(DetectorBackbone):
         width_coefficient: float = self.config["width_coefficient"]
         depth_coefficient: float = self.config["depth_coefficient"]
         dropout_rate: float = self.config["dropout_rate"]
+        drop_path_rate: float = self.config.get("drop_path_rate", 0.2)
 
+        self.dropout_rate = dropout_rate
         in_channels = [adjust_channels(ch, width_coefficient) for ch in in_channels]
         out_channels = [adjust_channels(ch, width_coefficient) for ch in out_channels]
         repeats = [adjust_depth(re, depth_coefficient) for re in repeats]
@@ -208,7 +209,6 @@ class EfficientNet_v1(DetectorBackbone):
         )
         self.return_channels = return_channels[1:5]
         self.embedding_size = out_channels[-1] * 4
-        self.dropout_rate = dropout_rate
         self.classifier = self.create_classifier()
 
         # Weights initialization

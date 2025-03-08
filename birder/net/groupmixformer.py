@@ -206,7 +206,7 @@ class EfficientAtt(nn.Module):
 
         x = self.scale * eff_att + crpe
         x = x.transpose(1, 2).reshape(B, N, C // 5 * 4)
-        x = torch.cat([x, x_agg0], dim=-1)
+        x = torch.concat([x, x_agg0], dim=-1)
 
         x = self.proj(x)
         x = self.proj_drop(x)
@@ -456,5 +456,20 @@ registry.register_alias(
         "depths": [8, 10, 30, 10],
         "mlp_ratios": [4.0, 4.0, 2.0, 2.0],
         "drop_path_rate": 0.5,
+    },
+)
+
+registry.register_weights(
+    "groupmixformer_mobile_il-common",
+    {
+        "description": "GroupMixFormer mobile model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 22.0,
+                "sha256": "c2f0607fe1691b428ed5f15b0a8ecc6333d78c653be736fcd5a6fb576642b417",
+            }
+        },
+        "net": {"network": "groupmixformer_mobile", "tag": "il-common"},
     },
 )

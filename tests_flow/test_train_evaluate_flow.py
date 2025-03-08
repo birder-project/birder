@@ -12,11 +12,12 @@ from birder.common.lib import get_network_name
 from birder.datahub.classification import TestDataset
 from birder.model_registry import registry
 from birder.scripts import train
+from birder.tools.avg_model import avg_models
 
 
-class TestTrainFlow(unittest.TestCase):
+class TestTrainEvaluateFlow(unittest.TestCase):
     def test_train_pretrained(self) -> None:
-        model_list = birder.list_pretrained_models("*il-common")
+        model_list = birder.list_pretrained_models("mobilenet_v3_small*")
         model_name = random.choice(model_list)
 
         # Download model
@@ -38,27 +39,42 @@ class TestTrainFlow(unittest.TestCase):
             pretrained=True,
             freeze_body=True,
             num_workers=1,
-            batch_size=1,
+            batch_size=2,
+            drop_last=True,
             lr=0.1,
-            epochs=1,
+            epochs=2,
             size=64,
             cpu=True,
+            save_frequency=1,
             data_path=training_dataset.root,
             val_path=validation_dataset.root,
         )
         train.train(args)
 
-        # Check checkpoint is valid
+        # Check checkpoints are valid
         device = torch.device("cpu")
         (net, (class_to_idx, signature, rgb_stats)) = load_model(
             device, network, net_param=net_param, tag=tag, epoch=1, inference=True
         )
         self.assertEqual(len(class_to_idx), signature["outputs"][0]["data_shape"][1])
+        (net, (class_to_idx, signature, rgb_stats)) = load_model(
+            device, network, net_param=net_param, tag=tag, epoch=2, inference=True
+        )
+        self.assertEqual(len(class_to_idx), signature["outputs"][0]["data_shape"][1])
+
+        # Average checkpoints
+        avg_models(network, net_param, tag, reparameterized=False, epochs=[1, 2], force=True)
+
+        # Check average checkpoint is valid
+        device = torch.device("cpu")
+        (net, (class_to_idx, signature, rgb_stats)) = load_model(
+            device, network, net_param=net_param, tag=tag, epoch=0, inference=True
+        )
 
         # Check valid config
         network_name = get_network_name(network, net_param, tag)
         config = read_config(network_name)
-        weights_path = model_path(network_name, epoch=1)
+        weights_path = model_path(network_name, epoch=0)
         _ = birder.load_model_with_cfg(config, weights_path)
 
         # Prepare dataloader

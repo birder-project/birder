@@ -544,6 +544,9 @@ class EfficientFormer_v2(DetectorBackbone):
 
         return x
 
+    def set_dynamic_size(self, dynamic_size: bool = True) -> None:
+        assert dynamic_size is False, "Dynamic size not supported for this network"
+
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
