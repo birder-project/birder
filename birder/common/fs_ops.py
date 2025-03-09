@@ -180,10 +180,13 @@ def checkpoint_model(
     model_base: Optional[torch.nn.Module],
     *,
     external_config: Optional[dict[str, Any]] = None,
+    external_backbone_config: Optional[dict[str, Any]] = None,
 ) -> None:
     kwargs = {}
     if external_config is not None:
         kwargs["config"] = external_config
+    if external_backbone_config is not None:
+        kwargs["backbone_config"] = external_backbone_config
 
     path = model_path(network_name, epoch=epoch)
     states_path = model_path(network_name, epoch=epoch, states=True)
@@ -428,6 +431,7 @@ class ModelInfo(NamedTuple):
     class_to_idx: dict[str, int]
     signature: SignatureType
     rgb_stats: RGBType
+    custom_config: Optional[dict[str, Any]] = None
 
 
 # pylint: disable=too-many-locals,too-many-branches
@@ -455,6 +459,7 @@ def load_model(
 
     logger.info(f"Loading model from {path} on device {device}...")
 
+    loaded_config = {}
     if pts is True:
         extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_stats": ""}
         net = torch.jit.load(path, map_location=device, _extra_files=extra_files)
@@ -484,7 +489,6 @@ def load_model(
         num_classes = lib.get_num_labels_from_signature(signature)
         size = lib.get_size_from_signature(signature)
 
-        loaded_config = {}
         if "config" in extra_files and len(extra_files["config"]) > 0:
             loaded_config = json.loads(extra_files["config"])
 
@@ -513,7 +517,6 @@ def load_model(
         num_classes = lib.get_num_labels_from_signature(signature)
         size = lib.get_size_from_signature(signature)
 
-        loaded_config = {}
         if "config" in model_dict:
             loaded_config = model_dict["config"]
 
@@ -545,13 +548,20 @@ def load_model(
         if pt2 is False:  # Remove when GraphModule add support for 'eval'
             net.eval()
 
-    return (net, ModelInfo(class_to_idx, signature, rgb_stats))
+    if len(loaded_config) == 0:
+        custom_config = None
+    else:
+        custom_config = loaded_config
+
+    return (net, ModelInfo(class_to_idx, signature, rgb_stats, custom_config))
 
 
 class DetectionModelInfo(NamedTuple):
     class_to_idx: dict[str, int]
     signature: DetectionSignatureType
     rgb_stats: RGBType
+    custom_config: Optional[dict[str, Any]] = None
+    backbone_custom_config: Optional[dict[str, Any]] = None
 
 
 # pylint: disable=too-many-locals,too-many-arguments
@@ -591,6 +601,8 @@ def load_detection_model(
 
     logger.info(f"Loading model from {path} on device {device}...")
 
+    backbone_loaded_config = {}
+    loaded_config = {}
     if pts is True:
         extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_stats": ""}
         net = torch.jit.load(path, map_location=device, _extra_files=extra_files)
@@ -620,15 +632,29 @@ def load_detection_model(
         num_classes = lib.get_num_labels_from_signature(signature)
         size = lib.get_size_from_signature(signature)
 
+        if "backbone_config" in extra_files and len(extra_files["backbone_config"]) > 0:
+            backbone_loaded_config = json.loads(extra_files["backbone_config"])
+        if "config" in extra_files and len(extra_files["config"]) > 0:
+            loaded_config = json.loads(extra_files["config"])
+
+        # Merge configs, with external config taking precedence
+        backbone_merged_config = {**backbone_loaded_config}
+        if backbone_config is not None:
+            backbone_merged_config.update(backbone_config)
+
+        merged_config = {**loaded_config}
+        if config is not None:
+            merged_config.update(config)
+
         model_state: dict[str, Any] = safetensors.torch.load_file(path, device=device.type)
         net_backbone = registry.net_factory(
-            backbone, input_channels, num_classes, net_param=backbone_param, config=backbone_config, size=size
+            backbone, input_channels, num_classes, net_param=backbone_param, config=backbone_merged_config, size=size
         )
         if backbone_reparameterized is True:
             net_backbone.reparameterize_model()
 
         net = registry.detection_net_factory(
-            network, num_classes, net_backbone, net_param=net_param, config=config, size=size
+            network, num_classes, net_backbone, net_param=net_param, config=merged_config, size=size
         )
         if reparameterized is True:
             net.reparameterize_model()
@@ -646,14 +672,28 @@ def load_detection_model(
         num_classes = lib.get_num_labels_from_signature(signature)
         size = lib.get_size_from_signature(signature)
 
+        if "backbone_config" in model_dict:
+            backbone_loaded_config = model_dict["backbone_config"]
+        if "config" in model_dict:
+            loaded_config = model_dict["config"]
+
+        # Merge configs, with external config taking precedence
+        backbone_merged_config = {**backbone_loaded_config}
+        if backbone_config is not None:
+            backbone_merged_config.update(backbone_config)
+
+        merged_config = {**loaded_config}
+        if config is not None:
+            merged_config.update(config)
+
         net_backbone = registry.net_factory(
-            backbone, input_channels, num_classes, net_param=backbone_param, config=backbone_config, size=size
+            backbone, input_channels, num_classes, net_param=backbone_param, config=backbone_merged_config, size=size
         )
         if backbone_reparameterized is True:
             net_backbone.reparameterize_model()
 
         net = registry.detection_net_factory(
-            network, num_classes, net_backbone, net_param=net_param, config=config, size=size
+            network, num_classes, net_backbone, net_param=net_param, config=merged_config, size=size
         )
         if reparameterized is True:
             net.reparameterize_model()
@@ -674,7 +714,17 @@ def load_detection_model(
 
         net.eval()
 
-    return (net, DetectionModelInfo(class_to_idx, signature, rgb_stats))
+    if len(backbone_loaded_config) == 0:
+        backbone_custom_config = None
+    else:
+        backbone_custom_config = backbone_loaded_config
+
+    if len(loaded_config) == 0:
+        custom_config = None
+    else:
+        custom_config = loaded_config
+
+    return (net, DetectionModelInfo(class_to_idx, signature, rgb_stats, custom_config, backbone_custom_config))
 
 
 def load_pretrained_model(
@@ -905,8 +955,17 @@ def save_st(
     class_to_idx: dict[str, int],
     signature: SignatureType | DetectionSignatureType,
     rgb_stats: RGBType,
+    *,
+    external_config: Optional[dict[str, Any]] = None,
+    external_backbone_config: Optional[dict[str, Any]] = None,
 ) -> None:
     assert _HAS_SAFETENSORS, "'pip install safetensors' to use .safetensors"
+    kwargs = {}
+    if external_config is not None:
+        kwargs["config"] = json.dumps(external_config)
+    if external_backbone_config is not None:
+        kwargs["backbone_config"] = json.dumps(external_backbone_config)
+
     safetensors.torch.save_model(
         net,
         str(dst),
@@ -916,6 +975,7 @@ def save_st(
             "class_to_idx": json.dumps(class_to_idx),
             "signature": json.dumps(signature),
             "rgb_stats": json.dumps(rgb_stats),
+            **kwargs,
         },
     )
 

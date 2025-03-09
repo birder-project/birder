@@ -54,7 +54,7 @@ plt.matshow(similarity.numpy())
 
 ```{python}
 (net, model_info) = fs_ops.load_model(device, "vitreg4_b16", path="models/vitreg4_b16_mim_300.pt", inference=True)
-# (net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+# (net, model_info) = fs_ops.load_model(
 #     device, "vit_l16", path="models/vit_l16_mim_362.pt", inference=True
 # )
 # size = lib.get_size_from_signature(signature)

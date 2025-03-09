@@ -31,7 +31,7 @@ def evaluate(args: argparse.Namespace) -> None:
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     model_list = birder.list_pretrained_models(args.filter)
     for model_name in model_list:
-        (net, (class_to_idx, signature, rgb_stats)) = birder.load_pretrained_model(
+        (net, (class_to_idx, signature, rgb_stats, *_)) = birder.load_pretrained_model(
             model_name, inference=True, device=device, dtype=model_dtype
         )
         if args.compile is True:

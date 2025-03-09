@@ -400,7 +400,8 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder):
             (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
             (H // self.patch_size, W // self.patch_size),
             self.num_special_tokens,
-        ).to(self.rope.pos_embed.device)
+            antialias=False,
+        )
 
     def _get_rope_embed(self, H: int, W: int) -> torch.Tensor:
         if self.dynamic_size is False:
@@ -417,7 +418,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder):
                 pt_grid_size=self.pt_grid_size,
             ),
             dim=-1,
-        )
+        ).to(self.rope.pos_embed.device)
 
     def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
         for param in self.parameters():

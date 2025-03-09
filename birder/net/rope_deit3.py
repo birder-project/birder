@@ -158,6 +158,7 @@ class RoPE_DeiT3(DetectorBackbone):
             (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
             (H // self.patch_size, W // self.patch_size),
             self.num_special_tokens if self.pos_embed_class is True else 0,
+            antialias=False,
         )
 
     def _get_rope_embed(self, H: int, W: int) -> torch.Tensor:

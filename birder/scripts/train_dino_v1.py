@@ -152,7 +152,12 @@ def train(args: argparse.Namespace) -> None:
             shuffle=True,
             samples_names=True,
             transform=TrainTransform(
-                args.size, (96, 96), args.aug_level, rgb_stats, args.local_crops_number, args.resize_min_scale
+                args.size,
+                args.local_crop_size,
+                args.aug_level,
+                rgb_stats,
+                args.local_crops_number,
+                args.resize_min_scale,
             ),
         )
 
@@ -161,7 +166,12 @@ def train(args: argparse.Namespace) -> None:
             args.data_path,
             {},
             transforms=TrainTransform(
-                args.size, (96, 96), args.aug_level, rgb_stats, args.local_crops_number, args.resize_min_scale
+                args.size,
+                args.local_crop_size,
+                args.aug_level,
+                rgb_stats,
+                args.local_crops_number,
+                args.resize_min_scale,
             ),
             loader=pil_loader if args.img_loader == "pil" else _tv_loader,
         )
@@ -629,6 +639,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--local-crops-number", type=int, default=8, help="number of small local views to generate")
     parser.add_argument(
+        "--local-crop-size", type=int, nargs="+", default=[96, 96], metavar=("H", "W"), help="local view size"
+    )
+    parser.add_argument(
         "--warmup-teacher-temp",
         type=float,
         default=0.04,
@@ -827,6 +840,7 @@ def validate_args(args: argparse.Namespace) -> None:
     assert args.amp is False or args.model_dtype == "float32"
     assert args.resize_min_scale is None or args.resize_min_scale < 1.0
     args.size = cli.parse_size(args.size)
+    args.local_crop_size = cli.parse_size(args.local_crop_size)
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

@@ -29,7 +29,7 @@ def show_pgd(args: argparse.Namespace) -> None:
 
     logger.info(f"Using device {device}")
 
-    (net, (class_to_idx, signature, rgb_stats)) = fs_ops.load_model(
+    (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
         device,
         args.network,
         net_param=args.net_param,
@@ -82,7 +82,7 @@ def show_fgsm(args: argparse.Namespace) -> None:
 
     logger.info(f"Using device {device}")
 
-    (net, (class_to_idx, signature, rgb_stats)) = fs_ops.load_model(
+    (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
         device,
         args.network,
         net_param=args.net_param,

@@ -27,10 +27,10 @@ Fine-tuning, first stage - linear probing
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag dino-v1 --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body
 ```
 
-#### DINO v1: RoPE DeiT3 m16
+#### DINO v1: RoPE DeiT3 Reg4 m14
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network rope_deit3_m16 --norm-last-layer --local-crops-number 10 --teacher-temp 0.07 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 600 --warmup-epochs 10 --batch-size 96 --wd 0.04 --norm-wd 0 --bias-weight-decay 0 --wd-end 0.4 --clip-grad-norm 0.5 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network rope_deit3_reg4_m14 --norm-last-layer --local-crops-number 10 --local-crop-size 98 --teacher-temp 0.07 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 600 --warmup-epochs 10 --batch-size 80 --wd 0.04 --norm-wd 0 --bias-weight-decay 0 --wd-end 0.4 --clip-grad-norm 0.5 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 #### DINO v1: XCiT small-12 p16

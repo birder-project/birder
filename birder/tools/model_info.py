@@ -66,6 +66,10 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "-r", "--reparameterized", default=False, action="store_true", help="load reparameterized model"
     )
+    subparser.add_argument("--pts", default=False, action="store_true", help="load torchscript network")
+    subparser.add_argument("--pt2", default=False, action="store_true", help="load standardized model")
+    subparser.add_argument("--st", default=False, action="store_true", help="load Safetensors weights")
+    subparser.add_argument("--classes", default=False, action="store_true", help="print all classes")
     subparser.set_defaults(func=main)
 
 
@@ -73,8 +77,9 @@ def main(args: argparse.Namespace) -> None:
     # Load model
     device = torch.device("cpu")
     signature: SignatureType | DetectionSignatureType
+    backbone_custom_config = None
     if args.backbone is None:
-        (net, (class_to_idx, signature, rgb_stats)) = fs_ops.load_model(
+        (net, (class_to_idx, signature, rgb_stats, custom_config)) = fs_ops.load_model(
             device,
             args.network,
             net_param=args.net_param,
@@ -82,19 +87,27 @@ def main(args: argparse.Namespace) -> None:
             epoch=args.epoch,
             inference=True,
             reparameterized=args.reparameterized,
+            pts=args.pts,
+            pt2=args.pt2,
+            st=args.st,
         )
 
     else:
-        (net, (class_to_idx, signature, rgb_stats)) = fs_ops.load_detection_model(
-            device,
-            args.network,
-            net_param=args.net_param,
-            tag=args.tag,
-            backbone=args.backbone,
-            backbone_param=args.backbone_param,
-            backbone_tag=args.backbone_tag,
-            epoch=args.epoch,
-            inference=True,
+        (net, (class_to_idx, signature, rgb_stats, custom_config, backbone_custom_config)) = (
+            fs_ops.load_detection_model(
+                device,
+                args.network,
+                net_param=args.net_param,
+                tag=args.tag,
+                backbone=args.backbone,
+                backbone_param=args.backbone_param,
+                backbone_tag=args.backbone_tag,
+                epoch=args.epoch,
+                inference=True,
+                pts=args.pts,
+                pt2=args.pt2,
+                st=args.st,
+            )
         )
 
     model_info = get_model_info(net)
@@ -104,10 +117,16 @@ def main(args: argparse.Namespace) -> None:
     console.print(f"Network type: [bold]{type(net).__name__}[/bold], with task={net.task}")
     console.print(f"Network signature: {signature}")
     console.print(f"Network rgb values: {rgb_stats}")
+    if custom_config is not None:
+        console.print(f"Network has saved custom config: {custom_config}")
+    if backbone_custom_config is not None:
+        console.print(f"Network backbone has saved custom config: {backbone_custom_config}")
+
     console.print(f"Number of parameters: {model_info['num_params']:,}")
     console.print(f"Model size (inc. buffers): {(model_info['model_size']) / 1024**2:,.2f} [bold]MB[/bold]")
     console.print()
-    console.print(Columns(list(class_to_idx.keys()), column_first=True, title="[bold]Class list[/bold]"))
+    if args.classes is True:
+        console.print(Columns(list(class_to_idx.keys()), column_first=True, title="[bold]Class list[/bold]"))
     if is_nan is True:
         console.print()
         console.print("[red]Warning, NaN detected at the model weights[/red]")

@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.16.6
+      jupytext_version: 1.16.7
   kernelspec:
     display_name: birder
     language: python
@@ -35,7 +35,7 @@ from PIL import Image
 
 ```{python}
 device = torch.device("cpu")
-(net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+(net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
     device, "vitreg4_b16", tag="mim-intermediate", epoch=75, inference=True
 )
 idx_to_class = {v: k for k, v in class_to_idx.items()}

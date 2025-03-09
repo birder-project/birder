@@ -36,6 +36,7 @@ def adjust_position_embedding(
     old_base_size: tuple[int, int],
     new_base_size: tuple[int, int],
     num_prefix_tokens: int,
+    antialias: bool = True,
 ) -> torch.Tensor:
     """
     Adapted from
@@ -50,7 +51,7 @@ def adjust_position_embedding(
     orig_dtype = pos_embedding.dtype
     pos_embedding = pos_embedding.float()  # Interpolate needs float32
     pos_embedding = pos_embedding.reshape(1, old_base_size[0], old_base_size[1], -1).permute(0, 3, 1, 2)
-    pos_embedding = F.interpolate(pos_embedding, size=new_base_size, mode="bicubic", antialias=True)
+    pos_embedding = F.interpolate(pos_embedding, size=new_base_size, mode="bicubic", antialias=antialias)
     pos_embedding = pos_embedding.permute(0, 2, 3, 1).reshape(1, -1, embed_dim)
     pos_embedding = pos_embedding.to(orig_dtype)
 
@@ -378,6 +379,7 @@ class ViT(DetectorBackbone, PreTrainEncoder):
             (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
             (H // self.patch_size, W // self.patch_size),
             self.num_special_tokens,
+            antialias=False,
         )
 
     def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:

@@ -108,7 +108,7 @@ def predict(args: argparse.Namespace) -> None:
         backbone_param=args.backbone_param,
         backbone_tag=args.backbone_tag,
     )
-    (net, (class_to_idx, signature, rgb_stats)) = fs_ops.load_detection_model(
+    (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_detection_model(
         device,
         args.network,
         net_param=args.net_param,

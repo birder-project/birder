@@ -79,7 +79,7 @@ def train(args: argparse.Namespace) -> None:
         torch.backends.cudnn.benchmark = True
 
     # Using the teacher rgb values for the student
-    (teacher, (class_to_idx, signature, rgb_stats)) = fs_ops.load_model(
+    (teacher, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
         device,
         args.teacher,
         net_param=args.teacher_param,

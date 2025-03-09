@@ -125,7 +125,7 @@ class Simple_ViT(PreTrainEncoder):
             w=W // self.patch_size,
             dim=self.hidden_dim,
             num_special_tokens=self.num_special_tokens,
-        )
+        ).to(self.pos_embedding.device)
 
     def masked_encoding(
         self,

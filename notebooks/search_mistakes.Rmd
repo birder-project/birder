@@ -49,7 +49,7 @@ torch.set_float32_matmul_precision("high")
 
 ```{python}
 device = torch.device("cuda:1")
-(net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+(net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
     device, "convnext_v2_tiny", tag="raw384px", epoch=0, inference=True
 )
 ```

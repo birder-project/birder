@@ -189,6 +189,11 @@ def set_parser(subparsers: Any) -> None:
     format_group.add_argument(
         "--add-config", action=cli.FlexibleDictAction, help=("add custom configuration to existing model (pt)")
     )
+    format_group.add_argument(
+        "--add-backbone-config",
+        action=cli.FlexibleDictAction,
+        help=("add custom configuration to existing model's backbone (pt)"),
+    )
     format_group.add_argument("--reparameterize", default=False, action="store_true", help="reparameterize model")
     format_group.add_argument("--pts", default=False, action="store_true", help="convert to TorchScript model")
     format_group.add_argument(
@@ -215,8 +220,9 @@ def main(args: argparse.Namespace) -> None:
     # Load model
     device = torch.device("cpu")
     signature: SignatureType | DetectionSignatureType
+    backbone_custom_config = None
     if args.backbone is None:
-        (net, (class_to_idx, signature, rgb_stats)) = fs_ops.load_model(
+        (net, (class_to_idx, signature, rgb_stats, custom_config)) = fs_ops.load_model(
             device,
             args.network,
             net_param=args.net_param,
@@ -230,20 +236,22 @@ def main(args: argparse.Namespace) -> None:
         network_name = lib.get_network_name(args.network, net_param=args.net_param, tag=args.tag)
 
     else:
-        (net, (class_to_idx, signature, rgb_stats)) = fs_ops.load_detection_model(
-            device,
-            args.network,
-            net_param=args.net_param,
-            config=args.model_config,
-            tag=args.tag,
-            backbone=args.backbone,
-            backbone_param=args.backbone_param,
-            backbone_config=args.backbone_model_config,
-            backbone_tag=args.backbone_tag,
-            epoch=args.epoch,
-            new_size=args.resize,
-            inference=True,
-            pts=False,
+        (net, (class_to_idx, signature, rgb_stats, custom_config, backbone_custom_config)) = (
+            fs_ops.load_detection_model(
+                device,
+                args.network,
+                net_param=args.net_param,
+                config=args.model_config,
+                tag=args.tag,
+                backbone=args.backbone,
+                backbone_param=args.backbone_param,
+                backbone_config=args.backbone_model_config,
+                backbone_tag=args.backbone_tag,
+                epoch=args.epoch,
+                new_size=args.resize,
+                inference=True,
+                pts=False,
+            )
         )
         network_name = lib.get_detection_network_name(
             args.network,
@@ -258,7 +266,7 @@ def main(args: argparse.Namespace) -> None:
 
     if args.resize is not None:
         network_name = f"{network_name}_{args.resize[0]}px"
-    elif args.add_config is not None:
+    elif args.add_config is not None or args.add_backbone_config:
         network_name = f"{network_name}_custom_config"
 
     model_path = fs_ops.model_path(
@@ -290,9 +298,14 @@ def main(args: argparse.Namespace) -> None:
             scheduler=None,
             scaler=None,
             model_base=None,
+            external_config=custom_config,
+            external_backbone_config=backbone_custom_config,
         )
 
     elif args.add_config is not None:
+        if custom_config is not None:
+            logger.warning("Custom config already exist, current action overrides it")
+
         fs_ops.checkpoint_model(
             network_name,
             args.epoch,
@@ -305,6 +318,24 @@ def main(args: argparse.Namespace) -> None:
             scaler=None,
             model_base=None,
             external_config=args.add_config,
+        )
+
+    elif args.add_backbone_config is not None:
+        if backbone_custom_config is not None:
+            logger.warning("Custom backbone config already exist, current action overrides it")
+
+        fs_ops.checkpoint_model(
+            network_name,
+            args.epoch,
+            net,
+            signature,
+            class_to_idx,
+            rgb_stats,
+            optimizer=None,
+            scheduler=None,
+            scaler=None,
+            model_base=None,
+            external_backbone_config=args.add_backbone_config,
         )
 
     elif args.reparameterize is True:
@@ -334,7 +365,16 @@ def main(args: argparse.Namespace) -> None:
         pt2_export(net, signature, class_to_idx, rgb_stats, device, model_path)
 
     elif args.st is True:
-        fs_ops.save_st(net, str(model_path), net.task, class_to_idx, signature, rgb_stats)
+        fs_ops.save_st(
+            net,
+            str(model_path),
+            net.task,
+            class_to_idx,
+            signature,
+            rgb_stats,
+            external_config=custom_config,
+            external_backbone_config=backbone_custom_config,
+        )
 
     elif args.onnx is True or args.onnx_dynamo is True:
         config_export(net, signature, rgb_stats, model_path)
