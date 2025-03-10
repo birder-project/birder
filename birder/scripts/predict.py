@@ -18,7 +18,7 @@ from birder.conf import settings
 from birder.dataloader.webdataset import make_wds_loader
 from birder.datasets.directory import make_image_dataset
 from birder.datasets.webdataset import make_wds_dataset
-from birder.datasets.webdataset import wds_size
+from birder.datasets.webdataset import prepare_wds_args
 from birder.inference.classification import infer_dataloader_iter
 from birder.results.classification import Results
 from birder.results.gui import show_top_k
@@ -156,8 +156,7 @@ def predict(args: argparse.Namespace) -> None:
     batch_size = args.batch_size
     inference_transform = inference_preset(args.size, rgb_stats, args.center_crop)
     if args.wds is True:
-        (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.data_path[0]))
-        dataset_size = wds_size(wds_path, device)
+        (wds_path, dataset_size) = prepare_wds_args(args.data_path, args.wds_size, device)
         num_samples = dataset_size
         dataset = make_wds_dataset(
             wds_path,
@@ -357,6 +356,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use (ignored in parallel mode)")
     parser.add_argument("--parallel", default=False, action="store_true", help="use multiple gpu's")
     parser.add_argument("--wds", default=False, action="store_true", help="predict a webdataset directory")
+    parser.add_argument("--wds-size", type=int, metavar="N", help="size of the wds dataset")
     parser.add_argument("data_path", nargs="+", help="data files path (directories and files)")
 
     return parser

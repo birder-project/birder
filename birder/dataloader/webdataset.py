@@ -1,3 +1,4 @@
+import math
 from collections.abc import Callable
 from typing import Any
 from typing import Optional
@@ -15,8 +16,12 @@ def make_wds_loader(
     collate_fn: Optional[Callable[..., Any]],
     world_size: int,
     pin_memory: bool,
-    partial: bool = True,
+    drop_last: bool = False,
 ) -> DataLoader:
+    """
+    NOTE: Validation in WDS is a bit messy, practically either some samples be seen twice, or skipped.
+    """
+
     dataloader = wds.WebLoader(
         dataset,
         batch_size=batch_size,
@@ -24,8 +29,13 @@ def make_wds_loader(
         prefetch_factor=prefetch_factor,
         collate_fn=collate_fn,
         pin_memory=pin_memory,
-        drop_last=not partial,
+        drop_last=drop_last,
     )
-    dataloader = dataloader.with_epoch(len(dataset) // (batch_size * world_size))
+    if drop_last is True:
+        epoch_size = math.floor(len(dataset) / (batch_size * world_size))
+    else:
+        epoch_size = math.ceil(len(dataset) / (batch_size * world_size))
+
+    dataloader = dataloader.repeat(2).with_epoch(epoch_size)
 
     return dataloader

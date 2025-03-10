@@ -496,6 +496,8 @@ def load_model(
         merged_config = {**loaded_config}
         if config is not None:
             merged_config.update(config)
+        if len(merged_config) == 0:
+            merged_config = None  # type: ignore[assignment]
 
         model_state: dict[str, Any] = safetensors.torch.load_file(path, device=device.type)
         net = registry.net_factory(
@@ -524,6 +526,8 @@ def load_model(
         merged_config = {**loaded_config}
         if config is not None:
             merged_config.update(config)
+        if len(merged_config) == 0:
+            merged_config = None
 
         net = registry.net_factory(
             network, input_channels, num_classes, net_param=net_param, config=merged_config, size=size
@@ -564,7 +568,7 @@ class DetectionModelInfo(NamedTuple):
     backbone_custom_config: Optional[dict[str, Any]] = None
 
 
-# pylint: disable=too-many-locals,too-many-arguments
+# pylint: disable=too-many-locals,too-many-arguments,too-many-statements
 def load_detection_model(
     device: torch.device,
     network: str,
@@ -641,10 +645,14 @@ def load_detection_model(
         backbone_merged_config = {**backbone_loaded_config}
         if backbone_config is not None:
             backbone_merged_config.update(backbone_config)
+        if len(backbone_merged_config) == 0:
+            backbone_merged_config = None  # type: ignore[assignment]
 
         merged_config = {**loaded_config}
         if config is not None:
             merged_config.update(config)
+        if len(merged_config) == 0:
+            merged_config = None  # type: ignore[assignment]
 
         model_state: dict[str, Any] = safetensors.torch.load_file(path, device=device.type)
         net_backbone = registry.net_factory(
@@ -681,10 +689,14 @@ def load_detection_model(
         backbone_merged_config = {**backbone_loaded_config}
         if backbone_config is not None:
             backbone_merged_config.update(backbone_config)
+        if len(backbone_merged_config) == 0:
+            backbone_merged_config = None
 
         merged_config = {**loaded_config}
         if config is not None:
             merged_config.update(config)
+        if len(merged_config) == 0:
+            merged_config = None
 
         net_backbone = registry.net_factory(
             backbone, input_channels, num_classes, net_param=backbone_param, config=backbone_merged_config, size=size

@@ -1,5 +1,7 @@
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
+from typing import Optional
 
 import torch
 import torch.utils.data
@@ -7,6 +9,7 @@ import webdataset as wds
 from torchvision.io import ImageReadMode
 from torchvision.io import decode_image
 
+from birder.common import fs_ops
 from birder.common.training_utils import reduce_across_processes
 
 
@@ -29,8 +32,17 @@ def make_wds_dataset(
     shuffle: bool,
     samples_names: bool,
     transform: Callable[..., torch.Tensor],
+    *,
+    cache_dir: Optional[str] = None,
 ) -> torch.utils.data.IterableDataset:
-    dataset = wds.WebDataset(wds_path, shardshuffle=shuffle, nodesplitter=wds.split_by_node, empty_check=False)
+    if shuffle is True:
+        shardshuffle = 100
+    else:
+        shardshuffle = False
+
+    dataset = wds.WebDataset(
+        wds_path, shardshuffle=shardshuffle, nodesplitter=wds.split_by_node, cache_dir=cache_dir, empty_check=False
+    )
     if shuffle is True:
         dataset = dataset.shuffle(1000, initial=100)
 
@@ -38,7 +50,7 @@ def make_wds_dataset(
     if samples_names is True:
         return_keys = ["__url__", "__key__"] + return_keys
 
-    dataset = dataset.with_length(dataset_size).decode("pil").to_tuple(*return_keys)
+    dataset = dataset.with_length(dataset_size, silent=True).decode("pil").to_tuple(*return_keys)
     # dataset = dataset.with_length(dataset_size).decode(wds_image_decoder).to_tuple(*return_keys)
 
     if samples_names is True:
@@ -65,3 +77,28 @@ def wds_size(wds_path: str, device: torch.device) -> int:
     size = reduce_across_processes(size, device)  # type: ignore
 
     return size
+
+
+def prepare_wds_args(data_path: str, size: Optional[int], device: torch.device) -> tuple[str, int]:
+    if "://" not in data_path:
+        if ".." not in data_path:
+            # Local path without braces, build brace argument
+            (wds_path, _) = fs_ops.wds_braces_from_path(Path(data_path))
+
+        else:
+            wds_path = data_path
+
+        if size is None:
+            # If size not provided, we scan all tar files
+            dataset_size = wds_size(wds_path, device)
+        else:
+            dataset_size = size
+
+    else:
+        # Remote path, we take the string as-is
+        # Dataset size and must be provided
+        assert size is not None
+        wds_path = data_path
+        dataset_size = size
+
+    return (wds_path, dataset_size)

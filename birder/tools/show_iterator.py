@@ -6,6 +6,7 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 import torchvision.transforms.v2.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
@@ -16,7 +17,7 @@ from birder.common import fs_ops
 from birder.conf import settings
 from birder.dataloader.webdataset import make_wds_loader
 from birder.datasets.webdataset import make_wds_dataset
-from birder.datasets.webdataset import wds_size
+from birder.datasets.webdataset import prepare_wds_args
 from birder.transforms.classification import get_mixup_cutmix
 from birder.transforms.classification import get_rgb_stats
 from birder.transforms.classification import inference_preset
@@ -38,14 +39,7 @@ def show_iterator(args: argparse.Namespace) -> None:
 
     batch_size = 8
     if args.wds is True:
-        (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.data_path))
-        if args.wds_size is not None:
-            dataset_size = args.wds_size
-
-        else:
-            dataset_size = wds_size(wds_path, 1)
-            logger.info(f"WDS dataset size is {dataset_size:,}")
-
+        (wds_path, dataset_size) = prepare_wds_args(args.data_path, args.wds_size, torch.device("cpu"))
         dataset = make_wds_dataset(
             wds_path,
             dataset_size=dataset_size,

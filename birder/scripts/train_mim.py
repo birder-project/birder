@@ -30,7 +30,7 @@ from birder.conf import settings
 from birder.dataloader.webdataset import make_wds_loader
 from birder.datasets.directory import make_image_dataset
 from birder.datasets.webdataset import make_wds_dataset
-from birder.datasets.webdataset import wds_size
+from birder.datasets.webdataset import prepare_wds_args
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import PreTrainEncoder
@@ -74,18 +74,14 @@ def train(args: argparse.Namespace) -> None:
 
     rgb_stats = get_rgb_stats(args.rgb_mode)
     if args.wds is True:
-        (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.data_path[0]))
-        if args.wds_train_size is not None:
-            dataset_size = args.wds_train_size
-        else:
-            dataset_size = wds_size(wds_path, device)
-
+        (wds_path, dataset_size) = prepare_wds_args(args.data_path, args.wds_train_size, device)
         training_dataset = make_wds_dataset(
             wds_path,
             dataset_size=dataset_size,
             shuffle=True,
             samples_names=False,
             transform=training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale),
+            cache_dir=args.wds_cache_dir,
         )
         input_idx = 0
 
@@ -276,7 +272,7 @@ def train(args: argparse.Namespace) -> None:
             collate_fn=None,
             world_size=args.world_size,
             pin_memory=True,
-            partial=False,
+            drop_last=True,
         )
 
     else:
@@ -639,6 +635,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--data-path", nargs="+", help="training directories paths (directories and files)")
     parser.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
+    parser.add_argument("--wds-cache-dir", type=str, help="webdataset cache directory")
     parser.add_argument("--wds-train-size", type=int, metavar="N", help="size of the wds training set")
 
     return parser
@@ -681,7 +678,11 @@ def main() -> None:
 
     if settings.MODELS_DIR.exists() is False:
         logger.info(f"Creating {settings.MODELS_DIR} directory...")
-        settings.MODELS_DIR.mkdir(parents=True)
+        settings.MODELS_DIR.mkdir(parents=True, exist_ok=True)
+
+    if args.wds_cache_dir is not None and Path(args.wds_cache_dir).exists() is False:
+        logger.info(f"Creating {args.wds_cache_dir} directory...")
+        Path(args.wds_cache_dir).mkdir(parents=True, exist_ok=True)
 
     train(args)
 

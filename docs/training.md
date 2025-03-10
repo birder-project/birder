@@ -826,7 +826,13 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v1_b5 --lr 0.5 --lr-
 #### EfficientNet v2: Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 64 --epochs 300 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --amp --compile --stop-epoch 150
+torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 256 --epochs 300 --size 256 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --amp --compile --stop-epoch 100
+```
+
+At epoch 100 increase resolution
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 96 --epochs 300 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 100 --load-states --stop-epoch 150
 ```
 
 At epoch 150 increase resolution

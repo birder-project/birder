@@ -39,7 +39,7 @@ from birder.common.lib import get_network_name
 from birder.conf import settings
 from birder.dataloader.webdataset import make_wds_loader
 from birder.datasets.webdataset import make_wds_dataset
-from birder.datasets.webdataset import wds_size
+from birder.datasets.webdataset import prepare_wds_args
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import get_signature
@@ -96,34 +96,25 @@ def train(args: argparse.Namespace) -> None:
         logger.debug(f"Using size={args.size}")
 
     if args.wds is True:
-        (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.data_path))
-        if args.wds_train_size is not None:
-            dataset_size = args.wds_train_size
-        else:
-            dataset_size = wds_size(wds_path, device)
-
+        (wds_path, dataset_size) = prepare_wds_args(args.data_path, args.wds_train_size, device)
         training_dataset = make_wds_dataset(
             wds_path,
             dataset_size=dataset_size,
             shuffle=True,
             samples_names=False,
             transform=training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale),
+            cache_dir=args.wds_cache_dir,
         )
-        (wds_path, _) = fs_ops.wds_braces_from_path(Path(args.val_path))
-        if args.wds_val_size is not None:
-            dataset_size = args.wds_val_size
-        else:
-            dataset_size = wds_size(wds_path, device)
 
+        (wds_path, dataset_size) = prepare_wds_args(args.val_path, args.wds_val_size, device)
         validation_dataset = make_wds_dataset(
             wds_path,
             dataset_size=dataset_size,
             shuffle=False,
             samples_names=False,
             transform=inference_preset(args.size, rgb_stats, 1.0),
+            cache_dir=args.wds_cache_dir,
         )
-        if args.wds_class_file is None:
-            args.wds_class_file = str(Path(args.data_path).joinpath(settings.CLASS_LIST_NAME))
 
         ds_class_to_idx = fs_ops.read_class_file(args.wds_class_file)
         assert class_to_idx == ds_class_to_idx
@@ -304,7 +295,7 @@ def train(args: argparse.Namespace) -> None:
     training_metrics = torchmetrics.MetricCollection(
         {
             "accuracy": torchmetrics.Accuracy("multiclass", num_classes=num_outputs),
-            f"top_{settings.TOP_K}": torchmetrics.Accuracy("multiclass", num_classes=num_outputs, top_k=settings.TOP_K),
+            # f"top_{settings.TOP_K}": torchmetrics.Accuracy("multiclass", num_classes=num_outputs, top_k=TOP_K),
             # "precision": torchmetrics.Precision("multiclass", num_classes=num_outputs, average="macro"),
             # "f1_score": torchmetrics.F1Score("multiclass", num_classes=num_outputs, average="macro"),
         },
@@ -367,7 +358,7 @@ def train(args: argparse.Namespace) -> None:
             collate_fn=collate_fn,
             world_size=args.world_size,
             pin_memory=True,
-            partial=not args.drop_last,
+            drop_last=args.drop_last,
         )
 
         validation_loader = make_wds_loader(
@@ -888,6 +879,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
     parser.add_argument("--wds-class-file", type=str, metavar="FILE", help="class list file")
+    parser.add_argument("--wds-cache-dir", type=str, help="webdataset cache directory")
     parser.add_argument("--wds-train-size", type=int, metavar="N", help="size of the wds training set")
     parser.add_argument("--wds-val-size", type=int, metavar="N", help="size of the wds validation set")
 
@@ -907,6 +899,7 @@ def validate_args(args: argparse.Namespace) -> None:
         args.load_scheduler is False or args.resume_epoch is not None
     ), "Load scheduler must be from resumed training (--resume-epoch)"
     assert args.wds is False or args.ra_sampler is False, "Repeated Augmentation not currently supported with wds"
+    assert args.wds is False or args.wds_class_file is not None, "Must set a class file"
     assert (
         registry.exists(args.teacher, task=Task.IMAGE_CLASSIFICATION) is True
     ), "Unknown teacher network, see list-models tool for available options"
@@ -935,7 +928,11 @@ def main() -> None:
 
     if settings.MODELS_DIR.exists() is False:
         logger.info(f"Creating {settings.MODELS_DIR} directory...")
-        settings.MODELS_DIR.mkdir(parents=True)
+        settings.MODELS_DIR.mkdir(parents=True, exist_ok=True)
+
+    if args.wds_cache_dir is not None and Path(args.wds_cache_dir).exists() is False:
+        logger.info(f"Creating {args.wds_cache_dir} directory...")
+        Path(args.wds_cache_dir).mkdir(parents=True, exist_ok=True)
 
     train(args)
 

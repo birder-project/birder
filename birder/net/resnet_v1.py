@@ -228,3 +228,22 @@ registry.register_alias(
     ResNet_v1,
     config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 30, 48, 8]},
 )
+
+registry.register_weights(
+    "resnet_v1_50_arabian-peninsula",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/resnet_v1_50_arabian-peninsula/"
+            "resolve/main/resnet_v1_50_arabian-peninsula.pt"
+        ),
+        "description": "ResNet v1 50 model trained on the arabian-peninsula dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 95.8,
+                "sha256": "fce0e7cd0d41ef546c3111801d1eeb8b821fabac88a6edc799144cf2637f9fd2",
+            }
+        },
+        "net": {"network": "resnet_v1_50", "tag": "arabian-peninsula"},
+    },
+)
