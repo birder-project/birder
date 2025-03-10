@@ -278,6 +278,8 @@ def train(args: argparse.Namespace) -> None:
             else:
                 model_ema.module.load_state_dict(training_states.ema_model_state)
 
+            model_ema.n_averaged += 1  # pylint:disable=no-member
+
         model_to_save = model_ema.module  # Save EMA model weights as default weights
         eval_model = model_ema  # Use EMA for evaluation
 
