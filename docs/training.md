@@ -14,21 +14,6 @@ It's best to avoid cutmix on compact models - <https://arxiv.org/abs/2404.11202v
 
 Most networks train more effectively with growing resolution and augmentation as described at - <https://arxiv.org/abs/2104.00298>
 
-Intermediate training on weakly supervised dataset:
-
-- Run without EMA (Exponential Moving Average)
-- Use higher weight decay
-- Maintain the same learning rate and number of epochs
-- Use the same augmentations
-- Use the lowest resolution for the model (usually 256x256)
-
-On fine-tuning phase
-
-- Run only the last training phase (highest resolution)
-- Limit to at most 30% of the total epochs
-- Apply a small layer-decay (0.98 - 0.99)
-- Consider using a slightly lower learning rate
-
 ## Network Specific Training Procedures
 
 - [AlexNet](#alexnet)

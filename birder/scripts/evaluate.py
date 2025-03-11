@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 def evaluate(args: argparse.Namespace) -> None:
     if args.gpu is True:
         device = torch.device("cuda")
+    elif args.mps is True:
+        device = torch.device("mps")
     else:
         device = torch.device("cpu")
 
@@ -94,6 +96,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
     parser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use")
+    parser.add_argument("--mps", default=False, action="store_true", help="use mps (Metal Performance Shaders) device")
     parser.add_argument("data_path", nargs="+", help="data files path (directories and files)")
 
     return parser

@@ -29,6 +29,9 @@ Issues = "https://gitlab.com/birder/birder/-/issues"
 birder-predict = "birder.scripts.predict:main"
 birder-predict_detection = "birder.scripts.predict_detection:main"
 
+# [project.optional-dependencies]
+# hf = ["huggingface_hub", "transformers"]
+
 [build-system]
 requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"

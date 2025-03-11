@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 from typing import NamedTuple
 from typing import Optional
+from urllib.request import Request
+from urllib.request import urlopen
 
 import torch
 import torch.amp
@@ -36,6 +38,11 @@ except ImportError:
     _HAS_SAFETENSORS = False
 
 logger = logging.getLogger(__name__)
+
+
+def read_url(url: str | Request) -> Any:
+    with urlopen(url) as r:
+        return r.read().decode(r.headers.get_content_charset("utf-8"))
 
 
 def write_signature(network_name: str, signature: SignatureType | DetectionSignatureType) -> None:
@@ -82,12 +89,12 @@ def read_config_from_path(path: str | Path) -> dict[str, Any]:
 
 
 def read_class_file(path: str | Path) -> dict[str, int]:
-    if Path(path).exists() is False:
-        logger.warning(f"Class file '{path}' not found... class_to_idx returns empty")
-        return {}
+    if isinstance(path, str) and "://" in path:
+        class_list = read_url(path)
 
-    with open(path, "r", encoding="utf-8") as handle:
-        class_list = handle.read().splitlines()
+    else:
+        with open(path, "r", encoding="utf-8") as handle:
+            class_list = handle.read().splitlines()
 
     class_to_idx = {k: v for v, k in enumerate(class_list)}
 
@@ -556,6 +563,7 @@ def load_model(
         custom_config = None
     else:
         custom_config = loaded_config
+        logger.debug(f"Model loaded with custom config: {custom_config}")
 
     return (net, ModelInfo(class_to_idx, signature, rgb_stats, custom_config))
 
@@ -730,11 +738,13 @@ def load_detection_model(
         backbone_custom_config = None
     else:
         backbone_custom_config = backbone_loaded_config
+        logger.debug(f"Backbone loaded with custom config: {backbone_custom_config}")
 
     if len(loaded_config) == 0:
         custom_config = None
     else:
         custom_config = loaded_config
+        logger.debug(f"Model loaded with custom config: {custom_config}")
 
     return (net, DetectionModelInfo(class_to_idx, signature, rgb_stats, custom_config, backbone_custom_config))
 
