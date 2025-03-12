@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 
 def read_url(url: str | Request) -> Any:
-    with urlopen(url) as r:
+    with urlopen(url) as r:  # nosec # allowing all schemas (including file:)
         return r.read().decode(r.headers.get_content_charset("utf-8"))
 
 
@@ -91,7 +91,6 @@ def read_config_from_path(path: str | Path) -> dict[str, Any]:
 def read_class_file(path: str | Path) -> dict[str, int]:
     if isinstance(path, str) and "://" in path:
         class_list = read_url(path)
-
     else:
         with open(path, "r", encoding="utf-8") as handle:
             class_list = handle.read().splitlines()
@@ -99,6 +98,16 @@ def read_class_file(path: str | Path) -> dict[str, int]:
     class_to_idx = {k: v for v, k in enumerate(class_list)}
 
     return class_to_idx
+
+
+def read_wds_info(path: str | Path) -> dict[str, Any]:
+    if isinstance(path, str) and "://" in path:
+        info: dict[str, Any] = json.loads(read_url(path))
+    else:
+        with open(path, "r", encoding="utf-8") as handle:
+            info = json.load(handle)
+
+    return info
 
 
 def model_path(
@@ -1046,8 +1055,8 @@ def samples_from_paths(data_paths: list[str], class_to_idx: dict[str, int]) -> l
     return sorted(samples)
 
 
-def wds_braces_from_path(wds_directory: Path) -> tuple[str, int]:
-    shard_names = sorted([f.stem for f in wds_directory.glob("*.tar")])
+def wds_braces_from_path(wds_directory: Path, prefix: str = "") -> tuple[str, int]:
+    shard_names = sorted([f.stem for f in wds_directory.glob(f"{prefix}*.tar")])
     shard_name = shard_names[0]
     idx = len(shard_name)
     for c in shard_name[::-1]:

@@ -342,3 +342,21 @@ registry.register_weights(
         "net": {"network": "efficientnet_v2_s", "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "efficientnet_v2_s_arabian-peninsula",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/efficientnet_v2_s_arabian-peninsula/"
+            "resolve/main/efficientnet_v2_s_arabian-peninsula.pt"
+        ),
+        "description": "EfficientNet v2 small model trained on the arabian-peninsula dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 81.5,
+                "sha256": "ad708a255d2e0fbcacc907d0b42a3881180a4e0a9b238dec409985b502dac62d",
+            }
+        },
+        "net": {"network": "efficientnet_v2_s", "tag": "arabian-peninsula"},
+    },
+)

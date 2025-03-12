@@ -33,5 +33,5 @@ torchrun --nproc_per_node=2 train_kd.py --type deit --teacher regnet_y_8g --teac
 Optional intermediate training
 
 ```sh
-torchrun --nproc_per_node=2 train_kd.py --type soft --temperature 1 --teacher vit_l16 --teacher-tag intermediate --teacher-epoch 0 --network tiny_vit_5m --student-tag dist --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 5 --epochs 90 --size 256 --wd 0.01 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --aug-level 4 --clip-grad-norm 5 --amp --compile --wds --wds-class-file data/training_packed/classes.txt --data-path data/training_packed --val-path data/validation_packed
+torchrun --nproc_per_node=2 train_kd.py --type soft --temperature 1 --teacher vit_l16 --teacher-tag intermediate --teacher-epoch 0 --network tiny_vit_5m --student-tag dist --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 5 --epochs 90 --size 256 --wd 0.01 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --aug-level 4 --clip-grad-norm 5 --amp --compile --wds --wds-class-file data/intermediate/classes.txt --wds-info-file data/intermediate/_info.json
 ```

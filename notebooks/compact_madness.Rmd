@@ -47,8 +47,8 @@ from birder.tools.model_info import get_model_info
 ```
 
 ```{python}
-PATTERN = "il-common"
-RESULTS_PATH = "il-common"
+PATTERN = "arabian-peninsula"
+RESULTS_PATH = "arabian-peninsula"
 ```
 
 ## Helper Functions

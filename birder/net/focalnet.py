@@ -600,3 +600,24 @@ registry.register_alias(
         "drop_path_rate": 0.3,
     },
 )
+
+registry.register_weights(
+    "focalnet_b_lrf_intermediate-arabian-peninsula",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/focalnet_b_lrf_intermediate-arabian-peninsula/"
+            "resolve/main/focalnet_b_lrf_intermediate-arabian-peninsula.pt"
+        ),
+        "description": (
+            "FocalNet Base (LRF) model with intermediate training, " "then fine-tuned on the arabian-peninsula dataset"
+        ),
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 337.7,
+                "sha256": "9a225c0a58cb4114ada7ea20c9410a4dea116670335cc0eabaa8448f8e9247ab",
+            },
+        },
+        "net": {"network": "focalnet_b_lrf", "tag": "intermediate-arabian-peninsula"},
+    },
+)

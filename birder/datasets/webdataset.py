@@ -1,3 +1,4 @@
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -27,7 +28,7 @@ def wds_image_decoder(key: str, data: bytes) -> torch.Tensor:
 
 
 def make_wds_dataset(
-    wds_path: str,
+    wds_path: str | list[str],
     dataset_size: int,
     shuffle: bool,
     samples_names: bool,
@@ -102,3 +103,15 @@ def prepare_wds_args(data_path: str, size: Optional[int], device: torch.device) 
         dataset_size = size
 
     return (wds_path, dataset_size)
+
+
+def wds_args_from_info(info_path: str, split: str) -> tuple[list[str], int]:
+    info = fs_ops.read_wds_info(info_path)
+    root = Path(info_path).parent
+
+    size = info["splits"][split]["num_samples"]
+    filenames = info["splits"][split]["filenames"]
+
+    filenames = [os.path.join(root, f) for f in filenames]
+
+    return (filenames, size)

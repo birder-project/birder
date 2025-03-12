@@ -232,6 +232,7 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
 
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
+        torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim

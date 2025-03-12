@@ -31,6 +31,7 @@ from birder.conf import settings
 from birder.dataloader.webdataset import make_wds_loader
 from birder.datasets.webdataset import make_wds_dataset
 from birder.datasets.webdataset import prepare_wds_args
+from birder.datasets.webdataset import wds_args_from_info
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import get_signature
@@ -68,41 +69,44 @@ def train(args: argparse.Namespace) -> None:
         torch.backends.cudnn.benchmark = True
 
     rgb_stats = get_rgb_stats(args.rgb_mode)
+    training_transform = training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale)
+    val_transform = inference_preset(args.size, rgb_stats, 1.0)
     if args.wds is True:
-        (wds_path, dataset_size) = prepare_wds_args(args.data_path, args.wds_train_size, device)
+        training_wds_path: str | list[str]
+        val_wds_path: str | list[str]
+        if args.wds_info_file is not None:
+            (training_wds_path, training_size) = wds_args_from_info(args.wds_info_file, args.wds_training_split)
+            (val_wds_path, val_size) = wds_args_from_info(args.wds_info_file, args.wds_val_split)
+            if args.wds_train_size is not None:
+                training_size = args.wds_train_size
+            if args.wds_val_size is not None:
+                val_size = args.wds_val_size
+        else:
+            (training_wds_path, training_size) = prepare_wds_args(args.data_path, args.wds_train_size, device)
+            (val_wds_path, val_size) = prepare_wds_args(args.val_path, args.wds_val_size, device)
+
         training_dataset = make_wds_dataset(
-            wds_path,
-            dataset_size=dataset_size,
+            training_wds_path,
+            dataset_size=training_size,
             shuffle=True,
             samples_names=False,
-            transform=training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale),
+            transform=training_transform,
             cache_dir=args.wds_cache_dir,
         )
-
-        (wds_path, dataset_size) = prepare_wds_args(args.val_path, args.wds_val_size, device)
         validation_dataset = make_wds_dataset(
-            wds_path,
-            dataset_size=dataset_size,
+            val_wds_path,
+            dataset_size=val_size,
             shuffle=False,
             samples_names=False,
-            transform=inference_preset(args.size, rgb_stats, 1.0),
+            transform=val_transform,
             cache_dir=args.wds_cache_dir,
         )
 
         class_to_idx = fs_ops.read_class_file(args.wds_class_file)
 
     else:
-        training_dataset = ImageFolder(
-            args.data_path,
-            transform=training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale),
-            loader=decode_image,
-        )
-        validation_dataset = ImageFolder(
-            args.val_path,
-            transform=inference_preset(args.size, rgb_stats, 1.0),
-            loader=decode_image,
-            allow_empty=True,
-        )
+        training_dataset = ImageFolder(args.data_path, transform=training_transform, loader=decode_image)
+        validation_dataset = ImageFolder(args.val_path, transform=val_transform, loader=decode_image, allow_empty=True)
         assert training_dataset.class_to_idx == validation_dataset.class_to_idx
         class_to_idx = training_dataset.class_to_idx
 
@@ -644,6 +648,12 @@ def get_args_parser() -> argparse.ArgumentParser:
             "torchrun --nproc_per_node=2 train.py --network squeezenext --net-param 2 --lr 0.1 --lr-scheduler step "
             "--lr-step-size 20 --lr-step-gamma 0.75 --batch-size 128 --smoothing-alpha 0.1 --mixup-alpha 0.2 "
             "--aug-level 3 --gpu 1\n"
+            "python -m birder.scripts.train --network mvit_v2_t --opt adamw --lr 0.002 --lr-scheduler cosine "
+            "--lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 70 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 "
+            "--smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 "
+            "--amp --compile --wds "
+            "--wds-class-file https://huggingface.co/datasets/birder-project/CUB_200_2011-WDS/resolve/main/classes.txt "
+            "--wds-info-file https://huggingface.co/datasets/birder-project/CUB_200_2011-WDS/resolve/main/_info.json\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -875,10 +885,17 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--data-path", type=str, default=str(settings.TRAINING_DATA_PATH), help="training directory path"
     )
     parser.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
+    parser.add_argument("--wds-info-file", type=str, metavar="FILE", help="wds info file")
     parser.add_argument("--wds-class-file", type=str, metavar="FILE", help="class list file")
     parser.add_argument("--wds-cache-dir", type=str, help="webdataset cache directory")
     parser.add_argument("--wds-train-size", type=int, metavar="N", help="size of the wds training set")
     parser.add_argument("--wds-val-size", type=int, metavar="N", help="size of the wds validation set")
+    parser.add_argument(
+        "--wds-training-split", type=str, default="training", metavar="NAME", help="wds dataset train split"
+    )
+    parser.add_argument(
+        "--wds-val-split", type=str, default="validation", metavar="NAME", help="wds dataset validation split"
+    )
 
     return parser
 

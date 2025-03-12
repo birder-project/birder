@@ -21,7 +21,7 @@ For known classes, log unknown when it's a mistake. Also log when the top probab
 
 ```{python}
 AMP = True
-SIZE = 448
+SIZE = None
 BATCH_SIZE = 32
 PATHS = ["data/raw_data"]
 TOP_PROB = 0.2
@@ -50,7 +50,7 @@ torch.set_float32_matmul_precision("high")
 ```{python}
 device = torch.device("cuda:1")
 (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
-    device, "convnext_v2_tiny", tag="raw384px", epoch=0, inference=True
+    device, "focalnet_b_lrf", tag="raw384px", epoch=0, inference=True
 )
 ```
 

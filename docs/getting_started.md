@@ -69,7 +69,7 @@ Get started with Birder by classifying a single image, visualizing the results a
 
 1. **Download a Pre-trained Model**
 
-        python -m birder.tools fetch-model efficientnet_v2_s_il-common
+        python -m birder.tools fetch-model mvit_v2_t_il-all
 
 1. **Download a Sample Image**
 
@@ -80,13 +80,13 @@ Get started with Birder by classifying a single image, visualizing the results a
 
 1. **Classify the Image**
 
-        birder-predict -n efficientnet_v2_s -t il-common --show data/img_001.jpeg
+        birder-predict -n mvit_v2_t -t il-all --show data/img_001.jpeg
 
 1. **Explore Model Decision-Making with Introspection**
 
     To gain insight into the model's decision-making process, we'll use Guided Backpropagation [^1], a technique that visualizes the input features most influential to the classification:
 
-        python -m birder.tools introspection --method guided-backprop --network efficientnet_v2_s -t il-common data/img_001.jpeg
+        python -m birder.tools introspection --method guided-backprop --network mvit_v2_t -t il-all data/img_001.jpeg
 
     This command generates a saliency map highlighting the pixels in the input image that most significantly influenced the model's classification decision.
 
@@ -101,7 +101,7 @@ import birder
 from birder.inference.classification import infer_image
 
 # Load a pre-trained model
-(net, model_info) = birder.load_pretrained_model("efficientnet_v2_s_il-common", inference=True)
+(net, model_info) = birder.load_pretrained_model("mvit_v2_t_il-all", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -122,5 +122,5 @@ By default the model will be downloaded into `$TORCH_HOME` and not into the stan
 import torch
 
 # Load a model using Torch Hub
-net = torch.hub.load("birder-project/birder", "efficientnet_v2_s_il_common")
+net = torch.hub.load("birder-project/birder", "mvit_v2_t_il-all")
 ```

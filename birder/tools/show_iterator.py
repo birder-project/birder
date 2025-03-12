@@ -18,6 +18,7 @@ from birder.conf import settings
 from birder.dataloader.webdataset import make_wds_loader
 from birder.datasets.webdataset import make_wds_dataset
 from birder.datasets.webdataset import prepare_wds_args
+from birder.datasets.webdataset import wds_args_from_info
 from birder.transforms.classification import get_mixup_cutmix
 from birder.transforms.classification import get_rgb_stats
 from birder.transforms.classification import inference_preset
@@ -39,7 +40,14 @@ def show_iterator(args: argparse.Namespace) -> None:
 
     batch_size = 8
     if args.wds is True:
-        (wds_path, dataset_size) = prepare_wds_args(args.data_path, args.wds_size, torch.device("cpu"))
+        wds_path: str | list[str]
+        if args.wds_info_file is not None:
+            (wds_path, dataset_size) = wds_args_from_info(args.wds_info_file, args.wds_split)
+            if args.wds_size is not None:
+                dataset_size = args.wds_size
+        else:
+            (wds_path, dataset_size) = prepare_wds_args(args.data_path, args.wds_size, torch.device("cpu"))
+
         dataset = make_wds_dataset(
             wds_path,
             dataset_size=dataset_size,
@@ -179,8 +187,12 @@ def set_parser(subparsers: Any) -> None:
         "--data-path", type=str, default=str(settings.TRAINING_DATA_PATH), help="image directory path"
     )
     subparser.add_argument("--wds", default=False, action="store_true", help="use webdataset")
+    subparser.add_argument("--wds-info-file", type=str, metavar="FILE", help="wds info file")
     subparser.add_argument("--wds-class-file", type=str, metavar="FILE", help="class list file")
     subparser.add_argument("--wds-size", type=int, metavar="N", help="size of the wds directory")
+    subparser.add_argument(
+        "--wds-split", type=str, default="training", metavar="NAME", help="wds dataset split to load"
+    )
     subparser.set_defaults(func=main)
 
 

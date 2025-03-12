@@ -46,6 +46,7 @@ from birder.dataloader.webdataset import make_wds_loader
 from birder.datasets.directory import make_image_dataset
 from birder.datasets.webdataset import make_wds_dataset
 from birder.datasets.webdataset import prepare_wds_args
+from birder.datasets.webdataset import wds_args_from_info
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import get_signature
@@ -139,21 +140,24 @@ def train(args: argparse.Namespace) -> None:
         torch.backends.cudnn.benchmark = True
 
     rgb_stats = get_rgb_stats(args.rgb_mode)
+    training_transform = TrainTransform(
+        args.size, args.local_crop_size, args.aug_level, rgb_stats, args.local_crops_number, args.resize_min_scale
+    )
     if args.wds is True:
-        (wds_path, dataset_size) = prepare_wds_args(args.data_path, args.wds_train_size, device)
+        wds_path: str | list[str]
+        if args.wds_info_file is not None:
+            (wds_path, dataset_size) = wds_args_from_info(args.wds_info_file, args.wds_split)
+            if args.wds_train_size is not None:
+                dataset_size = args.wds_train_size
+        else:
+            (wds_path, dataset_size) = prepare_wds_args(args.data_path[0], args.wds_train_size, device)
+
         training_dataset = make_wds_dataset(
             wds_path,
             dataset_size=dataset_size,
             shuffle=True,
             samples_names=True,
-            transform=TrainTransform(
-                args.size,
-                args.local_crop_size,
-                args.aug_level,
-                rgb_stats,
-                args.local_crops_number,
-                args.resize_min_scale,
-            ),
+            transform=training_transform,
             cache_dir=args.wds_cache_dir,
         )
 
@@ -161,14 +165,7 @@ def train(args: argparse.Namespace) -> None:
         training_dataset = make_image_dataset(
             args.data_path,
             {},
-            transforms=TrainTransform(
-                args.size,
-                args.local_crop_size,
-                args.aug_level,
-                rgb_stats,
-                args.local_crops_number,
-                args.resize_min_scale,
-            ),
+            transforms=training_transform,
             loader=pil_loader if args.img_loader == "pil" else _tv_loader,
         )
 
@@ -593,11 +590,15 @@ def get_args_parser() -> argparse.ArgumentParser:
         description="Pre-train model",
         epilog=(
             "Usage examples:\n"
-            "torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network efficientnet_v2_s "
-            "--use-bn-in-head --norm-last-layer --local-crops-number 6 --teacher-temp 0.07 --opt lars "
-            "--lr 0.3 --lr-scheduler cosine --lr-cosine-min 0.001 --epochs 800 --warmup-epochs 10 "
-            "--batch-size 128 --wd 0.000001 --norm-wd 0 --bias-weight-decay 0 --amp --compile "
-            "--data-path data/training data/raw_data data/detection_data/training ~/Datasets\n"
+            "torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network xcit_small12_p16 "
+            "--local-crops-number 10 --teacher-temp 0.07 --opt adamw --lr 0.00025 --lr-scheduler cosine "
+            "--lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 10 --batch-size 96 --wd 0.04 --norm-wd 0 "
+            "--bias-weight-decay 0 --wd-end 0.4 --amp --compile --data-path data/training\n"
+            "torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network efficientnet_v2_s --use-bn-in-head "
+            "--norm-last-layer --local-crops-number 6 --teacher-temp 0.07 --opt lars --lr 0.3 --lr-scheduler cosine "
+            "--lr-cosine-min 0.001 --epochs 800 --warmup-epochs 10 --batch-size 128 --wd 0.000001 --norm-wd 0 "
+            "--bias-weight-decay 0 --amp --compile --wds --wds-class-file data/intermediate/classes.txt "
+            "--wds-info-file data/intermediate/_info.json\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -813,10 +814,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--plot-lr", default=False, action="store_true", help="plot learning rate and exit (skip training)"
     )
-    parser.add_argument("--data-path", nargs="+", help="training directories paths (directories and files)")
+    parser.add_argument("--data-path", nargs="*", help="training directories paths (directories and files)")
     parser.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
+    parser.add_argument("--wds-info-file", type=str, metavar="FILE", help="wds info file")
     parser.add_argument("--wds-cache-dir", type=str, help="webdataset cache directory")
     parser.add_argument("--wds-train-size", type=int, metavar="N", help="size of the wds training set")
+    parser.add_argument("--wds-split", type=str, default="training", metavar="NAME", help="wds dataset split to load")
 
     return parser
 
@@ -830,7 +833,8 @@ def validate_args(args: argparse.Namespace) -> None:
     assert (
         args.load_scheduler is False or args.resume_epoch is not None
     ), "Load scheduler must be from resumed training (--resume-epoch)"
-    assert args.wds is False or len(args.data_path) == 1, "WDS must be a single directory"
+    assert args.wds is True or len(args.data_path) >= 1
+    assert args.wds is False or len(args.data_path) <= 1
     assert (
         registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION) is True
     ), "Unknown network, see list-models tool for available options"

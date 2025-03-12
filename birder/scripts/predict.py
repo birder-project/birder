@@ -19,6 +19,7 @@ from birder.dataloader.webdataset import make_wds_loader
 from birder.datasets.directory import make_image_dataset
 from birder.datasets.webdataset import make_wds_dataset
 from birder.datasets.webdataset import prepare_wds_args
+from birder.datasets.webdataset import wds_args_from_info
 from birder.inference.classification import infer_dataloader_iter
 from birder.results.classification import Results
 from birder.results.gui import show_top_k
@@ -158,7 +159,14 @@ def predict(args: argparse.Namespace) -> None:
     batch_size = args.batch_size
     inference_transform = inference_preset(args.size, rgb_stats, args.center_crop)
     if args.wds is True:
-        (wds_path, dataset_size) = prepare_wds_args(args.data_path, args.wds_size, device)
+        wds_path: str | list[str]
+        if args.wds_info_file is not None:
+            (wds_path, dataset_size) = wds_args_from_info(args.wds_info_file, args.wds_split)
+            if args.wds_size is not None:
+                dataset_size = args.wds_size
+        else:
+            (wds_path, dataset_size) = prepare_wds_args(args.data_path, args.wds_size, device)
+
         num_samples = dataset_size
         dataset = make_wds_dataset(
             wds_path,
@@ -360,7 +368,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--parallel", default=False, action="store_true", help="use multiple gpu's")
     parser.add_argument("--wds", default=False, action="store_true", help="predict a webdataset directory")
     parser.add_argument("--wds-size", type=int, metavar="N", help="size of the wds dataset")
-    parser.add_argument("data_path", nargs="+", help="data files path (directories and files)")
+    parser.add_argument("--wds-info-file", type=str, metavar="FILE", help="wds info file")
+    parser.add_argument("--wds-split", type=str, default="validation", metavar="NAME", help="wds dataset split to load")
+    parser.add_argument("data_path", nargs="*", help="data files path (directories and files)")
 
     return parser
 
@@ -373,7 +383,8 @@ def validate_args(args: argparse.Namespace) -> None:
     assert args.save_embedding is False or args.tta is False
     assert args.parallel is False or args.compile is False
     assert args.amp is False or args.model_dtype == "float32"
-    assert args.wds is False or len(args.data_path) == 1
+    assert args.wds is True or len(args.data_path) >= 1
+    assert args.wds is False or len(args.data_path) <= 1
     assert args.wds is False or (
         args.show is False and args.show_mistakes is False and args.show_out_of_k is False and args.show_class is None
     )

@@ -31,6 +31,7 @@ def make_wds_loader(
         pin_memory=pin_memory,
         drop_last=drop_last,
     )
+    dataloader.batch_size = batch_size
     if drop_last is True:
         epoch_size = math.floor(len(dataset) / (batch_size * world_size))
     else:

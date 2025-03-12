@@ -1,10 +1,12 @@
 import argparse
+import json
 import logging
 import multiprocessing
 import time
 from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
+from queue import Empty
 from typing import Any
 from typing import Optional
 
@@ -58,7 +60,24 @@ def _save_classes(pack_path: Path, class_to_idx: dict[str, int]) -> None:
         handle.write(doc)
 
 
-def read_worker(q_in: Any, q_out: Any, size: Optional[int], file_format: str) -> None:
+def _encode_image(path: str, file_format: str, size: Optional[int] = None) -> bytes:
+    image: Image.Image = Image.open(path)
+    if size is not None:
+        if image.size[0] > image.size[1]:
+            ratio = image.size[0] / size
+        else:
+            ratio = image.size[1] / size
+
+        width = round(image.size[0] / ratio)
+        height = round(image.size[1] / ratio)
+        image = image.resize((width, height), Image.Resampling.BICUBIC)
+
+    sample_buffer = BytesIO()
+    image.save(sample_buffer, format=file_format, quality=85)
+    return sample_buffer.getvalue()
+
+
+def read_worker(q_in: Any, q_out: Any, _error_queue: Any, size: Optional[int], file_format: str) -> None:
     while True:
         deq: Optional[tuple[int, str, int]] = q_in.get()
         if deq is None:
@@ -67,31 +86,46 @@ def read_worker(q_in: Any, q_out: Any, size: Optional[int], file_format: str) ->
         (idx, path, target) = deq
         if size is None:
             suffix = Path(path).suffix[1:]
-            with open(path, "rb") as stream:
-                sample = stream.read()
+            if file_format != suffix:
+                sample = _encode_image(path, file_format)
+            else:
+                with open(path, "rb") as stream:
+                    sample = stream.read()
 
         else:
-            suffix = file_format
-            image: Image.Image = Image.open(path)
-            if image.size[0] > image.size[1]:
-                ratio = image.size[0] / size
+            sample = _encode_image(path, file_format, size)
 
-            else:
-                ratio = image.size[1] / size
-
-            width = round(image.size[0] / ratio)
-            height = round(image.size[1] / ratio)
-            image = image.resize((width, height), Image.Resampling.BICUBIC)
-            sample_buffer = BytesIO()
-            image.save(sample_buffer, format=suffix, quality=85)
-            sample = sample_buffer.getvalue()
-
-        q_out.put((idx, sample, suffix, target), block=True, timeout=None)
+        q_out.put((idx, sample, file_format, target), block=True, timeout=None)
 
 
-def wds_write_worker(q_out: Any, pack_path: Path, total: int, max_size: float, _: dict[int, str]) -> None:
-    path_pattern = str(pack_path.joinpath("%06d.tar"))
-    sink = wds.ShardWriter(path_pattern, maxsize=max_size, verbose=0)
+def wds_write_worker(
+    q_out: Any, error_queue: Any, pack_path: Path, total: int, args: argparse.Namespace, _: dict[int, str]
+) -> None:
+    try:
+        info_path = pack_path.joinpath("_info.json")
+        if args.append is True:
+            info = fs_ops.read_wds_info(info_path)
+            if args.split in info["splits"]:
+                raise ValueError(f"split {args.split} already exist")
+
+        else:
+            info = None
+    except Exception as e:
+        # Put the error on the error queue so the main process knows something went wrong in this worker
+        error_queue.put(str(e))
+        # Re-raise to terminate this process
+        raise
+
+    filenames: list[str] = []
+    shard_lengths: list[int] = []
+    path_pattern = str(pack_path.joinpath(f"{args.suffix}-{args.split}-%06d.tar"))
+    sink = wds.ShardWriter(path_pattern, maxsize=args.max_size, verbose=0)
+
+    def wds_info(fname: str) -> None:
+        filenames.append(Path(fname).name)
+        shard_lengths.append(sink.count)
+
+    sink.post = wds_info
 
     count = 0
     buf = {}
@@ -123,8 +157,31 @@ def wds_write_worker(q_out: Any, pack_path: Path, total: int, max_size: float, _
                 # Update progress bar
                 progress.update(n=1)
 
+    sink.close()
 
-def directory_write_worker(q_out: Any, pack_path: Path, total: int, _: float, idx_to_class: dict[int, str]) -> None:
+    split_info = {
+        "name": args.split,
+        "filenames": filenames,
+        "shard_lengths": shard_lengths,
+        "num_samples": sum(shard_lengths),
+    }
+
+    if info is None:
+        info = {
+            "name": args.suffix,
+            "splits": {args.split: split_info},
+        }
+    else:
+        info["splits"][args.split] = split_info
+
+    with open(pack_path.joinpath("_info.json"), "w", encoding="utf-8") as handle:
+        logger.debug("Saving _info.json")
+        json.dump(info, handle, indent=2)
+
+
+def directory_write_worker(
+    q_out: Any, _error_queue: Any, pack_path: Path, total: int, _: argparse.Namespace, idx_to_class: dict[int, str]
+) -> None:
     count = 0
     buf = {}
     more = True
@@ -155,6 +212,8 @@ def directory_write_worker(q_out: Any, pack_path: Path, total: int, _: float, id
 def pack(args: argparse.Namespace, pack_path: Path) -> None:
     if args.class_file is not None:
         class_to_idx = fs_ops.read_class_file(args.class_file)
+    elif args.append is True:
+        class_to_idx = fs_ops.read_class_file(pack_path.joinpath("classes.txt"))
     else:
         class_to_idx = _get_class_to_idx(args.data_path)
 
@@ -181,11 +240,14 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
         q_in.append(multiprocessing.Queue(1024))
 
     q_out = multiprocessing.Queue(1024)  # type: ignore
+    error_queue = multiprocessing.Queue()  # type: ignore # For reporting errors from worker processes
 
     read_processes: list[multiprocessing.Process] = []
     for idx in range(args.jobs):
         read_processes.append(
-            multiprocessing.Process(target=read_worker, args=(q_in[idx], q_out, args.size, args.format))
+            multiprocessing.Process(
+                target=read_worker, args=(q_in[idx], q_out, error_queue, args.size, args.format), daemon=True
+            )
         )
 
     for p in read_processes:
@@ -201,12 +263,19 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
         raise ValueError("Unknown pack type")
 
     write_process = multiprocessing.Process(
-        target=target_writer, args=(q_out, pack_path, len(dataset), args.max_size, idx_to_class)
+        target=target_writer, args=(q_out, error_queue, pack_path, len(dataset), args, idx_to_class), daemon=True
     )
     write_process.start()
 
     tic = time.time()
     for idx, sample_idx in enumerate(indices):
+        if idx % 1000 == 0:
+            try:
+                error = error_queue.get_nowait()
+                raise RuntimeError(f"Packing aborted due to: {error}")
+            except Empty:
+                pass
+
         (path, target) = dataset[sample_idx]
         q_in[idx % len(q_in)].put((idx, path, target), block=True, timeout=None)
 
@@ -220,7 +289,7 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
     write_process.join()
 
     if args.type == "wds":
-        (wds_path, num_shards) = fs_ops.wds_braces_from_path(pack_path)
+        (wds_path, num_shards) = fs_ops.wds_braces_from_path(pack_path, prefix=f"{args.suffix}-{args.split}")
         logger.info(f"Packed {len(dataset):,} samples into {num_shards} shards at {wds_path}")
     elif args.type == "directory":
         logger.info(f"Packed {len(dataset):,} samples")
@@ -240,15 +309,17 @@ def set_parser(subparsers: Any) -> None:
         epilog=(
             "Usage examples:\n"
             "python -m birder.tools pack --size 512 data/training\n"
-            "python -m birder.tools pack -j 8 --shuffle --size 384 data/training data/raw_data\n"
-            "python -m birder.tools pack -j 2 --max-size 250 --class-file data/training_packed/classes.txt "
-            "data/validation\n"
-            "python tool.py pack --type directory -j 8 --suffix il-common_packed --size 448 "
+            "python -m birder.tools pack -j 4 --shuffle --max-size 80 --target-path data/cub_200_2011 "
+            "--suffix cub_200_2011 data/CUB_200_2011/training\n"
+            "python -m birder.tools pack -j 4 --max-size 80 --target-path data/cub_200_2011 "
+            "--suffix cub_200_2011 --split validation --append data/CUB_200_2011/validation\n"
+            "python -m birder.tools pack --type directory -j 8 --suffix il-common_packed --size 448 "
             "--format jpeg --class-file data/il-common_classes.txt data/training\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
     subparser.add_argument("--type", type=str, choices=["wds", "directory"], default="wds", help="pack type")
+    subparser.add_argument("--target-path", type=str, help="where to write the packed dataset")
     subparser.add_argument("--max-size", type=int, default=500, help="maximum size of each shard in MB")
     subparser.add_argument(
         "-j",
@@ -259,23 +330,29 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--shuffle", default=False, action="store_true", help="shuffle the dataset during packing")
     subparser.add_argument("--size", type=int, help="resize image longest dimension to size")
-    subparser.add_argument(
-        "--format", type=str, choices=["webp", "png", "jpeg"], default="webp", help="file format (when resizing)"
-    )
+    subparser.add_argument("--format", type=str, choices=["webp", "png", "jpeg"], default="webp", help="file format")
     subparser.add_argument("--class-file", type=str, help="class list file")
     subparser.add_argument("--suffix", type=str, default=settings.PACK_PATH_SUFFIX, help="directory suffix")
+    subparser.add_argument("--split", type=str, default="training", help="dataset split used for _info.json")
+    subparser.add_argument("--append", default=False, action="store_true", help="add split to existing wds")
     subparser.add_argument("data_path", nargs="+", help="image directories")
     subparser.set_defaults(func=main)
 
 
 def main(args: argparse.Namespace) -> None:
+    assert args.append is False or args.type == "wds"
+
     args.max_size = args.max_size * 1e6
-    pack_path = Path(f"{Path(args.data_path[0])}_{args.suffix}")
+    if args.target_path is None:
+        pack_path = Path(f"{Path(args.data_path[0])}_{args.suffix}")
+    else:
+        pack_path = Path(args.target_path)
+
     if pack_path.exists() is False:
         logger.info(f"Creating {pack_path} directory...")
         pack_path.mkdir(parents=True)
 
-    else:
+    elif args.append is False:
         logger.warning("Directory already exists... aborting")
         raise SystemExit(1)
 

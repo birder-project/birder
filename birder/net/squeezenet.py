@@ -59,7 +59,7 @@ class SqueezeNet(BaseNet):
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(0, 0), ceil_mode=True),
         )
-        self.features = nn.Sequential(
+        self.body = nn.Sequential(
             Fire(64, 16, 64),
             Fire(128, 16, 64),
             nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(0, 0), ceil_mode=True),
@@ -82,7 +82,7 @@ class SqueezeNet(BaseNet):
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
-        return self.features(x)
+        return self.body(x)
 
     def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
         if self.num_classes == 0:
