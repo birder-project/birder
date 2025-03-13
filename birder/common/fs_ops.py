@@ -11,6 +11,7 @@ from urllib.request import urlopen
 
 import torch
 import torch.amp
+import webdataset as wds
 from torchvision.datasets.folder import IMG_EXTENSIONS
 
 from birder.common import cli
@@ -102,7 +103,8 @@ def read_class_file(path: str | Path) -> dict[str, int]:
 
 def read_wds_info(path: str | Path) -> dict[str, Any]:
     if isinstance(path, str) and "://" in path:
-        info: dict[str, Any] = json.loads(read_url(path))
+        with wds.gopen(path) as handle:
+            info: dict[str, Any] = json.load(handle)
     else:
         with open(path, "r", encoding="utf-8") as handle:
             info = json.load(handle)

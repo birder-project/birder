@@ -55,8 +55,9 @@ DistType = Literal["soft", "hard", "deit"]
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
-    distillation_type: DistType = args.type
-
+    #
+    # Initialize
+    #
     training_utils.init_distributed_mode(args)
     if args.aa is True:
         args.aug_level = -1
@@ -79,6 +80,9 @@ def train(args: argparse.Namespace) -> None:
     else:
         torch.backends.cudnn.benchmark = True
 
+    # Enable or disable the autograd anomaly detection
+    torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
+
     # Using the teacher rgb values for the student
     (teacher, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
         device,
@@ -96,6 +100,9 @@ def train(args: argparse.Namespace) -> None:
         args.size = lib.get_size_from_signature(signature)
         logger.debug(f"Using size={args.size}")
 
+    #
+    # Data
+    #
     training_transform = training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale)
     val_transform = inference_preset(args.size, rgb_stats, 1.0)
     if args.wds is True:
@@ -147,12 +154,6 @@ def train(args: argparse.Namespace) -> None:
 
     num_outputs = len(class_to_idx)
     batch_size: int = args.batch_size
-    begin_epoch = 1
-    epochs = args.epochs + 1
-    if args.stop_epoch is None:
-        args.stop_epoch = epochs
-    else:
-        args.stop_epoch += 1
 
     # Set data iterators
     if args.mixup_alpha is not None or args.cutmix is True:
@@ -164,193 +165,6 @@ def train(args: argparse.Namespace) -> None:
 
     else:
         collate_fn = None  # type: ignore
-
-    # Initialize student network
-    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
-    sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
-    student_name = get_network_name(args.student, net_param=args.student_param, tag=args.student_tag)
-
-    if args.resume_epoch is not None:
-        begin_epoch = args.resume_epoch + 1
-        (student, class_to_idx_saved, training_states) = fs_ops.load_checkpoint(
-            device,
-            args.student,
-            net_param=args.student_param,
-            config=args.student_model_config,
-            tag=args.student_tag,
-            epoch=args.resume_epoch,
-            new_size=args.size,
-        )
-        assert class_to_idx == class_to_idx_saved
-
-    else:
-        student = registry.net_factory(
-            args.student,
-            sample_shape[1],
-            num_outputs,
-            net_param=args.student_param,
-            config=args.student_model_config,
-            size=args.size,
-        )
-        training_states = fs_ops.TrainingStates.empty()
-
-    teacher.to(device, dtype=model_dtype)
-    student.to(device, dtype=model_dtype)
-    if args.freeze_bn is True:
-        student = training_utils.freeze_batchnorm2d(student)
-    elif args.sync_bn is True and args.distributed is True:
-        student = torch.nn.SyncBatchNorm.convert_sync_batchnorm(student)
-
-    if args.fast_matmul is True or args.amp is True:
-        torch.set_float32_matmul_precision("high")
-
-    # Compile networks
-    if args.compile is True:
-        teacher = torch.compile(teacher)
-        student = torch.compile(student)
-
-    # Define loss criteria, optimizer, learning rate scheduler and training parameter groups
-    custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
-    parameters = training_utils.optimizer_parameter_groups(
-        student,
-        args.wd,
-        norm_weight_decay=args.norm_wd,
-        custom_keys_weight_decay=custom_keys_weight_decay,
-        layer_decay=args.layer_decay,
-    )
-    criterion = torch.nn.CrossEntropyLoss(label_smoothing=args.smoothing_alpha)
-    if distillation_type == "soft":
-        distillation_criterion = torch.nn.KLDivLoss(reduction="batchmean", log_target=False)
-    elif distillation_type == "hard":
-        distillation_criterion = torch.nn.CrossEntropyLoss()
-    elif distillation_type == "deit":
-        distillation_criterion = torch.nn.CrossEntropyLoss()
-        student.set_distillation_output()
-    else:
-        raise ValueError(f"Unknown KD type: {args.type}")
-
-    optimizer = training_utils.get_optimizer(parameters, args)
-    scheduler = training_utils.get_scheduler(
-        args.lr_scheduler,
-        optimizer,
-        args.warmup_epochs,
-        begin_epoch,
-        epochs,
-        args.lr_cosine_min,
-        args.lr_step_size,
-        args.lr_steps,
-        args.lr_step_gamma,
-        args.lr_power,
-    )
-    if args.compile_opt is True:
-        optimizer.step = torch.compile(optimizer.step, fullgraph=False)
-
-    # Gradient scaler and AMP related tasks
-    (scaler, amp_dtype) = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
-
-    # Load states
-    if args.load_states is True:
-        optimizer.load_state_dict(training_states.optimizer_state)
-        scheduler.load_state_dict(training_states.scheduler_state)
-        if scaler is not None:
-            scaler.load_state_dict(training_states.scaler_state)
-
-    elif args.load_scheduler is True:
-        scheduler.load_state_dict(training_states.scheduler_state)
-        last_lrs = scheduler.get_last_lr()
-        for g, last_lr in zip(optimizer.param_groups, last_lrs):
-            g["lr"] = last_lr
-
-    last_lr = max(scheduler.get_last_lr())
-
-    # Distributed
-    net_without_ddp = student
-    if args.distributed is True:
-        student = torch.nn.parallel.DistributedDataParallel(student, device_ids=[args.gpu])
-        net_without_ddp = student.module
-
-    # Model EMA
-    if args.model_ema is True:
-        model_base = net_without_ddp  # Original model without DDP wrapper, will be saved as training state
-        model_ema = training_utils.ema_model(args, net_without_ddp, device=device)
-        if training_states.ema_model_state is not None:
-            logger.info("Setting model EMA weights...")
-            if args.compile is True and hasattr(model_ema.module, "_orig_mod") is True:
-                model_ema.module._orig_mod.load_state_dict(  # pylint: disable=protected-access
-                    training_states.ema_model_state
-                )
-            else:
-                model_ema.module.load_state_dict(training_states.ema_model_state)
-
-            model_ema.n_averaged += 1  # pylint:disable=no-member
-
-        model_to_save = model_ema.module  # Save EMA model weights as default weights
-        eval_model = model_ema  # Use EMA for evaluation
-
-    else:
-        model_base = None
-        model_to_save = net_without_ddp
-        eval_model = student
-
-    if args.compile is True and hasattr(model_to_save, "_orig_mod") is True:
-        model_to_save = model_to_save._orig_mod  # pylint: disable=protected-access
-    if args.compile is True and hasattr(model_base, "_orig_mod") is True:
-        model_base = model_base._orig_mod  # type: ignore[union-attr] # pylint: disable=protected-access
-
-    # Define metrics
-    training_metrics = torchmetrics.MetricCollection(
-        {
-            "accuracy": torchmetrics.Accuracy("multiclass", num_classes=num_outputs),
-            # f"top_{settings.TOP_K}": torchmetrics.Accuracy("multiclass", num_classes=num_outputs, top_k=TOP_K),
-            # "precision": torchmetrics.Precision("multiclass", num_classes=num_outputs, average="macro"),
-            # "f1_score": torchmetrics.F1Score("multiclass", num_classes=num_outputs, average="macro"),
-        },
-        prefix="training_",
-    ).to(device)
-    validation_metrics = training_metrics.clone(prefix="validation_")
-
-    # Print network summary
-    net_for_info = net_without_ddp
-    if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
-        net_for_info = net_without_ddp._orig_mod  # pylint: disable=protected-access
-
-    torchinfo.summary(
-        net_for_info,
-        device=device,
-        input_size=sample_shape,
-        dtypes=[model_dtype],
-        col_names=["input_size", "output_size", "kernel_size", "num_params"],
-        depth=4,
-        verbose=1 if args.rank == 0 else 0,
-    )
-
-    # Training logs
-    training_log_name = training_utils.training_log_name(student_name, device)
-    training_log_path = settings.TRAINING_RUNS_PATH.joinpath(training_log_name)
-    logger.info(f"Logging training run at {training_log_path}")
-    summary_writer = SummaryWriter(training_log_path)
-
-    signature = get_signature(input_shape=sample_shape, num_outputs=num_outputs)
-    if args.rank == 0:
-        with torch.no_grad():
-            summary_writer.add_graph(net_for_info, torch.rand(sample_shape, device=device, dtype=model_dtype))
-
-        summary_writer.flush()
-        fs_ops.write_config(student_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
-        training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
-        with open(training_log_path.joinpath("args.json"), "w", encoding="utf-8") as handle:
-            json.dump({"cmdline": " ".join(sys.argv), **vars(args)}, handle, indent=2)
-
-        with open(training_log_path.joinpath("training_data.json"), "w", encoding="utf-8") as handle:
-            json.dump(
-                {
-                    "training_samples": len(training_dataset),
-                    "validation_samples": len(validation_dataset),
-                    "classes": list(class_to_idx.keys()),
-                },
-                handle,
-                indent=2,
-            )
 
     # Data loaders and samplers
     (train_sampler, validation_sampler) = training_utils.get_samplers(args, training_dataset, validation_dataset)
@@ -398,12 +212,222 @@ def train(args: argparse.Namespace) -> None:
         )
 
     last_batch_idx = math.ceil(len(training_dataset) / batch_size) - 1
+    begin_epoch = 1
+    epochs = args.epochs + 1
+    if args.stop_epoch is None:
+        args.stop_epoch = epochs
+    else:
+        args.stop_epoch += 1
+
+    #
+    # Initialize networks
+    #
+    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
+    sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
+    student_name = get_network_name(args.student, net_param=args.student_param, tag=args.student_tag)
+
+    if args.resume_epoch is not None:
+        begin_epoch = args.resume_epoch + 1
+        (student, class_to_idx_saved, training_states) = fs_ops.load_checkpoint(
+            device,
+            args.student,
+            net_param=args.student_param,
+            config=args.student_model_config,
+            tag=args.student_tag,
+            epoch=args.resume_epoch,
+            new_size=args.size,
+        )
+        assert class_to_idx == class_to_idx_saved
+
+    else:
+        student = registry.net_factory(
+            args.student,
+            sample_shape[1],
+            num_outputs,
+            net_param=args.student_param,
+            config=args.student_model_config,
+            size=args.size,
+        )
+        training_states = fs_ops.TrainingStates.empty()
+
+    teacher.to(device, dtype=model_dtype)
+    student.to(device, dtype=model_dtype)
+    if args.freeze_bn is True:
+        student = training_utils.freeze_batchnorm2d(student)
+    elif args.sync_bn is True and args.distributed is True:
+        student = torch.nn.SyncBatchNorm.convert_sync_batchnorm(student)
+
+    if args.fast_matmul is True or args.amp is True:
+        torch.set_float32_matmul_precision("high")
+
+    # Compile networks
+    if args.compile is True:
+        teacher = torch.compile(teacher)
+        student = torch.compile(student)
+
+    #
+    # Loss criteria, optimizer, learning rate scheduler and training parameter groups
+    #
+
+    # Training parameter groups and loss criteria
+    custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
+    parameters = training_utils.optimizer_parameter_groups(
+        student,
+        args.wd,
+        norm_weight_decay=args.norm_wd,
+        custom_keys_weight_decay=custom_keys_weight_decay,
+        layer_decay=args.layer_decay,
+    )
+    criterion = torch.nn.CrossEntropyLoss(label_smoothing=args.smoothing_alpha)
+
+    # Distillation
+    distillation_type: DistType = args.type
+    if distillation_type == "soft":
+        distillation_criterion = torch.nn.KLDivLoss(reduction="batchmean", log_target=False)
+    elif distillation_type == "hard":
+        distillation_criterion = torch.nn.CrossEntropyLoss()
+    elif distillation_type == "deit":
+        distillation_criterion = torch.nn.CrossEntropyLoss()
+        student.set_distillation_output()
+    else:
+        raise ValueError(f"Unknown KD type: {args.type}")
+
+    # Optimizer and learning rate scheduler
+    optimizer = training_utils.get_optimizer(parameters, args)
+    scheduler = training_utils.get_scheduler(
+        args.lr_scheduler,
+        optimizer,
+        args.warmup_epochs,
+        begin_epoch,
+        epochs,
+        args.lr_cosine_min,
+        args.lr_step_size,
+        args.lr_steps,
+        args.lr_step_gamma,
+        args.lr_power,
+    )
+    if args.compile_opt is True:
+        optimizer.step = torch.compile(optimizer.step, fullgraph=False)
+
     grad_accum_steps: int = args.grad_accum_steps
 
-    # Enable or disable the autograd anomaly detection
-    torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
+    # Gradient scaler and AMP related tasks
+    (scaler, amp_dtype) = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
 
+    # Load states
+    if args.load_states is True:
+        optimizer.load_state_dict(training_states.optimizer_state)
+        scheduler.load_state_dict(training_states.scheduler_state)
+        if scaler is not None:
+            scaler.load_state_dict(training_states.scaler_state)
+
+    elif args.load_scheduler is True:
+        scheduler.load_state_dict(training_states.scheduler_state)
+        last_lrs = scheduler.get_last_lr()
+        for g, last_lr in zip(optimizer.param_groups, last_lrs):
+            g["lr"] = last_lr
+
+    last_lr = max(scheduler.get_last_lr())
+
+    #
+    # Distributed (DDP) and Model EMA
+    #
+    net_without_ddp = student
+    if args.distributed is True:
+        student = torch.nn.parallel.DistributedDataParallel(student, device_ids=[args.gpu])
+        net_without_ddp = student.module
+
+    if args.model_ema is True:
+        model_base = net_without_ddp  # Original model without DDP wrapper, will be saved as training state
+        model_ema = training_utils.ema_model(args, net_without_ddp, device=device)
+        if training_states.ema_model_state is not None:
+            logger.info("Setting model EMA weights...")
+            if args.compile is True and hasattr(model_ema.module, "_orig_mod") is True:
+                model_ema.module._orig_mod.load_state_dict(  # pylint: disable=protected-access
+                    training_states.ema_model_state
+                )
+            else:
+                model_ema.module.load_state_dict(training_states.ema_model_state)
+
+            model_ema.n_averaged += 1  # pylint:disable=no-member
+
+        model_to_save = model_ema.module  # Save EMA model weights as default weights
+        eval_model = model_ema  # Use EMA for evaluation
+
+    else:
+        model_base = None
+        model_to_save = net_without_ddp
+        eval_model = student
+
+    if args.compile is True and hasattr(model_to_save, "_orig_mod") is True:
+        model_to_save = model_to_save._orig_mod  # pylint: disable=protected-access
+    if args.compile is True and hasattr(model_base, "_orig_mod") is True:
+        model_base = model_base._orig_mod  # type: ignore[union-attr] # pylint: disable=protected-access
+
+    #
+    # Misc
+    #
+
+    # Define metrics
+    # top_k = settings.TOP_K
+    training_metrics = torchmetrics.MetricCollection(
+        {
+            "accuracy": torchmetrics.Accuracy("multiclass", num_classes=num_outputs),
+            # f"top_{top_k}": torchmetrics.Accuracy("multiclass", num_classes=num_outputs, top_k=top_k),
+            # "precision": torchmetrics.Precision("multiclass", num_classes=num_outputs, average="macro"),
+            # "f1_score": torchmetrics.F1Score("multiclass", num_classes=num_outputs, average="macro"),
+        },
+        prefix="training_",
+    ).to(device)
+    validation_metrics = training_metrics.clone(prefix="validation_")
+
+    # Print network summary
+    net_for_info = net_without_ddp
+    if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
+        net_for_info = net_without_ddp._orig_mod  # pylint: disable=protected-access
+
+    if args.no_summary is False:
+        torchinfo.summary(
+            net_for_info,
+            device=device,
+            input_size=sample_shape,
+            dtypes=[model_dtype],
+            col_names=["input_size", "output_size", "kernel_size", "num_params"],
+            depth=4,
+            verbose=1 if args.rank == 0 else 0,
+        )
+
+    # Training logs
+    training_log_name = training_utils.training_log_name(student_name, device)
+    training_log_path = settings.TRAINING_RUNS_PATH.joinpath(training_log_name)
+    logger.info(f"Logging training run at {training_log_path}")
+    summary_writer = SummaryWriter(training_log_path)
+
+    signature = get_signature(input_shape=sample_shape, num_outputs=num_outputs)
+    if args.rank == 0:
+        with torch.no_grad():
+            summary_writer.add_graph(net_for_info, torch.rand(sample_shape, device=device, dtype=model_dtype))
+
+        summary_writer.flush()
+        fs_ops.write_config(student_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
+        training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
+        with open(training_log_path.joinpath("args.json"), "w", encoding="utf-8") as handle:
+            json.dump({"cmdline": " ".join(sys.argv), **vars(args)}, handle, indent=2)
+
+        with open(training_log_path.joinpath("training_data.json"), "w", encoding="utf-8") as handle:
+            json.dump(
+                {
+                    "training_samples": len(training_dataset),
+                    "validation_samples": len(validation_dataset),
+                    "classes": list(class_to_idx.keys()),
+                },
+                handle,
+                indent=2,
+            )
+
+    #
     # Training loop
+    #
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
@@ -651,13 +675,50 @@ def get_args_parser() -> argparse.ArgumentParser:
         allow_abbrev=False,
         description="Train classification model using Knowledge Distillation",
         epilog=(
-            "Usage examples:\n"
-            "python train_kd.py --type soft --teacher convnext_v2_tiny --teacher-epoch 0 --student regnet_y_1_6g "
-            "--lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 "
-            "--size 256 --epochs 100 --wd 0.00005 --mixup-alpha 0.2 --aug-level 3\n"
-            "python train_kd.py --type hard --teacher convnext_v2_base --student mobilenet_v4_m --lr 0.8 "
-            "--lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 100 "
-            "--wd 0.00005 --mixup-alpha 0.2 --aug-level 3\n"
+            "Usage examples\n"
+            "==============\n"
+            "A typical 'soft' distillation:\n"
+            "torchrun --nproc_per_node=2 train_kd.py \\\n"
+            "    --type soft \\\n"
+            "    --temperature 1 \\\n"
+            "    --teacher vit_l16 \\\n"
+            "    --student tiny_vit_5m \\\n"
+            "    --opt adamw \\\n"
+            "    --lr 0.002 \\\n"
+            "    --lr-scheduler cosine \\\n"
+            "    --lr-cosine-min 1e-7 \\\n"
+            "    --batch-size 64 \\\n"
+            "    --warmup-epochs 5 \\\n"
+            "    --wd 0.01 \\\n"
+            "    --norm-wd 0 \\\n"
+            "    --smoothing-alpha 0.1 \\\n"
+            "    --clip-grad-norm 5 \\\n"
+            "    --amp \\\n"
+            "    --compile \\\n"
+            "    --wds \\\n"
+            "    --wds-class-file data/intermediate/classes.txt \\\n"
+            "    --wds-info-file data/intermediate/_info.json\n"
+            "\n"
+            "DeiT style distillation:\n"
+            "torchrun --nproc_per_node=2 train_kd.py \\\n"
+            "    --type deit \\\n"
+            "    --teacher regnet_y_8g \\\n"
+            "    --student deit_s16 \\\n"
+            "    --opt adamw \\\n"
+            "    --lr 0.0005 \\\n"
+            "    --lr-scheduler cosine \\\n"
+            "    --warmup-epochs 5 \\\n"
+            "    --epochs 300 \\\n"
+            "    --wd 0.05 \\\n"
+            "    --norm-wd 0 \\\n"
+            "    --smoothing-alpha 0.1 \\\n"
+            "    --mixup-alpha 0.8 \\\n"
+            "    --aug-level 4 \\\n"
+            "    --model-ema \\\n"
+            "    --ra-sampler --ra-reps 2 \\\n"
+            "    --clip-grad-norm 1 \\\n"
+            "    --amp \\\n"
+            "    --compile\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -828,7 +889,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="whether to use Repeated Augmentation in training",
     )
-    parser.add_argument("--ra-reps", type=int, default=3, help="number of repetitions for Repeated Augmentation")
+    parser.add_argument(
+        "--ra-reps", type=int, default=3, metavar="N", help="number of repetitions for Repeated Augmentation"
+    )
     parser.add_argument("--student-tag", type=str, help="add student training logs tag")
     parser.add_argument(
         "--log-interval", type=int, default=50, metavar="N", help="how many steps between summary writes"
@@ -869,7 +932,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="enable the autograd anomaly detection (for debugging)",
     )
-    parser.add_argument("--world-size", type=int, default=1, help="number of distributed processes")
+    parser.add_argument("--world-size", type=int, default=1, metavar="N", help="number of distributed processes")
     parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
     parser.add_argument("--clip-grad-norm", type=float, help="the maximum gradient norm")
     parser.add_argument("--gpu", type=int, metavar="ID", help="gpu id to use (ignored in distributed mode)")
@@ -877,6 +940,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--use-deterministic-algorithms", default=False, action="store_true", help="use only deterministic algorithms"
     )
+    parser.add_argument("--no-summary", default=False, action="store_true", help="don't print model summary")
     parser.add_argument(
         "--val-path", type=str, default=str(settings.VALIDATION_DATA_PATH), help="validation directory path"
     )

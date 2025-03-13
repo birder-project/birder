@@ -602,6 +602,26 @@ registry.register_alias(
 )
 
 registry.register_weights(
+    "focalnet_b_lrf_intermediate-eu-common",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/focalnet_b_lrf_intermediate-eu-common/"
+            "resolve/main/focalnet_b_lrf_intermediate-eu-common.pt"
+        ),
+        "description": (
+            "FocalNet Base (LRF) model with intermediate training, " "then fine-tuned on the eu-common dataset"
+        ),
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 337.6,
+                "sha256": "9318e35c033606bb58d4992867d19fe4718e416d33955319a2841ed4ab7dcb5d",
+            },
+        },
+        "net": {"network": "focalnet_b_lrf", "tag": "intermediate-eu-common"},
+    },
+)
+registry.register_weights(
     "focalnet_b_lrf_intermediate-arabian-peninsula",
     {
         "url": (

@@ -46,6 +46,9 @@ logger = logging.getLogger(__name__)
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
+    #
+    # Initialize
+    #
     training_utils.init_distributed_mode(args)
     if args.size is None:
         args.size = registry.get_default_size(args.network)
@@ -68,6 +71,12 @@ def train(args: argparse.Namespace) -> None:
     else:
         torch.backends.cudnn.benchmark = True
 
+    # Enable or disable the autograd anomaly detection
+    torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
+
+    #
+    # Data
+    #
     rgb_stats = get_rgb_stats(args.rgb_mode)
     training_transform = training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale)
     val_transform = inference_preset(args.size, rgb_stats, 1.0)
@@ -118,12 +127,6 @@ def train(args: argparse.Namespace) -> None:
 
     num_outputs = len(class_to_idx)
     batch_size: int = args.batch_size
-    begin_epoch = 1
-    epochs = args.epochs + 1
-    if args.stop_epoch is None:
-        args.stop_epoch = epochs
-    else:
-        args.stop_epoch += 1
 
     # Set data iterators
     if args.mixup_alpha is not None or args.cutmix is True:
@@ -136,7 +139,62 @@ def train(args: argparse.Namespace) -> None:
     else:
         collate_fn = None  # type: ignore
 
+    # Data loaders and samplers
+    (train_sampler, validation_sampler) = training_utils.get_samplers(args, training_dataset, validation_dataset)
+
+    if args.wds is True:
+        training_loader = make_wds_loader(
+            training_dataset,
+            batch_size,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
+            collate_fn=collate_fn,
+            world_size=args.world_size,
+            pin_memory=True,
+            drop_last=args.drop_last,
+        )
+
+        validation_loader = make_wds_loader(
+            validation_dataset,
+            batch_size,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
+            collate_fn=None,
+            world_size=args.world_size,
+            pin_memory=True,
+        )
+
+    else:
+        training_loader = DataLoader(
+            training_dataset,
+            batch_size=batch_size,
+            sampler=train_sampler,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
+            collate_fn=collate_fn,
+            pin_memory=True,
+            drop_last=args.drop_last,
+        )
+        validation_loader = DataLoader(
+            validation_dataset,
+            batch_size=batch_size,
+            sampler=validation_sampler,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
+            pin_memory=True,
+        )
+
+    last_batch_idx = math.ceil(len(training_dataset) / batch_size) - 1
+    begin_epoch = 1
+    epochs = args.epochs + 1
+    if args.stop_epoch is None:
+        args.stop_epoch = epochs
+    else:
+        args.stop_epoch += 1
+
+    #
     # Initialize network
+    #
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
     network_name = get_network_name(args.network, net_param=args.net_param, tag=args.tag)
@@ -196,7 +254,11 @@ def train(args: argparse.Namespace) -> None:
     if args.compile is True:
         net = torch.compile(net)
 
-    # Define loss criteria, optimizer, learning rate scheduler and training parameter groups
+    #
+    # Loss criteria, optimizer, learning rate scheduler and training parameter groups
+    #
+
+    # Training parameter groups
     custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
     parameters = training_utils.optimizer_parameter_groups(
         net,
@@ -205,11 +267,14 @@ def train(args: argparse.Namespace) -> None:
         custom_keys_weight_decay=custom_keys_weight_decay,
         layer_decay=args.layer_decay,
     )
+
+    # Loss criteria
     if args.bce_loss is True:
         criterion = torch.nn.BCEWithLogitsLoss()
     else:
         criterion = torch.nn.CrossEntropyLoss(label_smoothing=args.smoothing_alpha)
 
+    # Optimizer and learning rate scheduler
     optimizer = training_utils.get_optimizer(parameters, args)
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
@@ -225,6 +290,8 @@ def train(args: argparse.Namespace) -> None:
     )
     if args.compile_opt is True:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
+
+    grad_accum_steps: int = args.grad_accum_steps
 
     # Gradient scaler and AMP related tasks
     (scaler, amp_dtype) = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
@@ -255,13 +322,14 @@ def train(args: argparse.Namespace) -> None:
         plt.show()
         raise SystemExit(0)
 
-    # Distributed
+    #
+    # Distributed (DDP) and Model EMA
+    #
     net_without_ddp = net
     if args.distributed is True:
         net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[args.gpu])
         net_without_ddp = net.module
 
-    # Model EMA
     if args.model_ema is True:
         model_base = net_without_ddp  # Original model without DDP wrapper, will be saved as training state
         model_ema = training_utils.ema_model(args, net_without_ddp, device=device)
@@ -289,11 +357,16 @@ def train(args: argparse.Namespace) -> None:
     if args.compile is True and hasattr(model_base, "_orig_mod") is True:
         model_base = model_base._orig_mod  # type: ignore[union-attr] # pylint: disable=protected-access
 
+    #
+    # Misc
+    #
+
     # Define metrics
+    # top_k = settings.TOP_K
     training_metrics = torchmetrics.MetricCollection(
         {
             "accuracy": torchmetrics.Accuracy("multiclass", num_classes=num_outputs),
-            # f"top_{settings.TOP_K}": torchmetrics.Accuracy("multiclass", num_classes=num_outputs, top_k=TOP_K),
+            # f"top_{top_k}": torchmetrics.Accuracy("multiclass", num_classes=num_outputs, top_k=top_k),
             # "precision": torchmetrics.Precision("multiclass", num_classes=num_outputs, average="macro"),
             # "f1_score": torchmetrics.F1Score("multiclass", num_classes=num_outputs, average="macro"),
         },
@@ -306,15 +379,16 @@ def train(args: argparse.Namespace) -> None:
     if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
         net_for_info = net_without_ddp._orig_mod  # pylint: disable=protected-access
 
-    torchinfo.summary(
-        net_for_info,
-        device=device,
-        input_size=sample_shape,
-        dtypes=[model_dtype],
-        col_names=["input_size", "output_size", "kernel_size", "num_params"],
-        depth=4,
-        verbose=1 if args.rank == 0 else 0,
-    )
+    if args.no_summary is False:
+        torchinfo.summary(
+            net_for_info,
+            device=device,
+            input_size=sample_shape,
+            dtypes=[model_dtype],
+            col_names=["input_size", "output_size", "kernel_size", "num_params"],
+            depth=4,
+            verbose=1 if args.rank == 0 else 0,
+        )
 
     # Training logs
     training_log_name = training_utils.training_log_name(network_name, device)
@@ -344,58 +418,9 @@ def train(args: argparse.Namespace) -> None:
                 indent=2,
             )
 
-    # Data loaders and samplers
-    (train_sampler, validation_sampler) = training_utils.get_samplers(args, training_dataset, validation_dataset)
-
-    if args.wds is True:
-        training_loader = make_wds_loader(
-            training_dataset,
-            batch_size,
-            num_workers=args.num_workers,
-            prefetch_factor=args.prefetch_factor,
-            collate_fn=collate_fn,
-            world_size=args.world_size,
-            pin_memory=True,
-            drop_last=args.drop_last,
-        )
-
-        validation_loader = make_wds_loader(
-            validation_dataset,
-            batch_size,
-            num_workers=args.num_workers,
-            prefetch_factor=args.prefetch_factor,
-            collate_fn=None,
-            world_size=args.world_size,
-            pin_memory=True,
-        )
-
-    else:
-        training_loader = DataLoader(
-            training_dataset,
-            batch_size=batch_size,
-            sampler=train_sampler,
-            num_workers=args.num_workers,
-            prefetch_factor=args.prefetch_factor,
-            collate_fn=collate_fn,
-            pin_memory=True,
-            drop_last=args.drop_last,
-        )
-        validation_loader = DataLoader(
-            validation_dataset,
-            batch_size=batch_size,
-            sampler=validation_sampler,
-            num_workers=args.num_workers,
-            prefetch_factor=args.prefetch_factor,
-            pin_memory=True,
-        )
-
-    last_batch_idx = math.ceil(len(training_dataset) / batch_size) - 1
-    grad_accum_steps: int = args.grad_accum_steps
-
-    # Enable or disable the autograd anomaly detection
-    torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
-
+    #
     # Training loop
+    #
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
@@ -636,24 +661,48 @@ def get_args_parser() -> argparse.ArgumentParser:
         allow_abbrev=False,
         description="Train classification model",
         epilog=(
-            "Usage examples:\n"
-            "python train.py --network vgg -p 11 --momentum 0\n"
-            "python train.py --network resnet_v2 --net-param 50 --nesterov --lr-scheduler cosine "
-            "--size 288 --batch-size 64 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3\n"
-            "python train.py --network inception_resnet_v2 --nesterov --lr-scheduler cosine "
-            "--batch-size 64 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3\n"
-            "python train.py --network inception_resnet_v2 --opt adamw --lr 0.0001 --wd 0.01 --epochs 105 "
-            "--save-frequency 1 --batch-size 64 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 "
-            "--resume-epoch 100\n"
-            "torchrun --nproc_per_node=2 train.py --network squeezenext --net-param 2 --lr 0.1 --lr-scheduler step "
-            "--lr-step-size 20 --lr-step-gamma 0.75 --batch-size 128 --smoothing-alpha 0.1 --mixup-alpha 0.2 "
-            "--aug-level 3 --gpu 1\n"
-            "python -m birder.scripts.train --network mvit_v2_t --opt adamw --lr 0.002 --lr-scheduler cosine "
-            "--lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 70 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 "
-            "--smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 "
-            "--amp --compile --wds "
-            "--wds-class-file https://huggingface.co/datasets/birder-project/CUB_200_2011-WDS/resolve/main/classes.txt "
-            "--wds-info-file https://huggingface.co/datasets/birder-project/CUB_200_2011-WDS/resolve/main/_info.json\n"
+            "Usage examples\n"
+            "==============\n"
+            "Training on image directory in the default location can be as simple as:\n"
+            "python train.py --network densenet_161 --lr-scheduler cosine --batch-size 64 --smoothing-alpha 0.1\n"
+            "\n"
+            "A more complicated ImageNet example on 2 GPU's, using a remote webdataset:\n"
+            "torchrun --nproc_per_node=2 train.py \\\n"
+            "    --network resnet_v2_50 \\\n"
+            "    --tag imagenet1k \\\n"
+            "    --opt lamb \\\n"
+            "    --lr 0.005 \\\n"
+            "    --lr-scheduler cosine \\\n"
+            "    --lr-cosine-min 1e-7 \\\n"
+            "    --warmup-epochs 5 \\\n"
+            "    --epochs 300 \\\n"
+            "    --wd 0.02 \\\n"
+            "    --grad-accum-steps 4 \\\n"
+            "    --mixup-alpha 0.1 \\\n"
+            "    --cutmix \\\n"
+            "    --aug-level 4 \\\n"
+            "    --ra-sampler --ra-reps 2 \\\n"
+            "    --rgb-mode imagenet \\\n"
+            "    --bce-loss --bce-threshold 0.2 \\\n"
+            "    --amp \\\n"
+            "    --compile \\\n"
+            "    --wds \\\n"
+            "    --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt \\\n"
+            "    --wds-info-file https://huggingface.co/datasets/timm/imagenet-1k-wds/resolve/main/_info.json \\\n"
+            "    --wds-training-split train\n"
+            "\n"
+            "The script is also available as module:\n"
+            "torchrun --nproc_per_node=2 -m birder.scripts.train \\\n"
+            "    --network regnet_y_8g \\\n"
+            "    --lr 0.4 \\\n"
+            "    --lr-scheduler cosine \\\n"
+            "    --warmup-epochs 5 \\\n"
+            "    --wd 0.00005 \\\n"
+            "    --smoothing-alpha 0.1 \\\n"
+            "    --mixup-alpha 0.2 \\\n"
+            "    --cutmix \\\n"
+            "    --aug-level 4 \\\n"
+            "    --amp --compile\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -826,7 +875,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="whether to use Repeated Augmentation in training",
     )
-    parser.add_argument("--ra-reps", type=int, default=3, help="number of repetitions for Repeated Augmentation")
+    parser.add_argument(
+        "--ra-reps", type=int, default=3, metavar="N", help="number of repetitions for Repeated Augmentation"
+    )
     parser.add_argument("-t", "--tag", type=str, help="add training logs tag")
     parser.add_argument(
         "--log-interval", type=int, default=50, metavar="N", help="how many steps between summary writes"
@@ -867,7 +918,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="enable the autograd anomaly detection (for debugging)",
     )
-    parser.add_argument("--world-size", type=int, default=1, help="number of distributed processes")
+    parser.add_argument("--world-size", type=int, default=1, metavar="N", help="number of distributed processes")
     parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
     parser.add_argument("--clip-grad-norm", type=float, help="the maximum gradient norm")
     parser.add_argument("--gpu", type=int, metavar="ID", help="gpu id to use (ignored in distributed mode)")
@@ -878,6 +929,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--plot-lr", default=False, action="store_true", help="plot learning rate and exit (skip training)"
     )
+    parser.add_argument("--no-summary", default=False, action="store_true", help="don't print model summary")
     parser.add_argument(
         "--val-path", type=str, default=str(settings.VALIDATION_DATA_PATH), help="validation directory path"
     )

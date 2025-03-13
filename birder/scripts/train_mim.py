@@ -53,6 +53,9 @@ def _tv_loader(path: str) -> torch.Tensor:
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
+    #
+    # Initialize
+    #
     training_utils.init_distributed_mode(args)
     if args.size is None:
         # Prefer mim size over encoder default size
@@ -73,6 +76,12 @@ def train(args: argparse.Namespace) -> None:
     else:
         torch.backends.cudnn.benchmark = True
 
+    # Enable or disable the autograd anomaly detection
+    torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
+
+    #
+    # Data
+    #
     rgb_stats = get_rgb_stats(args.rgb_mode)
     training_transform = training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale)
     if args.wds is True:
@@ -107,6 +116,38 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Training on {len(training_dataset):,} samples")
 
     batch_size: int = args.batch_size
+
+    # Data loaders and samplers
+    if args.distributed is True:
+        train_sampler = torch.utils.data.distributed.DistributedSampler(training_dataset, shuffle=True)
+
+    else:
+        train_sampler = torch.utils.data.RandomSampler(training_dataset)
+
+    if args.wds is True:
+        training_loader = make_wds_loader(
+            training_dataset,
+            batch_size,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
+            collate_fn=None,
+            world_size=args.world_size,
+            pin_memory=True,
+            drop_last=True,
+        )
+
+    else:
+        training_loader = DataLoader(
+            training_dataset,
+            batch_size=batch_size,
+            sampler=train_sampler,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
+            pin_memory=True,
+            drop_last=True,
+        )
+
+    last_batch_idx = (len(training_dataset) // batch_size) - 1  # no partial batches
     begin_epoch = 1
     epochs = args.epochs + 1
     if args.stop_epoch is None:
@@ -114,7 +155,9 @@ def train(args: argparse.Namespace) -> None:
     else:
         args.stop_epoch += 1
 
+    #
     # Initialize network
+    #
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
     encoder_name = get_network_name(args.encoder, net_param=args.encoder_param, tag="mim")
@@ -162,7 +205,11 @@ def train(args: argparse.Namespace) -> None:
     if args.compile is True:
         net = torch.compile(net)
 
-    # Define optimizer and learning rate scheduler and training parameter groups
+    #
+    # Loss criteria, optimizer, learning rate scheduler and training parameter groups
+    #
+
+    # Training parameter groups
     custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
     parameters = training_utils.optimizer_parameter_groups(
         net,
@@ -171,6 +218,8 @@ def train(args: argparse.Namespace) -> None:
         custom_keys_weight_decay=custom_keys_weight_decay,
         layer_decay=args.layer_decay,
     )
+
+    # Optimizer and learning rate scheduler
     optimizer = training_utils.get_optimizer(parameters, args)
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
@@ -216,7 +265,9 @@ def train(args: argparse.Namespace) -> None:
         plt.show()
         raise SystemExit(0)
 
-    # Distributed
+    #
+    # Distributed (DDP)
+    #
     net_without_ddp = net
     if args.distributed is True:
         net = torch.nn.parallel.DistributedDataParallel(
@@ -228,20 +279,25 @@ def train(args: argparse.Namespace) -> None:
     if args.compile is True and hasattr(model_to_save, "_orig_mod") is True:
         model_to_save = model_to_save._orig_mod  # pylint: disable=protected-access
 
+    #
+    # Misc
+    #
+
     # Print network summary
     net_for_info = net_without_ddp
     if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
         net_for_info = net_without_ddp._orig_mod  # pylint: disable=protected-access
 
-    torchinfo.summary(
-        net_for_info,
-        device=device,
-        input_size=sample_shape,
-        dtypes=[model_dtype],
-        col_names=["input_size", "output_size", "kernel_size", "num_params"],
-        depth=4,
-        verbose=1 if args.rank == 0 else 0,
-    )
+    if args.no_summary is False:
+        torchinfo.summary(
+            net_for_info,
+            device=device,
+            input_size=sample_shape,
+            dtypes=[model_dtype],
+            col_names=["input_size", "output_size", "kernel_size", "num_params"],
+            depth=4,
+            verbose=1 if args.rank == 0 else 0,
+        )
 
     # Training logs
     training_log_name = training_utils.training_log_name(network_name, device)
@@ -265,42 +321,9 @@ def train(args: argparse.Namespace) -> None:
                 indent=2,
             )
 
-    # Data loaders and samplers
-    if args.distributed is True:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(training_dataset, shuffle=True)
-
-    else:
-        train_sampler = torch.utils.data.RandomSampler(training_dataset)
-
-    if args.wds is True:
-        training_loader = make_wds_loader(
-            training_dataset,
-            batch_size,
-            num_workers=args.num_workers,
-            prefetch_factor=args.prefetch_factor,
-            collate_fn=None,
-            world_size=args.world_size,
-            pin_memory=True,
-            drop_last=True,
-        )
-
-    else:
-        training_loader = DataLoader(
-            training_dataset,
-            batch_size=batch_size,
-            sampler=train_sampler,
-            num_workers=args.num_workers,
-            prefetch_factor=args.prefetch_factor,
-            pin_memory=True,
-            drop_last=True,
-        )
-
-    last_batch_idx = (len(training_dataset) // batch_size) - 1  # no partial batches
-
-    # Enable or disable the autograd anomaly detection
-    torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
-
+    #
     # Training loop
+    #
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
@@ -450,12 +473,23 @@ def get_args_parser() -> argparse.ArgumentParser:
         allow_abbrev=False,
         description="Pre-train model",
         epilog=(
-            "Usage examples:\n"
-            "python train_mim.py --network mae_vit --encoder vit_b16 "
-            "--batch-size 32 --opt adamw --lr 0.0001\n"
-            "torchrun --nproc_per_node=2 train_mim.py --network fcmae --encoder convnext_v2_nano --opt adamw "
-            "--lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --batch-size 512 --wd 0.05 "
-            "--amp --compile --find-unused-parameters --data-path data/training data/raw_data\n"
+            "Usage examples\n"
+            "==============\n"
+            "torchrun --nproc_per_node=2 train_mim.py \\\n"
+            "    --network mae_vit \\\n"
+            "    --encoder vit_b16 \\\n"
+            "    --opt adamw \\\n"
+            "    --lr 0.00015 \\\n"
+            "    --opt-betas 0.9 0.95 \\\n"
+            "    --lr-scheduler cosine \\\n"
+            "    --warmup-epochs 40 \\\n"
+            "    --batch-size 256 \\\n"
+            "    --wd 0.05 \\\n"
+            "    --encoder-model-config drop_path_rate=0.0 \\\n"
+            "    --amp \\\n"
+            "    --compile \\\n"
+            "    --compile-opt \\\n"
+            "    --data-path data/training data/raw_data ~/Datasets\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -625,7 +659,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="enable the autograd anomaly detection (for debugging)",
     )
-    parser.add_argument("--world-size", type=int, default=1, help="number of distributed processes")
+    parser.add_argument("--world-size", type=int, default=1, metavar="N", help="number of distributed processes")
     parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
     parser.add_argument(
         "--find-unused-parameters",
@@ -642,6 +676,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--plot-lr", default=False, action="store_true", help="plot learning rate and exit (skip training)"
     )
+    parser.add_argument("--no-summary", default=False, action="store_true", help="don't print model summary")
     parser.add_argument("--data-path", nargs="*", help="training directories paths (directories and files)")
     parser.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
     parser.add_argument("--wds-info-file", type=str, metavar="FILE", help="wds info file")

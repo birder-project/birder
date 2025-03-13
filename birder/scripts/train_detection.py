@@ -75,6 +75,9 @@ def _convert_to_binary_annotations(dataset: CocoDetection) -> CocoDetection:
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
+    #
+    # Initialize
+    #
     training_utils.init_distributed_mode(args)
     if args.size is None:
         args.size = registry.get_default_size(args.network)
@@ -94,6 +97,12 @@ def train(args: argparse.Namespace) -> None:
     else:
         torch.backends.cudnn.benchmark = True
 
+    # Enable or disable the autograd anomaly detection
+    torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
+
+    #
+    # Data
+    #
     rgb_stats = get_rgb_stats(args.rgb_mode)
     training_dataset = CocoDetection(
         args.data_path, args.coco_json_path, transforms=training_preset(args.size, args.aug_level, rgb_stats)
@@ -122,6 +131,30 @@ def train(args: argparse.Namespace) -> None:
 
     num_outputs = len(class_to_idx)  # Does not include background class
     batch_size: int = args.batch_size
+
+    # Data loaders and samplers
+    (train_sampler, validation_sampler) = training_utils.get_samplers(args, training_dataset, validation_dataset)
+
+    training_loader = DataLoader(
+        training_dataset,
+        batch_size=batch_size,
+        sampler=train_sampler,
+        num_workers=args.num_workers,
+        prefetch_factor=args.prefetch_factor,
+        collate_fn=lambda batch: tuple(zip(*batch)),
+        pin_memory=True,
+    )
+    validation_loader = DataLoader(
+        validation_dataset,
+        batch_size=batch_size,
+        sampler=validation_sampler,
+        num_workers=args.num_workers,
+        prefetch_factor=args.prefetch_factor,
+        collate_fn=lambda batch: tuple(zip(*batch)),
+        pin_memory=True,
+    )
+
+    last_batch_idx = math.ceil(len(training_dataset) / batch_size) - 1
     begin_epoch = 1
     epochs = args.epochs + 1
     if args.stop_epoch is None:
@@ -129,7 +162,9 @@ def train(args: argparse.Namespace) -> None:
     else:
         args.stop_epoch += 1
 
+    #
     # Initialize network
+    #
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
     network_name = lib.get_detection_network_name(
         args.network,
@@ -247,7 +282,11 @@ def train(args: argparse.Namespace) -> None:
         mod = getattr(net, args.compile_custom)
         setattr(net, args.compile_custom, torch.compile(mod))
 
-    # Define optimizer and learning rate scheduler and training parameter groups
+    #
+    # Loss criteria, optimizer, learning rate scheduler and training parameter groups
+    #
+
+    # Training parameter groups
     custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
     parameters = training_utils.optimizer_parameter_groups(
         net,
@@ -257,6 +296,8 @@ def train(args: argparse.Namespace) -> None:
         layer_decay=args.layer_decay,
         backbone_lr=args.backbone_lr,
     )
+
+    # Optimizer and learning rate scheduler
     optimizer = training_utils.get_optimizer(parameters, args)
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
@@ -272,6 +313,8 @@ def train(args: argparse.Namespace) -> None:
     )
     if args.compile_opt is True:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
+
+    grad_accum_steps: int = args.grad_accum_steps
 
     # Gradient scaler and AMP related tasks
     (scaler, amp_dtype) = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
@@ -302,13 +345,14 @@ def train(args: argparse.Namespace) -> None:
         plt.show()
         raise SystemExit(0)
 
-    # Distributed
+    #
+    # Distributed (DDP) and Model EMA
+    #
     net_without_ddp = net
     if args.distributed is True:
         net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[args.gpu])
         net_without_ddp = net.module
 
-    # Model EMA
     if args.model_ema is True:
         model_base = net_without_ddp  # Original model without DDP wrapper, will be saved as training state
         model_ema = training_utils.ema_model(args, net_without_ddp, device=device)
@@ -339,6 +383,10 @@ def train(args: argparse.Namespace) -> None:
         mod = getattr(model_to_save, args.compile_custom)
         setattr(model_to_save, args.compile_custom, mod._orig_mod)  # pylint: disable=protected-access
 
+    #
+    # Misc
+    #
+
     # Define metrics
     validation_metrics = MeanAveragePrecision(iou_type="bbox", box_format="xyxy", average="macro").to(device)
     metric_list = ["map", "map_small", "map_medium", "map_large", "map_50", "map_75", "mar_1", "mar_10"]
@@ -348,15 +396,16 @@ def train(args: argparse.Namespace) -> None:
     if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
         net_for_info = net_without_ddp._orig_mod  # pylint: disable=protected-access
 
-    torchinfo.summary(
-        net_for_info,
-        device=device,
-        input_size=sample_shape,
-        dtypes=[torch.float32],
-        col_names=["input_size", "output_size", "kernel_size", "num_params"],
-        depth=4,
-        verbose=1 if args.rank == 0 else 0,
-    )
+    if args.no_summary is False:
+        torchinfo.summary(
+            net_for_info,
+            device=device,
+            input_size=sample_shape,
+            dtypes=[torch.float32],
+            col_names=["input_size", "output_size", "kernel_size", "num_params"],
+            depth=4,
+            verbose=1 if args.rank == 0 else 0,
+        )
 
     # Training logs
     training_log_name = training_utils.training_log_name(network_name, device)
@@ -383,35 +432,9 @@ def train(args: argparse.Namespace) -> None:
                 indent=2,
             )
 
-    # Data loaders and samplers
-    (train_sampler, validation_sampler) = training_utils.get_samplers(args, training_dataset, validation_dataset)
-
-    training_loader = DataLoader(
-        training_dataset,
-        batch_size=batch_size,
-        sampler=train_sampler,
-        num_workers=args.num_workers,
-        prefetch_factor=args.prefetch_factor,
-        collate_fn=lambda batch: tuple(zip(*batch)),
-        pin_memory=True,
-    )
-    validation_loader = DataLoader(
-        validation_dataset,
-        batch_size=batch_size,
-        sampler=validation_sampler,
-        num_workers=args.num_workers,
-        prefetch_factor=args.prefetch_factor,
-        collate_fn=lambda batch: tuple(zip(*batch)),
-        pin_memory=True,
-    )
-
-    last_batch_idx = math.ceil(len(training_dataset) / batch_size) - 1
-    grad_accum_steps: int = args.grad_accum_steps
-
-    # Enable or disable the autograd anomaly detection
-    torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
-
+    #
     # Training loop
+    #
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
@@ -632,16 +655,41 @@ def get_args_parser() -> argparse.ArgumentParser:
         allow_abbrev=False,
         description="Train object detection model",
         epilog=(
-            "Usage examples:\n"
-            "python train_detection.py --network faster_rcnn --backbone mobilenet_v3_large --backbone-param 1 "
-            "--backbone-epoch 0 --lr 0.02 --batch-size 16\n"
-            "python train_detection.py --network vitdet --backbone vit_sam_b16 "
-            "--backbone-epoch 0 --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 8 "
-            "--warmup-epochs 2 --epochs 100 --wd 0.1 --norm-wd 0 --clip-grad-norm 1 --amp --compile --layer-decay 0.7 "
-            "--data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 "
-            "--coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json "
-            "--coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json "
-            "--class-file public_datasets_metadata/coco-classes.txt\n"
+            "Usage examples\n"
+            "==============\n"
+            "A classic Faster-RCNN with EfficientNet v2 backbone:\n"
+            "torchrun --nproc_per_node=2 train_detection.py  \\\n"
+            "    --network faster_rcnn  \\\n"
+            "    --backbone efficientnet_v2_s  \\\n"
+            "    --backbone-epoch 0  \\\n"
+            "    --lr 0.02  \\\n"
+            "    --lr-scheduler multistep  \\\n"
+            "    --lr-steps 16 22  \\\n"
+            "    --lr-step-gamma 0.1  \\\n"
+            "    --freeze-backbone-bn  \\\n"
+            "    --batch-size 16  \\\n"
+            "    --epochs 26  \\\n"
+            "    --wd 0.0001  \\\n"
+            "    --fast-matmul  \\\n"
+            "    --compile-custom backbone_with_fpn\n"
+            "\n"
+            "A more modern Deformable-DETR example:\n"
+            "torchrun --nproc_per_node=2 train_detection.py \\\n"
+            "    --network deformable_detr \\\n"
+            "    --backbone regnet_y_4g \\\n"
+            "    --backbone-epoch 0 \\\n"
+            "    --opt adamw \\\n"
+            "    --lr 0.0002 \\\n"
+            "    --backbone-lr 0.00002 \\\n"
+            "    --lr-scheduler cosine \\\n"
+            "    --freeze-backbone-bn \\\n"
+            "    --batch-size 8 \\\n"
+            "    --epochs 50 \\\n"
+            "    --wd 0.0001 \\\n"
+            "    --clip-grad-norm 1 \\\n"
+            "    --fast-matmul \\\n"
+            "    --compile-backbone \\\n"
+            "    --compile-opt\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -859,7 +907,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="enable the autograd anomaly detection (for debugging)",
     )
-    parser.add_argument("--world-size", type=int, default=1, help="number of distributed processes")
+    parser.add_argument("--world-size", type=int, default=1, metavar="N", help="number of distributed processes")
     parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
     parser.add_argument("--clip-grad-norm", type=float, help="the maximum gradient norm")
     parser.add_argument("--gpu", type=int, metavar="ID", help="gpu id to use (ignored in distributed mode)")
@@ -876,6 +924,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--plot-lr", default=False, action="store_true", help="plot learning rate and exit (skip training)"
     )
+    parser.add_argument("--no-summary", default=False, action="store_true", help="don't print model summary")
     parser.add_argument(
         "--val-path", type=str, default=str(settings.DETECTION_DATA_PATH), help="validation base directory path"
     )
