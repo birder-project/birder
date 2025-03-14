@@ -18,6 +18,7 @@ from typing import Optional
 import torch
 from torch import nn
 
+from birder.common.masking import mask1d
 from birder.model_registry import registry
 from birder.net.base import PreTrainEncoder
 from birder.net.base import pos_embedding_sin_cos_2d
@@ -145,31 +146,8 @@ class Simple_ViT(PreTrainEncoder):
         # Add pos embedding
         x = x + self.pos_embedding
 
-        # Masking: length -> length * mask_ratio
-        # Perform per-sample random masking by per-sample shuffling.
-        # Per-sample shuffling is done by argsort random noise.
-        (N, L, D) = x.shape  # batch, length, dim
-        len_keep = int(L * (1 - mask_ratio))
-        len_masked = int(L * (mask_ratio - kept_mask_ratio))
-
-        noise = torch.rand(N, L, device=x.device)  # Noise in [0, 1]
-
-        # Sort noise for each sample
-        ids_shuffle = torch.argsort(noise, dim=1)  # Ascend: small is keep, large is remove
-        ids_restore = torch.argsort(ids_shuffle, dim=1)
-
-        # Keep the first subset
-        ids_keep = ids_shuffle[:, :len_keep]
-        x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
-
-        # Generate the binary mask: 0 is keep, 1 is remove
-        mask = torch.ones([N, L], device=x.device)
-        mask[:, : len_keep + len_masked] = 0
-
-        # Un-shuffle to get the binary mask
-        mask = torch.gather(mask, dim=1, index=ids_restore)
-
-        x = x_masked
+        # Mask tokens
+        (x, mask, _, ids_restore) = mask1d(x, mask_ratio, kept_mask_ratio)
 
         # Apply transformer
         if return_all_features is True:

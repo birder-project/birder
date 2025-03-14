@@ -126,8 +126,6 @@ class ShuffleUnit(nn.Module):
 
 # pylint: disable=invalid-name
 class ShuffleNet_v1(DetectorBackbone):
-    auto_register = True
-
     def __init__(
         self,
         input_channels: int,
@@ -138,10 +136,10 @@ class ShuffleNet_v1(DetectorBackbone):
         size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
-        assert self.net_param is not None, "must set net-param"
-        assert self.config is None, "config not supported"
-        groups = int(self.net_param)
+        assert self.net_param is None, "net-param not supported"
+        assert self.config is not None, "must set config"
 
+        groups: int = self.config["groups"]
         if groups == 1:
             stage_repeats = [3, 7, 3]
             out_channels = [24, 144, 288, 576]
@@ -239,6 +237,12 @@ class ShuffleNet_v1(DetectorBackbone):
         return self.features(x)
 
 
+registry.register_alias("shufflenet_v1_1", ShuffleNet_v1, config={"groups": 1})
+registry.register_alias("shufflenet_v1_2", ShuffleNet_v1, config={"groups": 2})
+registry.register_alias("shufflenet_v1_3", ShuffleNet_v1, config={"groups": 3})
+registry.register_alias("shufflenet_v1_4", ShuffleNet_v1, config={"groups": 4})
+registry.register_alias("shufflenet_v1_8", ShuffleNet_v1, config={"groups": 8})
+
 registry.register_weights(
     "shufflenet_v1_4_il-common",
     {
@@ -250,6 +254,6 @@ registry.register_weights(
                 "sha256": "b3e816c4dfe75526ff38f3b276fd3d9bcea2776261caedacab78305750b98d7e",
             }
         },
-        "net": {"network": "shufflenet_v1", "net_param": 4, "tag": "il-common"},
+        "net": {"network": "shufflenet_v1_4", "tag": "il-common"},
     },
 )

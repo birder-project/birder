@@ -52,15 +52,15 @@ def show_image(image, title=""):
 ```
 
 ```{python}
-# network = "mae_vit"
-# encoder = "vitreg4_b16"
-# encoder_param = None
-# size = 224
-
 network = "mae_vit"
-encoder = "vit_l16"
+encoder = "vitreg4_b16"
 encoder_param = None
 size = 224
+
+# network = "mae_vit"
+# encoder = "vit_l16"
+# encoder_param = None
+# size = 224
 
 # network = "mae_hiera"
 # encoder = "hiera_abswin_tiny"
@@ -88,7 +88,7 @@ size = 224
 # size = 192
 
 epoch_start = 1
-epoch_end = 400
+epoch_end = 800
 
 image = "data/validation/Bluethroat/000013.jpeg"
 # image = "data/training/African crake/000005.jpeg"
@@ -104,7 +104,7 @@ logging.disable(logging.INFO)
 device = torch.device("cpu")
 for e in range(epoch_start, epoch_end + 1):
     try:
-        (net, _, _, _) = fs_ops.load_mim_checkpoint(
+        (net, _) = fs_ops.load_mim_checkpoint(
             device,
             network,
             net_param=None,

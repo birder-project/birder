@@ -25,6 +25,7 @@ from torch import nn
 from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask1d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import PreTrainEncoder
@@ -489,35 +490,12 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder):
         # Add pos embedding without special tokens
         x = x + self.pos_embedding[:, self.num_special_tokens :, :]
 
-        # Masking: length -> length * mask_ratio
-        # Perform per-sample random masking by per-sample shuffling.
-        # Per-sample shuffling is done by argsort random noise.
-        (N, L, D) = x.size()  # batch, length, dim
+        # Mask tokens
+        (x, mask, ids_keep, ids_restore) = mask1d(x, mask_ratio, kept_mask_ratio)
+
         rope_dim = self.rope.pos_embed.size(1)
-        len_keep = int(L * (1 - mask_ratio))
-        len_masked = int(L * (mask_ratio - kept_mask_ratio))
-
-        noise = torch.rand(N, L, device=x.device)  # Noise in [0, 1]
-
-        # Sort noise for each sample
-        ids_shuffle = torch.argsort(noise, dim=1)  # Ascend: small is keep, large is remove
-        ids_restore = torch.argsort(ids_shuffle, dim=1)
-
-        # Keep the first subset
-        ids_keep = ids_shuffle[:, :len_keep]
-        x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
-
-        repo = self.rope.pos_embed.unsqueeze(0).repeat(N, 1, 1)
+        repo = self.rope.pos_embed.unsqueeze(0).repeat(x.size(0), 1, 1)
         rope_masked = torch.gather(repo, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, rope_dim))
-
-        # Generate the binary mask: 0 is keep, 1 is remove
-        mask = torch.ones([N, L], device=x.device)
-        mask[:, : len_keep + len_masked] = 0
-
-        # Un-shuffle to get the binary mask
-        mask = torch.gather(mask, dim=1, index=ids_restore)
-
-        x = x_masked
 
         # Append class and register tokens
         if self.class_token is not None:

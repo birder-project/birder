@@ -5,6 +5,8 @@ tags:
 - pytorch
 library_name: birder
 license: apache-2.0
+base_model:
+- birder-project/vitreg4_b16_mim
 ---
 
 # Model Card for vitreg4_b16_mim-intermediate-arabian-peninsula

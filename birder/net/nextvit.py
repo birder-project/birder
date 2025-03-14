@@ -18,6 +18,7 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import PreTrainEncoder
@@ -395,36 +396,14 @@ class NextViT(DetectorBackbone, PreTrainEncoder):
     ) -> tuple[torch.Tensor, ...]:
         assert mask_token is not None
 
-        (B, _, H, W) = x.shape
-        L = (H // 32) * (W // 32)  # Patch size = 32
-        len_keep = int(L * (1 - mask_ratio))
-
-        noise = torch.randn(B, L, device=x.device)
-
-        # Sort noise for each sample
-        ids_shuffle = torch.argsort(noise, dim=1)
-        ids_restore = torch.argsort(ids_shuffle, dim=1)
-
-        # Generate the binary mask: 0 is keep 1 is remove
-        mask = torch.ones([B, L], device=x.device)
-        mask[:, :len_keep] = 0
-
-        # Un-shuffle to get the binary mask
-        mask = torch.gather(mask, dim=1, index=ids_restore)
-
-        # Upsample mask
-        scale = 2**3
-        assert len(mask.shape) == 2
-
-        upscale_mask = (
-            mask.reshape(-1, (H // 32), (W // 32)).repeat_interleave(scale, axis=1).repeat_interleave(scale, axis=2)
-        )
-        upscale_mask = upscale_mask.unsqueeze(1).type_as(x)
-
         x = self.stem(x)
+
+        (x, mask, shaped_mask, _) = mask2d(x, mask_ratio, patch_factor=8)
+        (B, _, H, W) = x.size()
         mask_tokens = mask_token.permute(0, 3, 1, 2)
-        mask_tokens = mask_tokens.expand(B, -1, (H // 4), (W // 4))  # Patch stride = 4
-        x = x * (1.0 - upscale_mask) + (mask_tokens * upscale_mask)
+        mask_tokens = mask_tokens.expand(B, -1, H, W)
+        x = x * (1.0 - shaped_mask) + (mask_tokens * shaped_mask)
+
         x = self.body(x)
 
         return (x, mask)

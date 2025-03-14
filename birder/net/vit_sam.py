@@ -20,6 +20,7 @@ from torch import nn
 from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import PreTrainEncoder
@@ -337,37 +338,13 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
         kept_mask_ratio: Optional[float] = None,
         mask_token: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        if kept_mask_ratio is None:
-            kept_mask_ratio = mask_ratio
-
-        (B, _, H, W) = x.shape
-        L = (H // self.patch_size) * (W // self.patch_size)
-        len_keep = int(L * (1 - mask_ratio))
-        len_masked = int(L * (mask_ratio - kept_mask_ratio))
-
-        noise = torch.randn(B, L, device=x.device)
-
-        # Sort noise for each sample
-        ids_shuffle = torch.argsort(noise, dim=1)
-        ids_restore = torch.argsort(ids_shuffle, dim=1)
-
-        # Generate the binary mask: 0 is keep 1 is remove
-        mask = torch.ones([B, L], device=x.device)
-        mask[:, : len_keep + len_masked] = 0
-
-        # Un-shuffle to get the binary mask
-        mask = torch.gather(mask, dim=1, index=ids_restore)
-
-        # Reshape mask
-        assert len(mask.shape) == 2
-
-        shaped_mask = mask.reshape(-1, (H // self.patch_size), (W // self.patch_size))
-        shaped_mask = shaped_mask.unsqueeze(3).type_as(x)
-
         x = self.patch_embed(x)
-        (B, H, W, _) = x.shape
+        (B, H, W, _) = x.size()
         x = x + self.pos_embedding
-        x = x * (1.0 - shaped_mask)
+
+        # Mask tokens
+        (x, mask, _, ids_restore) = mask2d(x, mask_ratio, kept_mask_ratio, channels_last=True)
+
         x = self.body(x)
         x = x.reshape(B, H * W, -1)
 
