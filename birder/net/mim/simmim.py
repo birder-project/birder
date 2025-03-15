@@ -15,7 +15,9 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from birder.net.base import TokenSubstitutionEncoder
+from birder.common.masking import uniform_mask
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenSubstitutionMixin
 from birder.net.mim.base import MIMBaseNet
 
 
@@ -58,7 +60,7 @@ class SimMIM(MIMBaseNet):
 
     def __init__(
         self,
-        encoder: TokenSubstitutionEncoder,
+        encoder: PreTrainEncoder,
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
@@ -67,7 +69,7 @@ class SimMIM(MIMBaseNet):
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
         assert self.config is None, "config not supported"
-        assert isinstance(self.encoder, TokenSubstitutionEncoder)
+        assert isinstance(self.encoder, TokenSubstitutionMixin)
 
         self.mask_ratio = 0.6
         self.patch_size = 32
@@ -149,7 +151,11 @@ class SimMIM(MIMBaseNet):
         return loss
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        (latent, mask) = self.encoder.masked_encoding(x, self.mask_ratio, mask_token=self.mask_token)
+        seq_len = (self.size[0] // 32) * (self.size[1] // 32)
+        mask = uniform_mask(x.size(0), seq_len, mask_ratio=self.mask_ratio, device=x.device)[0]
+
+        latent = self.encoder.masked_encoding_substitution(x, mask, mask_token=self.mask_token)
         pred = self.forward_decoder(latent)
         loss = self.forward_loss(x, pred, mask)
+
         return {"loss": loss, "pred": pred, "mask": mask}

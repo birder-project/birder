@@ -21,7 +21,8 @@ from torchvision.ops import StochasticDepth
 from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.base import TokenSubstitutionEncoder
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenSubstitutionMixin
 from birder.net.base import make_divisible
 
 
@@ -241,7 +242,7 @@ class NTB(nn.Module):
         return x
 
 
-class NextViT(DetectorBackbone, TokenSubstitutionEncoder):
+class NextViT(DetectorBackbone, PreTrainEncoder, TokenSubstitutionMixin):
     block_group_regex = r"body\.stage\d+\.(\d+)"
 
     # pylint: disable=too-many-locals
@@ -347,6 +348,7 @@ class NextViT(DetectorBackbone, TokenSubstitutionEncoder):
         self.embedding_size = output_channel
         self.classifier = self.create_classifier()
 
+        self.stem_stride = 4
         self.encoding_size = stem_chs[-1]
 
         # Weights initialization
@@ -387,14 +389,14 @@ class NextViT(DetectorBackbone, TokenSubstitutionEncoder):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def masked_encoding(
-        self, x: torch.Tensor, mask_ratio: float, mask_token: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    def masked_encoding_substitution(
+        self, x: torch.Tensor, mask: torch.Tensor, mask_token: torch.Tensor
+    ) -> torch.Tensor:
         x = self.stem(x)
-        (x, mask) = mask_tensor(x, mask_ratio, patch_factor=8, mask_token=mask_token)
+        x = mask_tensor(x, mask, patch_factor=32 // self.stem_stride, mask_token=mask_token)
         x = self.body(x)
 
-        return (x, mask)
+        return x
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

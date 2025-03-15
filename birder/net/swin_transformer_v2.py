@@ -24,7 +24,8 @@ from torchvision.ops import StochasticDepth
 from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.base import TokenSubstitutionEncoder
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenSubstitutionMixin
 from birder.net.swin_transformer_v1 import get_relative_position_bias
 from birder.net.swin_transformer_v1 import patch_merging_pad
 from birder.net.swin_transformer_v1 import shifted_window_attention
@@ -186,7 +187,7 @@ class SwinTransformerBlock(nn.Module):
 
 
 # pylint: disable=invalid-name
-class Swin_Transformer_v2(DetectorBackbone, TokenSubstitutionEncoder):
+class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, TokenSubstitutionMixin):
     default_size = (256, 256)
     block_group_regex = r"body\.stage\d+\.(\d+)"
 
@@ -204,7 +205,7 @@ class Swin_Transformer_v2(DetectorBackbone, TokenSubstitutionEncoder):
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
-        patch_size: tuple[int, int] = self.config["patch_size"]
+        patch_size = 4
         embed_dim: int = self.config["embed_dim"]
         depths: list[int] = self.config["depths"]
         num_heads: list[int] = self.config["num_heads"]
@@ -219,7 +220,7 @@ class Swin_Transformer_v2(DetectorBackbone, TokenSubstitutionEncoder):
             nn.Conv2d(
                 self.input_channels,
                 embed_dim,
-                kernel_size=patch_size,
+                kernel_size=(patch_size, patch_size),
                 stride=patch_size,
                 padding=(0, 0),
                 bias=True,
@@ -228,7 +229,7 @@ class Swin_Transformer_v2(DetectorBackbone, TokenSubstitutionEncoder):
             nn.LayerNorm(embed_dim, eps=1e-5),
         )
 
-        resolution = (self.size[0] // patch_size[0], self.size[1] // patch_size[1])
+        resolution = (self.size[0] // patch_size, self.size[1] // patch_size)
         total_stage_blocks = sum(depths)
         stage_block_id = 0
         stages: OrderedDict[str, nn.Module] = OrderedDict()
@@ -278,6 +279,7 @@ class Swin_Transformer_v2(DetectorBackbone, TokenSubstitutionEncoder):
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
+        self.stem_stride = patch_size
         self.encoding_size = embed_dim
 
         # Weight initialization
@@ -309,14 +311,14 @@ class Swin_Transformer_v2(DetectorBackbone, TokenSubstitutionEncoder):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def masked_encoding(
-        self, x: torch.Tensor, mask_ratio: float, mask_token: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    def masked_encoding_substitution(
+        self, x: torch.Tensor, mask: torch.Tensor, mask_token: torch.Tensor
+    ) -> torch.Tensor:
         x = self.stem(x)
-        (x, mask) = mask_tensor(x, mask_ratio, channels_last=True, patch_factor=8, mask_token=mask_token)
+        x = mask_tensor(x, mask, channels_last=True, patch_factor=32 // self.stem_stride, mask_token=mask_token)
         x = self.body(x).permute(0, 3, 1, 2).contiguous()
 
-        return (x, mask)
+        return x
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
@@ -376,7 +378,6 @@ registry.register_alias(
     "swin_transformer_v2_t",
     Swin_Transformer_v2,
     config={
-        "patch_size": (4, 4),
         "embed_dim": 96,
         "depths": [2, 2, 6, 2],
         "num_heads": [3, 6, 12, 24],
@@ -388,7 +389,6 @@ registry.register_alias(
     "swin_transformer_v2_s",
     Swin_Transformer_v2,
     config={
-        "patch_size": (4, 4),
         "embed_dim": 96,
         "depths": [2, 2, 18, 2],
         "num_heads": [3, 6, 12, 24],
@@ -400,7 +400,6 @@ registry.register_alias(
     "swin_transformer_v2_b",
     Swin_Transformer_v2,
     config={
-        "patch_size": (4, 4),
         "embed_dim": 128,
         "depths": [2, 2, 18, 2],
         "num_heads": [4, 8, 16, 32],
@@ -412,7 +411,6 @@ registry.register_alias(
     "swin_transformer_v2_l",
     Swin_Transformer_v2,
     config={
-        "patch_size": (4, 4),
         "embed_dim": 192,
         "depths": [2, 2, 18, 2],
         "num_heads": [6, 12, 24, 48],
@@ -426,7 +424,6 @@ registry.register_alias(
     "swin_transformer_v2_w2_t",
     Swin_Transformer_v2,
     config={
-        "patch_size": (4, 4),
         "embed_dim": 96,
         "depths": [2, 2, 6, 2],
         "num_heads": [3, 6, 12, 24],
@@ -438,7 +435,6 @@ registry.register_alias(
     "swin_transformer_v2_w2_s",
     Swin_Transformer_v2,
     config={
-        "patch_size": (4, 4),
         "embed_dim": 96,
         "depths": [2, 2, 18, 2],
         "num_heads": [3, 6, 12, 24],
@@ -450,7 +446,6 @@ registry.register_alias(
     "swin_transformer_v2_w2_b",
     Swin_Transformer_v2,
     config={
-        "patch_size": (4, 4),
         "embed_dim": 128,
         "depths": [2, 2, 18, 2],
         "num_heads": [4, 8, 16, 32],
@@ -462,7 +457,6 @@ registry.register_alias(
     "swin_transformer_v2_w2_l",
     Swin_Transformer_v2,
     config={
-        "patch_size": (4, 4),
         "embed_dim": 192,
         "depths": [2, 2, 18, 2],
         "num_heads": [6, 12, 24, 48],

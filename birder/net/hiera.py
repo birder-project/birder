@@ -314,6 +314,7 @@ class HieraBlock(nn.Module):
         return x
 
 
+# pylint: disable=too-many-instance-attributes
 class Hiera(DetectorBackbone, PreTrainEncoder):
     scriptable = False
     block_group_regex = r"body\.stage\d+\.(\d+)"
@@ -354,6 +355,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
         flat_mu_size = math.prod(mask_unit_size)
         flat_q_stride = math.prod(q_stride)
         assert q_pool < len(depths)
+        assert patch_stride[0] == patch_stride[1]
 
         self.tokens_spatial_shape = tokens_spatial_shape
         self.mask_unit_size = mask_unit_size
@@ -432,6 +434,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
         self.embedding_size = embed_dim
         self.classifier = self.create_classifier()
 
+        self.stem_stride = patch_stride[0]
         self.encoding_size = embed_dim
         # self.decoder_block
 

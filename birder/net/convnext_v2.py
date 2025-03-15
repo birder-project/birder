@@ -24,7 +24,8 @@ from torchvision.ops import StochasticDepth
 from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.base import MaskedTokenRetentionEncoder
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
 from birder.net.convnext_v1 import LayerNorm2d
 
 
@@ -82,7 +83,7 @@ class ConvNeXtBlock(nn.Module):
 
 
 # pylint: disable=invalid-name
-class ConvNeXt_v2(DetectorBackbone, MaskedTokenRetentionEncoder):
+class ConvNeXt_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"body\.stage\d+\.(\d+)"
 
     def __init__(
@@ -150,6 +151,7 @@ class ConvNeXt_v2(DetectorBackbone, MaskedTokenRetentionEncoder):
         self.embedding_size = in_channels[-1]
         self.classifier = self.create_classifier()
 
+        self.stem_stride = 4
         self.encoding_size = in_channels[-1]
         self.decoder_block = partial(ConvNeXtBlock, stochastic_depth_prob=0)
 
@@ -186,12 +188,12 @@ class ConvNeXt_v2(DetectorBackbone, MaskedTokenRetentionEncoder):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def masked_encoding(self, x: torch.Tensor, mask_ratio: float) -> tuple[torch.Tensor, torch.Tensor]:
+    def masked_encoding_retention(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
-        (x, mask) = mask_tensor(x, mask_ratio, patch_factor=8)
+        x = mask_tensor(x, mask, patch_factor=32 // self.stem_stride)
         x = self.body(x)
 
-        return (x, mask)
+        return x
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

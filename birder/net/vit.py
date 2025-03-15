@@ -26,10 +26,10 @@ from torch import nn
 from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
-from birder.common.masking import mask_token_omission
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.base import MaskedTokenOmissionEncoder
+from birder.net.base import MaskedTokenOmissionMixin
+from birder.net.base import PreTrainEncoder
 
 
 def adjust_position_embedding(
@@ -254,7 +254,8 @@ class Encoder(nn.Module):
             b.set_need_attn()
 
 
-class ViT(DetectorBackbone, MaskedTokenOmissionEncoder):
+# pylint: disable=too-many-instance-attributes
+class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -345,7 +346,8 @@ class ViT(DetectorBackbone, MaskedTokenOmissionEncoder):
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
 
-        self.encoding_size = hidden_dim * seq_length
+        self.stem_stride = patch_size
+        self.encoding_size = hidden_dim
         self.decoder_block = partial(
             EncoderBlock,
             16,
@@ -434,16 +436,9 @@ class ViT(DetectorBackbone, MaskedTokenOmissionEncoder):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def masked_encoding(
-        self,
-        x: torch.Tensor,
-        mask_ratio: float,
-        kept_mask_ratio: Optional[float] = None,
-        return_all_features: bool = False,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        if kept_mask_ratio is None:
-            kept_mask_ratio = mask_ratio
-
+    def masked_encoding_omission(
+        self, x: torch.Tensor, ids_keep: torch.Tensor, return_all_features: bool = False
+    ) -> torch.Tensor:
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
         x = self.patch_embed(x)
@@ -452,7 +447,7 @@ class ViT(DetectorBackbone, MaskedTokenOmissionEncoder):
         x = x + self.pos_embedding[:, self.num_special_tokens :, :]
 
         # Mask tokens
-        (x, mask, _, ids_restore) = mask_token_omission(x, mask_ratio, kept_mask_ratio)
+        x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, x.size(2)))
 
         # Append class and register tokens
         if self.class_token is not None:
@@ -474,7 +469,7 @@ class ViT(DetectorBackbone, MaskedTokenOmissionEncoder):
             x = self.encoder(x)
             x = self.norm(x)
 
-        return (x, mask, ids_restore)
+        return x
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         (H, W) = x.shape[-2:]

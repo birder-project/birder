@@ -14,7 +14,9 @@ from typing import Optional
 import torch
 from torch import nn
 
-from birder.net.base import MaskedTokenRetentionEncoder
+from birder.common.masking import uniform_mask
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
 from birder.net.mim.base import MIMBaseNet
 
 
@@ -23,7 +25,7 @@ class FCMAE(MIMBaseNet):
 
     def __init__(
         self,
-        encoder: MaskedTokenRetentionEncoder,
+        encoder: PreTrainEncoder,
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
@@ -32,7 +34,7 @@ class FCMAE(MIMBaseNet):
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
         assert self.config is None, "config not supported"
-        assert isinstance(self.encoder, MaskedTokenRetentionEncoder)
+        assert isinstance(self.encoder, MaskedTokenRetentionMixin)
 
         self.mask_ratio = 0.6
         self.decoder_embed_dim = 512
@@ -150,7 +152,11 @@ class FCMAE(MIMBaseNet):
         return loss
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        (latent, mask) = self.encoder.masked_encoding(x, self.mask_ratio)
+        seq_len = (self.size[0] // 32) * (self.size[1] // 32)
+        mask = uniform_mask(x.size(0), seq_len, mask_ratio=self.mask_ratio, device=x.device)[0]
+
+        latent = self.encoder.masked_encoding_retention(x, mask)
         pred = self.forward_decoder(latent, mask)
         loss = self.forward_loss(x, pred, mask)
+
         return {"loss": loss, "pred": pred, "mask": mask}

@@ -318,7 +318,10 @@ class TestMasking(unittest.TestCase):
     def test_mask_token_omission(self) -> None:
         x = torch.arange(1, 65)
         x = x.reshape(1, -1, 1).expand(2, -1, 80)
-        (x_masked, mask, ids_keep, ids_restore) = masking.mask_token_omission(x, mask_ratio=0.75)
+
+        (N, L, D) = x.size()  # batch, length, dim
+        (mask, ids_keep, ids_restore) = masking.uniform_mask(N, L, mask_ratio=0.75, device=x.device)
+        x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
 
         # Test x masked
         self.assertEqual(x_masked.size(0), x.size(0))
@@ -340,7 +343,8 @@ class TestMasking(unittest.TestCase):
 
     def test_mask_tensor(self) -> None:
         x = torch.rand(2, 8, 8, 80)
-        (x_masked, mask) = masking.mask_tensor(x, mask_ratio=0.5, channels_last=True, patch_factor=2)
+        mask = masking.uniform_mask(2, 4 * 4, mask_ratio=0.5, device=x.device)[0]
+        x_masked = masking.mask_tensor(x, mask, channels_last=True, patch_factor=2)
 
         # Test x masked
         self.assertEqual(x_masked.size(), x.size())
@@ -355,7 +359,8 @@ class TestMasking(unittest.TestCase):
 
         # Test mask token
         mask_token = torch.zeros(1, 1, 1, 80) * 2
-        (x_masked, mask) = masking.mask_tensor(x, mask_ratio=1.0, channels_last=True, mask_token=mask_token)
+        mask = masking.uniform_mask(2, 8 * 8, mask_ratio=1.0, device=x.device)[0]
+        x_masked = masking.mask_tensor(x, mask, channels_last=True, mask_token=mask_token)
         self.assertEqual(x_masked.size(), x.size())
 
         x_masked = x_masked.reshape(-1, 80)
@@ -365,5 +370,22 @@ class TestMasking(unittest.TestCase):
 
     def test_block_masking(self) -> None:
         generator = masking.BlockMasking((8, 8), 1, 4, 0.66, 1.5)
-        mask = generator(32)
+
+        mask = generator(1, 0.0)
+        self.assertEqual((mask == 0).sum().item(), 64)
+
+        mask = generator(4, 0.0)
+        self.assertEqual((mask == 0).sum().item(), 4 * 64)
+
+        mask = generator(1, 0.5)
         self.assertEqual((mask == 0).sum().item(), 32)
+
+        mask = generator(2, 0.5)
+        self.assertEqual((mask == 0).sum().item(), 2 * 32)
+        self.assertNotEqual(mask.dtype, torch.bool)
+
+    def test_uniform_masking(self) -> None:
+        generator = masking.UniformMasking((8, 8))
+        mask = generator(2, 0.25)
+        self.assertEqual((mask == 0).sum().item(), 96)
+        self.assertNotEqual(mask.dtype, torch.bool)

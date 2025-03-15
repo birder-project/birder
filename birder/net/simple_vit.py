@@ -18,9 +18,9 @@ from typing import Optional
 import torch
 from torch import nn
 
-from birder.common.masking import mask_token_omission
 from birder.model_registry import registry
-from birder.net.base import MaskedTokenOmissionEncoder
+from birder.net.base import MaskedTokenOmissionMixin
+from birder.net.base import PreTrainEncoder
 from birder.net.base import pos_embedding_sin_cos_2d
 from birder.net.vit import Encoder
 from birder.net.vit import EncoderBlock
@@ -28,7 +28,7 @@ from birder.net.vit import PatchEmbed
 
 
 # pylint: disable=invalid-name
-class Simple_ViT(MaskedTokenOmissionEncoder):
+class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -91,6 +91,7 @@ class Simple_ViT(MaskedTokenOmissionEncoder):
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
 
+        self.stem_stride = patch_size
         self.encoding_size = hidden_dim * (image_size[0] // patch_size) * (image_size[1] // patch_size)
         self.decoder_block = partial(
             EncoderBlock,
@@ -128,16 +129,9 @@ class Simple_ViT(MaskedTokenOmissionEncoder):
             num_special_tokens=self.num_special_tokens,
         ).to(self.pos_embedding.device)
 
-    def masked_encoding(
-        self,
-        x: torch.Tensor,
-        mask_ratio: float,
-        kept_mask_ratio: Optional[float] = None,
-        return_all_features: bool = False,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        if kept_mask_ratio is None:
-            kept_mask_ratio = mask_ratio
-
+    def masked_encoding_omission(
+        self, x: torch.Tensor, ids_keep: torch.Tensor, return_all_features: bool = False
+    ) -> torch.Tensor:
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
         x = self.patch_embed(x)
@@ -146,7 +140,7 @@ class Simple_ViT(MaskedTokenOmissionEncoder):
         x = x + self.pos_embedding
 
         # Mask tokens
-        (x, mask, _, ids_restore) = mask_token_omission(x, mask_ratio, kept_mask_ratio)
+        x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, x.size(2)))
 
         # Apply transformer
         if return_all_features is True:
@@ -157,7 +151,7 @@ class Simple_ViT(MaskedTokenOmissionEncoder):
             x = self.encoder(x)
             x = self.norm(x)
 
-        return (x, mask, ids_restore)
+        return x
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         (H, W) = x.shape[-2:]

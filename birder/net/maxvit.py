@@ -24,7 +24,8 @@ from torchvision.ops import StochasticDepth
 from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.base import TokenSubstitutionEncoder
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenSubstitutionMixin
 
 
 def _get_conv_output_shape(
@@ -440,7 +441,7 @@ class MaxVitBlock(nn.Module):
         return x
 
 
-class MaxViT(DetectorBackbone, TokenSubstitutionEncoder):
+class MaxViT(DetectorBackbone, PreTrainEncoder, TokenSubstitutionMixin):
     block_group_regex = r"body\.stage\d+\.block\.(\d+)"
 
     # pylint: disable=too-many-locals
@@ -551,6 +552,7 @@ class MaxViT(DetectorBackbone, TokenSubstitutionEncoder):
         self.embedding_size = block_channels[-1]
         self.classifier = self.create_classifier()
 
+        self.stem_stride = 2
         self.encoding_size = stem_channels
 
         # Weights initialization
@@ -591,14 +593,14 @@ class MaxViT(DetectorBackbone, TokenSubstitutionEncoder):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def masked_encoding(
-        self, x: torch.Tensor, mask_ratio: float, mask_token: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    def masked_encoding_substitution(
+        self, x: torch.Tensor, mask: torch.Tensor, mask_token: torch.Tensor
+    ) -> torch.Tensor:
         x = self.stem(x)
-        (x, mask) = mask_tensor(x, mask_ratio, patch_factor=16, mask_token=mask_token)
+        x = mask_tensor(x, mask, patch_factor=32 // self.stem_stride, mask_token=mask_token)
         x = self.body(x)
 
-        return (x, mask)
+        return x
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

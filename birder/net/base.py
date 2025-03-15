@@ -166,30 +166,27 @@ class PreTrainEncoder(BaseNet):  # pylint: disable=abstract-method
         size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        self.stem_stride: int
         self.encoding_size: int
         self.decoder_block: Callable[[int], nn.Module]
 
 
-class MaskedTokenOmissionEncoder(PreTrainEncoder):
-    def masked_encoding(
-        self,
-        x: torch.Tensor,
-        mask_ratio: float,
-        kept_mask_ratio: Optional[float] = None,
-        return_all_features: bool = False,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+class MaskedTokenOmissionMixin:
+    def masked_encoding_omission(
+        self, x: torch.Tensor, ids_keep: torch.Tensor, return_all_features: bool = False
+    ) -> torch.Tensor:
         raise NotImplementedError
 
 
-class MaskedTokenRetentionEncoder(PreTrainEncoder):
-    def masked_encoding(self, x: torch.Tensor, mask_ratio: float) -> tuple[torch.Tensor, torch.Tensor]:
+class MaskedTokenRetentionMixin:
+    def masked_encoding_retention(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError
 
 
-class TokenSubstitutionEncoder(PreTrainEncoder):
-    def masked_encoding(
-        self, x: torch.Tensor, mask_ratio: float, mask_token: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+class TokenSubstitutionMixin:
+    def masked_encoding_substitution(
+        self, x: torch.Tensor, mask: torch.Tensor, mask_token: torch.Tensor
+    ) -> torch.Tensor:
         raise NotImplementedError
 
 

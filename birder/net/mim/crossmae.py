@@ -16,7 +16,9 @@ import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import MLP
 
-from birder.net.base import MaskedTokenOmissionEncoder
+from birder.common.masking import uniform_mask
+from birder.net.base import MaskedTokenOmissionMixin
+from birder.net.base import PreTrainEncoder
 from birder.net.base import pos_embedding_sin_cos_2d
 from birder.net.mim.base import MIMBaseNet
 
@@ -75,7 +77,7 @@ class CrossMAE(MIMBaseNet):
 
     def __init__(
         self,
-        encoder: MaskedTokenOmissionEncoder,
+        encoder: PreTrainEncoder,
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
@@ -84,7 +86,7 @@ class CrossMAE(MIMBaseNet):
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
         assert self.config is None, "config not supported"
-        assert isinstance(self.encoder, MaskedTokenOmissionEncoder)
+        assert isinstance(self.encoder, MaskedTokenOmissionMixin)
 
         self.mask_ratio = 0.75
         self.kept_mask_ratio = 0.25
@@ -202,9 +204,12 @@ class CrossMAE(MIMBaseNet):
         return loss
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        (latent, mask, ids_restore) = self.encoder.masked_encoding(
-            x, self.mask_ratio, self.kept_mask_ratio, return_all_features=True
+        seq_len = (self.size[0] // self.encoder.stem_stride) * (self.size[1] // self.encoder.stem_stride)
+        (mask, ids_keep, ids_restore) = uniform_mask(
+            x.size(0), seq_len, self.mask_ratio, self.kept_mask_ratio, device=x.device
         )
+
+        latent = self.encoder.masked_encoding_omission(x, ids_keep, return_all_features=True)
         pred = self.forward_decoder(latent, mask, ids_restore)
         loss = self.forward_loss(x, pred, mask)
 

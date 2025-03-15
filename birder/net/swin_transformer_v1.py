@@ -289,8 +289,8 @@ class Swin_Transformer_v1(DetectorBackbone):
         assert self.config is not None, "must set config"
 
         mlp_ratio = 4.0
+        patch_size = 4
         window_size = (int(self.size[0] / (2**5)), int(self.size[1] / (2**5)))
-        patch_size: tuple[int, int] = self.config["patch_size"]
         embed_dim: int = self.config["embed_dim"]
         depths: list[int] = self.config["depths"]
         num_heads: list[int] = self.config["num_heads"]
@@ -300,8 +300,8 @@ class Swin_Transformer_v1(DetectorBackbone):
             nn.Conv2d(
                 self.input_channels,
                 embed_dim,
-                kernel_size=patch_size,
-                stride=patch_size,
+                kernel_size=(patch_size, patch_size),
+                stride=(patch_size, patch_size),
                 padding=(0, 0),
                 bias=True,
             ),
@@ -472,7 +472,6 @@ registry.register_alias(
     "swin_transformer_v1_t",
     Swin_Transformer_v1,
     config={
-        "patch_size": (4, 4),
         "embed_dim": 96,
         "depths": [2, 2, 6, 2],
         "num_heads": [3, 6, 12, 24],
@@ -483,7 +482,6 @@ registry.register_alias(
     "swin_transformer_v1_s",
     Swin_Transformer_v1,
     config={
-        "patch_size": (4, 4),
         "embed_dim": 96,
         "depths": [2, 2, 18, 2],
         "num_heads": [3, 6, 12, 24],
@@ -494,7 +492,6 @@ registry.register_alias(
     "swin_transformer_v1_b",
     Swin_Transformer_v1,
     config={
-        "patch_size": (4, 4),
         "embed_dim": 128,
         "depths": [2, 2, 18, 2],
         "num_heads": [4, 8, 16, 32],
@@ -505,7 +502,6 @@ registry.register_alias(
     "swin_transformer_v1_l",
     Swin_Transformer_v1,
     config={
-        "patch_size": (4, 4),
         "embed_dim": 192,
         "depths": [2, 2, 18, 2],
         "num_heads": [6, 12, 24, 48],

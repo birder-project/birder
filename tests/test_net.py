@@ -6,8 +6,13 @@ from typing import Optional
 import torch
 from parameterized import parameterized
 
+from birder.common.masking import uniform_mask
 from birder.model_registry import registry
+from birder.net import Hiera
 from birder.net import base
+from birder.net.base import MaskedTokenOmissionMixin
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import TokenSubstitutionMixin
 
 logging.disable(logging.CRITICAL)
 
@@ -384,44 +389,103 @@ class TestNet(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[misc]
         [
-            ("convnext_v2_atto", None, False),
-            ("hiera_tiny", None, False),
-            ("hiera_abswin_tiny", None, False),
-            ("maxvit_t", None, True),
-            ("nextvit_s", None, True),
-            ("regnet_x_200m", None, False),
-            ("regnet_y_200m", None, False),
-            ("regnet_z_500m", None, False),
-            ("rope_vit_b32", None, False),
-            ("rope_vitreg4_b32", None, False),
-            ("rope_vit_so150m_p14_ap", None, False),
-            ("rope_vitreg4_so150m_p14_ap", None, False),
-            ("simple_vit_b32", None, False),
-            ("swin_transformer_v2_t", None, True),
-            ("swin_transformer_v2_w2_t", None, True),
-            ("vit_b32", None, False),
-            ("vitreg4_b32", None, False),
-            ("vit_so150m_p14_ap", None, False),
-            ("vitreg4_so150m_p14_ap", None, False),
+            ("hiera_tiny", None),
+            ("hiera_abswin_tiny", None),
         ]
     )
-    def test_pre_training_encoder(self, network_name: str, net_param: Optional[float], mask_token: bool) -> None:
+    def test_pre_training_encoder_hiera(self, network_name: str, net_param: Optional[float]) -> None:
         n = registry.net_factory(network_name, 3, 100, net_param=net_param)
         size = n.default_size
 
-        kwargs = {}
-        if mask_token is True:
-            kwargs = {"mask_token": torch.zeros(1, 1, 1, n.encoding_size)}
+        # self.assertIsInstance(n, Hiera)
+        assert isinstance(n, Hiera)
+        outs = n.masked_encoding(torch.rand((1, 3, *size)), 0.6)
 
-        outs = n.masked_encoding(torch.rand((1, 3, *size)), 0.6, **kwargs)
         for out in outs:
-            if isinstance(out, (tuple, list)):  # Hierarchical MIM
+            if isinstance(out, (tuple, list)):
                 for o in out:
                     self.assertFalse(torch.isnan(o).any())
             else:
                 self.assertFalse(torch.isnan(out).any())
 
         self.assertTrue(hasattr(n, "block_group_regex"))
+        self.assertTrue(hasattr(n, "stem_stride"))
+
+    @parameterized.expand(  # type: ignore[misc]
+        [
+            ("convnext_v2_atto", None),
+            ("regnet_x_200m", None),
+            ("regnet_y_200m", None),
+            ("regnet_z_500m", None),
+        ]
+    )
+    def test_pre_training_encoder_retention(self, network_name: str, net_param: Optional[float]) -> None:
+        n = registry.net_factory(network_name, 3, 100, net_param=net_param)
+        size = n.default_size
+
+        # self.assertIsInstance(n, MaskedTokenRetentionMixin)
+        assert isinstance(n, MaskedTokenRetentionMixin)
+        seq_len = (size[0] // 32) * (size[1] // 32)
+        x = torch.rand((1, 3, *size))
+        mask = uniform_mask(1, seq_len, mask_ratio=0.6, device=x.device)[0]
+        out = n.masked_encoding_retention(x, mask)
+
+        self.assertFalse(torch.isnan(out).any())
+        self.assertTrue(hasattr(n, "block_group_regex"))
+        self.assertTrue(hasattr(n, "stem_stride"))
+
+    @parameterized.expand(  # type: ignore[misc]
+        [
+            ("maxvit_t", None),
+            ("nextvit_s", None),
+            ("swin_transformer_v2_t", None),
+            ("swin_transformer_v2_w2_t", None),
+        ]
+    )
+    def test_pre_training_encoder_substitution(self, network_name: str, net_param: Optional[float]) -> None:
+        n = registry.net_factory(network_name, 3, 100, net_param=net_param)
+        size = n.default_size
+
+        # self.assertIsInstance(n, TokenSubstitutionMixin)
+        assert isinstance(n, TokenSubstitutionMixin)
+        seq_len = (size[0] // 32) * (size[1] // 32)
+        x = torch.rand((1, 3, *size))
+        mask = uniform_mask(1, seq_len, mask_ratio=0.6, device=x.device)[0]
+        out = n.masked_encoding_substitution(x, mask, torch.zeros(1, 1, 1, n.encoding_size))
+
+        self.assertFalse(torch.isnan(out).any())
+        self.assertTrue(hasattr(n, "block_group_regex"))
+        self.assertTrue(hasattr(n, "stem_stride"))
+
+    @parameterized.expand(  # type: ignore[misc]
+        [
+            ("rope_vit_b32", None),
+            ("rope_vitreg4_b32", None),
+            ("rope_vit_so150m_p14_ap", None),
+            ("rope_vitreg4_so150m_p14_ap", None),
+            ("simple_vit_b32", None),
+            ("vit_b32", None),
+            ("vitreg4_b32", None),
+            ("vit_so150m_p14_ap", None),
+            ("vitreg4_so150m_p14_ap", None),
+        ]
+    )
+    def test_pre_training_encoder_omission(self, network_name: str, net_param: Optional[float]) -> None:
+        n = registry.net_factory(network_name, 3, 100, net_param=net_param)
+        size = n.default_size
+
+        # self.assertIsInstance(n, MaskedTokenOmissionMixin)
+        assert isinstance(n, MaskedTokenOmissionMixin)
+        seq_len = (size[0] // n.stem_stride) * (size[1] // n.stem_stride)
+        x = torch.rand((1, 3, *size))
+        ids_keep = uniform_mask(x.size(0), seq_len, mask_ratio=0.75, device=x.device)[1]
+        outs = n.masked_encoding_omission(x, ids_keep)
+
+        for out in outs:
+            self.assertFalse(torch.isnan(out).any())
+
+        self.assertTrue(hasattr(n, "block_group_regex"))
+        self.assertTrue(hasattr(n, "stem_stride"))
 
 
 class TestNonSquareNet(unittest.TestCase):

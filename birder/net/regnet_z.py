@@ -20,7 +20,8 @@ from torchvision.ops import Conv2dNormActivation
 from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.base import MaskedTokenRetentionEncoder
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
 from birder.net.regnet import BlockParams
 from birder.net.regnet import BottleneckTransform
 
@@ -100,7 +101,7 @@ class AnyStage(nn.Module):
 
 
 # pylint: disable=invalid-name
-class RegNet_Z(DetectorBackbone, MaskedTokenRetentionEncoder):
+class RegNet_Z(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"body\.stage\d+\.block\.(\d+)"
 
     def __init__(
@@ -168,6 +169,7 @@ class RegNet_Z(DetectorBackbone, MaskedTokenRetentionEncoder):
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
+        self.stem_stride = 2
         self.encoding_size = num_features
         decoder_block = partial(
             BottleneckTransform,
@@ -216,12 +218,12 @@ class RegNet_Z(DetectorBackbone, MaskedTokenRetentionEncoder):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def masked_encoding(self, x: torch.Tensor, mask_ratio: float) -> tuple[torch.Tensor, torch.Tensor]:
+    def masked_encoding_retention(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
-        (x, mask) = mask_tensor(x, mask_ratio, patch_factor=16)
+        x = mask_tensor(x, mask, patch_factor=32 // self.stem_stride)
         x = self.body(x)
 
-        return (x, mask)
+        return x
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
