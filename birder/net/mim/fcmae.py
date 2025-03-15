@@ -124,7 +124,7 @@ class FCMAE(MIMBaseNet):
         # Append mask token
         (B, _, H, W) = x.shape
         mask = mask.reshape(-1, H, W).unsqueeze(1).type_as(x)
-        mask_token = self.mask_token.expand(B, 1, H, W)
+        mask_token = self.mask_token.repeat(B, 1, H, W)
         x = x * (1.0 - mask) + (mask_token * mask)
 
         # Decoding
