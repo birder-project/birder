@@ -155,7 +155,7 @@ class BaseNet(nn.Module):
         return self.classify(x)
 
 
-class PreTrainEncoder(BaseNet):
+class PreTrainEncoder(BaseNet):  # pylint: disable=abstract-method
     def __init__(
         self,
         input_channels: int,
@@ -169,13 +169,27 @@ class PreTrainEncoder(BaseNet):
         self.encoding_size: int
         self.decoder_block: Callable[[int], nn.Module]
 
+
+class MaskedTokenOmissionEncoder(PreTrainEncoder):
     def masked_encoding(
         self,
         x: torch.Tensor,
         mask_ratio: float,
         kept_mask_ratio: Optional[float] = None,
-        mask_token: Optional[torch.Tensor] = None,
-    ) -> tuple[torch.Tensor, ...]:
+        return_all_features: bool = False,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        raise NotImplementedError
+
+
+class MaskedTokenRetentionEncoder(PreTrainEncoder):
+    def masked_encoding(self, x: torch.Tensor, mask_ratio: float) -> tuple[torch.Tensor, torch.Tensor]:
+        raise NotImplementedError
+
+
+class TokenSubstitutionEncoder(PreTrainEncoder):
+    def masked_encoding(
+        self, x: torch.Tensor, mask_ratio: float, mask_token: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         raise NotImplementedError
 
 

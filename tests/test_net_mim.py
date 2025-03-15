@@ -34,7 +34,6 @@ class TestNetMIM(unittest.TestCase):
             ("mae_vit", None, ("rope_vitreg4_so150m_p14_ap", None)),
             ("mae_vit", None, ("simple_vit_b32", None)),
             ("mae_vit", None, ("vit_b32", None)),
-            ("mae_vit", None, ("vit_sam_b16", None)),
             ("mae_vit", None, ("vitreg4_b32", None)),
             ("mae_vit", None, ("vit_so150m_p14_ap", None)),
             ("mae_vit", None, ("vitreg4_so150m_p14_ap", None)),

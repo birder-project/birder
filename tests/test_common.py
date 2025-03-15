@@ -13,6 +13,7 @@ import torch
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
+from birder.common import masking
 from birder.common import training_utils
 from birder.conf import settings
 from birder.net.base import SignatureType
@@ -311,3 +312,58 @@ class TestTrainingUtils(unittest.TestCase):
         model = training_utils.freeze_batchnorm2d(model)
         for m in model.modules():
             self.assertNotIsInstance(m, torch.nn.BatchNorm2d)
+
+
+class TestMasking(unittest.TestCase):
+    def test_mask_token_omission(self) -> None:
+        x = torch.arange(1, 65)
+        x = x.reshape(1, -1, 1).expand(2, -1, 80)
+        (x_masked, mask, ids_keep, ids_restore) = masking.mask_token_omission(x, mask_ratio=0.75)
+
+        # Test x masked
+        self.assertEqual(x_masked.size(0), x.size(0))
+        self.assertEqual(x_masked.size(1), 16)
+        self.assertEqual(x_masked.size(2), x.size(2))
+
+        # Test mask
+        self.assertEqual(mask.ndim, 2)
+        self.assertEqual(mask.size(0), x.size(0))
+        self.assertEqual(mask.size(1), x.size(1))
+        self.assertEqual((mask == 0).sum().item(), x.size(0) * 16)
+        self.assertNotEqual(mask.dtype, torch.bool)
+
+        # Test ids
+        self.assertEqual(ids_keep.size(0), x.size(0))
+        self.assertEqual(ids_keep.size(1), 16)
+        self.assertEqual(ids_restore.size(0), x.size(0))
+        self.assertEqual(ids_restore.size(1), x.size(1))
+
+    def test_mask_tensor(self) -> None:
+        x = torch.rand(2, 8, 8, 80)
+        (x_masked, mask) = masking.mask_tensor(x, mask_ratio=0.5, channels_last=True, patch_factor=2)
+
+        # Test x masked
+        self.assertEqual(x_masked.size(), x.size())
+
+        # Test mask
+        expected_size = x.size(1) // 2 * x.size(2) // 2
+        self.assertEqual(mask.ndim, 2)
+        self.assertEqual(mask.size(0), x.size(0))
+        self.assertEqual(mask.size(1), expected_size)
+        self.assertEqual((mask == 0).sum().item(), x.size(0) * expected_size // 2)
+        self.assertNotEqual(mask.dtype, torch.bool)
+
+        # Test mask token
+        mask_token = torch.zeros(1, 1, 1, 80) * 2
+        (x_masked, mask) = masking.mask_tensor(x, mask_ratio=1.0, channels_last=True, mask_token=mask_token)
+        self.assertEqual(x_masked.size(), x.size())
+
+        x_masked = x_masked.reshape(-1, 80)
+        mask_token = mask_token.squeeze()
+        for masked_token in x_masked:
+            torch.testing.assert_close(masked_token, mask_token)
+
+    def test_block_masking(self) -> None:
+        generator = masking.BlockMasking((8, 8), 1, 4, 0.66, 1.5)
+        mask = generator(32)
+        self.assertEqual((mask == 0).sum().item(), 32)

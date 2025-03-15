@@ -97,11 +97,10 @@ def train(args: argparse.Namespace) -> None:
             wds_path,
             dataset_size=dataset_size,
             shuffle=True,
-            samples_names=False,
+            samples_names=True,
             transform=training_transform,
             cache_dir=args.wds_cache_dir,
         )
-        input_idx = 0
 
     else:
         training_dataset = make_image_dataset(
@@ -110,7 +109,6 @@ def train(args: argparse.Namespace) -> None:
             transforms=training_transform,
             loader=pil_loader if args.img_loader == "pil" else _tv_loader,
         )
-        input_idx = 1
 
     logger.info(f"Using device {device}:{device_id}")
     logger.info(f"Training on {len(training_dataset):,} samples")
@@ -342,8 +340,7 @@ def train(args: argparse.Namespace) -> None:
                 leave=False,
             )
 
-        for i, data in enumerate(training_loader):
-            inputs = data[input_idx]
+        for i, (_, inputs, _) in enumerate(training_loader):
             inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
 
             # Zero the parameter gradients

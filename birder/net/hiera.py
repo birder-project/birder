@@ -496,13 +496,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def masked_encoding(
-        self,
-        x: torch.Tensor,
-        mask_ratio: float,
-        kept_mask_ratio: Optional[float] = None,
-        mask_token: Optional[torch.Tensor] = None,
-    ) -> tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
+    def masked_encoding(self, x: torch.Tensor, mask_ratio: float) -> tuple[list[torch.Tensor], torch.Tensor]:
         B = x.size(0)
 
         # Tokens selected for masking at mask unit level
@@ -537,7 +531,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
             if name in self.return_stages:
                 out.append(self.reroll(x, self.block_count[idx], mask=mask))
 
-        return (out, mask, ids_restore)
+        return (out, mask)
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

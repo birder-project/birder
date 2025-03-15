@@ -21,10 +21,10 @@ from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import Permute
 from torchvision.ops import StochasticDepth
 
-from birder.common.masking import mask2d
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.base import PreTrainEncoder
+from birder.net.base import MaskedTokenRetentionEncoder
 from birder.net.convnext_v1 import LayerNorm2d
 
 
@@ -82,7 +82,7 @@ class ConvNeXtBlock(nn.Module):
 
 
 # pylint: disable=invalid-name
-class ConvNeXt_v2(DetectorBackbone, PreTrainEncoder):
+class ConvNeXt_v2(DetectorBackbone, MaskedTokenRetentionEncoder):
     block_group_regex = r"body\.stage\d+\.(\d+)"
 
     def __init__(
@@ -186,15 +186,9 @@ class ConvNeXt_v2(DetectorBackbone, PreTrainEncoder):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def masked_encoding(
-        self,
-        x: torch.Tensor,
-        mask_ratio: float,
-        kept_mask_ratio: Optional[float] = None,
-        mask_token: Optional[torch.Tensor] = None,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    def masked_encoding(self, x: torch.Tensor, mask_ratio: float) -> tuple[torch.Tensor, torch.Tensor]:
         x = self.stem(x)
-        (x, mask, _, _) = mask2d(x, mask_ratio, patch_factor=8)
+        (x, mask) = mask_tensor(x, mask_ratio, patch_factor=8)
         x = self.body(x)
 
         return (x, mask)

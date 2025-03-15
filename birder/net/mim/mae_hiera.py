@@ -14,7 +14,6 @@ from typing import Optional
 import torch
 from torch import nn
 
-from birder.net.base import PreTrainEncoder
 from birder.net.hiera import Hiera
 from birder.net.hiera import HieraBlock
 from birder.net.hiera import undo_windowing
@@ -44,7 +43,7 @@ class MAE_Hiera(MIMBaseNet):
 
     def __init__(
         self,
-        encoder: PreTrainEncoder,
+        encoder: Hiera,
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
@@ -53,7 +52,7 @@ class MAE_Hiera(MIMBaseNet):
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
         assert self.config is None, "config not supported"
-        assert isinstance(self.encoder, (Hiera,))
+        assert isinstance(self.encoder, Hiera)
 
         self.mask_ratio = 0.6
         encoder_dim = self.encoder.encoding_size
@@ -167,7 +166,7 @@ class MAE_Hiera(MIMBaseNet):
 
     def forward_encoder(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         # Get multi-scale representations from encoder
-        (intermediates, mask, _) = self.encoder.masked_encoding(x, self.mask_ratio)
+        (intermediates, mask) = self.encoder.masked_encoding(x, self.mask_ratio)
 
         # Resolution unchanged after q_pool stages, so skip those features
         intermediates = intermediates[: self.encoder.q_pool] + intermediates[-1:]

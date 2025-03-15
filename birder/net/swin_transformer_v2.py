@@ -21,10 +21,10 @@ from torchvision.ops import MLP
 from torchvision.ops import Permute
 from torchvision.ops import StochasticDepth
 
-from birder.common.masking import mask2d
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenSubstitutionEncoder
 from birder.net.swin_transformer_v1 import get_relative_position_bias
 from birder.net.swin_transformer_v1 import patch_merging_pad
 from birder.net.swin_transformer_v1 import shifted_window_attention
@@ -186,7 +186,7 @@ class SwinTransformerBlock(nn.Module):
 
 
 # pylint: disable=invalid-name
-class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder):
+class Swin_Transformer_v2(DetectorBackbone, TokenSubstitutionEncoder):
     default_size = (256, 256)
     block_group_regex = r"body\.stage\d+\.(\d+)"
 
@@ -310,21 +310,10 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder):
                 param.requires_grad = False
 
     def masked_encoding(
-        self,
-        x: torch.Tensor,
-        mask_ratio: float,
-        kept_mask_ratio: Optional[float] = None,
-        mask_token: Optional[torch.Tensor] = None,
-    ) -> tuple[torch.Tensor, ...]:
-        assert mask_token is not None
-
+        self, x: torch.Tensor, mask_ratio: float, mask_token: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         x = self.stem(x)
-
-        (x, mask, shaped_mask, _) = mask2d(x, mask_ratio, channels_last=True, patch_factor=8)
-        (B, H, W, _) = x.size()
-        mask_tokens = mask_token.expand(B, H, W, -1)
-        x = x * (1.0 - shaped_mask) + (mask_tokens * shaped_mask)
-
+        (x, mask) = mask_tensor(x, mask_ratio, channels_last=True, patch_factor=8, mask_token=mask_token)
         x = self.body(x).permute(0, 3, 1, 2).contiguous()
 
         return (x, mask)

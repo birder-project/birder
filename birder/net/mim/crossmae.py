@@ -16,12 +16,9 @@ import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import MLP
 
-from birder.net.base import PreTrainEncoder
+from birder.net.base import MaskedTokenOmissionEncoder
 from birder.net.base import pos_embedding_sin_cos_2d
 from birder.net.mim.base import MIMBaseNet
-from birder.net.rope_vit import RoPE_ViT
-from birder.net.simple_vit import Simple_ViT
-from birder.net.vit import ViT
 
 
 class WeightedFeatureMaps(nn.Module):
@@ -78,7 +75,7 @@ class CrossMAE(MIMBaseNet):
 
     def __init__(
         self,
-        encoder: PreTrainEncoder,
+        encoder: MaskedTokenOmissionEncoder,
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
@@ -87,7 +84,7 @@ class CrossMAE(MIMBaseNet):
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
         assert self.config is None, "config not supported"
-        assert isinstance(self.encoder, (RoPE_ViT, Simple_ViT, ViT))
+        assert isinstance(self.encoder, MaskedTokenOmissionEncoder)
 
         self.mask_ratio = 0.75
         self.kept_mask_ratio = 0.25
@@ -206,7 +203,7 @@ class CrossMAE(MIMBaseNet):
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         (latent, mask, ids_restore) = self.encoder.masked_encoding(
-            x, self.mask_ratio, self.kept_mask_ratio, return_all_features=True  # type: ignore[call-arg]
+            x, self.mask_ratio, self.kept_mask_ratio, return_all_features=True
         )
         pred = self.forward_decoder(latent, mask, ids_restore)
         loss = self.forward_loss(x, pred, mask)

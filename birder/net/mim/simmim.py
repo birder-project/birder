@@ -15,11 +15,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from birder.net.base import PreTrainEncoder
-from birder.net.maxvit import MaxViT
+from birder.net.base import TokenSubstitutionEncoder
 from birder.net.mim.base import MIMBaseNet
-from birder.net.nextvit import NextViT
-from birder.net.swin_transformer_v2 import Swin_Transformer_v2
 
 
 def norm_targets(targets: torch.Tensor, patch_size: int) -> torch.Tensor:
@@ -61,7 +58,7 @@ class SimMIM(MIMBaseNet):
 
     def __init__(
         self,
-        encoder: PreTrainEncoder,
+        encoder: TokenSubstitutionEncoder,
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
@@ -70,9 +67,7 @@ class SimMIM(MIMBaseNet):
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
         assert self.config is None, "config not supported"
-        assert isinstance(
-            self.encoder, (MaxViT, NextViT, Swin_Transformer_v2)
-        ), "Only MaxViT and Swin Transformer v2 are supported as an encoder for this network"
+        assert isinstance(self.encoder, TokenSubstitutionEncoder)
 
         self.mask_ratio = 0.6
         self.patch_size = 32

@@ -18,10 +18,10 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
-from birder.common.masking import mask2d
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenSubstitutionEncoder
 from birder.net.base import make_divisible
 
 
@@ -241,7 +241,7 @@ class NTB(nn.Module):
         return x
 
 
-class NextViT(DetectorBackbone, PreTrainEncoder):
+class NextViT(DetectorBackbone, TokenSubstitutionEncoder):
     block_group_regex = r"body\.stage\d+\.(\d+)"
 
     # pylint: disable=too-many-locals
@@ -388,22 +388,10 @@ class NextViT(DetectorBackbone, PreTrainEncoder):
                 param.requires_grad = False
 
     def masked_encoding(
-        self,
-        x: torch.Tensor,
-        mask_ratio: float,
-        kept_mask_ratio: Optional[float] = None,
-        mask_token: Optional[torch.Tensor] = None,
-    ) -> tuple[torch.Tensor, ...]:
-        assert mask_token is not None
-
+        self, x: torch.Tensor, mask_ratio: float, mask_token: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         x = self.stem(x)
-
-        (x, mask, shaped_mask, _) = mask2d(x, mask_ratio, patch_factor=8)
-        (B, _, H, W) = x.size()
-        mask_tokens = mask_token.permute(0, 3, 1, 2)
-        mask_tokens = mask_tokens.expand(B, -1, H, W)
-        x = x * (1.0 - shaped_mask) + (mask_tokens * shaped_mask)
-
+        (x, mask) = mask_tensor(x, mask_ratio, patch_factor=8, mask_token=mask_token)
         x = self.body(x)
 
         return (x, mask)

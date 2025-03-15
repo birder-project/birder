@@ -18,9 +18,9 @@ from typing import Optional
 import torch
 from torch import nn
 
-from birder.common.masking import mask1d
+from birder.common.masking import mask_token_omission
 from birder.model_registry import registry
-from birder.net.base import PreTrainEncoder
+from birder.net.base import MaskedTokenOmissionEncoder
 from birder.net.base import pos_embedding_sin_cos_2d
 from birder.net.vit import Encoder
 from birder.net.vit import EncoderBlock
@@ -28,7 +28,7 @@ from birder.net.vit import PatchEmbed
 
 
 # pylint: disable=invalid-name
-class Simple_ViT(PreTrainEncoder):
+class Simple_ViT(MaskedTokenOmissionEncoder):
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -133,7 +133,6 @@ class Simple_ViT(PreTrainEncoder):
         x: torch.Tensor,
         mask_ratio: float,
         kept_mask_ratio: Optional[float] = None,
-        mask_token: Optional[torch.Tensor] = None,
         return_all_features: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         if kept_mask_ratio is None:
@@ -147,7 +146,7 @@ class Simple_ViT(PreTrainEncoder):
         x = x + self.pos_embedding
 
         # Mask tokens
-        (x, mask, _, ids_restore) = mask1d(x, mask_ratio, kept_mask_ratio)
+        (x, mask, _, ids_restore) = mask_token_omission(x, mask_ratio, kept_mask_ratio)
 
         # Apply transformer
         if return_all_features is True:

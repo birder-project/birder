@@ -25,10 +25,10 @@ from torch import nn
 from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
-from birder.common.masking import mask1d
+from birder.common.masking import mask_token_omission
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.base import PreTrainEncoder
+from birder.net.base import MaskedTokenOmissionEncoder
 from birder.net.vit import LayerScale
 from birder.net.vit import MultiHeadAttentionPool
 from birder.net.vit import PatchEmbed
@@ -257,7 +257,7 @@ class MAEDecoderBlock(nn.Module):
 
 
 # pylint: disable=invalid-name,too-many-instance-attributes
-class RoPE_ViT(DetectorBackbone, PreTrainEncoder):
+class RoPE_ViT(DetectorBackbone, MaskedTokenOmissionEncoder):
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -477,7 +477,6 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder):
         x: torch.Tensor,
         mask_ratio: float,
         kept_mask_ratio: Optional[float] = None,
-        mask_token: Optional[torch.Tensor] = None,
         return_all_features: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         if kept_mask_ratio is None:
@@ -491,11 +490,11 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder):
         x = x + self.pos_embedding[:, self.num_special_tokens :, :]
 
         # Mask tokens
-        (x, mask, ids_keep, ids_restore) = mask1d(x, mask_ratio, kept_mask_ratio)
+        (x, mask, ids_keep, ids_restore) = mask_token_omission(x, mask_ratio, kept_mask_ratio)
 
         rope_dim = self.rope.pos_embed.size(1)
-        repo = self.rope.pos_embed.unsqueeze(0).repeat(x.size(0), 1, 1)
-        rope_masked = torch.gather(repo, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, rope_dim))
+        rope = self.rope.pos_embed.unsqueeze(0).repeat(x.size(0), 1, 1)
+        rope_masked = torch.gather(rope, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, rope_dim))
 
         # Append class and register tokens
         if self.class_token is not None:

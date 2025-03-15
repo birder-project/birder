@@ -14,7 +14,7 @@ from typing import Optional
 import torch
 from torch import nn
 
-from birder.net.base import PreTrainEncoder
+from birder.net.base import MaskedTokenRetentionEncoder
 from birder.net.mim.base import MIMBaseNet
 
 
@@ -23,7 +23,7 @@ class FCMAE(MIMBaseNet):
 
     def __init__(
         self,
-        encoder: PreTrainEncoder,
+        encoder: MaskedTokenRetentionEncoder,
         *,
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
@@ -32,6 +32,7 @@ class FCMAE(MIMBaseNet):
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
         assert self.config is None, "config not supported"
+        assert isinstance(self.encoder, MaskedTokenRetentionEncoder)
 
         self.mask_ratio = 0.6
         self.decoder_embed_dim = 512
@@ -121,10 +122,10 @@ class FCMAE(MIMBaseNet):
         x = self.proj(x)
 
         # Append mask token
-        (n, _c, h, w) = x.shape
-        mask = mask.reshape(-1, h, w).unsqueeze(1).type_as(x)
-        mask_token = self.mask_token.repeat(n, 1, h, w)
-        x = x * (1.0 - mask) + mask_token * mask
+        (B, _, H, W) = x.shape
+        mask = mask.reshape(-1, H, W).unsqueeze(1).type_as(x)
+        mask_token = self.mask_token.expand(B, 1, H, W)
+        x = x * (1.0 - mask) + (mask_token * mask)
 
         # Decoding
         x = self.decoder(x)

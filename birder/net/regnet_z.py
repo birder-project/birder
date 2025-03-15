@@ -17,10 +17,10 @@ import torch
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
-from birder.common.masking import mask2d
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.base import PreTrainEncoder
+from birder.net.base import MaskedTokenRetentionEncoder
 from birder.net.regnet import BlockParams
 from birder.net.regnet import BottleneckTransform
 
@@ -100,7 +100,7 @@ class AnyStage(nn.Module):
 
 
 # pylint: disable=invalid-name
-class RegNet_Z(DetectorBackbone, PreTrainEncoder):
+class RegNet_Z(DetectorBackbone, MaskedTokenRetentionEncoder):
     block_group_regex = r"body\.stage\d+\.block\.(\d+)"
 
     def __init__(
@@ -216,15 +216,9 @@ class RegNet_Z(DetectorBackbone, PreTrainEncoder):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def masked_encoding(
-        self,
-        x: torch.Tensor,
-        mask_ratio: float,
-        kept_mask_ratio: Optional[float] = None,
-        mask_token: Optional[torch.Tensor] = None,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    def masked_encoding(self, x: torch.Tensor, mask_ratio: float) -> tuple[torch.Tensor, torch.Tensor]:
         x = self.stem(x)
-        (x, mask, _, _) = mask2d(x, mask_ratio, patch_factor=16)
+        (x, mask) = mask_tensor(x, mask_ratio, patch_factor=16)
         x = self.body(x)
 
         return (x, mask)

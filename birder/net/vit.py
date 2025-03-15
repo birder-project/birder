@@ -26,10 +26,10 @@ from torch import nn
 from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
-from birder.common.masking import mask1d
+from birder.common.masking import mask_token_omission
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.base import PreTrainEncoder
+from birder.net.base import MaskedTokenOmissionEncoder
 
 
 def adjust_position_embedding(
@@ -254,7 +254,7 @@ class Encoder(nn.Module):
             b.set_need_attn()
 
 
-class ViT(DetectorBackbone, PreTrainEncoder):
+class ViT(DetectorBackbone, MaskedTokenOmissionEncoder):
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -439,7 +439,6 @@ class ViT(DetectorBackbone, PreTrainEncoder):
         x: torch.Tensor,
         mask_ratio: float,
         kept_mask_ratio: Optional[float] = None,
-        mask_token: Optional[torch.Tensor] = None,
         return_all_features: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         if kept_mask_ratio is None:
@@ -453,7 +452,7 @@ class ViT(DetectorBackbone, PreTrainEncoder):
         x = x + self.pos_embedding[:, self.num_special_tokens :, :]
 
         # Mask tokens
-        (x, mask, _, ids_restore) = mask1d(x, mask_ratio, kept_mask_ratio)
+        (x, mask, _, ids_restore) = mask_token_omission(x, mask_ratio, kept_mask_ratio)
 
         # Append class and register tokens
         if self.class_token is not None:

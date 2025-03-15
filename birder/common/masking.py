@@ -1,9 +1,11 @@
+import math
+import random
 from typing import Optional
 
 import torch
 
 
-def mask1d(
+def mask_token_omission(
     x: torch.Tensor, mask_ratio: float, kept_mask_ratio: Optional[float] = None
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
@@ -32,7 +34,7 @@ def mask1d(
     >>> import torch
     >>> x = torch.randn(2, 10, 5)  # Example input tensor
     >>> mask_ratio = 0.5
-    >>> (x_masked, mask, ids_keep, ids_restore) = mask1d(x, mask_ratio)
+    >>> (x_masked, mask, ids_keep, ids_restore) = mask_token_omission(x, mask_ratio)
     >>> print(x_masked.size())  # Should print torch.Size([2, 5, 5])
     >>> print(mask.size())  # Should print torch.Size([2, 10])
     >>> print(ids_restore.size())  # Should print torch.Size([2, 10])
@@ -68,16 +70,13 @@ def mask1d(
     return (x_masked, mask, ids_keep, ids_restore)
 
 
-def mask2d(
+def mask_tensor(
     x: torch.Tensor,
     mask_ratio: float,
-    kept_mask_ratio: Optional[float] = None,
     channels_last: bool = False,
     patch_factor: int = 1,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    if kept_mask_ratio is None:
-        kept_mask_ratio = mask_ratio
-
+    mask_token: Optional[torch.Tensor] = None,
+) -> tuple[torch.Tensor, torch.Tensor]:
     if channels_last is False:
         x = x.permute(0, 2, 3, 1)
 
@@ -85,7 +84,6 @@ def mask2d(
 
     L = (H // patch_factor) * (W // patch_factor)
     len_keep = int(L * (1 - mask_ratio))
-    len_masked = int(L * (mask_ratio - kept_mask_ratio))
 
     noise = torch.randn(B, L, device=x.device)
 
@@ -95,22 +93,90 @@ def mask2d(
 
     # Generate the binary mask: 0 is keep 1 is remove
     mask = torch.ones([B, L], device=x.device)
-    mask[:, : len_keep + len_masked] = 0
+    mask[:, :len_keep] = 0
 
     # Un-shuffle to get the binary mask
     mask = torch.gather(mask, dim=1, index=ids_restore)
 
     # Reshape mask
-    assert len(mask.shape) == 2
+    # assert mask.ndim == 2
 
     shaped_mask = mask.reshape(-1, H // patch_factor, W // patch_factor)
     shaped_mask = shaped_mask.repeat_interleave(patch_factor, axis=1).repeat_interleave(patch_factor, axis=2)
     shaped_mask = shaped_mask.unsqueeze(3).type_as(x)
 
-    x_masked = x * (1.0 - shaped_mask)
+    if mask_token is not None:
+        mask_tokens = mask_token.expand(B, H, W, -1)
+        x_masked = x * (1.0 - shaped_mask) + (mask_tokens * shaped_mask)
+    else:
+        x_masked = x * (1.0 - shaped_mask)
 
     if channels_last is False:
         x_masked = x_masked.permute(0, 3, 1, 2)
-        shaped_mask = shaped_mask.permute(0, 3, 1, 2)
 
-    return (x_masked, mask, shaped_mask, ids_restore)
+    return (x_masked, mask)
+
+
+class BlockMasking:
+    # Adapted from: https://github.com/facebookresearch/dinov2/blob/main/dinov2/data/masking.py
+
+    def __init__(
+        self,
+        input_size: tuple[int, int],
+        min_num_patches: int,
+        max_num_patches: int,
+        min_aspect: float,
+        max_aspect: float,
+    ) -> None:
+        self.height = input_size[0]
+        self.width = input_size[1]
+
+        self.num_patches = self.height * self.width
+        self.min_num_patches = min_num_patches
+        self.max_num_patches = max_num_patches
+
+        self.log_aspect_ratio = (math.log(min_aspect), math.log(max_aspect))
+
+    def get_shape(self) -> tuple[int, int]:
+        return (self.height, self.width)
+
+    def _mask(self, mask: torch.Tensor, max_mask_patches: int) -> int:
+        delta = 0
+        for _ in range(10):
+            target_area = random.uniform(self.min_num_patches, max_mask_patches)
+            aspect_ratio = math.exp(random.uniform(*self.log_aspect_ratio))
+            h = int(round(math.sqrt(target_area * aspect_ratio)))
+            w = int(round(math.sqrt(target_area / aspect_ratio)))
+            if w < self.width and h < self.height:
+                top = random.randint(0, self.height - h)
+                left = random.randint(0, self.width - w)
+
+                num_masked = mask[top : top + h, left : left + w].sum()
+
+                # Overlap
+                if 0 < h * w - num_masked <= max_mask_patches:
+                    for i in range(top, top + h):
+                        for j in range(left, left + w):
+                            if mask[i, j] == 0:
+                                mask[i, j] = 1
+                                delta += 1
+
+                if delta > 0:
+                    break
+
+        return delta
+
+    def __call__(self, num_masking_patches: int) -> torch.Tensor:
+        mask = torch.zeros(*self.get_shape())
+        mask_count = 0
+        while mask_count < num_masking_patches:
+            max_mask_patches = num_masking_patches - mask_count
+            max_mask_patches = min(max_mask_patches, self.max_num_patches)
+
+            delta = self._mask(mask, max_mask_patches)
+            if delta == 0:
+                break
+
+            mask_count += delta
+
+        return mask

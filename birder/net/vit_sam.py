@@ -20,10 +20,8 @@ from torch import nn
 from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
-from birder.common.masking import mask2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.base import PreTrainEncoder
 from birder.net.convnext_v1 import LayerNorm2d
 from birder.net.vit import EncoderBlock as MAEDecoderBlock
 
@@ -203,7 +201,7 @@ class EncoderBlock(nn.Module):
 
 
 # pylint: disable=invalid-name
-class ViT_SAM(DetectorBackbone, PreTrainEncoder):
+class ViT_SAM(DetectorBackbone):
     block_group_regex = r"body\.(\d+)"
 
     def __init__(
@@ -330,25 +328,6 @@ class ViT_SAM(DetectorBackbone, PreTrainEncoder):
 
             for param in module.parameters():
                 param.requires_grad = False
-
-    def masked_encoding(
-        self,
-        x: torch.Tensor,
-        mask_ratio: float,
-        kept_mask_ratio: Optional[float] = None,
-        mask_token: Optional[torch.Tensor] = None,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        x = self.patch_embed(x)
-        (B, H, W, _) = x.size()
-        x = x + self.pos_embedding
-
-        # Mask tokens
-        (x, mask, _, ids_restore) = mask2d(x, mask_ratio, kept_mask_ratio, channels_last=True)
-
-        x = self.body(x)
-        x = x.reshape(B, H * W, -1)
-
-        return (x, mask, ids_restore)
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)

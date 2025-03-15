@@ -403,18 +403,17 @@ class TestNet(unittest.TestCase):
             ("vitreg4_b32", None, False),
             ("vit_so150m_p14_ap", None, False),
             ("vitreg4_so150m_p14_ap", None, False),
-            ("vit_sam_b16", None, False),
         ]
     )
     def test_pre_training_encoder(self, network_name: str, net_param: Optional[float], mask_token: bool) -> None:
         n = registry.net_factory(network_name, 3, 100, net_param=net_param)
         size = n.default_size
 
-        mt = None
+        kwargs = {}
         if mask_token is True:
-            mt = torch.zeros(1, 1, 1, n.encoding_size)
+            kwargs = {"mask_token": torch.zeros(1, 1, 1, n.encoding_size)}
 
-        outs = n.masked_encoding(torch.rand((1, 3, *size)), 0.6, mask_token=mt)
+        outs = n.masked_encoding(torch.rand((1, 3, *size)), 0.6, **kwargs)
         for out in outs:
             if isinstance(out, (tuple, list)):  # Hierarchical MIM
                 for o in out:
