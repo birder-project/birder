@@ -4,8 +4,19 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 
 ## SSL Pre-training
 
+- [BYOL](#byol)
 - [DINO v1](#dino-v1)
 - [VICReg](#vicreg)
+
+### BYOL
+
+Use `--sync-bn` when batch size is 32 or below.
+
+#### BYOL: RegNet X 4 GF
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_byol --network regnet_x_4g --opt lars --lr 0.2 --lr-scheduler cosine --warmup-epochs 10 --batch-size 128 --epochs 600 --wd 0.0000015 --norm-wd 0 --bias-weight-decay 0 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
 
 ### DINO v1
 

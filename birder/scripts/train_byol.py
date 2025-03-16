@@ -1,9 +1,9 @@
 """
-VICReg, adapted from
-https://github.com/facebookresearch/vicreg/blob/main/main_vicreg.py
+BYOL, adapted from
+https://github.com/lucidrains/byol-pytorch/blob/master/byol_pytorch/trainer.py
 
-Paper "VICReg: Variance-Invariance-Covariance Regularization for Self-Supervised Learning",
-https://arxiv.org/abs/2105.04906
+Paper "Bootstrap your own latent: A new approach to self-supervised Learning",
+https://arxiv.org/abs/2006.07733
 """
 
 # Reference license: MIT
@@ -46,7 +46,9 @@ from birder.datasets.webdataset import wds_args_from_info
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import get_signature
-from birder.net.ssl.vicreg import VICReg
+from birder.net.mim.base import get_mim_signature
+from birder.net.ssl.byol import BYOL
+from birder.net.ssl.byol import BYOLEncoder
 from birder.transforms.classification import RGBMode
 from birder.transforms.classification import RGBType
 from birder.transforms.classification import get_rgb_stats
@@ -81,6 +83,7 @@ def train(args: argparse.Namespace) -> None:
     #
     training_utils.init_distributed_mode(args)
     if args.size is None:
+        # Prefer mim size over encoder default size
         args.size = registry.get_default_size(args.network)
 
     logger.info(f"Using size={args.size}")
@@ -180,16 +183,16 @@ def train(args: argparse.Namespace) -> None:
     #
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
-    backbone_name = get_network_name(args.network, net_param=args.net_param, tag="vicreg")
+    backbone_name = get_network_name(args.network, net_param=args.net_param, tag="byol")
     network_name = get_mim_network_name(
-        "vicreg",
+        "byol",
         net_param=None,
         encoder=args.network,
         encoder_param=args.net_param,
         tag=args.tag,
     )
 
-    backbone = registry.net_factory(
+    student_backbone = registry.net_factory(
         args.network,
         sample_shape[1],
         0,
@@ -197,15 +200,27 @@ def train(args: argparse.Namespace) -> None:
         config=args.model_config,
         size=args.size,
     )
-    net = VICReg(
-        backbone.input_channels,
-        backbone,
-        mlp_dim=args.mlp_dim,
-        batch_size=args.batch_size,
-        sim_coeff=args.sim_coeff,
-        std_coeff=args.std_coeff,
-        cov_coeff=args.cov_coeff,
-        sync_batches=args.sync_bn,
+    teacher_backbone = registry.net_factory(
+        args.network,
+        sample_shape[1],
+        0,
+        net_param=args.net_param,
+        config=args.model_config,
+        size=args.size,
+    )
+    student_encoder = BYOLEncoder(
+        student_backbone, projection_size=args.projection_size, projection_hidden_size=args.projection_hidden_size
+    )
+    teacher_encoder = BYOLEncoder(
+        teacher_backbone, projection_size=args.projection_size, projection_hidden_size=args.projection_hidden_size
+    )
+    teacher_encoder.load_state_dict(student_encoder.state_dict())
+    net = BYOL(
+        args.channels,
+        student_encoder,
+        teacher_encoder,
+        args.projection_size,
+        projection_hidden_size=args.projection_hidden_size,
     )
 
     if args.resume_epoch is not None:
@@ -222,20 +237,17 @@ def train(args: argparse.Namespace) -> None:
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
-    # Compile backbone
+    # There is no backpropagation through the teacher
+    for p in net.target_encoder.parameters():
+        p.requires_grad = False
+
+    # Compile network
     if args.compile is True:
         net = torch.compile(net)
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
     #
-
-    if args.distributed is False:
-        args.lr = args.lr * args.batch_size / 256
-    else:
-        args.lr = args.lr * args.batch_size * args.world_size / 256
-
-    logger.info(f"Adjusted learning rate to: {args.lr}")
 
     # Training parameter groups
     custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
@@ -298,7 +310,9 @@ def train(args: argparse.Namespace) -> None:
     #
     net_without_ddp = net
     if args.distributed is True:
-        net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[args.gpu])
+        net = torch.nn.parallel.DistributedDataParallel(
+            net, device_ids=[args.gpu], find_unused_parameters=args.find_unused_parameters
+        )
         net_without_ddp = net.module
 
     model_to_save = net_without_ddp
@@ -318,8 +332,8 @@ def train(args: argparse.Namespace) -> None:
         torchinfo.summary(
             net_for_info,
             device=device,
-            input_size=(sample_shape, sample_shape),
-            dtypes=[model_dtype, model_dtype],
+            input_size=sample_shape,
+            dtypes=[model_dtype],
             col_names=["input_size", "output_size", "kernel_size", "num_params"],
             depth=4,
             verbose=1 if args.rank == 0 else 0,
@@ -331,7 +345,8 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Logging training run at {training_log_path}")
     summary_writer = SummaryWriter(training_log_path)
 
-    signature = get_signature(input_shape=sample_shape, num_outputs=0)
+    signature = get_mim_signature(input_shape=sample_shape)
+    encoder_signature = get_signature(input_shape=sample_shape, num_outputs=0)
     if args.rank == 0:
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
@@ -370,13 +385,14 @@ def train(args: argparse.Namespace) -> None:
         for i, (_, (x, y), _) in enumerate(training_loader):
             x = x.to(device, dtype=model_dtype, non_blocking=True)
             y = y.to(device, dtype=model_dtype, non_blocking=True)
+            inputs = torch.concat((x, y), dim=0)
 
             # Zero the parameter gradients
             optimizer.zero_grad()
 
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                loss = net(x, y)
+                loss = net(inputs)
 
             if scaler is not None:
                 scaler.scale(loss).backward()
@@ -394,8 +410,14 @@ def train(args: argparse.Namespace) -> None:
 
                 optimizer.step()
 
+            # EMA update for the teacher
+            with torch.no_grad():
+                m = args.momentum_teacher
+                for param_q, param_k in zip(student_encoder.parameters(), teacher_encoder.parameters()):
+                    param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
+
             # Statistics
-            running_loss += loss.item() * x.size(0)
+            running_loss += loss.item() * inputs.size(0)
 
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
@@ -444,7 +466,7 @@ def train(args: argparse.Namespace) -> None:
                 fs_ops.checkpoint_model(
                     backbone_name,
                     epoch,
-                    model_to_save.backbone,
+                    model_to_save.backbone.backbone,
                     signature,
                     {},
                     rgb_stats,
@@ -479,8 +501,8 @@ def train(args: argparse.Namespace) -> None:
         fs_ops.checkpoint_model(
             backbone_name,
             epoch,
-            model_to_save.backbone,
-            signature,
+            model_to_save.backbone.backbone,
+            encoder_signature,
             {},
             rgb_stats,
             optimizer=None,
@@ -499,21 +521,23 @@ def get_args_parser() -> argparse.ArgumentParser:
         epilog=(
             "Usage examples\n"
             "==============\n"
-            "torchrun --nproc_per_node=2 -m birder.scripts.train_vicreg \\\n"
-            "    --network efficientnet_v2_m \\\n"
+            "torchrun --nproc_per_node=2 -m birder.scripts.train_byol \\\n"
+            "    --network regnet_x_4g \\\n"
             "    --opt lars \\\n"
             "    --lr 0.2 \\\n"
             "    --lr-scheduler cosine \\\n"
             "    --warmup-epochs 10 \\\n"
-            "    --batch-size 128 \\\n"
+            "    --batch-size 64 \\\n"
             "    --epochs 400 \\\n"
-            "    --wd 0.000001 \\\n"
+            "    --wd 0.0000015 \\\n"
+            "    --norm-wd 0 \\\n"
+            "    --bias-weight-decay 0\\\n"
             "    --amp \\\n"
             "    --compile\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
-    parser.add_argument("-n", "--network", type=str, help="the neural network to train")
+    parser.add_argument("-n", "--network", type=str, help="the neural network to use")
     parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
     parser.add_argument(
         "--model-config",
@@ -523,10 +547,19 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
-    parser.add_argument("--mlp-dim", type=int, default=8192, help="dim of the MLP expander head")
-    parser.add_argument("--sim-coeff", type=float, default=25.0, help="invariance regularization loss coefficient")
-    parser.add_argument("--std-coeff", type=float, default=25.0, help="variance regularization loss coefficient")
-    parser.add_argument("--cov-coeff", type=float, default=1.0, help="covariance regularization loss coefficient")
+    parser.add_argument("--projection-size", type=int, default=256, help="the projection size")
+    parser.add_argument(
+        "--projection-hidden-size",
+        type=int,
+        default=4096,
+        help="the hidden dimension of the MLP for both the projection and prediction",
+    )
+    parser.add_argument(
+        "--momentum-teacher",
+        type=float,
+        default=0.99,
+        help="base EMA parameter for teacher update, set a higher value with small batches",
+    )
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
         "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
@@ -604,7 +637,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--aug-level",
         type=int,
         choices=[0, 1, 2, 3, 4],
-        default=2,
+        default=1,
         help="magnitude of augmentations (0 off -> 4 highest)",
     )
     parser.add_argument(
@@ -615,7 +648,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="rgb mean and std to use for normalization",
     )
     parser.add_argument("--resize-min-scale", type=float, default=0.3, help="random resize min scale")
-    parser.add_argument("--epochs", type=int, default=400, metavar="N", help="number of training epochs")
+    parser.add_argument("--epochs", type=int, default=800, metavar="N", help="number of training epochs")
     parser.add_argument(
         "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi step training)"
     )
@@ -672,6 +705,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--world-size", type=int, default=1, metavar="N", help="number of distributed processes")
     parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
+    parser.add_argument(
+        "--find-unused-parameters",
+        default=False,
+        action="store_true",
+        help="enable searching for unused parameters in DistributedDataParallel (may impact performance)",
+    )
     parser.add_argument("--clip-grad-norm", type=float, help="the maximum gradient norm")
     parser.add_argument("--gpu", type=int, metavar="ID", help="gpu id to use (ignored in distributed mode)")
     parser.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")

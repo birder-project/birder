@@ -147,7 +147,6 @@ class DINO_v1(SSLBaseNet):
 
     def __init__(self, input_channels: int, backbone: BaseNet, head: DINOHead) -> None:
         super().__init__(input_channels)
-        backbone.reset_classifier(0)
         self.backbone = backbone
         self.head = head
 
@@ -163,7 +162,7 @@ class DINO_v1(SSLBaseNet):
         start_idx = 0
         output = torch.empty(0).to(xs[0].device)
         for end_idx in idx_crops:
-            out = self.backbone(torch.concat(xs[start_idx:end_idx], dim=0))
+            out = self.backbone.embedding(torch.concat(xs[start_idx:end_idx], dim=0))
 
             # Accumulate outputs
             output = torch.concat((output, out), dim=0)

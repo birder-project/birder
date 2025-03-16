@@ -50,7 +50,7 @@ from birder.datasets.webdataset import wds_args_from_info
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import get_signature
-from birder.net.ssl import DINO_v1
+from birder.net.ssl.dino_v1 import DINO_v1
 from birder.net.ssl.dino_v1 import DINOHead
 from birder.net.ssl.dino_v1 import DINOLoss
 from birder.transforms.classification import RGBMode
