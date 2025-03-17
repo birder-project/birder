@@ -46,7 +46,6 @@ from birder.datasets.webdataset import wds_args_from_info
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import get_signature
-from birder.net.mim.base import get_mim_signature
 from birder.net.ssl.byol import BYOL
 from birder.net.ssl.byol import BYOLEncoder
 from birder.transforms.classification import RGBMode
@@ -345,8 +344,7 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Logging training run at {training_log_path}")
     summary_writer = SummaryWriter(training_log_path)
 
-    signature = get_mim_signature(input_shape=sample_shape)
-    encoder_signature = get_signature(input_shape=sample_shape, num_outputs=0)
+    signature = get_signature(input_shape=sample_shape, num_outputs=0)
     if args.rank == 0:
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
@@ -502,7 +500,7 @@ def train(args: argparse.Namespace) -> None:
             backbone_name,
             epoch,
             model_to_save.backbone.backbone,
-            encoder_signature,
+            signature,
             {},
             rgb_stats,
             optimizer=None,

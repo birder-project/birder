@@ -41,13 +41,17 @@ class TestNetMIM(unittest.TestCase):
             ("simmim", None, ("nextvit_s", None)),
             ("simmim", None, ("swin_transformer_v2_t", None)),
             ("simmim", None, ("swin_transformer_v2_w2_t", None)),
+            ("simmim", None, ("vit_b32", None)),
+            ("simmim", None, ("vitreg4_b32", None)),
+            ("simmim", None, ("vit_so150m_p14_ap", None)),
+            ("simmim", None, ("vitreg4_so150m_p14_ap", None)),
         ]
     )
     def test_net_mim(self, network_name: str, net_param: Optional[float], encoder_params: tuple[str, float]) -> None:
         encoder = registry.net_factory(encoder_params[0], 3, 10, net_param=encoder_params[1])
-        n = registry.mim_net_factory(network_name, encoder, net_param=net_param)
-        size = n.default_size
+        size = (encoder.max_stride * 6, encoder.max_stride * 6)
         encoder.adjust_size(size)
+        n = registry.mim_net_factory(network_name, encoder, net_param=net_param, size=size)
 
         # Ensure config is serializable
         _ = json.dumps(n.config)

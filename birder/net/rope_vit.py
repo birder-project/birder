@@ -368,8 +368,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
 
+        self.max_stride = patch_size
         self.stem_stride = patch_size
-        self.encoding_size = hidden_dim * seq_length
+        self.encoding_size = hidden_dim
         self.decoder_block = partial(
             MAEDecoderBlock,
             16,
@@ -560,15 +561,21 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
             )
         )
 
-        # Update encoding size
-        self.encoding_size = self.pos_embedding.numel()
-
         # Adjust RoPE
         self.rope = RoPE(
             self.hidden_dim // self.num_heads,
             temperature=self.rope_temperature,
             grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
             pt_grid_size=self.pt_grid_size,
+        )
+
+        # Define adjusted decoder block
+        self.decoder_block = partial(
+            MAEDecoderBlock,
+            16,
+            num_special_tokens=self.num_special_tokens,
+            activation_layer=nn.GELU,
+            grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
         )
 
 

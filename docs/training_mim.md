@@ -309,25 +309,19 @@ torchrun --nproc_per_node=2 train_mim.py --network mae_vit --encoder vit_l16 --o
 Optional intermediate training: first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --lr 0.3 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --wds --wds-class-file data/intermediate/classes.txt --wds-info-file data/intermediate/_info.json
+torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --wds --wds-class-file data/intermediate/classes.txt --wds-info-file data/intermediate/_info.json
 ```
 
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --lr 0.3 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
+torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
 ```
 
 Next, full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --warmup-epochs 20 --epochs 100 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.8 --resume-epoch 10
-```
-
-At epoch 80 increase resolution
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --lr 0.01 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 16 --epochs 100 --size 384 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.8 --resume-epoch 80
+torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 5e-7 --batch-size 32 --warmup-epochs 5 --epochs 50 --size 256 --wd 0.05 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.8 --resume-epoch 0
 ```
 
 #### MAE ViT: SoViT reg4 150m p14

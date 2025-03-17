@@ -2329,13 +2329,13 @@ torchrun --nproc_per_node=2 train.py --network vit_l32 --opt adamw --lr 0.0007 -
 #### ViT: l16
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_l16 --lr 0.3 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 16 --warmup-epochs 10 --epochs 400 --size 320 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network vit_l16 --opt adamw --lr 0.0001 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 64 --warmup-epochs 20 --epochs 200 --size 256 --wd 0.3 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile
 ```
 
 #### ViT: h14
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_h14 --lr 0.3 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 8 --warmup-epochs 10 --epochs 400 --size 336 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network vit_h14 --opt adamw --lr 0.0001 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --warmup-epochs 20 --epochs 200 --size 256 --wd 0.3 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile
 ```
 
 #### ViT: SoViT 150m p14

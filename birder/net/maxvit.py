@@ -594,13 +594,16 @@ class MaxViT(DetectorBackbone, PreTrainEncoder, TokenSubstitutionMixin):
                 param.requires_grad = False
 
     def masked_encoding_substitution(
-        self, x: torch.Tensor, mask: torch.Tensor, mask_token: torch.Tensor
+        self, x: torch.Tensor, mask: torch.Tensor, mask_token: torch.Tensor, return_embedding: bool = False
     ) -> torch.Tensor:
         x = self.stem(x)
         x = mask_tensor(x, mask, patch_factor=32 // self.stem_stride, mask_token=mask_token)
         x = self.body(x)
 
-        return x
+        if return_embedding is False:
+            return x
+
+        return self.features(x)
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

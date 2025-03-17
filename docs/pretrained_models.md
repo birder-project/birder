@@ -30,6 +30,7 @@ Our model names follow a systematic pattern that encodes important information a
 
 - **intermediate**: Models trained in two stages - first on a large weakly-labeled dataset, then fine-tuned on curated data
 - **mim**: Models that utilized masked image modeling pre-training
+- **dino_v1, vicreg, ...**: Various tags indicating self-supervised learning methods used for pre-training
 - **quantized**: Models optimized for reduced memory and computation requirements
 - **reparameterized**: Models restructured for optimized inference
 
@@ -59,6 +60,8 @@ Consider these factors when selecting a model:
 
 ## Example Usage
 
+### CLI
+
 List all available pre-trained models:
 
 ```bash
@@ -80,7 +83,23 @@ python -m birder.tools list-models --pretrained --filter "*mobile*"
 Fetch specific model:
 
 ```bash
-python -m birder.tools fetch-model mobilenet_v4_m_il-common
+python -m birder.tools fetch-model mobilenet_v4_l_eu-common
 ```
 
 For detailed usage of model management tools, see the [Tools and Utilities](tools/index.md) section.
+
+### Python API
+
+List models matching a pattern:
+
+```python
+import birder
+
+birder.list_pretrained_models("*eu-common*")
+```
+
+Load a pre-trained model (downloading if not available locally):
+
+```python
+(net, model_info) = birder.load_pretrained_model("xcit_nano12_p16_il-common", inference=True)
+```

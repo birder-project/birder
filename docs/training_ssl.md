@@ -18,6 +18,12 @@ Use `--sync-bn` when batch size is 32 or below.
 torchrun --nproc_per_node=2 -m birder.scripts.train_byol --network regnet_x_4g --opt lars --lr 0.2 --lr-scheduler cosine --warmup-epochs 10 --batch-size 128 --epochs 600 --wd 0.0000015 --norm-wd 0 --bias-weight-decay 0 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
+Fine-tuning, first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regnet_x_4g --tag byol --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body
+```
+
 ### DINO v1
 
 #### DINO v1: ConvNeXt v2 Tiny

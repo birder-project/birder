@@ -488,7 +488,7 @@ registry.register_alias(
 registry.register_weights(
     "rope_deit3_reg4_t16_il-common",
     {
-        "description": "RoPE DeiT3 reg4 tiny model trained on the il-common dataset",
+        "description": "RoPE DeiT3 reg4 tiny p16 model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -497,5 +497,19 @@ registry.register_weights(
             }
         },
         "net": {"network": "rope_deit3_reg4_t16", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "rope_deit3_reg4_m14_arabian-peninsula",
+    {
+        "description": "RoPE DeiT3 reg4 medium p14 model trained on the arabian-peninsula dataset",
+        "resolution": (252, 252),
+        "formats": {
+            "pt": {
+                "file_size": 147.7,
+                "sha256": "596223dde050561e2045352d4c0816ef874b9e8ccc6e5157f9e112cecfa9fb8c",
+            }
+        },
+        "net": {"network": "rope_deit3_reg4_m14", "tag": "arabian-peninsula"},
     },
 )

@@ -91,8 +91,9 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
 
+        self.max_stride = patch_size
         self.stem_stride = patch_size
-        self.encoding_size = hidden_dim * (image_size[0] // patch_size) * (image_size[1] // patch_size)
+        self.encoding_size = hidden_dim
         self.decoder_block = partial(
             EncoderBlock,
             16,

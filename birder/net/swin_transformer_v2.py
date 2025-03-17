@@ -312,13 +312,16 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, TokenSubstitutionMi
                 param.requires_grad = False
 
     def masked_encoding_substitution(
-        self, x: torch.Tensor, mask: torch.Tensor, mask_token: torch.Tensor
+        self, x: torch.Tensor, mask: torch.Tensor, mask_token: torch.Tensor, return_embedding: bool = False
     ) -> torch.Tensor:
         x = self.stem(x)
         x = mask_tensor(x, mask, channels_last=True, patch_factor=32 // self.stem_stride, mask_token=mask_token)
-        x = self.body(x).permute(0, 3, 1, 2).contiguous()
+        x = self.body(x)
 
-        return x
+        if return_embedding is False:
+            return x.permute(0, 3, 1, 2).contiguous()
+
+        return self.features(x)
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

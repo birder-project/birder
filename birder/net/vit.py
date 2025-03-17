@@ -26,10 +26,12 @@ from torch import nn
 from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenSubstitutionMixin
 
 
 def adjust_position_embedding(
@@ -255,7 +257,7 @@ class Encoder(nn.Module):
 
 
 # pylint: disable=too-many-instance-attributes
-class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
+class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, TokenSubstitutionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -346,6 +348,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
 
+        self.max_stride = patch_size
         self.stem_stride = patch_size
         self.encoding_size = hidden_dim
         self.decoder_block = partial(
@@ -471,6 +474,41 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
 
         return x
 
+    def masked_encoding_substitution(
+        self, x: torch.Tensor, mask: torch.Tensor, mask_token: torch.Tensor, return_embedding: bool = False
+    ) -> torch.Tensor:
+        x = self.conv_proj(x)
+        x = mask_tensor(x, mask, mask_token=mask_token)
+
+        # Reshape and permute the input tensor
+        x = self.patch_embed(x)
+
+        # Expand the class token to the full batch
+        if self.class_token is not None:
+            batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
+            x = torch.concat([batch_class_token, x], dim=1)
+
+        # Expand the register tokens to the full batch
+        if self.reg_tokens is not None:
+            batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
+            x = torch.concat([batch_reg_tokens, x], dim=1)
+
+        x = x + self.pos_embedding
+        x = self.encoder(x)
+        x = self.norm(x)
+
+        if return_embedding is False:
+            x = x[:, self.num_special_tokens :]
+            x = x.permute(0, 2, 1)
+            (B, C, _) = x.size()
+            return x.reshape(B, C, self.size[0] // self.patch_size, self.size[1] // self.patch_size)
+
+        x = self.attn_pool(x)
+        if self.class_token is None:
+            return x.mean(dim=1)
+
+        return x[:, self.num_reg_tokens]
+
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         (H, W) = x.shape[-2:]
 
@@ -519,9 +557,6 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
                 self.num_special_tokens,
             )
         )
-
-        # Update encoding size
-        self.encoding_size = self.pos_embedding.numel()
 
 
 registry.register_alias(

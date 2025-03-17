@@ -72,7 +72,7 @@ class SimMIM(MIMBaseNet):
         assert isinstance(self.encoder, TokenSubstitutionMixin)
 
         self.mask_ratio = 0.6
-        self.patch_size = 32
+        self.patch_size = encoder.max_stride
 
         # self.mask_token = nn.Parameter(torch.zeros(1, self.encoder.embedding_size, 1, 1))
         self.decoder = nn.Conv2d(
@@ -151,7 +151,7 @@ class SimMIM(MIMBaseNet):
         return loss
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        seq_len = (self.size[0] // 32) * (self.size[1] // 32)
+        seq_len = (self.size[0] // self.encoder.max_stride) * (self.size[1] // self.encoder.max_stride)
         mask = uniform_mask(x.size(0), seq_len, mask_ratio=self.mask_ratio, device=x.device)[0]
 
         latent = self.encoder.masked_encoding_substitution(x, mask, mask_token=self.mask_token)

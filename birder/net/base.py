@@ -166,6 +166,7 @@ class PreTrainEncoder(BaseNet):  # pylint: disable=abstract-method
         size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        self.max_stride: int = 32
         self.stem_stride: int
         self.encoding_size: int
         self.decoder_block: Callable[[int], nn.Module]
@@ -175,18 +176,21 @@ class MaskedTokenOmissionMixin:
     def masked_encoding_omission(
         self, x: torch.Tensor, ids_keep: torch.Tensor, return_all_features: bool = False
     ) -> torch.Tensor:
+        # Returned size (N, L, D)
         raise NotImplementedError
 
 
 class MaskedTokenRetentionMixin:
     def masked_encoding_retention(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        # Returned size (B, C, H, W)
         raise NotImplementedError
 
 
 class TokenSubstitutionMixin:
     def masked_encoding_substitution(
-        self, x: torch.Tensor, mask: torch.Tensor, mask_token: torch.Tensor
+        self, x: torch.Tensor, mask: torch.Tensor, mask_token: torch.Tensor, return_embedding: bool = False
     ) -> torch.Tensor:
+        # Returned size (B, C, H, W)
         raise NotImplementedError
 
 

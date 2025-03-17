@@ -39,7 +39,7 @@ class FCMAE(MIMBaseNet):
         self.mask_ratio = 0.6
         self.decoder_embed_dim = 512
         self.decoder_depth = 1
-        self.patch_size = 32  # Hardcoded at ConvNeXt v2
+        self.patch_size = encoder.max_stride
 
         self.proj = nn.Conv2d(
             in_channels=self.encoder.encoding_size,

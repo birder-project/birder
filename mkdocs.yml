@@ -6,7 +6,7 @@ nav:
   - Home: README.md
   - Getting Started: getting_started.md
   - Pre-trained Models: pretrained_models.md
-  - Training Guide: training_guide.md
+  - Training: training_scripts.md
   - Tools:
       - Overview: tools/index.md
       - Convert Model: tools/convert-model.md

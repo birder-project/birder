@@ -429,8 +429,9 @@ class TestNet(unittest.TestCase):
         x = torch.rand((1, 3, *size))
         mask = uniform_mask(1, seq_len, mask_ratio=0.6, device=x.device)[0]
         out = n.masked_encoding_retention(x, mask)
-
         self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.ndim, 4)
+
         self.assertTrue(hasattr(n, "block_group_regex"))
         self.assertTrue(hasattr(n, "stem_stride"))
 
@@ -440,6 +441,10 @@ class TestNet(unittest.TestCase):
             ("nextvit_s", None),
             ("swin_transformer_v2_t", None),
             ("swin_transformer_v2_w2_t", None),
+            ("vit_b32", None),
+            ("vitreg4_b32", None),
+            ("vit_so150m_p14_ap", None),
+            ("vitreg4_so150m_p14_ap", None),
         ]
     )
     def test_pre_training_encoder_substitution(self, network_name: str, net_param: Optional[float]) -> None:
@@ -448,14 +453,18 @@ class TestNet(unittest.TestCase):
 
         # self.assertIsInstance(n, TokenSubstitutionMixin)
         assert isinstance(n, TokenSubstitutionMixin)
-        seq_len = (size[0] // 32) * (size[1] // 32)
+        seq_len = (size[0] // n.max_stride) * (size[1] // n.max_stride)
         x = torch.rand((1, 3, *size))
         mask = uniform_mask(1, seq_len, mask_ratio=0.6, device=x.device)[0]
         out = n.masked_encoding_substitution(x, mask, torch.zeros(1, 1, 1, n.encoding_size))
-
         self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.ndim, 4)
+
         self.assertTrue(hasattr(n, "block_group_regex"))
         self.assertTrue(hasattr(n, "stem_stride"))
+
+        out = n.masked_encoding_substitution(x, mask, torch.zeros(1, 1, 1, n.encoding_size), return_embedding=True)
+        self.assertEqual(len(out.flatten()), n.embedding_size)
 
     @parameterized.expand(  # type: ignore[misc]
         [
@@ -479,10 +488,9 @@ class TestNet(unittest.TestCase):
         seq_len = (size[0] // n.stem_stride) * (size[1] // n.stem_stride)
         x = torch.rand((1, 3, *size))
         ids_keep = uniform_mask(x.size(0), seq_len, mask_ratio=0.75, device=x.device)[1]
-        outs = n.masked_encoding_omission(x, ids_keep)
-
-        for out in outs:
-            self.assertFalse(torch.isnan(out).any())
+        out = n.masked_encoding_omission(x, ids_keep)
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.ndim, 3)
 
         self.assertTrue(hasattr(n, "block_group_regex"))
         self.assertTrue(hasattr(n, "stem_stride"))

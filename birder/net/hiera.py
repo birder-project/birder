@@ -434,6 +434,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
         self.embedding_size = embed_dim
         self.classifier = self.create_classifier()
 
+        self.max_stride = patch_stride[0] * 8
         self.stem_stride = patch_stride[0]
         self.encoding_size = embed_dim
         # self.decoder_block

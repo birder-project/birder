@@ -23,7 +23,7 @@ Whether you're a researcher in ornithology, a conservation scientist, or a wildl
 
 1. [Pre-trained Models](pretrained_models.md)
 
-1. [Training](training_guide.md)
+1. [Training](training_scripts.md)
 
 1. Inference
 
