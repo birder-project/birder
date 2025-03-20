@@ -13,6 +13,7 @@ Changes from original:
 
 from collections import OrderedDict
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -26,6 +27,7 @@ from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenSubstitutionMixin
+from birder.net.base import TokenSubstitutionResultType
 from birder.net.swin_transformer_v1 import get_relative_position_bias
 from birder.net.swin_transformer_v1 import patch_merging_pad
 from birder.net.swin_transformer_v1 import shifted_window_attention
@@ -312,16 +314,23 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, TokenSubstitutionMi
                 param.requires_grad = False
 
     def masked_encoding_substitution(
-        self, x: torch.Tensor, mask: torch.Tensor, mask_token: torch.Tensor, return_embedding: bool = False
-    ) -> torch.Tensor:
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: torch.Tensor,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenSubstitutionResultType:
         x = self.stem(x)
         x = mask_tensor(x, mask, channels_last=True, patch_factor=32 // self.stem_stride, mask_token=mask_token)
         x = self.body(x)
 
-        if return_embedding is False:
-            return x.permute(0, 3, 1, 2).contiguous()
+        result: TokenSubstitutionResultType = {}
+        if return_keys in ("all", "features"):
+            result["features"] = x.permute(0, 3, 1, 2).contiguous()
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = self.features(x)
 
-        return self.features(x)
+        return result
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

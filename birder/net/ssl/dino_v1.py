@@ -126,10 +126,6 @@ class DINOHead(nn.Module):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-            elif isinstance(m, nn.LayerNorm):
-                nn.init.ones_(m.weight)
-                nn.init.zeros_(m.bias)
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.mlp(x)
         x = F.normalize(x, dim=-1, p=2)

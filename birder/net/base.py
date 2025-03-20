@@ -9,6 +9,7 @@ from typing import TypedDict
 import torch
 import torch.nn.functional as F
 from torch import nn
+from typing_extensions import NotRequired
 
 from birder.model_registry import Task
 from birder.model_registry import registry
@@ -17,6 +18,10 @@ logger = logging.getLogger(__name__)
 
 DataShapeType = TypedDict("DataShapeType", {"data_shape": list[int]})
 SignatureType = TypedDict("SignatureType", {"inputs": list[DataShapeType], "outputs": list[DataShapeType]})
+TokenSubstitutionResultType = TypedDict(
+    "TokenSubstitutionResultType",
+    {"features": NotRequired[torch.Tensor], "embedding": NotRequired[torch.Tensor]},
+)
 
 
 def get_signature(input_shape: tuple[int, ...], num_outputs: int) -> SignatureType:
@@ -188,9 +193,13 @@ class MaskedTokenRetentionMixin:
 
 class TokenSubstitutionMixin:
     def masked_encoding_substitution(
-        self, x: torch.Tensor, mask: torch.Tensor, mask_token: torch.Tensor, return_embedding: bool = False
-    ) -> torch.Tensor:
-        # Returned size (B, C, H, W)
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: torch.Tensor,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenSubstitutionResultType:
+        # Returned features size (B, C, H, W), embedding (B, D)
         raise NotImplementedError
 
 

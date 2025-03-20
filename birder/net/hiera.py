@@ -727,21 +727,21 @@ registry.register_alias(
     },
 )
 
-# registry.register_weights(
-#     "hiera_abswin_base_mim",
-#     {
-#         "url": "https://huggingface.co/birder-project/hiera_abswin_base_mim/resolve/main/hiera_abswin_base_mim.pt",
-#         "description": (
-#             "Hiera base with abswin image encoder pre-trained using Masked Image Modeling (MIM) for 400 epochs. "
-#             "This model has not been fine-tuned for a specific classification task"
-#         ),
-#         "resolution": (224, 224),
-#         "formats": {
-#             "pt": {
-#                 "file_size": 192.7,
-#                 "sha256": "c6083c6532996addaf4efe29276aa55f9a3c77984f862f720c6131f86b847994",
-#             },
-#         },
-#         "net": {"network": "hiera_abswin_base", "tag": "mim"},
-#     },
-# )
+registry.register_weights(
+    "hiera_abswin_base_mim",
+    {
+        "url": "https://huggingface.co/birder-project/hiera_abswin_base_mim/resolve/main/hiera_abswin_base_mim.pt",
+        "description": (
+            "Hiera base with abswin image encoder pre-trained using Masked Image Modeling (MIM) for 400 epochs. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 192.7,
+                "sha256": "d8ce30c2d9d46af8bdfe7c591610d12c4e592ad4bc4b00e2ba41457e683702da",
+            },
+        },
+        "net": {"network": "hiera_abswin_base", "tag": "mim"},
+    },
+)

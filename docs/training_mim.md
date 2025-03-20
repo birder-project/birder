@@ -226,16 +226,28 @@ torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_abs
 torchrun --nproc_per_node=2 train_mim.py --network mae_hiera --encoder hiera_abswin_base --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 400 --batch-size 512 --wd 0.05 --encoder-model-config drop_path_rate=0.2 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
+Frozen representation linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network hiera_abswin_base --tag mim --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 50 --size 256 --smoothing-alpha 0.1 --aug-level 2 --amp --compile--resume-epoch 0 --reset-head --freeze-body --unfreeze-features
+```
+
+Optional intermediate training: first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network hiera_abswin_base --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --unfreeze-features --wds --wds-class-file data/intermediate/classes.txt --wds-info-file data/intermediate/_info.json
+```
+
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network hiera_abswin_base --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
+torchrun --nproc_per_node=2 train.py --network hiera_abswin_base --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
 ```
 
 Next, full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network hiera_abswin_base --tag mim --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 15 --epochs 110 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --amp --compile --compile-opt --layer-decay 0.7 --resume-epoch 10
+torchrun --nproc_per_node=2 train.py --network hiera_abswin_base --tag mim --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 5 --epochs 100 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --ra-sampler --ra-reps 2 --amp --compile --compile-opt --layer-decay 0.7 --resume-epoch 0
 ```
 
 #### MAE Hiera: Hiera AbsWin Base Plus
@@ -320,8 +332,10 @@ torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --lr 0.1 --lr-s
 
 Next, full fine-tuning with layer-wise learning rate decay
 
+Number of epochs relays on the amount of samples in training (1M -> 50 epochs), try larger number for smaller datasets.
+
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 5e-7 --batch-size 32 --warmup-epochs 5 --epochs 50 --size 256 --wd 0.05 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.8 --resume-epoch 0
+torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 5e-7 --batch-size 64 --warmup-epochs 5 --epochs 50 --size 256 --wd 0.05 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.8 --resume-epoch 0
 ```
 
 #### MAE ViT: SoViT reg4 150m p14

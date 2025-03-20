@@ -154,7 +154,7 @@ class SimMIM(MIMBaseNet):
         seq_len = (self.size[0] // self.encoder.max_stride) * (self.size[1] // self.encoder.max_stride)
         mask = uniform_mask(x.size(0), seq_len, mask_ratio=self.mask_ratio, device=x.device)[0]
 
-        latent = self.encoder.masked_encoding_substitution(x, mask, mask_token=self.mask_token)
+        latent = self.encoder.masked_encoding_substitution(x, mask, mask_token=self.mask_token)["features"]
         pred = self.forward_decoder(latent)
         loss = self.forward_loss(x, pred, mask)
 

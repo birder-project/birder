@@ -18,6 +18,7 @@ import math
 from collections.abc import Callable
 from functools import partial
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -32,6 +33,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenSubstitutionMixin
+from birder.net.base import TokenSubstitutionResultType
 
 
 def adjust_position_embedding(
@@ -475,8 +477,14 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, TokenSubs
         return x
 
     def masked_encoding_substitution(
-        self, x: torch.Tensor, mask: torch.Tensor, mask_token: torch.Tensor, return_embedding: bool = False
-    ) -> torch.Tensor:
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: torch.Tensor,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenSubstitutionResultType:
+        (H, W) = x.shape[-2:]
+
         x = self.conv_proj(x)
         x = mask_tensor(x, mask, mask_token=mask_token)
 
@@ -493,21 +501,26 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, TokenSubs
             batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
             x = torch.concat([batch_reg_tokens, x], dim=1)
 
-        x = x + self.pos_embedding
+        x = x + self._get_pos_embed(H, W)
         x = self.encoder(x)
         x = self.norm(x)
 
-        if return_embedding is False:
-            x = x[:, self.num_special_tokens :]
-            x = x.permute(0, 2, 1)
-            (B, C, _) = x.size()
-            return x.reshape(B, C, self.size[0] // self.patch_size, self.size[1] // self.patch_size)
+        result: TokenSubstitutionResultType = {}
+        if return_keys in ("all", "features"):
+            features = x[:, self.num_special_tokens :]
+            features = features.permute(0, 2, 1)
+            (B, C, _) = features.size()
+            features = features.reshape(B, C, H // self.patch_size, W // self.patch_size)
+            result["features"] = features
 
-        x = self.attn_pool(x)
-        if self.class_token is None:
-            return x.mean(dim=1)
+        if return_keys in ("all", "embedding"):
+            x = self.attn_pool(x)
+            if self.class_token is None:
+                result["embedding"] = x.mean(dim=1)
+            else:
+                result["embedding"] = x[:, self.num_reg_tokens]
 
-        return x[:, self.num_reg_tokens]
+        return result
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         (H, W) = x.shape[-2:]

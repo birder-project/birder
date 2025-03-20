@@ -10,6 +10,7 @@ https://arxiv.org/abs/2207.05501
 
 from collections import OrderedDict
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -23,6 +24,7 @@ from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenSubstitutionMixin
+from birder.net.base import TokenSubstitutionResultType
 from birder.net.base import make_divisible
 
 
@@ -390,16 +392,23 @@ class NextViT(DetectorBackbone, PreTrainEncoder, TokenSubstitutionMixin):
                 param.requires_grad = False
 
     def masked_encoding_substitution(
-        self, x: torch.Tensor, mask: torch.Tensor, mask_token: torch.Tensor, return_embedding: bool = False
-    ) -> torch.Tensor:
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: torch.Tensor,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenSubstitutionResultType:
         x = self.stem(x)
         x = mask_tensor(x, mask, patch_factor=32 // self.stem_stride, mask_token=mask_token)
         x = self.body(x)
 
-        if return_embedding is False:
-            return x
+        result: TokenSubstitutionResultType = {}
+        if return_keys in ("all", "features"):
+            result["features"] = x
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = self.features(x)
 
-        return self.features(x)
+        return result
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
