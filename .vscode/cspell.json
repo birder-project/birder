@@ -30,6 +30,7 @@
     "barh",
     "batchmean",
     "batchnorm",
+    "beit",
     "bfloat",
     "bibtex",
     "biformer",

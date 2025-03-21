@@ -173,6 +173,7 @@ class PreTrainEncoder(BaseNet):  # pylint: disable=abstract-method
         super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
         self.max_stride: int = 32
         self.stem_stride: int
+        self.stem_width: int
         self.encoding_size: int
         self.decoder_block: Callable[[int], nn.Module]
 

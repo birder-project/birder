@@ -352,6 +352,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, TokenSubs
 
         self.max_stride = patch_size
         self.stem_stride = patch_size
+        self.stem_width = hidden_dim
         self.encoding_size = hidden_dim
         self.decoder_block = partial(
             EncoderBlock,
@@ -486,7 +487,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, TokenSubs
         (H, W) = x.shape[-2:]
 
         x = self.conv_proj(x)
-        x = mask_tensor(x, mask, mask_token=mask_token)
+        x = mask_tensor(x, mask, mask_token=mask_token, patch_factor=self.max_stride // self.stem_stride)
 
         # Reshape and permute the input tensor
         x = self.patch_embed(x)
@@ -572,6 +573,18 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, TokenSubs
         )
 
 
+registry.register_alias(
+    "vit_s16",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "drop_path_rate": 0.0,
+    },
+)
 registry.register_alias(
     "vit_b32",
     ViT,
@@ -670,6 +683,19 @@ registry.register_alias(
 )
 
 # With registers
+registry.register_alias(
+    "vitreg4_s16",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.0,
+    },
+)
 registry.register_alias(
     "vitreg4_b32",
     ViT,

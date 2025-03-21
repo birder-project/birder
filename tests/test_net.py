@@ -410,6 +410,7 @@ class TestNet(unittest.TestCase):
 
         self.assertTrue(hasattr(n, "block_group_regex"))
         self.assertTrue(hasattr(n, "stem_stride"))
+        self.assertTrue(hasattr(n, "stem_width"))
 
     @parameterized.expand(  # type: ignore[misc]
         [
@@ -434,11 +435,13 @@ class TestNet(unittest.TestCase):
 
         self.assertTrue(hasattr(n, "block_group_regex"))
         self.assertTrue(hasattr(n, "stem_stride"))
+        self.assertTrue(hasattr(n, "stem_width"))
 
     @parameterized.expand(  # type: ignore[misc]
         [
             ("maxvit_t", None),
             ("nextvit_s", None),
+            ("regnet_y_400m", None),
             ("swin_transformer_v2_t", None),
             ("swin_transformer_v2_w2_t", None),
             ("vit_b32", None),
@@ -456,19 +459,20 @@ class TestNet(unittest.TestCase):
         seq_len = (size[0] // n.max_stride) * (size[1] // n.max_stride)
         x = torch.rand((1, 3, *size))
         mask = uniform_mask(1, seq_len, mask_ratio=0.6, device=x.device)[0]
-        out = n.masked_encoding_substitution(x, mask, torch.zeros(1, 1, 1, n.encoding_size))
+        out = n.masked_encoding_substitution(x, mask, torch.zeros(1, 1, 1, n.stem_width))
         self.assertNotIn("embedding", out)
         self.assertFalse(torch.isnan(out["features"]).any())
         self.assertEqual(out["features"].ndim, 4)
 
         self.assertTrue(hasattr(n, "block_group_regex"))
         self.assertTrue(hasattr(n, "stem_stride"))
+        self.assertTrue(hasattr(n, "stem_width"))
 
-        out = n.masked_encoding_substitution(x, mask, torch.zeros(1, 1, 1, n.encoding_size), return_keys="embedding")
+        out = n.masked_encoding_substitution(x, mask, torch.zeros(1, 1, 1, n.stem_width), return_keys="embedding")
         self.assertNotIn("features", out)
         self.assertEqual(len(out["embedding"].flatten()), n.embedding_size)
 
-        out = n.masked_encoding_substitution(x, mask, torch.zeros(1, 1, 1, n.encoding_size), return_keys="all")
+        out = n.masked_encoding_substitution(x, mask, torch.zeros(1, 1, 1, n.stem_width), return_keys="all")
         self.assertIsNotNone(out["features"])
         self.assertIsNotNone(out["embedding"])
 
@@ -476,9 +480,7 @@ class TestNet(unittest.TestCase):
         x = torch.ones((1, 3, *size)) * 0.25
         n.eval()
         zero_mask = torch.zeros_like(mask)
-        out = n.masked_encoding_substitution(
-            x, zero_mask, torch.ones(1, 1, 1, n.encoding_size), return_keys="embedding"
-        )
+        out = n.masked_encoding_substitution(x, zero_mask, torch.ones(1, 1, 1, n.stem_width), return_keys="embedding")
         torch.testing.assert_close(out["embedding"], n.embedding(x))
 
     @parameterized.expand(  # type: ignore[misc]
@@ -509,6 +511,7 @@ class TestNet(unittest.TestCase):
 
         self.assertTrue(hasattr(n, "block_group_regex"))
         self.assertTrue(hasattr(n, "stem_stride"))
+        self.assertTrue(hasattr(n, "stem_width"))
 
 
 class TestNonSquareNet(unittest.TestCase):

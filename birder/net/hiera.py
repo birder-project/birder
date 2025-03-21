@@ -366,7 +366,8 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
         self.mask_spatial_shape = [i // s for i, s in zip(tokens_spatial_shape, mask_unit_size)]
         self.stage_ends = [sum(depths[:i]) - 1 for i in range(1, len(depths) + 1)]
 
-        self.stem = PatchEmbed(self.input_channels, embed_dim, patch_kernel, patch_stride, patch_padding)
+        stem_dim = embed_dim
+        self.stem = PatchEmbed(self.input_channels, stem_dim, patch_kernel, patch_stride, patch_padding)
 
         global_pos_size = (image_size[0] // 2**4, image_size[1] // 2**4)
         if abs_win_pos_embed is True:
@@ -436,6 +437,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
 
         self.max_stride = patch_stride[0] * 8
         self.stem_stride = patch_stride[0]
+        self.stem_width = stem_dim
         self.encoding_size = embed_dim
         # self.decoder_block
 

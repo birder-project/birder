@@ -93,6 +93,7 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
 
         self.max_stride = patch_size
         self.stem_stride = patch_size
+        self.stem_width = hidden_dim
         self.encoding_size = hidden_dim
         self.decoder_block = partial(
             EncoderBlock,

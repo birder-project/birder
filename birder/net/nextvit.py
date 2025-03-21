@@ -351,7 +351,8 @@ class NextViT(DetectorBackbone, PreTrainEncoder, TokenSubstitutionMixin):
         self.classifier = self.create_classifier()
 
         self.stem_stride = 4
-        self.encoding_size = stem_chs[-1]
+        self.stem_width = stem_chs[-1]
+        self.encoding_size = output_channel
 
         # Weights initialization
         for m in self.modules():
@@ -399,7 +400,7 @@ class NextViT(DetectorBackbone, PreTrainEncoder, TokenSubstitutionMixin):
         return_keys: Literal["all", "features", "embedding"] = "features",
     ) -> TokenSubstitutionResultType:
         x = self.stem(x)
-        x = mask_tensor(x, mask, patch_factor=32 // self.stem_stride, mask_token=mask_token)
+        x = mask_tensor(x, mask, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token)
         x = self.body(x)
 
         result: TokenSubstitutionResultType = {}

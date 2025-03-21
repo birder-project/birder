@@ -369,20 +369,16 @@ class TestMasking(unittest.TestCase):
             torch.testing.assert_close(masked_token, mask_token)
 
     def test_block_masking(self) -> None:
-        generator = masking.BlockMasking((8, 8), 1, 4, 0.66, 1.5)
-
-        mask = generator(1, 0.0)
+        generator = masking.BlockMasking((8, 8), 0, 0, 0.66, 1.5)
+        mask = generator(1)
         self.assertEqual((mask == 0).sum().item(), 64)
 
-        mask = generator(4, 0.0)
+        mask = generator(4)
         self.assertEqual((mask == 0).sum().item(), 4 * 64)
 
-        mask = generator(1, 0.5)
-        self.assertEqual((mask == 0).sum().item(), 32)
-
-        mask = generator(2, 0.5)
-        self.assertEqual((mask == 0).sum().item(), 2 * 32)
-        self.assertNotEqual(mask.dtype, torch.bool)
+        generator = masking.BlockMasking((8, 8), 0, 32, 0.66, 1.5)
+        mask = generator(1)
+        self.assertGreaterEqual((mask == 0).sum().item(), 32)
 
     def test_uniform_masking(self) -> None:
         generator = masking.UniformMasking((8, 8))

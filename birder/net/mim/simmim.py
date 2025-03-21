@@ -84,7 +84,7 @@ class SimMIM(MIMBaseNet):
             bias=True,
         )
 
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.encoder.encoding_size), requires_grad=True)
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.encoder.stem_width), requires_grad=True)
 
         # Weights initialization
         nn.init.trunc_normal_(self.mask_token, mean=0.0, std=0.02)
@@ -154,8 +154,8 @@ class SimMIM(MIMBaseNet):
         seq_len = (self.size[0] // self.encoder.max_stride) * (self.size[1] // self.encoder.max_stride)
         mask = uniform_mask(x.size(0), seq_len, mask_ratio=self.mask_ratio, device=x.device)[0]
 
-        latent = self.encoder.masked_encoding_substitution(x, mask, mask_token=self.mask_token)["features"]
-        pred = self.forward_decoder(latent)
+        latent = self.encoder.masked_encoding_substitution(x, mask, mask_token=self.mask_token)
+        pred = self.forward_decoder(latent["features"])
         loss = self.forward_loss(x, pred, mask)
 
         return {"loss": loss, "pred": pred, "mask": mask}

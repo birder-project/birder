@@ -243,12 +243,18 @@ def train(args: argparse.Namespace) -> None:
         config=args.model_config,
         size=args.size,
     )
+    if args.model_config is not None:
+        teacher_model_config = args.model_config.copy()
+        teacher_model_config.update({"drop_path_rate": 0.0})
+    else:
+        teacher_model_config = {"drop_path_rate": 0.0}
+
     teacher_backbone = registry.net_factory(
         args.network,
         sample_shape[1],
         0,
         net_param=args.net_param,
-        config=args.model_config,
+        config=teacher_model_config,
         size=args.size,
     )
     student_backbone.set_dynamic_size()
@@ -314,8 +320,11 @@ def train(args: argparse.Namespace) -> None:
         torch.set_float32_matmul_precision("high")
 
     # Compile networks
+    teacher_compile_flag = args.compile is True or args.compile_teacher is True
     if args.compile is True:
         student = torch.compile(student)
+        teacher = torch.compile(teacher)
+    elif args.compile_teacher is True:
         teacher = torch.compile(teacher)
 
     #
@@ -401,7 +410,7 @@ def train(args: argparse.Namespace) -> None:
         p.requires_grad = False
 
     model_to_save = net
-    if args.compile is True and hasattr(model_to_save["teacher"], "_orig_mod") is True:
+    if teacher_compile_flag is True and hasattr(model_to_save["teacher"], "_orig_mod") is True:
         model_to_save["teacher"] = model_to_save["teacher"]._orig_mod  # pylint: disable=protected-access
     if args.compile is True and hasattr(model_to_save["student"], "_orig_mod") is True:
         model_to_save["student"] = model_to_save["student"]._orig_mod  # pylint: disable=protected-access
@@ -412,7 +421,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Print network summary
     net_for_info = teacher_without_ddp
-    if args.compile is True and hasattr(teacher_without_ddp, "_orig_mod") is True:
+    if teacher_compile_flag is True and hasattr(teacher_without_ddp, "_orig_mod") is True:
         net_for_info = teacher_without_ddp._orig_mod  # pylint: disable=protected-access
 
     if args.no_summary is False:
@@ -632,7 +641,8 @@ def get_args_parser() -> argparse.ArgumentParser:
             "    --bias-weight-decay 0 \\\n"
             "    --wd-end 0.4 \\\n"
             "    --amp \\\n"
-            "    --compile\n"
+            "    --compile \\\n"
+            "    --data-path data/training\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -658,7 +668,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         default=False,
         action="store_true",
         help=(
-            "whether or not to weight normalize the last layer of the DINO head. "
+            "whether or not to weight normalize the last layer of the DINO head, "
             "set this flag with large models (vit_b)"
         ),
     )
@@ -694,6 +704,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
+    parser.add_argument("--compile-teacher", default=False, action="store_true", help="enable teacher only compilation")
     parser.add_argument(
         "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
     )
@@ -797,7 +808,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--load-scheduler", default=False, action="store_true", help="load scheduler only resuming")
     parser.add_argument("-t", "--tag", type=str, help="add training logs tag")
     parser.add_argument(
-        "--log-interval", type=int, default=100, metavar="N", help="how many steps between summary writes"
+        "--log-interval", type=int, default=50, metavar="N", help="how many steps between summary writes"
     )
     parser.add_argument(
         "-j",
@@ -875,6 +886,7 @@ def validate_args(args: argparse.Namespace) -> None:
     ), "Unknown network, see list-models tool for available options"
     assert args.amp is False or args.model_dtype == "float32"
     assert args.resize_min_scale is None or args.resize_min_scale < 1.0
+    assert args.compile is False or args.compile_teacher is False
     args.size = cli.parse_size(args.size)
     args.local_crop_size = cli.parse_size(args.local_crop_size)
 

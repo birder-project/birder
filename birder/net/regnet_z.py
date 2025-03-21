@@ -170,6 +170,7 @@ class RegNet_Z(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.classifier = self.create_classifier()
 
         self.stem_stride = 2
+        self.stem_width = stem_width
         self.encoding_size = num_features
         decoder_block = partial(
             BottleneckTransform,

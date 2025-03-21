@@ -235,7 +235,13 @@ torchrun --nproc_per_node=2 train.py --network hiera_abswin_base --tag mim --opt
 Optional intermediate training: first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network hiera_abswin_base --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --unfreeze-features --wds --wds-class-file data/intermediate/classes.txt --wds-info-file data/intermediate/_info.json
+torchrun --nproc_per_node=2 train.py --network hiera_abswin_base --tag mim-intermediate --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --unfreeze-features --wds --wds-class-file data/intermediate/classes.txt --wds-info-file data/intermediate/_info.json
+```
+
+Optional intermediate training: full fine-tuning with layer-wise learning rate decay
+
+```sh
+torchrun --nproc_per_node=2 train.py --network hiera_abswin_base --tag mim-intermediate --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 5 --epochs 100 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --compile-opt --layer-decay 0.7 --resume-epoch 0 --wds --wds-class-file data/intermediate/classes.txt --wds-info-file data/intermediate/_info.json
 ```
 
 Fine-tuning, first stage - linear probing
@@ -374,6 +380,12 @@ torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder nextvit_s --
 
 ```sh
 torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder nextvit_b --opt adamw --lr 0.0001 --lr-scheduler cosine --warmup-epochs 10 --batch-size 128 --wd 0.05 --clip-grad-norm 1 --encoder-model-config drop_path_rate=0.0 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
+
+#### SimMIM: RegNet Y 4 GF
+
+```sh
+torchrun --nproc_per_node=2 train_mim.py --network simmim --encoder regnet_y_4g --opt adamw --lr 0.0005 --lr-scheduler cosine --warmup-epochs 10 --batch-size 128 --wd 0.05 --clip-grad-norm 1 --amp --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 #### SimMIM: Swin Transformer v2 Small

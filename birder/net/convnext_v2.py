@@ -152,6 +152,7 @@ class ConvNeXt_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.classifier = self.create_classifier()
 
         self.stem_stride = 4
+        self.stem_width = in_channels[0]
         self.encoding_size = in_channels[-1]
         self.decoder_block = partial(ConvNeXtBlock, stochastic_depth_prob=0)
 

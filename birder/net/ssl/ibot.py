@@ -8,6 +8,7 @@ Paper "iBOT: Image BERT Pre-Training with Online Tokenizer", https://arxiv.org/a
 # Reference license: Apache-2.0
 
 
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -91,7 +92,7 @@ class iBOTLoss(nn.Module):
         teacher_embedding: torch.Tensor,
         teacher_features: torch.Tensor,
         student_local_embedding: torch.Tensor,
-        student_mask: torch.Tensor,
+        student_mask: Optional[torch.Tensor],
         epoch: int,
     ) -> dict[str, torch.Tensor]:
         student_embedding = torch.concat([student_embedding, student_local_embedding], dim=0)
@@ -110,8 +111,8 @@ class iBOTLoss(nn.Module):
         teacher_features_center = F.softmax((teacher_features - self.center2) / temp2, dim=-1)
         teacher_features_center = teacher_features_center.detach().chunk(self.num_global_crops)
 
-        total_loss1 = torch.zeros(1)
-        total_loss2 = torch.zeros(1)
+        total_loss1 = torch.zeros(1, device=student_embedding.device)
+        total_loss2 = torch.zeros(1, device=student_embedding.device)
         n_loss_terms1 = 0
         n_loss_terms2 = 0
         for q, teacher_embedding_c in enumerate(teacher_embedding_center):
@@ -120,9 +121,11 @@ class iBOTLoss(nn.Module):
                     loss2 = torch.sum(
                         -teacher_features_center[q] * F.log_softmax(student_features_n[v], dim=-1), dim=-1
                     )
-                    mask = student_mask[v]
-                    loss2 = torch.sum(loss2 * mask.float(), dim=-1) / mask.sum(dim=-1).clamp(min=1.0)
-                    total_loss2 += loss2.mean()
+                    if student_mask is not None:
+                        mask = student_mask[v]
+                        loss2 = torch.sum(loss2 * mask.float(), dim=-1) / mask.sum(dim=-1).clamp(min=1.0)
+                        total_loss2 += loss2.mean()
+
                     n_loss_terms2 += 1
                 else:
                     loss1 = torch.sum(-teacher_embedding_c * F.log_softmax(student_embedding_c, dim=-1), dim=-1)
@@ -193,8 +196,8 @@ class iBOTHead(DINOHead):
             self.last_layer2 = self.last_layer
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ
-        self, embedding: torch.Tensor, features: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        self, embedding: torch.Tensor, features: Optional[torch.Tensor]
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
         """
         Embedding and features are as coming out of "masked_encoding_substitution" function
         This means embedding shape is (B, D) while features shape is (B, C, H, W)
@@ -203,13 +206,19 @@ class iBOTHead(DINOHead):
         """
 
         embedding = embedding.unsqueeze(1)  # (B, 1, D)
-        features = features.flatten(2).transpose(1, 2)  # (B, L, C)
-        x = torch.concat([embedding, features], dim=1)
+        if features is not None:
+            features = features.flatten(2).transpose(1, 2)  # (B, L, C)
+            x = torch.concat([embedding, features], dim=1)
+        else:
+            x = embedding
 
         x = self.mlp(x)
         x = F.normalize(x, dim=-1)
         x1 = self.last_layer(x[:, 0])
-        x2 = self.last_layer2(x[:, 1:])
+        if features is not None:
+            x2 = self.last_layer2(x[:, 1:])
+        else:
+            x2 = None
 
         return (x1, x2)
 
@@ -223,10 +232,10 @@ class iBOT(SSLBaseNet):
         assert isinstance(backbone, TokenSubstitutionMixin)
         self.backbone = backbone
         self.head = head
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.encoding_size), requires_grad=True)
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width), requires_grad=True)
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ
-        self, x: torch.Tensor, masks: Optional[torch.Tensor]
+        self, x: torch.Tensor, masks: Optional[torch.Tensor], return_keys: Literal["all", "embedding"] = "all"
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if masks is not None:
             input_mask = masks
@@ -234,6 +243,10 @@ class iBOT(SSLBaseNet):
             seq_len = (x.size(2) // self.backbone.max_stride) * (x.size(3) // self.backbone.max_stride)
             input_mask = torch.zeros([x.size(0), seq_len], device=x.device)
 
-        outs = self.backbone.masked_encoding_substitution(x, input_mask, mask_token=self.mask_token, return_keys="all")
+        outs = self.backbone.masked_encoding_substitution(
+            x, input_mask, mask_token=self.mask_token, return_keys=return_keys
+        )
+        if return_keys == "embedding":
+            outs["features"] = None
 
         return self.head(outs["embedding"], outs["features"])  # type: ignore[no-any-return]

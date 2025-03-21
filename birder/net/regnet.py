@@ -13,6 +13,7 @@ from collections.abc import Callable
 from collections.abc import Iterator
 from functools import partial
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -25,6 +26,8 @@ from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenSubstitutionMixin
+from birder.net.base import TokenSubstitutionResultType
 from birder.net.base import make_divisible
 
 
@@ -266,7 +269,7 @@ class AnyStage(nn.Module):
         return self.block(x)
 
 
-class RegNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
+class RegNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin, TokenSubstitutionMixin):
     block_group_regex = r"body\.stage\d+\.block\.(\d+)"
 
     def __init__(
@@ -325,6 +328,7 @@ class RegNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.classifier = self.create_classifier()
 
         self.stem_stride = 2
+        self.stem_width = stem_width
         self.encoding_size = current_width
         decoder_block = partial(
             BottleneckTransform,
@@ -374,10 +378,29 @@ class RegNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
     def masked_encoding_retention(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
-        x = mask_tensor(x, mask, patch_factor=32 // self.stem_stride)
+        x = mask_tensor(x, mask, patch_factor=self.max_stride // self.stem_stride)
         x = self.body(x)
 
         return x
+
+    def masked_encoding_substitution(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: torch.Tensor,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenSubstitutionResultType:
+        x = self.stem(x)
+        x = mask_tensor(x, mask, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token)
+        x = self.body(x)
+
+        result: TokenSubstitutionResultType = {}
+        if return_keys in ("all", "features"):
+            result["features"] = x
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = self.features(x)
+
+        return result
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

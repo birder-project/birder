@@ -94,7 +94,7 @@ class TestNetSSL(unittest.TestCase):
         ]
 
         mask_generator = BlockMasking((128 // backbone.stem_stride, 128 // backbone.stem_stride), 1, 3, 0.66, 1.5)
-        masks = mask_generator(batch_size * 2, 0.6)
+        masks = mask_generator(batch_size * 2)
 
         (embedding_g, features_g) = net(torch.concat(images[:2], dim=0), masks=masks)
         self.assertFalse(torch.isnan(embedding_g).any())

@@ -529,9 +529,10 @@ def get_args_parser() -> argparse.ArgumentParser:
             "    --epochs 400 \\\n"
             "    --wd 0.0000015 \\\n"
             "    --norm-wd 0 \\\n"
-            "    --bias-weight-decay 0\\\n"
+            "    --bias-weight-decay 0 \\\n"
             "    --amp \\\n"
-            "    --compile\n"
+            "    --compile \\\n"
+            "    --data-path data/training\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

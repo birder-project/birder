@@ -6,6 +6,7 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 
 - [BYOL](#byol)
 - [DINO v1](#dino-v1)
+- [iBOT](#ibot)
 - [VICReg](#vicreg)
 
 ### BYOL
@@ -60,6 +61,44 @@ Fine-tuning, first stage - linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network xcit_small12_p16 --tag dino-v1 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --amp --resume-epoch 0 --reset-head --freeze-body
+```
+
+### iBOT
+
+#### iBOT: RegNet Y 1.6 GF
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network regnet_y_1_6g --shared-head --local-crops-number 8 --teacher-temp 0.07 --warmup-teacher-temp-epochs 30 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --sync-bn --freeze-last-layer-epochs 1 --epochs 800 --warmup-epochs 10 --batch-size 128 --wd 0.04 --norm-wd 0 --bias-weight-decay 0 --wd-end 0.4 --clip-grad-norm 3 --amp --compile-teacher --data-path data/training
+```
+
+#### iBOT: RegNet Y 4 GF
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network regnet_y_4g --shared-head --local-crops-number 8 --teacher-temp 0.07 --warmup-teacher-temp-epochs 30 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --sync-bn --freeze-last-layer-epochs 1 --epochs 800 --warmup-epochs 10 --batch-size 80 --wd 0.04 --norm-wd 0 --bias-weight-decay 0 --wd-end 0.4 --clip-grad-norm 3 --amp --compile-teacher --data-path data/training
+```
+
+#### iBOT: XCiT small-12 p16
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network xcit_small12_p16 --shared-head --local-crops-number 10 --pred-start-epoch 50 --teacher-temp 0.07 --warmup-teacher-temp-epochs 30 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --freeze-last-layer-epochs 1 --epochs 300 --warmup-epochs 10 --batch-size 64 --wd 0.04 --norm-wd 0 --bias-weight-decay 0 --wd-end 0.4 --clip-grad-norm 3 --amp --compile --data-path data/training
+```
+
+#### iBOT: ViT s16
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network vit_s16 --shared-head --local-crops-number 10 --teacher-temp 0.07 --warmup-teacher-temp-epochs 30 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --freeze-last-layer-epochs 1 --epochs 800 --warmup-epochs 10 --batch-size 64 --wd 0.04 --norm-wd 0 --bias-weight-decay 0 --wd-end 0.4 --clip-grad-norm 3 --amp --compile --data-path data/training
+```
+
+#### iBOT: ViT b16
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network vit_b16 --shared-head --norm-last-layer --local-crops-number 10 --teacher-temp 0.07 --warmup-teacher-temp-epochs 50 --opt adamw --lr 0.00075 --lr-scheduler cosine --lr-cosine-min 1e-6 --freeze-last-layer-epochs 3 --epochs 400 --warmup-epochs 10 --batch-size 48 --wd 0.04 --norm-wd 0 --bias-weight-decay 0 --wd-end 0.4 --clip-grad-norm 0.3 --amp --compile --data-path data/training
+```
+
+Large scale training
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network vit_b16 --shared-head --norm-last-layer --local-crops-number 10 --teacher-temp 0.07 --warmup-teacher-temp-epochs 30 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --freeze-last-layer-epochs 3 --epochs 80 --warmup-epochs 5 --batch-size 48 --wd 0.04 --norm-wd 0 --bias-weight-decay 0 --wd-end 0.4 --clip-grad-norm 0.3 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 ### VICReg

@@ -194,8 +194,8 @@ class BlockMasking:
 
         return delta
 
-    def __call__(self, batch_size: int, mask_ratio: float) -> torch.Tensor:
-        num_masking_patches = int(self.height * self.width * mask_ratio)
+    def __call__(self, batch_size: int) -> torch.Tensor:
+        num_masking_patches = random.randint(self.min_num_patches, self.max_num_patches)
         masks = []
         for _ in range(batch_size):
             mask = torch.zeros(*self.get_shape())

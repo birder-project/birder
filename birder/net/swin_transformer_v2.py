@@ -282,7 +282,8 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, TokenSubstitutionMi
         self.classifier = self.create_classifier()
 
         self.stem_stride = patch_size
-        self.encoding_size = embed_dim
+        self.stem_width = embed_dim
+        self.encoding_size = num_features
 
         # Weight initialization
         for m in self.modules():
@@ -321,7 +322,9 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, TokenSubstitutionMi
         return_keys: Literal["all", "features", "embedding"] = "features",
     ) -> TokenSubstitutionResultType:
         x = self.stem(x)
-        x = mask_tensor(x, mask, channels_last=True, patch_factor=32 // self.stem_stride, mask_token=mask_token)
+        x = mask_tensor(
+            x, mask, channels_last=True, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token
+        )
         x = self.body(x)
 
         result: TokenSubstitutionResultType = {}
