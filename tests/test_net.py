@@ -61,6 +61,7 @@ class TestNet(unittest.TestCase):
             ("alexnet"),
             ("biformer_t"),
             ("cait_xxs24"),
+            ("cas_vit_xs"),
             ("coat_tiny"),
             ("coat_lite_tiny"),
             ("conv2former_n"),
@@ -247,6 +248,7 @@ class TestNet(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
             ("biformer_t"),
+            ("cas_vit_xs"),
             ("coat_tiny"),
             ("coat_lite_tiny"),
             ("conv2former_n"),
@@ -504,6 +506,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("alexnet"),
             ("biformer_t"),
             ("cait_xxs24"),
+            ("cas_vit_xs"),
             ("coat_tiny"),
             ("coat_lite_tiny"),
             ("conv2former_n"),

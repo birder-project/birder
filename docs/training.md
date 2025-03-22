@@ -19,6 +19,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [AlexNet](#alexnet)
 - [BiFormer](#biformer)
 - [CaiT](#cait)
+- [CAS-ViT](#cas-vit)
 - [CoaT](#coat)
 - [Conv2Former](#conv2former)
 - [ConvMixer](#convmixer)
@@ -146,6 +147,32 @@ torchrun --nproc_per_node=2 train.py --network biformer_b --opt adamw --lr 0.001
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network cait_s24 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+### CAS-ViT
+
+#### CAS-ViT: Extra Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cas_vit_xs --opt adamw --lr 0.006 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 384 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile
+```
+
+#### CAS-ViT: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cas_vit_s --opt adamw --lr 0.006 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile
+```
+
+#### CAS-ViT: Mini
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cas_vit_m --opt adamw --lr 0.006 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 128 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+#### CAS-ViT: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cas_vit_t --opt adamw --lr 0.006 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 64 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 ### CoaT
