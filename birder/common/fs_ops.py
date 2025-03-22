@@ -20,6 +20,7 @@ from birder.common.lib import get_detection_network_name
 from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
 from birder.conf import settings
+from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import BaseNet
 from birder.net.base import SignatureType
@@ -895,7 +896,20 @@ def load_model_with_cfg(
     num_classes = lib.get_num_labels_from_signature(signature)
     size = lib.get_size_from_signature(signature)
 
-    if "backbone" in cfg:
+    if cfg["task"] == Task.MASKED_IMAGE_MODELING:
+        if cfg["encoder_alias"] is not None:
+            encoder_name = cfg["encoder_alias"]
+        else:
+            encoder_name = cfg["encoder"]
+
+        encoder_net_param = cfg.get("encoder_net_param", None)
+        encoder_config = cfg.get("encoder_config", None)
+        encoder = registry.net_factory(
+            encoder_name, input_channels, num_classes=0, net_param=encoder_net_param, config=encoder_config, size=size
+        )
+        net = registry.mim_net_factory(name, encoder, net_param=net_param, config=model_config, size=size)
+
+    elif cfg["task"] == Task.OBJECT_DETECTION:
         if cfg["backbone_alias"] is not None:
             backbone_name = cfg["backbone_alias"]
         else:
@@ -912,10 +926,14 @@ def load_model_with_cfg(
         net = registry.detection_net_factory(
             name, num_classes, backbone, net_param=net_param, config=model_config, size=size
         )
-    else:
+
+    elif cfg["task"] == Task.IMAGE_CLASSIFICATION:
         net = registry.net_factory(
             name, input_channels, num_classes, net_param=net_param, config=model_config, size=size
         )
+
+    else:
+        raise ValueError("Configuration not supported")
 
     if cfg.get("reparameterized", False) is True:
         net.reparameterize_model()

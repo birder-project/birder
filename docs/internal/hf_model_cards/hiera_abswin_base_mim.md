@@ -1,6 +1,6 @@
 ---
 tags:
-- image-classification
+- image-feature-extraction
 - birder
 - pytorch
 library_name: birder

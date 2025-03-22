@@ -152,11 +152,11 @@ class FCMAE(MIMBaseNet):
         return loss
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        seq_len = (self.size[0] // 32) * (self.size[1] // 32)
+        seq_len = (self.size[0] // self.encoder.max_stride) * (self.size[1] // self.encoder.max_stride)
         mask = uniform_mask(x.size(0), seq_len, mask_ratio=self.mask_ratio, device=x.device)[0]
 
-        latent = self.encoder.masked_encoding_retention(x, mask)
-        pred = self.forward_decoder(latent, mask)
+        latent = self.encoder.masked_encoding_retention(x, mask, return_keys="features")
+        pred = self.forward_decoder(latent["features"], mask)
         loss = self.forward_loss(x, pred, mask)
 
         return {"loss": loss, "pred": pred, "mask": mask}

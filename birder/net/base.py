@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 DataShapeType = TypedDict("DataShapeType", {"data_shape": list[int]})
 SignatureType = TypedDict("SignatureType", {"inputs": list[DataShapeType], "outputs": list[DataShapeType]})
-TokenSubstitutionResultType = TypedDict(
-    "TokenSubstitutionResultType",
+TokenRetentionResultType = TypedDict(
+    "TokenRetentionResultType",
     {"features": NotRequired[torch.Tensor], "embedding": NotRequired[torch.Tensor]},
 )
 
@@ -187,19 +187,13 @@ class MaskedTokenOmissionMixin:
 
 
 class MaskedTokenRetentionMixin:
-    def masked_encoding_retention(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        # Returned size (B, C, H, W)
-        raise NotImplementedError
-
-
-class TokenSubstitutionMixin:
-    def masked_encoding_substitution(
+    def masked_encoding_retention(
         self,
         x: torch.Tensor,
         mask: torch.Tensor,
-        mask_token: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
         return_keys: Literal["all", "features", "embedding"] = "features",
-    ) -> TokenSubstitutionResultType:
+    ) -> TokenRetentionResultType:
         # Returned features size (B, C, H, W), embedding (B, D)
         raise NotImplementedError
 

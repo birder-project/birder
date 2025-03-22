@@ -12,7 +12,6 @@ from birder.net import Hiera
 from birder.net import base
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import MaskedTokenRetentionMixin
-from birder.net.base import TokenSubstitutionMixin
 
 logging.disable(logging.CRITICAL)
 
@@ -150,7 +149,7 @@ class TestNet(unittest.TestCase):
             ("resnext_50"),
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
-            ("rope_vit_b32"),
+            ("rope_vit_s32"),
             ("rope_vitreg4_b32"),
             ("rope_vit_so150m_p14_ap", None, False, 1, 14),
             ("rope_vitreg4_so150m_p14_ap", None, False, 1, 14),
@@ -160,7 +159,7 @@ class TestNet(unittest.TestCase):
             ("sequencer2d_s"),
             ("shufflenet_v1_8"),
             ("shufflenet_v2", 1),
-            ("simple_vit_b32"),
+            ("simple_vit_s32"),
             ("smt_t"),
             ("squeezenet", None, True),
             ("squeezenext", 0.5),
@@ -174,7 +173,7 @@ class TestNet(unittest.TestCase):
             ("van_b0"),
             ("vgg_11"),
             ("vgg_reduced_11"),
-            ("vit_b32"),
+            ("vit_s32"),
             ("vitreg4_b32"),
             ("vit_so150m_p14_ap", None, False, 1, 14),
             ("vitreg4_so150m_p14_ap", None, False, 1, 14),
@@ -415,33 +414,11 @@ class TestNet(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
             ("convnext_v2_atto", None),
+            ("maxvit_t", None),
+            ("nextvit_s", None),
             ("regnet_x_200m", None),
             ("regnet_y_200m", None),
             ("regnet_z_500m", None),
-        ]
-    )
-    def test_pre_training_encoder_retention(self, network_name: str, net_param: Optional[float]) -> None:
-        n = registry.net_factory(network_name, 3, 100, net_param=net_param)
-        size = n.default_size
-
-        # self.assertIsInstance(n, MaskedTokenRetentionMixin)
-        assert isinstance(n, MaskedTokenRetentionMixin)
-        seq_len = (size[0] // 32) * (size[1] // 32)
-        x = torch.rand((1, 3, *size))
-        mask = uniform_mask(1, seq_len, mask_ratio=0.6, device=x.device)[0]
-        out = n.masked_encoding_retention(x, mask)
-        self.assertFalse(torch.isnan(out).any())
-        self.assertEqual(out.ndim, 4)
-
-        self.assertTrue(hasattr(n, "block_group_regex"))
-        self.assertTrue(hasattr(n, "stem_stride"))
-        self.assertTrue(hasattr(n, "stem_width"))
-
-    @parameterized.expand(  # type: ignore[misc]
-        [
-            ("maxvit_t", None),
-            ("nextvit_s", None),
-            ("regnet_y_400m", None),
             ("swin_transformer_v2_t", None),
             ("swin_transformer_v2_w2_t", None),
             ("vit_b32", None),
@@ -450,29 +427,32 @@ class TestNet(unittest.TestCase):
             ("vitreg4_so150m_p14_ap", None),
         ]
     )
-    def test_pre_training_encoder_substitution(self, network_name: str, net_param: Optional[float]) -> None:
+    def test_pre_training_encoder_retention(self, network_name: str, net_param: Optional[float]) -> None:
         n = registry.net_factory(network_name, 3, 100, net_param=net_param)
         size = n.default_size
 
-        # self.assertIsInstance(n, TokenSubstitutionMixin)
-        assert isinstance(n, TokenSubstitutionMixin)
+        # self.assertIsInstance(n, MaskedTokenRetentionMixin)
+        assert isinstance(n, MaskedTokenRetentionMixin)
         seq_len = (size[0] // n.max_stride) * (size[1] // n.max_stride)
         x = torch.rand((1, 3, *size))
         mask = uniform_mask(1, seq_len, mask_ratio=0.6, device=x.device)[0]
-        out = n.masked_encoding_substitution(x, mask, torch.zeros(1, 1, 1, n.stem_width))
+
+        # Test retention
+        out = n.masked_encoding_retention(x, mask, return_keys="features")
+        self.assertFalse(torch.isnan(out["features"]).any())
+        self.assertEqual(out["features"].ndim, 4)
+
+        # Test substitution
+        out = n.masked_encoding_retention(x, mask, torch.zeros(1, 1, 1, n.stem_width))
         self.assertNotIn("embedding", out)
         self.assertFalse(torch.isnan(out["features"]).any())
         self.assertEqual(out["features"].ndim, 4)
 
-        self.assertTrue(hasattr(n, "block_group_regex"))
-        self.assertTrue(hasattr(n, "stem_stride"))
-        self.assertTrue(hasattr(n, "stem_width"))
-
-        out = n.masked_encoding_substitution(x, mask, torch.zeros(1, 1, 1, n.stem_width), return_keys="embedding")
+        out = n.masked_encoding_retention(x, mask, torch.zeros(1, 1, 1, n.stem_width), return_keys="embedding")
         self.assertNotIn("features", out)
         self.assertEqual(len(out["embedding"].flatten()), n.embedding_size)
 
-        out = n.masked_encoding_substitution(x, mask, torch.zeros(1, 1, 1, n.stem_width), return_keys="all")
+        out = n.masked_encoding_retention(x, mask, torch.zeros(1, 1, 1, n.stem_width), return_keys="all")
         self.assertIsNotNone(out["features"])
         self.assertIsNotNone(out["embedding"])
 
@@ -480,8 +460,12 @@ class TestNet(unittest.TestCase):
         x = torch.ones((1, 3, *size)) * 0.25
         n.eval()
         zero_mask = torch.zeros_like(mask)
-        out = n.masked_encoding_substitution(x, zero_mask, torch.ones(1, 1, 1, n.stem_width), return_keys="embedding")
+        out = n.masked_encoding_retention(x, zero_mask, torch.ones(1, 1, 1, n.stem_width), return_keys="embedding")
         torch.testing.assert_close(out["embedding"], n.embedding(x))
+
+        self.assertTrue(hasattr(n, "block_group_regex"))
+        self.assertTrue(hasattr(n, "stem_stride"))
+        self.assertTrue(hasattr(n, "stem_width"))
 
     @parameterized.expand(  # type: ignore[misc]
         [
@@ -684,6 +668,9 @@ class TestDynamicSize(unittest.TestCase):
             ("rope_vit_so150m_p14_ap", None, 1, 14),
             ("rope_vitreg4_so150m_p14_ap", None, 1, 14),
             ("simple_vit_b32"),
+            ("swin_transformer_v1_t"),
+            ("swin_transformer_v2_t"),
+            ("swin_transformer_v2_w2_t"),
             ("vit_b32"),
             ("vitreg4_b32"),
             ("vit_so150m_p14_ap", None, 1, 14),

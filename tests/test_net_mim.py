@@ -26,6 +26,7 @@ class TestNetMIM(unittest.TestCase):
             ("crossmae", None, ("vitreg4_so150m_p14_ap", None)),
             ("fcmae", None, ("convnext_v2_atto", None)),
             ("fcmae", None, ("regnet_y_200m", None)),
+            ("fcmae", None, ("regnet_z_500m", None)),
             ("mae_hiera", None, ("hiera_tiny", None)),
             ("mae_hiera", None, ("hiera_abswin_tiny", None)),
             ("mae_vit", None, ("rope_vit_b32", None)),

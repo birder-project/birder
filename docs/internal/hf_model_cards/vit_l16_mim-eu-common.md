@@ -5,11 +5,13 @@ tags:
 - pytorch
 library_name: birder
 license: apache-2.0
+base_model:
+- birder-project/vit_l16_mim
 ---
 
-# Model Card for focalnet_b_lrf_intermediate-eu-common
+# Model Card for vit_l16_mim-eu-common
 
-A FocalNet image classification model. The model follows a two-stage training process: first undergoing intermediate training on a large-scale dataset containing diverse bird species from around the world, then fine-tuned specifically on the `eu-common` dataset (all the relevant bird species found in the Arabian peninsula inc. rarities).
+A ViT image classification model. The model follows a two-stage training process: first, masked image modeling, then fine-tuned specifically on the `eu-common` dataset.
 
 The species list is derived from the Collins bird guide [^1].
 
@@ -19,13 +21,13 @@ The species list is derived from the Collins bird guide [^1].
 
 - **Model Type:** Image classification and detection backbone
 - **Model Stats:**
-    - Params (M): 88.4
-    - Input image size: 384 x 384
+    - Params (M): 304.1
+    - Input image size: 256 x 256
 - **Dataset:** eu-common (707 classes)
-    - Intermediate training involved ~5500 species from asia, europe and eastern africa
 
 - **Papers:**
-    - Focal Modulation Networks: <https://arxiv.org/abs/2203.11926>
+    - An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale: <https://arxiv.org/abs/2010.11929>
+    - Masked Autoencoders Are Scalable Vision Learners: <https://arxiv.org/abs/2111.06377>
 
 ## Model Usage
 
@@ -35,7 +37,7 @@ The species list is derived from the Collins bird guide [^1].
 import birder
 from birder.inference.classification import infer_image
 
-(net, model_info) = birder.load_pretrained_model("focalnet_b_lrf_intermediate-eu-common", inference=True)
+(net, model_info) = birder.load_pretrained_model("vit_l16_mim-eu-common", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -54,7 +56,7 @@ image = "path/to/image.jpeg"  # or a PIL image, must be loaded in RGB format
 import birder
 from birder.inference.classification import infer_image
 
-(net, model_info) = birder.load_pretrained_model("focalnet_b_lrf_intermediate-eu-common", inference=True)
+(net, model_info) = birder.load_pretrained_model("vit_l16_mim-eu-common", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -73,7 +75,7 @@ image = "path/to/image.jpeg"  # or a PIL image
 from PIL import Image
 import birder
 
-(net, model_info) = birder.load_pretrained_model("focalnet_b_lrf_intermediate-eu-common", inference=True)
+(net, model_info) = birder.load_pretrained_model("vit_l16_mim-eu-common", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -86,22 +88,29 @@ features = net.detection_features(transform(image).unsqueeze(0))
 # features is a dict (stage name -> torch.Tensor)
 print([(k, v.size()) for k, v in features.items()])
 # Output example:
-# [('stage1', torch.Size([1, 128, 96, 96])),
-#  ('stage2', torch.Size([1, 256, 48, 48])),
-#  ('stage3', torch.Size([1, 512, 24, 24])),
-#  ('stage4', torch.Size([1, 1024, 12, 12]))]
+# [('neck', torch.Size([1, 1024, 16, 16]))]
 ```
 
 ## Citation
 
 ```bibtex
-@misc{yang2022focalmodulationnetworks,
-      title={Focal Modulation Networks},
-      author={Jianwei Yang and Chunyuan Li and Xiyang Dai and Lu Yuan and Jianfeng Gao},
-      year={2022},
-      eprint={2203.11926},
+@misc{dosovitskiy2021imageworth16x16words,
+      title={An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale},
+      author={Alexey Dosovitskiy and Lucas Beyer and Alexander Kolesnikov and Dirk Weissenborn and Xiaohua Zhai and Thomas Unterthiner and Mostafa Dehghani and Matthias Minderer and Georg Heigold and Sylvain Gelly and Jakob Uszkoreit and Neil Houlsby},
+      year={2021},
+      eprint={2010.11929},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2203.11926},
+      url={https://arxiv.org/abs/2010.11929},
+}
+
+@misc{he2021maskedautoencodersscalablevision,
+      title={Masked Autoencoders Are Scalable Vision Learners},
+      author={Kaiming He and Xinlei Chen and Saining Xie and Yanghao Li and Piotr Dollár and Ross Girshick},
+      year={2021},
+      eprint={2111.06377},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2111.06377},
 }
 ```

@@ -11,6 +11,7 @@ import math
 from collections import OrderedDict
 from functools import partial
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -22,6 +23,7 @@ from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenRetentionResultType
 from birder.net.regnet import BlockParams
 from birder.net.regnet import BottleneckTransform
 
@@ -171,7 +173,7 @@ class RegNet_Z(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         self.stem_stride = 2
         self.stem_width = stem_width
-        self.encoding_size = num_features
+        self.encoding_size = current_width
         decoder_block = partial(
             BottleneckTransform,
             stride=(1, 1),
@@ -219,12 +221,24 @@ class RegNet_Z(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def masked_encoding_retention(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
         x = self.stem(x)
-        x = mask_tensor(x, mask, patch_factor=32 // self.stem_stride)
+        x = mask_tensor(x, mask, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token)
         x = self.body(x)
 
-        return x
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            result["features"] = x
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = self.features(x)
+
+        return result
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

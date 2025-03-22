@@ -1,7 +1,10 @@
 import math
+import random
 from collections.abc import Callable
+from typing import Any
 
 import torch
+from torch import nn
 from torchvision.transforms import v2
 
 from birder.transforms.classification import RGBType
@@ -33,6 +36,24 @@ def batch_images(images: list[torch.Tensor], size_divisible: int = 32) -> torch.
     return batched_imgs
 
 
+class ResizeWithRandomInterpolation(nn.Module):
+    def __init__(self, size: tuple[int, int], interpolation: list[v2.InterpolationMode]) -> None:
+        super().__init__()
+        self.transform = []
+        for interp in interpolation:
+            self.transform.append(
+                v2.Resize(
+                    size,
+                    interpolation=interp,
+                    antialias=True,
+                )
+            )
+
+    def forward(self, *x: Any) -> torch.Tensor:
+        t = random.choice(self.transform)
+        return t(x)
+
+
 def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> Callable[..., torch.Tensor]:
     mean = rgv_values["mean"]
     std = rgv_values["std"]
@@ -58,7 +79,9 @@ def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> C
                     antialias=True,
                 ),
                 v2.RandomZoomOut(fill_value),
-                v2.Resize(size, interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
+                ResizeWithRandomInterpolation(
+                    size, interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC]
+                ),
                 v2.RandomHorizontalFlip(0.5),
                 v2.SanitizeBoundingBoxes(),
                 v2.PILToTensor(),
@@ -76,7 +99,9 @@ def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> C
                     antialias=True,
                 ),
                 v2.RandomZoomOut(fill_value),
-                v2.Resize(size, interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
+                ResizeWithRandomInterpolation(
+                    size, interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC]
+                ),
                 v2.RandomHorizontalFlip(0.5),
                 v2.ColorJitter(brightness=0.25, contrast=0.15, hue=0.04),
                 v2.SanitizeBoundingBoxes(),
@@ -96,7 +121,9 @@ def training_preset(size: tuple[int, int], level: int, rgv_values: RGBType) -> C
                 ),
                 v2.RandomZoomOut(fill_value),
                 v2.RandomIoUCrop(min_scale=0.7),
-                v2.Resize(size, interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
+                ResizeWithRandomInterpolation(
+                    size, interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC]
+                ),
                 v2.RandomHorizontalFlip(0.5),
                 v2.RandomAutocontrast(0.2),
                 v2.ColorJitter(brightness=0.27, contrast=0.16, hue=0.06),

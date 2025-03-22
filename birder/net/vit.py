@@ -31,9 +31,9 @@ from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
+from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
-from birder.net.base import TokenSubstitutionMixin
-from birder.net.base import TokenSubstitutionResultType
+from birder.net.base import TokenRetentionResultType
 
 
 def adjust_position_embedding(
@@ -259,7 +259,7 @@ class Encoder(nn.Module):
 
 
 # pylint: disable=too-many-instance-attributes
-class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, TokenSubstitutionMixin):
+class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -477,13 +477,13 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, TokenSubs
 
         return x
 
-    def masked_encoding_substitution(
+    def masked_encoding_retention(
         self,
         x: torch.Tensor,
         mask: torch.Tensor,
-        mask_token: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
         return_keys: Literal["all", "features", "embedding"] = "features",
-    ) -> TokenSubstitutionResultType:
+    ) -> TokenRetentionResultType:
         (H, W) = x.shape[-2:]
 
         x = self.conv_proj(x)
@@ -506,7 +506,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, TokenSubs
         x = self.encoder(x)
         x = self.norm(x)
 
-        result: TokenSubstitutionResultType = {}
+        result: TokenRetentionResultType = {}
         if return_keys in ("all", "features"):
             features = x[:, self.num_special_tokens :]
             features = features.permute(0, 2, 1)
@@ -574,10 +574,34 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, TokenSubs
 
 
 registry.register_alias(
+    "vit_s32",
+    ViT,
+    config={
+        "patch_size": 32,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
     "vit_s16",
     ViT,
     config={
         "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "vit_s14",
+    ViT,
+    config={
+        "patch_size": 14,
         "num_layers": 12,
         "num_heads": 6,
         "hidden_dim": 384,
@@ -684,10 +708,36 @@ registry.register_alias(
 
 # With registers
 registry.register_alias(
+    "vitreg4_s32",
+    ViT,
+    config={
+        "patch_size": 32,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
     "vitreg4_s16",
     ViT,
     config={
         "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "vitreg4_s14",
+    ViT,
+    config={
+        "patch_size": 14,
         "num_layers": 12,
         "num_heads": 6,
         "hidden_dim": 384,
@@ -975,5 +1025,20 @@ registry.register_weights(
             },
         },
         "net": {"network": "vitreg4_b16", "tag": "mim-intermediate-arabian-peninsula"},
+    },
+)
+registry.register_weights(
+    "vit_l16_mim-eu-common",
+    {
+        "url": "https://huggingface.co/birder-project/vit_l16_mim-eu-common/resolve/main/vit_l16_mim-eu-common.pt",
+        "description": ("ViT l16 model with MIM pretraining, then fine-tuned on the eu-common dataset"),
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 1160.1,
+                "sha256": "3b7235b90f76fb1e0e36d4c4111777a4cc4e4500552fe840c51170b208310d16",
+            },
+        },
+        "net": {"network": "vit_l16", "tag": "mim-eu-common"},
     },
 )

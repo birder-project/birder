@@ -75,12 +75,18 @@ def shifted_window_attention(
 ) -> torch.Tensor:
     (B, H, W, C) = x.size()
 
+    # Pad feature maps to multiples of window size
+    pad_b = (window_size[0] - H % window_size[0]) % window_size[0]
+    pad_r = (window_size[1] - W % window_size[1]) % window_size[1]
+    x = F.pad(x, (0, 0, 0, pad_r, 0, pad_b))
+    (_, pad_h, pad_w, _) = x.size()
+
     # If window size is larger than feature size, there is no need to shift window
     shift_size_w = shift_size[0]
     shift_size_h = shift_size[1]
-    if window_size[0] >= H:
+    if window_size[0] >= pad_h:
         shift_size_h = 0
-    if window_size[1] >= W:
+    if window_size[1] >= pad_w:
         shift_size_w = 0
 
     shift_size = (shift_size_w, shift_size_h)
@@ -90,8 +96,8 @@ def shifted_window_attention(
         x = torch.roll(x, shifts=(-shift_size[0], -shift_size[1]), dims=(1, 2))
 
     # Partition windows
-    num_windows = (H // window_size[0]) * (W // window_size[1])
-    x = x.view(B, H // window_size[0], window_size[0], W // window_size[1], window_size[1], C)
+    num_windows = (pad_h // window_size[0]) * (pad_w // window_size[1])
+    x = x.view(B, pad_h // window_size[0], window_size[0], pad_w // window_size[1], window_size[1], C)
     x = x.permute(0, 1, 3, 2, 4, 5).reshape(B * num_windows, window_size[0] * window_size[1], C)  # B*nW, Ws*Ws, C
 
     # Multi-head attention
@@ -120,7 +126,7 @@ def shifted_window_attention(
 
     if sum(shift_size) > 0:
         # Generate attention mask
-        attn_mask = x.new_zeros((H, W))
+        attn_mask = x.new_zeros((pad_h, pad_w))
         h_slices = ((0, -window_size[0]), (-window_size[0], -shift_size[0]), (-shift_size[0], None))
         w_slices = ((0, -window_size[1]), (-window_size[1], -shift_size[1]), (-shift_size[1], None))
         count = 0
@@ -129,7 +135,7 @@ def shifted_window_attention(
                 attn_mask[h[0] : h[1], w[0] : w[1]] = count
                 count += 1
 
-        attn_mask = attn_mask.view(H // window_size[0], window_size[0], W // window_size[1], window_size[1])
+        attn_mask = attn_mask.view(pad_h // window_size[0], window_size[0], pad_w // window_size[1], window_size[1])
         attn_mask = attn_mask.permute(0, 2, 1, 3).reshape(num_windows, window_size[0] * window_size[1])
         attn_mask = attn_mask.unsqueeze(1) - attn_mask.unsqueeze(2)
         attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
@@ -143,14 +149,15 @@ def shifted_window_attention(
     x = F.linear(x, proj_weight, proj_bias)  # pylint: disable=not-callable
 
     # Reverse windows
-    x = x.view(B, H // window_size[0], W // window_size[1], window_size[0], window_size[1], C)
-    x = x.permute(0, 1, 3, 2, 4, 5).reshape(B, H, W, C)
+    x = x.view(B, pad_h // window_size[0], pad_w // window_size[1], window_size[0], window_size[1], C)
+    x = x.permute(0, 1, 3, 2, 4, 5).reshape(B, pad_h, pad_w, C)
 
     # Reverse cyclic shift
     if sum(shift_size) > 0:
         x = torch.roll(x, shifts=(shift_size[0], shift_size[1]), dims=(1, 2))
 
-    x = x.contiguous()
+    # Unpad features
+    x = x[:, :H, :W, :].contiguous()
 
     return x
 
@@ -389,9 +396,6 @@ class Swin_Transformer_v1(DetectorBackbone):
         x = self.stem(x)
         x = self.body(x)
         return self.features(x)
-
-    def set_dynamic_size(self, dynamic_size: bool = True) -> None:
-        assert dynamic_size is False, "Dynamic size not supported for this network"
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:

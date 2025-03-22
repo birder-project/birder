@@ -185,6 +185,21 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
 
 
 registry.register_alias(
+    "simple_vit_s32",
+    Simple_ViT,
+    config={"patch_size": 32, "num_layers": 12, "num_heads": 6, "hidden_dim": 384, "mlp_dim": 1536},
+)
+registry.register_alias(
+    "simple_vit_s16",
+    Simple_ViT,
+    config={"patch_size": 16, "num_layers": 12, "num_heads": 6, "hidden_dim": 384, "mlp_dim": 1536},
+)
+registry.register_alias(
+    "simple_vit_s14",
+    Simple_ViT,
+    config={"patch_size": 14, "num_layers": 12, "num_heads": 6, "hidden_dim": 384, "mlp_dim": 1536},
+)
+registry.register_alias(
     "simple_vit_b32",
     Simple_ViT,
     config={"patch_size": 32, "num_layers": 12, "num_heads": 12, "hidden_dim": 768, "mlp_dim": 3072},
@@ -193,6 +208,11 @@ registry.register_alias(
     "simple_vit_b16",
     Simple_ViT,
     config={"patch_size": 16, "num_layers": 12, "num_heads": 12, "hidden_dim": 768, "mlp_dim": 3072},
+)
+registry.register_alias(
+    "simple_vit_b14",
+    Simple_ViT,
+    config={"patch_size": 14, "num_layers": 12, "num_heads": 12, "hidden_dim": 768, "mlp_dim": 3072},
 )
 registry.register_alias(
     "simple_vit_l32",

@@ -16,8 +16,8 @@ import torch.nn.functional as F
 from torch import nn
 
 from birder.common.masking import uniform_mask
+from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
-from birder.net.base import TokenSubstitutionMixin
 from birder.net.mim.base import MIMBaseNet
 
 
@@ -69,7 +69,7 @@ class SimMIM(MIMBaseNet):
         super().__init__(encoder, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
         assert self.config is None, "config not supported"
-        assert isinstance(self.encoder, TokenSubstitutionMixin)
+        assert isinstance(self.encoder, MaskedTokenRetentionMixin)
 
         self.mask_ratio = 0.6
         self.patch_size = encoder.max_stride
@@ -154,7 +154,7 @@ class SimMIM(MIMBaseNet):
         seq_len = (self.size[0] // self.encoder.max_stride) * (self.size[1] // self.encoder.max_stride)
         mask = uniform_mask(x.size(0), seq_len, mask_ratio=self.mask_ratio, device=x.device)[0]
 
-        latent = self.encoder.masked_encoding_substitution(x, mask, mask_token=self.mask_token)
+        latent = self.encoder.masked_encoding_retention(x, mask, mask_token=self.mask_token)
         pred = self.forward_decoder(latent["features"])
         loss = self.forward_loss(x, pred, mask)
 

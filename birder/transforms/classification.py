@@ -1,4 +1,6 @@
+import random
 from collections.abc import Callable
+from typing import Any
 from typing import Literal
 from typing import Optional
 from typing import TypedDict
@@ -148,6 +150,32 @@ class RandomMixup(nn.Module):
         return f"{self.__class__.__name__}(num_classes={self.num_classes}, p={self.p}, alpha={self.alpha})"
 
 
+class RandomResizedCropWithRandomInterpolation(nn.Module):
+    def __init__(
+        self,
+        size: tuple[int, int],
+        scale: tuple[float, float],
+        ratio: tuple[float, float],
+        interpolation: list[v2.InterpolationMode],
+    ) -> None:
+        super().__init__()
+        self.transform = []
+        for interp in interpolation:
+            self.transform.append(
+                v2.RandomResizedCrop(
+                    size,
+                    scale=scale,
+                    ratio=ratio,
+                    interpolation=interp,
+                    antialias=True,
+                )
+            )
+
+    def forward(self, x: Any) -> torch.Tensor:
+        t = random.choice(self.transform)
+        return t(x)
+
+
 def training_preset(
     size: tuple[int, int], level: int, rgv_values: RGBType, resize_min_scale: Optional[float] = None
 ) -> Callable[..., torch.Tensor]:
@@ -160,12 +188,11 @@ def training_preset(
         return v2.Compose(  # type: ignore
             [
                 v2.PILToTensor(),
-                v2.RandomResizedCrop(
+                RandomResizedCropWithRandomInterpolation(
                     size,
                     scale=(resize_min_scale, 1.0),
                     ratio=(3 / 4, 4 / 3),
-                    interpolation=v2.InterpolationMode.BICUBIC,
-                    antialias=True,
+                    interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
                 ),
                 v2.AutoAugment(v2.AutoAugmentPolicy.IMAGENET, v2.InterpolationMode.BILINEAR),
                 v2.RandomHorizontalFlip(0.5),
@@ -190,12 +217,11 @@ def training_preset(
         return v2.Compose(  # type: ignore
             [
                 v2.PILToTensor(),
-                v2.RandomResizedCrop(
+                RandomResizedCropWithRandomInterpolation(
                     size,
                     scale=(resize_min_scale, 1.0),
                     ratio=(3 / 4, 4 / 3),
-                    interpolation=v2.InterpolationMode.BICUBIC,
-                    antialias=True,
+                    interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
                 ),
                 v2.RandomRotation(5, fill=0),
                 v2.ColorJitter(brightness=0.2, contrast=0.1, hue=0),
@@ -211,12 +237,11 @@ def training_preset(
         return v2.Compose(  # type: ignore
             [
                 v2.PILToTensor(),
-                v2.RandomResizedCrop(
+                RandomResizedCropWithRandomInterpolation(
                     size,
                     scale=(resize_min_scale, 1.0),
                     ratio=(3 / 4, 4 / 3),
-                    interpolation=v2.InterpolationMode.BICUBIC,
-                    antialias=True,
+                    interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
                 ),
                 v2.RandomChoice(
                     [
@@ -243,12 +268,11 @@ def training_preset(
         return v2.Compose(  # type: ignore
             [
                 v2.PILToTensor(),
-                v2.RandomResizedCrop(
+                RandomResizedCropWithRandomInterpolation(
                     size,
                     scale=(resize_min_scale, 1.0),
                     ratio=(3 / 4, 4 / 3),
-                    interpolation=v2.InterpolationMode.BICUBIC,
-                    antialias=True,
+                    interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
                 ),
                 v2.RandomChoice(
                     [
@@ -282,12 +306,11 @@ def training_preset(
         return v2.Compose(  # type: ignore
             [
                 v2.PILToTensor(),
-                v2.RandomResizedCrop(
+                RandomResizedCropWithRandomInterpolation(
                     size,
                     scale=(resize_min_scale, 1.0),
                     ratio=(3 / 4, 4 / 3),
-                    interpolation=v2.InterpolationMode.BICUBIC,
-                    antialias=True,
+                    interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
                 ),
                 v2.RandomChoice(
                     [

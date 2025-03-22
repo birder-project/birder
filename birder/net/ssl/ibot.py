@@ -17,8 +17,8 @@ import torch.nn.functional as F
 from torch import nn
 
 from birder.common import training_utils
+from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
-from birder.net.base import TokenSubstitutionMixin
 from birder.net.ssl.base import SSLBaseNet
 from birder.net.ssl.dino_v1 import DINOHead
 
@@ -199,7 +199,7 @@ class iBOTHead(DINOHead):
         self, embedding: torch.Tensor, features: Optional[torch.Tensor]
     ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
         """
-        Embedding and features are as coming out of "masked_encoding_substitution" function
+        Embedding and features are as coming out of "masked_encoding_retention" function
         This means embedding shape is (B, D) while features shape is (B, C, H, W)
 
         NOTE: Only models with encoding size == embedding size are supported here
@@ -229,7 +229,7 @@ class iBOT(SSLBaseNet):
 
     def __init__(self, input_channels: int, backbone: PreTrainEncoder, head: DINOHead) -> None:
         super().__init__(input_channels)
-        assert isinstance(backbone, TokenSubstitutionMixin)
+        assert isinstance(backbone, MaskedTokenRetentionMixin)
         self.backbone = backbone
         self.head = head
         self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width), requires_grad=True)
@@ -243,7 +243,7 @@ class iBOT(SSLBaseNet):
             seq_len = (x.size(2) // self.backbone.max_stride) * (x.size(3) // self.backbone.max_stride)
             input_mask = torch.zeros([x.size(0), seq_len], device=x.device)
 
-        outs = self.backbone.masked_encoding_substitution(
+        outs = self.backbone.masked_encoding_retention(
             x, input_mask, mask_token=self.mask_token, return_keys=return_keys
         )
         if return_keys == "embedding":

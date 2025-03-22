@@ -581,6 +581,42 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
 
 
 registry.register_alias(
+    "rope_vit_s32",
+    RoPE_ViT,
+    config={
+        "patch_size": 32,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "rope_vit_s16",
+    RoPE_ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "rope_vit_s14",
+    RoPE_ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
     "rope_vit_b32",
     RoPE_ViT,
     config={
@@ -678,6 +714,45 @@ registry.register_alias(
 )
 
 # With registers
+registry.register_alias(
+    "rope_vitreg4_s32",
+    RoPE_ViT,
+    config={
+        "patch_size": 32,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "rope_vitreg4_s16",
+    RoPE_ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "rope_vitreg4_s14",
+    RoPE_ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.0,
+    },
+)
 registry.register_alias(
     "rope_vitreg4_b32",
     RoPE_ViT,

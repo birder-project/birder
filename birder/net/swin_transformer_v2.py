@@ -25,9 +25,9 @@ from torchvision.ops import StochasticDepth
 from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
-from birder.net.base import TokenSubstitutionMixin
-from birder.net.base import TokenSubstitutionResultType
+from birder.net.base import TokenRetentionResultType
 from birder.net.swin_transformer_v1 import get_relative_position_bias
 from birder.net.swin_transformer_v1 import patch_merging_pad
 from birder.net.swin_transformer_v1 import shifted_window_attention
@@ -189,7 +189,7 @@ class SwinTransformerBlock(nn.Module):
 
 
 # pylint: disable=invalid-name
-class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, TokenSubstitutionMixin):
+class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     default_size = (256, 256)
     block_group_regex = r"body\.stage\d+\.(\d+)"
 
@@ -314,20 +314,20 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, TokenSubstitutionMi
             for param in module.parameters():
                 param.requires_grad = False
 
-    def masked_encoding_substitution(
+    def masked_encoding_retention(
         self,
         x: torch.Tensor,
         mask: torch.Tensor,
-        mask_token: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
         return_keys: Literal["all", "features", "embedding"] = "features",
-    ) -> TokenSubstitutionResultType:
+    ) -> TokenRetentionResultType:
         x = self.stem(x)
         x = mask_tensor(
             x, mask, channels_last=True, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token
         )
         x = self.body(x)
 
-        result: TokenSubstitutionResultType = {}
+        result: TokenRetentionResultType = {}
         if return_keys in ("all", "features"):
             result["features"] = x.permute(0, 3, 1, 2).contiguous()
         if return_keys in ("all", "embedding"):
@@ -339,9 +339,6 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, TokenSubstitutionMi
         x = self.stem(x)
         x = self.body(x)
         return self.features(x)
-
-    def set_dynamic_size(self, dynamic_size: bool = True) -> None:
-        assert dynamic_size is False, "Dynamic size not supported for this network"
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:

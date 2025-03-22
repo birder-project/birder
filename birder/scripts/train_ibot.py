@@ -51,7 +51,7 @@ from birder.datasets.webdataset import prepare_wds_args
 from birder.datasets.webdataset import wds_args_from_info
 from birder.model_registry import Task
 from birder.model_registry import registry
-from birder.net.base import TokenSubstitutionMixin
+from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import get_signature
 from birder.net.ssl.ibot import iBOT
 from birder.net.ssl.ibot import iBOTHead
@@ -260,7 +260,7 @@ def train(args: argparse.Namespace) -> None:
     else:
         training_states = fs_ops.TrainingStates.empty()
 
-    assert isinstance(student_backbone, TokenSubstitutionMixin)
+    assert isinstance(student_backbone, MaskedTokenRetentionMixin)
     assert isinstance(net, torch.nn.Module)
 
     net.to(device, dtype=model_dtype)
