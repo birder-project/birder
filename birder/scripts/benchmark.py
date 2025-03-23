@@ -22,16 +22,26 @@ def dummy(arg: Any) -> None:
 
 def throughput_benchmark(
     net: torch.nn.Module, device: torch.device, sample_shape: tuple[int, ...], model_name: str, args: argparse.Namespace
-) -> float:
+) -> tuple[float, int]:
     # Sanity
     logger.info(f"Sanity check for {model_name}")
-    with torch.inference_mode():
-        with torch.amp.autocast(device.type, enabled=args.amp):
-            try:
-                output = net(torch.rand(sample_shape, device=device))
-            except Exception:  # pylint: disable=broad-exception-caught
-                logger.warning(f"Aborting {model_name} !!!")
-                return -1.0
+
+    batch_size = sample_shape[0]
+    while batch_size > 0:
+        with torch.inference_mode():
+            with torch.amp.autocast(device.type, enabled=args.amp):
+                try:
+                    output = net(torch.rand(sample_shape, device=device))
+                    output = net(torch.rand(sample_shape, device=device))
+                    break
+                except Exception:  # pylint: disable=broad-exception-caught
+                    batch_size -= 32
+                    sample_shape = (batch_size, *sample_shape[1:])
+                    logger.info(f"Reducing batch size to: {batch_size}")
+
+    if batch_size <= 0:
+        logger.warning(f"Aborting {model_name} !!!")
+        return (-1.0, 0)
 
     # Warmup
     logger.info(f"Starting warmup for {model_name}")
@@ -54,7 +64,7 @@ def throughput_benchmark(
 
     dummy(output)
 
-    return t_elapsed
+    return (t_elapsed, batch_size)
 
 
 def memory_benchmark(
@@ -83,7 +93,7 @@ def memory_benchmark(
     sync_peak_memory.value = peak_memory
 
 
-# pylint: disable=too-many-branches
+# pylint: disable=too-many-branches,too-many-locals
 def benchmark(args: argparse.Namespace) -> None:
     mp.set_start_method("spawn")
 
@@ -137,7 +147,7 @@ def benchmark(args: argparse.Namespace) -> None:
                     "amp": args.amp,
                     "fast_matmul": args.fast_matmul,
                     "size": size[0],
-                    "batch_size": args.batch_size,
+                    "max_batch_size": args.max_batch_size,
                     "memory": args.memory,
                 }
             ).is_empty()
@@ -145,7 +155,7 @@ def benchmark(args: argparse.Namespace) -> None:
                 logger.info(f"{model_name} at the current configuration is already on file, skipping...")
                 continue
 
-        sample_shape = (args.batch_size, input_channels) + size
+        sample_shape = (args.max_batch_size, input_channels) + size
 
         if args.memory is True:
             samples_per_sec = None
@@ -163,11 +173,11 @@ def benchmark(args: argparse.Namespace) -> None:
                 net = torch.compile(net)
 
             peak_memory = None
-            t_elapsed = throughput_benchmark(net, device, sample_shape, model_name, args)
+            (t_elapsed, batch_size) = throughput_benchmark(net, device, sample_shape, model_name, args)
             if t_elapsed < 0.0:
                 continue
 
-            num_samples = args.repeats * args.bench_iter * args.batch_size
+            num_samples = args.repeats * args.bench_iter * batch_size
             samples_per_sec = num_samples / t_elapsed
             logger.info(f"{model_name} ran at {samples_per_sec:.2f} samples / sec")
 
@@ -180,7 +190,7 @@ def benchmark(args: argparse.Namespace) -> None:
                 "amp": args.amp,
                 "fast_matmul": args.fast_matmul,
                 "size": size[0],
-                "batch_size": args.batch_size,
+                "max_batch_size": args.max_batch_size,
                 "memory": args.memory,
                 "torch_version": torch_version,
                 "samples_per_sec": samples_per_sec,
@@ -211,9 +221,9 @@ def get_args_parser() -> argparse.ArgumentParser:
             "python benchmark.py --compile --suffix all\n"
             "python benchmark.py --filter '*il-common*' --compile --suffix il-common\n"
             "python benchmark.py --filter '*il-common*' --suffix il-common\n"
-            "python benchmark.py --filter '*il-common*' --batch-size 512 --gpu\n"
-            "python benchmark.py --filter '*il-common*' --batch-size 512 --gpu --warmup 20\n"
-            "python benchmark.py --filter '*il-common*' --batch-size 512 --gpu --fast-matmul --compile "
+            "python benchmark.py --filter '*il-common*' --max-batch-size 512 --gpu\n"
+            "python benchmark.py --filter '*il-common*' --max-batch-size 512 --gpu --warmup 20\n"
+            "python benchmark.py --filter '*il-common*' --max-batch-size 512 --gpu --fast-matmul --compile "
             "--suffix il-common --append\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
@@ -226,7 +236,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
     )
-    parser.add_argument("--batch-size", type=int, default=1, metavar="N", help="the batch size")
+    parser.add_argument("--max-batch-size", type=int, default=1, metavar="N", help="the max batch size to try")
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
     parser.add_argument("--single-thread", default=False, action="store_true", help="use CPU with a single thread")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")

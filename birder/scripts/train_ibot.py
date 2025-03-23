@@ -28,6 +28,7 @@ import torch
 import torch.amp
 import torch.utils.data
 import torchinfo
+import torchmetrics
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets.folder import pil_loader  # Slower but Handles external dataset quirks better
@@ -332,7 +333,6 @@ def train(args: argparse.Namespace) -> None:
     # Data loaders and samplers
     if args.distributed is True:
         train_sampler = torch.utils.data.distributed.DistributedSampler(training_dataset, shuffle=True)
-
     else:
         train_sampler = torch.utils.data.RandomSampler(training_dataset)
 
@@ -375,8 +375,14 @@ def train(args: argparse.Namespace) -> None:
         layer_decay=args.layer_decay,
     )
 
+    # Learning rate scaling
+    lr = args.lr
+    if args.lr_scale is not None:
+        lr = lr * args.batch_size * args.world_size / args.lr_scale
+        logger.info(f"Adjusted learning rate to: {lr}")
+
     # Optimizer and learning rate scheduler
-    optimizer = training_utils.get_optimizer(parameters, args)
+    optimizer = training_utils.get_optimizer(parameters, lr, args)
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
         optimizer,
@@ -453,6 +459,9 @@ def train(args: argparse.Namespace) -> None:
     # Misc
     #
 
+    # Define metrics
+    training_accuracy = torchmetrics.Accuracy("multiclass", num_classes=args.out_dim).to(device)
+
     # Print network summary
     net_for_info = teacher_without_ddp
     if teacher_compile_flag is True and hasattr(teacher_without_ddp, "_orig_mod") is True:
@@ -498,6 +507,7 @@ def train(args: argparse.Namespace) -> None:
         tic = time.time()
         net.train()
         running_loss = 0.0
+        training_accuracy.reset()
 
         if args.distributed is True:
             train_sampler.set_epoch(epoch)
@@ -574,13 +584,25 @@ def train(args: argparse.Namespace) -> None:
             # Statistics
             running_loss += loss.item() * images[0].size(0)
 
+            probs_teacher = teacher_embedding.chunk(2)  # Per global crop
+            probs_student = student_embedding.chunk(2)
+            pred_teacher = probs_teacher[0].max(dim=1)[1]  # Take indices
+            pred_student = probs_student[1].max(dim=1)[1]
+            training_accuracy(pred_student, pred_teacher)
+
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
                 interval_loss = training_utils.reduce_across_processes(running_loss, device)
+                interval_accuracy = training_accuracy.compute()
                 if args.rank == 0:
                     summary_writer.add_scalars(
                         "loss",
                         {"training": interval_loss / (i * batch_size * args.world_size)},
+                        ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
+                    )
+                    summary_writer.add_scalars(
+                        "performance",
+                        {"accuracy": interval_accuracy},
                         ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
                     )
 
@@ -596,6 +618,9 @@ def train(args: argparse.Namespace) -> None:
         # Epoch training metrics
         epoch_loss = training_utils.reduce_across_processes(epoch_loss, device)
         logger.info(f"Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
+
+        accuracy = training_accuracy.compute()
+        logger.info(f"Epoch {epoch}/{epochs-1} accuracy: {accuracy:.4f}")
 
         # Learning rate scheduler update
         scheduler.step()
@@ -775,6 +800,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="optimizer to use",
     )
     parser.add_argument("--lr", type=float, default=0.1, help="base learning rate")
+    parser.add_argument(
+        "--lr-scale", type=int, help="reference batch size for LR scaling, if provided, LR will be scaled accordingly"
+    )
     parser.add_argument("--momentum", type=float, default=0.9, help="optimizer momentum")
     parser.add_argument("--nesterov", default=False, action="store_true", help="use nesterov momentum")
     parser.add_argument("--wd", type=float, default=0.0001, help="weight decay")

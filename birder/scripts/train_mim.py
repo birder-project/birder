@@ -118,7 +118,6 @@ def train(args: argparse.Namespace) -> None:
     # Data loaders and samplers
     if args.distributed is True:
         train_sampler = torch.utils.data.distributed.DistributedSampler(training_dataset, shuffle=True)
-
     else:
         train_sampler = torch.utils.data.RandomSampler(training_dataset)
 
@@ -217,8 +216,14 @@ def train(args: argparse.Namespace) -> None:
         layer_decay=args.layer_decay,
     )
 
+    # Learning rate scaling
+    lr = args.lr
+    if args.lr_scale is not None:
+        lr = lr * args.batch_size * args.world_size / args.lr_scale
+        logger.info(f"Adjusted learning rate to: {lr}")
+
     # Optimizer and learning rate scheduler
-    optimizer = training_utils.get_optimizer(parameters, args)
+    optimizer = training_utils.get_optimizer(parameters, lr, args)
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
         optimizer,
@@ -526,6 +531,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="optimizer to use",
     )
     parser.add_argument("--lr", type=float, default=0.1, help="base learning rate")
+    parser.add_argument(
+        "--lr-scale", type=int, help="reference batch size for LR scaling, if provided, LR will be scaled accordingly"
+    )
     parser.add_argument("--momentum", type=float, default=0.9, help="optimizer momentum")
     parser.add_argument("--nesterov", default=False, action="store_true", help="use nesterov momentum")
     parser.add_argument("--wd", type=float, default=0.0001, help="weight decay")

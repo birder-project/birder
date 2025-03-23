@@ -437,7 +437,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
     # CUDA
     ctx.run(
-        f"python benchmark.py --filter '{fn}' --bench-iter 50 --batch-size 512 "
+        f"python benchmark.py --filter '{fn}' --bench-iter 50 --max-batch-size 512 "
         f"--gpu --gpu-id {gpu_id} --fast-matmul --suffix {suffix} --append",
         echo=True,
         pty=True,
@@ -446,7 +446,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
     # Compiled CUDA
     ctx.run(
-        f"python benchmark.py --filter '{fn}' --bench-iter 50 --batch-size 512 "
+        f"python benchmark.py --filter '{fn}' --bench-iter 50 --max-batch-size 512 "
         f"--compile --gpu --gpu-id {gpu_id} --fast-matmul --suffix {suffix} --append",
         echo=True,
         pty=True,
@@ -455,7 +455,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
     # Compiled CUDA with AMP
     ctx.run(
-        f"python benchmark.py --filter '{fn}' --bench-iter 50 --batch-size 512 "
+        f"python benchmark.py --filter '{fn}' --bench-iter 50 --max-batch-size 512 "
         f"--compile --gpu --gpu-id {gpu_id} --amp --suffix {suffix} --append",
         echo=True,
         pty=True,
@@ -464,7 +464,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
     # CUDA Memory
     ctx.run(
-        f"python benchmark.py --filter '{fn}' --batch-size 1 "
+        f"python benchmark.py --filter '{fn}' --max-batch-size 1 "
         f"--gpu --gpu-id {gpu_id} --fast-matmul --memory --suffix {suffix} --append",
         echo=True,
         pty=True,
@@ -554,7 +554,12 @@ def sam_from_vit(_ctx, network, tag=None, epoch=None):
     else:
         sam_network = network[0:3] + "_sam" + network[3:]
 
-    path = fs_ops.model_path(sam_network, epoch=epoch)
+    if tag is not None:
+        sam_network_tagged = sam_network + f"_{tag}"
+    else:
+        sam_network_tagged = sam_network
+
+    path = fs_ops.model_path(sam_network_tagged, epoch=epoch)
     if path.exists() is True:
         echo(f"{path} already exists")
         echo("Aborting", color=COLOR_RED)
@@ -571,7 +576,7 @@ def sam_from_vit(_ctx, network, tag=None, epoch=None):
 
     # Save model
     fs_ops.checkpoint_model(
-        sam_network,
+        sam_network_tagged,
         epoch,
         sam,
         model_info.signature,
@@ -594,7 +599,12 @@ def hieradet_from_hiera(_ctx, network, tag=None, epoch=None):
         raise ValueError("Only abswin variant is supported")
 
     hieradet_network = network[0:5] + "det" + network[12:]
-    path = fs_ops.model_path(hieradet_network, epoch=epoch)
+    if tag is not None:
+        hieradet_network_tagged = hieradet_network + f"_{tag}"
+    else:
+        hieradet_network_tagged = hieradet_network
+
+    path = fs_ops.model_path(hieradet_network_tagged, epoch=epoch)
     if path.exists() is True:
         echo(f"{path} already exists")
         echo("Aborting", color=COLOR_RED)
@@ -611,7 +621,7 @@ def hieradet_from_hiera(_ctx, network, tag=None, epoch=None):
 
     # Save model
     fs_ops.checkpoint_model(
-        hieradet_network,
+        hieradet_network_tagged,
         epoch,
         hieradet,
         model_info.signature,

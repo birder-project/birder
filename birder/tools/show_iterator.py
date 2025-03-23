@@ -3,6 +3,7 @@ import logging
 import random
 from pathlib import Path
 from typing import Any
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,6 +15,7 @@ from torchvision.datasets import ImageFolder
 
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common import masking
 from birder.conf import settings
 from birder.dataloader.webdataset import make_wds_loader
 from birder.datasets.webdataset import make_wds_dataset
@@ -96,7 +98,12 @@ def show_iterator(args: argparse.Namespace) -> None:
         cols = 4
         rows = 2
         num_outputs = len(class_to_idx)
-        t = get_mixup_cutmix(0.8, num_outputs, args.cutmix)
+        if args.mixup is False:
+            alpha = None
+        else:
+            alpha = 0.8
+
+        t = get_mixup_cutmix(alpha, num_outputs, args.cutmix)
 
         def collate_fn(batch: Any) -> Any:
             return t(*default_collate(batch))
@@ -120,12 +127,27 @@ def show_iterator(args: argparse.Namespace) -> None:
                 collate_fn=collate_fn,
             )
 
+        # Masking
+        mask_size = (args.size[0] // args.patch_size, args.size[1] // args.patch_size)
+        mask_generator: Optional[masking.Masking]
+        if args.masking == "uniform":
+            mask_generator = masking.UniformMasking(mask_size, args.mask_ratio)
+        elif args.masking == "block":
+            max_patches = int(args.mask_ratio * mask_size[0] * mask_size[1])
+            mask_generator = masking.BlockMasking(mask_size, 4, max_patches, 0.33, 3.33)
+        else:
+            mask_generator = None
+
         for k, (inputs, _) in enumerate(data_loader):
             if k >= no_iterations:
                 break
 
             fig = plt.figure(constrained_layout=True)
             grid_spec = fig.add_gridspec(ncols=cols, nrows=rows)
+
+            if mask_generator is not None:
+                masks = mask_generator(batch_size)
+                inputs = masking.mask_tensor(inputs, masks, patch_factor=args.patch_size)
 
             # Show transformed
             counter = 0
@@ -156,8 +178,7 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools show-iterator --mode training --size 224 --batch --wds "
             "--wds-class-file ~/Datasets/imagenet-1k-wds/classes.txt --wds-size 50000 "
             "--data-path ~/Datasets/imagenet-1k-wds/validation\n"
-            "python -m birder.tools show-iterator --mode training --size 384 --aug-level 4 --batch "
-            "--cutmix --wds --data-path ~/Datasets/imagenet-1k-wds/validation\n"
+            "python -m birder.tools show-iterator --mode training --batch --size 224 --aug-level 3 --masking uniform\n"
             "python -m birder.tools show-iterator --mode training --size 224 --batch --wds "
             "--data-path data/training_packed\n"
         ),
@@ -175,14 +196,20 @@ def set_parser(subparsers: Any) -> None:
         help="magnitude of augmentations (0 off -> 4 highest)",
     )
     subparser.add_argument(
-        "--aa", default=False, action="store_true", help="Use AutoAugment policy (ignoring aug-level)"
+        "--aa", default=False, action="store_true", help="use AutoAugment policy (ignoring aug-level)"
     )
     subparser.add_argument("--resize-min-scale", type=float, help="random resize min scale")
-    subparser.add_argument("--center-crop", type=float, default=1.0, help="Center crop ratio during inference")
+    subparser.add_argument("--center-crop", type=float, default=1.0, help="center crop ratio during inference")
     subparser.add_argument(
-        "--batch", default=False, action="store_true", help="Show a batch instead of a single sample"
+        "--batch", default=False, action="store_true", help="show a batch instead of a single sample"
     )
+    subparser.add_argument("--mixup", default=False, action="store_true", help="enable mixup")
     subparser.add_argument("--cutmix", default=False, action="store_true", help="enable cutmix")
+    subparser.add_argument(
+        "--masking", type=str, choices=["none", "uniform", "block"], default="none", help="enable masking"
+    )
+    subparser.add_argument("--mask-ratio", type=float, default=0.5, help="mask ratio")
+    subparser.add_argument("--patch-size", type=int, default=16, help="mask base patch size")
     subparser.add_argument(
         "--data-path", type=str, default=str(settings.TRAINING_DATA_PATH), help="image directory path"
     )

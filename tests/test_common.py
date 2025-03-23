@@ -252,22 +252,22 @@ class TestTrainingUtils(unittest.TestCase):
     def test_get_optimizer(self) -> None:
         for opt_type in typing.get_args(training_utils.OptimizerType):
             args = argparse.Namespace(opt=opt_type, lr=0.1, momentum=0.9, wd=0, nesterov=False)
-            opt = training_utils.get_optimizer([{"params": []}], args)
+            opt = training_utils.get_optimizer([{"params": []}], args.lr, args)
             self.assertIsInstance(opt, torch.optim.Optimizer)
 
         with self.assertRaises(ValueError):
             args = argparse.Namespace(opt="unknown")
-            training_utils.get_optimizer([{"params": []}], args)
+            training_utils.get_optimizer([{"params": []}], 0.001, args)
 
         # Check custom params
         args = argparse.Namespace(opt="adamw", lr=0.1, wd=0.1, opt_eps=1e-6, opt_betas=[0.1, 0.2])
-        opt = training_utils.get_optimizer([{"params": []}], args)
+        opt = training_utils.get_optimizer([{"params": []}], args.lr, args)
         self.assertEqual(opt.defaults["eps"], 1e-6)
         self.assertEqual(opt.defaults["betas"], [0.1, 0.2])
 
     def test_get_scheduler(self) -> None:
         args = argparse.Namespace(opt="sgd", lr=0.1, momentum=0.9, wd=0, nesterov=False)
-        opt = training_utils.get_optimizer([{"params": []}], args)
+        opt = training_utils.get_optimizer([{"params": []}], args.lr, args)
         for scheduler_type in typing.get_args(training_utils.SchedulerType):
             scheduler = training_utils.get_scheduler(scheduler_type, opt, 0, 0, 10, 0.0, 0, [], 0.0, 1.0)
             self.assertIsInstance(scheduler, torch.optim.lr_scheduler.LRScheduler)
@@ -381,7 +381,7 @@ class TestMasking(unittest.TestCase):
         self.assertGreaterEqual((mask == 0).sum().item(), 32)
 
     def test_uniform_masking(self) -> None:
-        generator = masking.UniformMasking((8, 8))
-        mask = generator(2, 0.25)
+        generator = masking.UniformMasking((8, 8), mask_ratio=0.25)
+        mask = generator(2)
         self.assertEqual((mask == 0).sum().item(), 96)
         self.assertNotEqual(mask.dtype, torch.bool)

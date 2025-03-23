@@ -349,7 +349,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--chunk-size", type=int, metavar="N", help="process in chunks of N samples to reduce memory usage"
     )
-    parser.add_argument("--center-crop", type=float, default=1.0, help="Center crop ratio to use during inference")
+    parser.add_argument("--center-crop", type=float, default=1.0, help="center crop ratio to use during inference")
     parser.add_argument("--show", default=False, action="store_true", help="show image predictions")
     parser.add_argument("--show-top-below", type=float, help="show when top prediction is below given threshold")
     parser.add_argument("--show-target-below", type=float, help="show when target prediction is below given threshold")

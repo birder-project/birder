@@ -297,8 +297,15 @@ def train(args: argparse.Namespace) -> None:
         backbone_lr=args.backbone_lr,
     )
 
+    # Learning rate scaling
+    grad_accum_steps: int = args.grad_accum_steps
+    lr = args.lr
+    if args.lr_scale is not None:
+        lr = lr * args.batch_size * grad_accum_steps * args.world_size / args.lr_scale
+        logger.info(f"Adjusted learning rate to: {lr}")
+
     # Optimizer and learning rate scheduler
-    optimizer = training_utils.get_optimizer(parameters, args)
+    optimizer = training_utils.get_optimizer(parameters, lr, args)
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
         optimizer,
@@ -313,8 +320,6 @@ def train(args: argparse.Namespace) -> None:
     )
     if args.compile_opt is True:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
-
-    grad_accum_steps: int = args.grad_accum_steps
 
     # Gradient scaler and AMP related tasks
     (scaler, amp_dtype) = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
@@ -471,9 +476,6 @@ def train(args: argparse.Namespace) -> None:
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
                 (_detections, losses) = net(inputs, targets)
                 loss = sum(v for v in losses.values())
-
-            # if grad_accum_steps > 1:
-            #     loss = loss / grad_accum_steps
 
             if scaler is not None:
                 scaler.scale(loss).backward()
@@ -750,6 +752,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="optimizer to use",
     )
     parser.add_argument("--lr", type=float, default=0.01, help="base learning rate")
+    parser.add_argument(
+        "--lr-scale", type=int, help="reference batch size for LR scaling, if provided, LR will be scaled accordingly"
+    )
     parser.add_argument("--backbone-lr", type=float, help="backbone learning rate")
     parser.add_argument("--momentum", type=float, default=0.9, help="optimizer momentum")
     parser.add_argument("--nesterov", default=False, action="store_true", help="use nesterov momentum")

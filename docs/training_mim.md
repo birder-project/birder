@@ -205,7 +205,7 @@ torchrun --nproc_per_node=2 train.py --network hiera_abswin_tiny --tag mim --opt
 Optional intermediate training: next, full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network hiera_abswin_tiny --tag mim --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 15 --epochs 310 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --compile-opt --layer-decay 0.65 --resume-epoch 10 --wds --wds-class-file data/intermediate/classes.txt --wds-info-file data/intermediate/_info.json
+torchrun --nproc_per_node=2 train.py --network hiera_abswin_tiny --tag mim --opt adamw --lr 0.002 --lr-scale 1024 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 15 --epochs 310 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --compile-opt --layer-decay 0.65 --resume-epoch 10 --wds --wds-class-file data/intermediate/classes.txt --wds-info-file data/intermediate/_info.json
 ```
 
 Fine-tuning, first stage - linear probing
@@ -241,7 +241,7 @@ torchrun --nproc_per_node=2 train.py --network hiera_abswin_base --tag mim-inter
 Optional intermediate training: full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network hiera_abswin_base --tag mim-intermediate --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 5 --epochs 100 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --compile-opt --layer-decay 0.7 --resume-epoch 0 --wds --wds-class-file data/intermediate/classes.txt --wds-info-file data/intermediate/_info.json
+torchrun --nproc_per_node=2 train.py --network hiera_abswin_base --tag mim-intermediate --opt adamw --lr 0.002 --lr-scale 1024 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 192 --warmup-epochs 5 --epochs 100 --size 256 --wd 0.05 --norm-wd 0 --transformer-embedding-decay 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --compile-opt --layer-decay 0.7 --resume-epoch 0 --wds --wds-class-file data/intermediate/classes.txt --wds-info-file data/intermediate/_info.json
 ```
 
 Fine-tuning, first stage - linear probing

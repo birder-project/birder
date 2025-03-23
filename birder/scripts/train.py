@@ -274,8 +274,15 @@ def train(args: argparse.Namespace) -> None:
     else:
         criterion = torch.nn.CrossEntropyLoss(label_smoothing=args.smoothing_alpha)
 
+    # Learning rate scaling
+    grad_accum_steps: int = args.grad_accum_steps
+    lr = args.lr
+    if args.lr_scale is not None:
+        lr = lr * args.batch_size * grad_accum_steps * args.world_size / args.lr_scale
+        logger.info(f"Adjusted learning rate to: {lr}")
+
     # Optimizer and learning rate scheduler
-    optimizer = training_utils.get_optimizer(parameters, args)
+    optimizer = training_utils.get_optimizer(parameters, lr, args)
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
         optimizer,
@@ -290,8 +297,6 @@ def train(args: argparse.Namespace) -> None:
     )
     if args.compile_opt is True:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
-
-    grad_accum_steps: int = args.grad_accum_steps
 
     # Gradient scaler and AMP related tasks
     (scaler, amp_dtype) = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
@@ -461,9 +466,6 @@ def train(args: argparse.Namespace) -> None:
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
                 outputs = net(inputs)
                 loss = criterion(outputs, loss_targets)
-
-            # if grad_accum_steps > 1:
-            #     loss = loss / grad_accum_steps
 
             if scaler is not None:
                 scaler.scale(loss).backward()
@@ -747,6 +749,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="optimizer to use",
     )
     parser.add_argument("--lr", type=float, default=0.1, help="base learning rate")
+    parser.add_argument(
+        "--lr-scale", type=int, help="reference batch size for LR scaling, if provided, LR will be scaled accordingly"
+    )
     parser.add_argument("--momentum", type=float, default=0.9, help="optimizer momentum")
     parser.add_argument("--nesterov", default=False, action="store_true", help="use nesterov momentum")
     parser.add_argument("--wd", type=float, default=0.0001, help="weight decay")
@@ -827,7 +832,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         default=2,
         help="magnitude of augmentations (0 off -> 4 highest)",
     )
-    parser.add_argument("--aa", default=False, action="store_true", help="Use AutoAugment policy (ignoring aug-level)")
+    parser.add_argument("--aa", default=False, action="store_true", help="use AutoAugment policy (ignoring aug-level)")
     parser.add_argument(
         "--rgb-mode",
         type=str,

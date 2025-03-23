@@ -13,6 +13,9 @@ nav:
       - Ensemble Model: tools/ensemble-model.md
       - Pack: tools/pack.md
       - Results: tools/results.md
+  - API:
+      - Overview: api/index.md
+      - Model Registry: api/model_registry.md
   - Deployment:
       - TorchServe: torchserve.md
   - Other:

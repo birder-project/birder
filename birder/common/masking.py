@@ -135,16 +135,22 @@ def uniform_mask(
     return (mask, ids_keep, ids_restore)
 
 
-class UniformMasking:
-    def __init__(self, input_size: tuple[int, int], device: Optional[torch.device] = None) -> None:
+class Masking:
+    def __call__(self, batch_size: int) -> torch.Tensor:
+        raise NotImplementedError
+
+
+class UniformMasking(Masking):
+    def __init__(self, input_size: tuple[int, int], mask_ratio: float, device: Optional[torch.device] = None) -> None:
         self.seq_len = input_size[0] * input_size[1]
+        self.mask_ratio = mask_ratio
         self.device = device
 
-    def __call__(self, batch_size: int, mask_ratio: float) -> torch.Tensor:
-        return uniform_mask(batch_size, self.seq_len, mask_ratio, self.device)[0]
+    def __call__(self, batch_size: int) -> torch.Tensor:
+        return uniform_mask(batch_size, self.seq_len, self.mask_ratio, self.device)[0]
 
 
-class BlockMasking:
+class BlockMasking(Masking):
     # Adapted from: https://github.com/facebookresearch/dinov2/blob/main/dinov2/data/masking.py
 
     def __init__(

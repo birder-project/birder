@@ -317,7 +317,7 @@ def get_wd_custom_keys(args: argparse.Namespace) -> list[tuple[str, float]]:
     return custom_keys_weight_decay
 
 
-def get_optimizer(parameters: list[dict[str, Any]], args: argparse.Namespace) -> torch.optim.Optimizer:
+def get_optimizer(parameters: list[dict[str, Any]], lr: float, args: argparse.Namespace) -> torch.optim.Optimizer:
     opt: OptimizerType = args.opt
     kwargs = {}
     if getattr(args, "opt_eps", None) is not None:
@@ -329,7 +329,7 @@ def get_optimizer(parameters: list[dict[str, Any]], args: argparse.Namespace) ->
 
     if opt == "sgd":
         optimizer = torch.optim.SGD(
-            parameters, lr=args.lr, momentum=args.momentum, nesterov=args.nesterov, weight_decay=args.wd
+            parameters, lr=lr, momentum=args.momentum, nesterov=args.nesterov, weight_decay=args.wd
         )
     elif opt == "rmsprop":
         if "alpha" not in kwargs:
@@ -337,18 +337,18 @@ def get_optimizer(parameters: list[dict[str, Any]], args: argparse.Namespace) ->
         if "eps" not in kwargs:
             kwargs["eps"] = 0.0316
 
-        optimizer = torch.optim.RMSprop(parameters, lr=args.lr, momentum=args.momentum, weight_decay=args.wd, **kwargs)
+        optimizer = torch.optim.RMSprop(parameters, lr=lr, momentum=args.momentum, weight_decay=args.wd, **kwargs)
     elif opt == "adam":
-        optimizer = torch.optim.Adam(parameters, lr=args.lr, weight_decay=args.wd, **kwargs)
+        optimizer = torch.optim.Adam(parameters, lr=lr, weight_decay=args.wd, **kwargs)
     elif opt == "adamw":
-        optimizer = torch.optim.AdamW(parameters, lr=args.lr, weight_decay=args.wd, **kwargs)
+        optimizer = torch.optim.AdamW(parameters, lr=lr, weight_decay=args.wd, **kwargs)
     elif opt == "lamb":
-        optimizer = Lamb(parameters, lr=args.lr, weight_decay=args.wd, **kwargs)
+        optimizer = Lamb(parameters, lr=lr, weight_decay=args.wd, **kwargs)
     elif opt == "lambw":
-        optimizer = Lamb(parameters, lr=args.lr, weight_decay=args.wd, decoupled_decay=True, **kwargs)
+        optimizer = Lamb(parameters, lr=lr, weight_decay=args.wd, decoupled_decay=True, **kwargs)
     elif opt == "lars":
         optimizer = Lars(
-            parameters, lr=args.lr, momentum=args.momentum, nesterov=args.nesterov, weight_decay=args.wd, **kwargs
+            parameters, lr=lr, momentum=args.momentum, nesterov=args.nesterov, weight_decay=args.wd, **kwargs
         )
     else:
         raise ValueError("Unknown optimizer")

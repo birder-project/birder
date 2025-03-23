@@ -215,7 +215,7 @@ compare_results_df = compare_results_df.select(
     "samples_per_sec",
     "peak_memory",
     "device",
-    "batch_size",
+    "max_batch_size",
     "compile",
     "amp",
     "single_thread",
@@ -276,7 +276,7 @@ def plot_acc_param(param_compare_results_df: pl.DataFrame, width: int = 900, hei
 
 ```{python}
 def plot_acc_memory(memory_compare_results_df: pl.DataFrame, width: int = 900, height: int = 640) -> alt.LayerChart:
-    batch_size = memory_compare_results_df["batch_size"][0]
+    batch_size = memory_compare_results_df["max_batch_size"][0]
     amp = memory_compare_results_df["amp"][0]
     df = memory_compare_results_df.select(
         "Model name",
@@ -324,7 +324,7 @@ def plot_acc_memory(memory_compare_results_df: pl.DataFrame, width: int = 900, h
 def plot_acc_rate(rate_compare_results_df: pl.DataFrame, width: int = 900, height: int = 640) -> alt.LayerChart:
     device = rate_compare_results_df["device"][0]
     compiled = rate_compare_results_df["compile"][0]
-    batch_size = rate_compare_results_df["batch_size"][0]
+    batch_size = rate_compare_results_df["max_batch_size"][0]
     amp = rate_compare_results_df["amp"][0]
     df = rate_compare_results_df.select(
         "Model name",
@@ -409,7 +409,7 @@ chart.show()
 ```{python}
 combination_df = (
     compare_results_df.drop_nulls(subset=["ms / sample"])
-    .select("device", "batch_size", "compile", "amp", "single_thread")
+    .select("device", "max_batch_size", "compile", "amp", "single_thread")
     .unique()
 )
 combination_df = combination_df.drop_nulls()

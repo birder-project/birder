@@ -29,8 +29,12 @@ Whether you're a researcher in ornithology, a conservation scientist, or a wildl
 
 1. [Tools and Utilities](tools/index.md)
     - [Convert Model](tools/convert-model.md)
+    - [Ensemble Model](tools/ensemble-model.md)
     - [Pack](tools/pack.md)
     - [Results](tools/results.md)
+
+1. [API Reference](api/index.md)
+    - [Model Registry](api/model_registry.md)
 
 1. [TorchServe Integration](torchserve.md)
 

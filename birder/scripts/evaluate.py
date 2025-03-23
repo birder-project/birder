@@ -90,7 +90,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--size", type=int, nargs="+", metavar=("H", "W"), help="image size for inference (defaults to model signature)"
     )
     parser.add_argument("--batch-size", type=int, default=64, metavar="N", help="the batch size")
-    parser.add_argument("--center-crop", type=float, default=1.0, help="Center crop ratio to use during inference")
+    parser.add_argument("--center-crop", type=float, default=1.0, help="center crop ratio to use during inference")
     parser.add_argument(
         "--dir", type=str, default="evaluate", help="place all outputs in a sub-directory (relative to results)"
     )
