@@ -326,7 +326,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--pts", default=False, action="store_true", help="load torchscript network")
     parser.add_argument("--pt2", default=False, action="store_true", help="load standardized model")
-    parser.add_argument("--st", default=False, action="store_true", help="load Safetensors weights")
+    parser.add_argument("--st", "--safetensors", default=False, action="store_true", help="load Safetensors weights")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
         "--model-dtype",

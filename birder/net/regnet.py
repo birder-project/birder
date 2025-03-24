@@ -594,10 +594,7 @@ registry.register_weights(
 registry.register_weights(
     "regnet_y_8g_intermediate-eu-common",
     {
-        "url": (
-            "https://huggingface.co/birder-project/regnet_y_8g_intermediate-eu-common/"
-            "resolve/main/regnet_y_8g_intermediate-eu-common.pt"
-        ),
+        "url": "https://huggingface.co/birder-project/regnet_y_8g_intermediate-eu-common/resolve/main",
         "description": "RegNet Y 8g model with intermediate training, then fine-tuned on the eu-common dataset",
         "resolution": (384, 384),
         "formats": {

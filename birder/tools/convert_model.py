@@ -202,7 +202,9 @@ def set_parser(subparsers: Any) -> None:
     format_group.add_argument(
         "--pt2", default=False, action="store_true", help="convert to standardized model representation"
     )
-    format_group.add_argument("--st", default=False, action="store_true", help="convert to Safetensors")
+    format_group.add_argument(
+        "--st", "--safetensors", default=False, action="store_true", help="convert to Safetensors"
+    )
     format_group.add_argument("--onnx", default=False, action="store_true", help="convert to ONNX format")
     format_group.add_argument(
         "--onnx-dynamo", default=False, action="store_true", help="convert to ONNX format using TorchDynamo"

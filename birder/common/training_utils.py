@@ -10,7 +10,9 @@ from typing import Any
 from typing import Literal
 from typing import Optional
 from typing import Sized
+from typing import get_args
 
+import numpy as np
 import torch
 import torch.amp
 import torch.distributed as dist
@@ -25,6 +27,10 @@ logger = logging.getLogger(__name__)
 
 OptimizerType = Literal["sgd", "rmsprop", "adam", "adamw", "lamb", "lambw", "lars"]
 SchedulerType = Literal["constant", "step", "multistep", "cosine", "polynomial"]
+
+###############################################################################
+# Data Sampling
+###############################################################################
 
 
 class RASampler(torch.utils.data.Sampler):
@@ -89,6 +95,11 @@ class RASampler(torch.utils.data.Sampler):
         self.epoch = epoch
 
 
+###############################################################################
+# Model Weight Averaging
+###############################################################################
+
+
 class ExponentialMovingAverage(torch.optim.swa_utils.AveragedModel):
     """
     Maintains moving averages of model parameters using an exponential decay
@@ -120,6 +131,11 @@ def ema_model(args: argparse.Namespace, net: torch.nn.Module, device: torch.devi
     model_ema = ExponentialMovingAverage(net, device=device, decay=1.0 - alpha)
 
     return model_ema
+
+
+###############################################################################
+# Optimizer Parameter Groups
+###############################################################################
 
 
 def group_by_regex(strings: list[str], pattern: str) -> list[list[str]]:
@@ -317,6 +333,11 @@ def get_wd_custom_keys(args: argparse.Namespace) -> list[tuple[str, float]]:
     return custom_keys_weight_decay
 
 
+###############################################################################
+# Components Setup
+###############################################################################
+
+
 def get_optimizer(parameters: list[dict[str, Any]], lr: float, args: argparse.Namespace) -> torch.optim.Optimizer:
     opt: OptimizerType = args.opt
     kwargs = {}
@@ -442,6 +463,11 @@ def get_samplers(
     return (train_sampler, validation_sampler)
 
 
+###############################################################################
+# Distributed Training Utilities
+###############################################################################
+
+
 def init_distributed_mode(args: argparse.Namespace) -> None:
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
         args.rank = int(os.environ["RANK"])
@@ -516,6 +542,32 @@ def get_world_size() -> int:
     return dist.get_world_size()  # type: ignore[no-any-return]
 
 
+###############################################################################
+# Utility Functions
+###############################################################################
+
+
+def cosine_scheduler(base_value: float, final_value: float, epochs: int, iter_per_epoch: int) -> list[float]:
+    warmup_schedule = np.array([])
+
+    iters = np.arange(epochs * iter_per_epoch)
+    schedule = final_value + 0.5 * (base_value - final_value) * (1 + np.cos(np.pi * iters / len(iters)))
+
+    schedule = np.concatenate((warmup_schedule, schedule))
+    assert len(schedule) == epochs * iter_per_epoch
+
+    return schedule.tolist()  # type: ignore[return-value]
+
+
+def scale_lr(args: argparse.Namespace) -> float:
+    lr: float = args.lr
+    if args.lr_scale is not None:
+        lr = lr * args.batch_size * args.grad_accum_steps * args.world_size / args.lr_scale
+        logger.info(f"Adjusted learning rate to: {lr}")
+
+    return lr
+
+
 def training_log_name(network: str, device: torch.device) -> str:
     timestamp = datetime.now().replace(microsecond=0)
     if is_dist_available_and_initialized() is True:
@@ -579,3 +631,89 @@ def freeze_batchnorm2d(module: torch.nn.Module) -> torch.nn.Module:
                 res.add_module(name, new_child)
 
     return res
+
+
+###############################################################################
+# Command Line Args
+###############################################################################
+
+
+def add_optimizer_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--opt",
+        type=str,
+        choices=list(get_args(OptimizerType)),
+        default="sgd",
+        help="optimizer to use",
+    )
+    parser.add_argument("--momentum", type=float, default=0.9, help="optimizer momentum")
+    parser.add_argument("--nesterov", default=False, action="store_true", help="use nesterov momentum")
+    parser.add_argument("--opt-eps", type=float, help="optimizer epsilon (None to use the optimizer default)")
+    parser.add_argument(
+        "--opt-betas", type=float, nargs="+", help="optimizer betas (None to use the optimizer default)"
+    )
+    parser.add_argument("--opt-alpha", type=float, help="optimizer alpha (None to use the optimizer default)")
+
+
+def add_scheduler_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--lr-scheduler",
+        type=str,
+        choices=list(get_args(SchedulerType)),
+        default="constant",
+        help="learning rate scheduler",
+    )
+    parser.add_argument(
+        "--lr-step-size",
+        type=int,
+        default=40,
+        metavar="N",
+        help="decrease lr every step-size epochs (for step scheduler only)",
+    )
+    parser.add_argument(
+        "--lr-steps",
+        type=int,
+        nargs="+",
+        help="decrease lr every step-size epochs (multistep scheduler only)",
+    )
+    parser.add_argument(
+        "--lr-step-gamma",
+        type=float,
+        default=0.75,
+        help="multiplicative factor of learning rate decay (for step scheduler only)",
+    )
+    parser.add_argument(
+        "--lr-cosine-min",
+        type=float,
+        default=0.000001,
+        help="minimum learning rate (for cosine annealing scheduler only)",
+    )
+    parser.add_argument(
+        "--lr-power",
+        type=float,
+        default=1.0,
+        help="power of the polynomial (for polynomial scheduler only)",
+    )
+
+
+def add_wds_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
+    parser.add_argument("--wds-info-file", type=str, metavar="FILE", help="wds info file")
+    parser.add_argument("--wds-class-file", type=str, metavar="FILE", help="class list file")
+    parser.add_argument("--wds-cache-dir", type=str, help="webdataset cache directory")
+    parser.add_argument("--wds-train-size", type=int, metavar="N", help="size of the wds training set")
+    parser.add_argument("--wds-val-size", type=int, metavar="N", help="size of the wds validation set")
+    parser.add_argument(
+        "--wds-training-split", type=str, default="training", metavar="NAME", help="wds dataset train split"
+    )
+    parser.add_argument(
+        "--wds-val-split", type=str, default="validation", metavar="NAME", help="wds dataset validation split"
+    )
+
+
+def add_unsupervised_wds_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
+    parser.add_argument("--wds-info-file", type=str, metavar="FILE", help="wds info file")
+    parser.add_argument("--wds-cache-dir", type=str, help="webdataset cache directory")
+    parser.add_argument("--wds-train-size", type=int, metavar="N", help="size of the wds training set")
+    parser.add_argument("--wds-split", type=str, default="training", metavar="NAME", help="wds dataset split to load")

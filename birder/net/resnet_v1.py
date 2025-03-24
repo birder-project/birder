@@ -232,10 +232,7 @@ registry.register_alias(
 registry.register_weights(
     "resnet_v1_50_arabian-peninsula",
     {
-        "url": (
-            "https://huggingface.co/birder-project/resnet_v1_50_arabian-peninsula/"
-            "resolve/main/resnet_v1_50_arabian-peninsula.pt"
-        ),
+        "url": "https://huggingface.co/birder-project/resnet_v1_50_arabian-peninsula/resolve/main",
         "description": "ResNet v1 50 model trained on the arabian-peninsula dataset",
         "resolution": (256, 256),
         "formats": {

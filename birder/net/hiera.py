@@ -732,7 +732,7 @@ registry.register_alias(
 registry.register_weights(
     "hiera_abswin_base_mim",
     {
-        "url": "https://huggingface.co/birder-project/hiera_abswin_base_mim/resolve/main/hiera_abswin_base_mim.pt",
+        "url": "https://huggingface.co/birder-project/hiera_abswin_base_mim/resolve/main",
         "description": (
             "Hiera base with abswin image encoder pre-trained using Masked Image Modeling (MIM) for 400 epochs. "
             "This model has not been fine-tuned for a specific classification task"
@@ -742,6 +742,10 @@ registry.register_weights(
             "pt": {
                 "file_size": 192.7,
                 "sha256": "d8ce30c2d9d46af8bdfe7c591610d12c4e592ad4bc4b00e2ba41457e683702da",
+            },
+            "safetensors": {
+                "file_size": 192.6,
+                "sha256": "b03f9ec88f7b391fe6b2f5ab7707c156351ab4151c95163f631db0712c48b843",
             },
         },
         "net": {"network": "hiera_abswin_base", "tag": "mim"},

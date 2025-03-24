@@ -282,10 +282,7 @@ registry.register_weights(
 registry.register_weights(
     "van_b2_arabian-peninsula256px",
     {
-        "url": (
-            "https://huggingface.co/birder-project/van_b2_arabian-peninsula/"
-            "resolve/main/van_b2_arabian-peninsula256px.pt"
-        ),
+        "url": "https://huggingface.co/birder-project/van_b2_arabian-peninsula/resolve/main",
         "description": "VAN B2 model trained on the arabian-peninsula dataset",
         "resolution": (256, 256),
         "formats": {
@@ -300,9 +297,7 @@ registry.register_weights(
 registry.register_weights(
     "van_b2_arabian-peninsula",
     {
-        "url": (
-            "https://huggingface.co/birder-project/van_b2_arabian-peninsula/resolve/main/van_b2_arabian-peninsula.pt"
-        ),
+        "url": "https://huggingface.co/birder-project/van_b2_arabian-peninsula/resolve/main",
         "description": "VAN B2 model trained on the arabian-peninsula dataset",
         "resolution": (384, 384),
         "formats": {

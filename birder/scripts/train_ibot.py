@@ -23,7 +23,6 @@ from typing import Any
 from typing import Optional
 
 import matplotlib.pyplot as plt
-import numpy as np
 import torch
 import torch.amp
 import torch.utils.data
@@ -70,18 +69,6 @@ def _tv_loader(path: str) -> torch.Tensor:
         return pil_to_tensor(pil_loader(path))
 
     return decode_image(path, mode=ImageReadMode.RGB)
-
-
-def cosine_scheduler(base_value: float, final_value: float, epochs: int, iter_per_epoch: int) -> list[float]:
-    warmup_schedule = np.array([])
-
-    iters = np.arange(epochs * iter_per_epoch)
-    schedule = final_value + 0.5 * (base_value - final_value) * (1 + np.cos(np.pi * iters / len(iters)))
-
-    schedule = np.concatenate((warmup_schedule, schedule))
-    assert len(schedule) == epochs * iter_per_epoch
-
-    return schedule.tolist()  # type: ignore[return-value]
 
 
 class TrainTransform:
@@ -376,10 +363,8 @@ def train(args: argparse.Namespace) -> None:
     )
 
     # Learning rate scaling
-    lr = args.lr
-    if args.lr_scale is not None:
-        lr = lr * args.batch_size * args.world_size / args.lr_scale
-        logger.info(f"Adjusted learning rate to: {lr}")
+    lr = training_utils.scale_lr(args)
+    grad_accum_steps: int = args.grad_accum_steps
 
     # Optimizer and learning rate scheduler
     optimizer = training_utils.get_optimizer(parameters, lr, args)
@@ -399,9 +384,9 @@ def train(args: argparse.Namespace) -> None:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
 
     # Teacher momentum and weight decay schedule
-    momentum_schedule = cosine_scheduler(args.momentum_teacher, 1.0, args.epochs, last_batch_idx)
+    momentum_schedule = training_utils.cosine_scheduler(args.momentum_teacher, 1.0, args.epochs, last_batch_idx)
     if args.wd_end is not None:
-        wd_schedule = cosine_scheduler(args.wd, args.wd_end, args.epochs, 1)
+        wd_schedule = training_utils.cosine_scheduler(args.wd, args.wd_end, args.epochs, 1)
     else:
         wd_schedule = None
 
@@ -513,9 +498,12 @@ def train(args: argparse.Namespace) -> None:
             train_sampler.set_epoch(epoch)
 
         if wd_schedule is not None:
+            wd = wd_schedule[epoch - 1]
             for param_group in optimizer.param_groups:
                 if param_group["weight_decay"] > 0:
-                    param_group["weight_decay"] = wd_schedule[epoch - 1]
+                    param_group["weight_decay"] = wd
+
+            logger.info(f"Updated wd to: {wd}")
 
         if args.rank == 0:
             progress = tqdm(
@@ -526,6 +514,9 @@ def train(args: argparse.Namespace) -> None:
                 leave=False,
             )
 
+        # Zero the parameter gradients
+        optimizer.zero_grad()
+
         for i, (_, (images, masks), _) in enumerate(training_loader):
             global_step = ((epoch - 1) * last_batch_idx) + i
             images = [img.to(device, dtype=model_dtype, non_blocking=True) for img in images]
@@ -534,8 +525,7 @@ def train(args: argparse.Namespace) -> None:
             else:
                 masks = masks.to(device, dtype=model_dtype, non_blocking=True)
 
-            # Zero the parameter gradients
-            optimizer.zero_grad()
+            optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
 
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
@@ -561,19 +551,23 @@ def train(args: argparse.Namespace) -> None:
 
             if scaler is not None:
                 scaler.scale(loss).backward()
-                if args.clip_grad_norm is not None:
-                    scaler.unscale_(optimizer)
-                    torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
+                if optimizer_update is True:
+                    if args.clip_grad_norm is not None:
+                        scaler.unscale_(optimizer)
+                        torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
-                scaler.step(optimizer)
-                scaler.update()
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad()
 
             else:
                 loss.backward()
-                if args.clip_grad_norm is not None:
-                    torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
+                if optimizer_update is True:
+                    if args.clip_grad_norm is not None:
+                        torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
-                optimizer.step()
+                    optimizer.step()
+                    optimizer.zero_grad()
 
             # EMA update for the teacher
             with torch.no_grad():
@@ -792,19 +786,11 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
     )
-    parser.add_argument(
-        "--opt",
-        type=str,
-        choices=list(typing.get_args(training_utils.OptimizerType)),
-        default="sgd",
-        help="optimizer to use",
-    )
+    training_utils.add_optimizer_args(parser)
     parser.add_argument("--lr", type=float, default=0.1, help="base learning rate")
     parser.add_argument(
         "--lr-scale", type=int, help="reference batch size for LR scaling, if provided, LR will be scaled accordingly"
     )
-    parser.add_argument("--momentum", type=float, default=0.9, help="optimizer momentum")
-    parser.add_argument("--nesterov", default=False, action="store_true", help="use nesterov momentum")
     parser.add_argument("--wd", type=float, default=0.0001, help="weight decay")
     parser.add_argument("--wd-end", type=float, help="final value of the weight decay (None for constant wd)")
     parser.add_argument("--norm-wd", type=float, help="weight decay for Normalization layers")
@@ -815,48 +801,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="weight decay for embedding parameters for vision transformer models",
     )
     parser.add_argument("--layer-decay", type=float, help="layer-wise learning rate decay (LLRD)")
-    parser.add_argument("--opt-eps", type=float, help="optimizer epsilon (None to use the optimizer default)")
+    training_utils.add_scheduler_args(parser)
     parser.add_argument(
-        "--opt-betas", type=float, nargs="+", help="optimizer betas (None to use the optimizer default)"
-    )
-    parser.add_argument("--opt-alpha", type=float, help="optimizer alpha (None to use the optimizer default)")
-    parser.add_argument(
-        "--lr-scheduler",
-        type=str,
-        choices=list(typing.get_args(training_utils.SchedulerType)),
-        default="constant",
-        help="learning rate scheduler",
-    )
-    parser.add_argument(
-        "--lr-step-size",
-        type=int,
-        default=40,
-        metavar="N",
-        help="decrease lr every step-size epochs (for step scheduler only)",
-    )
-    parser.add_argument(
-        "--lr-steps",
-        type=int,
-        nargs="+",
-        help="decrease lr every step-size epochs (multistep scheduler only)",
-    )
-    parser.add_argument(
-        "--lr-step-gamma",
-        type=float,
-        default=0.75,
-        help="multiplicative factor of learning rate decay (for step scheduler only)",
-    )
-    parser.add_argument(
-        "--lr-cosine-min",
-        type=float,
-        default=0.0,
-        help="minimum learning rate (for cosine annealing scheduler only)",
-    )
-    parser.add_argument(
-        "--lr-power",
-        type=float,
-        default=1.0,
-        help="power of the polynomial (for polynomial scheduler only)",
+        "--grad-accum-steps", type=int, default=1, metavar="N", help="number of steps to accumulate gradients"
     )
     parser.add_argument("--channels", type=int, default=3, metavar="N", help="no. of image channels")
     parser.add_argument(
@@ -954,11 +901,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--no-summary", default=False, action="store_true", help="don't print model summary")
     parser.add_argument("--data-path", nargs="*", help="training directories paths (directories and files)")
-    parser.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
-    parser.add_argument("--wds-info-file", type=str, metavar="FILE", help="wds info file")
-    parser.add_argument("--wds-cache-dir", type=str, help="webdataset cache directory")
-    parser.add_argument("--wds-train-size", type=int, metavar="N", help="size of the wds training set")
-    parser.add_argument("--wds-split", type=str, default="training", metavar="NAME", help="wds dataset split to load")
+    training_utils.add_unsupervised_wds_args(parser)
 
     return parser
 

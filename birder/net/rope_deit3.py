@@ -502,10 +502,7 @@ registry.register_weights(
 registry.register_weights(
     "rope_deit3_reg4_m14_arabian-peninsula",
     {
-        "url": (
-            "https://huggingface.co/birder-project/rope_deit3_reg4_m14_arabian-peninsula/"
-            "resolve/main/rope_deit3_reg4_m14_arabian-peninsula.pt"
-        ),
+        "url": "https://huggingface.co/birder-project/rope_deit3_reg4_m14_arabian-peninsula/resolve/main",
         "description": "RoPE DeiT3 reg4 medium p14 model trained on the arabian-peninsula dataset",
         "resolution": (252, 252),
         "formats": {

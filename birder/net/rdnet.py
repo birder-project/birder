@@ -314,10 +314,7 @@ registry.register_alias(
 registry.register_weights(
     "rdnet_s_arabian-peninsula256px",
     {
-        "url": (
-            "https://huggingface.co/birder-project/rdnet_s_arabian-peninsula/"
-            "resolve/main/rdnet_s_arabian-peninsula256px.pt"
-        ),
+        "url": "https://huggingface.co/birder-project/rdnet_s_arabian-peninsula/resolve/main",
         "description": "RDNet small model trained on the arabian-peninsula dataset",
         "resolution": (256, 256),
         "formats": {
@@ -332,10 +329,7 @@ registry.register_weights(
 registry.register_weights(
     "rdnet_s_arabian-peninsula",
     {
-        "url": (
-            "https://huggingface.co/birder-project/rdnet_s_arabian-peninsula/"
-            "resolve/main/rdnet_s_arabian-peninsula.pt"
-        ),
+        "url": "https://huggingface.co/birder-project/rdnet_s_arabian-peninsula/resolve/main",
         "description": "RDNet small model trained on the arabian-peninsula dataset",
         "resolution": (384, 384),
         "formats": {

@@ -567,9 +567,7 @@ registry.register_weights(
 registry.register_weights(
     "mobilenet_v4_l_eu-common",
     {
-        "url": (
-            "https://huggingface.co/birder-project/mobilenet_v4_l_eu-common/resolve/main/mobilenet_v4_l_eu-common.pt"
-        ),
+        "url": "https://huggingface.co/birder-project/mobilenet_v4_l_eu-common/resolve/main",
         "description": "MobileNet v4 large model trained on the eu-common dataset",
         "resolution": (384, 384),
         "formats": {

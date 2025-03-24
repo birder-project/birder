@@ -445,7 +445,7 @@ registry.register_alias(
 registry.register_weights(
     "davit_tiny_il-all",
     {
-        "url": "https://huggingface.co/birder-project/davit_tiny_il-all/resolve/main/davit_tiny_il-all.pt",
+        "url": "https://huggingface.co/birder-project/davit_tiny_il-all/resolve/main",
         "description": "DaViT tiny model trained on the il-all dataset",
         "resolution": (384, 384),
         "formats": {

@@ -3,6 +3,8 @@ from typing import TypedDict
 
 from typing_extensions import NotRequired
 
+FileFormatType = Literal["pt", "safetensors", "pt2", "pts", "ptl"]
+
 FormatInfoType = TypedDict(
     "FormatInfoType",
     {"file_size": float, "sha256": str},
@@ -24,7 +26,7 @@ ModelMetadataType = TypedDict(
         "url": NotRequired[str],
         "description": str,
         "resolution": tuple[int, int],
-        "formats": dict[Literal["pt", "pt2", "pts", "ptl", "safetensors"], FormatInfoType],
+        "formats": dict[FileFormatType, FormatInfoType],
         "net": NetworkInfoType,
         "backbone": NotRequired[NetworkInfoType],
     },

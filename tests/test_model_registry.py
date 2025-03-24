@@ -56,10 +56,11 @@ class TestRegistry(unittest.TestCase):
         for model_name, model_metadata in registry._pretrained_nets.items():
             for model_format in model_metadata["formats"]:
                 if "url" in model_metadata:
-                    url = model_metadata["url"]
+                    base_url = model_metadata["url"]
                 else:
-                    url = f"{settings.REGISTRY_BASE_UTL}/{model_name}.{model_format}"
+                    base_url = settings.REGISTRY_BASE_UTL
 
+                url = f"{base_url}/{model_name}.{model_format}"
                 resp = requests.head(url, timeout=5, allow_redirects=True)
                 self.assertEqual(resp.status_code, 200, f"{model_name} not found at {url}")
                 self.assertGreater(int(resp.headers["Content-Length"]), 100000)

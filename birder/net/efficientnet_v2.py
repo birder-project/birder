@@ -345,10 +345,7 @@ registry.register_weights(
 registry.register_weights(
     "efficientnet_v2_s_arabian-peninsula",
     {
-        "url": (
-            "https://huggingface.co/birder-project/efficientnet_v2_s_arabian-peninsula/"
-            "resolve/main/efficientnet_v2_s_arabian-peninsula.pt"
-        ),
+        "url": "https://huggingface.co/birder-project/efficientnet_v2_s_arabian-peninsula/resolve/main",
         "description": "EfficientNet v2 small model trained on the arabian-peninsula dataset",
         "resolution": (256, 256),
         "formats": {

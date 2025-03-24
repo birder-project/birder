@@ -68,7 +68,7 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--pts", default=False, action="store_true", help="load torchscript network")
     subparser.add_argument("--pt2", default=False, action="store_true", help="load standardized model")
-    subparser.add_argument("--st", default=False, action="store_true", help="load Safetensors weights")
+    subparser.add_argument("--st", "--safetensors", default=False, action="store_true", help="load Safetensors weights")
     subparser.add_argument("--classes", default=False, action="store_true", help="print all classes")
     subparser.set_defaults(func=main)
 

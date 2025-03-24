@@ -713,7 +713,7 @@ registry.register_alias(
 registry.register_weights(
     "mvit_v2_t_il-all",
     {
-        "url": "https://huggingface.co/birder-project/mvit_v2_t_il-all/resolve/main/mvit_v2_t_il-all.pt",
+        "url": "https://huggingface.co/birder-project/mvit_v2_t_il-all/resolve/main",
         "description": "MViT v2 tiny model trained on the il-all dataset",
         "resolution": (384, 384),
         "formats": {

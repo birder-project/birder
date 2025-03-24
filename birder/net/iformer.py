@@ -479,10 +479,7 @@ registry.register_alias(
 registry.register_weights(
     "iformer_s_arabian-peninsula",
     {
-        "url": (
-            "https://huggingface.co/birder-project/iformer_s_arabian-peninsula/"
-            "resolve/main/iformer_s_arabian-peninsula.pt"
-        ),
+        "url": "https://huggingface.co/birder-project/iformer_s_arabian-peninsula/resolve/main",
         "description": "iFormer small model trained on the arabian-peninsula dataset",
         "resolution": (384, 384),
         "formats": {

@@ -22,6 +22,7 @@ from birder.common.lib import get_network_name
 from birder.conf import settings
 from birder.model_registry import Task
 from birder.model_registry import registry
+from birder.model_registry.manifest import FileFormatType
 from birder.net.base import BaseNet
 from birder.net.base import SignatureType
 from birder.net.detection.base import DetectionBaseNet
@@ -765,6 +766,7 @@ def load_pretrained_model(
     weights: str,
     *,
     dst: Optional[str | Path] = None,
+    file_format: FileFormatType = "pt",
     inference: bool = False,
     device: Optional[torch.device] = None,
     dtype: Optional[torch.dtype] = None,
@@ -780,6 +782,8 @@ def load_pretrained_model(
     dst
         Destination path where the model weights will be downloaded or loaded from.
         If None, the model will be saved in the default models directory.
+    file_format
+        Model format (e.g. pt, pt2, safetensors, etc.)
     inference
         Flag to prepare the model for inference mode.
     device
@@ -817,18 +821,25 @@ def load_pretrained_model(
         settings.MODELS_DIR.mkdir(parents=True)
 
     model_metadata = registry.get_pretrained_metadata(weights)
-    assert "pt" in model_metadata["formats"], "Can only load pt type files"
+    if file_format == "ptl":
+        raise ValueError("ptl format not supported")
+    if file_format not in model_metadata["formats"]:
+        available_formats = ", ".join(model_metadata["formats"].keys())
+        raise ValueError(f"{file_format} not available for {weights}, available formats: {available_formats}")
 
-    model_file = f"{weights}.pt"
+    model_file = f"{weights}.{file_format}"
     if dst is None:
         dst = settings.MODELS_DIR.joinpath(model_file)
 
-    if "url" in model_metadata:
-        url = model_metadata["url"]
-    else:
-        url = f"{settings.REGISTRY_BASE_UTL}/{model_file}"
+    base_url = model_metadata.get("url", settings.REGISTRY_BASE_UTL)
+    url = f"{base_url}/{model_file}"
+    cli.download_file(url, dst, model_metadata["formats"][file_format]["sha256"], progress_bar=progress_bar)
 
-    cli.download_file(url, dst, model_metadata["formats"]["pt"]["sha256"], progress_bar=progress_bar)
+    format_args: dict[str, Any] = {
+        "pts": file_format == "pts",
+        "pt2": file_format == "pt2",
+        "st": file_format == "safetensors",
+    }
 
     if device is None:
         device = torch.device("cpu")
@@ -847,6 +858,7 @@ def load_pretrained_model(
             backbone_reparameterized=model_metadata["backbone"].get("reparameterized", False),
             inference=inference,
             dtype=dtype,
+            **format_args,
         )
 
     return load_model(
@@ -858,6 +870,7 @@ def load_pretrained_model(
         reparameterized=model_metadata["net"].get("reparameterized", False),
         inference=inference,
         dtype=dtype,
+        **format_args,
     )
 
 

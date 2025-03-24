@@ -914,7 +914,7 @@ registry.register_alias(
 registry.register_weights(
     "vit_l16_mim_200",
     {
-        "url": "https://huggingface.co/birder-project/vit_l16_mim/resolve/main/vit_l16_mim_200.pt",
+        "url": "https://huggingface.co/birder-project/vit_l16_mim/resolve/main",
         "description": (
             "ViT l16 image encoder pre-trained using Masked Image Modeling (MIM) for 200 epochs. "
             "This model has not been fine-tuned for a specific classification task"
@@ -932,7 +932,7 @@ registry.register_weights(
 registry.register_weights(
     "vit_l16_mim_400",
     {
-        "url": "https://huggingface.co/birder-project/vit_l16_mim/resolve/main/vit_l16_mim_400.pt",
+        "url": "https://huggingface.co/birder-project/vit_l16_mim/resolve/main",
         "description": (
             "ViT l16 image encoder pre-trained using Masked Image Modeling (MIM) for 400 epochs. "
             "This model has not been fine-tuned for a specific classification task"
@@ -952,7 +952,7 @@ registry.register_weights(
 registry.register_weights(
     "vitreg4_b16_mim_200",
     {
-        "url": "https://huggingface.co/birder-project/vitreg4_b16_mim/resolve/main/vitreg4_b16_mim_200.pt",
+        "url": "https://huggingface.co/birder-project/vitreg4_b16_mim/resolve/main",
         "description": (
             "ViTReg4 b16 image encoder pre-trained using Masked Image Modeling (MIM) for 200 epochs. "
             "This model has not been fine-tuned for a specific classification task"
@@ -970,7 +970,7 @@ registry.register_weights(
 registry.register_weights(
     "vitreg4_b16_mim_300",
     {
-        "url": "https://huggingface.co/birder-project/vitreg4_b16_mim/resolve/main/vitreg4_b16_mim_300.pt",
+        "url": "https://huggingface.co/birder-project/vitreg4_b16_mim/resolve/main",
         "description": (
             "ViTReg4 b16 image encoder pre-trained using Masked Image Modeling (MIM) for 300 epochs. "
             "This model has not been fine-tuned for a specific classification task"
@@ -988,10 +988,7 @@ registry.register_weights(
 registry.register_weights(
     "vitreg4_b16_mim-intermediate-il-common",
     {
-        "url": (
-            "https://huggingface.co/birder-project/vitreg4_b16_mim-intermediate-il-common/"
-            "resolve/main/vitreg4_b16_mim-intermediate-il-common.pt"
-        ),
+        "url": "https://huggingface.co/birder-project/vitreg4_b16_mim-intermediate-il-common/resolve/main",
         "description": (
             "ViTReg4 b16 model with MIM pretraining and intermediate training, "
             "then fine-tuned on the il-common dataset"
@@ -1009,10 +1006,7 @@ registry.register_weights(
 registry.register_weights(
     "vitreg4_b16_mim-intermediate-arabian-peninsula",
     {
-        "url": (
-            "https://huggingface.co/birder-project/vitreg4_b16_mim-intermediate-arabian-peninsula/"
-            "resolve/main/vitreg4_b16_mim-intermediate-arabian-peninsula.pt"
-        ),
+        "url": "https://huggingface.co/birder-project/vitreg4_b16_mim-intermediate-arabian-peninsula/resolve/main",
         "description": (
             "ViTReg4 b16 model with MIM pretraining and intermediate training, "
             "then fine-tuned on the arabian-peninsula dataset"
@@ -1030,8 +1024,8 @@ registry.register_weights(
 registry.register_weights(
     "vit_l16_mim-eu-common",
     {
-        "url": "https://huggingface.co/birder-project/vit_l16_mim-eu-common/resolve/main/vit_l16_mim-eu-common.pt",
-        "description": ("ViT l16 model with MIM pretraining, then fine-tuned on the eu-common dataset"),
+        "url": "https://huggingface.co/birder-project/vit_l16_mim-eu-common/resolve/main",
+        "description": "ViT l16 model with MIM pretraining, then fine-tuned on the eu-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

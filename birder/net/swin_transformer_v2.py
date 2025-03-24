@@ -481,8 +481,7 @@ registry.register_weights(
     "swin_transformer_v2_s_intermediate-arabian-peninsula",
     {
         "url": (
-            "https://huggingface.co/birder-project/swin_transformer_v2_s_intermediate-arabian-peninsula/"
-            "resolve/main/swin_transformer_v2_s_intermediate-arabian-peninsula.pt"
+            "https://huggingface.co/birder-project/swin_transformer_v2_s_intermediate-arabian-peninsula/resolve/main"
         ),
         "description": (
             "Swin Transformer v2 small model with intermediate training, "

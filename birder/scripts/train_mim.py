@@ -217,10 +217,8 @@ def train(args: argparse.Namespace) -> None:
     )
 
     # Learning rate scaling
-    lr = args.lr
-    if args.lr_scale is not None:
-        lr = lr * args.batch_size * args.world_size / args.lr_scale
-        logger.info(f"Adjusted learning rate to: {lr}")
+    lr = training_utils.scale_lr(args)
+    grad_accum_steps: int = args.grad_accum_steps
 
     # Optimizer and learning rate scheduler
     optimizer = training_utils.get_optimizer(parameters, lr, args)
@@ -345,11 +343,13 @@ def train(args: argparse.Namespace) -> None:
                 leave=False,
             )
 
+        # Zero the parameter gradients
+        optimizer.zero_grad()
+
         for i, (_, inputs, _) in enumerate(training_loader):
             inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
 
-            # Zero the parameter gradients
-            optimizer.zero_grad()
+            optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
 
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
@@ -358,19 +358,23 @@ def train(args: argparse.Namespace) -> None:
 
             if scaler is not None:
                 scaler.scale(loss).backward()
-                if args.clip_grad_norm is not None:
-                    scaler.unscale_(optimizer)
-                    torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
+                if optimizer_update is True:
+                    if args.clip_grad_norm is not None:
+                        scaler.unscale_(optimizer)
+                        torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
-                scaler.step(optimizer)
-                scaler.update()
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad()
 
             else:
                 loss.backward()
-                if args.clip_grad_norm is not None:
-                    torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
+                if optimizer_update is True:
+                    if args.clip_grad_norm is not None:
+                        torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
-                optimizer.step()
+                    optimizer.step()
+                    optimizer.zero_grad()
 
             # Statistics
             running_loss += loss.item() * inputs.size(0)
@@ -523,19 +527,11 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
     )
-    parser.add_argument(
-        "--opt",
-        type=str,
-        choices=list(typing.get_args(training_utils.OptimizerType)),
-        default="sgd",
-        help="optimizer to use",
-    )
+    training_utils.add_optimizer_args(parser)
     parser.add_argument("--lr", type=float, default=0.1, help="base learning rate")
     parser.add_argument(
         "--lr-scale", type=int, help="reference batch size for LR scaling, if provided, LR will be scaled accordingly"
     )
-    parser.add_argument("--momentum", type=float, default=0.9, help="optimizer momentum")
-    parser.add_argument("--nesterov", default=False, action="store_true", help="use nesterov momentum")
     parser.add_argument("--wd", type=float, default=0.0001, help="weight decay")
     parser.add_argument("--norm-wd", type=float, help="weight decay for Normalization layers")
     parser.add_argument("--bias-weight-decay", type=float, help="weight decay for bias parameters of all layers")
@@ -545,48 +541,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="weight decay for embedding parameters for vision transformer models",
     )
     parser.add_argument("--layer-decay", type=float, help="layer-wise learning rate decay (LLRD)")
-    parser.add_argument("--opt-eps", type=float, help="optimizer epsilon (None to use the optimizer default)")
+    training_utils.add_scheduler_args(parser)
     parser.add_argument(
-        "--opt-betas", type=float, nargs="+", help="optimizer betas (None to use the optimizer default)"
-    )
-    parser.add_argument("--opt-alpha", type=float, help="optimizer alpha (None to use the optimizer default)")
-    parser.add_argument(
-        "--lr-scheduler",
-        type=str,
-        choices=list(typing.get_args(training_utils.SchedulerType)),
-        default="constant",
-        help="learning rate scheduler",
-    )
-    parser.add_argument(
-        "--lr-step-size",
-        type=int,
-        default=40,
-        metavar="N",
-        help="decrease lr every step-size epochs (for step scheduler only)",
-    )
-    parser.add_argument(
-        "--lr-steps",
-        type=int,
-        nargs="+",
-        help="decrease lr every step-size epochs (multistep scheduler only)",
-    )
-    parser.add_argument(
-        "--lr-step-gamma",
-        type=float,
-        default=0.75,
-        help="multiplicative factor of learning rate decay (for step scheduler only)",
-    )
-    parser.add_argument(
-        "--lr-cosine-min",
-        type=float,
-        default=0.0,
-        help="minimum learning rate (for cosine annealing scheduler only)",
-    )
-    parser.add_argument(
-        "--lr-power",
-        type=float,
-        default=1.0,
-        help="power of the polynomial (for polynomial scheduler only)",
+        "--grad-accum-steps", type=int, default=1, metavar="N", help="number of steps to accumulate gradients"
     )
     parser.add_argument("--channels", type=int, default=3, metavar="N", help="no. of image channels")
     parser.add_argument(
@@ -683,11 +640,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--no-summary", default=False, action="store_true", help="don't print model summary")
     parser.add_argument("--data-path", nargs="*", help="training directories paths (directories and files)")
-    parser.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
-    parser.add_argument("--wds-info-file", type=str, metavar="FILE", help="wds info file")
-    parser.add_argument("--wds-cache-dir", type=str, help="webdataset cache directory")
-    parser.add_argument("--wds-train-size", type=int, metavar="N", help="size of the wds training set")
-    parser.add_argument("--wds-split", type=str, default="training", metavar="NAME", help="wds dataset split to load")
+    training_utils.add_unsupervised_wds_args(parser)
 
     return parser
 

@@ -279,10 +279,7 @@ registry.register_weights(
 registry.register_weights(
     "convnext_v2_tiny_intermediate-il-common",
     {
-        "url": (
-            "https://huggingface.co/birder-project/convnext_v2_tiny_intermediate-il-common/"
-            "resolve/main/convnext_v2_tiny_intermediate-il-common.pt"
-        ),
+        "url": "https://huggingface.co/birder-project/convnext_v2_tiny_intermediate-il-common/resolve/main",
         "description": "ConvNeXt v2 tiny model with intermediate training, then fine-tuned on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
@@ -297,10 +294,7 @@ registry.register_weights(
 registry.register_weights(
     "convnext_v2_tiny_intermediate-eu-common",
     {
-        "url": (
-            "https://huggingface.co/birder-project/convnext_v2_tiny_intermediate-eu-common/"
-            "resolve/main/convnext_v2_tiny_intermediate-eu-common.pt"
-        ),
+        "url": "https://huggingface.co/birder-project/convnext_v2_tiny_intermediate-eu-common/resolve/main",
         "description": "ConvNeXt v2 tiny model with intermediate training, then fine-tuned on the eu-common dataset",
         "resolution": (384, 384),
         "formats": {
