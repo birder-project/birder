@@ -5,11 +5,10 @@ description = "A computer vision framework for wildlife image analysis, focusing
 readme = "README.md"
 requires-python = ">=3.10"
 keywords = ["computer-vision", "image-classification"]
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering",

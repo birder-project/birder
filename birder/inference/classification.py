@@ -90,6 +90,7 @@ def infer_dataloader_iter(
     tta: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
+    amp_dtype: Optional[torch.dtype] = None,
     num_samples: Optional[int] = None,
     batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], list[int]], None]] = None,
     chunk_size: Optional[float] = None,
@@ -116,7 +117,7 @@ def infer_dataloader_iter(
             # Inference
             inputs = inputs.to(device, dtype=model_dtype)
 
-            with torch.amp.autocast(device.type, enabled=amp):
+            with torch.amp.autocast(device.type, enabled=amp, dtype=amp_dtype):
                 (out, embedding) = infer_batch(net, inputs, return_embedding=return_embedding, tta=tta)
 
             out_list.append(out)
@@ -159,6 +160,7 @@ def infer_dataloader(
     tta: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
+    amp_dtype: Optional[torch.dtype] = None,
     num_samples: Optional[int] = None,
     batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], list[int]], None]] = None,
     chunk_size: None = None,
@@ -174,6 +176,7 @@ def infer_dataloader(
     tta: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
+    amp_dtype: Optional[torch.dtype] = None,
     num_samples: Optional[int] = None,
     batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], list[int]], None]] = None,
     chunk_size: int = 0,
@@ -188,6 +191,7 @@ def infer_dataloader(
     tta: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
+    amp_dtype: Optional[torch.dtype] = None,
     num_samples: Optional[int] = None,
     batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], list[int]], None]] = None,
     chunk_size: Optional[int] = None,
@@ -218,6 +222,8 @@ def infer_dataloader(
         The base dtype to use.
     amp
         Whether to use automatic mixed precision.
+    amp_dtype
+        The mixed precision dtype.
     num_samples
         The total number of samples in the dataloader.
     batch_callback
@@ -293,7 +299,17 @@ def infer_dataloader(
     """
 
     result_iter = infer_dataloader_iter(
-        device, net, dataloader, return_embedding, tta, model_dtype, amp, num_samples, batch_callback, chunk_size
+        device,
+        net,
+        dataloader,
+        return_embedding,
+        tta,
+        model_dtype,
+        amp,
+        amp_dtype,
+        num_samples,
+        batch_callback,
+        chunk_size,
     )
     if chunk_size is None:
         return next(result_iter)
@@ -309,10 +325,11 @@ def evaluate(
     tta: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
+    amp_dtype: Optional[torch.dtype] = None,
     num_samples: Optional[int] = None,
 ) -> Results:
     (sample_paths, outs, labels, _) = infer_dataloader(
-        device, net, dataloader, tta=tta, model_dtype=model_dtype, amp=amp, num_samples=num_samples
+        device, net, dataloader, tta=tta, model_dtype=model_dtype, amp=amp, amp_dtype=amp_dtype, num_samples=num_samples
     )
     results = Results(sample_paths, labels, list(class_to_idx.keys()), outs)
 

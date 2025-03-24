@@ -451,7 +451,7 @@ def train(args: argparse.Namespace) -> None:
             inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
             targets = targets.to(device, non_blocking=True)
             loss_targets = targets
-            if args.bce_loss:
+            if args.bce_loss is True:
                 if loss_targets.ndim == 1:
                     loss_targets = F.one_hot(loss_targets, num_classes=num_outputs)  # pylint: disable=not-callable
 
@@ -548,11 +548,11 @@ def train(args: argparse.Namespace) -> None:
                 inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
                 targets = targets.to(device, non_blocking=True)
                 loss_targets = targets
-                if args.bce_loss:
+                if args.bce_loss is True:
                     loss_targets = F.one_hot(loss_targets, num_classes=num_outputs)  # pylint: disable=not-callable
                     loss_targets = loss_targets.to(dtype=inputs.dtype)
 
-                with torch.amp.autocast("cuda", enabled=args.amp):
+                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
                     outputs = eval_model(inputs)
                     val_loss = criterion(outputs, loss_targets)
 

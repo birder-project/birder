@@ -564,7 +564,7 @@ def train(args: argparse.Namespace) -> None:
             for inputs, targets in validation_loader:
                 inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
                 targets = targets.to(device, non_blocking=True)
-                with torch.amp.autocast("cuda", enabled=args.amp):
+                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
                     outputs = eval_model(inputs)
                     val_loss = criterion(outputs, targets)
 

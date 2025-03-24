@@ -21,6 +21,7 @@ def infer_dataloader(
     dataloader: DataLoader,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
+    amp_dtype: Optional[torch.dtype] = None,
     num_samples: Optional[int] = None,
     batch_callback: Optional[
         Callable[[list[str], torch.Tensor, list[dict[str, torch.Tensor]], list[dict[str, Any]]], None]
@@ -44,6 +45,8 @@ def infer_dataloader(
         The base dtype to use.
     amp
         Whether to use automatic mixed precision.
+    amp_dtype
+        The mixed precision dtype.
     num_samples
         The total number of samples in the dataloader.
     batch_callback
@@ -81,7 +84,7 @@ def infer_dataloader(
             inputs = [i.to(device, dtype=model_dtype) for i in inputs]
             inputs = batch_images(inputs)
 
-            with torch.amp.autocast(device.type, enabled=amp):
+            with torch.amp.autocast(device.type, enabled=amp, dtype=amp_dtype):
                 detections = infer_batch(net, inputs)
 
             detections_list.extend(detections)

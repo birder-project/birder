@@ -26,10 +26,11 @@ def throughput_benchmark(
     # Sanity
     logger.info(f"Sanity check for {model_name}")
 
+    amp_dtype: torch.dtype = getattr(torch, args.amp_dtype)
     batch_size = sample_shape[0]
     while batch_size > 0:
         with torch.inference_mode():
-            with torch.amp.autocast(device.type, enabled=args.amp):
+            with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
                 try:
                     output = net(torch.rand(sample_shape, device=device))
                     output = net(torch.rand(sample_shape, device=device))
@@ -46,14 +47,14 @@ def throughput_benchmark(
     # Warmup
     logger.info(f"Starting warmup for {model_name}")
     with torch.inference_mode():
-        with torch.amp.autocast(device.type, enabled=args.amp):
+        with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
             for _ in range(args.warmup):
                 output = net(torch.rand(sample_shape, device=device))
 
     # Benchmark
     logger.info(f"Starting benchmark for {model_name}")
     with torch.inference_mode():
-        with torch.amp.autocast(device.type, enabled=args.amp):
+        with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
             t_start = time.perf_counter()
             for _ in range(args.repeats):
                 for _ in range(args.bench_iter):
@@ -79,12 +80,13 @@ def memory_benchmark(
     if args.gpu_id is not None:
         torch.cuda.set_device(args.gpu_id)
 
+    amp_dtype: torch.dtype = getattr(torch, args.amp_dtype)
     (net, _) = birder.load_pretrained_model(model_name, inference=True, device=device)
 
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats(device)
     with torch.inference_mode():
-        with torch.amp.autocast(device.type, enabled=args.amp):
+        with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
             sample = torch.rand(sample_shape, device=device)
             for _ in range(5):
                 net(sample)
@@ -232,6 +234,13 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
         "--amp", default=False, action="store_true", help="use torch.amp.autocast for mixed precision inference"
+    )
+    parser.add_argument(
+        "--amp-dtype",
+        type=str,
+        choices=["float16", "bfloat16"],
+        default="float16",
+        help="whether to use float16 or bfloat16 for mixed precision",
     )
     parser.add_argument(
         "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"

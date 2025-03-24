@@ -31,6 +31,7 @@ def evaluate(args: argparse.Namespace) -> None:
         torch.set_float32_matmul_precision("high")
 
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
+    amp_dtype: torch.dtype = getattr(torch, args.amp_dtype)
     model_list = birder.list_pretrained_models(args.filter)
     for model_name in model_list:
         (net, (class_to_idx, signature, rgb_stats, *_)) = birder.load_pretrained_model(
@@ -48,7 +49,15 @@ def evaluate(args: argparse.Namespace) -> None:
         inference_loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=8)
         with torch.inference_mode():
             results = birder.evaluate_classification(
-                device, net, inference_loader, class_to_idx, args.tta, model_dtype, args.amp, num_samples=num_samples
+                device,
+                net,
+                inference_loader,
+                class_to_idx,
+                args.tta,
+                model_dtype,
+                args.amp,
+                amp_dtype,
+                num_samples=num_samples,
             )
 
         logger.info(f"{model_name}: accuracy={results.accuracy:.3f}")
@@ -81,6 +90,13 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--amp", default=False, action="store_true", help="use torch.amp.autocast for mixed precision inference"
+    )
+    parser.add_argument(
+        "--amp-dtype",
+        type=str,
+        choices=["float16", "bfloat16"],
+        default="float16",
+        help="whether to use float16 or bfloat16 for mixed precision",
     )
     parser.add_argument(
         "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"

@@ -119,6 +119,7 @@ def predict(args: argparse.Namespace) -> None:
         logger.info(f"Using device {device}")
 
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
+    amp_dtype: torch.dtype = getattr(torch, args.amp_dtype)
     network_name = lib.get_network_name(args.network, net_param=args.net_param, tag=args.tag)
     (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
         device,
@@ -239,6 +240,7 @@ def predict(args: argparse.Namespace) -> None:
         args.tta,
         model_dtype,
         args.amp,
+        amp_dtype,
         num_samples,
         batch_callback=batch_callback,
         chunk_size=args.chunk_size,
@@ -337,6 +339,13 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--amp", default=False, action="store_true", help="use torch.amp.autocast for mixed precision inference"
+    )
+    parser.add_argument(
+        "--amp-dtype",
+        type=str,
+        choices=["float16", "bfloat16"],
+        default="float16",
+        help="whether to use float16 or bfloat16 for mixed precision",
     )
     parser.add_argument(
         "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"

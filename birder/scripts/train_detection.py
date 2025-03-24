@@ -546,7 +546,7 @@ def train(args: argparse.Namespace) -> None:
                     for t in targets
                 ]
                 inputs = batch_images(inputs)
-                with torch.amp.autocast("cuda", enabled=args.amp):
+                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
                     (detections, losses) = eval_model(inputs)
 
                 for target in targets:
