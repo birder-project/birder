@@ -41,8 +41,8 @@ class MAE_ViT(MIMBaseNet):
         assert isinstance(self.encoder, MaskedTokenOmissionMixin)
 
         self.mask_ratio = 0.75
-        self.patch_size = self.encoder.patch_size
-        encoder_dim = self.encoder.hidden_dim
+        self.patch_size = self.encoder.stem_stride
+        encoder_dim = self.encoder.embedding_size
         decoder_embed_dim = 512
         decoder_depth = 8
 

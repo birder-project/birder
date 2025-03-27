@@ -179,6 +179,8 @@ class PreTrainEncoder(BaseNet):  # pylint: disable=abstract-method
 
 
 class MaskedTokenOmissionMixin:
+    num_special_tokens: int
+
     def masked_encoding_omission(
         self, x: torch.Tensor, ids_keep: torch.Tensor, return_all_features: bool = False
     ) -> torch.Tensor:

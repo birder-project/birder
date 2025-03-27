@@ -4,6 +4,9 @@ https://github.com/facebookresearch/ijepa/blob/main/src/models/vision_transforme
 
 Paper "Self-Supervised Learning from Images with a Joint-Embedding Predictive Architecture",
 https://arxiv.org/abs/2301.08243
+
+Changes from original:
+* Removed weight initialization with scaling per layer index
 """
 
 # Reference license: Attribution-NonCommercial 4.0 International
@@ -12,6 +15,27 @@ import math
 from typing import Optional
 
 import torch
+from torch import nn
+
+from birder.net.base import MaskedTokenOmissionMixin
+from birder.net.base import PreTrainEncoder
+from birder.net.base import pos_embedding_sin_cos_2d
+from birder.net.vit import Encoder
+
+
+def apply_masks(x: torch.Tensor, masks: list[torch.Tensor]) -> torch.Tensor:
+    all_x = []
+    for m in masks:
+        mask_keep = m.unsqueeze(-1).repeat(1, 1, x.size(-1))
+        all_x.append(torch.gather(x, dim=1, index=mask_keep))
+
+    return torch.concat(all_x, dim=0)
+
+
+def repeat_interleave_batch(x: torch.Tensor, b: int, repeat: int) -> torch.Tensor:
+    N = len(x) // b
+    x = torch.concat([torch.concat([x[i * b : (i + 1) * b] for _ in range(repeat)], dim=0) for i in range(N)], dim=0)
+    return x
 
 
 class MultiBlockMasking:
@@ -154,3 +178,92 @@ class MultiBlockMasking:
         collated_masks_enc = torch.utils.data.default_collate(collated_masks_enc)
 
         return (collated_masks_enc, collated_masks_pred)
+
+
+class VisionTransformerPredictor(nn.Module):
+    def __init__(
+        self,
+        size: tuple[int, int],
+        embed_dim: int,
+        predictor_embed_dim: int,
+        mlp_dim: int,
+        num_heads: int,
+        depth: int,
+        drop_path_rate: float,
+    ) -> None:
+        super().__init__()
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]
+
+        self.predictor_embed = nn.Linear(embed_dim, predictor_embed_dim)
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, predictor_embed_dim))
+
+        pos_embedding = pos_embedding_sin_cos_2d(h=size[0], w=size[1], dim=predictor_embed_dim, num_special_tokens=0)
+        self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=False)
+
+        self.encoder = Encoder(
+            depth, num_heads, predictor_embed_dim, mlp_dim, dropout=0.0, attention_dropout=0.0, dpr=dpr
+        )
+        self.norm = nn.LayerNorm(predictor_embed_dim, eps=1e-6)
+        self.predictor_proj = nn.Linear(predictor_embed_dim, embed_dim)
+
+        # Weight initialization
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.trunc_normal_(m.weight, std=0.02)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+            elif isinstance(m, nn.LayerNorm):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+
+            elif isinstance(m, nn.Conv2d):
+                nn.init.trunc_normal_(m.weight, std=0.02)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+    def forward(
+        self, x: torch.Tensor, masks_encoder: list[torch.Tensor], masks_pred: list[torch.Tensor]
+    ) -> torch.Tensor:
+        B = len(x) // len(masks_encoder)
+
+        # Project to predictor dim
+        x = self.predictor_embed(x)
+
+        # Apply positional embedding
+        x_pos_embed = self.pos_embedding.repeat(B, 1, 1)
+        x = x + apply_masks(x_pos_embed, masks_encoder)
+
+        # Add positional embedding to mask tokens
+        ctx = x.size(1)
+        pos_embed = self.pos_embedding.repeat(B, 1, 1)
+        pos_embed = apply_masks(pos_embed, masks_pred)
+        pos_embed = repeat_interleave_batch(pos_embed, B, repeat=len(masks_encoder))
+
+        pred_tokens = self.mask_token.repeat(pos_embed.size(0), pos_embed.size(1), 1)
+        pred_tokens = pred_tokens + pos_embed
+
+        # Concat mask tokens
+        x = x.repeat(len(masks_pred), 1, 1)
+        x = torch.concat([x, pred_tokens], dim=1)
+
+        # Encoder forward
+        x = self.encoder(x)
+        x = self.norm(x)
+
+        # Mask tokens predictions
+        x = x[:, ctx:]
+        x = self.predictor_proj(x)
+
+        return x
+
+
+class WrappedModel(nn.Module):
+    def __init__(self, inner: PreTrainEncoder):
+        super().__init__()
+
+        assert isinstance(inner, MaskedTokenOmissionMixin)
+        self.inner = inner
+
+    def forward(self, x: torch.Tensor, ids_keep: torch.Tensor) -> torch.Tensor:
+        return self.inner.masked_encoding_omission(x, ids_keep)

@@ -7,6 +7,7 @@ from birder.common.masking import BlockMasking
 from birder.model_registry import registry
 from birder.net.ssl import byol
 from birder.net.ssl import dino_v1
+from birder.net.ssl import i_jepa
 from birder.net.ssl import ibot
 from birder.net.ssl import vicreg
 
@@ -64,6 +65,60 @@ class TestNetSSL(unittest.TestCase):
         )
         loss = dino_loss(out, teacher_out, epoch=2)
         self.assertFalse(torch.isnan(loss).any())
+
+    def test_i_jepa(self) -> None:
+        batch_size = 4
+        size = (192, 192)
+        backbone = registry.net_factory("vit_s16", 3, 0, size=size)
+        input_size = (size[0] // backbone.stem_stride, size[1] // backbone.stem_stride)
+        predictor = i_jepa.VisionTransformerPredictor(
+            input_size,
+            backbone.embedding_size,
+            128,
+            512,
+            8,
+            2,
+            0.0,
+        )
+        mask_generator = i_jepa.MultiBlockMasking(
+            input_size,
+            enc_mask_scale=(0.85, 1.0),
+            pred_mask_scale=(0.15, 0.25),
+            aspect_ratio=(0.75, 1.5),
+            n_enc=2,
+            n_pred=3,
+            min_keep=10,
+            allow_overlap=False,
+        )
+        masks = mask_generator(batch_size)
+        enc_masks = masks[0]
+        pred_masks = masks[1]
+
+        x = torch.rand(batch_size, 3, *size)
+        all_ids = torch.arange(input_size[0] * input_size[1]).unsqueeze(0).repeat(batch_size, 1)
+
+        #
+        # Simulate a full step
+        #
+
+        # Target encoder
+        h = backbone.masked_encoding_omission(x, all_ids)
+        h = h[:, backbone.num_special_tokens :, :]  # Remove special tokens
+        h = i_jepa.apply_masks(h, pred_masks)
+        h = i_jepa.repeat_interleave_batch(h, batch_size, repeat=len(enc_masks))
+
+        # Context
+        z = torch.concat([backbone.masked_encoding_omission(x, enc_mask) for enc_mask in enc_masks], dim=0)
+        z = z[:, backbone.num_special_tokens :, :]  # Remove special tokens
+        z = predictor(z, enc_masks, pred_masks)
+
+        self.assertEqual(h.size(0), batch_size * len(enc_masks) * len(pred_masks))
+        self.assertEqual(z.size(0), batch_size * len(enc_masks) * len(pred_masks))
+
+        self.assertEqual(h.size(2), backbone.embedding_size)
+        self.assertEqual(z.size(2), backbone.embedding_size)
+
+        self.assertEqual(h.size(1), z.size(1))
 
     def test_ibot(self) -> None:
         batch_size = 4

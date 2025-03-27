@@ -636,9 +636,9 @@ def get_args_parser() -> argparse.ArgumentParser:
             "    --warmup-epochs 10 \\\n"
             "    --batch-size 128 \\\n"
             "    --wd 0.04 \\\n"
+            "    --wd-end 0.4 \\\n"
             "    --norm-wd 0 \\\n"
             "    --bias-weight-decay 0 \\\n"
-            "    --wd-end 0.4 \\\n"
             "    --amp \\\n"
             "    --compile \\\n"
             "    --data-path data/training\n"
@@ -815,7 +815,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--plot-lr", default=False, action="store_true", help="plot learning rate and exit (skip training)"
     )
     parser.add_argument("--no-summary", default=False, action="store_true", help="don't print model summary")
-    parser.add_argument("--data-path", nargs="*", help="training directories paths (directories and files)")
+    parser.add_argument("--data-path", nargs="*", default=[], help="training directories paths (directories and files)")
     training_utils.add_unsupervised_wds_args(parser)
 
     return parser

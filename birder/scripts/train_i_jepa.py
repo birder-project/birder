@@ -1,12 +1,15 @@
 """
-VICReg, adapted from
-https://github.com/facebookresearch/vicreg/blob/main/main_vicreg.py
+I-JEPA (Image-based Joint-Embedding Predictive Architecture), adapted from
+https://github.com/facebookresearch/ijepa/blob/main/src/train.py
 
-Paper "VICReg: Variance-Invariance-Covariance Regularization for Self-Supervised Learning",
-https://arxiv.org/abs/2105.04906
+Paper "Self-Supervised Learning from Images with a Joint-Embedding Predictive Architecture",
+https://arxiv.org/abs/2301.08243
+
+Changes from original:
+* Per epoch weight decay scheduling (instead of per step)
 """
 
-# Reference license: MIT
+# Reference license: Attribution-NonCommercial 4.0 International
 
 import argparse
 import json
@@ -15,13 +18,14 @@ import os
 import sys
 import time
 import typing
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-from typing import Optional
 
 import matplotlib.pyplot as plt
 import torch
 import torch.amp
+import torch.nn.functional as F
 import torch.utils.data
 import torchinfo
 from torch.utils.data import DataLoader
@@ -45,10 +49,14 @@ from birder.datasets.webdataset import prepare_wds_args
 from birder.datasets.webdataset import wds_args_from_info
 from birder.model_registry import Task
 from birder.model_registry import registry
+from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import get_signature
-from birder.net.ssl.vicreg import VICReg
+from birder.net.ssl.i_jepa import MultiBlockMasking
+from birder.net.ssl.i_jepa import VisionTransformerPredictor
+from birder.net.ssl.i_jepa import WrappedModel
+from birder.net.ssl.i_jepa import apply_masks
+from birder.net.ssl.i_jepa import repeat_interleave_batch
 from birder.transforms.classification import RGBMode
-from birder.transforms.classification import RGBType
 from birder.transforms.classification import get_rgb_stats
 from birder.transforms.classification import training_preset
 
@@ -62,16 +70,19 @@ def _tv_loader(path: str) -> torch.Tensor:
     return decode_image(path, mode=ImageReadMode.RGB)
 
 
-class TrainTransform:
+class TrainCollator:
     def __init__(
-        self, size: tuple[int, int], level: int, rgv_values: RGBType, resize_min_scale: Optional[float] = None
+        self,
+        mask_generator: Callable[[int], tuple[list[torch.Tensor], list[torch.Tensor]]],
     ) -> None:
-        self.transform = training_preset(size, level, rgv_values, resize_min_scale)
+        self.mask_generator = mask_generator
 
-    def __call__(self, sample: Any) -> tuple[torch.Tensor, torch.Tensor]:
-        x1 = self.transform(sample)
-        x2 = self.transform(sample)
-        return (x1, x2)
+    def __call__(self, batch: Any) -> tuple[torch.Tensor, list[torch.Tensor], list[torch.Tensor]]:
+        B = len(batch)
+        collated_batch = torch.utils.data.default_collate(batch)
+        (enc_masks, pred_masks) = self.mask_generator(B)
+
+        return (collated_batch, enc_masks, pred_masks)
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
@@ -101,11 +112,115 @@ def train(args: argparse.Namespace) -> None:
     # Enable or disable the autograd anomaly detection
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
 
+    batch_size: int = args.batch_size
+    begin_epoch = 1
+    epochs = args.epochs + 1
+    if args.stop_epoch is None:
+        args.stop_epoch = epochs
+    else:
+        args.stop_epoch += 1
+
+    #
+    # Initialize network
+    #
+    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
+    sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
+    encoder_name = get_network_name(args.network, net_param=args.net_param, tag="i-jepa")
+    network_name = get_mim_network_name(
+        "i_jepa",
+        net_param=None,
+        encoder=args.network,
+        encoder_param=args.net_param,
+        tag=args.tag,
+    )
+
+    if args.model_config is not None:
+        model_config = args.model_config.copy()
+        model_config.update({"drop_path_rate": 0.0})
+    else:
+        model_config = {"drop_path_rate": 0.0}
+
+    encoder = registry.net_factory(
+        args.network,
+        sample_shape[1],
+        0,
+        net_param=args.net_param,
+        config=model_config,
+        size=args.size,
+    )
+    num_special_tokens = encoder.num_special_tokens
+    target_encoder = registry.net_factory(
+        args.network,
+        sample_shape[1],
+        0,
+        net_param=args.net_param,
+        config=model_config,
+        size=args.size,
+    )
+    encoder = WrappedModel(encoder)
+    target_encoder = WrappedModel(target_encoder)
+    target_encoder.load_state_dict(encoder.state_dict())
+
+    mask_size = (args.size[0] // encoder.inner.max_stride, args.size[1] // encoder.inner.max_stride)
+    all_ids = torch.arange(mask_size[0] * mask_size[1], device=device).unsqueeze(0)
+    predictor = VisionTransformerPredictor(
+        mask_size,
+        encoder.inner.embedding_size,
+        predictor_embed_dim=args.predictor_embed_dim,
+        mlp_dim=4 * args.predictor_embed_dim,
+        num_heads=args.predictor_num_heads,
+        depth=args.predictor_depth,
+        drop_path_rate=0.0,
+    )
+
+    net = torch.nn.ModuleDict(
+        {
+            "encoder": encoder,
+            "target_encoder": target_encoder,
+            "predictor": predictor,
+        }
+    )
+    net.task = encoder.inner.task
+
+    if args.resume_epoch is not None:
+        begin_epoch = args.resume_epoch + 1
+        (net, training_states) = fs_ops.load_simple_checkpoint(device, net, network_name, epoch=args.resume_epoch)
+        encoder = net["encoder"]
+        target_encoder = net["target_encoder"]
+        predictor = net["predictor"]
+
+    else:
+        training_states = fs_ops.TrainingStates.empty()
+
+    assert isinstance(encoder.inner, MaskedTokenOmissionMixin)
+    assert isinstance(net, torch.nn.Module)
+
+    net.to(device, dtype=model_dtype)
+    if args.fast_matmul is True or args.amp is True:
+        torch.set_float32_matmul_precision("high")
+
+    # Compile network
+    if args.compile is True:
+        # encoder = torch.compile(encoder)  # Dynamic sequence length not handled well by dynamo
+        target_encoder = torch.compile(target_encoder)
+        # predictor = torch.compile(predictor)
+
     #
     # Data
     #
     rgb_stats = get_rgb_stats(args.rgb_mode)
-    training_transform = TrainTransform(args.size, args.aug_level, rgb_stats, args.resize_min_scale)
+    mask_generator = MultiBlockMasking(
+        mask_size,
+        enc_mask_scale=(0.85, 1.0),
+        pred_mask_scale=(0.15, 0.2),
+        aspect_ratio=(0.75, 1.5),
+        n_enc=1,
+        n_pred=4,
+        min_keep=10,
+        allow_overlap=False,
+    )
+    mask_collator = TrainCollator(mask_generator)
+    training_transform = training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale)
     if args.wds is True:
         wds_path: str | list[str]
         if args.wds_info_file is not None:
@@ -135,8 +250,6 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Using device {device}:{device_id}")
     logger.info(f"Training on {len(training_dataset):,} samples")
 
-    batch_size: int = args.batch_size
-
     # Data loaders and samplers
     if args.distributed is True:
         train_sampler = torch.utils.data.distributed.DistributedSampler(training_dataset, shuffle=True)
@@ -149,7 +262,7 @@ def train(args: argparse.Namespace) -> None:
             batch_size,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
-            collate_fn=None,
+            collate_fn=mask_collator,
             world_size=args.world_size,
             pin_memory=True,
             drop_last=True,
@@ -162,68 +275,12 @@ def train(args: argparse.Namespace) -> None:
             sampler=train_sampler,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
+            collate_fn=mask_collator,
             pin_memory=True,
             drop_last=True,
         )
 
     last_batch_idx = (len(training_dataset) // batch_size) - 1  # no partial batches
-    begin_epoch = 1
-    epochs = args.epochs + 1
-    if args.stop_epoch is None:
-        args.stop_epoch = epochs
-    else:
-        args.stop_epoch += 1
-
-    #
-    # Initialize network
-    #
-    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
-    sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
-    backbone_name = get_network_name(args.network, net_param=args.net_param, tag="vicreg")
-    network_name = get_mim_network_name(
-        "vicreg",
-        net_param=None,
-        encoder=args.network,
-        encoder_param=args.net_param,
-        tag=args.tag,
-    )
-
-    backbone = registry.net_factory(
-        args.network,
-        sample_shape[1],
-        0,
-        net_param=args.net_param,
-        config=args.model_config,
-        size=args.size,
-    )
-    net = VICReg(
-        backbone.input_channels,
-        backbone,
-        mlp_dim=args.mlp_dim,
-        batch_size=args.batch_size,
-        sim_coeff=args.sim_coeff,
-        std_coeff=args.std_coeff,
-        cov_coeff=args.cov_coeff,
-        sync_batches=args.sync_bn,
-    )
-
-    if args.resume_epoch is not None:
-        begin_epoch = args.resume_epoch + 1
-        (net, training_states) = fs_ops.load_simple_checkpoint(device, net, network_name, epoch=args.resume_epoch)
-
-    else:
-        training_states = fs_ops.TrainingStates.empty()
-
-    net.to(device, dtype=model_dtype)
-    if args.sync_bn is True and args.distributed is True:
-        net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)
-
-    if args.fast_matmul is True or args.amp is True:
-        torch.set_float32_matmul_precision("high")
-
-    # Compile backbone
-    if args.compile is True:
-        net = torch.compile(net)
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
@@ -260,6 +317,13 @@ def train(args: argparse.Namespace) -> None:
     if args.compile_opt is True:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
 
+    # Momentum and weight decay schedule
+    momentum_schedule = training_utils.cosine_scheduler(0.996, 1.0, args.epochs, last_batch_idx)
+    if args.wd_end is not None:
+        wd_schedule = training_utils.cosine_scheduler(args.wd, args.wd_end, args.epochs, 1)
+    else:
+        wd_schedule = None
+
     # Gradient scaler and AMP related tasks
     (scaler, amp_dtype) = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
 
@@ -292,30 +356,40 @@ def train(args: argparse.Namespace) -> None:
     #
     # Distributed (DDP)
     #
-    net_without_ddp = net
+    encoder_without_ddp = encoder
+    target_encoder_without_ddp = target_encoder
+    # predictor_without_ddp = predictor
     if args.distributed is True:
-        net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[args.gpu])
-        net_without_ddp = net.module
+        encoder = torch.nn.parallel.DistributedDataParallel(encoder, device_ids=[args.gpu])
+        target_encoder = torch.nn.parallel.DistributedDataParallel(target_encoder, device_ids=[args.gpu])
+        predictor = torch.nn.parallel.DistributedDataParallel(predictor, device_ids=[args.gpu])
+        encoder_without_ddp = encoder.module
+        target_encoder_without_ddp = target_encoder.module
+        # predictor_without_ddp = predictor.module
 
-    model_to_save = net_without_ddp
-    if args.compile is True and hasattr(model_to_save, "_orig_mod") is True:
-        model_to_save = model_to_save._orig_mod  # pylint: disable=protected-access
+    # There is no backpropagation through the teacher
+    for p in target_encoder.parameters():
+        p.requires_grad = False
+
+    model_to_save = net
+    if args.compile is True and hasattr(model_to_save["target_encoder"], "_orig_mod") is True:
+        model_to_save["target_encoder"] = model_to_save["target_encoder"]._orig_mod  # pylint: disable=protected-access
 
     #
     # Misc
     #
 
     # Print network summary
-    net_for_info = net_without_ddp
-    if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
-        net_for_info = net_without_ddp._orig_mod  # pylint: disable=protected-access
+    net_for_info = encoder_without_ddp.inner
+    if args.compile is True and hasattr(encoder_without_ddp, "_orig_mod") is True:
+        net_for_info = encoder_without_ddp._orig_mod.inner  # pylint: disable=protected-access
 
     if args.no_summary is False:
         torchinfo.summary(
             net_for_info,
             device=device,
-            input_size=(sample_shape, sample_shape),
-            dtypes=[model_dtype, model_dtype],
+            input_size=sample_shape,
+            dtypes=[model_dtype],
             col_names=["input_size", "output_size", "kernel_size", "num_params"],
             depth=4,
             verbose=1 if args.rank == 0 else 0,
@@ -354,6 +428,14 @@ def train(args: argparse.Namespace) -> None:
         if args.distributed is True:
             train_sampler.set_epoch(epoch)
 
+        if wd_schedule is not None:
+            wd = wd_schedule[epoch - 1]
+            for param_group in optimizer.param_groups:
+                if param_group["weight_decay"] > 0:
+                    param_group["weight_decay"] = wd
+
+            logger.info(f"Updated wd to: {wd}")
+
         if args.rank == 0:
             progress = tqdm(
                 desc=f"Epoch {epoch}/{epochs-1}",
@@ -366,15 +448,32 @@ def train(args: argparse.Namespace) -> None:
         # Zero the parameter gradients
         optimizer.zero_grad()
 
-        for i, (_, (x, y), _) in enumerate(training_loader):
-            x = x.to(device, dtype=model_dtype, non_blocking=True)
-            y = y.to(device, dtype=model_dtype, non_blocking=True)
+        for i, ((_, images, _), enc_masks, pred_masks) in enumerate(training_loader):
+            global_step = ((epoch - 1) * last_batch_idx) + i
+            images = images.to(device, dtype=model_dtype, non_blocking=True)
+            enc_masks = [m.to(device, non_blocking=True) for m in enc_masks]
+            pred_masks = [m.to(device, non_blocking=True) for m in pred_masks]
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
 
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                loss = net(x, y)
+                # Target encoder
+                with torch.no_grad():
+                    h = target_encoder(images, all_ids.repeat(batch_size, 1))
+                    h = h[:, num_special_tokens:, :]  # Remove special tokens
+                    h = F.layer_norm(h, (h.size(-1),))
+                    h = apply_masks(h, pred_masks)
+                    h = repeat_interleave_batch(h, batch_size, repeat=len(enc_masks))
+
+                # Context encoder
+                # NOTE: When enc_masks > 1, this implementation is not as efficient as the original, as we run through
+                # the stem over and over with the same input.
+                z = torch.concat([encoder(images, enc_mask) for enc_mask in enc_masks], dim=0)
+                z = z[:, num_special_tokens:, :]  # Remove special tokens
+                z = predictor(z, enc_masks, pred_masks)
+
+                loss = F.smooth_l1_loss(z, h)
 
             if scaler is not None:
                 scaler.scale(loss).backward()
@@ -396,8 +495,14 @@ def train(args: argparse.Namespace) -> None:
                     optimizer.step()
                     optimizer.zero_grad()
 
+            # EMA update for the target encoder
+            with torch.no_grad():
+                m = momentum_schedule[global_step]
+                for param_q, param_k in zip(encoder.parameters(), target_encoder_without_ddp.parameters()):
+                    param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
+
             # Statistics
-            running_loss += loss.item() * x.size(0)
+            running_loss += loss.item() * images.size(0)
 
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
@@ -444,9 +549,9 @@ def train(args: argparse.Namespace) -> None:
                     None,
                 )
                 fs_ops.checkpoint_model(
-                    backbone_name,
+                    encoder_name,
                     epoch,
-                    model_to_save.backbone,
+                    model_to_save["encoder"].inner,
                     signature,
                     {},
                     rgb_stats,
@@ -479,9 +584,9 @@ def train(args: argparse.Namespace) -> None:
             None,
         )
         fs_ops.checkpoint_model(
-            backbone_name,
+            encoder_name,
             epoch,
-            model_to_save.backbone,
+            model_to_save["encoder"].inner,
             signature,
             {},
             rgb_stats,
@@ -501,23 +606,26 @@ def get_args_parser() -> argparse.ArgumentParser:
         epilog=(
             "Usage examples\n"
             "==============\n"
-            "torchrun --nproc_per_node=2 -m birder.scripts.train_vicreg \\\n"
-            "    --network efficientnet_v2_m \\\n"
-            "    --opt lars \\\n"
-            "    --lr 0.2 \\\n"
-            "    --lr-scale 256 \\\n"
+            "torchrun --nproc_per_node=2 -m birder.scripts.train_i_jepa \\\n"
+            "    --network vitreg4_b16 \\\n"
+            "    --opt adamw \\\n"
+            "    --lr 0.001 \\\n"
             "    --lr-scheduler cosine \\\n"
-            "    --warmup-epochs 10 \\\n"
+            "    --lr-cosine-min 1e-6 \\\n"
+            "    --warmup-epochs 40 \\\n"
             "    --batch-size 128 \\\n"
-            "    --epochs 400 \\\n"
-            "    --wd 0.000001 \\\n"
+            "    --wd 0.04 \\\n"
+            "    --wd-end 0.4 \\\n"
+            "    --norm-wd 0 \\\n"
+            "    --bias-weight-decay 0 \\\n"
             "    --amp \\\n"
             "    --compile \\\n"
-            "    --data-path data/training\n"
+            "    --compile-opt \\\n"
+            "    --data-path data/training data/raw_data\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
-    parser.add_argument("-n", "--network", type=str, help="the neural network to train")
+    parser.add_argument("-n", "--network", type=str, help="the neural network to use")
     parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
     parser.add_argument(
         "--model-config",
@@ -527,10 +635,9 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
-    parser.add_argument("--mlp-dim", type=int, default=8192, help="dim of the MLP expander head")
-    parser.add_argument("--sim-coeff", type=float, default=25.0, help="invariance regularization loss coefficient")
-    parser.add_argument("--std-coeff", type=float, default=25.0, help="variance regularization loss coefficient")
-    parser.add_argument("--cov-coeff", type=float, default=1.0, help="covariance regularization loss coefficient")
+    parser.add_argument("--predictor-embed-dim", type=int, default=384, help="predictor embedding dimension")
+    parser.add_argument("--predictor-num-heads", type=int, default=12, help="predictor number of heads")
+    parser.add_argument("--predictor-depth", type=int, default=12, help="predictor number of layers")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
         "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
@@ -541,6 +648,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--lr-scale", type=int, help="reference batch size for LR scaling, if provided, LR will be scaled accordingly"
     )
     parser.add_argument("--wd", type=float, default=0.0001, help="weight decay")
+    parser.add_argument("--wd-end", type=float, help="final value of the weight decay (None for constant wd)")
     parser.add_argument("--norm-wd", type=float, help="weight decay for Normalization layers")
     parser.add_argument("--bias-weight-decay", type=float, help="weight decay for bias parameters of all layers")
     parser.add_argument(
@@ -557,14 +665,13 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--size", type=int, nargs="+", metavar=("H", "W"), help="image size (defaults to network recommendation)"
     )
-    parser.add_argument("--sync-bn", default=False, action="store_true", help="use synchronized BatchNorm")
     parser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
     parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
     parser.add_argument(
         "--aug-level",
         type=int,
         choices=[0, 1, 2, 3, 4],
-        default=2,
+        default=1,
         help="magnitude of augmentations (0 off -> 4 highest)",
     )
     parser.add_argument(
@@ -574,8 +681,8 @@ def get_args_parser() -> argparse.ArgumentParser:
         default="birder",
         help="rgb mean and std to use for normalization",
     )
-    parser.add_argument("--resize-min-scale", type=float, default=0.3, help="random resize min scale")
-    parser.add_argument("--epochs", type=int, default=400, metavar="N", help="number of training epochs")
+    parser.add_argument("--resize-min-scale", type=float, default=0.35, help="random resize min scale")
+    parser.add_argument("--epochs", type=int, default=300, metavar="N", help="number of training epochs")
     parser.add_argument(
         "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi step training)"
     )
@@ -632,6 +739,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--world-size", type=int, default=1, metavar="N", help="number of distributed processes")
     parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
+    parser.add_argument(
+        "--find-unused-parameters",
+        default=False,
+        action="store_true",
+        help="enable searching for unused parameters in DistributedDataParallel (may impact performance)",
+    )
     parser.add_argument("--clip-grad-norm", type=float, help="the maximum gradient norm")
     parser.add_argument("--gpu", type=int, metavar="ID", help="gpu id to use (ignored in distributed mode)")
     parser.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")

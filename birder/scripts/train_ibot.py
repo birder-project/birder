@@ -580,8 +580,8 @@ def train(args: argparse.Namespace) -> None:
 
             probs_teacher = teacher_embedding.chunk(2)  # Per global crop
             probs_student = student_embedding.chunk(2)
-            pred_teacher = probs_teacher[0].max(dim=1)[1]  # Take indices
-            pred_student = probs_student[1].max(dim=1)[1]
+            pred_teacher = probs_teacher[0].argmax(dim=1)
+            pred_student = probs_student[1].argmax(dim=1)
             training_accuracy(pred_student, pred_teacher)
 
             # Write statistics
@@ -711,9 +711,9 @@ def get_args_parser() -> argparse.ArgumentParser:
             "    --warmup-epochs 10 \\\n"
             "    --batch-size 32 \\\n"
             "    --wd 0.04 \\\n"
+            "    --wd-end 0.4 \\\n"
             "    --norm-wd 0 \\\n"
             "    --bias-weight-decay 0 \\\n"
-            "    --wd-end 0.4 \\\n"
             "    --clip-grad-norm 0.3 \\\n"
             "    --amp \\\n"
             "    --compile \\\n"
@@ -900,7 +900,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--plot-lr", default=False, action="store_true", help="plot learning rate and exit (skip training)"
     )
     parser.add_argument("--no-summary", default=False, action="store_true", help="don't print model summary")
-    parser.add_argument("--data-path", nargs="*", help="training directories paths (directories and files)")
+    parser.add_argument("--data-path", nargs="*", default=[], help="training directories paths (directories and files)")
     training_utils.add_unsupervised_wds_args(parser)
 
     return parser

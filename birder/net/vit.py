@@ -10,6 +10,8 @@ and
 Paper "Vision Transformers Need Registers", https://arxiv.org/abs/2309.16588
 and
 Paper "Getting ViT in Shape: Scaling Laws for Compute-Optimal Model Design", https://arxiv.org/abs/2305.13035
+and
+Paper "Scaling Vision Transformers", https://arxiv.org/abs/2106.04560
 """
 
 # Reference license: BSD 3-Clause and Apache-2.0
@@ -702,6 +704,18 @@ registry.register_alias(
         "num_heads": 16,
         "hidden_dim": 1280,
         "mlp_dim": 5120,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(  # From "Scaling Vision Transformers"
+    "vit_g14",
+    ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 40,
+        "num_heads": 16,
+        "hidden_dim": 1408,
+        "mlp_dim": 6144,
         "drop_path_rate": 0.1,
     },
 )

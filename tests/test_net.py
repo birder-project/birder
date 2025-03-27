@@ -495,6 +495,7 @@ class TestNet(unittest.TestCase):
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 3)
 
+        self.assertTrue(hasattr(n, "num_special_tokens"))
         self.assertTrue(hasattr(n, "block_group_regex"))
         self.assertTrue(hasattr(n, "stem_stride"))
         self.assertTrue(hasattr(n, "stem_width"))
