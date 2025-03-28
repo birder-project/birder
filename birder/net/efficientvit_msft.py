@@ -401,7 +401,7 @@ class EfficientViT_MSFT(DetectorBackbone):
                 in_dim=prev_dim,
                 out_dim=embed_dims[i],
                 key_dim=key_dims[i],
-                downsample=i != 0,
+                downsample=i > 0,
                 num_heads=num_heads[i],
                 attn_ratio=attn_ratio[i],
                 resolution=resolution,

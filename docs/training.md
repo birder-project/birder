@@ -84,6 +84,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [RegNet](#regnet)
 - [RepGhost](#repghost)
 - [RepVgg](#repvgg)
+- [RepViT](#repvit)
 - [ResMLP](#resmlp)
 - [ResNeSt](#resnest)
 - [ResNet v1](#resnet-v1)
@@ -1935,6 +1936,14 @@ torchrun --nproc_per_node=2 train.py --network repghost --net-param 1 --lr 0.6 -
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network repvgg_b1 --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 5 --batch-size 128 --epochs 200 --size 256 --wd 0.0001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2
+```
+
+### RepViT
+
+#### RepViT: M0.9
+
+```sh
+torchrun --nproc_per_node=2 train.py --network repvit_m0_9 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --fast-matmul --compile
 ```
 
 ### ResMLP

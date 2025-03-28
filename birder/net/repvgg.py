@@ -51,7 +51,7 @@ class RepVggBlock(nn.Module):
                 out_channels,
                 kernel_size=(kernel_size, kernel_size),
                 stride=(stride, stride),
-                padding=padding,
+                padding=(padding, padding),
                 groups=groups,
                 bias=True,
             )
@@ -188,7 +188,7 @@ class RepVggBlock(nn.Module):
         std = (running_var + eps).sqrt()
         t = (gamma / std).reshape(-1, 1, 1, 1)
 
-        return kernel * t, beta - running_mean * gamma / std
+        return (kernel * t, beta - running_mean * gamma / std)
 
 
 class RepVggStage(nn.Sequential):

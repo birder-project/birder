@@ -4,11 +4,20 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 
 ## SSL Pre-training
 
+- [Barlow Twins](#barlow-twins)
 - [BYOL](#byol)
 - [DINO v1](#dino-v1)
 - [I-JEPA](#i-jepa)
 - [iBOT](#ibot)
 - [VICReg](#vicreg)
+
+### Barlow Twins
+
+#### Barlow Twins: EfficientNet v2 Small
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_barlow_twins --network efficientnet_v2_s --opt lars --lr 0.2 --lr-scale 256 --lr-scheduler cosine --warmup-epochs 10 --batch-size 192 --epochs 800 --wd 0.000001 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
 
 ### BYOL
 

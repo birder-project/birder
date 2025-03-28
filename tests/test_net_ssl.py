@@ -5,6 +5,7 @@ import torch
 
 from birder.common.masking import BlockMasking
 from birder.model_registry import registry
+from birder.net.ssl import barlow_twins
 from birder.net.ssl import byol
 from birder.net.ssl import dino_v1
 from birder.net.ssl import i_jepa
@@ -15,6 +16,15 @@ logging.disable(logging.CRITICAL)
 
 
 class TestNetSSL(unittest.TestCase):
+    def test_barlow_twins(self) -> None:
+        batch_size = 4
+        backbone = registry.net_factory("resnet_v1_50", 3, 0)
+        net = barlow_twins.BarlowTwins(backbone.input_channels, backbone, sizes=[512, 512, 512], off_lambda=0.005)
+
+        # Test network
+        out = net(torch.rand((batch_size, 3, 128, 128)), torch.rand((batch_size, 3, 128, 128)))
+        self.assertFalse(torch.isnan(out).any())
+
     def test_byol(self) -> None:
         batch_size = 2
         backbone = registry.net_factory("resnet_v1_18", 3, 0)

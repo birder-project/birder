@@ -143,6 +143,7 @@ class TestNet(unittest.TestCase):
             ("regnet_z_500m"),
             ("repghost", 1),
             ("repvgg_a0"),
+            ("repvit_m0_6", None, False, 2),
             ("resmlp_12", None, False, 1, 0),  # No resize support
             ("resnest_14", None, False, 2),
             ("resnet_v1_18"),
@@ -319,6 +320,7 @@ class TestNet(unittest.TestCase):
             ("regnet_z_500m"),
             ("repghost", 1),
             ("repvgg_a0"),
+            ("repvit_m0_6"),
             ("resnest_14", None, 2),
             ("resnet_v1_18"),
             ("resnet_v2_18"),
@@ -588,6 +590,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("regnet_z_500m"),
             ("repghost", 1),
             ("repvgg_a0"),
+            ("repvit_m0_6", None, 2),
             ("resmlp_12", None, 1, 0),  # No resize support
             ("resnest_14", None, 2),
             ("resnet_v1_18"),

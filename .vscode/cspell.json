@@ -223,6 +223,7 @@
     "repghost",
     "repmixer",
     "repvgg",
+    "repvit",
     "resmlp",
     "resnest",
     "resnet",

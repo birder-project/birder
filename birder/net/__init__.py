@@ -67,6 +67,7 @@ from birder.net.regnet import RegNet
 from birder.net.regnet_z import RegNet_Z
 from birder.net.repghost import RepGhost
 from birder.net.repvgg import RepVgg
+from birder.net.repvit import RepViT
 from birder.net.resmlp import ResMLP
 from birder.net.resnest import ResNeSt
 from birder.net.resnet_v1 import ResNet_v1
@@ -169,6 +170,7 @@ __all__ = [
     "RegNet_Z",
     "RepGhost",
     "RepVgg",
+    "RepViT",
     "ResMLP",
     "ResNeSt",
     "ResNet_v1",
