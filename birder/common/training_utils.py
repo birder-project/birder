@@ -3,6 +3,7 @@ import logging
 import math
 import os
 import re
+from collections import deque
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
@@ -464,6 +465,71 @@ def get_samplers(
 
 
 ###############################################################################
+# Metrics Tracking and Reporting
+###############################################################################
+
+
+def to_tensor(x: torch.Tensor | float, device: torch.device) -> torch.Tensor:
+    if isinstance(x, torch.Tensor):
+        return x.to(device)
+
+    return torch.tensor(x, device=device)
+
+
+class SmoothedValue:
+    # Adapted from: https://github.com/facebookresearch/capi/blob/main/utils.py
+
+    def __init__(self, window_size: int = 32) -> None:
+        self.window_size = window_size
+        self.deque: deque[torch.Tensor | float] = deque(maxlen=window_size)
+        self.total: torch.Tensor | float = 0.0
+        self.count: int = 0
+
+    def update(self, value: torch.Tensor | float) -> None:
+        self.deque.append(value)
+        self.count += 1
+        self.total += value
+
+    def synchronize_between_processes(self, device: torch.device) -> None:
+        if is_dist_available_and_initialized() is False:
+            return
+
+        logger.debug("Synchronizing values")
+        count = to_tensor(self.count, device=device).to(dtype=torch.float64).reshape(1)
+        total = to_tensor(self.total, device=device).to(dtype=torch.float64).reshape(1)
+        tensor_deque = torch.tensor(list(self.deque), dtype=torch.float64, device=device)
+        t = torch.concat([count, total, tensor_deque], dim=0)
+        dist.barrier()
+        dist.all_reduce(t, op=dist.ReduceOp.AVG)
+        self.count = int(t[0].cpu().item())
+        self.total = t[1]
+        self.deque = deque(list(t[2:]), maxlen=self.window_size)
+
+    @property
+    def median(self) -> float:
+        d = torch.tensor(list(self.deque))
+        return d.median().cpu().item()  # type: ignore[no-any-return]
+
+    @property
+    def avg(self) -> float:
+        d = torch.tensor(list(self.deque), dtype=torch.float32)
+        return d.mean().cpu().item()  # type: ignore[no-any-return]
+
+    @property
+    def global_avg(self) -> float:
+        return to_tensor(self.total, torch.device("cpu")).item() / self.count  # type: ignore[no-any-return]
+
+    @property
+    def max(self) -> float:
+        return torch.tensor(self.deque).max().cpu().item()  # type: ignore[no-any-return]
+
+    @property
+    def value(self) -> float:
+        v = self.deque[-1]
+        return to_tensor(v, torch.device("cpu")).item()  # type: ignore[no-any-return]
+
+
+###############################################################################
 # Distributed Training Utilities
 ###############################################################################
 
@@ -524,15 +590,15 @@ def is_dist_available_and_initialized() -> bool:
     return True
 
 
-def reduce_across_processes(value: float, device: torch.device) -> float:
+def reduce_across_processes(value: torch.Tensor | float, device: torch.device) -> float:
     if is_dist_available_and_initialized() is False:
         return value
 
-    value_t = torch.tensor(value, device=device)
+    value = to_tensor(value, device)
     dist.barrier()
-    dist.all_reduce(value_t)
+    dist.all_reduce(value)
 
-    return value_t.item()  # type: ignore[no-any-return]
+    return value.item()  # type: ignore[no-any-return]
 
 
 def get_world_size() -> int:

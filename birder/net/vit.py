@@ -612,6 +612,42 @@ registry.register_alias(
     },
 )
 registry.register_alias(
+    "vit_m32",
+    ViT,
+    config={
+        "patch_size": 32,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "vit_m16",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "vit_m14",
+    ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
     "vit_b32",
     ViT,
     config={
@@ -761,6 +797,45 @@ registry.register_alias(
     },
 )
 registry.register_alias(
+    "vitreg4_m32",
+    ViT,
+    config={
+        "patch_size": 32,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "vitreg4_m16",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "vitreg4_m14",
+    ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
     "vitreg4_b32",
     ViT,
     config={
@@ -860,6 +935,19 @@ registry.register_alias(
         "num_heads": 16,
         "hidden_dim": 1280,
         "mlp_dim": 5120,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(  # From "Scaling Vision Transformers"
+    "vitreg4_g14",
+    ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 40,
+        "num_heads": 16,
+        "hidden_dim": 1408,
+        "mlp_dim": 6144,
         "num_reg_tokens": 4,
         "drop_path_rate": 0.1,
     },

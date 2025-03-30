@@ -1,11 +1,15 @@
 """
-Barlow Twins, adapted from
-https://github.com/facebookresearch/barlowtwins/blob/main/main.py
+CAPI, adapted from
+https://github.com/facebookresearch/capi/blob/main/train_capi.py
 
-Paper "Barlow Twins: Self-Supervised Learning via Redundancy Reduction", https://arxiv.org/abs/2103.03230
+Paper "Cluster and Predict Latent Patches for Improved Masked Image Modeling",
+https://arxiv.org/abs/2502.08769
+
+Changes from original:
+* No LR truncation
 """
 
-# Reference license: MIT
+# Reference license: Apache-2.0
 
 import argparse
 import json
@@ -14,6 +18,7 @@ import os
 import sys
 import time
 import typing
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from typing import Optional
@@ -21,6 +26,7 @@ from typing import Optional
 import matplotlib.pyplot as plt
 import torch
 import torch.amp
+import torch.nn.functional as F
 import torch.utils.data
 import torchinfo
 from torch.utils.data import DataLoader
@@ -33,6 +39,7 @@ from tqdm import tqdm
 
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common import masking
 from birder.common import training_utils
 from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
@@ -44,8 +51,12 @@ from birder.datasets.webdataset import prepare_wds_args
 from birder.datasets.webdataset import wds_args_from_info
 from birder.model_registry import Task
 from birder.model_registry import registry
+from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import get_signature
-from birder.net.ssl.barlow_twins import BarlowTwins
+from birder.net.ssl.capi import CAPIStudent
+from birder.net.ssl.capi import CAPITeacher
+from birder.net.ssl.capi import L2NormLinear
+from birder.net.ssl.capi import OnlineClustering
 from birder.transforms.classification import RGBMode
 from birder.transforms.classification import RGBType
 from birder.transforms.classification import get_rgb_stats
@@ -63,14 +74,21 @@ def _tv_loader(path: str) -> torch.Tensor:
 
 class TrainTransform:
     def __init__(
-        self, size: tuple[int, int], level: int, rgv_values: RGBType, resize_min_scale: Optional[float] = None
+        self,
+        size: tuple[int, int],
+        level: int,
+        rgv_values: RGBType,
+        mask_generator: Callable[[int], torch.Tensor],
+        resize_min_scale: Optional[float] = None,
     ) -> None:
         self.transform = training_preset(size, level, rgv_values, resize_min_scale)
+        self.mask_generator = mask_generator
 
-    def __call__(self, sample: Any) -> tuple[torch.Tensor, torch.Tensor]:
-        x1 = self.transform(sample)
-        x2 = self.transform(sample)
-        return (x1, x2)
+    def __call__(self, image: Any) -> tuple[list[torch.Tensor], torch.Tensor]:
+        image = self.transform(image)
+        mask = self.mask_generator(1)
+
+        return (image, mask.squeeze(0))
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
@@ -100,11 +118,107 @@ def train(args: argparse.Namespace) -> None:
     # Enable or disable the autograd anomaly detection
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
 
+    batch_size: int = args.batch_size
+    begin_epoch = 1
+    epochs = args.epochs + 1
+    if args.stop_epoch is None:
+        args.stop_epoch = epochs
+    else:
+        args.stop_epoch += 1
+
+    #
+    # Initialize network
+    #
+    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
+    sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
+    backbone_name = get_network_name(args.network, net_param=args.net_param, tag="capi")
+    network_name = get_mim_network_name(
+        "capi",
+        net_param=None,
+        encoder=args.network,
+        encoder_param=args.net_param,
+        tag=args.tag,
+    )
+
+    student_backbone = registry.net_factory(
+        args.network,
+        sample_shape[1],
+        0,
+        net_param=args.net_param,
+        config=args.model_config,
+        size=args.size,
+    )
+    teacher_backbone = registry.net_factory(
+        args.network,
+        sample_shape[1],
+        0,
+        net_param=args.net_param,
+        config=args.model_config,
+        size=args.size,
+    )
+
+    student_head = L2NormLinear(student_backbone.embedding_size, args.num_clusters)
+    teacher_head = OnlineClustering(
+        student_backbone.embedding_size,
+        args.num_clusters,
+        bias=True,
+        n_sk_iter=3,
+        target_temp=0.06,
+        pred_temp=0.12,
+    )
+
+    teacher_backbone.load_state_dict(student_backbone.state_dict())
+
+    student = CAPIStudent(student_backbone.input_channels, student_backbone, student_head)
+    teacher = CAPITeacher(teacher_backbone.input_channels, teacher_backbone, teacher_head)
+
+    net = torch.nn.ModuleDict(
+        {
+            "student": student,
+            "teacher": teacher,
+        }
+    )
+    net.task = student_backbone.task
+
+    if args.resume_epoch is not None:
+        begin_epoch = args.resume_epoch + 1
+        (net, training_states) = fs_ops.load_simple_checkpoint(device, net, network_name, epoch=args.resume_epoch)
+        student = net["student"]
+        teacher = net["teacher"]
+
+    else:
+        training_states = fs_ops.TrainingStates.empty()
+
+    teacher.eval()
+
+    assert isinstance(student_backbone, MaskedTokenOmissionMixin)
+    assert isinstance(net, torch.nn.Module)
+
+    net.to(device, dtype=model_dtype)
+    if args.fast_matmul is True or args.amp is True:
+        torch.set_float32_matmul_precision("high")
+
+    # Compile networks
+    if args.compile is True:
+        student = torch.compile(student)
+        teacher = torch.compile(teacher)
+
     #
     # Data
     #
     rgb_stats = get_rgb_stats(args.rgb_mode)
-    training_transform = TrainTransform(args.size, args.aug_level, rgb_stats, args.resize_min_scale)
+    mask_size = (args.size[0] // student_backbone.max_stride, args.size[1] // student_backbone.max_stride)
+    seq_len = mask_size[0] * mask_size[1]
+    all_ids = torch.arange(seq_len, device=device).unsqueeze(0)
+    mask_generator = masking.InverseRollBlockMasking(
+        mask_size,
+        num_masking_patches=int(seq_len * args.mask_ratio),
+        min_aspect=0.5,
+        max_aspect=2.0,
+    )
+    n_masked = int(seq_len * 0.65)
+    n_predict = int(n_masked * args.kept_mask_ratio)
+    training_transform = TrainTransform(args.size, args.aug_level, rgb_stats, mask_generator, args.resize_min_scale)
     if args.wds is True:
         wds_path: str | list[str]
         if args.wds_info_file is not None:
@@ -133,8 +247,6 @@ def train(args: argparse.Namespace) -> None:
 
     logger.info(f"Using device {device}:{device_id}")
     logger.info(f"Training on {len(training_dataset):,} samples")
-
-    batch_size: int = args.batch_size
 
     # Data loaders and samplers
     if args.distributed is True:
@@ -166,54 +278,6 @@ def train(args: argparse.Namespace) -> None:
         )
 
     last_batch_idx = (len(training_dataset) // batch_size) - 1  # no partial batches
-    begin_epoch = 1
-    epochs = args.epochs + 1
-    if args.stop_epoch is None:
-        args.stop_epoch = epochs
-    else:
-        args.stop_epoch += 1
-
-    #
-    # Initialize network
-    #
-    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
-    sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
-    backbone_name = get_network_name(args.network, net_param=args.net_param, tag="barlow-twins")
-    network_name = get_mim_network_name(
-        "barlow_twins",
-        net_param=None,
-        encoder=args.network,
-        encoder_param=args.net_param,
-        tag=args.tag,
-    )
-
-    backbone = registry.net_factory(
-        args.network,
-        sample_shape[1],
-        0,
-        net_param=args.net_param,
-        config=args.model_config,
-        size=args.size,
-    )
-    net = BarlowTwins(backbone.input_channels, backbone, sizes=[8192, 8192, 8192], off_lambda=args.off_lambda)
-
-    if args.resume_epoch is not None:
-        begin_epoch = args.resume_epoch + 1
-        (net, training_states) = fs_ops.load_simple_checkpoint(device, net, network_name, epoch=args.resume_epoch)
-
-    else:
-        training_states = fs_ops.TrainingStates.empty()
-
-    net.to(device, dtype=model_dtype)
-    if args.sync_bn is True and args.distributed is True:
-        net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)
-
-    if args.fast_matmul is True or args.amp is True:
-        torch.set_float32_matmul_precision("high")
-
-    # Compile backbone
-    if args.compile is True:
-        net = torch.compile(net)
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
@@ -222,7 +286,14 @@ def train(args: argparse.Namespace) -> None:
     # Training parameter groups
     custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
     parameters = training_utils.optimizer_parameter_groups(
-        net,
+        net.student,
+        args.wd,
+        norm_weight_decay=args.norm_wd,
+        custom_keys_weight_decay=custom_keys_weight_decay,
+        layer_decay=args.layer_decay,
+    )
+    clustering_parameters = training_utils.optimizer_parameter_groups(
+        net.teacher.head,
         args.wd,
         norm_weight_decay=args.norm_wd,
         custom_keys_weight_decay=custom_keys_weight_decay,
@@ -231,10 +302,12 @@ def train(args: argparse.Namespace) -> None:
 
     # Learning rate scaling
     lr = training_utils.scale_lr(args)
+    clustering_lr = lr // 2
     grad_accum_steps: int = args.grad_accum_steps
 
     # Optimizer and learning rate scheduler
     optimizer = training_utils.get_optimizer(parameters, lr, args)
+    clustering_optimizer = training_utils.get_optimizer(clustering_parameters, clustering_lr, args)
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
         optimizer,
@@ -247,8 +320,25 @@ def train(args: argparse.Namespace) -> None:
         args.lr_step_gamma,
         args.lr_power,
     )
+    clustering_scheduler = training_utils.get_scheduler(
+        args.lr_scheduler,
+        clustering_optimizer,
+        args.warmup_epochs,
+        begin_epoch,
+        epochs,
+        args.lr_cosine_min,
+        args.lr_step_size,
+        args.lr_steps,
+        args.lr_step_gamma,
+        args.lr_power,
+    )
     if args.compile_opt is True:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
+        clustering_optimizer.step = torch.compile(clustering_optimizer.step, fullgraph=False)
+
+    # Momentum and temperatures
+    momentum_schedule = training_utils.cosine_scheduler(args.momentum_teacher, 1.0, args.epochs, last_batch_idx)
+    student_temp = 0.12
 
     # Gradient scaler and AMP related tasks
     (scaler, amp_dtype) = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
@@ -257,14 +347,10 @@ def train(args: argparse.Namespace) -> None:
     if args.load_states is True:
         optimizer.load_state_dict(training_states.optimizer_state)
         scheduler.load_state_dict(training_states.scheduler_state)
+        clustering_optimizer.load_state_dict(training_states.extra_states["clustering_optimizer"])  # type: ignore
+        clustering_scheduler.load_state_dict(training_states.extra_states["clustering_scheduler"])  # type: ignore
         if scaler is not None:
             scaler.load_state_dict(training_states.scaler_state)
-
-    elif args.load_scheduler is True:
-        scheduler.load_state_dict(training_states.scheduler_state)
-        last_lrs = scheduler.get_last_lr()
-        for g, last_lr in zip(optimizer.param_groups, last_lrs):
-            g["lr"] = last_lr
 
     last_lr = max(scheduler.get_last_lr())
     if args.plot_lr is True:
@@ -282,30 +368,46 @@ def train(args: argparse.Namespace) -> None:
     #
     # Distributed (DDP)
     #
-    net_without_ddp = net
-    if args.distributed is True:
-        net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[args.gpu])
-        net_without_ddp = net.module
 
-    model_to_save = net_without_ddp
-    if args.compile is True and hasattr(model_to_save, "_orig_mod") is True:
-        model_to_save = model_to_save._orig_mod  # pylint: disable=protected-access
+    # There is no backpropagation through the teacher backbone
+    for p in teacher.backbone.parameters():
+        p.requires_grad = False
+
+    teacher_without_ddp = teacher
+    student_without_ddp = student
+    if args.distributed is True:
+        student = torch.nn.parallel.DistributedDataParallel(
+            student, device_ids=[args.gpu], find_unused_parameters=args.find_unused_parameters
+        )
+        teacher = torch.nn.parallel.DistributedDataParallel(teacher, device_ids=[args.gpu])
+        student_without_ddp = student.module
+        teacher_without_ddp = teacher.module
+
+    model_to_save = net
+    if args.compile is True and hasattr(model_to_save["teacher"], "_orig_mod") is True:
+        model_to_save["teacher"] = model_to_save["teacher"]._orig_mod  # pylint: disable=protected-access
+    if args.compile is True and hasattr(model_to_save["student"], "_orig_mod") is True:
+        model_to_save["student"] = model_to_save["student"]._orig_mod  # pylint: disable=protected-access
 
     #
     # Misc
     #
 
     # Print network summary
-    net_for_info = net_without_ddp
-    if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
-        net_for_info = net_without_ddp._orig_mod  # pylint: disable=protected-access
+    net_for_info = teacher_without_ddp
+    if args.compile is True and hasattr(teacher_without_ddp, "_orig_mod") is True:
+        net_for_info = teacher_without_ddp._orig_mod  # pylint: disable=protected-access
 
     if args.no_summary is False:
         torchinfo.summary(
             net_for_info,
             device=device,
-            input_size=(sample_shape, sample_shape),
-            dtypes=[model_dtype, model_dtype],
+            input_data=(
+                torch.rand(sample_shape),
+                all_ids.repeat(batch_size, 1),
+                all_ids.repeat(batch_size, 1)[:, : mask_size[0]],
+            ),
+            dtypes=[model_dtype],
             col_names=["input_size", "output_size", "kernel_size", "num_params"],
             depth=4,
             verbose=1 if args.rank == 0 else 0,
@@ -340,6 +442,8 @@ def train(args: argparse.Namespace) -> None:
         tic = time.time()
         net.train()
         running_loss = training_utils.SmoothedValue()
+        running_clustering_loss = training_utils.SmoothedValue()
+        running_target_entropy = training_utils.SmoothedValue()
 
         if args.distributed is True:
             train_sampler.set_epoch(epoch)
@@ -355,47 +459,87 @@ def train(args: argparse.Namespace) -> None:
 
         # Zero the parameter gradients
         optimizer.zero_grad()
+        clustering_optimizer.zero_grad()
 
-        for i, (_, (x, y), _) in enumerate(training_loader):
-            x = x.to(device, dtype=model_dtype, non_blocking=True)
-            y = y.to(device, dtype=model_dtype, non_blocking=True)
+        for i, (_, (images, masks), _) in enumerate(training_loader):
+            global_step = ((epoch - 1) * last_batch_idx) + i
+            images = images.to(device, dtype=model_dtype, non_blocking=True)
+            masks = masks.to(device, dtype=model_dtype, non_blocking=True)
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
 
+            # Mask handling
+            ids_keep = masking.get_ids_keep(masks)
+            predict_indices = masking.get_random_masked_indices(masks, n_predict)
+
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                loss = net(x, y)
+                (selected_assignments, clustering_loss) = teacher(
+                    images, all_ids.repeat(batch_size, 1), predict_indices
+                )
+                pred = student(images, ids_keep, predict_indices)
+                loss = -torch.sum(selected_assignments * F.log_softmax(pred / student_temp, dim=-1), dim=-1)
+                target_entropy = -torch.xlogy(selected_assignments, selected_assignments).sum(dim=-1).mean()
+
+            loss = loss.sum() / len(loss)
 
             if scaler is not None:
                 scaler.scale(loss).backward()
+                scaler.scale(clustering_loss).backward()
                 if optimizer_update is True:
                     if args.clip_grad_norm is not None:
                         scaler.unscale_(optimizer)
-                        torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
+                        scaler.unscale_(clustering_optimizer)
+                        torch.nn.utils.clip_grad_norm_(student.parameters(), args.clip_grad_norm)
 
                     scaler.step(optimizer)
+                    scaler.step(clustering_optimizer)
                     scaler.update()
                     optimizer.zero_grad()
+                    clustering_optimizer.zero_grad()
 
             else:
                 loss.backward()
+                clustering_loss.backward()
                 if optimizer_update is True:
                     if args.clip_grad_norm is not None:
-                        torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
+                        torch.nn.utils.clip_grad_norm_(student.parameters(), args.clip_grad_norm)
 
                     optimizer.step()
+                    clustering_optimizer.step()
                     optimizer.zero_grad()
+                    clustering_optimizer.zero_grad()
+
+            # EMA update for the teacher
+            with torch.no_grad():
+                m = momentum_schedule[global_step]
+                for param_q, param_k in zip(
+                    student_without_ddp.backbone.parameters(), teacher_without_ddp.backbone.parameters()
+                ):
+                    param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
 
             # Statistics
             running_loss.update(loss.detach())
+            running_clustering_loss.update(clustering_loss.detach())
+            running_target_entropy.update(target_entropy.detach())
 
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
                 running_loss.synchronize_between_processes(device)
+                running_clustering_loss.synchronize_between_processes(device)
+                running_target_entropy.synchronize_between_processes(device)
                 if args.rank == 0:
                     summary_writer.add_scalars(
                         "loss",
-                        {"training": running_loss.avg},
+                        {
+                            "training": running_loss.avg,
+                            "clustering": running_clustering_loss.avg,
+                        },
+                        ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
+                    )
+                    summary_writer.add_scalars(
+                        "performance",
+                        {"target_entropy": running_target_entropy.avg},
                         ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
                     )
 
@@ -410,8 +554,15 @@ def train(args: argparse.Namespace) -> None:
         epoch_loss = running_loss.global_avg
         logger.info(f"Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
 
+        epoch_clustering_loss = running_clustering_loss.global_avg
+        logger.info(f"Epoch {epoch}/{epochs-1} clustering_loss: {epoch_clustering_loss:.4f}")
+
+        epoch_target_entropy = running_target_entropy.global_avg
+        logger.info(f"Epoch {epoch}/{epochs-1} target_entropy: {epoch_target_entropy:.4f}")
+
         # Learning rate scheduler update
         scheduler.step()
+        clustering_scheduler.step()
         if last_lr != max(scheduler.get_last_lr()):
             last_lr = max(scheduler.get_last_lr())
             logger.info(f"Updated learning rate to: {last_lr}")
@@ -430,11 +581,13 @@ def train(args: argparse.Namespace) -> None:
                     scheduler,
                     scaler,
                     None,
+                    clustering_optimizer=clustering_optimizer.state_dict(),
+                    clustering_scheduler=clustering_scheduler.state_dict(),
                 )
                 fs_ops.checkpoint_model(
                     backbone_name,
                     epoch,
-                    model_to_save.backbone,
+                    model_to_save["teacher"].backbone,
                     signature,
                     {},
                     rgb_stats,
@@ -465,11 +618,13 @@ def train(args: argparse.Namespace) -> None:
             scheduler,
             scaler,
             None,
+            clustering_optimizer=clustering_optimizer.state_dict(),
+            clustering_scheduler=clustering_scheduler.state_dict(),
         )
         fs_ops.checkpoint_model(
             backbone_name,
             epoch,
-            model_to_save.backbone,
+            model_to_save["teacher"].backbone,
             signature,
             {},
             rgb_stats,
@@ -489,23 +644,26 @@ def get_args_parser() -> argparse.ArgumentParser:
         epilog=(
             "Usage examples\n"
             "==============\n"
-            "torchrun --nproc_per_node=2 -m birder.scripts.train_barlow_twins \\\n"
-            "    --network efficientnet_v2_s \\\n"
-            "    --opt lars \\\n"
-            "    --lr 0.2 \\\n"
-            "    --lr-scale 256 \\\n"
+            "torchrun --nproc_per_node=2 -m birder.scripts.train_capi \\\n"
+            "    --network rope_vitreg4_s14 \\\n"
+            "    --opt adamw \\\n"
+            "    --lr 0.001 \\\n"
+            "    --opt-betas 0.9 0.95 \\\n"
             "    --lr-scheduler cosine \\\n"
-            "    --warmup-epochs 10 \\\n"
+            "    --lr-cosine-min 1e-7 \\\n"
+            "    --warmup-epochs 40 \\\n"
             "    --batch-size 256 \\\n"
-            "    --epochs 800 \\\n"
-            "    --wd 0.000001 \\\n"
+            "    --epochs 400 \\\n"
+            "    --wd 0.1 \\\n"
+            "    --norm-wd 0.01 \\\n"
             "    --amp \\\n"
             "    --compile \\\n"
+            "    --compile-opt \\\n"
             "    --data-path data/training\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
-    parser.add_argument("-n", "--network", type=str, help="the neural network to train")
+    parser.add_argument("-n", "--network", type=str, help="the neural network to use")
     parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
     parser.add_argument(
         "--model-config",
@@ -515,7 +673,10 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
-    parser.add_argument("--off-lambda", type=float, default=0.0051, help="weight on off-diagonal terms")
+    parser.add_argument("--num-clusters", type=int, default=16384, help="clustering head width")
+    parser.add_argument("--mask-ratio", type=float, default=0.65, help="masking ratio")
+    parser.add_argument("--kept-mask-ratio", type=float, default=0.05, help="subsampling ratio for decoding")
+    parser.add_argument("--momentum-teacher", type=float, default=0.999, help="base EMA parameter for teacher update")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
         "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
@@ -542,14 +703,13 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--size", type=int, nargs="+", metavar=("H", "W"), help="image size (defaults to network recommendation)"
     )
-    parser.add_argument("--sync-bn", default=False, action="store_true", help="use synchronized BatchNorm")
     parser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
-    parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
+    parser.add_argument("--warmup-epochs", type=int, default=20, metavar="N", help="number of warmup epochs")
     parser.add_argument(
         "--aug-level",
         type=int,
         choices=[0, 1, 2, 3, 4],
-        default=2,
+        default=1,
         help="magnitude of augmentations (0 off -> 4 highest)",
     )
     parser.add_argument(
@@ -559,8 +719,8 @@ def get_args_parser() -> argparse.ArgumentParser:
         default="birder",
         help="rgb mean and std to use for normalization",
     )
-    parser.add_argument("--resize-min-scale", type=float, default=0.3, help="random resize min scale")
-    parser.add_argument("--epochs", type=int, default=400, metavar="N", help="number of training epochs")
+    parser.add_argument("--resize-min-scale", type=float, default=0.6, help="random resize min scale")
+    parser.add_argument("--epochs", type=int, default=200, metavar="N", help="number of training epochs")
     parser.add_argument(
         "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi step training)"
     )
@@ -572,10 +732,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="load optimizer, scheduler and scaler states when resuming",
     )
-    parser.add_argument("--load-scheduler", default=False, action="store_true", help="load scheduler only resuming")
     parser.add_argument("-t", "--tag", type=str, help="add training logs tag")
     parser.add_argument(
-        "--log-interval", type=int, default=100, metavar="N", help="how many steps between summary writes"
+        "--log-interval", type=int, default=50, metavar="N", help="how many steps between summary writes"
     )
     parser.add_argument(
         "-j",
@@ -617,6 +776,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--world-size", type=int, default=1, metavar="N", help="number of distributed processes")
     parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
+    parser.add_argument(
+        "--find-unused-parameters",
+        default=False,
+        action="store_true",
+        help="enable searching for unused parameters in DistributedDataParallel (may impact performance)",
+    )
     parser.add_argument("--clip-grad-norm", type=float, help="the maximum gradient norm")
     parser.add_argument("--gpu", type=int, metavar="ID", help="gpu id to use (ignored in distributed mode)")
     parser.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")
@@ -639,9 +804,6 @@ def validate_args(args: argparse.Namespace) -> None:
     assert args.load_states is False or (
         args.load_states is True and args.resume_epoch is not None
     ), "Load states must be from resumed training (--resume-epoch)"
-    assert (
-        args.load_scheduler is False or args.resume_epoch is not None
-    ), "Load scheduler must be from resumed training (--resume-epoch)"
     assert args.wds is True or len(args.data_path) >= 1
     assert args.wds is False or len(args.data_path) <= 1
     assert (

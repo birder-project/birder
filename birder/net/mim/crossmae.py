@@ -167,7 +167,7 @@ class CrossMAE(MIMBaseNet):
 
     def mask_tokens_grid(self, mask: torch.Tensor, ids_restore: torch.Tensor) -> torch.Tensor:
         N = ids_restore.size(0)
-        x = self.decoder_pos_embed.masked_select(mask.bool().unsqueeze(-1)).reshape(N, -1, self.mask_token.shape[-1])
+        x = self.decoder_pos_embed.masked_select(mask.bool().unsqueeze(-1)).reshape(N, -1, self.mask_token.size(-1))
         x = x + self.mask_token
 
         return x

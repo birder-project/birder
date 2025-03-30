@@ -200,6 +200,21 @@ registry.register_alias(
     config={"patch_size": 14, "num_layers": 12, "num_heads": 6, "hidden_dim": 384, "mlp_dim": 1536},
 )
 registry.register_alias(
+    "simple_vit_m32",
+    Simple_ViT,
+    config={"patch_size": 32, "num_layers": 12, "num_heads": 8, "hidden_dim": 512, "mlp_dim": 2048},
+)
+registry.register_alias(
+    "simple_vit_m16",
+    Simple_ViT,
+    config={"patch_size": 16, "num_layers": 12, "num_heads": 8, "hidden_dim": 512, "mlp_dim": 2048},
+)
+registry.register_alias(
+    "simple_vit_m14",
+    Simple_ViT,
+    config={"patch_size": 14, "num_layers": 12, "num_heads": 8, "hidden_dim": 512, "mlp_dim": 2048},
+)
+registry.register_alias(
     "simple_vit_b32",
     Simple_ViT,
     config={"patch_size": 32, "num_layers": 12, "num_heads": 12, "hidden_dim": 768, "mlp_dim": 3072},
@@ -238,4 +253,9 @@ registry.register_alias(
     "simple_vit_h14",
     Simple_ViT,
     config={"patch_size": 14, "num_layers": 32, "num_heads": 16, "hidden_dim": 1280, "mlp_dim": 5120},
+)
+registry.register_alias(  # From "Scaling Vision Transformers"
+    "simple_vit_g14",
+    Simple_ViT,
+    config={"patch_size": 14, "num_layers": 40, "num_heads": 16, "hidden_dim": 1408, "mlp_dim": 6144},
 )

@@ -283,6 +283,34 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertFalse(training_utils.is_dist_available_and_initialized())
         self.assertRegex(training_utils.training_log_name("something", torch.device("cpu")), "something__")
 
+    def test_smoothed_value(self) -> None:
+        smoothed_value = training_utils.SmoothedValue(window_size=4)
+        smoothed_value.update(1)
+        self.assertEqual(smoothed_value.value, 1)
+        self.assertEqual(smoothed_value.count, 1)
+        self.assertEqual(smoothed_value.total, 1)
+
+        smoothed_value.update(2)
+        self.assertEqual(smoothed_value.value, 2)
+        self.assertEqual(smoothed_value.count, 2)
+        self.assertEqual(smoothed_value.total, 3)
+
+        smoothed_value.update(3)
+        smoothed_value.update(4)
+        self.assertEqual(smoothed_value.value, 4)
+        self.assertEqual(smoothed_value.count, 4)
+        self.assertEqual(smoothed_value.total, 10)
+        self.assertEqual(smoothed_value.avg, 2.5)
+
+        smoothed_value.update(5)
+        self.assertEqual(smoothed_value.value, 5)
+        self.assertEqual(smoothed_value.count, 5)
+        self.assertEqual(smoothed_value.total, 15)
+        self.assertEqual(smoothed_value.avg, 3.5)
+        self.assertEqual(smoothed_value.global_avg, 3)
+
+        smoothed_value.synchronize_between_processes(torch.device("cpu"))
+
     def test_get_grad_norm(self) -> None:
         model = torch.nn.Sequential(
             torch.nn.Linear(1, 2, bias=True),
@@ -380,8 +408,54 @@ class TestMasking(unittest.TestCase):
         mask = generator(1)
         self.assertGreaterEqual((mask == 0).sum().item(), 32)
 
+    def test_roll_block_masking(self) -> None:
+        generator = masking.RollBlockMasking((8, 8), 64)
+        mask = generator(1)
+        self.assertEqual((mask == 1).sum().item(), 64)
+
+        mask = generator(4)
+        self.assertEqual((mask == 1).sum().item(), 4 * 64)
+
+        generator = masking.RollBlockMasking((8, 8), 32)
+        mask = generator(1)
+        self.assertGreaterEqual((mask == 0).sum().item(), 32)
+
+        generator = masking.RollBlockMasking((8, 8), 0)
+        mask = generator(1)
+        self.assertGreaterEqual((mask == 0).sum().item(), 64)
+
+    def test_inverse_roll_block_masking(self) -> None:
+        generator = masking.InverseRollBlockMasking((8, 8), 64)
+        mask = generator(1)
+        self.assertEqual((mask == 1).sum().item(), 64)
+
+        mask = generator(4)
+        self.assertEqual((mask == 1).sum().item(), 4 * 64)
+
+        generator = masking.InverseRollBlockMasking((8, 8), 32)
+        mask = generator(1)
+        self.assertGreaterEqual((mask == 0).sum().item(), 32)
+
+        generator = masking.InverseRollBlockMasking((8, 8), 0)
+        mask = generator(1)
+        self.assertGreaterEqual((mask == 0).sum().item(), 64)
+
     def test_uniform_masking(self) -> None:
         generator = masking.UniformMasking((8, 8), mask_ratio=0.25)
         mask = generator(2)
         self.assertEqual((mask == 0).sum().item(), 96)
         self.assertNotEqual(mask.dtype, torch.bool)
+
+        mask = generator(8)
+        self.assertEqual((mask == 0).sum().item(), 384)
+        self.assertNotEqual(mask.dtype, torch.bool)
+
+    def test_get_ids_keep(self) -> None:
+        mask = torch.tensor(
+            [
+                [0, 1, 1, 0],
+                [1, 0, 0, 1],
+            ]
+        )
+        ids_keep = masking.get_ids_keep(mask)
+        torch.testing.assert_close(ids_keep, torch.tensor([[0, 3], [1, 2]]))

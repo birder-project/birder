@@ -2,11 +2,13 @@ import logging
 import unittest
 
 import torch
+import torch.nn.functional as F
 
-from birder.common.masking import BlockMasking
+from birder.common import masking
 from birder.model_registry import registry
 from birder.net.ssl import barlow_twins
 from birder.net.ssl import byol
+from birder.net.ssl import capi
 from birder.net.ssl import dino_v1
 from birder.net.ssl import i_jepa
 from birder.net.ssl import ibot
@@ -34,6 +36,52 @@ class TestNetSSL(unittest.TestCase):
         # Test network
         out = net(torch.rand((batch_size, 3, 96, 96)))
         self.assertFalse(torch.isnan(out).any())
+
+    def test_capi(self) -> None:
+        batch_size = 4
+        size = (192, 192)
+        num_clusters = 320
+        backbone = registry.net_factory("vit_s16", 3, 0, size=size)
+        input_size = (size[0] // backbone.stem_stride, size[1] // backbone.stem_stride)
+        seq_len = input_size[0] * input_size[1]
+        n_masked = int(seq_len * 0.65)
+        prediction_subsampling = 0.05
+
+        teacher_head = capi.OnlineClustering(
+            backbone.embedding_size, num_clusters, bias=True, n_sk_iter=3, target_temp=0.06, pred_temp=0.12
+        )
+        teacher = capi.CAPITeacher(backbone.input_channels, backbone, teacher_head)
+        student_head = capi.L2NormLinear(backbone.embedding_size, num_clusters)
+        student = capi.CAPIStudent(backbone.input_channels, backbone, student_head)
+        mask_generator = masking.InverseRollBlockMasking(input_size, n_masked)
+
+        masks = mask_generator(batch_size)
+        ids_keep = masking.get_ids_keep(masks)
+        n_predict = int(n_masked * prediction_subsampling)
+        predict_indices = masking.get_random_masked_indices(masks, n_predict)
+        masks = masking.mask_from_indices(predict_indices, seq_len)
+
+        x = torch.rand(batch_size, 3, *size)
+        all_ids = torch.arange(input_size[0] * input_size[1]).unsqueeze(0).repeat(batch_size, 1)
+
+        #
+        # Simulate a full step
+        #
+
+        # Teacher
+        (selected_assignments, clustering_loss) = teacher(x, all_ids, predict_indices)
+        self.assertFalse(torch.isnan(clustering_loss).any())
+        self.assertFalse(torch.isnan(selected_assignments).any())
+        self.assertEqual(selected_assignments.size(), (batch_size * n_predict, num_clusters))
+
+        # Student
+        pred = student(x, ids_keep, predict_indices)
+        self.assertEqual(pred.size(), (masks.count_nonzero().item(), num_clusters))
+        self.assertFalse(torch.isnan(pred).any())
+
+        # Loss
+        loss = -torch.sum(selected_assignments * F.log_softmax(pred / 0.12, dim=-1), dim=-1)
+        self.assertFalse(torch.isnan(loss.sum() / len(loss)).any())
 
     def test_dino_v1(self) -> None:
         batch_size = 4
@@ -158,7 +206,9 @@ class TestNetSSL(unittest.TestCase):
             torch.rand((batch_size, 3, 96, 96)),
         ]
 
-        mask_generator = BlockMasking((128 // backbone.stem_stride, 128 // backbone.stem_stride), 1, 3, 0.66, 1.5)
+        mask_generator = masking.BlockMasking(
+            (128 // backbone.stem_stride, 128 // backbone.stem_stride), 1, 3, 0.66, 1.5
+        )
         masks = mask_generator(batch_size * 2)
 
         (embedding_g, features_g) = net(torch.concat(images[:2], dim=0), masks=masks)

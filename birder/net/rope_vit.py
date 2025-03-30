@@ -617,6 +617,42 @@ registry.register_alias(
     },
 )
 registry.register_alias(
+    "rope_vit_m32",
+    RoPE_ViT,
+    config={
+        "patch_size": 32,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "rope_vit_m16",
+    RoPE_ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "rope_vit_m14",
+    RoPE_ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
     "rope_vit_b32",
     RoPE_ViT,
     config={
@@ -712,6 +748,18 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
+registry.register_alias(  # From "Scaling Vision Transformers"
+    "rope_vit_g14",
+    RoPE_ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 40,
+        "num_heads": 16,
+        "hidden_dim": 1408,
+        "mlp_dim": 6144,
+        "drop_path_rate": 0.1,
+    },
+)
 
 # With registers
 registry.register_alias(
@@ -749,6 +797,45 @@ registry.register_alias(
         "num_heads": 6,
         "hidden_dim": 384,
         "mlp_dim": 1536,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "rope_vitreg4_m32",
+    RoPE_ViT,
+    config={
+        "patch_size": 32,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "rope_vitreg4_m16",
+    RoPE_ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "rope_vitreg4_m14",
+    RoPE_ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
         "num_reg_tokens": 4,
         "drop_path_rate": 0.0,
     },
@@ -853,6 +940,19 @@ registry.register_alias(
         "num_heads": 16,
         "hidden_dim": 1280,
         "mlp_dim": 5120,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(  # From "Scaling Vision Transformers"
+    "rope_vitreg4_g14",
+    RoPE_ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 40,
+        "num_heads": 16,
+        "hidden_dim": 1408,
+        "mlp_dim": 6144,
         "num_reg_tokens": 4,
         "drop_path_rate": 0.1,
     },

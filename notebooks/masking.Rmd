@@ -39,8 +39,8 @@ plt.rcParams["figure.figsize"] = [10, 10]
 ```{python}
 def show_image(image, title=""):
     rgb_stats = get_rgb_stats("birder")
-    mean = np.array(rgb_stats["mean"])
-    std = np.array(rgb_stats["std"])
+    mean = torch.tensor(rgb_stats["mean"])
+    std = torch.tensor(rgb_stats["std"])
     # image is [H, W, 3]
     assert image.shape[2] == 3
     plt.imshow(torch.clip((image * std + mean) * 255, 0, 255).int())
@@ -99,6 +99,44 @@ show_image(orig_img_tensor, "Original")
 
 plt.subplot(1, 2, 2)
 show_image(masked_img_tensor, "Masked")
+```
+
+### Roll Block Masking
+
+```{python}
+lib.set_random_seeds(8)
+
+mask_generator = masking.RollBlockMasking(input_size, num_masking_patches=int(input_size[0] * input_size[1] * 0.5))
+mask = mask_generator(1)
+masked_img_tensor = masking.mask_tensor(img_tensor, mask, patch_factor=patch_size)
+masked_img_tensor = torch.einsum("nchw->nhwc", masked_img_tensor).squeeze()
+```
+
+```{python}
+plt.subplot(1, 2, 1)
+show_image(orig_img_tensor, "Original")
+
+plt.subplot(1, 2, 2)
+show_image(masked_img_tensor, "Rolled Block Mask")
+```
+
+```{python}
+lib.set_random_seeds(8)
+
+mask_generator = masking.InverseRollBlockMasking(
+    input_size, num_masking_patches=int(input_size[0] * input_size[1] * 0.5)
+)
+mask = mask_generator(1)
+masked_img_tensor = masking.mask_tensor(img_tensor, mask, patch_factor=patch_size)
+masked_img_tensor = torch.einsum("nchw->nhwc", masked_img_tensor).squeeze()
+```
+
+```{python}
+plt.subplot(1, 2, 1)
+show_image(orig_img_tensor, "Original")
+
+plt.subplot(1, 2, 2)
+show_image(masked_img_tensor, "Inverse Rolled Block Mask")
 ```
 
 ### JEPA Multi Block Masking

@@ -162,6 +162,7 @@ def _checkpoint_states(
     scheduler: Optional[torch.optim.lr_scheduler._LRScheduler],
     scaler: Optional[torch.amp.grad_scaler.GradScaler],
     model_base: Optional[torch.nn.Module],
+    **extra_states: Optional[dict[str, Any]],
 ) -> None:
     if optimizer is None or scheduler is None:
         return
@@ -182,6 +183,7 @@ def _checkpoint_states(
             "scheduler_state": scheduler.state_dict(),
             "scaler_state": scaler_state,
             "model_base_state": model_base_state,
+            **extra_states,
         },
         states_path,
     )
@@ -201,6 +203,7 @@ def checkpoint_model(
     *,
     external_config: Optional[dict[str, Any]] = None,
     external_backbone_config: Optional[dict[str, Any]] = None,
+    **extra_states: Optional[dict[str, Any]],
 ) -> None:
     kwargs = {}
     if external_config is not None:
@@ -224,7 +227,7 @@ def checkpoint_model(
         path,
     )
 
-    _checkpoint_states(states_path, optimizer, scheduler, scaler, model_base)
+    _checkpoint_states(states_path, optimizer, scheduler, scaler, model_base, **extra_states)
 
 
 class TrainingStates(NamedTuple):
@@ -233,20 +236,30 @@ class TrainingStates(NamedTuple):
     scaler_state: Optional[dict[str, Any]]
     model_base_state: Optional[dict[str, Any]]
     ema_model_state: Optional[dict[str, Any]] = None
+    extra_states: Optional[dict[str, Any]] = None
 
     @classmethod
     def empty(cls) -> "TrainingStates":
-        return cls(None, None, None, None)
+        return cls(None, None, None, None, None)
 
 
 def _load_states(states_path: Path, device: torch.device) -> TrainingStates:
     if states_path.exists() is True:
         states_dict: dict[str, Any] = torch.load(states_path, map_location=device, weights_only=True)
+        optimizer_state = states_dict.pop("optimizer_state")
+        scheduler_state = states_dict.pop("scheduler_state")
+        scaler_state = states_dict.pop("scaler_state")
+        model_base_state = states_dict.pop("model_base_state")
+        extra_states = {}
+        for state in states_dict:
+            extra_states[state] = states_dict[state]
+
         return TrainingStates(
-            optimizer_state=states_dict["optimizer_state"],
-            scheduler_state=states_dict["scheduler_state"],
-            scaler_state=states_dict["scaler_state"],
-            model_base_state=states_dict["model_base_state"],
+            optimizer_state=optimizer_state,
+            scheduler_state=scheduler_state,
+            scaler_state=scaler_state,
+            model_base_state=model_base_state,
+            extra_states=extra_states,
         )
 
     return TrainingStates.empty()

@@ -425,7 +425,9 @@ def train(args: argparse.Namespace) -> None:
     student_without_ddp = student
     teacher_without_ddp = teacher
     if args.distributed is True:
-        student = torch.nn.parallel.DistributedDataParallel(student, device_ids=[args.gpu])
+        student = torch.nn.parallel.DistributedDataParallel(
+            student, device_ids=[args.gpu], find_unused_parameters=args.find_unused_parameters
+        )
         teacher = torch.nn.parallel.DistributedDataParallel(teacher, device_ids=[args.gpu])
         student_without_ddp = student.module
         teacher_without_ddp = teacher.module
@@ -491,7 +493,7 @@ def train(args: argparse.Namespace) -> None:
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
-        running_loss = 0.0
+        running_loss = training_utils.SmoothedValue()
         training_accuracy.reset()
 
         if args.distributed is True:
@@ -576,7 +578,7 @@ def train(args: argparse.Namespace) -> None:
                     param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
 
             # Statistics
-            running_loss += loss.item() * images[0].size(0)
+            running_loss.update(loss.detach())
 
             probs_teacher = teacher_embedding.chunk(2)  # Per global crop
             probs_student = student_embedding.chunk(2)
@@ -586,12 +588,12 @@ def train(args: argparse.Namespace) -> None:
 
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
-                interval_loss = training_utils.reduce_across_processes(running_loss, device)
+                running_loss.synchronize_between_processes(device)
                 interval_accuracy = training_accuracy.compute()
                 if args.rank == 0:
                     summary_writer.add_scalars(
                         "loss",
-                        {"training": interval_loss / (i * batch_size * args.world_size)},
+                        {"training": running_loss.avg},
                         ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
                     )
                     summary_writer.add_scalars(
@@ -607,10 +609,8 @@ def train(args: argparse.Namespace) -> None:
         if args.rank == 0:
             progress.close()
 
-        epoch_loss = running_loss / len(training_dataset)
-
         # Epoch training metrics
-        epoch_loss = training_utils.reduce_across_processes(epoch_loss, device)
+        epoch_loss = running_loss.global_avg
         logger.info(f"Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
 
         accuracy = training_accuracy.compute()

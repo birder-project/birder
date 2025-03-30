@@ -434,8 +434,8 @@ def train(args: argparse.Namespace) -> None:
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         student.train()
-        running_loss = 0.0
-        running_val_loss = 0.0
+        running_loss = training_utils.SmoothedValue()
+        running_val_loss = training_utils.SmoothedValue()
         training_metrics.reset()
         validation_metrics.reset()
 
@@ -509,7 +509,7 @@ def train(args: argparse.Namespace) -> None:
                     model_ema.n_averaged.fill_(0)  # pylint: disable=no-member
 
             # Statistics
-            running_loss += loss.item() * inputs.size(0)
+            running_loss.update(loss.detach())
             if targets.ndim == 2:
                 targets = targets.argmax(dim=1)
 
@@ -517,12 +517,12 @@ def train(args: argparse.Namespace) -> None:
 
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
-                interval_loss = training_utils.reduce_across_processes(running_loss, device)
+                running_loss.synchronize_between_processes(device)
                 training_metrics_dict = training_metrics.compute()
                 if args.rank == 0:
                     summary_writer.add_scalars(
                         "loss",
-                        {"training": interval_loss / (i * batch_size * args.world_size)},
+                        {"training": running_loss.avg},
                         ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
                     )
 
@@ -540,10 +540,8 @@ def train(args: argparse.Namespace) -> None:
         if args.rank == 0:
             progress.close()
 
-        epoch_loss = running_loss / len(training_dataset)
-
         # Epoch training metrics
-        epoch_loss = training_utils.reduce_across_processes(epoch_loss, device)
+        epoch_loss = running_loss.global_avg
         logger.info(f"Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
 
         for metric, value in training_metrics.compute().items():
@@ -569,7 +567,7 @@ def train(args: argparse.Namespace) -> None:
                     val_loss = criterion(outputs, targets)
 
                 # Statistics
-                running_val_loss += val_loss.item() * inputs.size(0)
+                running_val_loss.update(val_loss.detach())
                 validation_metrics(outputs, targets)
 
                 # Update progress bar
@@ -579,8 +577,8 @@ def train(args: argparse.Namespace) -> None:
         if args.rank == 0:
             progress.close()
 
-        epoch_val_loss = running_val_loss / len(validation_dataset)
-        epoch_val_loss = training_utils.reduce_across_processes(epoch_val_loss, device)
+        running_val_loss.synchronize_between_processes(device)
+        epoch_val_loss = running_val_loss.global_avg
         validation_metrics_dict = validation_metrics.compute()
 
         # Learning rate scheduler update

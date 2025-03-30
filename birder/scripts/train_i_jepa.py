@@ -360,7 +360,9 @@ def train(args: argparse.Namespace) -> None:
     target_encoder_without_ddp = target_encoder
     # predictor_without_ddp = predictor
     if args.distributed is True:
-        encoder = torch.nn.parallel.DistributedDataParallel(encoder, device_ids=[args.gpu])
+        encoder = torch.nn.parallel.DistributedDataParallel(
+            encoder, device_ids=[args.gpu], find_unused_parameters=args.find_unused_parameters
+        )
         target_encoder = torch.nn.parallel.DistributedDataParallel(target_encoder, device_ids=[args.gpu])
         predictor = torch.nn.parallel.DistributedDataParallel(predictor, device_ids=[args.gpu])
         encoder_without_ddp = encoder.module
@@ -423,7 +425,7 @@ def train(args: argparse.Namespace) -> None:
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
-        running_loss = 0.0
+        running_loss = training_utils.SmoothedValue()
 
         if args.distributed is True:
             train_sampler.set_epoch(epoch)
@@ -502,15 +504,15 @@ def train(args: argparse.Namespace) -> None:
                     param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
 
             # Statistics
-            running_loss += loss.item() * images.size(0)
+            running_loss.update(loss.detach())
 
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
-                interval_loss = training_utils.reduce_across_processes(running_loss, device)
+                running_loss.synchronize_between_processes(device)
                 if args.rank == 0:
                     summary_writer.add_scalars(
                         "loss",
-                        {"training": interval_loss / (i * batch_size * args.world_size)},
+                        {"training": running_loss.avg},
                         ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
                     )
 
@@ -521,10 +523,8 @@ def train(args: argparse.Namespace) -> None:
         if args.rank == 0:
             progress.close()
 
-        epoch_loss = running_loss / len(training_dataset)
-
         # Epoch training metrics
-        epoch_loss = training_utils.reduce_across_processes(epoch_loss, device)
+        epoch_loss = running_loss.global_avg
         logger.info(f"Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
 
         # Learning rate scheduler update
