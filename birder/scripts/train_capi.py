@@ -307,7 +307,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Optimizer and learning rate scheduler
     optimizer = training_utils.get_optimizer(parameters, lr, args)
-    clustering_optimizer = training_utils.get_optimizer(clustering_parameters, clustering_lr, args)
+    clustering_optimizer = torch.optim.AdamW(clustering_parameters, lr=clustering_lr, betas=[0.9, 0.95])
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
         optimizer,
@@ -676,7 +676,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num-clusters", type=int, default=16384, help="clustering head width")
     parser.add_argument("--mask-ratio", type=float, default=0.65, help="masking ratio")
     parser.add_argument("--kept-mask-ratio", type=float, default=0.05, help="subsampling ratio for decoding")
-    parser.add_argument("--momentum-teacher", type=float, default=0.999, help="base EMA parameter for teacher update")
+    parser.add_argument("--momentum-teacher", type=float, default=0.998, help="base EMA parameter for teacher update")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
         "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"

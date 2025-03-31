@@ -217,6 +217,7 @@ def optimizer_parameter_groups(
         torch.nn.modules.batchnorm._BatchNorm,
         torch.nn.LayerNorm,
         torch.nn.GroupNorm,
+        torch.nn.RMSNorm,
         torch.nn.modules.instancenorm._InstanceNorm,
         torch.nn.LocalResponseNorm,
     )
@@ -557,7 +558,7 @@ def init_distributed_mode(args: argparse.Namespace) -> None:
     dist.init_process_group(
         backend=args.dist_backend, init_method=args.dist_url, world_size=args.world_size, rank=args.rank
     )
-    dist.barrier()
+    dist.barrier(device_ids=[args.rank])
     if args.rank != 0:
         disable_print()
         logging.disable(logging.CRITICAL)
@@ -590,13 +591,13 @@ def is_dist_available_and_initialized() -> bool:
     return True
 
 
-def reduce_across_processes(value: torch.Tensor | float, device: torch.device) -> float:
+def reduce_across_processes(value: torch.Tensor | float, device: torch.device, op: dist.ReduceOp) -> float:
     if is_dist_available_and_initialized() is False:
         return value
 
     value = to_tensor(value, device)
     dist.barrier()
-    dist.all_reduce(value)
+    dist.all_reduce(value, op)
 
     return value.item()  # type: ignore[no-any-return]
 

@@ -79,6 +79,8 @@ class OnlineClustering(nn.Module):
         self.pred_temp = pred_temp
         self.positionwise_sk = positionwise_sk
         self.layer = nn.Linear(in_dim, out_dim, bias=bias)
+
+        # Weight initialization
         nn.init.normal_(self.layer.weight, std=1.0)
         if bias is True:
             nn.init.zeros_(self.layer.bias)
@@ -106,7 +108,8 @@ class L2NormLinear(nn.Module):
             self.last_layer.parametrizations.weight.original0.requires_grad = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = F.normalize(x, dim=-1, p=2)
+        eps = 1e-6 if x.dtype == torch.float16 else 1e-12
+        x = F.normalize(x, dim=-1, p=2, eps=eps)
         return self.last_layer(x)
 
 
@@ -137,9 +140,9 @@ class CrossAttention(nn.Module):
 class CrossAttentionBlock(nn.Module):
     def __init__(self, encoder_dim: int, decoder_dim: int, num_heads: int, mlp_ratio: float) -> None:
         super().__init__()
-        self.norm1 = nn.LayerNorm(decoder_dim, eps=1e-6)
+        self.norm1 = nn.RMSNorm(decoder_dim, eps=1e-5)
         self.cross_attn = CrossAttention(encoder_dim, decoder_dim, num_heads=num_heads)
-        self.norm2 = nn.LayerNorm(decoder_dim, eps=1e-6)
+        self.norm2 = nn.RMSNorm(decoder_dim, eps=1e-5)
         self.mlp = MLP(decoder_dim, [int(decoder_dim * mlp_ratio), decoder_dim], activation_layer=nn.GELU)
 
     def forward(self, tgt: torch.Tensor, memory: torch.Tensor) -> torch.Tensor:
@@ -170,17 +173,30 @@ class Decoder(nn.Module):
         for _ in range(decoder_depth):
             self.decoder_layers.append(CrossAttentionBlock(encoder_dim, decoder_embed_dim, num_heads=16, mlp_ratio=4.0))
 
-        self.decoder_norm = nn.LayerNorm(decoder_embed_dim, eps=1e-6)
+        self.decoder_norm = nn.RMSNorm(decoder_embed_dim, elementwise_affine=False)
 
-    def mask_tokens_grid(self, mask: torch.Tensor, ids_restore: torch.Tensor) -> torch.Tensor:
-        N = ids_restore.size(0)
+        # Weight initialization
+        nn.init.normal_(self.mask_token, std=0.02)
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+            elif isinstance(m, (nn.LayerNorm, nn.RMSNorm)) and m.elementwise_affine is True:
+                nn.init.ones_(m.weight)
+                if hasattr(m, "bias") and m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+    def mask_tokens_grid(self, mask: torch.Tensor) -> torch.Tensor:
+        N = mask.size(0)
         x = self.decoder_pos_embed.masked_select(mask.bool().unsqueeze(-1)).reshape(N, -1, self.mask_token.size(-1))
         x = x + self.mask_token
 
         return x
 
-    def forward(self, memory: torch.Tensor, mask: torch.Tensor, ids_restore: torch.Tensor) -> torch.Tensor:
-        x = self.mask_tokens_grid(mask, ids_restore)
+    def forward(self, memory: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        x = self.mask_tokens_grid(mask)
 
         for _, layer in enumerate(self.decoder_layers):
             x = layer(x, memory)
@@ -211,7 +227,7 @@ class CAPIStudent(SSLBaseNet):
         x = self.backbone.masked_encoding_omission(x, ids_keep)
 
         mask = masking.mask_from_indices(ids_predict, self.seq_len)
-        x = self.decoder(x, mask, ids_predict)
+        x = self.decoder(x, mask)
         x = self.head(x.flatten(0, 1))
 
         return x

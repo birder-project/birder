@@ -128,8 +128,8 @@ class CrossMAE(MIMBaseNet):
                     nn.init.zeros_(m.bias)
 
             elif isinstance(m, nn.LayerNorm):
-                nn.init.zeros_(m.bias)
                 nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
 
     def patchify(self, imgs: torch.Tensor) -> torch.Tensor:
         """
@@ -165,15 +165,15 @@ class CrossMAE(MIMBaseNet):
 
         return imgs
 
-    def mask_tokens_grid(self, mask: torch.Tensor, ids_restore: torch.Tensor) -> torch.Tensor:
-        N = ids_restore.size(0)
+    def mask_tokens_grid(self, mask: torch.Tensor) -> torch.Tensor:
+        N = mask.size(0)
         x = self.decoder_pos_embed.masked_select(mask.bool().unsqueeze(-1)).reshape(N, -1, self.mask_token.size(-1))
         x = x + self.mask_token
 
         return x
 
-    def forward_decoder(self, memory: torch.Tensor, mask: torch.Tensor, ids_restore: torch.Tensor) -> torch.Tensor:
-        x = self.mask_tokens_grid(mask, ids_restore)
+    def forward_decoder(self, memory: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        x = self.mask_tokens_grid(mask)
         memory = self.wfm(memory)
 
         for i, layer in enumerate(self.decoder_layers):
@@ -201,12 +201,10 @@ class CrossMAE(MIMBaseNet):
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         seq_len = (self.size[0] // self.encoder.stem_stride) * (self.size[1] // self.encoder.stem_stride)
-        (mask, ids_keep, ids_restore) = uniform_mask(
-            x.size(0), seq_len, self.mask_ratio, self.kept_mask_ratio, device=x.device
-        )
+        (mask, ids_keep, _) = uniform_mask(x.size(0), seq_len, self.mask_ratio, self.kept_mask_ratio, device=x.device)
 
         latent = self.encoder.masked_encoding_omission(x, ids_keep, return_all_features=True)
-        pred = self.forward_decoder(latent, mask, ids_restore)
+        pred = self.forward_decoder(latent, mask)
         loss = self.forward_loss(x, pred, mask)
 
         return {"loss": loss, "pred": pred, "mask": mask}

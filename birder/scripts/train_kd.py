@@ -434,7 +434,7 @@ def train(args: argparse.Namespace) -> None:
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         student.train()
-        running_loss = training_utils.SmoothedValue()
+        running_loss = training_utils.SmoothedValue(window_size=64)
         running_val_loss = training_utils.SmoothedValue()
         training_metrics.reset()
         validation_metrics.reset()

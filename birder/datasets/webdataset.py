@@ -75,7 +75,7 @@ def wds_size(wds_path: str, device: torch.device) -> int:
     for batch in dataloader:
         size += len(batch)
 
-    size = reduce_across_processes(size, device)  # type: ignore
+    size = reduce_across_processes(size, device, op=torch.distributed.ReduceOp.SUM)  # type: ignore
 
     return size
 

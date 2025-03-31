@@ -38,10 +38,10 @@ torchrun --nproc_per_node=2 train.py --network regnet_x_4g --tag byol --lr 0.1 -
 
 ### CAPI
 
-#### CAPI: ViTReg4 s14
+#### CAPI: RoPE ViTReg4 s14
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vitreg4_s14 --opt adamw --lr 0.001 --lr-scale 2048 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 256 --epochs 400 --wd 0.1 --norm-wd 0.01 --amp --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vitreg4_s14 --opt adamw --lr 0.001 --lr-scale 4096 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 256 --epochs 400 --wd 0.1 --norm-wd 0.01 --amp --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Fine-tuning, first stage - linear probing
@@ -53,7 +53,7 @@ torchrun --nproc_per_node=2 train.py --network rope_vitreg4_s14 --tag capi --opt
 #### CAPI: RoPE ViTReg4 m14
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vitreg4_m14 --opt adamw --lr 0.001 --lr-scale 2048 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 256 --epochs 200 --wd 0.1 --norm-wd 0.01 --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vitreg4_m14 --opt adamw --lr 0.001 --lr-scale 4096 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 256 --epochs 200 --wd 0.1 --norm-wd 0.01 --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Fine-tuning, first stage - linear probing
@@ -65,7 +65,7 @@ torchrun --nproc_per_node=2 train.py --network rope_vitreg4_m14 --tag capi --opt
 #### CAPI: RoPE SoViT reg4 150m p14
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vitreg4_so150m_p14_ap --opt adamw --lr 0.001 --lr-scale 2048 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 192 --epochs 200 --wd 0.1 --norm-wd 0.01 --amp --amp-dtype bfloat16 --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vitreg4_so150m_p14_ap --opt adamw --lr 0.001 --lr-scale 4096 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 192 --epochs 200 --wd 0.1 --norm-wd 0.01 --amp --amp-dtype bfloat16 --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 ### DINO v1
