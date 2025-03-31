@@ -286,14 +286,7 @@ def train(args: argparse.Namespace) -> None:
     # Training parameter groups
     custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
     parameters = training_utils.optimizer_parameter_groups(
-        net.student,
-        args.wd,
-        norm_weight_decay=args.norm_wd,
-        custom_keys_weight_decay=custom_keys_weight_decay,
-        layer_decay=args.layer_decay,
-    )
-    clustering_parameters = training_utils.optimizer_parameter_groups(
-        net.teacher.head,
+        student,
         args.wd,
         norm_weight_decay=args.norm_wd,
         custom_keys_weight_decay=custom_keys_weight_decay,
@@ -302,12 +295,12 @@ def train(args: argparse.Namespace) -> None:
 
     # Learning rate scaling
     lr = training_utils.scale_lr(args)
-    clustering_lr = lr // 2
+    clustering_lr = lr / 2
     grad_accum_steps: int = args.grad_accum_steps
 
     # Optimizer and learning rate scheduler
     optimizer = training_utils.get_optimizer(parameters, lr, args)
-    clustering_optimizer = torch.optim.AdamW(clustering_parameters, lr=clustering_lr, betas=[0.9, 0.95])
+    clustering_optimizer = torch.optim.AdamW(teacher.head.parameters(), lr=clustering_lr, betas=[0.9, 0.95])
     scheduler = training_utils.get_scheduler(
         args.lr_scheduler,
         optimizer,
@@ -342,6 +335,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Gradient scaler and AMP related tasks
     (scaler, amp_dtype) = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
+    (clustering_scaler, _) = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
 
     # Load states
     if args.load_states is True:
@@ -351,6 +345,7 @@ def train(args: argparse.Namespace) -> None:
         clustering_scheduler.load_state_dict(training_states.extra_states["clustering_scheduler"])  # type: ignore
         if scaler is not None:
             scaler.load_state_dict(training_states.scaler_state)
+            clustering_scaler.load_state_dict(training_states.extra_states["clustering_scaler"])  # type: ignore
 
     last_lr = max(scheduler.get_last_lr())
     if args.plot_lr is True:
@@ -477,6 +472,21 @@ def train(args: argparse.Namespace) -> None:
                 (selected_assignments, clustering_loss) = teacher(
                     images, all_ids.repeat(batch_size, 1), predict_indices
                 )
+
+            if clustering_scaler is not None:
+                clustering_scaler.scale(clustering_loss).backward()
+                if optimizer_update is True:
+                    clustering_scaler.step(clustering_optimizer)
+                    clustering_scaler.update()
+                    clustering_optimizer.zero_grad()
+
+            else:
+                clustering_loss.backward()
+                if optimizer_update is True:
+                    clustering_optimizer.step()
+                    clustering_optimizer.zero_grad()
+
+            with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
                 pred = student(images, ids_keep, predict_indices)
                 loss = -torch.sum(selected_assignments * F.log_softmax(pred / student_temp, dim=-1), dim=-1)
                 target_entropy = -torch.xlogy(selected_assignments, selected_assignments).sum(dim=-1).mean()
@@ -485,30 +495,23 @@ def train(args: argparse.Namespace) -> None:
 
             if scaler is not None:
                 scaler.scale(loss).backward()
-                scaler.scale(clustering_loss).backward()
                 if optimizer_update is True:
                     if args.clip_grad_norm is not None:
                         scaler.unscale_(optimizer)
-                        scaler.unscale_(clustering_optimizer)
                         torch.nn.utils.clip_grad_norm_(student.parameters(), args.clip_grad_norm)
 
                     scaler.step(optimizer)
-                    scaler.step(clustering_optimizer)
                     scaler.update()
                     optimizer.zero_grad()
-                    clustering_optimizer.zero_grad()
 
             else:
                 loss.backward()
-                clustering_loss.backward()
                 if optimizer_update is True:
                     if args.clip_grad_norm is not None:
                         torch.nn.utils.clip_grad_norm_(student.parameters(), args.clip_grad_norm)
 
                     optimizer.step()
-                    clustering_optimizer.step()
                     optimizer.zero_grad()
-                    clustering_optimizer.zero_grad()
 
             # EMA update for the teacher
             with torch.no_grad():
@@ -568,6 +571,13 @@ def train(args: argparse.Namespace) -> None:
             logger.info(f"Updated learning rate to: {last_lr}")
 
         if args.rank == 0:
+            extra_states = {
+                "clustering_optimizer": clustering_optimizer.state_dict(),
+                "clustering_scheduler": clustering_scheduler.state_dict(),
+            }
+            if clustering_scaler is not None:
+                extra_states.update({"clustering_scaler": clustering_scaler.state_dict()})
+
             # Checkpoint model
             if epoch % args.save_frequency == 0:
                 fs_ops.checkpoint_model(
@@ -581,8 +591,7 @@ def train(args: argparse.Namespace) -> None:
                     scheduler,
                     scaler,
                     None,
-                    clustering_optimizer=clustering_optimizer.state_dict(),
-                    clustering_scheduler=clustering_scheduler.state_dict(),
+                    **extra_states,
                 )
                 fs_ops.checkpoint_model(
                     backbone_name,
@@ -607,6 +616,13 @@ def train(args: argparse.Namespace) -> None:
 
     # Checkpoint model
     if args.distributed is False or (args.distributed is True and args.rank == 0):
+        extra_states = {
+            "clustering_optimizer": clustering_optimizer.state_dict(),
+            "clustering_scheduler": clustering_scheduler.state_dict(),
+        }
+        if clustering_scaler is not None:
+            extra_states.update({"clustering_scaler": clustering_scaler.state_dict()})
+
         fs_ops.checkpoint_model(
             network_name,
             epoch,
@@ -618,8 +634,7 @@ def train(args: argparse.Namespace) -> None:
             scheduler,
             scaler,
             None,
-            clustering_optimizer=clustering_optimizer.state_dict(),
-            clustering_scheduler=clustering_scheduler.state_dict(),
+            **extra_states,
         )
         fs_ops.checkpoint_model(
             backbone_name,
@@ -676,7 +691,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num-clusters", type=int, default=16384, help="clustering head width")
     parser.add_argument("--mask-ratio", type=float, default=0.65, help="masking ratio")
     parser.add_argument("--kept-mask-ratio", type=float, default=0.05, help="subsampling ratio for decoding")
-    parser.add_argument("--momentum-teacher", type=float, default=0.998, help="base EMA parameter for teacher update")
+    parser.add_argument("--momentum-teacher", type=float, default=0.999, help="base EMA parameter for teacher update")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
         "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
