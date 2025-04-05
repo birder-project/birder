@@ -14,6 +14,7 @@ from typing import Optional
 import torch
 from torch import nn
 
+from birder.common.masking import uniform_mask
 from birder.net.hiera import Hiera
 from birder.net.hiera import HieraBlock
 from birder.net.hiera import undo_windowing
@@ -58,6 +59,7 @@ class MAE_Hiera(MIMBaseNet):
         encoder_dim = self.encoder.encoding_size
         decoder_embed_dim = 512
         decoder_depth = 8
+        decoder_num_heads = 16
         self.patch_size = self.encoder.mask_unit_size[0] * self.encoder.patch_stride[0]
 
         self.mask_unit_spatial_shape_final = [
@@ -102,7 +104,7 @@ class MAE_Hiera(MIMBaseNet):
                 HieraBlock(
                     dim=decoder_embed_dim,
                     dim_out=decoder_embed_dim,
-                    heads=16,
+                    heads=decoder_num_heads,
                     mlp_ratio=4.0,
                     drop_path=0.0,
                     q_stride=1,
@@ -165,8 +167,13 @@ class MAE_Hiera(MIMBaseNet):
         return imgs
 
     def forward_encoder(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        # Tokens selected for masking at mask unit level
+        num_windows = math.prod(self.encoder.mask_spatial_shape)
+
+        (mask, _, _) = uniform_mask(x.size(0), num_windows, self.mask_ratio)
+
         # Get multi-scale representations from encoder
-        (intermediates, mask) = self.encoder.masked_encoding(x, self.mask_ratio)
+        (intermediates, mask) = self.encoder.masked_encoding(x, mask)
 
         # Resolution unchanged after q_pool stages, so skip those features
         intermediates = intermediates[: self.encoder.q_pool] + intermediates[-1:]

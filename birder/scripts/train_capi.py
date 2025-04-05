@@ -209,7 +209,6 @@ def train(args: argparse.Namespace) -> None:
     rgb_stats = get_rgb_stats(args.rgb_mode)
     mask_size = (args.size[0] // student_backbone.max_stride, args.size[1] // student_backbone.max_stride)
     seq_len = mask_size[0] * mask_size[1]
-    all_ids = torch.arange(seq_len, device=device).unsqueeze(0)
     mask_generator = masking.InverseRollBlockMasking(
         mask_size,
         num_masking_patches=int(seq_len * args.mask_ratio),
@@ -394,6 +393,7 @@ def train(args: argparse.Namespace) -> None:
         net_for_info = teacher_without_ddp._orig_mod  # pylint: disable=protected-access
 
     if args.no_summary is False:
+        all_ids = torch.arange(seq_len, device=device).unsqueeze(0)
         torchinfo.summary(
             net_for_info,
             device=device,
@@ -469,9 +469,7 @@ def train(args: argparse.Namespace) -> None:
 
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                (selected_assignments, clustering_loss) = teacher(
-                    images, all_ids.repeat(batch_size, 1), predict_indices
-                )
+                (selected_assignments, clustering_loss) = teacher(images, None, predict_indices)
 
             if clustering_scaler is not None:
                 clustering_scaler.scale(clustering_loss).backward()
@@ -700,6 +698,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--lr", type=float, default=0.1, help="base learning rate")
     parser.add_argument(
         "--lr-scale", type=int, help="reference batch size for LR scaling, if provided, LR will be scaled accordingly"
+    )
+    parser.add_argument(
+        "--lr-scale-type", type=str, choices=["linear", "sqrt"], default="linear", help="learning rate scaling type"
     )
     parser.add_argument("--wd", type=float, default=0.0001, help="weight decay")
     parser.add_argument("--norm-wd", type=float, help="weight decay for Normalization layers")

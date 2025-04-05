@@ -476,7 +476,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
                 param.requires_grad = False
 
     def masked_encoding_omission(
-        self, x: torch.Tensor, ids_keep: torch.Tensor, return_all_features: bool = False
+        self, x: torch.Tensor, ids_keep: Optional[torch.Tensor] = None, return_all_features: bool = False
     ) -> torch.Tensor:
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
@@ -486,11 +486,14 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         x = x + self.pos_embedding[:, self.num_special_tokens :, :]
 
         # Mask tokens
-        x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, x.size(2)))
+        if ids_keep is not None:
+            x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, x.size(2)))
 
-        rope_dim = self.rope.pos_embed.size(1)
-        rope = self.rope.pos_embed.unsqueeze(0).repeat(x.size(0), 1, 1)
-        rope_masked = torch.gather(rope, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, rope_dim))
+            rope_dim = self.rope.pos_embed.size(1)
+            rope = self.rope.pos_embed.unsqueeze(0).repeat(x.size(0), 1, 1)
+            rope_masked = torch.gather(rope, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, rope_dim))
+        else:
+            rope_masked = self.rope.pos_embed
 
         # Append class and register tokens
         if self.class_token is not None:

@@ -111,8 +111,8 @@ class iBOTLoss(nn.Module):
         teacher_features_center = F.softmax((teacher_features - self.center2) / temp2, dim=-1)
         teacher_features_center = teacher_features_center.detach().chunk(self.num_global_crops)
 
-        total_loss1 = torch.zeros(1, device=student_embedding.device)
-        total_loss2 = torch.zeros(1, device=student_embedding.device)
+        total_loss1 = torch.tensor(0.0, device=student_embedding.device)
+        total_loss2 = torch.tensor(0.0, device=student_embedding.device)
         n_loss_terms1 = 0
         n_loss_terms2 = 0
         for q, teacher_embedding_c in enumerate(teacher_embedding_center):

@@ -72,6 +72,9 @@ class TestNetDetection(unittest.TestCase):
         for loss in losses.values():
             self.assertFalse(torch.isnan(loss).any())
 
+        loss = sum(v for v in losses.values())
+        self.assertEqual(loss.ndim, 0)
+
         for detection in detections:
             for key in ["boxes", "labels", "scores"]:
                 self.assertFalse(torch.isnan(detection[key]).any())

@@ -182,7 +182,7 @@ class MaskedTokenOmissionMixin:
     num_special_tokens: int
 
     def masked_encoding_omission(
-        self, x: torch.Tensor, ids_keep: torch.Tensor, return_all_features: bool = False
+        self, x: torch.Tensor, ids_keep: Optional[torch.Tensor] = None, return_all_features: bool = False
     ) -> torch.Tensor:
         # Returned size (N, L, D)
         raise NotImplementedError

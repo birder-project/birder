@@ -117,7 +117,6 @@ class EfficientNet_Lite(DetectorBackbone):
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
-        drop_path_rate = 0.2
         repeats = [1, 2, 2, 3, 3, 4, 1]
         in_channels = [32, 16, 24, 40, 80, 112, 192]
         out_channels = [16, 24, 40, 80, 112, 192, 320]
@@ -127,6 +126,7 @@ class EfficientNet_Lite(DetectorBackbone):
         width_coefficient: float = self.config["width_coefficient"]
         depth_coefficient: float = self.config["depth_coefficient"]
         dropout_rate: float = self.config["dropout_rate"]
+        drop_path_rate: float = self.config.get("drop_path_rate", 0.2)
 
         in_channels = [adjust_channels(ch, width_coefficient) if i > 0 else ch for i, ch in enumerate(in_channels)]
         out_channels = [adjust_channels(ch, width_coefficient) for ch in out_channels]

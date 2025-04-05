@@ -120,9 +120,9 @@ class EfficientNet_v2(DetectorBackbone):
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
-        last_channels = 1280
         width_coefficient = 1.0
         depth_coefficient = 1.0
+        last_channels: int = self.config.get("last_channels", 1280)
         expand_ratio: list[int] = self.config["expand_ratio"]
         kernel_size: list[tuple[int, int]] = self.config["kernel_size"]
         strides: list[tuple[int, int]] = self.config["strides"]

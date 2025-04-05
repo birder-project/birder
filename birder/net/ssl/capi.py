@@ -12,6 +12,7 @@ Changes from original:
 # Reference license: Apache-2.0
 
 from typing import Any
+from typing import Optional
 
 import torch
 import torch.nn.functional as F
@@ -215,7 +216,7 @@ class CAPIStudent(SSLBaseNet):
         self.backbone = backbone
         self.size = self.backbone.size
 
-        input_size = (self.size[0] // self.backbone.stem_stride, self.size[1] // self.backbone.stem_stride)
+        input_size = (self.size[0] // self.backbone.max_stride, self.size[1] // self.backbone.max_stride)
         self.seq_len = input_size[0] * input_size[1]
 
         self.decoder = Decoder(input_size, self.backbone.embedding_size, max(8, self.backbone.num_layers // 2))
@@ -240,14 +241,10 @@ class CAPITeacher(SSLBaseNet):
         super().__init__(input_channels)
         assert isinstance(backbone, MaskedTokenOmissionMixin)
         self.backbone = backbone
-        self.size = self.backbone.size
-
-        input_size = (self.size[0] // self.backbone.stem_stride, self.size[1] // self.backbone.stem_stride)
-        self.seq_len = input_size[0] * input_size[1]
         self.head = head
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ
-        self, x: torch.Tensor, ids_keep: torch.Tensor, ids_predict: torch.Tensor
+        self, x: torch.Tensor, ids_keep: Optional[torch.Tensor], ids_predict: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         B = x.size(0)
 

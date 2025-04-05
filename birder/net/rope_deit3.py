@@ -46,11 +46,11 @@ class RoPE_DeiT3(DetectorBackbone):
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
-        pos_embed_class = False
         layer_scale_init_value = 1e-5
         image_size = self.size
         attention_dropout = 0.0
         dropout = 0.0
+        pos_embed_class: bool = self.config.get("pos_embed_class", False)
         patch_size: int = self.config["patch_size"]
         num_layers: int = self.config["num_layers"]
         num_heads: int = self.config["num_heads"]

@@ -629,7 +629,11 @@ def cosine_scheduler(base_value: float, final_value: float, epochs: int, iter_pe
 def scale_lr(args: argparse.Namespace) -> float:
     lr: float = args.lr
     if args.lr_scale is not None:
-        lr = lr * args.batch_size * args.grad_accum_steps * args.world_size / args.lr_scale
+        ratio = args.batch_size * args.grad_accum_steps * args.world_size / args.lr_scale
+        if args.lr_scale_type == "sqrt":
+            ratio = ratio**0.5
+
+        lr = lr * ratio
         logger.info(f"Adjusted learning rate to: {lr}")
 
     return lr

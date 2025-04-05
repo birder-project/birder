@@ -24,8 +24,10 @@ from torch import nn
 from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask_from_indices
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.vit import adjust_position_embedding
 
@@ -196,7 +198,7 @@ class Reroll(nn.Module):
         """
 
         (schedule, size) = self.schedule[block_idx]
-        (B, N, C) = x.shape
+        (B, N, C) = x.size()
 
         D = len(size)
         cur_mu_shape = [1] * D
@@ -315,7 +317,7 @@ class HieraBlock(nn.Module):
 
 
 # pylint: disable=too-many-instance-attributes
-class Hiera(DetectorBackbone, PreTrainEncoder):
+class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
     scriptable = False
     block_group_regex = r"body\.stage\d+\.(\d+)"
 
@@ -365,6 +367,8 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
         self.mu_size = flat_mu_size
         self.mask_spatial_shape = [i // s for i, s in zip(tokens_spatial_shape, mask_unit_size)]
         self.stage_ends = [sum(depths[:i]) - 1 for i in range(1, len(depths) + 1)]
+        self.num_special_tokens = 0
+        self.num_layers = sum(depths)
 
         stem_dim = embed_dim
         self.stem = PatchEmbed(self.input_channels, stem_dim, patch_kernel, patch_stride, patch_padding)
@@ -382,15 +386,14 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
         self.reroll = Reroll(image_size, patch_stride, [q_stride] * len(self.stage_ends[:-1]), self.stage_ends, q_pool)
 
         q_pool_blocks = [x + 1 for x in self.stage_ends[:q_pool]]
-        depth = sum(depths)
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # Stochastic depth decay rule
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, self.num_layers)]  # Stochastic depth decay rule
 
         cur_stage = 0
         layers = []
         self.block_count = []
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
-        for i in range(depth):
+        for i in range(self.num_layers):
             dim_out = embed_dim
 
             # Mask unit or global attention.
@@ -502,25 +505,38 @@ class Hiera(DetectorBackbone, PreTrainEncoder):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def masked_encoding(self, x: torch.Tensor, mask_ratio: float) -> tuple[list[torch.Tensor], torch.Tensor]:
-        B = x.size(0)
+    def masked_encoding_omission(
+        self, x: torch.Tensor, ids_keep: Optional[torch.Tensor] = None, return_all_features: bool = False
+    ) -> torch.Tensor:
+        torch._assert(return_all_features is False, "not supported")  # pylint: disable=protected-access
+        if ids_keep is not None:
+            num_windows = math.prod(self.mask_spatial_shape)
 
-        # Tokens selected for masking at mask unit level
-        num_windows = math.prod(self.mask_spatial_shape)
-        len_keep = int(num_windows * (1 - mask_ratio))
-        noise = torch.rand(B, num_windows, device=x.device)
+            # Mask already in opposite form
+            mask = mask_from_indices(ids_keep, num_windows)
+            mask = mask.bool()
+            patch_mask = mask.view(x.shape[0], 1, *self.mask_spatial_shape)  # B, C, *mask_spatial_shape
+        else:
+            patch_mask = None
 
-        # Sort noise for each sample
-        ids_shuffle = torch.argsort(noise, dim=1)  # ascend: small is keep, large is remove
-        ids_restore = torch.argsort(ids_shuffle, dim=1)
+        x = self.stem(x, patch_mask)
+        x = x + self._get_pos_embed()
+        x = self.unroll(x)
 
-        # Generate the binary mask: 1 is *keep*, 0 is *remove*
+        # Discard masked tokens
+        if ids_keep is not None:
+            x = x[mask[..., None].tile(1, self.mu_size, x.shape[2])].view(x.shape[0], -1, x.shape[-1])
+
+        x = self.body(x)
+
+        return x
+
+    def masked_encoding(self, x: torch.Tensor, mask: torch.Tensor) -> tuple[list[torch.Tensor], torch.Tensor]:
+        # Binary mask: 1 is *keep*, 0 is *remove*
         # Note this is opposite to original MAE
-        mask = torch.zeros([B, num_windows], device=x.device)
-        mask[:, :len_keep] = 1
+        mask = 1 - mask
 
         # Un-shuffle to get the binary mask
-        mask = torch.gather(mask, dim=1, index=ids_restore)
         mask = mask.bool()
         patch_mask = mask.view(x.shape[0], 1, *self.mask_spatial_shape)  # B, C, *mask_spatial_shape
 

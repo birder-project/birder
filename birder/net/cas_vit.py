@@ -344,3 +344,18 @@ registry.register_alias(
 registry.register_alias(
     "cas_vit_t", CAS_ViT, config={"depths": [3, 3, 6, 3], "embed_dims": [96, 128, 256, 512], "drop_path_rate": 0.0}
 )
+
+registry.register_weights(
+    "cas_vit_xs_il-common",
+    {
+        "description": "CAS-ViT extra small model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 11.4,
+                "sha256": "e8d1c09f98a1a33334e7281d471684d260b312ac02d467bb6740e4a98d00daa8",
+            }
+        },
+        "net": {"network": "cas_vit_xs", "tag": "il-common"},
+    },
+)

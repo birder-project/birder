@@ -59,7 +59,6 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
         self.hidden_dim = hidden_dim
         self.mlp_dim = mlp_dim
         self.num_special_tokens = 0
-        self.num_classes = num_classes
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
         self.conv_proj = nn.Conv2d(
@@ -132,7 +131,7 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
         ).to(self.pos_embedding.device)
 
     def masked_encoding_omission(
-        self, x: torch.Tensor, ids_keep: torch.Tensor, return_all_features: bool = False
+        self, x: torch.Tensor, ids_keep: Optional[torch.Tensor] = None, return_all_features: bool = False
     ) -> torch.Tensor:
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
@@ -142,7 +141,8 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
         x = x + self.pos_embedding
 
         # Mask tokens
-        x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, x.size(2)))
+        if ids_keep is not None:
+            x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, x.size(2)))
 
         # Apply transformer
         if return_all_features is True:

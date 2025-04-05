@@ -291,10 +291,10 @@ class EdgeViT(DetectorBackbone):
         patch_size = [4, 2, 2, 2]
         mlp_ratio = [4.0, 4.0, 4.0, 4.0]
         sr_ratios = [4, 2, 2, 1]
-        drop_path_rate = 0.1
         depth: list[int] = self.config["depth"]
         embed_dim: list[int] = self.config["embed_dim"]
         head_dim: int = self.config["head_dim"]
+        drop_path_rate: float = self.config.get("drop_path_rate", 0.1)
 
         num_stages = len(depth)
         dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depth)).split(depth)]

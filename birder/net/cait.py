@@ -171,12 +171,12 @@ class CaiT(BaseNet):
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
-        drop_rate = 0.0
+        proj_drop = 0.0
         attn_drop = 0.0
         cls_attn_layers = 2
         mlp_ratio = 4.0
         qkv_bias = True
-        patch_size = (16, 16)
+        patch_size: tuple[int, int] = self.config.get("patch_size", (16, 16))
         embed_dim: int = self.config["embed_dim"]
         depth: int = self.config["depth"]
         num_heads: int = self.config["num_heads"]
@@ -200,7 +200,7 @@ class CaiT(BaseNet):
                     num_heads=num_heads,
                     mlp_ratio=mlp_ratio,
                     qkv_bias=qkv_bias,
-                    proj_drop=drop_rate,
+                    proj_drop=proj_drop,
                     attn_drop=attn_drop,
                     drop_path=dpr[i],
                     init_values=init_values,
@@ -217,7 +217,7 @@ class CaiT(BaseNet):
                     num_heads=num_heads,
                     mlp_ratio=mlp_ratio,
                     qkv_bias=qkv_bias,
-                    proj_drop=drop_rate,
+                    proj_drop=proj_drop,
                     drop_path=0.0,
                     eta=init_values,
                 )

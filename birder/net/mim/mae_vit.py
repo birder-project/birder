@@ -133,7 +133,7 @@ class MAE_ViT(MIMBaseNet):
         return loss
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        seq_len = (self.size[0] // self.encoder.stem_stride) * (self.size[1] // self.encoder.stem_stride)
+        seq_len = (self.size[0] // self.encoder.max_stride) * (self.size[1] // self.encoder.max_stride)
         (mask, ids_keep, ids_restore) = uniform_mask(x.size(0), seq_len, self.mask_ratio, device=x.device)
 
         latent = self.encoder.masked_encoding_omission(x, ids_keep)

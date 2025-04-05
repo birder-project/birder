@@ -151,6 +151,10 @@ def get_random_masked_indices(mask: torch.Tensor, n: int) -> torch.Tensor:
 
 
 def mask_from_indices(indices: torch.Tensor, seq_len: int) -> torch.Tensor:
+    """
+    Indices return as 1's
+    """
+
     B = indices.size(0)
     row_indices = torch.arange(B, device=indices.device).unsqueeze(1).expand_as(indices)
 

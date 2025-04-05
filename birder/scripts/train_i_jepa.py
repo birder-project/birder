@@ -14,6 +14,7 @@ Changes from original:
 import argparse
 import json
 import logging
+import math
 import os
 import sys
 import time
@@ -162,7 +163,6 @@ def train(args: argparse.Namespace) -> None:
     target_encoder.load_state_dict(encoder.state_dict())
 
     mask_size = (args.size[0] // encoder.inner.max_stride, args.size[1] // encoder.inner.max_stride)
-    all_ids = torch.arange(mask_size[0] * mask_size[1], device=device).unsqueeze(0)
     predictor = VisionTransformerPredictor(
         mask_size,
         encoder.inner.embedding_size,
@@ -216,7 +216,7 @@ def train(args: argparse.Namespace) -> None:
         aspect_ratio=(0.75, 1.5),
         n_enc=1,
         n_pred=4,
-        min_keep=10,
+        min_keep=math.ceil(mask_size[0] * mask_size[1] / 25.6),
         allow_overlap=False,
     )
     mask_collator = TrainCollator(mask_generator)
@@ -462,7 +462,7 @@ def train(args: argparse.Namespace) -> None:
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
                 # Target encoder
                 with torch.no_grad():
-                    h = target_encoder(images, all_ids.repeat(batch_size, 1))
+                    h = target_encoder(images)
                     h = h[:, num_special_tokens:, :]  # Remove special tokens
                     h = F.layer_norm(h, (h.size(-1),))
                     h = apply_masks(h, pred_masks)
@@ -646,6 +646,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--lr", type=float, default=0.1, help="base learning rate")
     parser.add_argument(
         "--lr-scale", type=int, help="reference batch size for LR scaling, if provided, LR will be scaled accordingly"
+    )
+    parser.add_argument(
+        "--lr-scale-type", type=str, choices=["linear", "sqrt"], default="linear", help="learning rate scaling type"
     )
     parser.add_argument("--wd", type=float, default=0.0001, help="weight decay")
     parser.add_argument("--wd-end", type=float, help="final value of the weight decay (None for constant wd)")

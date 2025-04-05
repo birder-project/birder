@@ -10,6 +10,14 @@
 torchrun --nproc_per_node=2 train.py --network cait_xxs24 --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### CAS-ViT
+
+#### CAS-ViT: Extra Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cas_vit_xs --tag il-common --opt adamw --lr 0.006 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 384 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --aug-level 3 --model-ema --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### CoaT
 
 #### CoaT: Tiny
@@ -492,6 +500,12 @@ torchrun --nproc_per_node=2 train.py --network regnet_y_400m --tag il-common --l
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network regnet_y_600m --tag il-common --lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 256 --epochs 140 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --ra-sampler --ra-reps 2 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+#### RegNet: Y 1600 MF
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regnet_y_1_6g --tag il-common --lr 0.8 --lr-scheduler cosine --warmup-epochs 5 --batch-size 256 --size 256 --epochs 160 --wd 0.00005 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --ra-sampler --ra-reps 2 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 #### RegNet: Z 500 MF

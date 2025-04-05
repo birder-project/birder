@@ -283,6 +283,25 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertFalse(training_utils.is_dist_available_and_initialized())
         self.assertRegex(training_utils.training_log_name("something", torch.device("cpu")), "something__")
 
+    def test_lr_scaling(self) -> None:
+        args = argparse.Namespace(
+            lr=0.1, batch_size=128, grad_accum_steps=1, world_size=1, lr_scale=64, lr_scale_type="linear"
+        )
+        lr = training_utils.scale_lr(args)
+        self.assertEqual(lr, 0.2)
+
+        args = argparse.Namespace(
+            lr=0.1, batch_size=128, grad_accum_steps=2, world_size=2, lr_scale=64, lr_scale_type="linear"
+        )
+        lr = training_utils.scale_lr(args)
+        self.assertEqual(lr, 0.8)
+
+        args = argparse.Namespace(
+            lr=0.1, batch_size=128, grad_accum_steps=2, world_size=2, lr_scale=32, lr_scale_type="sqrt"
+        )
+        lr = training_utils.scale_lr(args)
+        self.assertEqual(lr, 0.4)
+
     def test_smoothed_value(self) -> None:
         smoothed_value = training_utils.SmoothedValue(window_size=4)
         smoothed_value.update(1)

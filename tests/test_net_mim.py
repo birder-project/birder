@@ -62,3 +62,5 @@ class TestNetMIM(unittest.TestCase):
         out = n(torch.rand((1, 3, *size)))
         for key in ["loss", "pred", "mask"]:
             self.assertFalse(torch.isnan(out[key]).any())
+
+        self.assertEqual(out["loss"].ndim, 0)

@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import unittest
 from typing import Optional
 
@@ -402,14 +403,17 @@ class TestNet(unittest.TestCase):
 
         # self.assertIsInstance(n, Hiera)
         assert isinstance(n, Hiera)
-        outs = n.masked_encoding(torch.rand((1, 3, *size)), 0.6)
+
+        x = torch.rand((1, 3, *size))
+
+        seq_len = math.prod(n.mask_spatial_shape)
+        mask = uniform_mask(1, seq_len, mask_ratio=0.6, device=x.device)[0]
+        (outs, mask) = n.masked_encoding(x, mask)
 
         for out in outs:
-            if isinstance(out, (tuple, list)):
-                for o in out:
-                    self.assertFalse(torch.isnan(o).any())
-            else:
-                self.assertFalse(torch.isnan(out).any())
+            self.assertFalse(torch.isnan(out).any())
+
+        self.assertFalse(torch.isnan(mask).any())
 
         self.assertTrue(hasattr(n, "block_group_regex"))
         self.assertTrue(hasattr(n, "stem_stride"))
@@ -473,6 +477,8 @@ class TestNet(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[misc]
         [
+            ("hiera_tiny", None),
+            ("hiera_abswin_tiny", None),
             ("rope_vit_b32", None),
             ("rope_vitreg4_b32", None),
             ("rope_vit_so150m_p14_ap", None),
@@ -490,10 +496,14 @@ class TestNet(unittest.TestCase):
 
         # self.assertIsInstance(n, MaskedTokenOmissionMixin)
         assert isinstance(n, MaskedTokenOmissionMixin)
-        seq_len = (size[0] // n.stem_stride) * (size[1] // n.stem_stride)
+        seq_len = (size[0] // n.max_stride) * (size[1] // n.max_stride)
         x = torch.rand((1, 3, *size))
         ids_keep = uniform_mask(x.size(0), seq_len, mask_ratio=0.75, device=x.device)[1]
         out = n.masked_encoding_omission(x, ids_keep)
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.ndim, 3)
+
+        out = n.masked_encoding_omission(x)
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 3)
 

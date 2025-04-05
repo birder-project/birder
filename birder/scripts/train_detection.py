@@ -744,6 +744,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--lr-scale", type=int, help="reference batch size for LR scaling, if provided, LR will be scaled accordingly"
     )
+    parser.add_argument(
+        "--lr-scale-type", type=str, choices=["linear", "sqrt"], default="linear", help="learning rate scaling type"
+    )
     parser.add_argument("--backbone-lr", type=float, help="backbone learning rate")
     parser.add_argument("--wd", type=float, default=0.0001, help="weight decay")
     parser.add_argument("--norm-wd", type=float, help="weight decay for Normalization layers")

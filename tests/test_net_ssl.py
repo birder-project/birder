@@ -26,6 +26,7 @@ class TestNetSSL(unittest.TestCase):
         # Test network
         out = net(torch.rand((batch_size, 3, 128, 128)), torch.rand((batch_size, 3, 128, 128)))
         self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.ndim, 0)
 
     def test_byol(self) -> None:
         batch_size = 2
@@ -36,13 +37,14 @@ class TestNetSSL(unittest.TestCase):
         # Test network
         out = net(torch.rand((batch_size, 3, 96, 96)))
         self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.ndim, 0)
 
     def test_capi(self) -> None:
         batch_size = 4
         size = (192, 192)
         num_clusters = 320
         backbone = registry.net_factory("vit_s16", 3, 0, size=size)
-        input_size = (size[0] // backbone.stem_stride, size[1] // backbone.stem_stride)
+        input_size = (size[0] // backbone.max_stride, size[1] // backbone.max_stride)
         seq_len = input_size[0] * input_size[1]
         n_masked = int(seq_len * 0.65)
         prediction_subsampling = 0.05
@@ -62,14 +64,14 @@ class TestNetSSL(unittest.TestCase):
         masks = masking.mask_from_indices(predict_indices, seq_len)
 
         x = torch.rand(batch_size, 3, *size)
-        all_ids = torch.arange(input_size[0] * input_size[1]).unsqueeze(0).repeat(batch_size, 1)
+        # all_ids = torch.arange(input_size[0] * input_size[1]).unsqueeze(0).repeat(batch_size, 1)
 
         #
         # Simulate a full step
         #
 
         # Teacher
-        (selected_assignments, clustering_loss) = teacher(x, all_ids, predict_indices)
+        (selected_assignments, clustering_loss) = teacher(x, None, predict_indices)
         self.assertFalse(torch.isnan(clustering_loss).any())
         self.assertFalse(torch.isnan(selected_assignments).any())
         self.assertEqual(selected_assignments.size(), (batch_size * n_predict, num_clusters))
@@ -82,6 +84,41 @@ class TestNetSSL(unittest.TestCase):
         # Loss
         loss = -torch.sum(selected_assignments * F.log_softmax(pred / 0.12, dim=-1), dim=-1)
         self.assertFalse(torch.isnan(loss.sum() / len(loss)).any())
+        self.assertEqual(loss.sum().ndim, 0)
+
+        # Test with Hiera backbone
+        backbone = registry.net_factory("hiera_tiny", 3, 0, size=size)
+        input_size = (size[0] // backbone.max_stride, size[1] // backbone.max_stride)
+        seq_len = input_size[0] * input_size[1]
+        n_masked = int(seq_len * 0.65)
+        prediction_subsampling = 0.05
+
+        teacher_head = capi.OnlineClustering(
+            backbone.embedding_size, num_clusters, bias=True, n_sk_iter=3, target_temp=0.06, pred_temp=0.12
+        )
+        teacher = capi.CAPITeacher(backbone.input_channels, backbone, teacher_head)
+        student_head = capi.L2NormLinear(backbone.embedding_size, num_clusters)
+        student = capi.CAPIStudent(backbone.input_channels, backbone, student_head)
+        mask_generator = masking.InverseRollBlockMasking(input_size, n_masked)
+
+        masks = mask_generator(batch_size)
+        ids_keep = masking.get_ids_keep(masks)
+        n_predict = int(n_masked * prediction_subsampling)
+        predict_indices = masking.get_random_masked_indices(masks, n_predict)
+        masks = masking.mask_from_indices(predict_indices, seq_len)
+
+        x = torch.rand(batch_size, 3, *size)
+
+        # Teacher
+        (selected_assignments, clustering_loss) = teacher(x, None, predict_indices)
+        self.assertFalse(torch.isnan(clustering_loss).any())
+        self.assertFalse(torch.isnan(selected_assignments).any())
+        self.assertEqual(selected_assignments.size(), (batch_size * n_predict, num_clusters))
+
+        # Student
+        pred = student(x, ids_keep, predict_indices)
+        self.assertEqual(pred.size(), (masks.count_nonzero().item(), num_clusters))
+        self.assertFalse(torch.isnan(pred).any())
 
     def test_dino_v1(self) -> None:
         batch_size = 4
@@ -123,6 +160,7 @@ class TestNetSSL(unittest.TestCase):
         )
         loss = dino_loss(out, teacher_out, epoch=2)
         self.assertFalse(torch.isnan(loss).any())
+        self.assertEqual(loss.ndim, 0)
 
     def test_i_jepa(self) -> None:
         batch_size = 4
@@ -153,14 +191,13 @@ class TestNetSSL(unittest.TestCase):
         pred_masks = masks[1]
 
         x = torch.rand(batch_size, 3, *size)
-        all_ids = torch.arange(input_size[0] * input_size[1]).unsqueeze(0).repeat(batch_size, 1)
 
         #
         # Simulate a full step
         #
 
         # Target encoder
-        h = backbone.masked_encoding_omission(x, all_ids)
+        h = backbone.masked_encoding_omission(x)
         h = h[:, backbone.num_special_tokens :, :]  # Remove special tokens
         h = i_jepa.apply_masks(h, pred_masks)
         h = i_jepa.repeat_interleave_batch(h, batch_size, repeat=len(enc_masks))
@@ -170,6 +207,8 @@ class TestNetSSL(unittest.TestCase):
         z = z[:, backbone.num_special_tokens :, :]  # Remove special tokens
         z = predictor(z, enc_masks, pred_masks)
 
+        loss = F.smooth_l1_loss(z, h)
+
         self.assertEqual(h.size(0), batch_size * len(enc_masks) * len(pred_masks))
         self.assertEqual(z.size(0), batch_size * len(enc_masks) * len(pred_masks))
 
@@ -177,6 +216,8 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(z.size(2), backbone.embedding_size)
 
         self.assertEqual(h.size(1), z.size(1))
+
+        self.assertEqual(loss.ndim, 0)
 
     def test_ibot(self) -> None:
         batch_size = 4
@@ -256,6 +297,10 @@ class TestNetSSL(unittest.TestCase):
         self.assertFalse(torch.isnan(loss["embedding"]).any())
         self.assertFalse(torch.isnan(loss["features"]).any())
 
+        self.assertEqual(loss["all"].ndim, 0)
+        self.assertEqual(loss["embedding"].ndim, 0)
+        self.assertEqual(loss["features"].ndim, 0)
+
     def test_vicreg(self) -> None:
         batch_size = 4
         backbone = registry.net_factory("resnet_v1_18", 3, 0)
@@ -272,3 +317,4 @@ class TestNetSSL(unittest.TestCase):
         # Test network
         out = net(torch.rand((batch_size, 3, 128, 128)), torch.rand((batch_size, 3, 128, 128)))
         self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.ndim, 0)

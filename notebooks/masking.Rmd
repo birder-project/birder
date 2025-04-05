@@ -14,6 +14,8 @@ jupyter:
 ---
 
 ```{python}
+import math
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -86,7 +88,11 @@ show_image(masked_img_tensor, "Masked")
 lib.set_random_seeds(42)
 
 mask_generator = masking.BlockMasking(
-    input_size, min_num_patches=4, max_num_patches=input_size[0] * input_size[1] * 0.5, min_aspect=0.33, max_aspect=3.33
+    input_size,
+    min_num_patches=4,
+    max_num_patches=int(input_size[0] * input_size[1] * 0.5),
+    min_aspect=0.33,
+    max_aspect=3.33,
 )
 mask = mask_generator(1)
 masked_img_tensor = masking.mask_tensor(img_tensor, mask, patch_factor=patch_size)
@@ -166,7 +172,7 @@ mask_generator = MultiBlockMasking(
     aspect_ratio=(0.75, 1.5),
     n_enc=1,
     n_pred=2,
-    min_keep=10,
+    min_keep=math.ceil(input_size[0] * input_size[1] / 25.6),
     allow_overlap=False,
 )
 masks = mask_generator(1)

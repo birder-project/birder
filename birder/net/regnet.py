@@ -592,6 +592,20 @@ registry.register_weights(
     },
 )
 registry.register_weights(
+    "regnet_y_1_6g_il-common",
+    {
+        "description": "RegNet Y 1.6g model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 41.0,
+                "sha256": "c2f8b17559a7d55efd1119352612a93063b393e0f05e8eb7ab0b5f637344cacc",
+            }
+        },
+        "net": {"network": "regnet_y_1_6g", "tag": "il-common"},
+    },
+)
+registry.register_weights(
     "regnet_y_8g_intermediate-eu-common",
     {
         "url": "https://huggingface.co/birder-project/regnet_y_8g_intermediate-eu-common/resolve/main",

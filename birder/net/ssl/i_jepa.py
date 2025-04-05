@@ -265,5 +265,5 @@ class WrappedModel(nn.Module):
         assert isinstance(inner, MaskedTokenOmissionMixin)
         self.inner = inner
 
-    def forward(self, x: torch.Tensor, ids_keep: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, ids_keep: Optional[torch.Tensor] = None) -> torch.Tensor:
         return self.inner.masked_encoding_omission(x, ids_keep)

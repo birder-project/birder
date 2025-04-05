@@ -51,7 +51,7 @@ class Darknet(DetectorBackbone):
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
-        filters = [64, 128, 256, 512, 1024]
+        filters: list[int] = self.config.get("filters", [64, 128, 256, 512, 1024])
         repeats: list[int] = self.config["repeats"]
 
         self.stem = nn.Sequential(
