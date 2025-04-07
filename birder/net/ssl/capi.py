@@ -219,7 +219,7 @@ class CAPIStudent(SSLBaseNet):
         input_size = (self.size[0] // self.backbone.max_stride, self.size[1] // self.backbone.max_stride)
         self.seq_len = input_size[0] * input_size[1]
 
-        self.decoder = Decoder(input_size, self.backbone.embedding_size, max(8, self.backbone.num_layers // 2))
+        self.decoder = Decoder(input_size, self.backbone.embedding_size, min(12, max(8, self.backbone.num_layers // 2)))
         self.head = head
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ

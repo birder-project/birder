@@ -477,6 +477,8 @@ class TestNet(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[misc]
         [
+            ("deit3_t16", None),
+            ("deit3_reg4_t16", None),
             ("hiera_tiny", None),
             ("hiera_abswin_tiny", None),
             ("rope_vit_b32", None),

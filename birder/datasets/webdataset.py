@@ -7,6 +7,7 @@ from typing import Optional
 import torch
 import torch.utils.data
 import webdataset as wds
+from torchvision.datasets.folder import IMG_EXTENSIONS
 from torchvision.io import ImageReadMode
 from torchvision.io import decode_image
 
@@ -20,11 +21,15 @@ def decode_sample_name(item: tuple[str, str, Any, int]) -> tuple[str, Any, int]:
 
 
 def wds_image_decoder(key: str, data: bytes) -> torch.Tensor:
-    if key.endswith((".jpg", ".jpeg", ".webp", ".png")) is False:
+    if key.endswith(IMG_EXTENSIONS) is False:
         return None
 
     tensor = torch.frombuffer(bytearray(data), dtype=torch.uint8)
     return decode_image(tensor, mode=ImageReadMode.RGB)
+
+
+def identity(x: Any) -> Any:
+    return x
 
 
 def make_wds_dataset(
@@ -56,8 +61,9 @@ def make_wds_dataset(
 
     if samples_names is True:
         dataset = dataset.map(decode_sample_name)
-
-    dataset = dataset.map(transform)
+        dataset = dataset.map_tuple(identity, transform, identity)
+    else:
+        dataset = dataset.map_tuple(transform, identity)
 
     return dataset
 

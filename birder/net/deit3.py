@@ -5,6 +5,7 @@ Paper "Vision Transformers Need Registers", https://arxiv.org/abs/2309.16588
 """
 
 import math
+from functools import partial
 from typing import Any
 from typing import Optional
 
@@ -13,12 +14,16 @@ from torch import nn
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import MaskedTokenOmissionMixin
+from birder.net.base import PreTrainEncoder
 from birder.net.vit import Encoder
+from birder.net.vit import EncoderBlock
 from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
 
 
-class DeiT3(DetectorBackbone):
+# pylint: disable=too-many-instance-attributes
+class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -103,6 +108,20 @@ class DeiT3(DetectorBackbone):
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
 
+        self.max_stride = patch_size
+        self.stem_stride = patch_size
+        self.stem_width = hidden_dim
+        self.encoding_size = hidden_dim
+        self.decoder_block = partial(
+            EncoderBlock,
+            16,
+            mlp_dim=None,
+            dropout=0,
+            attention_dropout=0,
+            drop_path=0,
+            activation_layer=nn.GELU,
+        )
+
         # Weight initialization
         if isinstance(self.conv_proj, nn.Conv2d):
             # Init the patchify stem
@@ -170,6 +189,52 @@ class DeiT3(DetectorBackbone):
 
             for param in module.parameters():
                 param.requires_grad = False
+
+    def masked_encoding_omission(
+        self, x: torch.Tensor, ids_keep: Optional[torch.Tensor] = None, return_all_features: bool = False
+    ) -> torch.Tensor:
+        # Reshape and permute the input tensor
+        x = self.conv_proj(x)
+        x = self.patch_embed(x)
+
+        # Add pos embedding without special tokens
+        if self.pos_embed_class is True:
+            x = x + self.pos_embedding[:, self.num_special_tokens :, :]
+        else:
+            x = x + self.pos_embedding
+
+        # Mask tokens
+        if ids_keep is not None:
+            x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, x.size(2)))
+
+        # Append class and register tokens
+        if self.pos_embed_class is True:
+            cls_token = self.class_token + self.pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
+        else:
+            cls_token = self.class_token
+
+        batch_class_token = cls_token.expand(x.shape[0], -1, -1)
+        x = torch.concat((batch_class_token, x), dim=1)
+
+        if self.reg_tokens is not None:
+            if self.pos_embed_class is True:
+                reg_tokens = self.reg_tokens + self.pos_embedding[:, 0 : self.num_reg_tokens, :]
+            else:
+                reg_tokens = self.reg_tokens
+
+            batch_reg_tokens = reg_tokens.expand(x.shape[0], -1, -1)
+            x = torch.concat([batch_reg_tokens, x], dim=1)
+
+        # Apply transformer
+        if return_all_features is True:
+            xs = self.encoder.forward_features(x)
+            xs[-1] = self.norm(xs[-1])
+            x = torch.stack(xs, dim=-1)
+        else:
+            x = self.encoder(x)
+            x = self.norm(x)
+
+        return x
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         (H, W) = x.shape[-2:]

@@ -15,6 +15,8 @@ logging.disable(logging.CRITICAL)
 class TestNetMIM(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
+            ("crossmae", None, ("deit3_t16", None)),
+            ("crossmae", None, ("deit3_reg4_t16", None)),
             ("crossmae", None, ("rope_vit_b32", None)),
             ("crossmae", None, ("rope_vitreg4_b32", None)),
             ("crossmae", None, ("rope_vit_so150m_p14_ap", None)),
@@ -29,6 +31,8 @@ class TestNetMIM(unittest.TestCase):
             ("fcmae", None, ("regnet_z_500m", None)),
             ("mae_hiera", None, ("hiera_tiny", None)),
             ("mae_hiera", None, ("hiera_abswin_tiny", None)),
+            ("mae_vit", None, ("deit3_t16", None)),
+            ("mae_vit", None, ("deit3_reg4_t16", None)),
             ("mae_vit", None, ("rope_vit_b32", None)),
             ("mae_vit", None, ("rope_vitreg4_b32", None)),
             ("mae_vit", None, ("rope_vit_so150m_p14_ap", None)),

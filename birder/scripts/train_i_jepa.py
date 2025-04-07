@@ -356,22 +356,20 @@ def train(args: argparse.Namespace) -> None:
     #
     # Distributed (DDP)
     #
+
+    # There is no backpropagation through the teacher
+    for p in target_encoder.parameters():
+        p.requires_grad = False
+
     encoder_without_ddp = encoder
-    target_encoder_without_ddp = target_encoder
     # predictor_without_ddp = predictor
     if args.distributed is True:
         encoder = torch.nn.parallel.DistributedDataParallel(
             encoder, device_ids=[args.gpu], find_unused_parameters=args.find_unused_parameters
         )
-        target_encoder = torch.nn.parallel.DistributedDataParallel(target_encoder, device_ids=[args.gpu])
         predictor = torch.nn.parallel.DistributedDataParallel(predictor, device_ids=[args.gpu])
         encoder_without_ddp = encoder.module
-        target_encoder_without_ddp = target_encoder.module
         # predictor_without_ddp = predictor.module
-
-    # There is no backpropagation through the teacher
-    for p in target_encoder.parameters():
-        p.requires_grad = False
 
     model_to_save = net
     if args.compile is True and hasattr(model_to_save["target_encoder"], "_orig_mod") is True:
@@ -500,7 +498,7 @@ def train(args: argparse.Namespace) -> None:
             # EMA update for the target encoder
             with torch.no_grad():
                 m = momentum_schedule[global_step]
-                for param_q, param_k in zip(encoder.parameters(), target_encoder_without_ddp.parameters()):
+                for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
                     param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
 
             # Statistics

@@ -146,7 +146,7 @@ def wds_write_worker(
                 del buf[count]
                 sink.write(
                     {
-                        "__key__": f"sample{count:06d}",
+                        "__key__": f"sample{count:08d}",
                         suffix: sample,
                         "cls": target,
                     }
@@ -210,21 +210,27 @@ def directory_write_worker(
 
 # pylint: disable=too-many-locals,too-many-branches
 def pack(args: argparse.Namespace, pack_path: Path) -> None:
-    if args.class_file is not None:
-        class_to_idx = fs_ops.read_class_file(args.class_file)
-    elif args.append is True:
-        class_to_idx = fs_ops.read_class_file(pack_path.joinpath("classes.txt"))
+    if args.no_cls is False:
+        if args.class_file is not None:
+            class_to_idx = fs_ops.read_class_file(args.class_file)
+        elif args.append is True:
+            class_to_idx = fs_ops.read_class_file(pack_path.joinpath("classes.txt"))
+        else:
+            class_to_idx = _get_class_to_idx(args.data_path)
+
+        _save_classes(pack_path, class_to_idx)
+        idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
+
+        datasets = []
+        for path in args.data_path:
+            datasets.append(CustomImageFolder(path, class_to_idx=class_to_idx))
+
+        dataset = ConcatDataset(datasets)
+
     else:
-        class_to_idx = _get_class_to_idx(args.data_path)
+        idx_to_class = {}
+        dataset = fs_ops.samples_from_paths(args.data_path, class_to_idx={})
 
-    _save_classes(pack_path, class_to_idx)
-    idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
-
-    datasets = []
-    for path in args.data_path:
-        datasets.append(CustomImageFolder(path, class_to_idx=class_to_idx))
-
-    dataset = ConcatDataset(datasets)
     if args.shuffle is True:
         indices = torch.randperm(len(dataset)).tolist()
     else:
@@ -332,6 +338,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--size", type=int, help="resize image longest dimension to size")
     subparser.add_argument("--format", type=str, choices=["webp", "png", "jpeg"], default="webp", help="file format")
     subparser.add_argument("--class-file", type=str, help="class list file")
+    subparser.add_argument("--no-cls", default=False, action="store_true", help="pack without class information")
     subparser.add_argument("--suffix", type=str, default=settings.PACK_PATH_SUFFIX, help="directory suffix")
     subparser.add_argument("--split", type=str, default="training", help="dataset split used for _info.json")
     subparser.add_argument("--append", default=False, action="store_true", help="add split to existing wds")
@@ -341,6 +348,7 @@ def set_parser(subparsers: Any) -> None:
 
 def main(args: argparse.Namespace) -> None:
     assert args.append is False or args.type == "wds"
+    assert args.no_cls is False or args.type == "wds"
 
     args.max_size = args.max_size * 1e6
     if args.target_path is None:

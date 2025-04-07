@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.16.7
+      jupytext_version: 1.17.0
   kernelspec:
     display_name: birder
     language: python
@@ -50,7 +50,7 @@ torch.set_float32_matmul_precision("high")
 ```{python}
 device = torch.device("cuda:1")
 (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
-    device, "focalnet_b_lrf", tag="raw384px", epoch=0, inference=True
+    device, "hiera_abswin_base", tag="mim-raw256px", epoch=0, inference=True
 )
 ```
 
@@ -74,8 +74,8 @@ num_samples = len(dataset)
 inference_loader = DataLoader(
     dataset,
     batch_size=batch_size,
-    shuffle=False,
-    num_workers=8,
+    shuffle=True,
+    num_workers=2,
 )
 ```
 
@@ -105,7 +105,8 @@ with torch.inference_mode():
         chunk_size=32000,
     )
     for sample_paths, outs, labels, embedding_list in inference_iter:
-        pass
+        print("\n".join(suspected_mistakes))
+        suspected_mistakes = []
 ```
 
 ```{python}

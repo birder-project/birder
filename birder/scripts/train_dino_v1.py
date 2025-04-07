@@ -387,17 +387,15 @@ def train(args: argparse.Namespace) -> None:
     #
     # Distributed (DDP)
     #
-    student_without_ddp = student
-    teacher_without_ddp = teacher
-    if args.distributed is True:
-        student = torch.nn.parallel.DistributedDataParallel(student, device_ids=[args.gpu])
-        teacher = torch.nn.parallel.DistributedDataParallel(teacher, device_ids=[args.gpu])
-        student_without_ddp = student.module
-        teacher_without_ddp = teacher.module
 
     # There is no backpropagation through the teacher
     for p in teacher.parameters():
         p.requires_grad = False
+
+    student_without_ddp = student
+    if args.distributed is True:
+        student = torch.nn.parallel.DistributedDataParallel(student, device_ids=[args.gpu])
+        student_without_ddp = student.module
 
     model_to_save = net
     if teacher_compile_flag is True and hasattr(model_to_save["teacher"], "_orig_mod") is True:
@@ -410,9 +408,9 @@ def train(args: argparse.Namespace) -> None:
     #
 
     # Print network summary
-    net_for_info = teacher_without_ddp
-    if teacher_compile_flag is True and hasattr(teacher_without_ddp, "_orig_mod") is True:
-        net_for_info = teacher_without_ddp._orig_mod  # pylint: disable=protected-access
+    net_for_info = teacher
+    if teacher_compile_flag is True and hasattr(teacher, "_orig_mod") is True:
+        net_for_info = teacher._orig_mod  # pylint: disable=protected-access
 
     if args.no_summary is False:
         torchinfo.summary(
@@ -516,7 +514,7 @@ def train(args: argparse.Namespace) -> None:
             # EMA update for the teacher
             with torch.no_grad():
                 m = momentum_schedule[global_step]
-                for param_q, param_k in zip(student.parameters(), teacher_without_ddp.parameters()):
+                for param_q, param_k in zip(student.parameters(), teacher.parameters()):
                     param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
 
             # Statistics

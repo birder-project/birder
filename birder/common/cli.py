@@ -142,6 +142,7 @@ def download_file(
                 progress.update(len(buffer))
 
         digest = sha256.hexdigest()
+        f.close()
         if expected_sha256 is not None and digest != expected_sha256:
             raise RuntimeError(f'invalid hash value (expected "{expected_sha256}", got "{digest}")')
 

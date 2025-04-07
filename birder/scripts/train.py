@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 import torch
 import torch.amp
 import torch.nn.functional as F
-import torch.utils.data
 import torchinfo
 import torchmetrics
 from torch.utils.data import DataLoader

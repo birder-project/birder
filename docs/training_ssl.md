@@ -38,16 +38,22 @@ torchrun --nproc_per_node=2 train.py --network regnet_x_4g --tag byol --lr 0.1 -
 
 ### CAPI
 
-#### CAPI: Hiera AbsWin small
+#### CAPI: Hiera AbsWin Small
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network hiera_abswin_small --opt adamw --lr 0.001 --lr-scale 512 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 512 --epochs 400 --wd 0.1 --norm-wd 0.01 --amp --amp-dtype bfloat16 --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network hiera_abswin_small --kept-mask-ratio 0.15 --opt adamw --lr 0.001 --lr-scale 512 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 512 --epochs 400 --wd 0.1 --norm-wd 0.01 --amp --amp-dtype bfloat16 --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Fine-tuning, first stage - linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network hiera_abswin_small --tag capi --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
+```
+
+#### CAPI: Hiera AbsWin Large
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network hiera_abswin_large --kept-mask-ratio 0.15 --opt adamw --lr 0.001 --lr-scale 512 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 128 --epochs 400 --wd 0.1 --norm-wd 0.01 --amp --amp-dtype bfloat16 --compile --compile-opt --find-unused-parameters --wds --wds-info-file data/ssl/_info.json
 ```
 
 #### CAPI: RoPE ViTReg4 s14
@@ -146,6 +152,18 @@ torchrun --nproc_per_node=2 train.py --network vitreg4_b16 --tag i-jepa --opt ad
 
 ### iBOT
 
+#### iBOT: ConvNeXt v2 Small
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network convnext_v2_small --shared-head --local-crops-number 8 --teacher-temp 0.07 --warmup-teacher-temp-epochs 30 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --freeze-last-layer-epochs 1 --epochs 800 --warmup-epochs 10 --batch-size 64 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --clip-grad-norm 3 --amp --compile --data-path data/training
+```
+
+Large scale training
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network convnext_v2_small --shared-head --local-crops-number 8 --teacher-temp 0.07 --warmup-teacher-temp-epochs 20 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --freeze-last-layer-epochs 1 --epochs 80 --warmup-epochs 5 --batch-size 64 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --clip-grad-norm 3 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
+
 #### iBOT: RegNet Y 1.6 GF
 
 ```sh
@@ -156,6 +174,12 @@ Fine-tuning, first stage - linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network regnet_y_1_6g --tag ibot --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 2 --fast-matmul --resume-epoch 0 --reset-head --freeze-body
+```
+
+Next, full fine-tuning with layer-wise learning rate decay
+
+```sh
+torchrun --nproc_per_node=2 train.py --network regnet_y_1_6g --tag ibot --opt adamw --lr 0.000125 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 5 --batch-size 256 --size 256 --epochs 60 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --amp --compile --layer-decay 0.9 --resume-epoch 0
 ```
 
 #### iBOT: RegNet Y 4 GF

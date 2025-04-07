@@ -21,7 +21,6 @@ import typing
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-from typing import Optional
 
 import matplotlib.pyplot as plt
 import torch
@@ -58,7 +57,6 @@ from birder.net.ssl.capi import CAPITeacher
 from birder.net.ssl.capi import L2NormLinear
 from birder.net.ssl.capi import OnlineClustering
 from birder.transforms.classification import RGBMode
-from birder.transforms.classification import RGBType
 from birder.transforms.classification import get_rgb_stats
 from birder.transforms.classification import training_preset
 
@@ -72,23 +70,16 @@ def _tv_loader(path: str) -> torch.Tensor:
     return decode_image(path, mode=ImageReadMode.RGB)
 
 
-class TrainTransform:
-    def __init__(
-        self,
-        size: tuple[int, int],
-        level: int,
-        rgv_values: RGBType,
-        mask_generator: Callable[[int], torch.Tensor],
-        resize_min_scale: Optional[float] = None,
-    ) -> None:
-        self.transform = training_preset(size, level, rgv_values, resize_min_scale)
+class TrainCollator:
+    def __init__(self, mask_generator: Callable[[int], tuple[list[torch.Tensor], list[torch.Tensor]]]) -> None:
         self.mask_generator = mask_generator
 
-    def __call__(self, image: Any) -> tuple[list[torch.Tensor], torch.Tensor]:
-        image = self.transform(image)
-        mask = self.mask_generator(1)
+    def __call__(self, batch: Any) -> tuple[torch.Tensor, torch.Tensor]:
+        B = len(batch)
+        collated_batch = torch.utils.data.default_collate(batch)
+        masks = self.mask_generator(B)
 
-        return (image, mask.squeeze(0))
+        return (collated_batch, masks)
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
@@ -217,7 +208,8 @@ def train(args: argparse.Namespace) -> None:
     )
     n_masked = int(seq_len * 0.65)
     n_predict = int(n_masked * args.kept_mask_ratio)
-    training_transform = TrainTransform(args.size, args.aug_level, rgb_stats, mask_generator, args.resize_min_scale)
+    mask_collator = TrainCollator(mask_generator)
+    training_transform = training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale)
     if args.wds is True:
         wds_path: str | list[str]
         if args.wds_info_file is not None:
@@ -259,7 +251,7 @@ def train(args: argparse.Namespace) -> None:
             batch_size,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
-            collate_fn=None,
+            collate_fn=mask_collator,
             world_size=args.world_size,
             pin_memory=True,
             drop_last=True,
@@ -272,6 +264,7 @@ def train(args: argparse.Namespace) -> None:
             sampler=train_sampler,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
+            collate_fn=mask_collator,
             pin_memory=True,
             drop_last=True,
         )
@@ -456,7 +449,7 @@ def train(args: argparse.Namespace) -> None:
         optimizer.zero_grad()
         clustering_optimizer.zero_grad()
 
-        for i, (_, (images, masks), _) in enumerate(training_loader):
+        for i, ((_, images, _), masks) in enumerate(training_loader):
             global_step = ((epoch - 1) * last_batch_idx) + i
             images = images.to(device, dtype=model_dtype, non_blocking=True)
             masks = masks.to(device, dtype=model_dtype, non_blocking=True)

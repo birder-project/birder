@@ -648,7 +648,7 @@ def training_log_name(network: str, device: torch.device) -> str:
         posix_ts = posix_ts_t.item()
         timestamp = datetime.fromtimestamp(posix_ts)
 
-    iso_timestamp = timestamp.isoformat()
+    iso_timestamp = timestamp.strftime("%Y-%m-%dT%H%M%S")
     return f"{network}__{iso_timestamp}"
 
 

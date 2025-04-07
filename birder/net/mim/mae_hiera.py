@@ -170,7 +170,7 @@ class MAE_Hiera(MIMBaseNet):
         # Tokens selected for masking at mask unit level
         num_windows = math.prod(self.encoder.mask_spatial_shape)
 
-        (mask, _, _) = uniform_mask(x.size(0), num_windows, self.mask_ratio)
+        (mask, _, _) = uniform_mask(x.size(0), num_windows, self.mask_ratio, device=x.device)
 
         # Get multi-scale representations from encoder
         (intermediates, mask) = self.encoder.masked_encoding(x, mask)
