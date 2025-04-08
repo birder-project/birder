@@ -9,6 +9,7 @@ pycocotools~=2.0.8
 rich~=14.0.0
 scikit-learn~=1.6.1
 scipy~=1.15.2
+tensorboard~=2.19.0
 torchinfo~=1.8.0
 torchmetrics~=1.7.0
 tqdm~=4.67.1

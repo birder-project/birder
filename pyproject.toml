@@ -17,7 +17,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-dynamic = ["dependencies", "version"]
+dynamic = ["dependencies", "optional-dependencies", "version"]
 
 [project.urls]
 Homepage = "https://gitlab.com/birder/birder"
@@ -46,6 +46,8 @@ birder = ["**/*.cpp", "**/*.hpp", "**/*.cu", "**/*.cuh"]
 [tool.setuptools.dynamic]
 version = { attr = "birder.version.__version__" }
 dependencies = { file = ["requirements/requirements.txt"] }
+optional-dependencies.dev = { file = ["requirements/_requirements-dev.txt"] }
+optional-dependencies.hf = { file = ["requirements/requirements-hf.txt"] }
 
 [tool.black]
 line-length = 120
