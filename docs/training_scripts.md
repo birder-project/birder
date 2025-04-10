@@ -85,7 +85,7 @@ If exists, you can provide a WebDataset info file:
 ```sh
 python train.py --network resnet_v2_50 \
     --wds \
-    --wds-info-file /path/to/_info.json \
+    --wds-info /path/to/_info.json \
     --wds-class-file /path/to/classes.txt
 ```
 

@@ -43,8 +43,8 @@ def show_iterator(args: argparse.Namespace) -> None:
     batch_size = 8
     if args.wds is True:
         wds_path: str | list[str]
-        if args.wds_info_file is not None:
-            (wds_path, dataset_size) = wds_args_from_info(args.wds_info_file, args.wds_split)
+        if args.wds_info is not None:
+            (wds_path, dataset_size) = wds_args_from_info(args.wds_info, args.wds_split)
             if args.wds_size is not None:
                 dataset_size = args.wds_size
         else:
@@ -214,7 +214,7 @@ def set_parser(subparsers: Any) -> None:
         "--data-path", type=str, default=str(settings.TRAINING_DATA_PATH), help="image directory path"
     )
     subparser.add_argument("--wds", default=False, action="store_true", help="use webdataset")
-    subparser.add_argument("--wds-info-file", type=str, metavar="FILE", help="wds info file")
+    subparser.add_argument("--wds-info", type=str, metavar="FILE", help="wds info file path")
     subparser.add_argument("--wds-class-file", type=str, metavar="FILE", help="class list file")
     subparser.add_argument("--wds-size", type=int, metavar="N", help="size of the wds directory")
     subparser.add_argument(

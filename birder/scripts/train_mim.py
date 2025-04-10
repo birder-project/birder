@@ -86,8 +86,8 @@ def train(args: argparse.Namespace) -> None:
     training_transform = training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale)
     if args.wds is True:
         wds_path: str | list[str]
-        if args.wds_info_file is not None:
-            (wds_path, dataset_size) = wds_args_from_info(args.wds_info_file, args.wds_split)
+        if args.wds_info is not None:
+            (wds_path, dataset_size) = wds_args_from_info(args.wds_info, args.wds_split)
             if args.wds_train_size is not None:
                 dataset_size = args.wds_train_size
         else:
@@ -433,6 +433,9 @@ def train(args: argparse.Namespace) -> None:
                     scaler=None,
                     model_base=None,
                 )
+                if args.keep_last is not None:
+                    fs_ops.clean_checkpoints(network_name, args.keep_last)
+                    fs_ops.clean_checkpoints(encoder_name, args.keep_last)
 
         # Epoch timing
         toc = time.time()
@@ -572,6 +575,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi step training)"
     )
     parser.add_argument("--save-frequency", type=int, default=1, metavar="N", help="frequency of model saving")
+    parser.add_argument("--keep-last", type=int, metavar="N", help="number of checkpoints to keep")
     parser.add_argument("--resume-epoch", type=int, metavar="N", help="epoch to resume training from")
     parser.add_argument(
         "--load-states",
@@ -588,7 +592,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "-j",
         "--num-workers",
         type=int,
-        default=max(os.cpu_count() // 4, 4),  # type: ignore[operator]
+        default=min(16, max(os.cpu_count() // 4, 4)),  # type: ignore[operator]
         metavar="N",
         help="number of preprocessing workers",
     )

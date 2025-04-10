@@ -1006,6 +1006,21 @@ registry.register_alias(
     },
 )
 registry.register_alias(
+    "rope_vitreg8_so150m_p14_ap",
+    RoPE_ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 18,
+        "num_heads": 16,
+        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
+        "mlp_dim": 2320,
+        "num_reg_tokens": 8,
+        "class_token": False,
+        "attn_pool_head": True,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
     "rope_vitreg4_so400m_p14_ap",
     RoPE_ViT,
     config={
@@ -1015,6 +1030,21 @@ registry.register_alias(
         "hidden_dim": 1152,
         "mlp_dim": 4304,
         "num_reg_tokens": 4,
+        "class_token": False,
+        "attn_pool_head": True,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "rope_vitreg8_so400m_p14_ap",
+    RoPE_ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 27,
+        "num_heads": 16,
+        "hidden_dim": 1152,
+        "mlp_dim": 4304,
+        "num_reg_tokens": 8,
         "class_token": False,
         "attn_pool_head": True,
         "drop_path_rate": 0.1,

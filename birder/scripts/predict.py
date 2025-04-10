@@ -161,8 +161,8 @@ def predict(args: argparse.Namespace) -> None:
     inference_transform = inference_preset(args.size, rgb_stats, args.center_crop)
     if args.wds is True:
         wds_path: str | list[str]
-        if args.wds_info_file is not None:
-            (wds_path, dataset_size) = wds_args_from_info(args.wds_info_file, args.wds_split)
+        if args.wds_info is not None:
+            (wds_path, dataset_size) = wds_args_from_info(args.wds_info, args.wds_split)
             if args.wds_size is not None:
                 dataset_size = args.wds_size
         else:
@@ -377,7 +377,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--parallel", default=False, action="store_true", help="use multiple gpu's")
     parser.add_argument("--wds", default=False, action="store_true", help="predict a webdataset directory")
     parser.add_argument("--wds-size", type=int, metavar="N", help="size of the wds dataset")
-    parser.add_argument("--wds-info-file", type=str, metavar="FILE", help="wds info file")
+    parser.add_argument("--wds-info", type=str, metavar="FILE", help="wds info file path")
     parser.add_argument("--wds-split", type=str, default="validation", metavar="NAME", help="wds dataset split to load")
     parser.add_argument("data_path", nargs="*", help="data files path (directories and files)")
 

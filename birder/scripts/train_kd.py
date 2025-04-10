@@ -107,9 +107,9 @@ def train(args: argparse.Namespace) -> None:
     if args.wds is True:
         training_wds_path: str | list[str]
         val_wds_path: str | list[str]
-        if args.wds_info_file is not None:
-            (training_wds_path, training_size) = wds_args_from_info(args.wds_info_file, args.wds_training_split)
-            (val_wds_path, val_size) = wds_args_from_info(args.wds_info_file, args.wds_val_split)
+        if args.wds_info is not None:
+            (training_wds_path, training_size) = wds_args_from_info(args.wds_info, args.wds_training_split)
+            (val_wds_path, val_size) = wds_args_from_info(args.wds_info, args.wds_val_split)
             if args.wds_train_size is not None:
                 training_size = args.wds_train_size
             if args.wds_val_size is not None:
@@ -610,6 +610,8 @@ def train(args: argparse.Namespace) -> None:
                     scaler,
                     model_base,
                 )
+                if args.keep_last is not None:
+                    fs_ops.clean_checkpoints(student_name, args.keep_last)
 
         # Epoch timing
         toc = time.time()
@@ -693,7 +695,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "    --compile \\\n"
             "    --wds \\\n"
             "    --wds-class-file data/intermediate/classes.txt \\\n"
-            "    --wds-info-file data/intermediate/_info.json\n"
+            "    --wds-info data/intermediate/_info.json\n"
             "\n"
             "DeiT style distillation:\n"
             "torchrun --nproc_per_node=2 train_kd.py \\\n"
@@ -809,6 +811,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi step training)"
     )
     parser.add_argument("--save-frequency", type=int, default=5, metavar="N", help="frequency of model saving")
+    parser.add_argument("--keep-last", type=int, metavar="N", help="number of checkpoints to keep")
     parser.add_argument("--resume-epoch", type=int, metavar="N", help="epoch to resume training from")
     parser.add_argument(
         "--load-states",
@@ -852,7 +855,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "-j",
         "--num-workers",
         type=int,
-        default=max(os.cpu_count() // 4, 4),  # type: ignore[operator]
+        default=min(16, max(os.cpu_count() // 4, 4)),  # type: ignore[operator]
         metavar="N",
         help="number of preprocessing workers",
     )

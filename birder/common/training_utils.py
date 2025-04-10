@@ -769,7 +769,7 @@ def add_scheduler_args(parser: argparse.ArgumentParser) -> None:
 
 def add_wds_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
-    parser.add_argument("--wds-info-file", type=str, metavar="FILE", help="wds info file")
+    parser.add_argument("--wds-info", type=str, metavar="FILE", help="wds info file path")
     parser.add_argument("--wds-class-file", type=str, metavar="FILE", help="class list file")
     parser.add_argument("--wds-cache-dir", type=str, help="webdataset cache directory")
     parser.add_argument("--wds-train-size", type=int, metavar="N", help="size of the wds training set")
@@ -784,7 +784,7 @@ def add_wds_args(parser: argparse.ArgumentParser) -> None:
 
 def add_unsupervised_wds_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
-    parser.add_argument("--wds-info-file", type=str, metavar="FILE", help="wds info file")
+    parser.add_argument("--wds-info", type=str, metavar="FILE", help="wds info file path")
     parser.add_argument("--wds-cache-dir", type=str, help="webdataset cache directory")
     parser.add_argument("--wds-train-size", type=int, metavar="N", help="size of the wds training set")
     parser.add_argument("--wds-split", type=str, default="training", metavar="NAME", help="wds dataset split to load")

@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -117,7 +118,7 @@ def read_wds_info(path: str | Path) -> dict[str, Any]:
 def model_path(
     network_name: str,
     *,
-    epoch: Optional[int] = None,
+    epoch: Optional[int | str] = None,
     quantized: bool = False,
     pts: bool = False,
     lite: bool = False,
@@ -228,6 +229,26 @@ def checkpoint_model(
     )
 
     _checkpoint_states(states_path, optimizer, scheduler, scaler, model_base, **extra_states)
+
+
+def clean_checkpoints(network_name: str, keep_last: int) -> None:
+    epoch = "*[0-9]"
+    models_glob = str(model_path(network_name, epoch=epoch))
+    states_glob = str(model_path(network_name, epoch=epoch, states=True))
+    model_pattern = re.compile(r".*_([1-9][0-9]*)\.pt$")
+    states_pattern = re.compile(r".*_([1-9][0-9]*)_states$")
+
+    model_paths = list(settings.BASE_DIR.glob(models_glob))
+    for p in sorted(model_paths, key=lambda p: p.stat().st_mtime)[:-keep_last]:
+        if model_pattern.search(str(p)) is not None:
+            logger.info(f"Removing checkpoint {p}...")
+            p.unlink()
+
+    state_paths = list(settings.BASE_DIR.glob(states_glob))
+    for p in sorted(state_paths, key=lambda p: p.stat().st_mtime)[:-keep_last]:
+        if states_pattern.search(str(p)) is not None:
+            logger.info(f"Removing checkpoint states {p}...")
+            p.unlink()
 
 
 class TrainingStates(NamedTuple):
