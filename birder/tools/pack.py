@@ -326,7 +326,7 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--type", type=str, choices=["wds", "directory"], default="wds", help="pack type")
     subparser.add_argument("--target-path", type=str, help="where to write the packed dataset")
-    subparser.add_argument("--max-size", type=int, default=500, help="maximum size of each shard in MB")
+    subparser.add_argument("--max-size", type=int, default=400, help="maximum size of each shard in MB")
     subparser.add_argument(
         "-j",
         "--jobs",

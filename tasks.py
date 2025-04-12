@@ -317,7 +317,7 @@ def convert_to_coco(ctx, class_file=None):
 
 
 @task
-def pack_intermediate(ctx, jobs=12, size=384, suffix="intermediate"):
+def pack_intermediate(ctx, jobs=12, size=384, suffix="intermediate_packed"):
     """
     Pack data for intermediate training
     """

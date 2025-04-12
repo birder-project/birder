@@ -206,7 +206,7 @@ def train(args: argparse.Namespace) -> None:
         min_aspect=0.5,
         max_aspect=2.0,
     )
-    n_masked = int(seq_len * 0.65)
+    n_masked = int(seq_len * args.mask_ratio)
     n_predict = int(n_masked * args.kept_mask_ratio)
     mask_collator = TrainCollator(mask_generator)
     training_transform = training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale)
