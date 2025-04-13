@@ -339,20 +339,20 @@ def pack_intermediate(ctx, jobs=12, size=384, suffix="intermediate_packed"):
 
 
 @task
-def pack_class_file(ctx, cls, size=384):
+def pack_class_file(ctx, cls, jobs=12, size=384):
     """
     Pack a class file in directory format
     """
 
     ctx.run(
-        f"python tool.py pack --type directory -j 8 --suffix {cls}_packed --size {size} --format jpeg "
+        f"python tool.py pack --type directory -j {jobs} --suffix {cls}_packed --size {size} --format jpeg "
         f"--class-file data/{cls}_classes.txt data/training",
         echo=True,
         pty=True,
         warn=True,
     )
     ctx.run(
-        f"python tool.py pack --type directory -j 8 --suffix {cls}_packed --size {size} --format jpeg "
+        f"python tool.py pack --type directory -j {jobs} --suffix {cls}_packed --size {size} --format jpeg "
         f"--class-file data/{cls}_classes.txt data/validation",
         echo=True,
         pty=True,

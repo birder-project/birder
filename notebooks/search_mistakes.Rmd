@@ -50,7 +50,7 @@ torch.set_float32_matmul_precision("high")
 ```{python}
 device = torch.device("cuda:1")
 (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
-    device, "hiera_abswin_base", tag="mim-raw256px", epoch=0, inference=True
+    device, "hiera_abswin_base", tag="mim-raw384px", epoch=0, inference=True
 )
 ```
 
@@ -107,8 +107,4 @@ with torch.inference_mode():
     for sample_paths, outs, labels, embedding_list in inference_iter:
         print("\n".join(suspected_mistakes))
         suspected_mistakes = []
-```
-
-```{python}
-print(suspected_mistakes)
 ```

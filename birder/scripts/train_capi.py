@@ -716,7 +716,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--size", type=int, nargs="+", metavar=("H", "W"), help="image size (defaults to network recommendation)"
     )
     parser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
-    parser.add_argument("--warmup-epochs", type=int, default=20, metavar="N", help="number of warmup epochs")
+    parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
     parser.add_argument(
         "--aug-level",
         type=int,

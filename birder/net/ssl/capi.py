@@ -101,12 +101,10 @@ class OnlineClustering(nn.Module):
 
 
 class L2NormLinear(nn.Module):
-    def __init__(self, in_dim: int, out_dim: int, *, do_weight_norm: bool = True):
+    def __init__(self, in_dim: int, out_dim: int):
         super().__init__()
         self.last_layer = nn.utils.parametrizations.weight_norm(nn.Linear(in_dim, out_dim, bias=False))
         self.last_layer.parametrizations.weight.original0.data.fill_(1)
-        if do_weight_norm is True:
-            self.last_layer.parametrizations.weight.original0.requires_grad = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         eps = 1e-6 if x.dtype == torch.float16 else 1e-12
