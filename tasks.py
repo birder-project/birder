@@ -339,6 +339,21 @@ def pack_intermediate(ctx, jobs=12, size=384, suffix="intermediate_packed"):
 
 
 @task
+def pack_ssl(ctx, jobs=12, size=320, suffix="ssl_packed"):
+    """
+    Pack data for self-supervised training
+    """
+
+    ctx.run(
+        f"python tool.py pack -j {jobs} --shuffle --suffix {suffix} --target-path data/{suffix} --size {size} "
+        "--no-cls data/training data/raw_data data/detection_data/training ~/Datasets",
+        echo=True,
+        pty=True,
+        warn=True,
+    )
+
+
+@task
 def pack_class_file(ctx, cls, jobs=12, size=384):
     """
     Pack a class file in directory format

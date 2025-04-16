@@ -380,46 +380,49 @@ def get_optimizer(parameters: list[dict[str, Any]], lr: float, args: argparse.Na
 
 
 def get_scheduler(
-    lr_scheduler: SchedulerType,
-    optimizer: torch.optim.Optimizer,
-    warmup_epochs: int,
-    begin_epoch: int,
-    epochs: int,
-    lr_cosine_min: float,
-    lr_step_size: int,
-    lr_steps: list[int],
-    lr_step_gamma: float,
-    lr_power: float,
+    optimizer: torch.optim.Optimizer, iters_per_epoch: int, args: argparse.Namespace
 ) -> torch.optim.lr_scheduler.LRScheduler:
+    begin_epoch = 0
+    if args.resume_epoch is not None:
+        begin_epoch = args.resume_epoch
+
     # Warmup epochs is given in absolute number from 0
-    remaining_warmup = max(0, warmup_epochs - begin_epoch)
-    if lr_scheduler == "constant":
+    remaining_warmup = max(0, args.warmup_epochs - begin_epoch - 1)
+    if args.lr_scheduler == "constant":
         main_scheduler = torch.optim.lr_scheduler.ConstantLR(optimizer, factor=1.0, total_iters=1)
-    elif lr_scheduler == "step":
-        main_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_step_size, gamma=lr_step_gamma)
-    elif lr_scheduler == "multistep":
-        main_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=lr_steps, gamma=lr_step_gamma)
-    elif lr_scheduler == "cosine":
-        main_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=(epochs - begin_epoch - remaining_warmup), eta_min=lr_cosine_min
+    elif args.lr_scheduler == "step":
+        main_scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer, step_size=args.lr_step_size, gamma=args.lr_step_gamma
         )
-    elif lr_scheduler == "polynomial":
+    elif args.lr_scheduler == "multistep":
+        main_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+            optimizer, milestones=args.lr_steps, gamma=args.lr_step_gamma
+        )
+    elif args.lr_scheduler == "cosine":
+        main_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=(args.epochs - begin_epoch - remaining_warmup) * iters_per_epoch,
+            eta_min=args.lr_cosine_min,
+        )
+    elif args.lr_scheduler == "polynomial":
         main_scheduler = torch.optim.lr_scheduler.PolynomialLR(
-            optimizer, total_iters=(epochs - begin_epoch - remaining_warmup) + 1, power=lr_power
+            optimizer,
+            total_iters=(args.epochs - begin_epoch - remaining_warmup) * iters_per_epoch,
+            power=args.lr_power,
         )
     else:
         raise ValueError("Unknown learning rate scheduler")
 
     # Handle warmup
-    if warmup_epochs > 0:
+    if args.warmup_epochs > 0:
         warmup_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
-            optimizer, start_factor=0.01 if remaining_warmup > 0 else 1, total_iters=remaining_warmup + 1
+            optimizer, start_factor=0.01, total_iters=(remaining_warmup + 1) * iters_per_epoch
         )
 
         scheduler = torch.optim.lr_scheduler.SequentialLR(
             optimizer,
             schedulers=[warmup_lr_scheduler, main_scheduler],
-            milestones=[remaining_warmup + 1],
+            milestones=[(remaining_warmup + 1) * iters_per_epoch],
         )
 
     else:
@@ -727,6 +730,13 @@ def add_optimizer_args(parser: argparse.ArgumentParser) -> None:
 
 
 def add_scheduler_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--lr-scheduler-update",
+        type=str,
+        choices=["epoch", "iter"],
+        default="epoch",
+        help="when to apply learning rate scheduler update",
+    )
     parser.add_argument(
         "--lr-scheduler",
         type=str,

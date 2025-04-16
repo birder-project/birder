@@ -268,16 +268,50 @@ class TestTrainingUtils(unittest.TestCase):
     def test_get_scheduler(self) -> None:
         args = argparse.Namespace(opt="sgd", lr=0.1, momentum=0.9, wd=0, nesterov=False)
         opt = training_utils.get_optimizer([{"params": []}], args.lr, args)
+
         for scheduler_type in typing.get_args(training_utils.SchedulerType):
-            scheduler = training_utils.get_scheduler(scheduler_type, opt, 0, 0, 10, 0.0, 0, [], 0.0, 1.0)
+            args = argparse.Namespace(
+                lr_scheduler=scheduler_type,
+                warmup_epochs=0,
+                resume_epoch=0,
+                epochs=10,
+                lr_cosine_min=0.0,
+                lr_step_size=1,
+                lr_steps=[],
+                lr_step_gamma=0.0,
+                lr_power=1.0,
+            )
+            scheduler = training_utils.get_scheduler(opt, 1, args)
             self.assertIsInstance(scheduler, torch.optim.lr_scheduler.LRScheduler)
 
         # Check warmup
-        scheduler = training_utils.get_scheduler("step", opt, 5, 0, 10, 0.0, 0, [], 0.0, 1.0)
+        args = argparse.Namespace(
+            lr_scheduler="step",
+            warmup_epochs=5,
+            resume_epoch=0,
+            epochs=10,
+            lr_cosine_min=0.0,
+            lr_step_size=1,
+            lr_steps=[],
+            lr_step_gamma=0.0,
+            lr_power=1.0,
+        )
+        scheduler = training_utils.get_scheduler(opt, 1, args)
         self.assertIsInstance(scheduler, torch.optim.lr_scheduler.SequentialLR)
 
+        args = argparse.Namespace(
+            lr_scheduler="unknown",
+            warmup_epochs=5,
+            resume_epoch=0,
+            epochs=10,
+            lr_cosine_min=0.0,
+            lr_step_size=1,
+            lr_steps=[],
+            lr_step_gamma=0.0,
+            lr_power=1.0,
+        )
         with self.assertRaises(ValueError):
-            training_utils.get_scheduler("unknown", opt, 0, 0, 10, 0.0, 0, [], 0.0, 1.0)  # type: ignore
+            training_utils.get_scheduler(opt, 1, args)
 
         # Misc
         self.assertFalse(training_utils.is_dist_available_and_initialized())

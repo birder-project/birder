@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Any
 from typing import Literal
 
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.amp
 import torch.nn.functional as F
@@ -210,7 +212,7 @@ def train(args: argparse.Namespace) -> None:
             pin_memory=True,
         )
 
-    last_batch_idx = math.ceil(len(training_dataset) / batch_size) - 1
+    last_batch_idx = len(training_loader) - 1
     begin_epoch = 1
     epochs = args.epochs + 1
     if args.stop_epoch is None:
@@ -295,20 +297,18 @@ def train(args: argparse.Namespace) -> None:
     lr = training_utils.scale_lr(args)
     grad_accum_steps: int = args.grad_accum_steps
 
+    if args.lr_scheduler_update == "epoch":
+        iter_update = False
+        iters_per_epoch = 1
+    elif args.lr_scheduler_update == "iter":
+        iter_update = True
+        iters_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
+    else:
+        raise ValueError("Unsupported lr_scheduler_update")
+
     # Optimizer and learning rate scheduler
     optimizer = training_utils.get_optimizer(parameters, lr, args)
-    scheduler = training_utils.get_scheduler(
-        args.lr_scheduler,
-        optimizer,
-        args.warmup_epochs,
-        begin_epoch,
-        epochs,
-        args.lr_cosine_min,
-        args.lr_step_size,
-        args.lr_steps,
-        args.lr_step_gamma,
-        args.lr_power,
-    )
+    scheduler = training_utils.get_scheduler(optimizer, iters_per_epoch, args)
     if args.compile_opt is True:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
 
@@ -329,6 +329,18 @@ def train(args: argparse.Namespace) -> None:
             g["lr"] = last_lr
 
     last_lr = max(scheduler.get_last_lr())
+    if args.plot_lr is True:
+        logger.info("Fast forwarding scheduler...")
+        lrs = []
+        for _ in range(begin_epoch, epochs):
+            for _ in range(iters_per_epoch):
+                optimizer.step()
+                lrs.append(max(scheduler.get_last_lr()))
+                scheduler.step()
+
+        plt.plot(np.linspace(begin_epoch, epochs, iters_per_epoch * (epochs - begin_epoch), endpoint=False), lrs)
+        plt.show()
+        raise SystemExit(0)
 
     #
     # Distributed (DDP) and Model EMA
@@ -490,6 +502,8 @@ def train(args: argparse.Namespace) -> None:
                     scaler.step(optimizer)
                     scaler.update()
                     optimizer.zero_grad()
+                    if iter_update is True:
+                        scheduler.step()
 
             else:
                 loss.backward()
@@ -499,6 +513,8 @@ def train(args: argparse.Namespace) -> None:
 
                     optimizer.step()
                     optimizer.zero_grad()
+                    if iter_update is True:
+                        scheduler.step()
 
             # Exponential moving average
             if args.model_ema is True and i % args.model_ema_steps == 0:
@@ -581,7 +597,8 @@ def train(args: argparse.Namespace) -> None:
         validation_metrics_dict = validation_metrics.compute()
 
         # Learning rate scheduler update
-        scheduler.step()
+        if iter_update is False:
+            scheduler.step()
         if last_lr != max(scheduler.get_last_lr()):
             last_lr = max(scheduler.get_last_lr())
             logger.info(f"Updated learning rate to: {last_lr}")
@@ -894,6 +911,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")
     parser.add_argument(
         "--use-deterministic-algorithms", default=False, action="store_true", help="use only deterministic algorithms"
+    )
+    parser.add_argument(
+        "--plot-lr", default=False, action="store_true", help="plot learning rate and exit (skip training)"
     )
     parser.add_argument("--no-summary", default=False, action="store_true", help="don't print model summary")
     parser.add_argument(

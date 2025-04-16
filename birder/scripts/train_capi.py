@@ -14,6 +14,7 @@ Changes from original:
 import argparse
 import json
 import logging
+import math
 import os
 import sys
 import time
@@ -23,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.amp
 import torch.nn.functional as F
@@ -269,7 +271,7 @@ def train(args: argparse.Namespace) -> None:
             drop_last=True,
         )
 
-    last_batch_idx = (len(training_dataset) // batch_size) - 1  # no partial batches
+    last_batch_idx = len(training_loader) - 1
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
@@ -290,39 +292,26 @@ def train(args: argparse.Namespace) -> None:
     clustering_lr = lr / 2
     grad_accum_steps: int = args.grad_accum_steps
 
+    if args.lr_scheduler_update == "epoch":
+        iter_update = False
+        iters_per_epoch = 1
+    elif args.lr_scheduler_update == "iter":
+        iter_update = True
+        iters_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
+    else:
+        raise ValueError("Unsupported lr_scheduler_update")
+
     # Optimizer and learning rate scheduler
     optimizer = training_utils.get_optimizer(parameters, lr, args)
     clustering_optimizer = torch.optim.AdamW(teacher.head.parameters(), lr=clustering_lr, betas=[0.9, 0.95])
-    scheduler = training_utils.get_scheduler(
-        args.lr_scheduler,
-        optimizer,
-        args.warmup_epochs,
-        begin_epoch,
-        epochs,
-        args.lr_cosine_min,
-        args.lr_step_size,
-        args.lr_steps,
-        args.lr_step_gamma,
-        args.lr_power,
-    )
-    clustering_scheduler = training_utils.get_scheduler(
-        args.lr_scheduler,
-        clustering_optimizer,
-        args.warmup_epochs,
-        begin_epoch,
-        epochs,
-        args.lr_cosine_min,
-        args.lr_step_size,
-        args.lr_steps,
-        args.lr_step_gamma,
-        args.lr_power,
-    )
+    scheduler = training_utils.get_scheduler(optimizer, iters_per_epoch, args)
+    clustering_scheduler = training_utils.get_scheduler(clustering_optimizer, iters_per_epoch, args)
     if args.compile_opt is True:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
         clustering_optimizer.step = torch.compile(clustering_optimizer.step, fullgraph=False)
 
     # Momentum and temperatures
-    momentum_schedule = training_utils.cosine_scheduler(args.momentum_teacher, 1.0, args.epochs, last_batch_idx)
+    momentum_schedule = training_utils.cosine_scheduler(args.momentum_teacher, 1.0, args.epochs, last_batch_idx + 1)
     student_temp = 0.12
 
     # Gradient scaler and AMP related tasks
@@ -343,12 +332,13 @@ def train(args: argparse.Namespace) -> None:
     if args.plot_lr is True:
         logger.info("Fast forwarding scheduler...")
         lrs = []
-        for epoch in range(begin_epoch, epochs):
-            optimizer.step()
-            lrs.append(max(scheduler.get_last_lr()))
-            scheduler.step()
+        for _ in range(begin_epoch, epochs):
+            for _ in range(iters_per_epoch):
+                optimizer.step()
+                lrs.append(max(scheduler.get_last_lr()))
+                scheduler.step()
 
-        plt.plot(range(begin_epoch, epochs), lrs)
+        plt.plot(np.linspace(begin_epoch, epochs, iters_per_epoch * (epochs - begin_epoch), endpoint=False), lrs)
         plt.show()
         raise SystemExit(0)
 
@@ -450,7 +440,7 @@ def train(args: argparse.Namespace) -> None:
         clustering_optimizer.zero_grad()
 
         for i, ((_, images, _), masks) in enumerate(training_loader):
-            global_step = ((epoch - 1) * last_batch_idx) + i
+            global_step = ((epoch - 1) * (last_batch_idx + 1)) + i
             images = images.to(device, dtype=model_dtype, non_blocking=True)
             masks = masks.to(device, dtype=model_dtype, non_blocking=True)
 
@@ -470,12 +460,16 @@ def train(args: argparse.Namespace) -> None:
                     clustering_scaler.step(clustering_optimizer)
                     clustering_scaler.update()
                     clustering_optimizer.zero_grad()
+                    if iter_update is True:
+                        clustering_scheduler.step()
 
             else:
                 clustering_loss.backward()
                 if optimizer_update is True:
                     clustering_optimizer.step()
                     clustering_optimizer.zero_grad()
+                    if iter_update is True:
+                        clustering_scheduler.step()
 
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
                 pred = student(images, ids_keep, predict_indices)
@@ -494,6 +488,8 @@ def train(args: argparse.Namespace) -> None:
                     scaler.step(optimizer)
                     scaler.update()
                     optimizer.zero_grad()
+                    if iter_update is True:
+                        scheduler.step()
 
             else:
                 loss.backward()
@@ -503,6 +499,8 @@ def train(args: argparse.Namespace) -> None:
 
                     optimizer.step()
                     optimizer.zero_grad()
+                    if iter_update is True:
+                        scheduler.step()
 
             # EMA update for the teacher
             with torch.no_grad():
@@ -555,8 +553,9 @@ def train(args: argparse.Namespace) -> None:
         logger.info(f"Epoch {epoch}/{epochs-1} target_entropy: {epoch_target_entropy:.4f}")
 
         # Learning rate scheduler update
-        scheduler.step()
-        clustering_scheduler.step()
+        if iter_update is False:
+            scheduler.step()
+            clustering_scheduler.step()
         if last_lr != max(scheduler.get_last_lr()):
             last_lr = max(scheduler.get_last_lr())
             logger.info(f"Updated learning rate to: {last_lr}")
@@ -658,6 +657,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "    --opt adamw \\\n"
             "    --lr 0.001 \\\n"
             "    --opt-betas 0.9 0.95 \\\n"
+            "    --lr-scheduler-update iter \\\n"
             "    --lr-scheduler cosine \\\n"
             "    --lr-cosine-min 1e-7 \\\n"
             "    --warmup-epochs 40 \\\n"

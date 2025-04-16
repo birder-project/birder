@@ -33,10 +33,11 @@ def make_wds_loader(
     )
     dataloader.batch_size = batch_size
     if drop_last is True:
+        # drop_last actually does nothing here as the BatchSampler will always see a full batch
         epoch_size = math.floor(len(dataset) / (batch_size * world_size))
     else:
         epoch_size = math.ceil(len(dataset) / (batch_size * world_size))
 
-    dataloader = dataloader.repeat(2).with_epoch(epoch_size)
+    dataloader = dataloader.with_length(epoch_size, silent=True).repeat(2).with_epoch(epoch_size)
 
     return dataloader
