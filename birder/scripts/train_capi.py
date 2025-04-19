@@ -56,7 +56,6 @@ from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import get_signature
 from birder.net.ssl.capi import CAPIStudent
 from birder.net.ssl.capi import CAPITeacher
-from birder.net.ssl.capi import L2NormLinear
 from birder.net.ssl.capi import OnlineClustering
 from birder.transforms.classification import RGBMode
 from birder.transforms.classification import get_rgb_stats
@@ -150,7 +149,6 @@ def train(args: argparse.Namespace) -> None:
         size=args.size,
     )
 
-    student_head = L2NormLinear(student_backbone.embedding_size, args.num_clusters)
     teacher_head = OnlineClustering(
         student_backbone.embedding_size,
         args.num_clusters,
@@ -162,7 +160,7 @@ def train(args: argparse.Namespace) -> None:
 
     teacher_backbone.load_state_dict(student_backbone.state_dict())
 
-    student = CAPIStudent(student_backbone.input_channels, student_backbone, student_head)
+    student = CAPIStudent(student_backbone.input_channels, student_backbone, args.num_clusters)
     teacher = CAPITeacher(teacher_backbone.input_channels, teacher_backbone, teacher_head)
 
     net = torch.nn.ModuleDict(

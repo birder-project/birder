@@ -151,11 +151,11 @@ class CrossAttentionBlock(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, input_size: tuple[int, int], embed_dim: int, depth: int) -> None:
+    def __init__(self, input_size: tuple[int, int], embed_dim: int, decoder_dim: int, depth: int) -> None:
         super().__init__()
 
         encoder_dim = embed_dim
-        decoder_embed_dim = encoder_dim
+        decoder_embed_dim = decoder_dim
         decoder_depth = depth
         self.mask_token = nn.Parameter(torch.zeros(1, 1, decoder_embed_dim))
 
@@ -208,7 +208,7 @@ class Decoder(nn.Module):
 class CAPIStudent(SSLBaseNet):
     default_size = (224, 224)
 
-    def __init__(self, input_channels: int, backbone: PreTrainEncoder, head: L2NormLinear) -> None:
+    def __init__(self, input_channels: int, backbone: PreTrainEncoder, num_clusters: int) -> None:
         super().__init__(input_channels)
         assert isinstance(backbone, MaskedTokenOmissionMixin)
         self.backbone = backbone
@@ -217,8 +217,13 @@ class CAPIStudent(SSLBaseNet):
         input_size = (self.size[0] // self.backbone.max_stride, self.size[1] // self.backbone.max_stride)
         self.seq_len = input_size[0] * input_size[1]
 
-        self.decoder = Decoder(input_size, self.backbone.embedding_size, min(12, max(8, self.backbone.num_layers // 2)))
-        self.head = head
+        self.decoder = Decoder(
+            input_size,
+            self.backbone.embedding_size,
+            min(1024, max(768, self.backbone.embedding_size)),
+            min(12, max(8, self.backbone.num_layers // 2)),
+        )
+        self.head = L2NormLinear(min(1024, max(768, self.backbone.embedding_size)), num_clusters)
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ
         self, x: torch.Tensor, ids_keep: torch.Tensor, ids_predict: torch.Tensor
