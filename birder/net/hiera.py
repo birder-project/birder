@@ -528,6 +528,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
             x = x[mask[..., None].tile(1, self.mu_size, x.shape[2])].view(x.shape[0], -1, x.shape[-1])
 
         x = self.body(x)
+        x = self.features[0](x)  # norm
 
         return x
 
@@ -765,5 +766,23 @@ registry.register_weights(
             },
         },
         "net": {"network": "hiera_abswin_base", "tag": "mim"},
+    },
+)
+registry.register_weights(
+    "hiera_abswin_base_mim-intermediate-eu-common",
+    {
+        "url": "https://huggingface.co/birder-project/hiera_abswin_base_mim-intermediate-eu-common/resolve/main",
+        "description": (
+            "Hiera base with abswin model with MIM pretraining and intermediate training, "
+            "then fine-tuned on the eu-common dataset"
+        ),
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 194.9,
+                "sha256": "e6e9d28e0cd98a5c72c1a4a67301c62d2ade97e6d162f34ad630e5ffb2f9ec2a",
+            }
+        },
+        "net": {"network": "hiera_abswin_base", "tag": "mim-intermediate-eu-common"},
     },
 )

@@ -385,9 +385,9 @@ def train(args: argparse.Namespace) -> None:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
 
     # Teacher momentum and weight decay schedule
-    momentum_schedule = training_utils.cosine_scheduler(args.momentum_teacher, 1.0, args.epochs, last_batch_idx + 1)
+    momentum_schedule = training_utils.cosine_scheduler(args.momentum_teacher, 1.0, args.epochs, 0, last_batch_idx + 1)
     if args.wd_end is not None:
-        wd_schedule = training_utils.cosine_scheduler(args.wd, args.wd_end, args.epochs, 1)
+        wd_schedule = training_utils.cosine_scheduler(args.wd, args.wd_end, args.epochs, 0, 1)
     else:
         wd_schedule = None
 

@@ -309,7 +309,9 @@ def train(args: argparse.Namespace) -> None:
         clustering_optimizer.step = torch.compile(clustering_optimizer.step, fullgraph=False)
 
     # Momentum and temperatures
-    momentum_schedule = training_utils.cosine_scheduler(args.momentum_teacher, 1.0, args.epochs, last_batch_idx + 1)
+    momentum_schedule = training_utils.cosine_scheduler(
+        args.momentum_teacher, 1.0, args.epochs, args.warmup_epochs, last_batch_idx + 1, start_warmup_value=1.0
+    )
     student_temp = 0.12
 
     # Gradient scaler and AMP related tasks

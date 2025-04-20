@@ -617,10 +617,17 @@ def get_world_size() -> int:
 ###############################################################################
 
 
-def cosine_scheduler(base_value: float, final_value: float, epochs: int, iter_per_epoch: int) -> list[float]:
-    warmup_schedule = np.array([])
+def cosine_scheduler(
+    base_value: float,
+    final_value: float,
+    epochs: int,
+    warmup_epochs: int,
+    iter_per_epoch: int,
+    start_warmup_value: float = 0.0,
+) -> list[float]:
+    warmup_schedule = np.linspace(start_warmup_value, base_value, warmup_epochs * iter_per_epoch)
 
-    iters = np.arange(epochs * iter_per_epoch)
+    iters = np.arange((epochs - warmup_epochs) * iter_per_epoch)
     schedule = final_value + 0.5 * (base_value - final_value) * (1 + np.cos(np.pi * iters / len(iters)))
 
     schedule = np.concatenate((warmup_schedule, schedule))
