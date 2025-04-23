@@ -53,7 +53,7 @@ class TestNetSSL(unittest.TestCase):
             backbone.embedding_size, num_clusters, bias=True, n_sk_iter=3, target_temp=0.06, pred_temp=0.12
         )
         teacher = capi.CAPITeacher(backbone.input_channels, backbone, teacher_head)
-        student = capi.CAPIStudent(backbone.input_channels, backbone, num_clusters)
+        student = capi.CAPIStudent(backbone.input_channels, backbone, 4, 256, num_clusters)
         mask_generator = masking.InverseRollBlockMasking(input_size, n_masked)
 
         masks = mask_generator(batch_size)
@@ -96,7 +96,7 @@ class TestNetSSL(unittest.TestCase):
             backbone.embedding_size, num_clusters, bias=True, n_sk_iter=3, target_temp=0.06, pred_temp=0.12
         )
         teacher = capi.CAPITeacher(backbone.input_channels, backbone, teacher_head)
-        student = capi.CAPIStudent(backbone.input_channels, backbone, num_clusters)
+        student = capi.CAPIStudent(backbone.input_channels, backbone, 4, 256, num_clusters)
         mask_generator = masking.InverseRollBlockMasking(input_size, n_masked)
 
         masks = mask_generator(batch_size)

@@ -24,7 +24,7 @@ Fine-tuning, first stage - linear probing
 torchrun --nproc_per_node=2 train.py --network vitreg4_b14 --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
 ```
 
-#### CrossMAE: SoViT reg4 150m p14
+#### CrossMAE: SoViT reg4 150m p14 AP
 
 ```sh
 torchrun --nproc_per_node=2 train_mim.py --network crossmae --encoder vitreg4_so150m_p14_ap --opt adamw --lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --batch-size 384 --wd 0.05 --encoder-model-config drop_path_rate=0.0 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
@@ -350,7 +350,7 @@ Number of epochs relays on the amount of samples in training (1M -> 50 epochs), 
 torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 5e-7 --batch-size 64 --warmup-epochs 5 --epochs 50 --size 256 --wd 0.05 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.8 --resume-epoch 0
 ```
 
-#### MAE ViT: SoViT reg4 150m p14
+#### MAE ViT: SoViT reg4 150m p14 AP
 
 ```sh
 torchrun --nproc_per_node=2 train_mim.py --network mae_vit --encoder vitreg4_so150m_p14_ap --opt adamw --lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --batch-size 256 --wd 0.05 --encoder-model-config drop_path_rate=0.0 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
@@ -359,7 +359,7 @@ torchrun --nproc_per_node=2 train_mim.py --network mae_vit --encoder vitreg4_so1
 Optional intermediate training: first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vitreg4_so150m_p14_ap --tag mim-intermediate --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --unfreeze-features --wds --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
+torchrun --nproc_per_node=2 train.py --network vitreg4_so150m_p14_ap --tag mim-intermediate --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 252 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --unfreeze-features --wds --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
 ```
 
 ### SimMIM

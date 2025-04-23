@@ -1,5 +1,5 @@
 matplotlib~=3.10.1
-numpy~=2.2.4
+numpy~=2.2.5
 onnx~=1.17.0
 onnxscript~=0.2.4
 Pillow~=11.2.1

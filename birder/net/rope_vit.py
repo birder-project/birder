@@ -676,7 +676,7 @@ registry.register_alias(
         "num_heads": 12,
         "hidden_dim": 768,
         "mlp_dim": 3072,
-        "drop_path_rate": 0.0,
+        "drop_path_rate": 0.1,
     },
 )
 registry.register_alias(
@@ -688,7 +688,7 @@ registry.register_alias(
         "num_heads": 12,
         "hidden_dim": 768,
         "mlp_dim": 3072,
-        "drop_path_rate": 0.0,
+        "drop_path_rate": 0.1,
     },
 )
 registry.register_alias(
@@ -866,7 +866,7 @@ registry.register_alias(
         "hidden_dim": 768,
         "mlp_dim": 3072,
         "num_reg_tokens": 4,
-        "drop_path_rate": 0.0,
+        "drop_path_rate": 0.1,
     },
 )
 registry.register_alias(
@@ -879,7 +879,22 @@ registry.register_alias(
         "hidden_dim": 768,
         "mlp_dim": 3072,
         "num_reg_tokens": 4,
-        "drop_path_rate": 0.0,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "rope_vitreg8_b14_ap",
+    RoPE_ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 12,
+        "num_heads": 12,
+        "hidden_dim": 768,
+        "mlp_dim": 3072,
+        "num_reg_tokens": 8,
+        "class_token": False,
+        "attn_pool_head": True,
+        "drop_path_rate": 0.1,
     },
 )
 registry.register_alias(

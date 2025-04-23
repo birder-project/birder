@@ -633,7 +633,7 @@ def cosine_scheduler(
     schedule = np.concatenate((warmup_schedule, schedule))
     assert len(schedule) == epochs * iter_per_epoch
 
-    return schedule.tolist()  # type: ignore[return-value]
+    return schedule.tolist()  # type: ignore[no-any-return]
 
 
 def scale_lr(args: argparse.Namespace) -> float:

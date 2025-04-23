@@ -160,7 +160,9 @@ def train(args: argparse.Namespace) -> None:
 
     teacher_backbone.load_state_dict(student_backbone.state_dict())
 
-    student = CAPIStudent(student_backbone.input_channels, student_backbone, args.num_clusters)
+    student = CAPIStudent(
+        student_backbone.input_channels, student_backbone, args.decoder_layers, args.decoder_dim, args.num_clusters
+    )
     teacher = CAPITeacher(teacher_backbone.input_channels, teacher_backbone, teacher_head)
 
     net = torch.nn.ModuleDict(
@@ -682,6 +684,8 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
+    parser.add_argument("--decoder-layers", type=int, default=12, help="number of decoder layers")
+    parser.add_argument("--decoder-dim", type=int, default=1024, help="decoder dimensionality")
     parser.add_argument("--num-clusters", type=int, default=16384, help="clustering head width")
     parser.add_argument("--mask-ratio", type=float, default=0.65, help="masking ratio")
     parser.add_argument("--kept-mask-ratio", type=float, default=0.05, help="subsampling ratio for decoding")

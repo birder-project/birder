@@ -2374,7 +2374,7 @@ torchrun --nproc_per_node=2 train.py --network vit_l16 --opt adamw --lr 0.0001 -
 torchrun --nproc_per_node=2 train.py --network vit_h14 --opt adamw --lr 0.0001 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --warmup-epochs 20 --epochs 200 --size 256 --wd 0.3 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile
 ```
 
-#### ViT: SoViT 150m p14
+#### ViT: SoViT 150m p14 AP
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_so150m_p14_ap --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile

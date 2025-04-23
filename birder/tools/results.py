@@ -203,7 +203,7 @@ def main(args: argparse.Namespace) -> None:
         if args.print_mistakes is True:
             (result_name, results) = next(iter(results_dict.items()))
             label_names_arr = np.array(results.label_names)
-            classes_list: list[str] = label_names_arr[results.mistakes["prediction"].unique()].tolist()  # type: ignore
+            classes_list: list[str] = label_names_arr[results.mistakes["prediction"].unique()].tolist()
             classes_list.extend(list(results.mistakes["label_name"].unique()))
             results_df = results.get_as_df().filter(pl.col("label_name").is_in(classes_list))
 
