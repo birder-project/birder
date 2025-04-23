@@ -36,7 +36,7 @@ from PIL import Image
 ```{python}
 device = torch.device("cpu")
 (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
-    device, "vitreg4_b16", tag="mim-intermediate", epoch=75, inference=True
+    device, "vit_reg4_b16", tag="mim-intermediate", epoch=75, inference=True
 )
 idx_to_class = {v: k for k, v in class_to_idx.items()}
 size = lib.get_size_from_signature(signature)

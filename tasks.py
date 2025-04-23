@@ -563,9 +563,9 @@ def sam_from_vit(_ctx, network, tag=None, epoch=None):
     Transform vanilla ViT to ViT SAM
     """
 
-    # Assuming network is vit_{b, l, h}16 or vitregN_{b, l, h}16
+    # Assuming network is vit_{b, l, h}16 or vit_regN_{b, l, h}16
     if "reg" in network:
-        sam_network = network[0:3] + "_sam" + network[7:]
+        sam_network = network[0:3] + "_sam" + network[8:]
     else:
         sam_network = network[0:3] + "_sam" + network[3:]
 

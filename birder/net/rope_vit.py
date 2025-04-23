@@ -766,7 +766,7 @@ registry.register_alias(  # From "Scaling Vision Transformers"
 
 # With registers
 registry.register_alias(
-    "rope_vitreg4_s32",
+    "rope_vit_reg4_s32",
     RoPE_ViT,
     config={
         "patch_size": 32,
@@ -779,7 +779,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vitreg4_s16",
+    "rope_vit_reg4_s16",
     RoPE_ViT,
     config={
         "patch_size": 16,
@@ -792,7 +792,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vitreg4_s14",
+    "rope_vit_reg4_s14",
     RoPE_ViT,
     config={
         "patch_size": 14,
@@ -805,7 +805,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vitreg4_m32",
+    "rope_vit_reg4_m32",
     RoPE_ViT,
     config={
         "patch_size": 32,
@@ -818,7 +818,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vitreg4_m16",
+    "rope_vit_reg4_m16",
     RoPE_ViT,
     config={
         "patch_size": 16,
@@ -831,7 +831,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vitreg4_m14",
+    "rope_vit_reg4_m14",
     RoPE_ViT,
     config={
         "patch_size": 14,
@@ -844,7 +844,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vitreg4_b32",
+    "rope_vit_reg4_b32",
     RoPE_ViT,
     config={
         "patch_size": 32,
@@ -857,23 +857,10 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vitreg4_b16",
+    "rope_vit_reg4_b16",
     RoPE_ViT,
     config={
         "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_alias(
-    "rope_vitreg4_b14",
-    RoPE_ViT,
-    config={
-        "patch_size": 14,
         "num_layers": 12,
         "num_heads": 12,
         "hidden_dim": 768,
@@ -883,7 +870,20 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vitreg8_b14_ap",
+    "rope_vit_reg4_b14",
+    RoPE_ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 12,
+        "num_heads": 12,
+        "hidden_dim": 768,
+        "mlp_dim": 3072,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "rope_vit_reg8_b14_ap",
     RoPE_ViT,
     config={
         "patch_size": 14,
@@ -898,7 +898,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vitreg4_l32",
+    "rope_vit_reg4_l32",
     RoPE_ViT,
     config={
         "patch_size": 32,
@@ -911,7 +911,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vitreg4_l16",
+    "rope_vit_reg4_l16",
     RoPE_ViT,
     config={
         "patch_size": 16,
@@ -924,7 +924,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vitreg4_l14",
+    "rope_vit_reg4_l14",
     RoPE_ViT,
     config={
         "patch_size": 14,
@@ -937,7 +937,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vitreg4_h16",
+    "rope_vit_reg4_h16",
     RoPE_ViT,
     config={
         "patch_size": 16,
@@ -950,7 +950,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vitreg4_h14",
+    "rope_vit_reg4_h14",
     RoPE_ViT,
     config={
         "patch_size": 14,
@@ -963,7 +963,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(  # From "Scaling Vision Transformers"
-    "rope_vitreg4_g14",
+    "rope_vit_reg4_g14",
     RoPE_ViT,
     config={
         "patch_size": 14,
@@ -1006,7 +1006,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vitreg4_so150m_p14_ap",
+    "rope_vit_reg4_so150m_p14_ap",
     RoPE_ViT,
     config={
         "patch_size": 14,
@@ -1021,7 +1021,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vitreg8_so150m_p14_ap",
+    "rope_vit_reg8_so150m_p14_ap",
     RoPE_ViT,
     config={
         "patch_size": 14,
@@ -1036,7 +1036,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vitreg4_so400m_p14_ap",
+    "rope_vit_reg4_so400m_p14_ap",
     RoPE_ViT,
     config={
         "patch_size": 14,
@@ -1051,7 +1051,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vitreg8_so400m_p14_ap",
+    "rope_vit_reg8_so400m_p14_ap",
     RoPE_ViT,
     config={
         "patch_size": 14,

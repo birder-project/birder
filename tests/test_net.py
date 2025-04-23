@@ -153,9 +153,9 @@ class TestNet(unittest.TestCase):
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
             ("rope_vit_s32"),
-            ("rope_vitreg4_b32"),
+            ("rope_vit_reg4_b32"),
             ("rope_vit_so150m_p14_ap", None, False, 1, 14),
-            ("rope_vitreg4_so150m_p14_ap", None, False, 1, 14),
+            ("rope_vit_reg4_so150m_p14_ap", None, False, 1, 14),
             ("se_resnet_v1_18"),
             ("se_resnet_v2_18"),
             ("se_resnext_50"),
@@ -177,9 +177,9 @@ class TestNet(unittest.TestCase):
             ("vgg_11"),
             ("vgg_reduced_11"),
             ("vit_s32"),
-            ("vitreg4_b32"),
+            ("vit_reg4_b32"),
             ("vit_so150m_p14_ap", None, False, 1, 14),
-            ("vitreg4_so150m_p14_ap", None, False, 1, 14),
+            ("vit_reg4_so150m_p14_ap", None, False, 1, 14),
             ("vit_sam_b16"),
             ("wide_resnet_50"),
             ("xception"),
@@ -329,9 +329,9 @@ class TestNet(unittest.TestCase):
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
             ("rope_vit_b32"),
-            ("rope_vitreg4_b32"),
+            ("rope_vit_reg4_b32"),
             ("rope_vit_so150m_p14_ap"),
-            ("rope_vitreg4_so150m_p14_ap"),
+            ("rope_vit_reg4_so150m_p14_ap"),
             ("se_resnet_v1_18"),
             ("se_resnet_v2_18"),
             ("se_resnext_50"),
@@ -349,9 +349,9 @@ class TestNet(unittest.TestCase):
             ("vgg_11"),
             ("vgg_reduced_11"),
             ("vit_b32"),
-            ("vitreg4_b32"),
+            ("vit_reg4_b32"),
             ("vit_so150m_p14_ap"),
-            ("vitreg4_so150m_p14_ap"),
+            ("vit_reg4_so150m_p14_ap"),
             ("vit_sam_b16"),
             ("wide_resnet_50"),
             ("xception"),
@@ -430,9 +430,9 @@ class TestNet(unittest.TestCase):
             ("swin_transformer_v2_t", None),
             ("swin_transformer_v2_w2_t", None),
             ("vit_b32", None),
-            ("vitreg4_b32", None),
+            ("vit_reg4_b32", None),
             ("vit_so150m_p14_ap", None),
-            ("vitreg4_so150m_p14_ap", None),
+            ("vit_reg4_so150m_p14_ap", None),
         ]
     )
     def test_pre_training_encoder_retention(self, network_name: str, net_param: Optional[float]) -> None:
@@ -482,14 +482,14 @@ class TestNet(unittest.TestCase):
             ("hiera_tiny", None),
             ("hiera_abswin_tiny", None),
             ("rope_vit_b32", None),
-            ("rope_vitreg4_b32", None),
+            ("rope_vit_reg4_b32", None),
             ("rope_vit_so150m_p14_ap", None),
-            ("rope_vitreg4_so150m_p14_ap", None),
+            ("rope_vit_reg4_so150m_p14_ap", None),
             ("simple_vit_b32", None),
             ("vit_b32", None),
-            ("vitreg4_b32", None),
+            ("vit_reg4_b32", None),
             ("vit_so150m_p14_ap", None),
-            ("vitreg4_so150m_p14_ap", None),
+            ("vit_reg4_so150m_p14_ap", None),
         ]
     )
     def test_pre_training_encoder_omission(self, network_name: str, net_param: Optional[float]) -> None:
@@ -611,9 +611,9 @@ class TestNonSquareNet(unittest.TestCase):
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
             ("rope_vit_b32"),
-            ("rope_vitreg4_b32"),
+            ("rope_vit_reg4_b32"),
             ("rope_vit_so150m_p14_ap", None, 1, 14, 14),
-            ("rope_vitreg4_so150m_p14_ap", None, 1, 14, 14),
+            ("rope_vit_reg4_so150m_p14_ap", None, 1, 14, 14),
             ("se_resnet_v1_18"),
             ("se_resnet_v2_18"),
             ("se_resnext_50"),
@@ -635,9 +635,9 @@ class TestNonSquareNet(unittest.TestCase):
             ("vgg_11"),
             ("vgg_reduced_11"),
             ("vit_b32"),
-            ("vitreg4_b32"),
+            ("vit_reg4_b32"),
             ("vit_so150m_p14_ap", None, 1, 14, 14),
-            ("vitreg4_so150m_p14_ap", None, 1, 14, 14),
+            ("vit_reg4_so150m_p14_ap", None, 1, 14, 14),
             ("vit_sam_b16"),
             ("wide_resnet_50"),
             ("xception"),
@@ -683,17 +683,17 @@ class TestDynamicSize(unittest.TestCase):
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
             ("rope_vit_b32"),
-            ("rope_vitreg4_b32"),
+            ("rope_vit_reg4_b32"),
             ("rope_vit_so150m_p14_ap", None, 1, 14),
-            ("rope_vitreg4_so150m_p14_ap", None, 1, 14),
+            ("rope_vit_reg4_so150m_p14_ap", None, 1, 14),
             ("simple_vit_b32"),
             ("swin_transformer_v1_t"),
             ("swin_transformer_v2_t"),
             ("swin_transformer_v2_w2_t"),
             ("vit_b32"),
-            ("vitreg4_b32"),
+            ("vit_reg4_b32"),
             ("vit_so150m_p14_ap", None, 1, 14),
-            ("vitreg4_so150m_p14_ap", None, 1, 14),
+            ("vit_reg4_so150m_p14_ap", None, 1, 14),
         ]
     )
     def test_dynamic_size(
@@ -726,8 +726,8 @@ class TestSpecialFunctions(unittest.TestCase):
         vit_sam_b16.load_vit_weights(simple_vit_b16.state_dict())
 
         # ViT with register tokens
-        vitreg4_b16 = registry.net_factory("vitreg4_b16", 3, 100, size=(192, 192))
-        vit_sam_b16.load_vit_weights(vitreg4_b16.state_dict())
+        vit_reg4_b16 = registry.net_factory("vit_reg4_b16", 3, 100, size=(192, 192))
+        vit_sam_b16.load_vit_weights(vit_reg4_b16.state_dict())
 
     def test_hieradet_weight_import(self) -> None:
         hiera_abswin_tiny = registry.net_factory("hiera_abswin_tiny", 3, 100, size=(192, 192))

@@ -6,12 +6,12 @@ tags:
 library_name: birder
 license: apache-2.0
 base_model:
-- birder-project/vitreg4_b16_mim
+- birder-project/vit_reg4_b16_mim
 ---
 
-# Model Card for vitreg4_b16_mim-intermediate-arabian-peninsula
+# Model Card for vit_reg4_b16_mim-intermediate-arabian-peninsula
 
-A ViTReg4 image classification model. The model follows a three-stage training process: first, masked image modeling, next intermediate training on a large-scale dataset containing diverse bird species from around the world, finally fine-tuned specifically on the `arabian-peninsula` dataset.
+A ViT reg4 image classification model. The model follows a three-stage training process: first, masked image modeling, next intermediate training on a large-scale dataset containing diverse bird species from around the world, finally fine-tuned specifically on the `arabian-peninsula` dataset.
 
 The species list is derived from data available at <https://avibase.bsc-eoc.org/checklist.jsp?region=ARA>.
 
@@ -23,7 +23,7 @@ The species list is derived from data available at <https://avibase.bsc-eoc.org/
     - Input image size: 384 x 384
 - **Dataset:** arabian-peninsula (735 classes)
     - Intermediate training involved ~5000 species from asia, europe and eastern africa
-    - Epoch 200 checkpoint of [vitreg4_b16_mim](https://huggingface.co/birder-project/vitreg4_b16_mim)
+    - Epoch 200 checkpoint of [vit_reg4_b16_mim](https://huggingface.co/birder-project/vit_reg4_b16_mim)
 
 - **Papers:**
     - An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale: <https://arxiv.org/abs/2010.11929>
@@ -38,7 +38,7 @@ The species list is derived from data available at <https://avibase.bsc-eoc.org/
 import birder
 from birder.inference.classification import infer_image
 
-(net, model_info) = birder.load_pretrained_model("vitreg4_b16_mim-intermediate-arabian-peninsula", inference=True)
+(net, model_info) = birder.load_pretrained_model("vit_reg4_b16_mim-intermediate-arabian-peninsula", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -57,7 +57,7 @@ image = "path/to/image.jpeg"  # or a PIL image, must be loaded in RGB format
 import birder
 from birder.inference.classification import infer_image
 
-(net, model_info) = birder.load_pretrained_model("vitreg4_b16_mim-intermediate-arabian-peninsula", inference=True)
+(net, model_info) = birder.load_pretrained_model("vit_reg4_b16_mim-intermediate-arabian-peninsula", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)

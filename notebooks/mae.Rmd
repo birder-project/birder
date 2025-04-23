@@ -53,7 +53,7 @@ def show_image(image, title=""):
 
 ```{python}
 network = "mae_vit"
-encoder = "vitreg4_b16"
+encoder = "vit_reg4_b16"
 encoder_param = None
 size = 224
 

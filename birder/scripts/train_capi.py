@@ -655,7 +655,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "Usage examples\n"
             "==============\n"
             "torchrun --nproc_per_node=2 -m birder.scripts.train_capi \\\n"
-            "    --network rope_vitreg4_s14 \\\n"
+            "    --network rope_vit_reg4_s14 \\\n"
             "    --opt adamw \\\n"
             "    --lr 0.001 \\\n"
             "    --opt-betas 0.9 0.95 \\\n"

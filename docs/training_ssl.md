@@ -80,46 +80,46 @@ ImageNet 1K: fine-tuning, first stage - linear probing
 torchrun --nproc_per_node=2 train.py --network hiera_abswin_large --tag capi --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 224 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --unfreeze-features --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
 ```
 
-#### CAPI: RoPE ViTReg4 m14
+#### CAPI: RoPE ViT reg4 m14
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vitreg4_m14 --decoder-layers 8 --decoder-dim 512 --opt adamw --lr 0.001 --opt-betas 0.9 0.95 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 256 --epochs 600 --wd 0.1 --norm-wd 0.01 --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg4_m14 --decoder-layers 8 --decoder-dim 512 --opt adamw --lr 0.001 --opt-betas 0.9 0.95 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 256 --epochs 600 --wd 0.1 --norm-wd 0.01 --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data
 ```
 
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network rope_vitreg4_m14 --tag capi --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 252 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --fast-matmul --compile --resume-epoch 0 --reset-head --freeze-body
+torchrun --nproc_per_node=2 train.py --network rope_vit_reg4_m14 --tag capi --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 252 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --fast-matmul --compile --resume-epoch 0 --reset-head --freeze-body
 ```
 
 Next, full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network rope_vitreg4_m14 --tag capi --opt adamw --lr 0.001 --lr-scale 1024 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 192 --warmup-epochs 5 --epochs 100 --size 252 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --layer-decay 0.75 --resume-epoch 0
+torchrun --nproc_per_node=2 train.py --network rope_vit_reg4_m14 --tag capi --opt adamw --lr 0.001 --lr-scale 1024 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 192 --warmup-epochs 5 --epochs 100 --size 252 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --layer-decay 0.75 --resume-epoch 0
 ```
 
-#### CAPI: RoPE ViTReg8 b14 AP
+#### CAPI: RoPE ViT reg8 b14 AP
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vitreg8_b14_ap --decoder-layers 8 --decoder-dim 768 --opt adamw --lr 0.001 --opt-betas 0.9 0.95 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 192 --epochs 400 --wd 0.1 --norm-wd 0.01 --amp --amp-dtype bfloat16 --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg8_b14_ap --decoder-layers 8 --decoder-dim 768 --opt adamw --lr 0.001 --opt-betas 0.9 0.95 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 192 --epochs 400 --wd 0.1 --norm-wd 0.01 --amp --amp-dtype bfloat16 --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 #### CAPI: RoPE SoViT reg8 150m p14 AP
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vitreg8_so150m_p14_ap --decoder-layers 10 --opt adamw --lr 0.001 --opt-betas 0.9 0.95 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 192 --epochs 400 --wd 0.1 --norm-wd 0.01 --amp --amp-dtype bfloat16 --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg8_so150m_p14_ap --decoder-layers 10 --opt adamw --lr 0.001 --opt-betas 0.9 0.95 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 192 --epochs 400 --wd 0.1 --norm-wd 0.01 --amp --amp-dtype bfloat16 --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 DGX A100 training
 
 ```sh
-torchrun --nproc_per_node=8 -m birder.scripts.train_capi --network rope_vitreg8_so150m_p14_ap --decoder-layers 10 --opt adamw --lr 0.001 --opt-betas 0.9 0.95 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 1024 --epochs 400 --wd 0.1 --norm-wd 0.01 --amp --amp-dtype bfloat16 --compile --find-unused-parameters --keep-last 4 --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=8 -m birder.scripts.train_capi --network rope_vit_reg8_so150m_p14_ap --decoder-layers 10 --opt adamw --lr 0.001 --opt-betas 0.9 0.95 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 1024 --epochs 400 --wd 0.1 --norm-wd 0.01 --amp --amp-dtype bfloat16 --compile --find-unused-parameters --keep-last 4 --wds --wds-info data/ssl_packed/_info.json
 ```
 
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network rope_vitreg8_so150m_p14_ap --tag capi --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 252 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
+torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_so150m_p14_ap --tag capi --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 252 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
 ```
 
 ### DINO v1
@@ -174,16 +174,16 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_i_jepa --network simple_vit_
 torchrun --nproc_per_node=2 -m birder.scripts.train_i_jepa --network simple_vit_b14 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 40 --batch-size 128 --wd 0.04 --wd-end 0.4 --norm-wd 0 --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_packed/_info.json
 ```
 
-#### I-JEPA: ViTReg4 b16
+#### I-JEPA: ViT reg4 b16
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_i_jepa --network vitreg4_b16 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 40 --batch-size 192 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_i_jepa --network vit_reg4_b16 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 40 --batch-size 192 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vitreg4_b16 --tag i-jepa --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
+torchrun --nproc_per_node=2 train.py --network vit_reg4_b16 --tag i-jepa --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --amp --compile --resume-epoch 0 --reset-head --freeze-body
 ```
 
 ### iBOT

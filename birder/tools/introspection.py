@@ -91,7 +91,7 @@ def set_parser(subparsers: Any) -> None:
             "-e 0 'data/training/European goldfinch/000300.jpeg'\n"
             "python -m birder.tools introspection --method gradcam -n swin_transformer_v1_b -e 85 --layer-num -4 "
             "--channels-last data/training/Fieldfare/000002.jpeg\n"
-            "python -m birder.tools introspection --method attn-rollout -n vitreg4_b16 -t mim -e 100 "
+            "python -m birder.tools introspection --method attn-rollout -n vit_reg4_b16 -t mim -e 100 "
             " data/validation/Bluethroat/000013.jpeg\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,

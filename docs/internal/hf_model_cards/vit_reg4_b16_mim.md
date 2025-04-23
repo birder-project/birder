@@ -7,9 +7,9 @@ library_name: birder
 license: apache-2.0
 ---
 
-# Model Card for vitreg4_b16_mim
+# Model Card for vit_reg4_b16_mim
 
-A ViTReg4-B16 image encoder pre-trained using Masked Image Modeling (MIM). This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
+A ViT reg4 image encoder pre-trained using Masked Image Modeling (MIM). This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
 
 ## Model Details
 
@@ -42,7 +42,7 @@ import torch
 import birder
 from PIL import Image
 
-(net, model_info) = birder.load_pretrained_model("vitreg4_b16_mim_300", inference=True)
+(net, model_info) = birder.load_pretrained_model("vit_reg4_b16_mim_300", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -65,7 +65,7 @@ import birder
 from PIL import Image
 
 # Must first download the model files
-(net, cfg) = birder.load_model_with_cfg("models/vitreg4_b16_mim.json", "models/vitreg4_b16_mim_300.pt")
+(net, cfg) = birder.load_model_with_cfg("models/vit_reg4_b16_mim.json", "models/vit_reg4_b16_mim_300.pt")
 net.eval()
 
 # Get the image size the model was trained on

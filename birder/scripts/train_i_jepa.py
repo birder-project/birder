@@ -613,7 +613,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "Usage examples\n"
             "==============\n"
             "torchrun --nproc_per_node=2 -m birder.scripts.train_i_jepa \\\n"
-            "    --network vitreg4_b16 \\\n"
+            "    --network vit_reg4_b16 \\\n"
             "    --opt adamw \\\n"
             "    --lr 0.001 \\\n"
             "    --lr-scheduler cosine \\\n"
