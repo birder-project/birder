@@ -26,7 +26,7 @@ A Hiera with absolute window position embedding strategy image encoder pre-train
     - NABirds (~48K)
     - GLDv2 (~40K random subset of 6 chunks)
     - Birdsnap v1.1 (~44K)
-    - CUB-200 2011 (~18K)
+    - CUB-200 2011 (~11K)
     - The Birder dataset (~6M, private dataset)
 
 - **Papers:**

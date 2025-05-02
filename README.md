@@ -36,7 +36,7 @@ The same principle applies to Birder. We stand on the shoulders of giants in the
 
 ## Setup
 
-1. Ensure PyTorch 2.5 is installed on your system
+1. Ensure PyTorch 2.7 is installed on your system
 
 1. Install the latest Birder version:
 

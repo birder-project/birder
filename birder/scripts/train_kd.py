@@ -47,7 +47,6 @@ from birder.model_registry import registry
 from birder.net.base import get_signature
 from birder.transforms.classification import get_mixup_cutmix
 from birder.transforms.classification import inference_preset
-from birder.transforms.classification import training_preset
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +59,6 @@ def train(args: argparse.Namespace) -> None:
     # Initialize
     #
     training_utils.init_distributed_mode(args)
-    if args.aa is True:
-        args.aug_level = -1
-
     if args.type != "soft":
         args.temperature = 1.0
 
@@ -104,7 +100,7 @@ def train(args: argparse.Namespace) -> None:
     #
     # Data
     #
-    training_transform = training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale)
+    training_transform = training_utils.get_training_transform(args)
     val_transform = inference_preset(args.size, rgb_stats, 1.0)
     if args.wds is True:
         training_wds_path: str | list[str]
@@ -424,7 +420,7 @@ def train(args: argparse.Namespace) -> None:
         summary_writer.flush()
         fs_ops.write_config(student_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
         training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
-        with open(training_log_path.joinpath("args.json"), "w", encoding="utf-8") as handle:
+        with open(training_log_path.joinpath("training_args.json"), "w", encoding="utf-8") as handle:
             json.dump({"cmdline": " ".join(sys.argv), **vars(args)}, handle, indent=2)
 
         with open(training_log_path.joinpath("training_data.json"), "w", encoding="utf-8") as handle:
@@ -807,15 +803,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--smoothing-alpha", type=float, default=0.0, help="label smoothing alpha")
     parser.add_argument("--mixup-alpha", type=float, help="mixup alpha")
     parser.add_argument("--cutmix", default=False, action="store_true", help="enable cutmix")
-    parser.add_argument(
-        "--aug-level",
-        type=int,
-        choices=[0, 1, 2, 3, 4],
-        default=2,
-        help="magnitude of augmentations (0 off -> 4 highest)",
-    )
-    parser.add_argument("--aa", default=False, action="store_true", help="use AutoAugment policy (ignoring aug-level)")
-    parser.add_argument("--resize-min-scale", type=float, help="random resize min scale")
+    training_utils.add_aug_args(parser)
     parser.add_argument(
         "--temperature",
         type=float,

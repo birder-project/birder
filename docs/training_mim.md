@@ -297,13 +297,13 @@ torchrun --nproc_per_node=2 train.py --network vit_reg4_b16 --tag mim-intermedia
 Optional intermediate training: full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg4_b16 --tag mim-intermediate --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 15 --epochs 110 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.75 --resume-epoch 10 --save-frequency 1 --wds --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
+torchrun --nproc_per_node=2 train.py --network vit_reg4_b16 --tag mim-intermediate --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 15 --epochs 110 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.65 --resume-epoch 10 --save-frequency 1 --wds --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
 ```
 
 Optional intermediate training: increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg4_b16 --tag mim-intermediate --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 15 --epochs 110 --size 384 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.85 --resume-epoch 80 --load-scheduler --save-frequency 1 --wds --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
+torchrun --nproc_per_node=2 train.py --network vit_reg4_b16 --tag mim-intermediate --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 15 --epochs 110 --size 384 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.75 --resume-epoch 80 --load-scheduler --save-frequency 1 --wds --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
 ```
 
 Fine-tuning, first stage - linear probing
@@ -315,13 +315,13 @@ torchrun --nproc_per_node=2 train.py --network vit_reg4_b16 --tag mim --opt adam
 Next, full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg4_b16 --tag mim --opt adamw --lr 0.0004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 15 --epochs 110 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --layer-decay 0.75 --resume-epoch 10
+torchrun --nproc_per_node=2 train.py --network vit_reg4_b16 --tag mim --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 15 --epochs 110 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --layer-decay 0.65 --resume-epoch 10
 ```
 
 At epoch 80 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg4_b16 --tag mim --opt adamw --lr 0.00004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --epochs 110 --size 384 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.75 --resume-epoch 80
+torchrun --nproc_per_node=2 train.py --network vit_reg4_b16 --tag mim --opt adamw --lr 0.00004 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --epochs 110 --size 384 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.65 --resume-epoch 80
 ```
 
 #### MAE ViT: ViT l16
@@ -347,7 +347,7 @@ Next, full fine-tuning with layer-wise learning rate decay
 Number of epochs relays on the amount of samples in training (1M -> 50 epochs), try larger number for smaller datasets.
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 5e-7 --batch-size 64 --warmup-epochs 5 --epochs 50 --size 256 --wd 0.05 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.8 --resume-epoch 0
+torchrun --nproc_per_node=2 train.py --network vit_l16 --tag mim --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 5e-7 --batch-size 64 --warmup-epochs 5 --epochs 50 --size 256 --wd 0.05 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.75 --resume-epoch 0
 ```
 
 #### MAE ViT: SoViT reg4 150m p14 AP

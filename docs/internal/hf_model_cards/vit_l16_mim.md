@@ -9,7 +9,7 @@ license: apache-2.0
 
 # Model Card for vit_l16_mim
 
-A ViT-L16 image encoder pre-trained using Masked Image Modeling (MIM). This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
+A ViT l16 image encoder pre-trained using Masked Image Modeling (MIM). This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
 
 ## Model Details
 
@@ -25,7 +25,7 @@ A ViT-L16 image encoder pre-trained using Masked Image Modeling (MIM). This mode
     - COCO (~120K)
     - NABirds (~48K)
     - Birdsnap v1.1 (~44K)
-    - CUB-200 2011 (~18K)
+    - CUB-200 2011 (~11K)
     - The Birder dataset (~5M, private dataset)
 
 - **Papers:**

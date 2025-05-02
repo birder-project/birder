@@ -25,7 +25,7 @@ A ViT reg4 image encoder pre-trained using Masked Image Modeling (MIM). This mod
     - COCO (~120K)
     - NABirds (~48K)
     - Birdsnap v1.1 (~44K)
-    - CUB-200 2011 (~18K)
+    - CUB-200 2011 (~11K)
     - The Birder dataset (~5M, private dataset)
 
 - **Papers:**

@@ -522,6 +522,14 @@ torchrun --nproc_per_node=2 train.py --network regnet_z_500m --tag il-common --l
 torchrun --nproc_per_node=2 train.py --network repghost --tag il-common --net-param 1 --lr 0.6 --lr-scheduler cosine --warmup-epochs 5 --batch-size 256 --size 256 --epochs 300 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 4 --model-ema --model-ema-steps 1 --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### RepViT
+
+#### RepViT: M0.6
+
+```sh
+torchrun --nproc_per_node=2 train.py --network repvit_m0_6 --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --model-ema --clip-grad-norm 1 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### ResNeSt
 
 #### ResNeSt: 14

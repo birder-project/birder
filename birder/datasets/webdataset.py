@@ -2,6 +2,7 @@ import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -38,6 +39,7 @@ def make_wds_dataset(
     shuffle: bool,
     samples_names: bool,
     transform: Callable[..., torch.Tensor],
+    img_loader: Literal["tv", "pil"] = "tv",
     *,
     cache_dir: Optional[str] = None,
 ) -> torch.utils.data.IterableDataset:
@@ -56,8 +58,10 @@ def make_wds_dataset(
     if samples_names is True:
         return_keys = ["__url__", "__key__"] + return_keys
 
-    dataset = dataset.with_length(dataset_size, silent=True).decode("pil").to_tuple(*return_keys)
-    # dataset = dataset.with_length(dataset_size).decode(wds_image_decoder).to_tuple(*return_keys)
+    if img_loader == "pil":
+        dataset = dataset.with_length(dataset_size, silent=True).decode("pil").to_tuple(*return_keys)
+    else:
+        dataset = dataset.with_length(dataset_size, silent=True).decode(wds_image_decoder).to_tuple(*return_keys)
 
     if samples_names is True:
         dataset = dataset.map(decode_sample_name)

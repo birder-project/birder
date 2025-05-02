@@ -39,7 +39,6 @@ from birder.transforms.classification import RGBMode
 from birder.transforms.classification import get_mixup_cutmix
 from birder.transforms.classification import get_rgb_stats
 from birder.transforms.classification import inference_preset
-from birder.transforms.classification import training_preset
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +51,6 @@ def train(args: argparse.Namespace) -> None:
     training_utils.init_distributed_mode(args)
     if args.size is None:
         args.size = registry.get_default_size(args.network)
-
-    if args.aa is True:
-        args.aug_level = -1
 
     logger.info(f"Using size={args.size}")
 
@@ -78,7 +74,7 @@ def train(args: argparse.Namespace) -> None:
     # Data
     #
     rgb_stats = get_rgb_stats(args.rgb_mode)
-    training_transform = training_preset(args.size, args.aug_level, rgb_stats, args.resize_min_scale)
+    training_transform = training_utils.get_training_transform(args)
     val_transform = inference_preset(args.size, rgb_stats, 1.0)
     if args.wds is True:
         training_wds_path: str | list[str]
@@ -405,7 +401,7 @@ def train(args: argparse.Namespace) -> None:
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
         training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
-        with open(training_log_path.joinpath("args.json"), "w", encoding="utf-8") as handle:
+        with open(training_log_path.joinpath("training_args.json"), "w", encoding="utf-8") as handle:
             json.dump({"cmdline": " ".join(sys.argv), **vars(args)}, handle, indent=2)
 
         with open(training_log_path.joinpath("training_data.json"), "w", encoding="utf-8") as handle:
@@ -683,8 +679,8 @@ def get_args_parser() -> argparse.ArgumentParser:
             "    --grad-accum-steps 4 \\\n"
             "    --mixup-alpha 0.1 \\\n"
             "    --cutmix \\\n"
-            "    --aug-level 4 \\\n"
-            "    --ra-sampler --ra-reps 2 \\\n"
+            "    --aug-type ra \\\n"
+            "    --re-prob 0.25 \\\n"
             "    --rgb-mode imagenet \\\n"
             "    --bce-loss --bce-threshold 0.2 \\\n"
             "    --amp \\\n"
@@ -705,6 +701,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "    --mixup-alpha 0.2 \\\n"
             "    --cutmix \\\n"
             "    --aug-level 4 \\\n"
+            "    --ra-sampler --ra-reps 2 \\\n"
             "    --amp --compile\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
@@ -779,14 +776,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--smoothing-alpha", type=float, default=0.0, help="label smoothing alpha")
     parser.add_argument("--mixup-alpha", type=float, help="mixup alpha")
     parser.add_argument("--cutmix", default=False, action="store_true", help="enable cutmix")
-    parser.add_argument(
-        "--aug-level",
-        type=int,
-        choices=[0, 1, 2, 3, 4],
-        default=2,
-        help="magnitude of augmentations (0 off -> 4 highest)",
-    )
-    parser.add_argument("--aa", default=False, action="store_true", help="use AutoAugment policy (ignoring aug-level)")
+    training_utils.add_aug_args(parser)
     parser.add_argument(
         "--rgb-mode",
         type=str,
@@ -794,7 +784,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         default="birder",
         help="rgb mean and std to use for normalization",
     )
-    parser.add_argument("--resize-min-scale", type=float, help="random resize min scale")
     parser.add_argument("--bce-loss", default=False, action="store_true", help="enable BCE loss")
     parser.add_argument("--bce-threshold", type=float, default=0.0, help="threshold for binarizing soft BCE targets")
     parser.add_argument("--epochs", type=int, default=100, metavar="N", help="number of training epochs")

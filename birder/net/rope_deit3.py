@@ -254,6 +254,9 @@ class RoPE_DeiT3(DetectorBackbone):
         if new_size == self.size:
             return
 
+        assert new_size[0] % self.patch_size == 0, "Input shape indivisible by patch size!"
+        assert new_size[1] % self.patch_size == 0, "Input shape indivisible by patch size!"
+
         old_size = self.size
         super().adjust_size(new_size)
 

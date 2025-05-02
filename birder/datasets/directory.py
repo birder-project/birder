@@ -5,9 +5,14 @@ from typing import Optional
 import numpy as np
 import torch
 import torch.utils.data
+from torchvision.io import ImageReadMode
 from torchvision.io import decode_image
 
 from birder.common import fs_ops
+
+
+def tv_loader(path: str) -> torch.Tensor:
+    return decode_image(path, mode=ImageReadMode.RGB)
 
 
 class ImageListDataset(torch.utils.data.Dataset):

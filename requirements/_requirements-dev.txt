@@ -16,6 +16,7 @@ mkdocs-exclude~=1.0.2
 MonkeyType~=23.3.0
 mypy~=1.15.0
 parameterized~=0.9.0
+pyarrow~=20.0.0
 pylint~=3.3.6
 requests~=2.32.3
 safetensors~=0.5.3

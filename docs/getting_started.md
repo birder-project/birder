@@ -17,7 +17,7 @@ Birder can be installed either as a package or cloned from Git.
 
         pip install --upgrade pip wheel
 
-1. Install PyTorch 2.5 or above suitable for your hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
+1. Install PyTorch 2.7 or above suitable for your hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
 
 1. Install the `birder` package
 
@@ -39,7 +39,7 @@ Birder can be installed either as a package or cloned from Git.
 
         pip install --upgrade pip wheel
 
-1. Install PyTorch 2.5 or above suitable for your hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
+1. Install PyTorch 2.7 or above suitable for your hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
 
         # For CUDA
         pip install --upgrade -r requirements/requirements-pytorch-gpu.txt

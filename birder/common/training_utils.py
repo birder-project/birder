@@ -4,6 +4,7 @@ import math
 import os
 import re
 from collections import deque
+from collections.abc import Callable
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
@@ -23,10 +24,13 @@ from torchvision.ops import FrozenBatchNorm2d
 
 from birder.optim import Lamb
 from birder.optim import Lars
+from birder.transforms.classification import AugType
+from birder.transforms.classification import get_rgb_stats
+from birder.transforms.classification import training_preset
 
 logger = logging.getLogger(__name__)
 
-OptimizerType = Literal["sgd", "rmsprop", "adam", "adamw", "lamb", "lambw", "lars"]
+OptimizerType = Literal["sgd", "rmsprop", "adam", "adamw", "nadam", "nadamw", "lamb", "lambw", "lars"]
 SchedulerType = Literal["constant", "step", "multistep", "cosine", "polynomial"]
 
 ###############################################################################
@@ -365,6 +369,10 @@ def get_optimizer(parameters: list[dict[str, Any]], lr: float, args: argparse.Na
         optimizer = torch.optim.Adam(parameters, lr=lr, weight_decay=args.wd, **kwargs)
     elif opt == "adamw":
         optimizer = torch.optim.AdamW(parameters, lr=lr, weight_decay=args.wd, **kwargs)
+    elif opt == "nadam":
+        optimizer = torch.optim.NAdam(parameters, lr=lr, weight_decay=args.wd, **kwargs)
+    elif opt == "nadamw":
+        optimizer = torch.optim.NAdam(parameters, lr=lr, weight_decay=args.wd, decoupled_weight_decay=True, **kwargs)
     elif opt == "lamb":
         optimizer = Lamb(parameters, lr=lr, weight_decay=args.wd, **kwargs)
     elif opt == "lambw":
@@ -466,6 +474,22 @@ def get_samplers(
         validation_sampler = torch.utils.data.SequentialSampler(validation_dataset)
 
     return (train_sampler, validation_sampler)
+
+
+def get_training_transform(args: argparse.Namespace) -> Callable[..., torch.Tensor]:
+    return training_preset(
+        args.size,
+        args.aug_type,
+        args.aug_level,
+        get_rgb_stats(args.rgb_mode),
+        args.resize_min_scale,
+        args.re_prob,
+        args.ra_magnitude,
+        args.augmix_severity,
+        args.solarize_prob,
+        args.grayscale_prob,
+        args.simple_crop,
+    )
 
 
 ###############################################################################
@@ -781,6 +805,36 @@ def add_scheduler_args(parser: argparse.ArgumentParser) -> None:
         type=float,
         default=1.0,
         help="power of the polynomial (for polynomial scheduler only)",
+    )
+
+
+def add_aug_args(
+    parser: argparse.ArgumentParser, default_level: int = 2, default_min_scale: Optional[float] = None
+) -> None:
+    parser.add_argument(
+        "--aug-type",
+        type=str,
+        choices=list(get_args(AugType)),
+        default="birder",
+        help="augmentation type",
+    )
+    parser.add_argument(
+        "--aug-level",
+        type=int,
+        choices=[0, 1, 2, 3, 4],
+        default=default_level,
+        help="magnitude of birder augmentations (0 off -> 4 highest)",
+    )
+    parser.add_argument("--ra-magnitude", type=int, default=9, help="magnitude for all the RandAugment transformations")
+    parser.add_argument("--augmix-severity", type=int, default=3, help="severity of AugMix policy")
+    parser.add_argument("--resize-min-scale", type=float, default=default_min_scale, help="random resize min scale")
+    parser.add_argument("--re-prob", type=float, help="random erase probability (default according to aug-level)")
+    parser.add_argument("--solarize-prob", type=float, help="solarize probability (applies only to 'birder' aug type)")
+    parser.add_argument(
+        "--grayscale-prob", type=float, help="grayscale probability (applies only to 'birder' aug type)"
+    )
+    parser.add_argument(
+        "--simple-crop", default=False, action="store_true", help="use simple random crop (SRC) instead of RRC"
     )
 
 

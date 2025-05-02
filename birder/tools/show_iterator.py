@@ -16,6 +16,7 @@ from torchvision.datasets import ImageFolder
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import masking
+from birder.common import training_utils
 from birder.conf import settings
 from birder.dataloader.webdataset import make_wds_loader
 from birder.datasets.webdataset import make_wds_dataset
@@ -34,7 +35,19 @@ logger = logging.getLogger(__name__)
 def show_iterator(args: argparse.Namespace) -> None:
     reverse_transform = reverse_preset(get_rgb_stats("birder"))
     if args.mode == "training":
-        transform = training_preset(args.size, args.aug_level, get_rgb_stats("birder"), args.resize_min_scale)
+        transform = training_preset(
+            args.size,
+            args.aug_type,
+            args.aug_level,
+            get_rgb_stats("birder"),
+            args.resize_min_scale,
+            args.re_prob,
+            args.ra_magnitude,
+            args.augmix_severity,
+            args.solarize_prob,
+            args.grayscale_prob,
+            args.simple_crop,
+        )
     elif args.mode == "inference":
         transform = inference_preset(args.size, get_rgb_stats("birder"), args.center_crop)
     else:
@@ -188,17 +201,7 @@ def set_parser(subparsers: Any) -> None:
         "--mode", type=str, choices=["training", "inference"], default="training", help="iterator mode"
     )
     subparser.add_argument("--size", type=int, nargs="+", default=[224], metavar=("H", "W"), help="image size")
-    subparser.add_argument(
-        "--aug-level",
-        type=int,
-        choices=[0, 1, 2, 3, 4],
-        default=3,
-        help="magnitude of augmentations (0 off -> 4 highest)",
-    )
-    subparser.add_argument(
-        "--aa", default=False, action="store_true", help="use AutoAugment policy (ignoring aug-level)"
-    )
-    subparser.add_argument("--resize-min-scale", type=float, help="random resize min scale")
+    training_utils.add_aug_args(subparser)
     subparser.add_argument("--center-crop", type=float, default=1.0, help="center crop ratio during inference")
     subparser.add_argument(
         "--batch", default=False, action="store_true", help="show a batch instead of a single sample"
@@ -225,8 +228,6 @@ def set_parser(subparsers: Any) -> None:
 
 def main(args: argparse.Namespace) -> None:
     assert args.wds is False or args.batch is True, "WDS only works in batch mode"
-    if args.aa is True:
-        args.aug_level = -1
 
     args.size = cli.parse_size(args.size)
     show_iterator(args)

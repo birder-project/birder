@@ -54,6 +54,7 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
 
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
+        torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
@@ -171,6 +172,9 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
+
+        assert new_size[0] % self.patch_size == 0, "Input shape indivisible by patch size!"
+        assert new_size[1] % self.patch_size == 0, "Input shape indivisible by patch size!"
 
         super().adjust_size(new_size)
 

@@ -1,10 +1,9 @@
 matplotlib~=3.10.1
 numpy~=2.2.5
 onnx~=1.17.0
-onnxscript~=0.2.4
+onnxscript~=0.2.5
 Pillow~=11.2.1
 polars~=1.12.0
-pyarrow~=19.0.0
 pycocotools~=2.0.8
 rich~=14.0.0
 scikit-learn~=1.6.1
@@ -22,5 +21,5 @@ torch-model-archiver~=0.12.0
 torch-workflow-archiver~=0.2.15
 
 # PyTorch, you should install a version suitable for your hardware and drivers
-torch>=2.5.1
+torch>=2.7.0
 torchvision

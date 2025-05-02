@@ -138,6 +138,11 @@ def predict(args: argparse.Namespace) -> None:
         dtype=model_dtype,
     )
 
+    if args.ignore_dir_names is True:
+        num_classes = len(class_to_idx)
+        class_to_idx = fs_ops.class_to_idx_from_paths(args.data_path)
+        assert len(class_to_idx) == num_classes
+
     if args.show_class is not None:
         if args.show_class not in class_to_idx:
             logger.warning("Select show class is not part of the model classes")
@@ -166,7 +171,7 @@ def predict(args: argparse.Namespace) -> None:
             if args.wds_size is not None:
                 dataset_size = args.wds_size
         else:
-            (wds_path, dataset_size) = prepare_wds_args(args.data_path, args.wds_size, device)
+            (wds_path, dataset_size) = prepare_wds_args(args.data_path[0], args.wds_size, device)
 
         num_samples = dataset_size
         dataset = make_wds_dataset(
@@ -307,6 +312,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "python predict.py -n efficientnet_v2_m -t intermediate --show-class Unknown data/raw_data\n"
             "python predict.py -n convnext_v2_tiny -t intermediate -e 70 --gpu --gpu-id 1 --compile --fast-matmul "
             "--show-class Unknown data/raw_data\n"
+            "python predict.py -n rope_vit_reg4_b14 --gpu --amp --ignore-dir-names data/imagenet-v2\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -379,6 +385,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--wds-size", type=int, metavar="N", help="size of the wds dataset")
     parser.add_argument("--wds-info", type=str, metavar="FILE", help="wds info file path")
     parser.add_argument("--wds-split", type=str, default="validation", metavar="NAME", help="wds dataset split to load")
+    parser.add_argument(
+        "--ignore-dir-names",
+        default=False,
+        action="store_true",
+        help="use directory indices (0, 1, 2, ...) as class labels instead of directory names",
+    )
     parser.add_argument("data_path", nargs="*", help="data files path (directories and files)")
 
     return parser
@@ -397,6 +409,7 @@ def validate_args(args: argparse.Namespace) -> None:
     assert args.wds is False or (
         args.show is False and args.show_mistakes is False and args.show_out_of_k is False and args.show_class is None
     )
+    assert args.wds is False or args.ignore_dir_names is False
     args.size = cli.parse_size(args.size)
 
 

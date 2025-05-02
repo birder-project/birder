@@ -420,7 +420,7 @@ def train(args: argparse.Namespace) -> None:
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
         training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
-        with open(training_log_path.joinpath("args.json"), "w", encoding="utf-8") as handle:
+        with open(training_log_path.joinpath("training_args.json"), "w", encoding="utf-8") as handle:
             json.dump({"cmdline": " ".join(sys.argv), **vars(args)}, handle, indent=2)
 
         with open(training_log_path.joinpath("training_data.json"), "w", encoding="utf-8") as handle:

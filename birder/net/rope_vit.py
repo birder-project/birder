@@ -145,6 +145,7 @@ class EncoderBlock(nn.Module):
         drop_path: float,
         activation_layer: Callable[..., nn.Module],
         layer_scale_init_value: Optional[float] = None,
+        norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
     ) -> None:
         super().__init__()
 
@@ -152,7 +153,7 @@ class EncoderBlock(nn.Module):
             mlp_dim = hidden_dim * 4
 
         # Attention block
-        self.norm1 = nn.LayerNorm(hidden_dim, eps=1e-6)
+        self.norm1 = norm_layer(hidden_dim, eps=1e-6)
         self.attn = RoPEAttention(
             hidden_dim, num_heads, attn_drop=attention_dropout, proj_drop=dropout, num_special_tokens=num_special_tokens
         )
@@ -162,7 +163,7 @@ class EncoderBlock(nn.Module):
             self.layer_scale_1 = nn.Identity()
 
         # MLP block
-        self.norm2 = nn.LayerNorm(hidden_dim, eps=1e-6)
+        self.norm2 = norm_layer(hidden_dim, eps=1e-6)
         self.mlp = MLP(
             hidden_dim, [mlp_dim, hidden_dim], activation_layer=activation_layer, inplace=None, dropout=dropout
         )
@@ -191,6 +192,7 @@ class Encoder(nn.Module):
         attention_dropout: float,
         dpr: list[float],
         layer_scale_init_value: Optional[float] = None,
+        norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
     ) -> None:
         super().__init__()
         layers = []
@@ -209,6 +211,7 @@ class Encoder(nn.Module):
                     dpr[i],
                     activation_layer=nn.GELU,
                     layer_scale_init_value=layer_scale_init_value,
+                    norm_layer=norm_layer,
                 )
             )
 
@@ -234,19 +237,20 @@ class MAEDecoderBlock(nn.Module):
         num_special_tokens: int,
         activation_layer: Callable[..., nn.Module],
         grid_size: tuple[int, int],
+        norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
     ) -> None:
         super().__init__()
         mlp_dim = hidden_dim * 4
         self.rope = RoPE(hidden_dim // num_heads, temperature=100.0, grid_size=grid_size)
 
         # Attention block
-        self.norm1 = nn.LayerNorm(hidden_dim, eps=1e-6)
+        self.norm1 = norm_layer(hidden_dim, eps=1e-6)
         self.attn = RoPEAttention(
             hidden_dim, num_heads, attn_drop=0.0, proj_drop=0.0, num_special_tokens=num_special_tokens
         )
 
         # MLP block
-        self.norm2 = nn.LayerNorm(hidden_dim, eps=1e-6)
+        self.norm2 = norm_layer(hidden_dim, eps=1e-6)
         self.mlp = MLP(hidden_dim, [mlp_dim, hidden_dim], activation_layer=activation_layer, inplace=None, dropout=0.0)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -284,8 +288,16 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
+        norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
         pt_grid_size: Optional[tuple[int, int]] = self.config.get("pt_grid_size", None)
         drop_path_rate: float = self.config["drop_path_rate"]
+
+        if norm_layer_type == "LayerNorm":
+            norm_layer = nn.LayerNorm
+        elif norm_layer_type == "RMSNorm":
+            norm_layer = nn.RMSNorm
+        else:
+            raise ValueError(f"Unknown norm_layer_type '{norm_layer_type}'")
 
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
@@ -295,6 +307,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         self.num_heads = num_heads
         self.hidden_dim = hidden_dim
         self.num_reg_tokens = num_reg_tokens
+        self.norm_layer = norm_layer
         self.rope_temperature = 100.0
 
         # Cast in case config was loaded from a json (no tuples),
@@ -355,8 +368,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
             dropout,
             attention_dropout,
             dpr,
+            norm_layer=norm_layer,
         )
-        self.norm = nn.LayerNorm(hidden_dim, eps=1e-6)
+        self.norm = norm_layer(hidden_dim, eps=1e-6)
 
         if attn_pool_head is True:
             self.attn_pool = MultiHeadAttentionPool(hidden_dim, num_heads, mlp_dim, qkv_bias=True, latent_len=1)
@@ -378,6 +392,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
             num_special_tokens=self.num_special_tokens,
             activation_layer=nn.GELU,
             grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
+            norm_layer=norm_layer,
         )
 
         # Weight initialization
@@ -552,6 +567,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         if new_size == self.size:
             return
 
+        assert new_size[0] % self.patch_size == 0, "Input shape indivisible by patch size!"
+        assert new_size[1] % self.patch_size == 0, "Input shape indivisible by patch size!"
+
         old_size = self.size
         super().adjust_size(new_size)
 
@@ -580,6 +598,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
             num_special_tokens=self.num_special_tokens,
             activation_layer=nn.GELU,
             grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
+            norm_layer=self.norm_layer,
         )
 
 
@@ -831,6 +850,21 @@ registry.register_alias(
     },
 )
 registry.register_alias(
+    "rope_vit_reg4_m16_rms_avg",
+    RoPE_ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
+        "num_reg_tokens": 4,
+        "class_token": False,
+        "norm_layer_type": "RMSNorm",
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
     "rope_vit_reg4_m14",
     RoPE_ViT,
     config={
@@ -933,6 +967,37 @@ registry.register_alias(
         "hidden_dim": 1024,
         "mlp_dim": 4096,
         "num_reg_tokens": 4,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "rope_vit_reg8_l14_ap",
+    RoPE_ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 24,
+        "num_heads": 16,
+        "hidden_dim": 1024,
+        "mlp_dim": 4096,
+        "num_reg_tokens": 8,
+        "class_token": False,
+        "attn_pool_head": True,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "rope_vit_reg8_l14_rms_ap",
+    RoPE_ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 24,
+        "num_heads": 16,
+        "hidden_dim": 1024,
+        "mlp_dim": 4096,
+        "num_reg_tokens": 8,
+        "class_token": False,
+        "attn_pool_head": True,
+        "norm_layer_type": "RMSNorm",
         "drop_path_rate": 0.1,
     },
 )
@@ -1063,5 +1128,24 @@ registry.register_alias(
         "class_token": False,
         "attn_pool_head": True,
         "drop_path_rate": 0.1,
+    },
+)
+
+registry.register_weights(
+    "rope_vit_reg4_b14_capi",
+    {
+        "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi/resolve/main",
+        "description": (
+            "RoPE ViT b14 image encoder pre-trained using CAPI. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 327.0,
+                "sha256": "175378d81734649567bfe82aac9557f9b0bf48dbd562f26e338b1958fa057472",
+            }
+        },
+        "net": {"network": "rope_vit_reg4_b14", "tag": "capi"},
     },
 )

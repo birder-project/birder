@@ -483,3 +483,18 @@ registry.register_alias("repvit_m1_0", RepViT, config={"embed_dims": [56, 112, 2
 registry.register_alias("repvit_m1_1", RepViT, config={"embed_dims": [64, 128, 256, 512], "depths": [2, 2, 12, 2]})
 registry.register_alias("repvit_m1_5", RepViT, config={"embed_dims": [64, 128, 256, 512], "depths": [4, 4, 24, 4]})
 registry.register_alias("repvit_m2_3", RepViT, config={"embed_dims": [80, 160, 320, 640], "depths": [6, 6, 34, 2]})
+
+registry.register_weights(
+    "repvit_m0_6_il-common",
+    {
+        "description": "RepViT M0.6 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 10.1,
+                "sha256": "4dfbad6d0f0b859d2d7bde9065dd6a93a72ff2fe32c923c7179004261bd2d700",
+            }
+        },
+        "net": {"network": "repvit_m0_6", "tag": "il-common"},
+    },
+)

@@ -176,171 +176,237 @@ class RandomResizedCropWithRandomInterpolation(nn.Module):
         return t(x)
 
 
-def training_preset(
-    size: tuple[int, int], level: int, rgv_values: RGBType, resize_min_scale: Optional[float] = None
-) -> Callable[..., torch.Tensor]:
-    mean = rgv_values["mean"]
-    std = rgv_values["std"]
+class SimpleRandomCropWithRandomInterpolation(nn.Module):
+    def __init__(self, size: tuple[int, int], interpolation: list[v2.InterpolationMode]) -> None:
+        super().__init__()
+        self.transform = []
+        for interp in interpolation:
+            self.transform.append(
+                v2.Compose(
+                    [
+                        v2.Resize(min(size), interpolation=interp),
+                        v2.RandomCrop(size, padding=4, padding_mode="reflect"),
+                    ]
+                )
+            )
 
-    if level == -1:  # AutoAugment policy
-        if resize_min_scale is None:
-            resize_min_scale = 0.08
-        return v2.Compose(  # type: ignore
-            [
-                v2.PILToTensor(),
-                RandomResizedCropWithRandomInterpolation(
-                    size,
-                    scale=(resize_min_scale, 1.0),
-                    ratio=(3 / 4, 4 / 3),
-                    interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
-                ),
-                v2.AutoAugment(v2.AutoAugmentPolicy.IMAGENET, v2.InterpolationMode.BILINEAR),
-                v2.RandomHorizontalFlip(0.5),
-                v2.ToDtype(torch.float32, scale=True),
-                v2.Normalize(mean=mean, std=std),
-            ]
-        )
+    def forward(self, x: Any) -> torch.Tensor:
+        t = random.choice(self.transform)
+        return t(x)
 
+
+def birder_augment(level: int, solarize_prob: float = 0.0, grayscale_prob: float = 0.0) -> Callable[..., torch.Tensor]:
     if level == 0:
-        return v2.Compose(  # type: ignore
-            [
-                v2.Resize(size, interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
-                v2.PILToTensor(),
-                v2.ToDtype(torch.float32, scale=True),
-                v2.Normalize(mean=mean, std=std),
-            ]
-        )
+        return v2.Identity()  # type: ignore
 
+    transforms = []
     if level == 1:
-        if resize_min_scale is None:
-            resize_min_scale = 0.7
-        return v2.Compose(  # type: ignore
+        transforms.extend(
             [
-                v2.PILToTensor(),
-                RandomResizedCropWithRandomInterpolation(
-                    size,
-                    scale=(resize_min_scale, 1.0),
-                    ratio=(3 / 4, 4 / 3),
-                    interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
-                ),
                 v2.RandomRotation(5, fill=0),
                 v2.ColorJitter(brightness=0.2, contrast=0.1, hue=0),
-                v2.RandomHorizontalFlip(0.5),
-                v2.ToDtype(torch.float32, scale=True),
-                v2.Normalize(mean=mean, std=std),
             ]
         )
 
-    if level == 2:
-        if resize_min_scale is None:
-            resize_min_scale = 0.65
-        return v2.Compose(  # type: ignore
+    elif level == 2:
+        transforms.extend(
             [
-                v2.PILToTensor(),
-                RandomResizedCropWithRandomInterpolation(
-                    size,
-                    scale=(resize_min_scale, 1.0),
-                    ratio=(3 / 4, 4 / 3),
-                    interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
-                ),
-                v2.RandomChoice(
-                    [
-                        v2.RandomRotation(10, fill=0),
-                        v2.RandomAffine(degrees=0, translate=(0, 0), shear=(-15, 15, 0, 0), fill=0),
-                    ]
-                ),
-                v2.RandomPosterize(7, p=0.25),
+                v2.RandomAffine(degrees=10, translate=None, shear=(-15, 15, 0, 0), fill=0),
+                v2.RandomPosterize(7, p=0.2),
                 v2.RandomChoice(
                     [
                         v2.RandomAutocontrast(0.5),
                         v2.ColorJitter(brightness=0.225, contrast=0.15, hue=0.02),
                     ]
                 ),
-                v2.RandomHorizontalFlip(0.5),
-                v2.ToDtype(torch.float32, scale=True),
-                v2.Normalize(mean=mean, std=std),
             ]
         )
 
-    if level == 3:
-        if resize_min_scale is None:
-            resize_min_scale = 0.6
-        return v2.Compose(  # type: ignore
+    elif level == 3:
+        transforms.extend(
             [
-                v2.PILToTensor(),
-                RandomResizedCropWithRandomInterpolation(
-                    size,
-                    scale=(resize_min_scale, 1.0),
-                    ratio=(3 / 4, 4 / 3),
-                    interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
-                ),
-                v2.RandomChoice(
-                    [
-                        v2.RandomRotation(12, fill=0),
-                        v2.RandomAffine(degrees=0, translate=(0, 0), shear=(-20, 20, 0, 0), fill=0),
-                    ]
-                ),
-                v2.RandomPosterize(6, p=0.2),
-                v2.RandomChoice(
-                    [
-                        v2.RandomAutocontrast(0.5),
-                        v2.ColorJitter(brightness=0.25, contrast=0.15, hue=0.04),
-                    ]
-                ),
+                v2.RandomAffine(degrees=15, translate=None, shear=(-20, 20, 0, 0), fill=0),
+                v2.RandomPosterize(6, p=0.25),
+                v2.ColorJitter(brightness=0.25, contrast=0.15, hue=0.05),
                 v2.RandomChoice(
                     [
                         v2.RandomApply([v2.GaussianBlur(kernel_size=(5, 5), sigma=(0.5, 1.2))], p=0.5),
                         v2.RandomAdjustSharpness(1.25, p=0.5),
-                        v2.RandomAdjustSharpness(1.5, p=0.5),
                     ]
                 ),
-                v2.RandomHorizontalFlip(0.5),
-                v2.ToDtype(torch.float32, scale=True),
-                v2.Normalize(mean=mean, std=std),
             ]
         )
 
-    if level == 4:
-        if resize_min_scale is None:
-            resize_min_scale = 0.5
-        return v2.Compose(  # type: ignore
+    elif level == 4:
+        transforms.extend(
             [
-                v2.PILToTensor(),
-                RandomResizedCropWithRandomInterpolation(
-                    size,
-                    scale=(resize_min_scale, 1.0),
-                    ratio=(3 / 4, 4 / 3),
-                    interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
-                ),
-                v2.RandomChoice(
-                    [
-                        v2.RandomRotation(16, fill=0),
-                        v2.RandomAffine(degrees=0, translate=(0, 0), shear=(-22, 22, 0, 0), fill=0),
-                    ]
-                ),
+                v2.RandomAffine(degrees=20, translate=None, shear=(-22, 22, 0, 0), fill=0),
                 v2.RandomPosterize(5, p=0.25),
-                v2.RandomChoice(
-                    [
-                        # v2.RandomEqualize(0.25),
-                        v2.RandomAutocontrast(0.5),
-                        v2.ColorJitter(brightness=0.28, contrast=0.2, hue=0.07),
-                    ]
-                ),
+                v2.ColorJitter(brightness=0.3, contrast=0.2, hue=0.1),
                 v2.RandomChoice(
                     [
                         v2.RandomApply([v2.GaussianBlur(kernel_size=(7, 7), sigma=(0.8, 1.5))], p=0.5),
                         v2.RandomAdjustSharpness(1.5, p=0.5),
-                        v2.RandomAdjustSharpness(2.0, p=0.5),
                     ]
                 ),
+            ]
+        )
+
+    else:
+        raise ValueError("Unsupported level")
+
+    if solarize_prob > 0 and grayscale_prob > 0:
+        transforms.append(
+            v2.RandomChoice([v2.RandomSolarize(threshold=128, p=solarize_prob), v2.RandomGrayscale(grayscale_prob)])
+        )
+    elif solarize_prob > 0:
+        transforms.append(v2.RandomSolarize(threshold=128, p=solarize_prob))
+    elif grayscale_prob > 0:
+        transforms.append(v2.RandomGrayscale(grayscale_prob))
+
+    return v2.Compose(transforms)  # type: ignore[no-any-return]
+
+
+AugType = Literal["birder", "aa", "ra", "ta_wide", "augmix", "3aug"]
+
+
+# pylint: disable=too-many-branches
+def training_preset(
+    size: tuple[int, int],
+    aug_type: AugType,
+    level: int,
+    rgv_values: RGBType,
+    resize_min_scale: Optional[float] = None,
+    re_prob: Optional[float] = None,
+    ra_magnitude: int = 9,
+    augmix_severity: int = 3,
+    solarize_prob: Optional[float] = None,
+    grayscale_prob: Optional[float] = None,
+    simple_crop: bool = False,
+) -> Callable[..., torch.Tensor]:
+    mean = rgv_values["mean"]
+    std = rgv_values["std"]
+
+    if aug_type == "birder":
+        if solarize_prob is None:
+            solarize_prob = 0.0
+        if grayscale_prob is None:
+            grayscale_prob = 0.0
+
+        if level == 0:
+            return v2.Compose(  # type: ignore
+                [
+                    v2.Resize(size, interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
+                    v2.PILToTensor(),
+                    v2.ToDtype(torch.float32, scale=True),
+                    v2.Normalize(mean=mean, std=std),
+                ]
+            )
+
+        if level == 1:
+            re_scale = 0.1
+            if resize_min_scale is None:
+                resize_min_scale = 0.65
+            if re_prob is None:
+                re_prob = 0.0
+
+        elif level == 2:
+            re_scale = 0.15
+            if resize_min_scale is None:
+                resize_min_scale = 0.6
+            if re_prob is None:
+                re_prob = 0.0
+
+        elif level == 3:
+            re_scale = 0.2
+            if resize_min_scale is None:
+                resize_min_scale = 0.55
+            if re_prob is None:
+                re_prob = 0.1
+
+        elif level == 4:
+            re_scale = 0.25
+            if resize_min_scale is None:
+                resize_min_scale = 0.45
+            if re_prob is None:
+                re_prob = 0.2
+
+        else:
+            raise ValueError("Unsupported level")
+
+        if simple_crop is True:
+            crop_transform = SimpleRandomCropWithRandomInterpolation(
+                size, interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC]
+            )
+        else:
+            crop_transform = RandomResizedCropWithRandomInterpolation(
+                size,
+                scale=(resize_min_scale, 1.0),
+                ratio=(3 / 4, 4 / 3),
+                interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
+            )
+
+        return v2.Compose(  # type:ignore
+            [
+                v2.PILToTensor(),
+                crop_transform,
+                birder_augment(level, solarize_prob=solarize_prob, grayscale_prob=grayscale_prob),
                 v2.RandomHorizontalFlip(0.5),
-                v2.RandomErasing(p=0.1, scale=(0.02, 0.15), ratio=(0.3, 3), value=0),
+                v2.Identity() if re_prob == 0 else v2.RandomErasing(re_prob, scale=(0.02, re_scale), ratio=(0.3, 3)),
                 v2.ToDtype(torch.float32, scale=True),
                 v2.Normalize(mean=mean, std=std),
             ]
         )
 
-    raise ValueError("Unsupported level")
+    if resize_min_scale is None:
+        resize_min_scale = 0.08
+    if re_prob is None:
+        re_prob = 0.0
+
+    transforms = [v2.PILToTensor()]
+    if simple_crop is True:
+        transforms.append(
+            SimpleRandomCropWithRandomInterpolation(
+                size, interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC]
+            )
+        )
+    else:
+        transforms.append(
+            RandomResizedCropWithRandomInterpolation(
+                size,
+                scale=(resize_min_scale, 1.0),
+                ratio=(3 / 4, 4 / 3),
+                interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
+            )
+        )
+
+    if aug_type == "aa":  # AutoAugment policy
+        transforms.append(v2.AutoAugment(v2.AutoAugmentPolicy.IMAGENET, v2.InterpolationMode.BILINEAR))
+    elif aug_type == "ra":  # RandAugment policy
+        transforms.append(v2.RandAugment(magnitude=ra_magnitude, interpolation=v2.InterpolationMode.BILINEAR))
+    elif aug_type == "ta_wide":  # TrivialAugmentWide policy
+        transforms.append(v2.TrivialAugmentWide(interpolation=v2.InterpolationMode.BILINEAR))
+    elif aug_type == "augmix":
+        transforms.append(v2.AugMix(severity=augmix_severity, interpolation=v2.InterpolationMode.BILINEAR))
+    elif aug_type == "3aug":
+        transforms.append(
+            v2.RandomChoice(
+                [v2.RandomGrayscale(p=1.0), v2.RandomSolarize(128, p=1.0), v2.GaussianBlur(kernel_size=(3, 3))]
+            )
+        )
+        transforms.append(v2.ColorJitter(brightness=0.3, contrast=0.3, hue=0.3))
+    else:
+        raise ValueError("Unsupported augmentation type")
+
+    return v2.Compose(  # type:ignore
+        [
+            *transforms,
+            v2.RandomHorizontalFlip(0.5),
+            v2.Identity() if re_prob == 0 else v2.RandomErasing(re_prob),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=mean, std=std),
+        ]
+    )
 
 
 def inference_preset(

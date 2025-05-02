@@ -1139,3 +1139,14 @@ def wds_braces_from_path(wds_directory: Path, prefix: str = "") -> tuple[str, in
     num_shards = len(shard_names)
 
     return (wds_path, num_shards)
+
+
+def class_to_idx_from_paths(data_paths: list[str]) -> dict[str, int]:
+    class_to_idx = {}
+    base = 0
+    for data_path in data_paths:
+        classes = sorted(entry.name for entry in os.scandir(data_path) if entry.is_dir())
+        class_to_idx.update({cls_name: i + base for i, cls_name in enumerate(classes)})
+        base += len(classes)
+
+    return class_to_idx

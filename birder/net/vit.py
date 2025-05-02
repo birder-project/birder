@@ -160,6 +160,7 @@ class EncoderBlock(nn.Module):
         drop_path: float,
         activation_layer: Callable[..., nn.Module],
         layer_scale_init_value: Optional[float] = None,
+        norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
     ) -> None:
         super().__init__()
         self.need_attn = False
@@ -168,7 +169,7 @@ class EncoderBlock(nn.Module):
             mlp_dim = hidden_dim * 4
 
         # Attention block
-        self.ln1 = nn.LayerNorm(hidden_dim, eps=1e-6)
+        self.ln1 = norm_layer(hidden_dim, eps=1e-6)
         self.self_attention = nn.MultiheadAttention(hidden_dim, num_heads, dropout=attention_dropout, batch_first=True)
         self.drop_path1 = StochasticDepth(drop_path, mode="row")
         if layer_scale_init_value is not None:
@@ -177,7 +178,7 @@ class EncoderBlock(nn.Module):
             self.layer_scale_1 = nn.Identity()
 
         # MLP block
-        self.ln2 = nn.LayerNorm(hidden_dim, eps=1e-6)
+        self.ln2 = norm_layer(hidden_dim, eps=1e-6)
         self.mlp = MLP(
             hidden_dim, [mlp_dim, hidden_dim], activation_layer=activation_layer, inplace=None, dropout=dropout
         )
@@ -219,6 +220,7 @@ class Encoder(nn.Module):
         attention_dropout: float,
         dpr: list[float],
         layer_scale_init_value: Optional[float] = None,
+        norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
     ) -> None:
         super().__init__()
         layers = []
@@ -236,6 +238,7 @@ class Encoder(nn.Module):
                     dpr[i],
                     activation_layer=nn.GELU,
                     layer_scale_init_value=layer_scale_init_value,
+                    norm_layer=norm_layer,
                 )
             )
 
@@ -288,7 +291,15 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
+        norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
         drop_path_rate: float = self.config["drop_path_rate"]
+
+        if norm_layer_type == "LayerNorm":
+            norm_layer = nn.LayerNorm
+        elif norm_layer_type == "RMSNorm":
+            norm_layer = nn.RMSNorm
+        else:
+            raise ValueError(f"Unknown norm_layer_type '{norm_layer_type}'")
 
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
@@ -339,8 +350,9 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             dropout,
             attention_dropout,
             dpr,
+            norm_layer=norm_layer,
         )
-        self.norm = nn.LayerNorm(hidden_dim, eps=1e-6)
+        self.norm = norm_layer(hidden_dim, eps=1e-6)
 
         if attn_pool_head is True:
             self.attn_pool = MultiHeadAttentionPool(hidden_dim, num_heads, mlp_dim, qkv_bias=True, latent_len=1)
@@ -364,6 +376,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             attention_dropout=0,
             drop_path=0,
             activation_layer=nn.GELU,
+            norm_layer=norm_layer,
         )
 
         # Weight initialization
@@ -560,6 +573,9 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
+
+        assert new_size[0] % self.patch_size == 0, "Input shape indivisible by patch size!"
+        assert new_size[1] % self.patch_size == 0, "Input shape indivisible by patch size!"
 
         old_size = self.size
         super().adjust_size(new_size)
@@ -824,6 +840,21 @@ registry.register_alias(
     },
 )
 registry.register_alias(
+    "vit_reg4_m16_rms_avg",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
+        "num_reg_tokens": 4,
+        "class_token": False,
+        "norm_layer_type": "RMSNorm",
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
     "vit_reg4_m14",
     ViT,
     config={
@@ -941,6 +972,22 @@ registry.register_alias(
         "num_reg_tokens": 8,
         "class_token": False,
         "attn_pool_head": True,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "vit_reg8_l14_rms_ap",
+    ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 24,
+        "num_heads": 16,
+        "hidden_dim": 1024,
+        "mlp_dim": 4096,
+        "num_reg_tokens": 8,
+        "class_token": False,
+        "attn_pool_head": True,
+        "norm_layer_type": "RMSNorm",
         "drop_path_rate": 0.1,
     },
 )

@@ -94,11 +94,23 @@ def onnx_export(
             input_names=["input"],
             output_names=["output"],
             dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
+            dynamo=False,
         )
 
     else:
-        onnx_program = torch.onnx.dynamo_export(net, torch.randn(sample_shape))
-        onnx_program.save(str(model_path))
+        batch_dim = torch.export.Dim("batch", min=1, max=4096)
+        torch.onnx.export(
+            net,
+            torch.randn(sample_shape),
+            str(model_path),
+            export_params=True,
+            opset_version=18,
+            input_names=["input"],
+            output_names=["output"],
+            dynamic_shapes={"x": {0: batch_dim}},
+            dynamo=True,
+            external_data=False,
+        )
 
     signature["inputs"][0]["data_shape"][0] = 0
 

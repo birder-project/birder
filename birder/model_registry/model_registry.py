@@ -77,9 +77,8 @@ class ModelRegistry:
         config: Optional[dict[str, Any]] = None,
     ) -> None:
         """
-        Just by defining the `type(alias, (net_type,), ...) the network is registered
+        When auto_register is active, just by defining the `type(alias, (net_type,), ...) the network is registered
         no further registration is needed.
-        The aliases dictionary is kept only for bookkeeping.
         """
 
         if net_type.auto_register is False:

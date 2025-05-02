@@ -21,7 +21,6 @@ import typing
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -33,10 +32,7 @@ import torchmetrics
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets.folder import pil_loader  # Slower but Handles external dataset quirks better
-from torchvision.io import ImageReadMode
-from torchvision.io import decode_image
 from torchvision.transforms import v2
-from torchvision.transforms.functional import pil_to_tensor
 from tqdm import tqdm
 
 from birder.common import cli
@@ -48,6 +44,7 @@ from birder.common.masking import BlockMasking
 from birder.conf import settings
 from birder.dataloader.webdataset import make_wds_loader
 from birder.datasets.directory import make_image_dataset
+from birder.datasets.directory import tv_loader
 from birder.datasets.webdataset import make_wds_dataset
 from birder.datasets.webdataset import prepare_wds_args
 from birder.datasets.webdataset import wds_args_from_info
@@ -61,31 +58,21 @@ from birder.net.ssl.ibot import iBOTLoss
 from birder.transforms.classification import RGBMode
 from birder.transforms.classification import RGBType
 from birder.transforms.classification import get_rgb_stats
-from birder.transforms.classification import training_preset
 
 logger = logging.getLogger(__name__)
-
-
-def _tv_loader(path: str) -> torch.Tensor:
-    if path.endswith(".webp") is True:  # Memory leak in TV webp
-        return pil_to_tensor(pil_loader(path))
-
-    return decode_image(path, mode=ImageReadMode.RGB)
 
 
 class TrainTransform:
     def __init__(
         self,
-        size: tuple[int, int],
+        global_transform: Callable[..., torch.Tensor],
         crop_size: tuple[int, int],
-        level: int,
         rgv_values: RGBType,
         local_crops_number: int,
         mask_generator: Callable[[int], torch.Tensor],
-        resize_min_scale: Optional[float] = None,
     ) -> None:
+        self.global_transform = global_transform
         self.local_crops_number = local_crops_number
-        self.global_transform = training_preset(size, level, rgv_values, resize_min_scale)
 
         # Local small crops
         mean = rgv_values["mean"]
@@ -283,13 +270,11 @@ def train(args: argparse.Namespace) -> None:
         max_aspect=3.33,
     )
     training_transform = TrainTransform(
-        args.size,
+        training_utils.get_training_transform(args),
         args.local_crop_size,
-        args.aug_level,
         rgb_stats,
         args.local_crops_number,
         mask_generator,
-        args.resize_min_scale,
     )
     if args.wds is True:
         wds_path: str | list[str]
@@ -306,6 +291,7 @@ def train(args: argparse.Namespace) -> None:
             shuffle=True,
             samples_names=True,
             transform=training_transform,
+            img_loader=args.img_loader,
             cache_dir=args.wds_cache_dir,
         )
 
@@ -314,7 +300,7 @@ def train(args: argparse.Namespace) -> None:
             args.data_path,
             {},
             transforms=training_transform,
-            loader=pil_loader if args.img_loader == "pil" else _tv_loader,
+            loader=pil_loader if args.img_loader == "pil" else tv_loader,
         )
 
     logger.info(f"Using device {device}:{device_id}")
@@ -476,7 +462,7 @@ def train(args: argparse.Namespace) -> None:
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
         training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
-        with open(training_log_path.joinpath("args.json"), "w", encoding="utf-8") as handle:
+        with open(training_log_path.joinpath("training_args.json"), "w", encoding="utf-8") as handle:
             json.dump({"cmdline": " ".join(sys.argv), **vars(args)}, handle, indent=2)
 
         with open(training_log_path.joinpath("training_data.json"), "w", encoding="utf-8") as handle:
@@ -823,13 +809,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sync-bn", default=False, action="store_true", help="use synchronized BatchNorm")
     parser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
     parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
-    parser.add_argument(
-        "--aug-level",
-        type=int,
-        choices=[0, 1, 2, 3, 4],
-        default=1,
-        help="magnitude of augmentations (0 off -> 4 highest)",
-    )
+    training_utils.add_aug_args(parser, default_level=1, default_min_scale=0.3)
     parser.add_argument(
         "--rgb-mode",
         type=str,
@@ -837,7 +817,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         default="birder",
         help="rgb mean and std to use for normalization",
     )
-    parser.add_argument("--resize-min-scale", type=float, default=0.3, help="random resize min scale")
     parser.add_argument("--epochs", type=int, default=800, metavar="N", help="number of training epochs")
     parser.add_argument(
         "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi step training)"
