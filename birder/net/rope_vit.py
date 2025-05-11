@@ -1149,3 +1149,20 @@ registry.register_weights(
         "net": {"network": "rope_vit_reg4_b14", "tag": "capi"},
     },
 )
+registry.register_weights(
+    "rope_vit_reg4_b14_capi-imagenet21k",
+    {
+        "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-imagenet21k/resolve/main",
+        "description": (
+            "RoPE ViT b14 image encoder pre-trained using CAPI, then fine-tuned on the ImageNet-21K dataset"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 383.7,
+                "sha256": "1325f35f0d8dff3270d6ce645f81865e9b8de7bacf17f94a9f5e2ef0cd66f56d",
+            }
+        },
+        "net": {"network": "rope_vit_reg4_b14", "tag": "capi-imagenet21k"},
+    },
+)

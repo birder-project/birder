@@ -101,6 +101,8 @@ class TestNet(unittest.TestCase):
             ("ghostnet_v1", 1),
             ("ghostnet_v2", 1),
             ("groupmixformer_mobile"),
+            ("hgnet_v1_tiny"),
+            ("hgnet_v2_b0"),
             ("hiera_tiny"),
             ("hiera_abswin_tiny"),  # No bfloat16 support
             ("hieradet_tiny"),
@@ -180,6 +182,7 @@ class TestNet(unittest.TestCase):
             ("vit_reg4_b32"),
             ("vit_so150m_p14_ap", None, False, 1, 14),
             ("vit_reg4_so150m_p14_ap", None, False, 1, 14),
+            ("vit_parallel_s16_18x2_ls"),
             ("vit_sam_b16"),
             ("wide_resnet_50"),
             ("xception"),
@@ -282,6 +285,8 @@ class TestNet(unittest.TestCase):
             ("ghostnet_v1", 1),
             ("ghostnet_v2", 1),
             ("groupmixformer_mobile"),
+            ("hgnet_v1_tiny"),
+            ("hgnet_v2_b0"),
             ("hiera_tiny"),
             ("hiera_abswin_tiny"),
             ("hieradet_tiny"),
@@ -352,6 +357,7 @@ class TestNet(unittest.TestCase):
             ("vit_reg4_b32"),
             ("vit_so150m_p14_ap"),
             ("vit_reg4_so150m_p14_ap"),
+            ("vit_parallel_s16_18x2_ls"),
             ("vit_sam_b16"),
             ("wide_resnet_50"),
             ("xception"),
@@ -433,6 +439,7 @@ class TestNet(unittest.TestCase):
             ("vit_reg4_b32", None),
             ("vit_so150m_p14_ap", None),
             ("vit_reg4_so150m_p14_ap", None),
+            ("vit_parallel_s16_18x2_ls", None),
         ]
     )
     def test_pre_training_encoder_retention(self, network_name: str, net_param: Optional[float]) -> None:
@@ -490,6 +497,7 @@ class TestNet(unittest.TestCase):
             ("vit_reg4_b32", None),
             ("vit_so150m_p14_ap", None),
             ("vit_reg4_so150m_p14_ap", None),
+            ("vit_parallel_s16_18x2_ls", None),
         ]
     )
     def test_pre_training_encoder_omission(self, network_name: str, net_param: Optional[float]) -> None:
@@ -560,6 +568,8 @@ class TestNonSquareNet(unittest.TestCase):
             ("ghostnet_v1", 1),
             ("ghostnet_v2", 1),
             ("groupmixformer_mobile"),
+            ("hgnet_v1_tiny"),
+            ("hgnet_v2_b0"),
             ("hiera_tiny"),
             ("hiera_abswin_tiny"),
             ("hieradet_tiny"),
@@ -638,6 +648,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("vit_reg4_b32"),
             ("vit_so150m_p14_ap", None, 1, 14, 14),
             ("vit_reg4_so150m_p14_ap", None, 1, 14, 14),
+            ("vit_parallel_s16_18x2_ls"),
             ("vit_sam_b16"),
             ("wide_resnet_50"),
             ("xception"),
@@ -694,6 +705,7 @@ class TestDynamicSize(unittest.TestCase):
             ("vit_reg4_b32"),
             ("vit_so150m_p14_ap", None, 1, 14),
             ("vit_reg4_so150m_p14_ap", None, 1, 14),
+            ("vit_parallel_s16_18x2_ls"),
         ]
     )
     def test_dynamic_size(

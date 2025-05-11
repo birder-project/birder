@@ -50,6 +50,8 @@ Most networks train more effectively with growing resolution and augmentation as
 - [GhostNet v1](#ghostnet-v1)
 - [GhostNet v2](#ghostnet-v2)
 - [GroupMixFormer](#groupmixformer)
+- [HGNet v1](#hgnet-v1)
+- [HGNet v2](#hgnet-v2)
 - [Hiera](#hiera)
 - [HieraDet](#hieradet)
 - [HorNet](#hornet)
@@ -111,6 +113,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [VGG](#vgg)
 - [VGG Reduced](#vgg-reduced)
 - [ViT](#vit)
+- [ViT Parallel](#vit-parallel)
 - [ViT SAM](#vit-sam)
 - [Wide ResNet](#wide-resnet)
 - [Xception](#xception)
@@ -1120,6 +1123,34 @@ torchrun --nproc_per_node=2 train.py --network groupmixformer_s --opt adamw --lr
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network groupmixformer_b --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --clip-grad-norm 5 --amp --compile
+```
+
+### HGNet v1
+
+#### HGNet v1: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network hgnet_v1_tiny --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 5 --batch-size 128 --epochs 400 --size 256 --wd 0.00004 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --fast-matmul --compile
+```
+
+#### HGNet v1: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network hgnet_v1_small --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 5 --batch-size 128 --epochs 400 --size 256 --wd 0.00004 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile
+```
+
+#### HGNet v1: Base
+
+```sh
+torchrun --nproc_per_node=2 train.py --network hgnet_v1_base --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 5 --batch-size 128 --epochs 400 --size 256 --wd 0.00004 --smoothing-alpha 0.1 --mixup-alpha 0.4 --aug-level 4 --amp --compile
+```
+
+### HGNet v2
+
+#### HGNet v2: B0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network hgnet_v2_b0 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 5 --batch-size 128 --epochs 400 --size 256 --wd 0.00004 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --amp --compile
 ```
 
 ### Hiera
@@ -2378,6 +2409,26 @@ torchrun --nproc_per_node=2 train.py --network vit_h14 --opt adamw --lr 0.0001 -
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_so150m_p14_ap --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+### ViT Parallel
+
+#### ViT Parallel: s16 18x2 LS
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 800 --size 256 --wd 0.05 --mixup-alpha 0.8 --cutmix --aug-level 2 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --bce-loss --bce-threshold 0.05 --amp --compile
+```
+
+Fine-tuning, increase resolution
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls --opt adamw --lr 0.00001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 5 --epochs 20 --size 384 --wd 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 3 --model-ema --clip-grad-norm 1 --model-config drop_path_rate=0.0 --amp --compile --resume-epoch 0
+```
+
+Optional intermediate training
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls --tag intermediate --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 5 --epochs 240 --size 256 --wd 0.02 --smoothing-alpha 0.1 --cutmix --aug-level 2 --model-ema --clip-grad-norm 1 --amp --compile --wds --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
 ```
 
 ### ViT SAM

@@ -8,7 +8,7 @@ Changes from original:
 * Removed attention bias cache
 """
 
-# Reference license: BSD 3-Clause
+# Reference license: Apache-2.0
 
 from collections import OrderedDict
 from collections.abc import Callable

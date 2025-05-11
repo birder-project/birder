@@ -111,12 +111,7 @@ def show_iterator(args: argparse.Namespace) -> None:
         cols = 4
         rows = 2
         num_outputs = len(class_to_idx)
-        if args.mixup is False:
-            alpha = None
-        else:
-            alpha = 0.8
-
-        t = get_mixup_cutmix(alpha, num_outputs, args.cutmix)
+        t = get_mixup_cutmix(args.mixup_alpha, num_outputs, args.cutmix)
 
         def collate_fn(batch: Any) -> Any:
             return t(*default_collate(batch))
@@ -194,6 +189,8 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools show-iterator --mode training --batch --size 224 --aug-level 3 --masking uniform\n"
             "python -m birder.tools show-iterator --mode training --size 224 --batch --wds "
             "--data-path data/training_packed\n"
+            "python -m birder.tools show-iterator --mode training --batch --mixup-alpha 0.8 --cutmix "
+            "--aug-level 4 --grayscale-prob 0.1 --data-path ~/Datasets/inat2021/train\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -206,7 +203,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--batch", default=False, action="store_true", help="show a batch instead of a single sample"
     )
-    subparser.add_argument("--mixup", default=False, action="store_true", help="enable mixup")
+    subparser.add_argument("--mixup-alpha", type=float, help="mixup alpha")
     subparser.add_argument("--cutmix", default=False, action="store_true", help="enable cutmix")
     subparser.add_argument(
         "--masking", type=str, choices=["none", "uniform", "block"], default="none", help="enable masking"

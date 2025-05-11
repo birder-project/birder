@@ -113,6 +113,7 @@
     "groupmixformer",
     "hardsigmoid",
     "hardswish",
+    "hgnet",
     "hiera",
     "hieradet",
     "hlines",

@@ -26,6 +26,7 @@ class TestNetMIM(unittest.TestCase):
             ("crossmae", None, ("vit_reg4_b32", None)),
             ("crossmae", None, ("vit_so150m_p14_ap", None)),
             ("crossmae", None, ("vit_reg4_so150m_p14_ap", None)),
+            ("crossmae", None, ("vit_parallel_s16_18x2_ls", None)),
             ("fcmae", None, ("convnext_v2_atto", None)),
             ("fcmae", None, ("regnet_y_200m", None)),
             ("fcmae", None, ("regnet_z_500m", None)),
@@ -42,6 +43,7 @@ class TestNetMIM(unittest.TestCase):
             ("mae_vit", None, ("vit_reg4_b32", None)),
             ("mae_vit", None, ("vit_so150m_p14_ap", None)),
             ("mae_vit", None, ("vit_reg4_so150m_p14_ap", None)),
+            ("mae_vit", None, ("vit_parallel_s16_18x2_ls", None)),
             ("simmim", None, ("maxvit_t", None)),
             ("simmim", None, ("nextvit_s", None)),
             ("simmim", None, ("regnet_y_800m", None)),
@@ -51,6 +53,7 @@ class TestNetMIM(unittest.TestCase):
             ("simmim", None, ("vit_reg4_b32", None)),
             ("simmim", None, ("vit_so150m_p14_ap", None)),
             ("simmim", None, ("vit_reg4_so150m_p14_ap", None)),
+            ("simmim", None, ("vit_parallel_s16_18x2_ls", None)),
         ]
     )
     def test_net_mim(self, network_name: str, net_param: Optional[float], encoder_params: tuple[str, float]) -> None:

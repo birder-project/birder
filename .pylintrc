@@ -30,10 +30,11 @@ max-module-lines=2000
 # C0111 - Missing docstring (missing-docstring)
 # C0114 - Missing module docstring (missing-module-docstring)
 # R1703 - Used when an if statement can be replaced with 'bool(test)' (simplifiable-if-statement)
+# R1719 - The if expression can be replaced with 'not test' (simplifiable-if-expression)
 # R0801 - This usually means that the code should be refactored to avoid this duplication (duplicate-code)
 # W1203 - Use lazy % formatting in logging functions (logging-fstring-interpolation)
 # C0199 - First line empty in docstring (docstring-first-line-empty)
-disable=C0111,C0114,R1703,R0801,W1203,C0199
+disable=C0111,C0114,R1703,R1719,R0801,W1203,C0199
 
 # Enable the message, report, category or checker with the given id(s):
 # I0021: Useless suppression of '<check>' (useless-suppression)

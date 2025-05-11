@@ -32,6 +32,8 @@ from birder.net.focalnet import FocalNet
 from birder.net.ghostnet_v1 import GhostNet_v1
 from birder.net.ghostnet_v2 import GhostNet_v2
 from birder.net.groupmixformer import GroupMixFormer
+from birder.net.hgnet_v1 import HGNet_v1
+from birder.net.hgnet_v2 import HGNet_v2
 from birder.net.hiera import Hiera
 from birder.net.hieradet import HieraDet
 from birder.net.hornet import HorNet
@@ -95,6 +97,7 @@ from birder.net.van import VAN
 from birder.net.vgg import Vgg
 from birder.net.vgg_reduced import Vgg_Reduced
 from birder.net.vit import ViT
+from birder.net.vit_parallel import ViT_Parallel
 from birder.net.vit_sam import ViT_SAM
 from birder.net.wide_resnet import Wide_ResNet
 from birder.net.xception import Xception
@@ -135,6 +138,8 @@ __all__ = [
     "GhostNet_v1",
     "GhostNet_v2",
     "GroupMixFormer",
+    "HGNet_v1",
+    "HGNet_v2",
     "Hiera",
     "HieraDet",
     "HorNet",
@@ -198,6 +203,7 @@ __all__ = [
     "Vgg",
     "Vgg_Reduced",
     "ViT",
+    "ViT_Parallel",
     "ViT_SAM",
     "Wide_ResNet",
     "Xception",

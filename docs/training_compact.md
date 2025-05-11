@@ -262,6 +262,14 @@ torchrun --nproc_per_node=2 train.py --network ghostnet_v2 --net-param 1 --tag i
 torchrun --nproc_per_node=2 train.py --network groupmixformer_mobile --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --clip-grad-norm 5 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### HGNet v1
+
+#### HGNet v1: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network hgnet_v1_tiny --tag il-common --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 5 --batch-size 128 --epochs 400 --size 256 --wd 0.00004 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 3 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### InceptionNeXt
 
 #### InceptionNeXt: Atto
