@@ -1150,6 +1150,21 @@ registry.register_weights(
     },
 )
 registry.register_weights(
+    "rope_vit_reg4_b14_capi-places365",
+    {
+        "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-places365/resolve/main",
+        "description": "RoPE ViT b14 image encoder pre-trained using CAPI, then fine-tuned on the Places365 dataset",
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 328.1,
+                "sha256": "4d3ef700eb0d454c9406e9b5c11f70106b46ed4a6ca24c1d89a60097ad78ea9a",
+            }
+        },
+        "net": {"network": "rope_vit_reg4_b14", "tag": "capi-places365"},
+    },
+)
+registry.register_weights(
     "rope_vit_reg4_b14_capi-imagenet21k",
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-imagenet21k/resolve/main",

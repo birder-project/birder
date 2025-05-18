@@ -42,10 +42,10 @@ def show_iterator(args: argparse.Namespace) -> None:
             get_rgb_stats("birder"),
             args.resize_min_scale,
             args.re_prob,
+            args.use_grayscale,
+            args.ra_num_ops,
             args.ra_magnitude,
             args.augmix_severity,
-            args.solarize_prob,
-            args.grayscale_prob,
             args.simple_crop,
         )
     elif args.mode == "inference":
@@ -92,7 +92,7 @@ def show_iterator(args: argparse.Namespace) -> None:
             # Show original
             ax = fig.add_subplot(grid_spec[0, 0:cols])
             ax.imshow(img)
-            ax.set_title("Original")
+            ax.set_title(f"Original, aug type: {args.aug_type}")
 
             # Show transformed
             counter = 0
@@ -186,11 +186,11 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools show-iterator --mode training --size 224 --batch --wds "
             "--wds-class-file ~/Datasets/imagenet-1k-wds/classes.txt --wds-size 50000 "
             "--data-path ~/Datasets/imagenet-1k-wds/validation\n"
-            "python -m birder.tools show-iterator --mode training --batch --size 224 --aug-level 3 --masking uniform\n"
+            "python -m birder.tools show-iterator --mode training --batch --size 224 --aug-level 6 --masking uniform\n"
             "python -m birder.tools show-iterator --mode training --size 224 --batch --wds "
             "--data-path data/training_packed\n"
             "python -m birder.tools show-iterator --mode training --batch --mixup-alpha 0.8 --cutmix "
-            "--aug-level 4 --grayscale-prob 0.1 --data-path ~/Datasets/inat2021/train\n"
+            "--aug-level 8 --data-path ~/Datasets/inat2021/train\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

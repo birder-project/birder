@@ -129,7 +129,7 @@ class Results:
         ]
 
         if self.missing_all_labels is False:
-            body.append(f"Accuracy: {self.accuracy:.3f}")
+            body.append(f"Accuracy: {self.accuracy:.4f}")
 
         lines = [head] + ["    " + line for line in body]
 
@@ -295,30 +295,30 @@ class Results:
         highest_precision = report_df[report_df["Precision"].arg_max()]  # type: ignore[index]
         highest_recall = report_df[report_df["Recall"].arg_max()]  # type: ignore[index]
 
-        logger.info(f"Accuracy {self.accuracy:.3f} on {self._valid_length} samples ({self._num_mistakes} mistakes)")
+        logger.info(f"Accuracy {self.accuracy:.4f} on {self._valid_length} samples ({self._num_mistakes} mistakes)")
         logger.info(
-            f"Top-{settings.TOP_K} accuracy {self.top_k:.3f} on {self._valid_length} samples "
+            f"Top-{settings.TOP_K} accuracy {self.top_k:.4f} on {self._valid_length} samples "
             f"({self.num_out_of_top_k} samples out of top-{settings.TOP_K})"
         )
 
         logger.info(
-            f"Lowest precision {lowest_precision['Precision'][0]:.3f} for '{lowest_precision['Class name'][0]}' "
+            f"Lowest precision {lowest_precision['Precision'][0]:.4f} for '{lowest_precision['Class name'][0]}' "
             f"({lowest_precision['False negative'][0]} false negatives, "
             f"{lowest_precision['False positive'][0]} false positives)"
         )
         logger.info(
-            f"Lowest recall {lowest_recall['Recall'][0]:.3f} for '{lowest_recall['Class name'][0]}' "
+            f"Lowest recall {lowest_recall['Recall'][0]:.4f} for '{lowest_recall['Class name'][0]}' "
             f"({lowest_recall['False negative'][0]} false negatives, "
             f"{lowest_recall['False positive'][0]} false positives)"
         )
 
         logger.info(
-            f"Highest precision {highest_precision['Precision'][0]:.3f} for '{highest_precision['Class name'][0]}' "
+            f"Highest precision {highest_precision['Precision'][0]:.4f} for '{highest_precision['Class name'][0]}' "
             f"({highest_precision['False negative'][0]} false negatives, "
             f"{highest_precision['False positive'][0]} false positives)"
         )
         logger.info(
-            f"Highest recall {highest_recall['Recall'][0]:.3f} for '{highest_recall['Class name'][0]}' "
+            f"Highest recall {highest_recall['Recall'][0]:.4f} for '{highest_recall['Class name'][0]}' "
             f"({highest_recall['False negative'][0]} false negatives, "
             f"{highest_recall['False positive'][0]} false positives)"
         )
@@ -355,14 +355,14 @@ class Results:
         fp_cutoff = report_df["False positive"].quantile(0.95)
 
         for row in report_df.iter_rows(named=True):
-            recall_msg = f"{row['Recall']:.3f}"
+            recall_msg = f"{row['Recall']:.4f}"
             if row["Recall"] < 0.75:
                 recall_msg = "[red1]" + recall_msg + "[/red1]"
 
             elif row["Recall"] < 0.9:
                 recall_msg = "[dark_orange]" + recall_msg + "[/dark_orange]"
 
-            f1_msg = f"{row['F1-score']:.3f}"
+            f1_msg = f"{row['F1-score']:.4f}"
             if row["F1-score"] == 1.0:
                 f1_msg = "[green]" + f1_msg + "[/green]"
 
@@ -377,7 +377,7 @@ class Results:
             table.add_row(
                 f"{row['Class']}",
                 row["Class name"],
-                f"{row['Precision']:.3f}",
+                f"{row['Precision']:.4f}",
                 recall_msg,
                 f1_msg,
                 f"{row['Samples']}",
@@ -388,12 +388,12 @@ class Results:
         console.print(table)
 
         accuracy_text = Text()
-        accuracy_text.append(f"Accuracy {self.accuracy:.3f} on {self._valid_length} samples (")
+        accuracy_text.append(f"Accuracy {self.accuracy:.4f} on {self._valid_length} samples (")
         accuracy_text.append(f"{self._num_mistakes}", style="bold")
         accuracy_text.append(" mistakes)")
 
         top_k_text = Text()
-        top_k_text.append(f"Top-{settings.TOP_K} accuracy {self.top_k:.3f} on {self._valid_length} samples (")
+        top_k_text.append(f"Top-{settings.TOP_K} accuracy {self.top_k:.4f} on {self._valid_length} samples (")
         top_k_text.append(f"{self.num_out_of_top_k}", style="bold")
         top_k_text.append(f" samples out of top-{settings.TOP_K})")
 

@@ -51,20 +51,20 @@ def print_per_class_report(results_dict: dict[str, Results], classes: list[str])
             if row.is_empty() is True:
                 continue
 
-            recall_msg = f"{row['Recall'][0]:.3f}"
+            recall_msg = f"{row['Recall'][0]:.4f}"
             if row["Recall"][0] < 0.75:
                 recall_msg = "[red1]" + recall_msg + "[/red1]"
             elif row["Recall"][0] < 0.9:
                 recall_msg = "[dark_orange]" + recall_msg + "[/dark_orange]"
 
-            f1_msg = f"{row['F1-score'][0]:.3f}"
+            f1_msg = f"{row['F1-score'][0]:.4f}"
             if row["F1-score"][0] == 1.0:
                 f1_msg = "[green]" + f1_msg + "[/green]"
 
             table.add_row(
                 name,
                 row["Class name"][0],
-                f"{row['Precision'][0]:.3f}",
+                f"{row['Precision'][0]:.4f}",
                 recall_msg,
                 f1_msg,
                 f"{row['Samples'][0]}",
@@ -92,7 +92,7 @@ def print_report(results_dict: dict[str, Results]) -> None:
 
         if isinstance(results_df[column].dtype, polars.datatypes.classes.FloatType):
             results_df = results_df.with_columns(
-                pl.col(column).map_elements(lambda x: f"{x:.3f}", return_dtype=pl.String)
+                pl.col(column).map_elements(lambda x: f"{x:.4f}", return_dtype=pl.String)
             )
         else:
             results_df = results_df.with_columns(pl.col(column).cast(pl.String))

@@ -358,7 +358,7 @@ def train(args: argparse.Namespace) -> None:
     if args.model_ema is True:
         model_base = net_without_ddp  # Original model without DDP wrapper, will be saved as training state
         model_ema = training_utils.ema_model(args, net_without_ddp, device=device)
-        if training_states.ema_model_state is not None:
+        if args.load_states is True and training_states.ema_model_state is not None:
             logger.info("Setting model EMA weights...")
             if args.compile is True and hasattr(model_ema.module, "_orig_mod") is True:
                 model_ema.module._orig_mod.load_state_dict(  # pylint: disable=protected-access
@@ -584,7 +584,7 @@ def train(args: argparse.Namespace) -> None:
 
             # Epoch validation metrics
             for metric in metric_list:
-                logger.info(f"Epoch {epoch}/{epochs-1} {metric}: {validation_metrics_dict[metric]:.3f}")
+                logger.info(f"Epoch {epoch}/{epochs-1} {metric}: {validation_metrics_dict[metric]:.4f}")
 
             # Checkpoint model
             if epoch % args.save_frequency == 0:

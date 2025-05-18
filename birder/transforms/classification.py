@@ -8,6 +8,7 @@ from typing import TypedDict
 import torch
 from torch import nn
 from torchvision.transforms import v2
+from torchvision.transforms.v2 import functional as F
 
 RGBType = TypedDict("RGBType", {"mean": tuple[float, float, float], "std": tuple[float, float, float]})
 RGBMode = Literal["birder", "imagenet", "neutral", "none"]
@@ -195,76 +196,114 @@ class SimpleRandomCropWithRandomInterpolation(nn.Module):
         return t(x)
 
 
-def birder_augment(level: int, solarize_prob: float = 0.0, grayscale_prob: float = 0.0) -> Callable[..., torch.Tensor]:
-    if level == 0:
-        return v2.Identity()  # type: ignore
+class RandomSolarizeWithVariableThreshold(nn.Module):
+    def __init__(self, threshold: int, p: float, threshold_variation: float) -> None:
+        super().__init__()
+        self.threshold = threshold
+        self.p = p
+        self.threshold_variation = threshold_variation
 
-    transforms = []
-    if level == 1:
-        transforms.extend(
-            [
-                v2.RandomRotation(5, fill=0),
-                v2.ColorJitter(brightness=0.2, contrast=0.1, hue=0),
-            ]
-        )
+    def forward(self, x: Any) -> torch.Tensor:
+        if torch.rand(1) >= self.p:
+            return x
 
-    elif level == 2:
-        transforms.extend(
-            [
-                v2.RandomAffine(degrees=10, translate=None, shear=(-15, 15, 0, 0), fill=0),
-                v2.RandomPosterize(7, p=0.2),
-                v2.RandomChoice(
-                    [
-                        v2.RandomAutocontrast(0.5),
-                        v2.ColorJitter(brightness=0.225, contrast=0.15, hue=0.02),
-                    ]
-                ),
-            ]
-        )
+        noise_range = int(self.threshold * self.threshold_variation)
+        noise = torch.randint(-noise_range, noise_range + 1, (1,)).item()
+        threshold = max(0, min(255, self.threshold + noise))
 
-    elif level == 3:
-        transforms.extend(
-            [
-                v2.RandomAffine(degrees=15, translate=None, shear=(-20, 20, 0, 0), fill=0),
-                v2.RandomPosterize(6, p=0.25),
-                v2.ColorJitter(brightness=0.25, contrast=0.15, hue=0.05),
-                v2.RandomChoice(
-                    [
-                        v2.RandomApply([v2.GaussianBlur(kernel_size=(5, 5), sigma=(0.5, 1.2))], p=0.5),
-                        v2.RandomAdjustSharpness(1.25, p=0.5),
-                    ]
-                ),
-            ]
-        )
+        return F.solarize(x, threshold=threshold)
 
-    elif level == 4:
-        transforms.extend(
-            [
-                v2.RandomAffine(degrees=20, translate=None, shear=(-22, 22, 0, 0), fill=0),
-                v2.RandomPosterize(5, p=0.25),
-                v2.ColorJitter(brightness=0.3, contrast=0.2, hue=0.1),
-                v2.RandomChoice(
-                    [
-                        v2.RandomApply([v2.GaussianBlur(kernel_size=(7, 7), sigma=(0.8, 1.5))], p=0.5),
-                        v2.RandomAdjustSharpness(1.5, p=0.5),
-                    ]
-                ),
-            ]
-        )
 
-    else:
-        raise ValueError("Unsupported level")
+class RandomAdjustSharpnessWithVariation(nn.Module):
+    def __init__(self, factor: float, p: float, factor_variation: float) -> None:
+        super().__init__()
+        self.factor = factor
+        self.p = p
+        self.factor_variation = factor_variation
 
-    if solarize_prob > 0 and grayscale_prob > 0:
-        transforms.append(
-            v2.RandomChoice([v2.RandomSolarize(threshold=128, p=solarize_prob), v2.RandomGrayscale(grayscale_prob)])
-        )
-    elif solarize_prob > 0:
-        transforms.append(v2.RandomSolarize(threshold=128, p=solarize_prob))
-    elif grayscale_prob > 0:
-        transforms.append(v2.RandomGrayscale(grayscale_prob))
+    def forward(self, x: Any) -> torch.Tensor:
+        if torch.rand(1) >= self.p:
+            return x
 
-    return v2.Compose(transforms)  # type: ignore[no-any-return]
+        noise = torch.rand((1,)).item()
+        noise = noise * 2 * self.factor_variation - self.factor_variation
+        factor = max(1.0, min(2.0, self.factor + noise))
+
+        return F.adjust_sharpness(x, factor)
+
+
+class RandomSaturationWithVariation(nn.Module):
+    def __init__(self, factor: float, p: float, factor_variation: float) -> None:
+        super().__init__()
+        self.factor = factor
+        self.p = p
+        self.factor_variation = factor_variation
+
+    def forward(self, x: Any) -> torch.Tensor:
+        if torch.rand(1) >= self.p:
+            return x
+
+        noise = torch.rand((1,)).item()
+        noise = noise * 2 * self.factor_variation - self.factor_variation
+        factor = max(0.1, min(2.0, self.factor + noise))
+
+        return F.adjust_saturation(x, factor)
+
+
+class BirderAugment(nn.Module):
+    def __init__(self, level: int, re_prob: Optional[float] = None, use_grayscale: bool = False):
+        super().__init__()
+        assert level <= 10
+
+        self.min_ops = 2
+        self.max_ops = max(self.min_ops, (level + 1) // 2)
+
+        re_scale = 0.05 + (level * 0.025)
+        if re_prob is None:
+            re_prob = max(0.25, -0.15 + (level * 0.05))
+
+        self.re = v2.Identity() if re_prob < 0.001 else v2.RandomErasing(re_prob, scale=(0.02, re_scale))
+
+        self.transformations = []
+        self.transformations.append(v2.Identity())
+
+        if level >= 1:
+            self.transformations.extend(
+                [
+                    v2.RandomAffine(degrees=2.25 * level),
+                    v2.ColorJitter(brightness=0.2 + (0.0125 * level)),
+                    v2.ColorJitter(contrast=0.05 + (0.025 * level), hue=max(0, -0.025 + (level * 0.0125))),
+                ]
+            )
+        if level >= 3:
+            self.transformations.extend(
+                [
+                    RandomSaturationWithVariation(1.0, p=1.0, factor_variation=level * 0.07),
+                    v2.RandomAffine(degrees=0, translate=(0.02 * level, 0.02 * level)),
+                    v2.RandomAffine(degrees=0, shear=(-2.5 * level, 2.5 * level, 0, 0)),
+                    v2.RandomPosterize(9 - ((level + 1) // 2), p=1.0),
+                    v2.GaussianBlur(kernel_size=((level + 1) // 4) * 2 + 1, sigma=(0.5, 1.2)),
+                    v2.RandomAutocontrast(1.0),
+                    RandomAdjustSharpnessWithVariation(1 + (level * 0.04), p=1.0, factor_variation=0.2),
+                ]
+            )
+        if level >= 5:
+            self.transformations.append(
+                RandomSolarizeWithVariableThreshold(255 - (12 * level), p=1.0, threshold_variation=0.3)
+            )
+
+        if use_grayscale is True:
+            self.transformations.append(v2.RandomGrayscale(1.0))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        num_ops = torch.randint(self.min_ops, self.max_ops + 1, ()).item()
+        for _ in range(num_ops):
+            t = self.transformations[torch.randint(len(self.transformations), ()).item()]
+            x = t(x)
+
+        x = self.re(x)
+
+        return x
 
 
 AugType = Literal["birder", "aa", "ra", "ta_wide", "augmix", "3aug"]
@@ -278,20 +317,18 @@ def training_preset(
     rgv_values: RGBType,
     resize_min_scale: Optional[float] = None,
     re_prob: Optional[float] = None,
+    use_grayscale: bool = False,
+    ra_num_ops: int = 2,
     ra_magnitude: int = 9,
     augmix_severity: int = 3,
-    solarize_prob: Optional[float] = None,
-    grayscale_prob: Optional[float] = None,
     simple_crop: bool = False,
 ) -> Callable[..., torch.Tensor]:
     mean = rgv_values["mean"]
     std = rgv_values["std"]
 
     if aug_type == "birder":
-        if solarize_prob is None:
-            solarize_prob = 0.0
-        if grayscale_prob is None:
-            grayscale_prob = 0.0
+        if 0 > level or level > 10:
+            raise ValueError("Unsupported aug level")
 
         if level == 0:
             return v2.Compose(  # type: ignore
@@ -303,36 +340,8 @@ def training_preset(
                 ]
             )
 
-        if level == 1:
-            re_scale = 0.1
-            if resize_min_scale is None:
-                resize_min_scale = 0.65
-            if re_prob is None:
-                re_prob = 0.0
-
-        elif level == 2:
-            re_scale = 0.15
-            if resize_min_scale is None:
-                resize_min_scale = 0.6
-            if re_prob is None:
-                re_prob = 0.0
-
-        elif level == 3:
-            re_scale = 0.2
-            if resize_min_scale is None:
-                resize_min_scale = 0.55
-            if re_prob is None:
-                re_prob = 0.1
-
-        elif level == 4:
-            re_scale = 0.25
-            if resize_min_scale is None:
-                resize_min_scale = 0.45
-            if re_prob is None:
-                re_prob = 0.2
-
-        else:
-            raise ValueError("Unsupported level")
+        if resize_min_scale is None:
+            resize_min_scale = 0.8 - (level * 0.05)
 
         if simple_crop is True:
             crop_transform = SimpleRandomCropWithRandomInterpolation(
@@ -350,9 +359,8 @@ def training_preset(
             [
                 v2.PILToTensor(),
                 crop_transform,
-                birder_augment(level, solarize_prob=solarize_prob, grayscale_prob=grayscale_prob),
+                BirderAugment(level, re_prob, use_grayscale),
                 v2.RandomHorizontalFlip(0.5),
-                v2.Identity() if re_prob == 0 else v2.RandomErasing(re_prob, scale=(0.02, re_scale), ratio=(0.3, 3)),
                 v2.ToDtype(torch.float32, scale=True),
                 v2.Normalize(mean=mean, std=std),
             ]
@@ -383,11 +391,11 @@ def training_preset(
     if aug_type == "aa":  # AutoAugment policy
         transforms.append(v2.AutoAugment(v2.AutoAugmentPolicy.IMAGENET, v2.InterpolationMode.BILINEAR))
     elif aug_type == "ra":  # RandAugment policy
-        transforms.append(v2.RandAugment(magnitude=ra_magnitude, interpolation=v2.InterpolationMode.BILINEAR))
+        transforms.append(v2.RandAugment(ra_num_ops, ra_magnitude, interpolation=v2.InterpolationMode.BILINEAR))
     elif aug_type == "ta_wide":  # TrivialAugmentWide policy
         transforms.append(v2.TrivialAugmentWide(interpolation=v2.InterpolationMode.BILINEAR))
     elif aug_type == "augmix":
-        transforms.append(v2.AugMix(severity=augmix_severity, interpolation=v2.InterpolationMode.BILINEAR))
+        transforms.append(v2.AugMix(augmix_severity, interpolation=v2.InterpolationMode.BILINEAR))
     elif aug_type == "3aug":
         transforms.append(
             v2.RandomChoice(

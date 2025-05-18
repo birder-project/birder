@@ -53,7 +53,7 @@ def show_detections(
     scores = scores[idxs]
     boxes = detection["boxes"][idxs]
     labels = detection["labels"][idxs]
-    label_names = [f"{class_list[i]}: {s:.3f}" for i, s in zip(labels, scores)]
+    label_names = [f"{class_list[i]}: {s:.4f}" for i, s in zip(labels, scores)]
     colors = [color_list[label] for label in labels]
 
     img = decode_image(root_path.joinpath(img_path))

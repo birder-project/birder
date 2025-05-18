@@ -8,7 +8,6 @@ import numpy as np
 import numpy.typing as npt
 import polars as pl
 import torch
-import torch.amp
 from torch.utils.data import DataLoader
 
 from birder.common import cli
@@ -119,7 +118,11 @@ def predict(args: argparse.Namespace) -> None:
         logger.info(f"Using device {device}")
 
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
-    amp_dtype: torch.dtype = getattr(torch, args.amp_dtype)
+    if args.amp_dtype is None:
+        amp_dtype = torch.get_autocast_dtype(device.type)
+    else:
+        amp_dtype = getattr(torch, args.amp_dtype)
+
     network_name = lib.get_network_name(args.network, net_param=args.net_param, tag=args.tag)
     (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
         device,
@@ -350,7 +353,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--amp-dtype",
         type=str,
         choices=["float16", "bfloat16"],
-        default="float16",
         help="whether to use float16 or bfloat16 for mixed precision",
     )
     parser.add_argument(

@@ -26,7 +26,11 @@ def throughput_benchmark(
     # Sanity
     logger.info(f"Sanity check for {model_name}")
 
-    amp_dtype: torch.dtype = getattr(torch, args.amp_dtype)
+    if args.amp_dtype is None:
+        amp_dtype = torch.get_autocast_dtype(device.type)
+    else:
+        amp_dtype = getattr(torch, args.amp_dtype)
+
     batch_size = sample_shape[0]
     while batch_size > 0:
         with torch.inference_mode():
@@ -80,7 +84,11 @@ def memory_benchmark(
     if args.gpu_id is not None:
         torch.cuda.set_device(args.gpu_id)
 
-    amp_dtype: torch.dtype = getattr(torch, args.amp_dtype)
+    if args.amp_dtype is None:
+        amp_dtype = torch.get_autocast_dtype(device.type)
+    else:
+        amp_dtype = getattr(torch, args.amp_dtype)
+
     (net, _) = birder.load_pretrained_model(model_name, inference=True, device=device)
 
     torch.cuda.empty_cache()
@@ -239,7 +247,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--amp-dtype",
         type=str,
         choices=["float16", "bfloat16"],
-        default="float16",
         help="whether to use float16 or bfloat16 for mixed precision",
     )
     parser.add_argument(

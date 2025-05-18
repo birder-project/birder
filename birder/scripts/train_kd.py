@@ -349,7 +349,7 @@ def train(args: argparse.Namespace) -> None:
     if args.model_ema is True:
         model_base = net_without_ddp  # Original model without DDP wrapper, will be saved as training state
         model_ema = training_utils.ema_model(args, net_without_ddp, device=device)
-        if training_states.ema_model_state is not None:
+        if args.load_states is True and training_states.ema_model_state is not None:
             logger.info("Setting model EMA weights...")
             if args.compile is True and hasattr(model_ema.module, "_orig_mod") is True:
                 model_ema.module._orig_mod.load_state_dict(  # pylint: disable=protected-access
@@ -724,7 +724,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "    --norm-wd 0 \\\n"
             "    --smoothing-alpha 0.1 \\\n"
             "    --mixup-alpha 0.8 \\\n"
-            "    --aug-level 4 \\\n"
+            "    --aug-level 8 \\\n"
             "    --model-ema \\\n"
             "    --ra-sampler --ra-reps 2 \\\n"
             "    --clip-grad-norm 1 \\\n"

@@ -237,6 +237,8 @@ def train(args: argparse.Namespace) -> None:
     net.to(device, dtype=model_dtype)
     if args.freeze_body is True:
         net.freeze(freeze_classifier=False, unfreeze_features=args.unfreeze_features)
+    elif args.freeze_stages is not None:
+        net.freeze_stages(up_to_stage=args.freeze_stages)
 
     if args.freeze_bn is True:
         net = training_utils.freeze_batchnorm2d(net)
@@ -330,7 +332,7 @@ def train(args: argparse.Namespace) -> None:
     if args.model_ema is True:
         model_base = net_without_ddp  # Original model without DDP wrapper, will be saved as training state
         model_ema = training_utils.ema_model(args, net_without_ddp, device=device)
-        if training_states.ema_model_state is not None:
+        if args.load_states is True and training_states.ema_model_state is not None:
             logger.info("Setting model EMA weights...")
             if args.compile is True and hasattr(model_ema.module, "_orig_mod") is True:
                 model_ema.module._orig_mod.load_state_dict(  # pylint: disable=protected-access
@@ -700,7 +702,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "    --smoothing-alpha 0.1 \\\n"
             "    --mixup-alpha 0.2 \\\n"
             "    --cutmix \\\n"
-            "    --aug-level 4 \\\n"
+            "    --aug-level 8 \\\n"
             "    --ra-sampler --ra-reps 2 \\\n"
             "    --amp --compile\n"
         ),
@@ -729,6 +731,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="freeze all layers of the model except the classification head",
     )
+    parser.add_argument("--freeze-stages", type=int, help="number of model stages to freeze (for supported models)")
     parser.add_argument(
         "--unfreeze-features",
         default=False,
@@ -912,7 +915,9 @@ def validate_args(args: argparse.Namespace) -> None:
     assert (
         registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION) is True
     ), "Unknown network, see list-models tool for available options"
-    assert args.freeze_bn is False or args.sync_bn is False, "Cannot freeze-bn and sync-bn are mutually exclusive"
+    assert args.freeze_body is False or args.freeze_stages is None
+    assert args.freeze_stages is None or registry.exists(args.network, task=Task.OBJECT_DETECTION) is True
+    assert args.freeze_bn is False or args.sync_bn is False, "freeze-bn and sync-bn are mutually exclusive"
     assert args.amp is False or args.model_dtype == "float32"
     assert args.resize_min_scale is None or args.resize_min_scale < 1.0
     assert args.bce_loss is False or args.smoothing_alpha == 0.0

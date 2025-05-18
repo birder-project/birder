@@ -484,10 +484,10 @@ def get_training_transform(args: argparse.Namespace) -> Callable[..., torch.Tens
         get_rgb_stats(args.rgb_mode),
         args.resize_min_scale,
         args.re_prob,
+        args.use_grayscale,
+        args.ra_num_ops,
         args.ra_magnitude,
         args.augmix_severity,
-        args.solarize_prob,
-        args.grayscale_prob,
         args.simple_crop,
     )
 
@@ -649,7 +649,7 @@ def cosine_scheduler(
     iter_per_epoch: int,
     start_warmup_value: float = 0.0,
 ) -> list[float]:
-    warmup_schedule = np.linspace(start_warmup_value, base_value, warmup_epochs * iter_per_epoch)
+    warmup_schedule = np.linspace(start_warmup_value, base_value, warmup_epochs * iter_per_epoch, endpoint=False)
 
     iters = np.arange((epochs - warmup_epochs) * iter_per_epoch)
     schedule = final_value + 0.5 * (base_value - final_value) * (1 + np.cos(np.pi * iters / len(iters)))
@@ -809,7 +809,7 @@ def add_scheduler_args(parser: argparse.ArgumentParser) -> None:
 
 
 def add_aug_args(
-    parser: argparse.ArgumentParser, default_level: int = 2, default_min_scale: Optional[float] = None
+    parser: argparse.ArgumentParser, default_level: int = 4, default_min_scale: Optional[float] = None
 ) -> None:
     parser.add_argument(
         "--aug-type",
@@ -821,18 +821,20 @@ def add_aug_args(
     parser.add_argument(
         "--aug-level",
         type=int,
-        choices=[0, 1, 2, 3, 4],
+        choices=list(range(10 + 1)),
         default=default_level,
-        help="magnitude of birder augmentations (0 off -> 4 highest)",
+        help="magnitude of birder augmentations (0 off -> 10 highest)",
+    )
+    parser.add_argument(
+        "--use-grayscale", default=False, action="store_true", help="use grayscale augmentation (birder aug only)"
+    )
+    parser.add_argument(
+        "--ra-num-ops", type=int, default=2, help="number of augmentation transformations to apply sequentially"
     )
     parser.add_argument("--ra-magnitude", type=int, default=9, help="magnitude for all the RandAugment transformations")
     parser.add_argument("--augmix-severity", type=int, default=3, help="severity of AugMix policy")
     parser.add_argument("--resize-min-scale", type=float, default=default_min_scale, help="random resize min scale")
     parser.add_argument("--re-prob", type=float, help="random erase probability (default according to aug-level)")
-    parser.add_argument("--solarize-prob", type=float, help="solarize probability (applies only to 'birder' aug type)")
-    parser.add_argument(
-        "--grayscale-prob", type=float, help="grayscale probability (applies only to 'birder' aug type)"
-    )
     parser.add_argument(
         "--simple-crop", default=False, action="store_true", help="use simple random crop (SRC) instead of RRC"
     )

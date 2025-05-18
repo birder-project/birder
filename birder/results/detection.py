@@ -104,7 +104,7 @@ class Results:
             f"Number of samples: {len(self)}",
         ]
 
-        body.append(f"mAP: {self.map:.3f}")
+        body.append(f"mAP: {self.map:.4f}")
 
         lines = [head] + ["    " + line for line in body]
 

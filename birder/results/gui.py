@@ -96,7 +96,7 @@ class ConfusionMatrix:
         # Plot confusion matrix
         cnf_matrix = self.results.confusion_matrix
         cnf_ax = ax.imshow(cnf_matrix, interpolation="nearest", cmap=plt.get_cmap("Blues"))
-        ax.set_title(f"Confusion matrix, accuracy {self.results.accuracy:.3f} on {len(self.results)} samples")
+        ax.set_title(f"Confusion matrix, accuracy {self.results.accuracy:.4f} on {len(self.results)} samples")
         plt.colorbar(cnf_ax)
         tick_marks = np.arange(len(self.results.unique_labels))
         class_names = [self.results.label_names[label_idx] for label_idx in self.results.unique_labels]
@@ -203,13 +203,13 @@ class ROC:
 
             for cls in roc_classes:
                 i = results.label_names.index(cls)
-                ax.plot(fpr[i], tpr[i], label=f"{name} ROC curve for {cls} ({roc_auc[i]:.3f})")
+                ax.plot(fpr[i], tpr[i], label=f"{name} ROC curve for {cls} ({roc_auc[i]:.4f})")
 
             ax.plot(
                 all_fpr,
                 mean_tpr,
                 linestyle=":",
-                label=f"{name} Macro-average ROC curve ({macro_auc:.3f})",
+                label=f"{name} Macro-average ROC curve ({macro_auc:.4f})",
             )
 
         ax.plot([0, 1], [0, 1], color="navy", lw=2, linestyle="--")
@@ -255,7 +255,7 @@ class PrecisionRecall:
 
             line = ax.step(recall, precision, linestyle=":", where="post")
             legend_lines.append(line[0])
-            legend_labels.append(f"{name} micro-average precision-recall ({average_precision:.3f})")
+            legend_labels.append(f"{name} micro-average precision-recall ({average_precision:.4f})")
 
             # Per selected class
             for cls in pr_classes:
@@ -264,7 +264,7 @@ class PrecisionRecall:
                 average_precision = average_precision_score(labels[:, i], results.output[:, i])
                 line = ax.plot(recall, precision, lw=2)
                 legend_lines.append(line[0])
-                legend_labels.append(f"{name} precision-recall for class {cls} ({average_precision:.3f})")
+                legend_labels.append(f"{name} precision-recall for class {cls} ({average_precision:.4f})")
 
         # iso-f1 curves
         f_scores = np.array([0.2, 0.4, 0.6, 0.8, 0.9])
