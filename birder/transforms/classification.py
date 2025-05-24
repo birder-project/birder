@@ -17,8 +17,8 @@ RGBMode = Literal["birder", "imagenet", "neutral", "none"]
 def get_rgb_stats(mode: RGBMode) -> RGBType:
     if mode == "birder":
         return {
-            "mean": (0.5248, 0.5372, 0.5086),
-            "std": (0.2135, 0.2103, 0.2622),
+            "mean": (0.5191, 0.5306, 0.4877),
+            "std": (0.2316, 0.2304, 0.2588),
         }
 
     if mode == "imagenet":

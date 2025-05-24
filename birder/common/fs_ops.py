@@ -104,6 +104,18 @@ def read_class_file(path: str | Path) -> dict[str, int]:
     return class_to_idx
 
 
+def read_json_class_file(path: str | Path) -> dict[str, int]:
+    if isinstance(path, str) and "://" in path:
+        class_dict = read_url(path)
+    else:
+        with open(path, "r", encoding="utf-8") as handle:
+            class_dict = json.load(handle)
+
+    class_to_idx = {k: int(v) for v, k in class_dict.items()}
+
+    return class_to_idx
+
+
 def read_wds_info(path: str | Path) -> dict[str, Any]:
     if isinstance(path, str) and "://" in path:
         with wds.gopen(path) as handle:

@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import multiprocessing
+import os
 import time
 from collections.abc import Callable
 from io import BytesIO
@@ -210,26 +211,44 @@ def directory_write_worker(
 
 # pylint: disable=too-many-locals,too-many-branches
 def pack(args: argparse.Namespace, pack_path: Path) -> None:
+    if args.sampling_file is not None:
+        with open(args.sampling_file, "r", encoding="utf-8") as handle:
+            sampling_lines = handle.readlines()
+
+        data_paths = []
+        for line in sampling_lines:
+            if len(line.strip()) == 0 or line.strip().startswith("#") is True:
+                continue
+
+            (data_path, r) = line.split()
+            data_path = os.path.expanduser(data_path)
+            repeats = int(r)
+            for _ in range(repeats):
+                data_paths.append(data_path)
+
+    else:
+        data_paths = args.data_path
+
     if args.no_cls is False:
         if args.class_file is not None:
             class_to_idx = fs_ops.read_class_file(args.class_file)
         elif args.append is True:
             class_to_idx = fs_ops.read_class_file(pack_path.joinpath("classes.txt"))
         else:
-            class_to_idx = _get_class_to_idx(args.data_path)
+            class_to_idx = _get_class_to_idx(data_paths)
 
         _save_classes(pack_path, class_to_idx)
         idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
 
         datasets = []
-        for path in args.data_path:
+        for path in data_paths:
             datasets.append(CustomImageFolder(path, class_to_idx=class_to_idx))
 
         dataset = ConcatDataset(datasets)
 
     else:
         idx_to_class = {}
-        dataset = fs_ops.samples_from_paths(args.data_path, class_to_idx={})
+        dataset = fs_ops.samples_from_paths(data_paths, class_to_idx={})
 
     if args.shuffle is True:
         indices = torch.randperm(len(dataset)).tolist()
@@ -239,6 +258,7 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
     if args.jobs == -1:
         args.jobs = multiprocessing.cpu_count()
 
+    logger.info(f"Packing {len(dataset):,} samples")
     logger.info(f"Running {args.jobs} read processes and 1 write process")
 
     q_in = []  # type: ignore
@@ -342,13 +362,20 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--suffix", type=str, default=settings.PACK_PATH_SUFFIX, help="directory suffix")
     subparser.add_argument("--split", type=str, default="training", help="dataset split used for _info.json")
     subparser.add_argument("--append", default=False, action="store_true", help="add split to existing wds")
-    subparser.add_argument("data_path", nargs="+", help="image directories")
+    subparser.add_argument(
+        "--sampling-file",
+        type=str,
+        help="file containing dataset paths and their sampling ratios (overrides data_path argument)",
+    )
+    subparser.add_argument("data_path", nargs="*", help="image directories")
     subparser.set_defaults(func=main)
 
 
 def main(args: argparse.Namespace) -> None:
     assert args.append is False or args.type == "wds"
     assert args.no_cls is False or args.type == "wds"
+    assert args.sampling_file is None or len(args.data_path) == 0
+    assert args.sampling_file is None or args.target_path is not None
 
     args.max_size = args.max_size * 1e6
     if args.target_path is None:

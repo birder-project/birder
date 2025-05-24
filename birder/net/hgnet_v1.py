@@ -443,3 +443,18 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
+
+registry.register_weights(
+    "hgnet_v1_tiny_il-common",
+    {
+        "description": "HGNet v1 tiny model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 51.4,
+                "sha256": "c8895d04c8fb28b617e5c3c3c9186979ce480912873814c2cc2bb65cdf57e0f1",
+            }
+        },
+        "net": {"network": "hgnet_v1_tiny", "tag": "il-common"},
+    },
+)

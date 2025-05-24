@@ -346,7 +346,7 @@ def pack_ssl(ctx, jobs=12, size=320, suffix="ssl_packed"):
 
     ctx.run(
         f"python tool.py pack -j {jobs} --shuffle --suffix {suffix} --target-path data/{suffix} --size {size} "
-        "--no-cls data/training data/raw_data data/detection_data/training ~/Datasets",
+        "--no-cls --sampling-file data/ssl_sampling.txt",
         echo=True,
         pty=True,
         warn=True,
@@ -427,7 +427,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
     # CPU single thread
     ctx.run(
-        f"python benchmark.py --filter '{fn}' --repeats 2 --bench-iter 60 --single-thread "
+        f"python benchmark.py --filter '{fn}' --repeats 2 --bench-iter 50 --single-thread "
         f"--suffix {suffix} --append",
         echo=True,
         pty=True,

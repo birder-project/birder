@@ -3,6 +3,9 @@ Barlow Twins, adapted from
 https://github.com/facebookresearch/barlowtwins/blob/main/main.py
 
 Paper "Barlow Twins: Self-Supervised Learning via Redundancy Reduction", https://arxiv.org/abs/2103.03230
+
+Changes from original:
+* Mo support for separate LR for biases
 """
 
 # Reference license: MIT

@@ -207,7 +207,7 @@ def train(args: argparse.Namespace) -> None:
         aspect_ratio=(0.75, 1.5),
         n_enc=1,
         n_pred=4,
-        min_keep=math.ceil(mask_size[0] * mask_size[1] / 25.6),
+        min_keep=10,  # math.ceil(mask_size[0] * mask_size[1] / 25.6),
         allow_overlap=False,
     )
     mask_collator = TrainCollator(mask_generator)

@@ -17,7 +17,13 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 #### Barlow Twins: EfficientNet v2 Small
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_barlow_twins --network efficientnet_v2_s --opt lars --lr 0.2 --lr-scale 256 --lr-scheduler cosine --warmup-epochs 10 --batch-size 192 --epochs 800 --wd 0.000001 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_barlow_twins --network efficientnet_v2_s --opt lars --lr 0.2 --lr-scale 256 --lr-scheduler-update iter --lr-scheduler cosine --warmup-epochs 80 --batch-size 192 --epochs 800 --wd 0.000001 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
+
+#### Barlow Twins: RegNet Y 1.6 GF
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_barlow_twins --network regnet_y_1_6g --projector-dims 4096 4096 4096 --opt lars --lr 0.2 --lr-scale 256 --lr-scheduler-update iter --lr-scheduler cosine --warmup-epochs 80 --batch-size 256 --epochs 800 --wd 0.000001 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 ### BYOL
@@ -238,6 +244,30 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_i_jepa --network simple_vit_
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_i_jepa --network simple_vit_b14 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 40 --batch-size 128 --wd 0.04 --wd-end 0.4 --norm-wd 0 --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_packed/_info.json
+```
+
+#### I-JEPA: ViT reg4 m16 rms AVG
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_i_jepa --network vit_reg4_m16_rms_avg --predictor-depth 6 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 5 --batch-size 320 --wd 0.04 --wd-end 0.4 --norm-wd 0 --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_packed/_info.json
+```
+
+Fine-tuning, first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 224 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --reset-head --freeze-body
+```
+
+ImageNet 21K fine-tuning, first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa-imagenet21k --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 224 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-type ra --amp --compile --save-frequency 1 --resume-epoch 0 --reset-head --freeze-body --wds --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-info ~/Datasets/imagenet-w21-webp-wds/_info.json --wds-training-split train
+```
+
+ImageNet 21K next, full fine-tuning with layer-wise learning rate decay
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa-imagenet21k --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 50 --size 224 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-type ra --re-prob 0.25 --model-ema --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --compile-opt --layer-decay 0.65 --resume-epoch 0 --save-frequency 1 --wds --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-info ~/Datasets/imagenet-w21-webp-wds/_info.json --wds-training-split train
 ```
 
 #### I-JEPA: ViT reg8 b14 AP

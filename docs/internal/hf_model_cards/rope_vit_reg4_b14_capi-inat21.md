@@ -1,33 +1,27 @@
 ---
 tags:
-- image-feature-extraction
+- image-classification
 - birder
 - pytorch
 library_name: birder
 license: apache-2.0
+base_model:
+- birder-project/rope_vit_reg4_b14_capi
 ---
 
-# Model Card for rope_vit_reg4_b14_capi
+# Model Card for rope_vit_reg4_b14_capi-inat21
 
-A RoPE ViT b14 image encoder pre-trained using CAPI. This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
+A RoPE ViT image classification model. The model follows a two-stage training process: first, CAPI pretraining, then fine-tuned on the `iNaturalist 2021` dataset - <https://github.com/visipedia/inat_comp/tree/master/2021>.
+
+Note: A 224 x 224 variant of this model is available as `rope_vit_reg4_b14_capi-inat21-224px`.
 
 ## Model Details
 
 - **Model Type:** Image classification and detection backbone
 - **Model Stats:**
-    - Params (M): 85.7
-    - Input image size: 224 x 224
-- **Dataset:** Trained on a diverse dataset of approximately 15M images, including:
-    - iNaturalist 2021 (~2.6M)
-    - imagenet-w21-webp-wds (~1.6M random subset)
-    - WebVision-2.0 (~1.5M random subset)
-    - GLDv2 (~820K random subset of 100 chunks)
-    - SA-1B (~220K random subset of 20 chunks)
-    - COCO (~120K)
-    - NABirds (~48K)
-    - Birdsnap v1.1 (~44K)
-    - CUB-200 2011 (~6K)
-    - The Birder dataset (~7M, private dataset)
+    - Params (M): 93.6
+    - Input image size: 336 x 336
+- **Dataset:** iNaturalist 2021 (10000 classes)
 
 - **Papers:**
     - An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale: <https://arxiv.org/abs/2010.11929>
@@ -35,7 +29,32 @@ A RoPE ViT b14 image encoder pre-trained using CAPI. This model has *not* been f
     - Vision Transformers Need Registers: <https://arxiv.org/abs/2309.16588>
     - Cluster and Predict Latent Patches for Improved Masked Image Modeling: <https://arxiv.org/abs/2502.08769>
 
+- **Metrics:**
+    - Top-1 accuracy of 224px model @ 224: 87.15%
+    - Top-1 accuracy of 224px model @ 336: 88.62%
+    - Top-1 accuracy @ 336: 90.01%
+
 ## Model Usage
+
+### Image Classification
+
+```python
+import birder
+from birder.inference.classification import infer_image
+
+(net, model_info) = birder.load_pretrained_model("rope_vit_reg4_b14_capi-inat21", inference=True)
+# Note: A 224x224 variant is available as "rope_vit_reg4_b14_capi-inat21-224px"
+
+# Get the image size the model was trained on
+size = birder.get_size_from_signature(model_info.signature)
+
+# Create an inference transform
+transform = birder.classification_transform(size, model_info.rgb_stats)
+
+image = "path/to/image.jpeg"  # or a PIL image, must be loaded in RGB format
+(out, _) = infer_image(net, image, transform)
+# out is a NumPy array with shape of (1, 10000), representing class probabilities.
+```
 
 ### Image Embeddings
 
@@ -43,7 +62,7 @@ A RoPE ViT b14 image encoder pre-trained using CAPI. This model has *not* been f
 import birder
 from birder.inference.classification import infer_image
 
-(net, model_info) = birder.load_pretrained_model("rope_vit_reg4_b14_capi", inference=True)
+(net, model_info) = birder.load_pretrained_model("rope_vit_reg4_b14_capi-inat21", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -62,7 +81,7 @@ image = "path/to/image.jpeg"  # or a PIL image
 from PIL import Image
 import birder
 
-(net, model_info) = birder.load_pretrained_model("rope_vit_reg4_b14_capi", inference=True)
+(net, model_info) = birder.load_pretrained_model("rope_vit_reg4_b14_capi-inat21", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -75,7 +94,7 @@ features = net.detection_features(transform(image).unsqueeze(0))
 # features is a dict (stage name -> torch.Tensor)
 print([(k, v.size()) for k, v in features.items()])
 # Output example:
-# [('neck', torch.Size([1, 768, 16, 16]))]
+# [('neck', torch.Size([1, 768, 24, 24]))]
 ```
 
 ## Citation

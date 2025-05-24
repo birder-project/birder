@@ -1,9 +1,9 @@
 matplotlib~=3.10.3
 numpy~=2.2.6
 onnx~=1.18.0
-onnxscript~=0.2.5
+onnxscript~=0.2.6
 Pillow~=11.2.1
-polars~=1.12.0
+polars~=1.30.0
 pycocotools~=2.0.8
 rich~=14.0.0
 scikit-learn~=1.6.1

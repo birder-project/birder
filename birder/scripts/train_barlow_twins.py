@@ -185,7 +185,7 @@ def train(args: argparse.Namespace) -> None:
         config=args.model_config,
         size=args.size,
     )
-    net = BarlowTwins(backbone.input_channels, backbone, sizes=[8192, 8192, 8192], off_lambda=args.off_lambda)
+    net = BarlowTwins(backbone.input_channels, backbone, sizes=args.projector_dims, off_lambda=args.off_lambda)
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
@@ -511,6 +511,14 @@ def get_args_parser() -> argparse.ArgumentParser:
             "override the model default configuration, accepts key-value pairs or JSON "
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
+    )
+    parser.add_argument(
+        "--projector-dims",
+        type=int,
+        nargs=3,
+        default=[8192, 8192, 8192],
+        metavar="DIM",
+        help="projector mlp dimensions",
     )
     parser.add_argument("--off-lambda", type=float, default=0.0051, help="weight on off-diagonal terms")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")

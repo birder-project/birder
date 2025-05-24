@@ -158,6 +158,12 @@ def set_parser(subparsers: Any) -> None:
         help="print results table",
     )
     subparser.add_argument(
+        "--short-print",
+        default=False,
+        action="store_true",
+        help="print results",
+    )
+    subparser.add_argument(
         "--save-summary",
         default=False,
         action="store_true",
@@ -218,6 +224,10 @@ def main(args: argparse.Namespace) -> None:
         print_report(results_dict)
         if len(args.classes) > 0:
             print_per_class_report(results_dict, args.classes)
+
+    if args.short_print is True:
+        for name, results in results_dict.items():
+            print(f"{name}: {results}\n")
 
     if args.save_summary is True:
         if args.summary_suffix is not None:

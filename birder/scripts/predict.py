@@ -31,14 +31,12 @@ def save_embeddings(
     embeddings_path: Path, sample_paths: list[str], embedding_list: list[npt.NDArray[np.float32]], append: bool
 ) -> None:
     embeddings = np.concatenate(embedding_list, axis=0)
-    embeddings_df = pl.DataFrame(embeddings)
-    embeddings_df = pl.DataFrame(
-        {
-            "sample": sample_paths,
-            **{f"{i}": embeddings[:, i] for i in range(embeddings.shape[-1])},
-        }
-    )
-    embeddings_df = embeddings_df.sort("sample", descending=False)
+    data = {
+        "sample": sample_paths,
+        **{f"{i}": embeddings[:, i] for i in range(embeddings.shape[-1])},
+    }
+    embeddings_df = pl.DataFrame(data).sort("sample", descending=False)
+
     if append is False:
         logger.info(f"Saving embeddings at {embeddings_path}")
         embeddings_df.write_csv(embeddings_path)
@@ -100,7 +98,7 @@ def handle_show_flags(
                 show_top_k(img_path, prob, class_to_idx, label)
 
 
-# pylint: disable=too-many-locals,too-many-branches
+# pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def predict(args: argparse.Namespace) -> None:
     if args.gpu is True:
         device = torch.device("cuda")
@@ -144,6 +142,14 @@ def predict(args: argparse.Namespace) -> None:
     if args.ignore_dir_names is True:
         num_classes = len(class_to_idx)
         class_to_idx = fs_ops.class_to_idx_from_paths(args.data_path)
+        assert len(class_to_idx) == num_classes
+
+    if args.class_mapping is not None:
+        num_classes = len(class_to_idx)
+        class_mapping = fs_ops.read_json_class_file(args.class_mapping)
+        idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
+        idx_to_class.update(dict(zip(class_mapping.values(), class_mapping.keys())))
+        class_to_idx = dict(zip(idx_to_class.values(), idx_to_class.keys()))
         assert len(class_to_idx) == num_classes
 
     if args.show_class is not None:
@@ -392,6 +398,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         default=False,
         action="store_true",
         help="use directory indices (0, 1, 2, ...) as class labels instead of directory names",
+    )
+    parser.add_argument(
+        "--class-mapping", type=str, help="json file with alternative class names (can be partial mapping)"
     )
     parser.add_argument("data_path", nargs="*", help="data files path (directories and files)")
 
