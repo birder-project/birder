@@ -35,6 +35,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenOmissionResultType
 from birder.net.base import TokenRetentionResultType
 
 
@@ -354,10 +355,10 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         )
         self.norm = norm_layer(hidden_dim, eps=1e-6)
 
-        if attn_pool_head is True:
-            self.attn_pool = MultiHeadAttentionPool(hidden_dim, num_heads, mlp_dim, qkv_bias=True, latent_len=1)
+        if attn_pool_head is False:
+            self.attn_pool = None
         else:
-            self.attn_pool = nn.Identity()
+            self.attn_pool = MultiHeadAttentionPool(hidden_dim, num_heads, mlp_dim, qkv_bias=True, latent_len=1)
 
         self.return_stages = ["neck"]  # Actually meaningless, but for completeness
         self.return_channels = [hidden_dim]
@@ -415,8 +416,9 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
                 param.requires_grad = True
 
         if unfreeze_features is True:
-            for param in self.attn_pool.parameters():
-                param.requires_grad = True
+            if self.attn_pool is not None:
+                for param in self.attn_pool.parameters():
+                    param.requires_grad = True
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         (H, W) = x.shape[-2:]
@@ -458,14 +460,21 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
                 param.requires_grad = False
 
     def masked_encoding_omission(
-        self, x: torch.Tensor, ids_keep: Optional[torch.Tensor] = None, return_all_features: bool = False
-    ) -> torch.Tensor:
+        self,
+        x: torch.Tensor,
+        ids_keep: Optional[torch.Tensor] = None,
+        return_all_features: bool = False,
+        return_keys: Literal["all", "tokens", "embedding"] = "tokens",
+    ) -> TokenOmissionResultType:
+        (H, W) = x.shape[-2:]
+
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
         # Add pos embedding without special tokens
-        x = x + self.pos_embedding[:, self.num_special_tokens :, :]
+        pos_embedding = self._get_pos_embed(H, W)
+        x = x + pos_embedding[:, self.num_special_tokens :, :]
 
         # Mask tokens
         if ids_keep is not None:
@@ -473,12 +482,12 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
 
         # Append class and register tokens
         if self.class_token is not None:
-            cls_token = self.class_token + self.pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
+            cls_token = self.class_token + pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
             batch_class_token = cls_token.expand(x.shape[0], -1, -1)
             x = torch.concat((batch_class_token, x), dim=1)
 
         if self.reg_tokens is not None:
-            reg_tokens = self.reg_tokens + self.pos_embedding[:, 0 : self.num_reg_tokens, :]
+            reg_tokens = self.reg_tokens + pos_embedding[:, 0 : self.num_reg_tokens, :]
             batch_reg_tokens = reg_tokens.expand(x.shape[0], -1, -1)
             x = torch.concat([batch_reg_tokens, x], dim=1)
 
@@ -491,7 +500,21 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             x = self.encoder(x)
             x = self.norm(x)
 
-        return x
+        result: TokenOmissionResultType = {}
+        if return_keys in ("all", "tokens"):
+            result["tokens"] = x
+
+        if return_keys in ("all", "embedding"):
+            if self.attn_pool is not None:
+                x = self.attn_pool(x)
+                result["embedding"] = x[:, 0]
+            elif self.class_token is None:
+                x = x[:, self.num_special_tokens :]
+                result["embedding"] = x.mean(dim=1)
+            else:
+                result["embedding"] = x[:, self.num_reg_tokens]
+
+        return result
 
     def masked_encoding_retention(
         self,
@@ -531,8 +554,11 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             result["features"] = features
 
         if return_keys in ("all", "embedding"):
-            x = self.attn_pool(x)
-            if self.class_token is None:
+            if self.attn_pool is not None:
+                x = self.attn_pool(x)
+                result["embedding"] = x[:, 0]
+            elif self.class_token is None:
+                x = x[:, self.num_special_tokens :]
                 result["embedding"] = x.mean(dim=1)
             else:
                 result["embedding"] = x[:, self.num_reg_tokens]
@@ -559,9 +585,12 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         x = x + self._get_pos_embed(H, W)
         x = self.encoder(x)
         x = self.norm(x)
-        x = self.attn_pool(x)
+        if self.attn_pool is not None:
+            x = self.attn_pool(x)
+            return x[:, 0]
 
         if self.class_token is None:
+            x = x[:, self.num_special_tokens :]
             return x.mean(dim=1)
 
         # Classifier "token" as used by standard language architectures
@@ -1072,6 +1101,20 @@ registry.register_alias(
         "num_reg_tokens": 4,
         "class_token": False,
         "attn_pool_head": True,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "vit_reg8_so150m_p14_avg",
+    ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 18,
+        "num_heads": 16,
+        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
+        "mlp_dim": 2320,
+        "num_reg_tokens": 8,
+        "class_token": False,
         "drop_path_rate": 0.1,
     },
 )

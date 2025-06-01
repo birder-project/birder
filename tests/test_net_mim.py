@@ -44,6 +44,7 @@ class TestNetMIM(unittest.TestCase):
             ("mae_vit", None, ("vit_so150m_p14_ap", None)),
             ("mae_vit", None, ("vit_reg4_so150m_p14_ap", None)),
             ("mae_vit", None, ("vit_parallel_s16_18x2_ls", None)),
+            ("simmim", None, ("hieradet_tiny", None)),
             ("simmim", None, ("maxvit_t", None)),
             ("simmim", None, ("nextvit_s", None)),
             ("simmim", None, ("regnet_y_800m", None)),

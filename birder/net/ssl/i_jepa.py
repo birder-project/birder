@@ -266,4 +266,4 @@ class WrappedModel(nn.Module):
         self.inner = inner
 
     def forward(self, x: torch.Tensor, ids_keep: Optional[torch.Tensor] = None) -> torch.Tensor:
-        return self.inner.masked_encoding_omission(x, ids_keep)
+        return self.inner.masked_encoding_omission(x, ids_keep)["tokens"]

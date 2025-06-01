@@ -156,6 +156,7 @@ class TestNet(unittest.TestCase):
             ("rope_deit3_reg4_t16"),
             ("rope_vit_s32"),
             ("rope_vit_reg4_b32"),
+            ("rope_vit_reg4_m16_rms_avg"),
             ("rope_vit_so150m_p14_ap", None, False, 1, 14),
             ("rope_vit_reg4_so150m_p14_ap", None, False, 1, 14),
             ("se_resnet_v1_18"),
@@ -169,6 +170,7 @@ class TestNet(unittest.TestCase):
             ("squeezenet", None, True),
             ("squeezenext", 0.5),
             ("starnet_esm05"),
+            ("swiftformer_xs"),
             ("swin_transformer_v1_t"),
             ("swin_transformer_v2_t"),
             ("swin_transformer_v2_w2_t"),
@@ -180,6 +182,7 @@ class TestNet(unittest.TestCase):
             ("vgg_reduced_11"),
             ("vit_s32"),
             ("vit_reg4_b32"),
+            ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap", None, False, 1, 14),
             ("vit_reg4_so150m_p14_ap", None, False, 1, 14),
             ("vit_parallel_s16_18x2_ls"),
@@ -335,6 +338,7 @@ class TestNet(unittest.TestCase):
             ("rope_deit3_reg4_t16"),
             ("rope_vit_b32"),
             ("rope_vit_reg4_b32"),
+            ("rope_vit_reg4_m16_rms_avg"),
             ("rope_vit_so150m_p14_ap"),
             ("rope_vit_reg4_so150m_p14_ap"),
             ("se_resnet_v1_18"),
@@ -345,6 +349,7 @@ class TestNet(unittest.TestCase):
             ("smt_t"),
             ("squeezenext", 0.5),
             ("starnet_esm05"),
+            ("swiftformer_xs"),
             ("swin_transformer_v1_t"),
             ("swin_transformer_v2_t"),
             ("tiny_vit_5m"),
@@ -355,6 +360,7 @@ class TestNet(unittest.TestCase):
             ("vgg_reduced_11"),
             ("vit_b32"),
             ("vit_reg4_b32"),
+            ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap"),
             ("vit_reg4_so150m_p14_ap"),
             ("vit_parallel_s16_18x2_ls"),
@@ -428,15 +434,22 @@ class TestNet(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
             ("convnext_v2_atto", None),
+            ("hieradet_tiny", None),
             ("maxvit_t", None),
             ("nextvit_s", None),
             ("regnet_x_200m", None),
             ("regnet_y_200m", None),
             ("regnet_z_500m", None),
+            ("rope_vit_b32", None),
+            ("rope_vit_reg4_b32", None),
+            ("rope_vit_reg4_m16_rms_avg", None),
+            ("rope_vit_so150m_p14_ap", None),
+            ("rope_vit_reg4_so150m_p14_ap", None),
             ("swin_transformer_v2_t", None),
             ("swin_transformer_v2_w2_t", None),
             ("vit_b32", None),
             ("vit_reg4_b32", None),
+            ("vit_reg4_m16_rms_avg", None),
             ("vit_so150m_p14_ap", None),
             ("vit_reg4_so150m_p14_ap", None),
             ("vit_parallel_s16_18x2_ls", None),
@@ -490,11 +503,13 @@ class TestNet(unittest.TestCase):
             ("hiera_abswin_tiny", None),
             ("rope_vit_b32", None),
             ("rope_vit_reg4_b32", None),
+            ("rope_vit_reg4_m16_rms_avg", None),
             ("rope_vit_so150m_p14_ap", None),
             ("rope_vit_reg4_so150m_p14_ap", None),
             ("simple_vit_b32", None),
             ("vit_b32", None),
             ("vit_reg4_b32", None),
+            ("vit_reg4_m16_rms_avg", None),
             ("vit_so150m_p14_ap", None),
             ("vit_reg4_so150m_p14_ap", None),
             ("vit_parallel_s16_18x2_ls", None),
@@ -509,13 +524,21 @@ class TestNet(unittest.TestCase):
         seq_len = (size[0] // n.max_stride) * (size[1] // n.max_stride)
         x = torch.rand((1, 3, *size))
         ids_keep = uniform_mask(x.size(0), seq_len, mask_ratio=0.75, device=x.device)[1]
-        out = n.masked_encoding_omission(x, ids_keep)
-        self.assertFalse(torch.isnan(out).any())
-        self.assertEqual(out.ndim, 3)
+        out = n.masked_encoding_omission(x, ids_keep, return_keys="all")
+        tokens = out["tokens"]
+        embedding = out["embedding"]
+        self.assertFalse(torch.isnan(tokens).any())
+        self.assertEqual(tokens.ndim, 3)
+        self.assertFalse(torch.isnan(embedding).any())
+        self.assertEqual(embedding.ndim, 2)
 
-        out = n.masked_encoding_omission(x)
-        self.assertFalse(torch.isnan(out).any())
-        self.assertEqual(out.ndim, 3)
+        out = n.masked_encoding_omission(x, return_keys="all")
+        tokens = out["tokens"]
+        embedding = out["embedding"]
+        self.assertFalse(torch.isnan(tokens).any())
+        self.assertEqual(tokens.ndim, 3)
+        self.assertFalse(torch.isnan(embedding).any())
+        self.assertEqual(embedding.ndim, 2)
 
         self.assertTrue(hasattr(n, "num_special_tokens"))
         self.assertTrue(hasattr(n, "block_group_regex"))
@@ -622,6 +645,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("rope_deit3_reg4_t16"),
             ("rope_vit_b32"),
             ("rope_vit_reg4_b32"),
+            ("rope_vit_reg4_m16_rms_avg"),
             ("rope_vit_so150m_p14_ap", None, 1, 14, 14),
             ("rope_vit_reg4_so150m_p14_ap", None, 1, 14, 14),
             ("se_resnet_v1_18"),
@@ -635,6 +659,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("squeezenet"),
             ("squeezenext", 0.5),
             ("starnet_esm05"),
+            ("swiftformer_xs"),
             ("swin_transformer_v1_t"),
             ("swin_transformer_v2_t"),
             ("swin_transformer_v2_w2_t"),
@@ -646,6 +671,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("vgg_reduced_11"),
             ("vit_b32"),
             ("vit_reg4_b32"),
+            ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap", None, 1, 14, 14),
             ("vit_reg4_so150m_p14_ap", None, 1, 14, 14),
             ("vit_parallel_s16_18x2_ls"),
@@ -695,6 +721,7 @@ class TestDynamicSize(unittest.TestCase):
             ("rope_deit3_reg4_t16"),
             ("rope_vit_b32"),
             ("rope_vit_reg4_b32"),
+            ("rope_vit_reg4_m16_rms_avg"),
             ("rope_vit_so150m_p14_ap", None, 1, 14),
             ("rope_vit_reg4_so150m_p14_ap", None, 1, 14),
             ("simple_vit_b32"),
@@ -703,6 +730,7 @@ class TestDynamicSize(unittest.TestCase):
             ("swin_transformer_v2_w2_t"),
             ("vit_b32"),
             ("vit_reg4_b32"),
+            ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap", None, 1, 14),
             ("vit_reg4_so150m_p14_ap", None, 1, 14),
             ("vit_parallel_s16_18x2_ls"),

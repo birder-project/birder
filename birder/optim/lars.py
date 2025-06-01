@@ -113,7 +113,7 @@ class Lars(Optimizer):
 
                 # Apply LARS LR adaptation, LARC clipping, weight decay
                 # ref: https://github.com/NVIDIA/apex/blob/master/apex/parallel/LARC.py
-                if weight_decay != 0 or group["always_adapt"]:
+                if weight_decay != 0 or group["always_adapt"] is True:
                     w_norm = p.norm(2.0)
                     g_norm = grad.norm(2.0)
                     trust_ratio = trust_coeff * w_norm / (g_norm + w_norm * weight_decay + eps)
@@ -124,8 +124,9 @@ class Lars(Optimizer):
                         torch.where(g_norm > 0, trust_ratio, 1.0),
                         1.0,
                     )
-                    if group["trust_clip"]:
+                    if group["trust_clip"] is True:
                         trust_ratio = torch.clamp(trust_ratio / group["lr"], max=1.0)
+
                     grad.add_(p, alpha=weight_decay)
                     grad.mul_(trust_ratio)
 
@@ -137,7 +138,7 @@ class Lars(Optimizer):
                     else:
                         buf = param_state["momentum_buffer"]
                         buf.mul_(momentum).add_(grad, alpha=1.0 - dampening)
-                    if nesterov:
+                    if nesterov is True:
                         grad = grad.add(buf, alpha=momentum)
                     else:
                         grad = buf

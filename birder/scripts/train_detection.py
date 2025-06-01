@@ -295,6 +295,7 @@ def train(args: argparse.Namespace) -> None:
         norm_weight_decay=args.norm_wd,
         custom_keys_weight_decay=custom_keys_weight_decay,
         layer_decay=args.layer_decay,
+        bias_lr=args.bias_lr,
         backbone_lr=args.backbone_lr,
     )
 
@@ -748,13 +749,14 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     training_utils.add_optimizer_args(parser)
     parser.add_argument("--lr", type=float, default=0.01, help="base learning rate")
+    parser.add_argument("--bias-lr", type=float, help="learning rate of biases")
+    parser.add_argument("--backbone-lr", type=float, help="backbone learning rate")
     parser.add_argument(
         "--lr-scale", type=int, help="reference batch size for LR scaling, if provided, LR will be scaled accordingly"
     )
     parser.add_argument(
         "--lr-scale-type", type=str, choices=["linear", "sqrt"], default="linear", help="learning rate scaling type"
     )
-    parser.add_argument("--backbone-lr", type=float, help="backbone learning rate")
     parser.add_argument("--wd", type=float, default=0.0001, help="weight decay")
     parser.add_argument("--norm-wd", type=float, help="weight decay for Normalization layers")
     parser.add_argument("--bias-weight-decay", type=float, help="weight decay for bias parameters of all layers")

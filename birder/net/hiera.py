@@ -16,6 +16,7 @@ Changes from original:
 import math
 from collections import OrderedDict
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -29,6 +30,7 @@ from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenOmissionResultType
 from birder.net.vit import adjust_position_embedding
 
 
@@ -506,8 +508,12 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
                 param.requires_grad = False
 
     def masked_encoding_omission(
-        self, x: torch.Tensor, ids_keep: Optional[torch.Tensor] = None, return_all_features: bool = False
-    ) -> torch.Tensor:
+        self,
+        x: torch.Tensor,
+        ids_keep: Optional[torch.Tensor] = None,
+        return_all_features: bool = False,
+        return_keys: Literal["all", "tokens", "embedding"] = "tokens",
+    ) -> TokenOmissionResultType:
         torch._assert(return_all_features is False, "not supported")  # pylint: disable=protected-access
         if ids_keep is not None:
             num_windows = math.prod(self.mask_spatial_shape)
@@ -528,9 +534,17 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
             x = x[mask[..., None].tile(1, self.mu_size, x.shape[2])].view(x.shape[0], -1, x.shape[-1])
 
         x = self.body(x)
-        x = self.features[0](x)  # norm
 
-        return x
+        result: TokenOmissionResultType = {}
+        if return_keys in ("all", "tokens"):
+            result["tokens"] = x
+
+        if return_keys in ("all", "embedding"):
+            x = x.mean(dim=1)
+            x = self.features(x)
+            result["embedding"] = x
+
+        return result
 
     def masked_encoding(self, x: torch.Tensor, mask: torch.Tensor) -> tuple[list[torch.Tensor], torch.Tensor]:
         # Binary mask: 1 is *keep*, 0 is *remove*

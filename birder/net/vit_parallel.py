@@ -28,6 +28,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenOmissionResultType
 from birder.net.base import TokenRetentionResultType
 from birder.net.vit import LayerScale
 from birder.net.vit import PatchEmbed
@@ -360,14 +361,21 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
                 param.requires_grad = False
 
     def masked_encoding_omission(
-        self, x: torch.Tensor, ids_keep: Optional[torch.Tensor] = None, return_all_features: bool = False
-    ) -> torch.Tensor:
+        self,
+        x: torch.Tensor,
+        ids_keep: Optional[torch.Tensor] = None,
+        return_all_features: bool = False,
+        return_keys: Literal["all", "tokens", "embedding"] = "tokens",
+    ) -> TokenOmissionResultType:
+        (H, W) = x.shape[-2:]
+
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
         # Add pos embedding without special tokens
-        x = x + self.pos_embedding[:, self.num_special_tokens :, :]
+        pos_embedding = self._get_pos_embed(H, W)
+        x = x + pos_embedding[:, self.num_special_tokens :, :]
 
         # Mask tokens
         if ids_keep is not None:
@@ -375,12 +383,12 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
 
         # Append class and register tokens
         if self.class_token is not None:
-            cls_token = self.class_token + self.pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
+            cls_token = self.class_token + pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
             batch_class_token = cls_token.expand(x.shape[0], -1, -1)
             x = torch.concat((batch_class_token, x), dim=1)
 
         if self.reg_tokens is not None:
-            reg_tokens = self.reg_tokens + self.pos_embedding[:, 0 : self.num_reg_tokens, :]
+            reg_tokens = self.reg_tokens + pos_embedding[:, 0 : self.num_reg_tokens, :]
             batch_reg_tokens = reg_tokens.expand(x.shape[0], -1, -1)
             x = torch.concat([batch_reg_tokens, x], dim=1)
 
@@ -393,7 +401,18 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
             x = self.encoder(x)
             x = self.norm(x)
 
-        return x
+        result: TokenOmissionResultType = {}
+        if return_keys in ("all", "tokens"):
+            result["tokens"] = x
+
+        if return_keys in ("all", "embedding"):
+            if self.class_token is None:
+                x = x[:, self.num_special_tokens :]
+                result["embedding"] = x.mean(dim=1)
+            else:
+                result["embedding"] = x[:, self.num_reg_tokens]
+
+        return result
 
     def masked_encoding_retention(
         self,
@@ -434,6 +453,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
 
         if return_keys in ("all", "embedding"):
             if self.class_token is None:
+                x = x[:, self.num_special_tokens :]
                 result["embedding"] = x.mean(dim=1)
             else:
                 result["embedding"] = x[:, self.num_reg_tokens]
@@ -462,6 +482,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         x = self.norm(x)
 
         if self.class_token is None:
+            x = x[:, self.num_special_tokens :]
             return x.mean(dim=1)
 
         # Classifier "token" as used by standard language architectures

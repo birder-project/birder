@@ -208,6 +208,7 @@ def optimizer_parameter_groups(
     norm_weight_decay: Optional[float] = None,
     custom_keys_weight_decay: Optional[list[tuple[str, float]]] = None,
     layer_decay: Optional[float] = None,
+    bias_lr: Optional[float] = None,
     backbone_lr: Optional[float] = None,
 ) -> list[dict[str, Any]]:
     """
@@ -302,6 +303,9 @@ def optimizer_parameter_groups(
                 }
                 if backbone_lr is not None and target_name.startswith("backbone.") is True:
                     d["lr"] = backbone_lr
+
+                if bias_lr is not None and target_name.endswith(".bias") is True:
+                    d["lr"] = bias_lr
 
                 params.append(d)
 
@@ -699,7 +703,7 @@ def setup_file_logging(log_file_path: str | Path) -> None:
     birder_logger.addHandler(file_handler)
 
 
-def get_grad_norm(parameters: Iterator[torch.Tensor], norm_type: float = 2) -> float:
+def get_grad_norm(parameters: Iterator[torch.Tensor], norm_type: float = 2.0) -> float:
     filtered_parameters = list(filter(lambda p: p.grad is not None, parameters))
     norm_type = float(norm_type)
     total_norm = 0.0

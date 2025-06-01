@@ -12,6 +12,7 @@ Changes from original:
 
 from collections import OrderedDict
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -21,8 +22,12 @@ from torchvision.ops import MLP
 from torchvision.ops import Permute
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenRetentionResultType
 
 
 def window_partition(x: torch.Tensor, window_size: int) -> tuple[torch.Tensor, tuple[int, int]]:
@@ -182,7 +187,7 @@ class MultiScaleBlock(nn.Module):
         return x
 
 
-class HieraDet(DetectorBackbone):
+class HieraDet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"body\.stage\d+\.(\d+)"
 
     # pylint: disable=too-many-locals
@@ -218,7 +223,8 @@ class HieraDet(DetectorBackbone):
         self.q_pool_blocks = [x + 1 for x in self.stage_ends[:-1]][:q_pool]
         assert 0 <= q_pool <= len(self.stage_ends[:-1])
 
-        self.stem = PatchEmbed(self.input_channels, embed_dim, patch_kernel, patch_stride, patch_padding)
+        stem_dim = embed_dim
+        self.stem = PatchEmbed(self.input_channels, stem_dim, patch_kernel, patch_stride, patch_padding)
 
         self.pos_embed = nn.Parameter(torch.zeros(1, embed_dim, *global_pos_size))
         self.pos_embed_win = nn.Parameter(torch.zeros(1, embed_dim, window_spec[0], window_spec[0]))
@@ -272,6 +278,10 @@ class HieraDet(DetectorBackbone):
         self.embedding_size = embed_dim
         self.classifier = self.create_classifier()
 
+        self.stem_stride = patch_stride[0]
+        self.stem_width = stem_dim
+        self.encoding_size = embed_dim
+
         # Weight initialization
         nn.init.trunc_normal_(self.pos_embed, std=0.02)
         nn.init.trunc_normal_(self.pos_embed_win, std=0.02)
@@ -308,6 +318,28 @@ class HieraDet(DetectorBackbone):
 
             for param in module.parameters():
                 param.requires_grad = False
+
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
+        x = self.stem(x)
+        x = mask_tensor(
+            x, mask, channels_last=True, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token
+        )
+        x = x + self._get_pos_embed(x)
+        x = self.body(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            result["features"] = x.permute(0, 3, 1, 2).contiguous()
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = self.features(x)
+
+        return result
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

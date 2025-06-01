@@ -13,6 +13,7 @@ https://arxiv.org/abs/2205.01580
 import math
 from functools import partial
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -21,6 +22,7 @@ from torch import nn
 from birder.model_registry import registry
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenOmissionResultType
 from birder.net.base import pos_embedding_sin_cos_2d
 from birder.net.vit import Encoder
 from birder.net.vit import EncoderBlock
@@ -132,14 +134,20 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
         ).to(self.pos_embedding.device)
 
     def masked_encoding_omission(
-        self, x: torch.Tensor, ids_keep: Optional[torch.Tensor] = None, return_all_features: bool = False
-    ) -> torch.Tensor:
+        self,
+        x: torch.Tensor,
+        ids_keep: Optional[torch.Tensor] = None,
+        return_all_features: bool = False,
+        return_keys: Literal["all", "tokens", "embedding"] = "tokens",
+    ) -> TokenOmissionResultType:
+        (H, W) = x.shape[-2:]
+
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
         # Add pos embedding
-        x = x + self.pos_embedding
+        x = x + self._get_pos_embed(H, W)
 
         # Mask tokens
         if ids_keep is not None:
@@ -154,7 +162,14 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
             x = self.encoder(x)
             x = self.norm(x)
 
-        return x
+        result: TokenOmissionResultType = {}
+        if return_keys in ("all", "tokens"):
+            result["tokens"] = x
+
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = x.mean(dim=1)
+
+        return result
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         (H, W) = x.shape[-2:]

@@ -203,7 +203,7 @@ class CrossMAE(MIMBaseNet):
         seq_len = (self.size[0] // self.encoder.stem_stride) * (self.size[1] // self.encoder.stem_stride)
         (mask, ids_keep, _) = uniform_mask(x.size(0), seq_len, self.mask_ratio, self.kept_mask_ratio, device=x.device)
 
-        latent = self.encoder.masked_encoding_omission(x, ids_keep, return_all_features=True)
+        latent = self.encoder.masked_encoding_omission(x, ids_keep, return_all_features=True)["tokens"]
         pred = self.forward_decoder(latent, mask)
         loss = self.forward_loss(x, pred, mask)
 

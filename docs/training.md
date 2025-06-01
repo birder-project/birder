@@ -104,6 +104,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [SqueezeNet](#squeezenet)
 - [SqueezeNext](#squeezenext)
 - [StarNet](#starnet)
+- [SwiftFormer](#swiftformer)
 - [Swin Transformer v1](#swin-transformer-v1)
 - [Swin Transformer v2](#swin-transformer-v2)
 - [Tiny ViT](#tiny-vit)
@@ -2203,6 +2204,32 @@ torchrun --nproc_per_node=2 train.py --network starnet_s1 --opt adamw --lr 0.003
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network starnet_s4 --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 2 --fast-matmul --compile
+```
+
+### SwiftFormer
+
+#### SwiftFormer: Extra Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network swiftformer_xs --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 0.1 --fast-matmul --compile
+```
+
+#### SwiftFormer: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network swiftformer_s --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 0.1 --amp --compile
+```
+
+#### SwiftFormer: L1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network swiftformer_l1 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 0.1 --amp --compile
+```
+
+#### SwiftFormer: L3
+
+```sh
+torchrun --nproc_per_node=2 train.py --network swiftformer_l3 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 0.1 --amp --compile
 ```
 
 ### Swin Transformer v1

@@ -16,6 +16,57 @@ import torch.nn.functional as F
 from torch import nn
 
 from birder.common import training_utils
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
+from birder.net.ssl.base import SSLBaseNet
+
+
+class DINOHead(nn.Module):
+    def __init__(
+        self,
+        in_dim: int,
+        out_dim: int,
+        use_bn: bool,
+        num_layers: int,
+        hidden_dim: int,
+        bottleneck_dim: int,
+    ) -> None:
+        super().__init__()
+        if num_layers == 1:
+            self.mlp = nn.Linear(in_dim, bottleneck_dim)
+        else:
+            layers = [nn.Linear(in_dim, hidden_dim)]
+            if use_bn is True:
+                layers.append(nn.BatchNorm1d(hidden_dim))
+
+            layers.append(nn.GELU())
+            for _ in range(num_layers - 2):
+                layers.append(nn.Linear(hidden_dim, hidden_dim))
+                if use_bn is True:
+                    layers.append(nn.BatchNorm1d(hidden_dim))
+
+                layers.append(nn.GELU())
+
+            layers.append(nn.Linear(hidden_dim, bottleneck_dim))
+            self.mlp = nn.Sequential(*layers)
+
+        self.last_layer = nn.utils.parametrizations.weight_norm(nn.Linear(bottleneck_dim, out_dim, bias=False))
+        self.last_layer.parametrizations.weight.original0.data.fill_(1)
+
+        # Weight initialization
+        for m in self.mlp.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.trunc_normal_(m.weight, std=0.02)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.mlp(x)
+        eps = 1e-6 if x.dtype == torch.float16 else 1e-12
+        x = F.normalize(x, dim=-1, p=2, eps=eps)
+        x = self.last_layer(x)
+
+        return x
 
 
 class DINOLoss(nn.Module):
@@ -257,3 +308,122 @@ class KoLeoLoss(nn.Module):
             loss = -torch.log(distances + eps).mean()
 
         return loss
+
+
+class DINOv2Student(SSLBaseNet):
+    default_size = (224, 224)
+
+    def __init__(
+        self, input_channels: int, backbone: PreTrainEncoder, dino_head: DINOHead, ibot_head: Optional[DINOHead]
+    ) -> None:
+        super().__init__(input_channels)
+        assert isinstance(backbone, MaskedTokenRetentionMixin)
+        self.backbone = backbone
+        self.size = self.backbone.size
+
+        self.dino_head = dino_head
+        self.ibot_head = ibot_head
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width), requires_grad=True)
+
+    # pylint: disable=arguments-differ
+    def forward(  # type: ignore[override]
+        self,
+        global_crops: torch.Tensor,
+        local_crops: torch.Tensor,
+        mask: torch.Tensor,
+        upper_bound: int,
+        mask_indices_list: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        n_masked_patches = mask_indices_list.size(0)
+
+        global_out = self.backbone.masked_encoding_retention(global_crops, mask, self.mask_token, return_keys="all")
+        global_features = global_out["features"]
+        global_features = global_features.flatten(2).transpose(1, 2)
+        global_embedding = global_out["embedding"]
+
+        local_embedding = self.backbone.embedding(local_crops)
+
+        global_embedding_after_head = self.dino_head(global_embedding)
+        local_embedding_after_head = self.dino_head(local_embedding)
+
+        embed_dim = global_embedding.size(-1)
+        buffer_tensor_patch_tokens = global_features.new_zeros(upper_bound, embed_dim)
+        buffer_tensor_patch_tokens[:n_masked_patches].copy_(
+            torch.index_select(global_features.flatten(0, 1), dim=0, index=mask_indices_list)
+        )
+
+        if self.ibot_head is None:
+            global_masked_patch_tokens_after_head = self.dino_head(buffer_tensor_patch_tokens)[:n_masked_patches]
+        else:
+            global_masked_patch_tokens_after_head = self.ibot_head(buffer_tensor_patch_tokens)[:n_masked_patches]
+
+        return (
+            global_embedding,
+            global_embedding_after_head,
+            local_embedding_after_head,
+            global_masked_patch_tokens_after_head,
+        )
+
+
+class DINOv2Teacher(SSLBaseNet):
+    default_size = (224, 224)
+
+    def __init__(
+        self, input_channels: int, backbone: PreTrainEncoder, dino_head: DINOHead, ibot_head: Optional[DINOHead]
+    ) -> None:
+        super().__init__(input_channels)
+        assert isinstance(backbone, MaskedTokenRetentionMixin)
+        self.backbone = backbone
+        self.size = self.backbone.size
+
+        self.dino_head = dino_head
+        self.ibot_head = ibot_head
+
+        # Unused, Makes for an easier EMA update
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width), requires_grad=True)
+
+    # pylint: disable=arguments-differ
+    def forward(  # type: ignore[override]
+        self, x: torch.Tensor, n_crops: int, upper_bound: int, mask_indices_list: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        n_masked_patches = mask_indices_list.size(0)
+
+        seq_len = (x.size(2) // self.backbone.max_stride) * (x.size(3) // self.backbone.max_stride)
+        mask = torch.zeros([x.size(0), seq_len], device=x.device)
+
+        out = self.backbone.masked_encoding_retention(x, mask=mask, return_keys="all")
+        features = out["features"]
+        features = features.flatten(2).transpose(1, 2)
+        embedding = out["embedding"]
+
+        embedding = embedding.chunk(n_crops)
+        # NOTE: These are chunked and cat'd in reverse so A is matched to B in the global crops dino loss
+        embedding = torch.concat((embedding[1], embedding[0]))
+
+        patch_dim = features.size(-1)
+        n = embedding.size(0)
+
+        if self.ibot_head is None:
+            buffer_tensor = features.new_zeros(upper_bound + n, patch_dim)
+            buffer_tensor[:n].copy_(embedding)
+            torch.index_select(
+                features.flatten(0, 1),
+                dim=0,
+                index=mask_indices_list,
+                out=buffer_tensor[n : n + n_masked_patches],
+            )
+            tokens_after_head = self.dino_head(buffer_tensor)
+            embedding_after_head = tokens_after_head[:n]
+            masked_patch_tokens_after_head = tokens_after_head[n : n + n_masked_patches]
+        else:
+            buffer_teacher = features.new_zeros(upper_bound, patch_dim)
+            torch.index_select(
+                features.flatten(0, 1),
+                dim=0,
+                index=mask_indices_list,
+                out=buffer_teacher[:n_masked_patches],
+            )
+            embedding_after_head = self.dino_head(embedding)
+            masked_patch_tokens_after_head = self.ibot_head(buffer_teacher)[:n_masked_patches]
+
+        return (embedding_after_head, masked_patch_tokens_after_head)

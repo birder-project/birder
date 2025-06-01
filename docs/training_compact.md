@@ -622,6 +622,14 @@ torchrun --nproc_per_node=2 train.py --network starnet_esm10 --tag il-common --o
 torchrun --nproc_per_node=2 train.py --network starnet_s1 --tag il-common --opt adamw --lr 0.003 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### SwiftFormer
+
+#### SwiftFormer: Extra Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network swiftformer_xs --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.025 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 0.1 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### Tiny ViT
 
 #### Tiny ViT: 5M

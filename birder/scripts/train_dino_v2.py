@@ -1,8 +1,8 @@
 """
-iBOT, adapted from
-https://github.com/bytedance/ibot/blob/main/main_ibot.py
+DINO v2, adapted from
+https://github.com/facebookresearch/dinov2/blob/main/dinov2/train/ssl_meta_arch.py
 
-Paper "iBOT: Image BERT Pre-Training with Online Tokenizer", https://arxiv.org/abs/2111.07832
+Paper "DINOv2: Learning Robust Visual Features without Supervision", https://arxiv.org/abs/2304.07193
 
 Changes from original:
 * Per epoch weight decay scheduling (instead of per step)
@@ -10,11 +10,13 @@ Changes from original:
 
 # Reference license: Apache-2.0
 
+
 import argparse
 import json
 import logging
 import math
 import os
+import random
 import sys
 import time
 import typing
@@ -25,10 +27,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.amp
-import torch.utils.data
 import torchinfo
-import torchmetrics
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets.folder import pil_loader  # Slower but Handles external dataset quirks better
@@ -52,14 +51,34 @@ from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import get_signature
-from birder.net.ssl.ibot import iBOT
-from birder.net.ssl.ibot import iBOTHead
-from birder.net.ssl.ibot import iBOTLoss
+from birder.net.ssl.dino_v2 import DINOHead
+from birder.net.ssl.dino_v2 import DINOLoss
+from birder.net.ssl.dino_v2 import DINOv2Student
+from birder.net.ssl.dino_v2 import DINOv2Teacher
+from birder.net.ssl.dino_v2 import KoLeoLoss
+from birder.net.ssl.dino_v2 import iBOTPatchLoss
 from birder.transforms.classification import RGBMode
 from birder.transforms.classification import RGBType
 from birder.transforms.classification import get_rgb_stats
 
 logger = logging.getLogger(__name__)
+
+
+class DINOv2BlockMasking(BlockMasking):
+    def __call__(self, num_masking_patches: int) -> torch.Tensor:
+        mask = torch.zeros(*self.get_shape())
+        mask_count = 0
+        while mask_count < num_masking_patches:
+            max_mask_patches = num_masking_patches - mask_count
+            max_mask_patches = min(max_mask_patches, self.max_num_patches)
+
+            delta = self._mask(mask, max_mask_patches)
+            if delta == 0:
+                break
+
+            mask_count += delta
+
+        return mask
 
 
 class TrainTransform:
@@ -69,7 +88,6 @@ class TrainTransform:
         crop_size: tuple[int, int],
         rgv_values: RGBType,
         local_crops_number: int,
-        mask_generator: Callable[[int], torch.Tensor],
     ) -> None:
         self.global_transform = global_transform
         self.local_crops_number = local_crops_number
@@ -80,7 +98,7 @@ class TrainTransform:
         self.local_transform = v2.Compose(
             [
                 v2.PILToTensor(),
-                v2.RandomResizedCrop(crop_size, scale=(0.1, 0.5), interpolation=v2.InterpolationMode.BICUBIC),
+                v2.RandomResizedCrop(crop_size, scale=(0.1, 0.35), interpolation=v2.InterpolationMode.BICUBIC),
                 v2.RandomHorizontalFlip(p=0.5),
                 v2.RandomApply([v2.ColorJitter(brightness=0.25, contrast=0.15, hue=0.04)], p=0.8),
                 v2.RandomApply([v2.GaussianBlur(kernel_size=(3, 3), sigma=(0.5, 1.2))], p=0.5),
@@ -88,18 +106,73 @@ class TrainTransform:
                 v2.Normalize(mean=mean, std=std),
             ]
         )
-        self.mask_generator = mask_generator
 
-    def __call__(self, image: Any) -> tuple[list[torch.Tensor], torch.Tensor]:
-        crops = []
-        crops.append(self.global_transform(image))
-        crops.append(self.global_transform(image))
+    def __call__(self, image: Any) -> dict[str, list[torch.Tensor]]:
+        output = {}
+        output["global_crops"] = [self.global_transform(image), self.global_transform(image)]
+
+        local_crops = []
         for _ in range(self.local_crops_number):
-            crops.append(self.local_transform(image))
+            local_crops.append(self.local_transform(image))
 
-        masks = self.mask_generator(2)
+        output["local_crops"] = local_crops
 
-        return (crops, masks)
+        return output
+
+
+class TrainCollator:
+    def __init__(
+        self,
+        mask_generator: Callable[[int], tuple[list[torch.Tensor], list[torch.Tensor]]],
+        seq_len: int,
+        mask_probability: float,
+        mask_ratio_tuple: tuple[float, float],
+    ) -> None:
+        self.mask_generator = mask_generator
+        self.seq_len = seq_len
+        self.mask_probability = mask_probability
+        self.mask_ratio_tuple = mask_ratio_tuple
+
+    def __call__(self, batch: Any) -> dict[str, Any]:
+        n_global_crops = len(batch[0][1]["global_crops"])
+        n_local_crops = len(batch[0][1]["local_crops"])
+
+        collated_global_crops = torch.stack([s[1]["global_crops"][i] for i in range(n_global_crops) for s in batch])
+        collated_local_crops = torch.stack([s[1]["local_crops"][i] for i in range(n_local_crops) for s in batch])
+
+        B = len(collated_global_crops)
+        N = self.seq_len
+        n_samples_masked = int(B * self.mask_probability)
+        probs = torch.linspace(*self.mask_ratio_tuple, n_samples_masked + 1)
+        upper_bound = 0
+        masks_list = []
+        for i in range(0, n_samples_masked):
+            prob_min = probs[i]
+            prob_max = probs[i + 1]
+            masks_list.append(self.mask_generator(int(N * random.uniform(prob_min, prob_max))))
+            upper_bound += int(N * prob_max)
+
+        for i in range(n_samples_masked, B):
+            masks_list.append(self.mask_generator(0))
+
+        random.shuffle(masks_list)
+
+        collated_masks = torch.stack(masks_list).flatten(1)
+        mask_indices_list = collated_masks.flatten().nonzero().flatten()
+
+        masks_weight = (
+            (1 / collated_masks.sum(-1).clamp(min=1.0)).unsqueeze(-1).expand_as(collated_masks)[collated_masks.bool()]
+        )
+
+        return {
+            "collated_global_crops": collated_global_crops,
+            "collated_local_crops": collated_local_crops,
+            "collated_masks": collated_masks,
+            "mask_indices_list": mask_indices_list,
+            "masks_weight": masks_weight,
+            "upper_bound": upper_bound,
+            "n_masked_patches": torch.full((1,), fill_value=mask_indices_list.shape[0], dtype=torch.long),
+        }
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
@@ -142,9 +215,9 @@ def train(args: argparse.Namespace) -> None:
     #
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
-    backbone_name = get_network_name(args.network, net_param=args.net_param, tag="ibot")
+    backbone_name = get_network_name(args.network, net_param=args.net_param, tag="dino-v2")
     network_name = get_mim_network_name(
-        "ibot",
+        "dino_v2",
         net_param=None,
         encoder=args.network,
         encoder_param=args.net_param,
@@ -174,55 +247,61 @@ def train(args: argparse.Namespace) -> None:
         size=args.size,
     )
     student_backbone.set_dynamic_size()
-    student_ibot_head = iBOTHead(
+    student_dino_head = DINOHead(
         student_backbone.embedding_size,
-        args.out_dim,
-        norm_last_layer=args.norm_last_layer,
+        args.dino_out_dim,
+        use_bn=False,
         num_layers=3,
         hidden_dim=2048,
-        bottleneck_dim=256,
-        patch_out_dim=args.patch_out_dim,
-        shared_head=args.shared_head,
+        bottleneck_dim=args.head_bottleneck_dim,
     )
-    teacher_ibot_head = iBOTHead(
+    teacher_dino_head = DINOHead(
         teacher_backbone.embedding_size,
-        args.out_dim,
-        norm_last_layer=True,
+        args.dino_out_dim,
+        use_bn=False,
         num_layers=3,
         hidden_dim=2048,
-        bottleneck_dim=256,
-        patch_out_dim=args.patch_out_dim,
-        shared_head=args.shared_head,
+        bottleneck_dim=args.head_bottleneck_dim,
     )
-    student = iBOT(student_backbone.input_channels, student_backbone, student_ibot_head)
-    teacher = iBOT(teacher_backbone.input_channels, teacher_backbone, teacher_ibot_head)
-    teacher.load_state_dict(student.state_dict())
+    teacher_dino_head.load_state_dict(student_dino_head.state_dict())
+    if args.ibot_separate_head is True:
+        student_ibot_head = DINOHead(
+            student_backbone.embedding_size,
+            args.ibot_out_dim,
+            use_bn=False,
+            num_layers=3,
+            hidden_dim=2048,
+            bottleneck_dim=args.head_bottleneck_dim,
+        )
+        teacher_ibot_head = DINOHead(
+            teacher_backbone.embedding_size,
+            args.ibot_out_dim,
+            use_bn=False,
+            num_layers=3,
+            hidden_dim=2048,
+            bottleneck_dim=args.head_bottleneck_dim,
+        )
+        teacher_ibot_head.load_state_dict(student_ibot_head.state_dict())
+    else:
+        args.ibot_out_dim = args.dino_out_dim
+        student_ibot_head = None
+        teacher_ibot_head = None
+
+    student = DINOv2Student(student_backbone.input_channels, student_backbone, student_dino_head, student_ibot_head)
+    teacher = DINOv2Teacher(teacher_backbone.input_channels, teacher_backbone, teacher_dino_head, teacher_ibot_head)
     teacher.eval()
 
-    ibot_loss = iBOTLoss(
-        args.out_dim,
-        args.patch_out_dim,
-        num_global_crops=2,
-        num_local_crops=args.local_crops_number,
-        warmup_teacher_temp=args.warmup_teacher_temp,
-        teacher_temp=args.teacher_temp,
-        warmup_teacher_temp2=args.warmup_teacher_temp,
-        teacher_temp2=args.teacher_temp,
-        warmup_teacher_temp_epochs=args.warmup_teacher_temp_epochs,
-        epochs=args.epochs,
-        student_temp=0.1,
-        center_momentum=0.9,
-        center_momentum2=0.9,
-        lambda1=args.lambda1,
-        lambda2=args.lambda2,
-        mim_start_epoch=args.pred_start_epoch,
-    )
+    dino_loss = DINOLoss(args.dino_out_dim, student_temp=0.1, center_momentum=0.9)
+    koleo_loss = KoLeoLoss()
+    ibot_patch_loss = iBOTPatchLoss(args.ibot_out_dim, student_temp=0.1, center_momentum=0.9)
 
     net = torch.nn.ModuleDict(
         {
             "student": student,
             "teacher": teacher,
-            "loss": ibot_loss,
+            "dino_loss": dino_loss,
+            "koleo_loss": koleo_loss,
+            "ibot_patch_loss": ibot_patch_loss,
         }
     )
     net.task = teacher.task
@@ -232,7 +311,9 @@ def train(args: argparse.Namespace) -> None:
         (net, training_states) = fs_ops.load_simple_checkpoint(device, net, network_name, epoch=args.resume_epoch)
         student = net["student"]
         teacher = net["teacher"]
-        ibot_loss = net["loss"]
+        dino_loss = net["dino_loss"]
+        koleo_loss = net["koleo_loss"]
+        ibot_patch_loss = net["ibot_patch_loss"]
 
     else:
         training_states = fs_ops.TrainingStates.empty()
@@ -261,20 +342,22 @@ def train(args: argparse.Namespace) -> None:
     #
     rgb_stats = get_rgb_stats(args.rgb_mode)
     mask_size = (args.size[0] // student_backbone.max_stride, args.size[1] // student_backbone.max_stride)
-    mask_generator = BlockMasking(
-        mask_size,
-        min_num_patches=4,
-        max_num_patches=mask_size[0] * mask_size[1] // 2,
-        min_aspect=0.33,
-        max_aspect=3.33,
+    seq_len = mask_size[0] * mask_size[1]
+
+    mask_generator = DINOv2BlockMasking(
+        mask_size, min_num_patches=4, max_num_patches=mask_size[0] * mask_size[1] // 2, min_aspect=0.33, max_aspect=3.33
     )
     training_transform = TrainTransform(
-        training_utils.get_training_transform(args),
-        args.local_crop_size,
-        rgb_stats,
-        args.local_crops_number,
-        mask_generator,
+        training_utils.get_training_transform(args), args.local_crop_size, rgb_stats, args.local_crops_number
     )
+    collator = TrainCollator(
+        mask_generator, seq_len=seq_len, mask_probability=args.ibot_mask_probability, mask_ratio_tuple=(0.1, 0.5)
+    )
+
+    n_local_crops = args.local_crops_number
+    n_global_crops = 2
+    ibot_loss_scale = 1.0 / n_global_crops
+
     if args.wds is True:
         wds_path: str | list[str]
         if args.wds_info is not None:
@@ -317,7 +400,7 @@ def train(args: argparse.Namespace) -> None:
             batch_size,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
-            collate_fn=None,
+            collate_fn=collator,
             world_size=args.world_size,
             pin_memory=True,
             drop_last=True,
@@ -330,6 +413,7 @@ def train(args: argparse.Namespace) -> None:
             sampler=train_sampler,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
+            collate_fn=collator,
             pin_memory=True,
             drop_last=True,
         )
@@ -337,7 +421,7 @@ def train(args: argparse.Namespace) -> None:
     last_batch_idx = len(training_loader) - 1
 
     #
-    # Loss criteria, optimizer, learning rate scheduler and training parameter groups
+    # Optimizer, learning rate scheduler and training parameter groups
     #
 
     # Training parameter groups
@@ -370,8 +454,16 @@ def train(args: argparse.Namespace) -> None:
     if args.compile_opt is True:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
 
-    # Teacher momentum and weight decay schedule
+    # Teacher momentum, temperature and weight decay schedule
     momentum_schedule = training_utils.cosine_scheduler(args.momentum_teacher, 1.0, args.epochs, 0, last_batch_idx + 1)
+    teacher_temp_schedule = training_utils.cosine_scheduler(
+        args.teacher_temp,
+        args.teacher_temp,
+        args.epochs,
+        args.warmup_teacher_temp_epochs,
+        last_batch_idx + 1,
+        args.warmup_teacher_temp,
+    )
     if args.wd_end is not None:
         wd_schedule = training_utils.cosine_scheduler(args.wd, args.wd_end, args.epochs, 0, 1)
     else:
@@ -415,12 +507,10 @@ def train(args: argparse.Namespace) -> None:
     for p in teacher.parameters():
         p.requires_grad = False
 
-    student_without_ddp = student
     if args.distributed is True:
         student = torch.nn.parallel.DistributedDataParallel(
             student, device_ids=[args.gpu], find_unused_parameters=args.find_unused_parameters
         )
-        student_without_ddp = student.module
 
     model_to_save = net
     if teacher_compile_flag is True and hasattr(model_to_save["teacher"], "_orig_mod") is True:
@@ -432,19 +522,23 @@ def train(args: argparse.Namespace) -> None:
     # Misc
     #
 
-    # Define metrics
-    training_accuracy = torchmetrics.Accuracy("multiclass", num_classes=args.out_dim).to(device)
-
     # Print network summary
     net_for_info = teacher
     if teacher_compile_flag is True and hasattr(teacher, "_orig_mod") is True:
         net_for_info = teacher._orig_mod  # pylint: disable=protected-access
 
     if args.no_summary is False:
+        mask_indices_list = torch.tensor([0, 1])
+        upper_bound = 3
         torchinfo.summary(
             net_for_info,
             device=device,
-            input_data={"x": torch.rand(sample_shape), "masks": mask_generator(batch_size)},
+            input_data={
+                "x": torch.rand(sample_shape),
+                "n_crops": sample_shape[0] // 2,
+                "upper_bound": upper_bound,
+                "mask_indices_list": mask_indices_list,
+            },
             dtypes=[model_dtype],
             col_names=["input_size", "output_size", "kernel_size", "num_params"],
             depth=4,
@@ -480,7 +574,6 @@ def train(args: argparse.Namespace) -> None:
         tic = time.time()
         net.train()
         running_loss = training_utils.SmoothedValue()
-        training_accuracy.reset()
 
         if args.distributed is True:
             train_sampler.set_epoch(epoch)
@@ -505,37 +598,102 @@ def train(args: argparse.Namespace) -> None:
         # Zero the parameter gradients
         optimizer.zero_grad()
 
-        for i, (_, (images, masks), _) in enumerate(training_loader):
+        for i, data in enumerate(training_loader):
             global_step = ((epoch - 1) * (last_batch_idx + 1)) + i
-            images = [img.to(device, dtype=model_dtype, non_blocking=True) for img in images]
-            if args.pred_start_epoch >= epoch:
-                masks = None
-            else:
-                masks = masks.to(device, dtype=model_dtype, non_blocking=True)
-
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
+            teacher_temp = teacher_temp_schedule[global_step]
+
+            global_crops = data["collated_global_crops"].to(device, dtype=model_dtype, non_blocking=True)
+            local_crops = data["collated_local_crops"].to(device, dtype=model_dtype, non_blocking=True)
+
+            masks = data["collated_masks"].to(device, non_blocking=True)
+            mask_indices_list = data["mask_indices_list"].to(device, non_blocking=True)
+            n_masked_patches_tensor = data["n_masked_patches"].to(device, non_blocking=True)
+            n_masked_patches = mask_indices_list.size(0)
+            upper_bound = data["upper_bound"]
+            masks_weight = data["masks_weight"].to(device, non_blocking=True)
+
+            n_local_crops_loss_terms = max(n_local_crops * n_global_crops, 1)
+            n_global_crops_loss_terms = (n_global_crops - 1) * n_global_crops
 
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                # Global views
-                (teacher_embedding, teacher_features) = teacher(torch.concat(images[:2], dim=0), None)
-                (student_embedding, student_features) = student(torch.concat(images[:2], dim=0), masks)
+                # Teacher
+                (teacher_embedding_after_head, teacher_masked_patch_tokens_after_head) = teacher(
+                    global_crops, n_global_crops, upper_bound, mask_indices_list
+                )
+                if args.centering == "centering":
+                    teacher_dino_softmax_centered_list = dino_loss.softmax_center_teacher(
+                        teacher_embedding_after_head, teacher_temp=teacher_temp
+                    ).view(n_global_crops, -1, *teacher_embedding_after_head.shape[1:])
+                    dino_loss.update_center(teacher_embedding_after_head)
 
-                # Local views
-                (student_local_embedding, _) = student(torch.concat(images[2:], dim=0), None, return_keys="embedding")
+                    teacher_masked_patch_tokens_after_head = teacher_masked_patch_tokens_after_head.unsqueeze(0)
+                    masked_teacher_ibot_softmax_centered = ibot_patch_loss.softmax_center_teacher(
+                        teacher_masked_patch_tokens_after_head[:, :n_masked_patches], teacher_temp=teacher_temp
+                    )
+                    masked_teacher_ibot_softmax_centered = masked_teacher_ibot_softmax_centered.squeeze(0)
+                    ibot_patch_loss.update_center(teacher_masked_patch_tokens_after_head[:n_masked_patches])
 
-                loss = ibot_loss(
-                    student_embedding,
-                    student_features,
-                    teacher_embedding,
-                    teacher_features,
-                    student_local_embedding,
-                    masks.reshape(batch_size * 2, -1),
-                    epoch - 1,
-                )["all"]
+                else:  # sinkhorn_knopp
+                    teacher_dino_softmax_centered_list = dino_loss.sinkhorn_knopp_teacher(
+                        teacher_embedding_after_head, teacher_temp=teacher_temp
+                    ).view(n_global_crops, -1, *teacher_embedding_after_head.shape[1:])
 
-            if args.freeze_last_layer_epochs >= epoch:
-                student_without_ddp.head.cancel_last_layer_gradients()
+                    masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
+                        teacher_masked_patch_tokens_after_head,
+                        teacher_temp=teacher_temp,
+                        n_masked_patches_tensor=n_masked_patches_tensor,
+                    )
+
+                # Student
+                (
+                    student_global_embedding,
+                    student_global_embedding_after_head,
+                    student_local_embedding_after_head,
+                    student_global_masked_patch_tokens_after_head,
+                ) = student(global_crops, local_crops, masks, upper_bound, mask_indices_list)
+
+                # Local DINO loss
+                loss_dino_local_crops = dino_loss(
+                    student_local_embedding_after_head.chunk(n_local_crops),
+                    teacher_dino_softmax_centered_list,
+                ) / (n_global_crops_loss_terms + n_local_crops_loss_terms)
+                loss = args.dino_loss_weight * loss_dino_local_crops
+
+                # Global DINO loss
+                loss_scales = n_global_crops
+                loss_dino_global_crops = (
+                    dino_loss(
+                        [student_global_embedding_after_head],
+                        [
+                            teacher_dino_softmax_centered_list.flatten(0, 1)
+                        ],  # These were chunked and stacked in reverse so A is matched to B
+                    )
+                    * loss_scales
+                    / (n_global_crops_loss_terms + n_local_crops_loss_terms)
+                )
+                loss += args.dino_loss_weight * loss_dino_global_crops
+
+                # KoLeo loss
+                loss_koleo = args.koleo_loss_weight * sum(
+                    koleo_loss(p) for p in student_global_embedding.chunk(n_global_crops)
+                )
+                loss += loss_koleo
+
+                # iBOT loss
+                loss_ibot_patch = (
+                    ibot_patch_loss.forward_masked(
+                        student_global_masked_patch_tokens_after_head,
+                        masked_teacher_ibot_softmax_centered,
+                        student_masks_flat=masks,
+                        n_masked_patches=n_masked_patches,
+                        masks_weight=masks_weight,
+                    )
+                    * loss_scales
+                    * ibot_loss_scale
+                )
+                loss += args.ibot_loss_weight * loss_ibot_patch
 
             if scaler is not None:
                 scaler.scale(loss).backward()
@@ -570,25 +728,13 @@ def train(args: argparse.Namespace) -> None:
             # Statistics
             running_loss.update(loss.detach())
 
-            probs_teacher = teacher_embedding.chunk(2)  # Per global crop
-            probs_student = student_embedding.chunk(2)
-            pred_teacher = probs_teacher[0].argmax(dim=1)
-            pred_student = probs_student[1].argmax(dim=1)
-            training_accuracy(pred_student, pred_teacher)
-
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
                 running_loss.synchronize_between_processes(device)
-                interval_accuracy = training_accuracy.compute()
                 if args.rank == 0:
                     summary_writer.add_scalars(
                         "loss",
                         {"training": running_loss.avg},
-                        ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
-                    )
-                    summary_writer.add_scalars(
-                        "performance",
-                        {"accuracy": interval_accuracy},
                         ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
                     )
 
@@ -602,9 +748,6 @@ def train(args: argparse.Namespace) -> None:
         # Epoch training metrics
         epoch_loss = running_loss.global_avg
         logger.info(f"Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
-
-        accuracy = training_accuracy.compute()
-        logger.info(f"Epoch {epoch}/{epochs-1} accuracy: {accuracy:.4f}")
 
         # Learning rate scheduler update
         if iter_update is False:
@@ -689,29 +832,25 @@ def get_args_parser() -> argparse.ArgumentParser:
         epilog=(
             "Usage examples\n"
             "==============\n"
-            "torchrun --nproc_per_node=2 -m birder.scripts.train_ibot \\\n"
-            "    --network vit_b16 \\\n"
-            "    --shared-head \\\n"
-            "    --norm-last-layer \\\n"
-            "    --local-crops-number 10 \\\n"
-            "    --teacher-temp 0.07 \\\n"
-            "    --warmup-teacher-temp-epochs 50 \\\n"
+            "torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 \\\n"
+            "    --network vit_b14 \\\n"
+            "    --ibot-separate-head \\\n"
+            "    --local-crop-size 98 98 \\\n"
+            "    --centering sinkhorn_knopp \\\n"
             "    --opt adamw \\\n"
-            "    --lr 0.00075 \\\n"
+            "    --lr 0.0002 \\\n"
             "    --lr-scheduler cosine \\\n"
             "    --lr-cosine-min 1e-6 \\\n"
-            "    --freeze-last-layer-epochs 3 \\\n"
-            "    --epochs 400 \\\n"
+            "    --epochs 100 \\\n"
             "    --warmup-epochs 10 \\\n"
             "    --batch-size 32 \\\n"
             "    --wd 0.04 \\\n"
-            "    --wd-end 0.4 \\\n"
+            "    --wd-end 0.2 \\\n"
             "    --norm-wd 0 \\\n"
-            "    --bias-weight-decay 0 \\\n"
-            "    --clip-grad-norm 0.3 \\\n"
-            "    --amp \\\n"
+            "    --clip-grad-norm 3 \\\n"
+            "    --amp --amp-dtype bfloat16 \\\n"
             "    --compile \\\n"
-            "    --data-path data/training\n"
+            "    --data-path data/training data/raw_data\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -725,35 +864,24 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
-    parser.add_argument("--out-dim", type=int, default=8192, help="dimensionality of embedding output")
-    parser.add_argument("--patch-out-dim", type=int, default=8192, help="dimensionality of features output")
+    parser.add_argument("--dino-loss-weight", type=float, default=1.0, help="weight for the DINO loss component")
+    parser.add_argument("--dino-out-dim", type=int, default=65536, help="dimensionality of the DINO head output")
+    parser.add_argument("--head-bottleneck-dim", type=int, default=256, help="dimensionality of heads output")
+    parser.add_argument("--koleo-loss-weight", type=float, default=0.1, help="weight for the KoLeo regularization loss")
+    parser.add_argument("--ibot-loss-weight", type=float, default=1.0, help="weight for the iBOT loss component")
     parser.add_argument(
-        "--shared-head",
-        default=False,
-        action="store_true",
-        help="wether to share the same head for embedding and features outputs (if false patch_out_dim is ignored)",
+        "--ibot-mask-probability", type=float, default=0.5, help="probability of applying masking for iBOT training"
     )
     parser.add_argument(
-        "--norm-last-layer",
-        default=False,
-        action="store_true",
-        help="whether or not to weight normalize the last layer of the head, set this flag with large models (vit_b)",
+        "--ibot-separate-head", default=False, action="store_true", help="use separate head for iBOT loss computation"
     )
+    parser.add_argument("--ibot-out-dim", type=int, default=65536, help="dimensionality of the iBOT head output")
     parser.add_argument(
         "--momentum-teacher",
         type=float,
-        default=0.996,
+        default=0.992,
         help="base EMA parameter for teacher update, set a higher value with small batches",
     )
-    parser.add_argument("--local-crops-number", type=int, default=8, help="number of small local views to generate")
-    parser.add_argument(
-        "--local-crop-size", type=int, nargs="+", default=[96, 96], metavar=("H", "W"), help="local view size"
-    )
-    parser.add_argument(
-        "--pred-start-epoch", type=int, default=0, help="start epoch to perform masked image prediction"
-    )
-    parser.add_argument("--lambda1", default=1.0, type=float, help="loss weight for dino loss over embedding")
-    parser.add_argument("--lambda2", default=1.0, type=float, help="loss weight for beit loss over features")
     parser.add_argument(
         "--warmup-teacher-temp",
         type=float,
@@ -761,10 +889,10 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="initial value for the teacher temperature, try decreasing it if the training loss does not decrease",
     )
     parser.add_argument(
-        "--teacher-temp", type=float, default=0.04, help="final value (after linear warmup) of the teacher temperature"
+        "--teacher-temp", type=float, default=0.07, help="final value (after linear warmup) of the teacher temperature"
     )
     parser.add_argument(
-        "--warmup-teacher-temp-epochs", type=int, default=40, help="number of warmup epochs for the teacher temperature"
+        "--warmup-teacher-temp-epochs", type=int, default=30, help="number of warmup epochs for the teacher temperature"
     )
     parser.add_argument(
         "--freeze-last-layer-epochs",
@@ -774,6 +902,17 @@ def get_args_parser() -> argparse.ArgumentParser:
             "number of epochs during which the output layer is frozen, "
             "try increasing this value if the loss does not decrease"
         ),
+    )
+    parser.add_argument("--local-crops-number", type=int, default=8, help="number of small local views to generate")
+    parser.add_argument(
+        "--local-crop-size", type=int, nargs="+", default=[96, 96], metavar=("H", "W"), help="local view size"
+    )
+    parser.add_argument(
+        "--centering",
+        type=str,
+        choices=["centering", "sinkhorn_knopp"],
+        default="centering",
+        help="algorithm for centering",
     )
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument("--compile-teacher", default=False, action="store_true", help="enable teacher only compilation")
@@ -810,7 +949,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sync-bn", default=False, action="store_true", help="use synchronized BatchNorm")
     parser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
     parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
-    training_utils.add_aug_args(parser, default_level=1, default_min_scale=0.3)
+    training_utils.add_aug_args(parser, default_level=5, default_min_scale=0.35)
     parser.add_argument(
         "--rgb-mode",
         type=str,
@@ -818,7 +957,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         default="birder",
         help="rgb mean and std to use for normalization",
     )
-    parser.add_argument("--epochs", type=int, default=800, metavar="N", help="number of training epochs")
+    parser.add_argument("--epochs", type=int, default=100, metavar="N", help="number of training epochs")
     parser.add_argument(
         "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi step training)"
     )

@@ -204,7 +204,7 @@ registry.register_weights(
 registry.register_weights(
     "starnet_s1_il-common",
     {
-        "description": "StarNet S1 model 1M trained on the il-common dataset",
+        "description": "StarNet S1 model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

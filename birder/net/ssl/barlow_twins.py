@@ -3,16 +3,15 @@ Barlow Twins, adapted from
 https://github.com/facebookresearch/barlowtwins/blob/main/main.py
 
 Paper "Barlow Twins: Self-Supervised Learning via Redundancy Reduction", https://arxiv.org/abs/2103.03230
-
-Changes from original:
-* Mo support for separate LR for biases
 """
 
 # Reference license: MIT
 
 import torch
+import torch.distributed as dist
 from torch import nn
 
+from birder.common import training_utils
 from birder.net.base import BaseNet
 from birder.net.ssl.base import SSLBaseNet
 
@@ -46,12 +45,19 @@ class BarlowTwins(SSLBaseNet):
 
     # pylint: disable=arguments-differ
     def forward(self, x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
+        if training_utils.is_dist_available_and_initialized() is True:
+            world_size = dist.get_world_size()
+        else:
+            world_size = 1
+
         z1 = self.projector(self.backbone.embedding(x1))
         z2 = self.projector(self.backbone.embedding(x2))
 
         # Cross-correlation matrix
         c = self.bn(z1).T @ self.bn(z2)
-        c.div_(x1.size(0))
+        c = c / (x1.size(0) * world_size)
+        if training_utils.is_dist_available_and_initialized() is True:
+            dist.nn.all_reduce(c)  # https://github.com/pytorch/pytorch/issues/58005#issuecomment-1778029156
 
         on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
         off_diag = off_diagonal(c).pow_(2).sum()

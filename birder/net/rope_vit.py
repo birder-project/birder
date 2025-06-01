@@ -17,6 +17,7 @@ import math
 from collections.abc import Callable
 from functools import partial
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -25,10 +26,14 @@ from torch import nn
 from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
+from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenOmissionResultType
+from birder.net.base import TokenRetentionResultType
 from birder.net.vit import LayerScale
 from birder.net.vit import MultiHeadAttentionPool
 from birder.net.vit import PatchEmbed
@@ -261,7 +266,7 @@ class MAEDecoderBlock(nn.Module):
 
 
 # pylint: disable=invalid-name,too-many-instance-attributes
-class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
+class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -372,10 +377,10 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         )
         self.norm = norm_layer(hidden_dim, eps=1e-6)
 
-        if attn_pool_head is True:
-            self.attn_pool = MultiHeadAttentionPool(hidden_dim, num_heads, mlp_dim, qkv_bias=True, latent_len=1)
+        if attn_pool_head is False:
+            self.attn_pool = None
         else:
-            self.attn_pool = nn.Identity()
+            self.attn_pool = MultiHeadAttentionPool(hidden_dim, num_heads, mlp_dim, qkv_bias=True, latent_len=1)
 
         self.return_stages = ["neck"]  # Actually meaningless, but for completeness
         self.return_channels = [hidden_dim]
@@ -448,8 +453,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
                 param.requires_grad = True
 
         if unfreeze_features is True:
-            for param in self.attn_pool.parameters():
-                param.requires_grad = True
+            if self.attn_pool is not None:
+                for param in self.attn_pool.parameters():
+                    param.requires_grad = True
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         (H, W) = x.shape[-2:]
@@ -491,14 +497,21 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
                 param.requires_grad = False
 
     def masked_encoding_omission(
-        self, x: torch.Tensor, ids_keep: Optional[torch.Tensor] = None, return_all_features: bool = False
-    ) -> torch.Tensor:
+        self,
+        x: torch.Tensor,
+        ids_keep: Optional[torch.Tensor] = None,
+        return_all_features: bool = False,
+        return_keys: Literal["all", "tokens", "embedding"] = "tokens",
+    ) -> TokenOmissionResultType:
+        (H, W) = x.shape[-2:]
+
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
         # Add pos embedding without special tokens
-        x = x + self.pos_embedding[:, self.num_special_tokens :, :]
+        pos_embedding = self._get_pos_embed(H, W)
+        x = x + pos_embedding[:, self.num_special_tokens :, :]
 
         # Mask tokens
         if ids_keep is not None:
@@ -512,12 +525,12 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
 
         # Append class and register tokens
         if self.class_token is not None:
-            cls_token = self.class_token + self.pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
+            cls_token = self.class_token + pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
             batch_class_token = cls_token.expand(x.shape[0], -1, -1)
             x = torch.concat((batch_class_token, x), dim=1)
 
         if self.reg_tokens is not None:
-            reg_tokens = self.reg_tokens + self.pos_embedding[:, 0 : self.num_reg_tokens, :]
+            reg_tokens = self.reg_tokens + pos_embedding[:, 0 : self.num_reg_tokens, :]
             batch_reg_tokens = reg_tokens.expand(x.shape[0], -1, -1)
             x = torch.concat([batch_reg_tokens, x], dim=1)
 
@@ -530,7 +543,70 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
             x = self.encoder(x, rope_masked)
             x = self.norm(x)
 
-        return x
+        result: TokenOmissionResultType = {}
+        if return_keys in ("all", "tokens"):
+            result["tokens"] = x
+
+        if return_keys in ("all", "embedding"):
+            if self.attn_pool is not None:
+                x = self.attn_pool(x)
+                result["embedding"] = x[:, 0]
+            elif self.class_token is None:
+                x = x[:, self.num_special_tokens :]
+                result["embedding"] = x.mean(dim=1)
+            else:
+                result["embedding"] = x[:, self.num_reg_tokens]
+
+        return result
+
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
+        (H, W) = x.shape[-2:]
+
+        x = self.conv_proj(x)
+        x = mask_tensor(x, mask, mask_token=mask_token, patch_factor=self.max_stride // self.stem_stride)
+
+        # Reshape and permute the input tensor
+        x = self.patch_embed(x)
+
+        # Expand the class token to the full batch
+        if self.class_token is not None:
+            batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
+            x = torch.concat([batch_class_token, x], dim=1)
+
+        # Expand the register tokens to the full batch
+        if self.reg_tokens is not None:
+            batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
+            x = torch.concat([batch_reg_tokens, x], dim=1)
+
+        x = x + self._get_pos_embed(H, W)
+        x = self.encoder(x, self._get_rope_embed(H, W))
+        x = self.norm(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            features = x[:, self.num_special_tokens :]
+            features = features.permute(0, 2, 1)
+            (B, C, _) = features.size()
+            features = features.reshape(B, C, H // self.patch_size, W // self.patch_size)
+            result["features"] = features
+
+        if return_keys in ("all", "embedding"):
+            if self.attn_pool is not None:
+                x = self.attn_pool(x)
+                result["embedding"] = x[:, 0]
+            elif self.class_token is None:
+                x = x[:, self.num_special_tokens :]
+                result["embedding"] = x.mean(dim=1)
+            else:
+                result["embedding"] = x[:, self.num_reg_tokens]
+
+        return result
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         (H, W) = x.shape[-2:]
@@ -552,9 +628,12 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         x = x + self._get_pos_embed(H, W)
         x = self.encoder(x, self._get_rope_embed(H, W))
         x = self.norm(x)
-        x = self.attn_pool(x)
+        if self.attn_pool is not None:
+            x = self.attn_pool(x)
+            return x[:, 0]
 
         if self.class_token is None:
+            x = x[:, self.num_special_tokens :]
             return x.mean(dim=1)
 
         # Classifier "token" as used by standard language architectures

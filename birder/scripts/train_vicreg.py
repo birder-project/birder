@@ -94,7 +94,7 @@ def train(args: argparse.Namespace) -> None:
     # Data
     #
     rgb_stats = get_rgb_stats(args.rgb_mode)
-    training_transform = training_utils.get_training_transform(args)
+    training_transform = TrainTransform(training_utils.get_training_transform(args))
     if args.wds is True:
         wds_path: str | list[str]
         if args.wds_info is not None:
@@ -227,6 +227,7 @@ def train(args: argparse.Namespace) -> None:
         norm_weight_decay=args.norm_wd,
         custom_keys_weight_decay=custom_keys_weight_decay,
         layer_decay=args.layer_decay,
+        bias_lr=args.bias_lr,
     )
 
     # Learning rate scaling
@@ -532,6 +533,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     training_utils.add_optimizer_args(parser)
     parser.add_argument("--lr", type=float, default=0.1, help="base learning rate")
+    parser.add_argument("--bias-lr", type=float, help="learning rate of biases")
     parser.add_argument(
         "--lr-scale", type=int, help="reference batch size for LR scaling, if provided, LR will be scaled accordingly"
     )

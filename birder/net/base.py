@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 
 DataShapeType = TypedDict("DataShapeType", {"data_shape": list[int]})
 SignatureType = TypedDict("SignatureType", {"inputs": list[DataShapeType], "outputs": list[DataShapeType]})
+TokenOmissionResultType = TypedDict(
+    "TokenOmissionResultType",
+    {"tokens": NotRequired[torch.Tensor], "embedding": NotRequired[torch.Tensor]},
+)
 TokenRetentionResultType = TypedDict(
     "TokenRetentionResultType",
     {"features": NotRequired[torch.Tensor], "embedding": NotRequired[torch.Tensor]},
@@ -182,8 +186,12 @@ class MaskedTokenOmissionMixin:
     num_special_tokens: int
 
     def masked_encoding_omission(
-        self, x: torch.Tensor, ids_keep: Optional[torch.Tensor] = None, return_all_features: bool = False
-    ) -> torch.Tensor:
+        self,
+        x: torch.Tensor,
+        ids_keep: Optional[torch.Tensor] = None,
+        return_all_features: bool = False,
+        return_keys: Literal["all", "tokens", "embedding"] = "tokens",
+    ) -> TokenOmissionResultType:
         # Returned size (N, L, D)
         raise NotImplementedError
 

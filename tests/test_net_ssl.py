@@ -10,8 +10,10 @@ from birder.net.ssl import barlow_twins
 from birder.net.ssl import byol
 from birder.net.ssl import capi
 from birder.net.ssl import dino_v1
+from birder.net.ssl import dino_v2
 from birder.net.ssl import i_jepa
 from birder.net.ssl import ibot
+from birder.net.ssl import mmcr
 from birder.net.ssl import vicreg
 
 logging.disable(logging.CRITICAL)
@@ -160,6 +162,34 @@ class TestNetSSL(unittest.TestCase):
         self.assertFalse(torch.isnan(loss).any())
         self.assertEqual(loss.ndim, 0)
 
+    def test_dino_v2(self) -> None:
+        batch_size = 4
+        size = (192, 192)
+        backbone = registry.net_factory("vit_s16", 3, 0, size=size)
+
+        dino_head = dino_v2.DINOHead(
+            backbone.embedding_size,
+            4096,
+            use_bn=False,
+            num_layers=3,
+            hidden_dim=2048,
+            bottleneck_dim=256,
+        )
+        teacher = dino_v2.DINOv2Teacher(backbone.input_channels, backbone, dino_head, None)
+
+        x = torch.rand(batch_size * 2, 3, *size)
+
+        with torch.no_grad():
+            (teacher_embedding_after_head, teacher_masked_patch_tokens_after_head) = teacher(
+                x, 2, upper_bound=8, mask_indices_list=torch.tensor([1, 3, 8])
+            )
+
+        self.assertFalse(torch.isnan(teacher_embedding_after_head).any())
+        self.assertEqual(teacher_embedding_after_head.size(), (batch_size * 2, 4096))
+
+        self.assertFalse(torch.isnan(teacher_masked_patch_tokens_after_head).any())
+        self.assertEqual(teacher_masked_patch_tokens_after_head.size(), (3, 4096))  # len of mask_indices_list
+
     def test_i_jepa(self) -> None:
         batch_size = 4
         size = (192, 192)
@@ -195,13 +225,13 @@ class TestNetSSL(unittest.TestCase):
         #
 
         # Target encoder
-        h = backbone.masked_encoding_omission(x)
+        h = backbone.masked_encoding_omission(x)["tokens"]
         h = h[:, backbone.num_special_tokens :, :]  # Remove special tokens
         h = i_jepa.apply_masks(h, pred_masks)
         h = i_jepa.repeat_interleave_batch(h, batch_size, repeat=len(enc_masks))
 
         # Context
-        z = torch.concat([backbone.masked_encoding_omission(x, enc_mask) for enc_mask in enc_masks], dim=0)
+        z = torch.concat([backbone.masked_encoding_omission(x, enc_mask)["tokens"] for enc_mask in enc_masks], dim=0)
         z = z[:, backbone.num_special_tokens :, :]  # Remove special tokens
         z = predictor(z, enc_masks, pred_masks)
 
@@ -298,6 +328,26 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(loss["all"].ndim, 0)
         self.assertEqual(loss["embedding"].ndim, 0)
         self.assertEqual(loss["features"].ndim, 0)
+
+    def test_mmcr(self) -> None:
+        batch_size = 4
+        backbone = registry.net_factory("resnet_v1_50", 3, 0)
+        encoder = mmcr.MMCREncoder(backbone, projector_dims=[512, 512, 512])
+        m_encoder = mmcr.MMCREncoder(backbone, projector_dims=[512, 512, 512])
+        net = mmcr.MMCR(backbone.input_channels, encoder, m_encoder)
+        mmcr_loss = mmcr.MMCRMomentumLoss(0.0, 2)
+
+        # Test network
+        (out, out_m) = net(torch.rand((batch_size, 2, 3, 128, 128)))
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.ndim, 2)
+        self.assertFalse(torch.isnan(out_m).any())
+        self.assertEqual(out_m.ndim, 2)
+
+        # Test loss
+        loss = mmcr_loss(out, out_m)
+        self.assertFalse(torch.isnan(loss).any())
+        self.assertEqual(loss.ndim, 0)
 
     def test_vicreg(self) -> None:
         batch_size = 4

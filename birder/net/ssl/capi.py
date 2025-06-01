@@ -225,7 +225,7 @@ class CAPIStudent(SSLBaseNet):
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ
         self, x: torch.Tensor, ids_keep: torch.Tensor, ids_predict: torch.Tensor
     ) -> torch.Tensor:
-        x = self.backbone.masked_encoding_omission(x, ids_keep)
+        x = self.backbone.masked_encoding_omission(x, ids_keep)["tokens"]
 
         mask = masking.mask_from_indices(ids_predict, self.seq_len)
         x = self.decoder(x, mask)
@@ -248,7 +248,7 @@ class CAPITeacher(SSLBaseNet):
     ) -> tuple[torch.Tensor, torch.Tensor]:
         B = x.size(0)
 
-        x = self.backbone.masked_encoding_omission(x, ids_keep)
+        x = self.backbone.masked_encoding_omission(x, ids_keep)["tokens"]
         x = x[:, self.backbone.num_special_tokens :, :]
 
         (assignments, clustering_loss) = self.head(x.transpose(0, 1))

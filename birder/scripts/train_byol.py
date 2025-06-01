@@ -245,6 +245,7 @@ def train(args: argparse.Namespace) -> None:
         norm_weight_decay=args.norm_wd,
         custom_keys_weight_decay=custom_keys_weight_decay,
         layer_decay=args.layer_decay,
+        bias_lr=args.bias_lr,
     )
 
     # Learning rate scaling
@@ -569,6 +570,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     training_utils.add_optimizer_args(parser)
     parser.add_argument("--lr", type=float, default=0.1, help="base learning rate")
+    parser.add_argument("--bias-lr", type=float, help="learning rate of biases")
     parser.add_argument(
         "--lr-scale", type=int, help="reference batch size for LR scaling, if provided, LR will be scaled accordingly"
     )
@@ -595,7 +597,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sync-bn", default=False, action="store_true", help="use synchronized BatchNorm")
     parser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
     parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
-    training_utils.add_aug_args(parser, default_level=1, default_min_scale=0.3)
+    training_utils.add_aug_args(parser, default_min_scale=0.3)
     parser.add_argument(
         "--rgb-mode",
         type=str,

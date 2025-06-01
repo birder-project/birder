@@ -88,6 +88,7 @@ from birder.net.smt import SMT
 from birder.net.squeezenet import SqueezeNet
 from birder.net.squeezenext import SqueezeNext
 from birder.net.starnet import StarNet
+from birder.net.swiftformer import SwiftFormer
 from birder.net.swin_transformer_v1 import Swin_Transformer_v1
 from birder.net.swin_transformer_v2 import Swin_Transformer_v2
 from birder.net.tiny_vit import Tiny_ViT
@@ -194,6 +195,7 @@ __all__ = [
     "SqueezeNet",
     "SqueezeNext",
     "StarNet",
+    "SwiftFormer",
     "Swin_Transformer_v1",
     "Swin_Transformer_v2",
     "Tiny_ViT",
