@@ -3,6 +3,7 @@ import warnings
 from enum import Enum
 from typing import TYPE_CHECKING
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 from birder.model_registry import manifest
@@ -122,14 +123,27 @@ class ModelRegistry:
         return nets
 
     def list_models(
-        self, *, include_filter: Optional[str] = None, task: Optional[Task] = None, net_type: Optional[type] = None
+        self,
+        *,
+        include_filter: Optional[str] = None,
+        task: Optional[Task] = None,
+        net_type: Optional[type | tuple[type, ...]] = None,
+        net_type_op: Literal["AND", "OR"] = "AND",
     ) -> list[str]:
         nets = self.all_nets
         if task is not None:
             nets = self._get_models_for_task(task)
 
         if net_type is not None:
-            nets = {name: t for name, t in nets.items() if issubclass(t, net_type) is True}
+            if not isinstance(net_type, tuple):
+                net_type = (net_type,)
+
+            if net_type_op == "OR":
+                nets = {name: t for name, t in nets.items() if issubclass(t, net_type) is True}
+            elif net_type_op == "AND":
+                nets = {name: t for name, t in nets.items() if all(issubclass(t, nt) for nt in net_type)}
+            else:
+                raise ValueError(f"Unknown op {net_type_op}")
 
         model_list = list(nets.keys())
         if include_filter is not None:

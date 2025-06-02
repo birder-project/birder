@@ -11,6 +11,8 @@ from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.model_registry.model_registry import group_sort
 from birder.net.base import DetectorBackbone
+from birder.net.base import MaskedTokenOmissionMixin
+from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 
 
@@ -40,12 +42,21 @@ def set_parser(subparsers: Any) -> None:
     task_group.add_argument("--mim", default=False, action="store_true", help="list MIM models")
     task_group.add_argument("--pretrained", default=False, action="store_true", help="list pretrained models")
 
-    type_group = subparser.add_mutually_exclusive_group(required=False)
+    type_group = subparser.add_argument_group()
     type_group.add_argument(
         "--detector-backbone", default=False, action="store_true", help="list detector backbone models"
     )
     type_group.add_argument(
         "--pretrain-encoder", default=False, action="store_true", help="list models that support mim pretraining"
+    )
+    type_group.add_argument(
+        "--token-omission",
+        default=False,
+        action="store_true",
+        help="list models supporting token omission for sparse processing",
+    )
+    type_group.add_argument(
+        "--token-retention", default=False, action="store_true", help="list models supporting masked token retention"
     )
 
     subparser.add_argument("--filter", type=str, help="filter results with a fnmatch type filter)")
@@ -59,12 +70,22 @@ def set_parser(subparsers: Any) -> None:
     subparser.set_defaults(func=main)
 
 
+# pylint: disable=too-many-branches
 def main(args: argparse.Namespace) -> None:
-    t = None
+    types: list[type] = []
     if args.detector_backbone is True:
-        t = DetectorBackbone
-    elif args.pretrain_encoder is True:
-        t = PreTrainEncoder
+        types.append(DetectorBackbone)
+    if args.pretrain_encoder is True:
+        types.append(PreTrainEncoder)
+    if args.token_omission is True:
+        types.append(MaskedTokenOmissionMixin)
+    if args.token_retention is True:
+        types.append(MaskedTokenRetentionMixin)
+
+    if len(types) == 0:
+        t = None
+    else:
+        t = tuple(types)
 
     if args.classification is True:
         model_list = registry.list_models(task=Task.IMAGE_CLASSIFICATION, net_type=t)

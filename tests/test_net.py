@@ -8,6 +8,7 @@ import torch
 from parameterized import parameterized
 
 from birder.common.masking import uniform_mask
+from birder.common.training_utils import group_by_regex
 from birder.model_registry import registry
 from birder.net import Hiera
 from birder.net import base
@@ -431,12 +432,18 @@ class TestNet(unittest.TestCase):
         self.assertTrue(hasattr(n, "stem_stride"))
         self.assertTrue(hasattr(n, "stem_width"))
 
+        names = [n for n, _ in n.named_parameters()]
+        groups = group_by_regex(names, n.block_group_regex)
+        self.assertGreater(len(groups), 5)
+        self.assertLess(len(groups), 40)
+
     @parameterized.expand(  # type: ignore[misc]
         [
             ("convnext_v2_atto"),
             ("davit_tiny"),
             ("deit3_t16"),
             ("deit3_reg4_t16"),
+            ("focalnet_t_srf"),
             ("hieradet_tiny"),
             ("maxvit_t"),
             ("nextvit_s"),
@@ -500,6 +507,11 @@ class TestNet(unittest.TestCase):
         self.assertTrue(hasattr(n, "stem_stride"))
         self.assertTrue(hasattr(n, "stem_width"))
 
+        names = [n for n, _ in n.named_parameters()]
+        groups = group_by_regex(names, n.block_group_regex)  # type: ignore[arg-type]
+        self.assertGreater(len(groups), 5)
+        self.assertLess(len(groups), 40)
+
     @parameterized.expand(  # type: ignore[misc]
         [
             ("deit3_t16"),
@@ -551,6 +563,11 @@ class TestNet(unittest.TestCase):
         self.assertTrue(hasattr(n, "block_group_regex"))
         self.assertTrue(hasattr(n, "stem_stride"))
         self.assertTrue(hasattr(n, "stem_width"))
+
+        names = [n for n, _ in n.named_parameters()]
+        groups = group_by_regex(names, n.block_group_regex)  # type: ignore[arg-type]
+        self.assertGreater(len(groups), 5)
+        self.assertLess(len(groups), 40)
 
 
 class TestNonSquareNet(unittest.TestCase):

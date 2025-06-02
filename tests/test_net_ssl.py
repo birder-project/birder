@@ -162,6 +162,7 @@ class TestNetSSL(unittest.TestCase):
         self.assertFalse(torch.isnan(loss).any())
         self.assertEqual(loss.ndim, 0)
 
+    # pylint: disable=too-many-locals
     def test_dino_v2(self) -> None:
         batch_size = 4
         size = (192, 192)
