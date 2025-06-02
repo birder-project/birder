@@ -12,6 +12,7 @@ Changes from original:
 
 from collections import OrderedDict
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -20,8 +21,12 @@ from torch import nn
 from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenRetentionResultType
 from birder.net.convnext_v1 import LayerNorm2d
 
 
@@ -304,7 +309,9 @@ class DaViTStage(nn.Module):
         return x
 
 
-class DaViT(DetectorBackbone):
+class DaViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
+    block_group_regex = r"body\.stage\d+\.blocks.(\d+)"
+
     def __init__(
         self,
         input_channels: int,
@@ -362,6 +369,10 @@ class DaViT(DetectorBackbone):
         self.embedding_size = dims[-1]
         self.classifier = self.create_classifier()
 
+        self.stem_stride = 4
+        self.stem_width = dims[0]
+        self.encoding_size = dims[-1]
+
         # Weights initialization
         for m in self.modules():
             if isinstance(m, nn.Linear):
@@ -391,13 +402,33 @@ class DaViT(DetectorBackbone):
             for param in module.parameters():
                 param.requires_grad = False
 
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
+        x = self.stem(x)
+        x = mask_tensor(x, mask, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token)
+        x = self.body(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            result["features"] = x
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = self.features(x)
+
+        return result
+
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
         x = self.body(x)
         return self.features(x)
 
-    def set_dynamic_size(self, dynamic_size: bool = True) -> None:
-        assert dynamic_size is False, "Dynamic size not supported for this network"
+    def set_dynamic_size(self, dynamic_size: bool = True) -> None:  # pylint:disable=useless-parent-delegation
+        super().set_dynamic_size(dynamic_size)
+        # No action taken, just run with constant window form initialization
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:

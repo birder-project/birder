@@ -13,11 +13,14 @@ from typing import Optional
 import torch
 from torch import nn
 
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
+from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenOmissionResultType
+from birder.net.base import TokenRetentionResultType
 from birder.net.vit import Encoder
 from birder.net.vit import EncoderBlock
 from birder.net.vit import PatchEmbed
@@ -25,7 +28,7 @@ from birder.net.vit import adjust_position_embedding
 
 
 # pylint: disable=too-many-instance-attributes
-class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
+class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -41,7 +44,6 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
-        layer_scale_init_value = 1e-5
         image_size = self.size
         attention_dropout = 0.0
         dropout = 0.0
@@ -51,6 +53,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         num_heads: int = self.config["num_heads"]
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
+        layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", 1e-5)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         drop_path_rate: float = self.config["drop_path_rate"]
 
@@ -252,6 +255,52 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
 
         return result
 
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
+        (H, W) = x.shape[-2:]
+
+        x = self.conv_proj(x)
+        x = mask_tensor(x, mask, mask_token=mask_token, patch_factor=self.max_stride // self.stem_stride)
+
+        # Reshape and permute the input tensor
+        x = self.patch_embed(x)
+
+        # Expand the class token to the full batch
+        batch_special_tokens = self.class_token.expand(x.shape[0], -1, -1)
+
+        # Expand the register tokens to the full batch
+        if self.reg_tokens is not None:
+            batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
+            batch_special_tokens = torch.concat([batch_reg_tokens, batch_special_tokens], dim=1)
+
+        if self.pos_embed_class is True:
+            x = torch.concat([batch_special_tokens, x], dim=1)
+            x = x + self._get_pos_embed(H, W)
+        else:
+            x = x + self._get_pos_embed(H, W)
+            x = torch.concat([batch_special_tokens, x], dim=1)
+
+        x = self.encoder(x)
+        x = self.norm(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            features = x[:, self.num_special_tokens :]
+            features = features.permute(0, 2, 1)
+            (B, C, _) = features.size()
+            features = features.reshape(B, C, H // self.patch_size, W // self.patch_size)
+            result["features"] = features
+
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = x[:, self.num_reg_tokens]
+
+        return result
+
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         (H, W) = x.shape[-2:]
 
@@ -279,9 +328,6 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         x = x[:, self.num_reg_tokens]
 
         return x
-
-    def set_dynamic_size(self, dynamic_size: bool = True) -> None:
-        self.dynamic_size = dynamic_size
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:

@@ -289,6 +289,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         num_heads: int = self.config["num_heads"]
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
+        layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", None)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
@@ -351,6 +352,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             dropout,
             attention_dropout,
             dpr,
+            layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
         )
         self.norm = norm_layer(hidden_dim, eps=1e-6)
@@ -596,9 +598,6 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         # Classifier "token" as used by standard language architectures
         return x[:, self.num_reg_tokens]
 
-    def set_dynamic_size(self, dynamic_size: bool = True) -> None:
-        self.dynamic_size = dynamic_size
-
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
@@ -804,7 +803,7 @@ registry.register_alias(  # From "Scaling Vision Transformers"
 
 # With registers
 registry.register_alias(
-    "vit_reg4_s32",
+    "vit_reg1_s32",
     ViT,
     config={
         "patch_size": 32,
@@ -817,7 +816,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vit_reg4_s16",
+    "vit_reg1_s16",
     ViT,
     config={
         "patch_size": 16,
@@ -830,7 +829,22 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "vit_reg4_s14",
+    "vit_reg1_s16_rms_ls",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "layer_scale_init_value": 1e-5,
+        "num_reg_tokens": 1,
+        "norm_layer_type": "RMSNorm",
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "vit_reg1_s14",
     ViT,
     config={
         "patch_size": 14,

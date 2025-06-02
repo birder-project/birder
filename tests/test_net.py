@@ -433,29 +433,34 @@ class TestNet(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[misc]
         [
-            ("convnext_v2_atto", None),
-            ("hieradet_tiny", None),
-            ("maxvit_t", None),
-            ("nextvit_s", None),
-            ("regnet_x_200m", None),
-            ("regnet_y_200m", None),
-            ("regnet_z_500m", None),
-            ("rope_vit_b32", None),
-            ("rope_vit_reg4_b32", None),
-            ("rope_vit_reg4_m16_rms_avg", None),
-            ("rope_vit_so150m_p14_ap", None),
-            ("rope_vit_reg4_so150m_p14_ap", None),
-            ("swin_transformer_v2_t", None),
-            ("swin_transformer_v2_w2_t", None),
-            ("vit_b32", None),
-            ("vit_reg4_b32", None),
-            ("vit_reg4_m16_rms_avg", None),
-            ("vit_so150m_p14_ap", None),
-            ("vit_reg4_so150m_p14_ap", None),
-            ("vit_parallel_s16_18x2_ls", None),
+            ("convnext_v2_atto"),
+            ("davit_tiny"),
+            ("deit3_t16"),
+            ("deit3_reg4_t16"),
+            ("hieradet_tiny"),
+            ("maxvit_t"),
+            ("nextvit_s"),
+            ("regnet_x_200m"),
+            ("regnet_y_200m"),
+            ("regnet_z_500m"),
+            ("rope_deit3_t16"),
+            ("rope_deit3_reg4_t16"),
+            ("rope_vit_b32"),
+            ("rope_vit_reg4_b32"),
+            ("rope_vit_reg4_m16_rms_avg"),
+            ("rope_vit_so150m_p14_ap"),
+            ("rope_vit_reg4_so150m_p14_ap"),
+            ("swin_transformer_v2_t"),
+            ("swin_transformer_v2_w2_t"),
+            ("vit_b32"),
+            ("vit_reg4_b32"),
+            ("vit_reg4_m16_rms_avg"),
+            ("vit_so150m_p14_ap"),
+            ("vit_reg4_so150m_p14_ap"),
+            ("vit_parallel_s16_18x2_ls"),
         ]
     )
-    def test_pre_training_encoder_retention(self, network_name: str, net_param: Optional[float]) -> None:
+    def test_pre_training_encoder_retention(self, network_name: str, net_param: Optional[float] = None) -> None:
         n = registry.net_factory(network_name, 3, 100, net_param=net_param)
         size = n.default_size
 
@@ -497,25 +502,27 @@ class TestNet(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[misc]
         [
-            ("deit3_t16", None),
-            ("deit3_reg4_t16", None),
-            ("hiera_tiny", None),
-            ("hiera_abswin_tiny", None),
-            ("rope_vit_b32", None),
-            ("rope_vit_reg4_b32", None),
-            ("rope_vit_reg4_m16_rms_avg", None),
-            ("rope_vit_so150m_p14_ap", None),
-            ("rope_vit_reg4_so150m_p14_ap", None),
-            ("simple_vit_b32", None),
-            ("vit_b32", None),
-            ("vit_reg4_b32", None),
-            ("vit_reg4_m16_rms_avg", None),
-            ("vit_so150m_p14_ap", None),
-            ("vit_reg4_so150m_p14_ap", None),
-            ("vit_parallel_s16_18x2_ls", None),
+            ("deit3_t16"),
+            ("deit3_reg4_t16"),
+            ("hiera_tiny"),
+            ("hiera_abswin_tiny"),
+            ("rope_deit3_t16"),
+            ("rope_deit3_reg4_t16"),
+            ("rope_vit_b32"),
+            ("rope_vit_reg4_b32"),
+            ("rope_vit_reg4_m16_rms_avg"),
+            ("rope_vit_so150m_p14_ap"),
+            ("rope_vit_reg4_so150m_p14_ap"),
+            ("simple_vit_b32"),
+            ("vit_b32"),
+            ("vit_reg4_b32"),
+            ("vit_reg4_m16_rms_avg"),
+            ("vit_so150m_p14_ap"),
+            ("vit_reg4_so150m_p14_ap"),
+            ("vit_parallel_s16_18x2_ls"),
         ]
     )
-    def test_pre_training_encoder_omission(self, network_name: str, net_param: Optional[float]) -> None:
+    def test_pre_training_encoder_omission(self, network_name: str, net_param: Optional[float] = None) -> None:
         n = registry.net_factory(network_name, 3, 100, net_param=net_param)
         size = n.default_size
 
@@ -715,6 +722,7 @@ class TestNonSquareNet(unittest.TestCase):
 class TestDynamicSize(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
+            ("davit_tiny"),
             ("deit3_t16"),
             ("deit3_reg4_t16"),
             ("rope_deit3_t16"),

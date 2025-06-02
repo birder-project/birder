@@ -248,10 +248,22 @@ Fine-tuning, first stage - linear probing
 torchrun --nproc_per_node=2 train.py --network convnext_v2_nano --tag dino-v2 --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --resume-epoch 0 --reset-head --freeze-body
 ```
 
+#### DINO v2: DaViT Small
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network davit_small --ibot-separate-head --dino-out-dim 49152 --ibot-out-dim 49152 --centering sinkhorn_knopp --opt adamw --lr 0.0002 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --batch-size 64 --wd 0.04 --wd-end 0.2 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_micro_packed/_info.json
+```
+
 #### DINO v2: HieraDet Base
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network hieradet_base --ibot-separate-head --centering sinkhorn_knopp --opt adamw --lr 0.0002 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --batch-size 64 --wd 0.04 --wd-end 0.2 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
+```
+
+#### DINO v2: ViT reg1 s16 rms LS
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network vit_reg1_s16_rms_ls --dino-out-dim 32768 --opt adamw --lr 0.0002 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --batch-size 96 --wd 0.04 --wd-end 0.2 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --rgb-mode none --wds --wds-info data/ssl_micro_packed/_info.json
 ```
 
 #### DINO v2: ViT reg4 m16 rms AVG
@@ -263,7 +275,7 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network vit_reg4_m
 #### DINO v2: RoPE SoViT reg8 150m p14 AP
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network rope_vit_reg8_so150m_p14_ap --ibot-separate-head --dino-out-dim 131072 --ibot-out-dim 131072 --head-bottleneck-dim 384 --centering sinkhorn_knopp --local-crop-size 98 --opt adamw --lr 0.0002 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --batch-size 32 --wd 0.04 --wd-end 0.2 --clip-grad-norm 3 --model-config drop_path_rate=0.3 --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network rope_vit_reg8_so150m_p14_ap --ibot-separate-head --dino-out-dim 131072 --ibot-out-dim 131072 --head-bottleneck-dim 384 --centering sinkhorn_knopp --local-crop-size 98 --opt adamw --lr 0.0002 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --batch-size 32 --wd 0.04 --wd-end 0.2 --clip-grad-norm 3 --model-config drop_path_rate=0.3 --amp --amp-dtype bfloat16 --compile --rgb-mode none --wds --wds-info data/ssl_packed/_info.json
 ```
 
 ### I-JEPA
@@ -307,7 +319,19 @@ torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa
 ImageNet 21K next, full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa-imagenet21k --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 50 --size 224 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-type ra --re-prob 0.25 --model-ema --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --compile-opt --layer-decay 0.65 --resume-epoch 0 --save-frequency 1 --wds --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-info ~/Datasets/imagenet-w21-webp-wds/_info.json --wds-training-split train
+torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa-imagenet21k --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --warmup-epochs 5 --epochs 50 --size 224 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-type ra --re-prob 0.25 --model-ema --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --compile-opt --layer-decay 0.65 --resume-epoch 0 --save-frequency 1 --wds --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-info ~/Datasets/imagenet-w21-webp-wds/_info.json --wds-training-split train
+```
+
+iNaturalist 2021 fine-tuning, first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa-inat21 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 224 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --reset-head --freeze-body --data-path ~/Datasets/inat2021/train --val-path ~/Datasets/inat2021/val
+```
+
+iNaturalist 2021 next, full fine-tuning with layer-wise learning rate decay
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa-inat21 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --warmup-epochs 5 --epochs 100 --size 224 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --compile-opt --layer-decay 0.65 --resume-epoch 0 --save-frequency 1 --data-path ~/Datasets/inat2021/train --val-path ~/Datasets/inat2021/val
 ```
 
 #### I-JEPA: ViT reg8 b14 AP

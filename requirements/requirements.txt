@@ -1,7 +1,7 @@
 matplotlib~=3.10.3
 numpy~=2.2.6
 onnx~=1.18.0
-onnxscript~=0.2.7
+onnxscript~=0.3.0
 Pillow~=11.2.1
 polars~=1.30.0
 pycocotools~=2.0.9

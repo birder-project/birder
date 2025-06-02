@@ -14,15 +14,24 @@ Changes from original:
 # Reference license: Apache-2.0 and Apache-2.0
 
 import math
+from functools import partial
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
 from torch import nn
 
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import MaskedTokenOmissionMixin
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenOmissionResultType
+from birder.net.base import TokenRetentionResultType
 from birder.net.rope_vit import Encoder
+from birder.net.rope_vit import MAEDecoderBlock
 from birder.net.rope_vit import RoPE
 from birder.net.rope_vit import build_rotary_pos_embed
 from birder.net.vit import PatchEmbed
@@ -30,7 +39,7 @@ from birder.net.vit import adjust_position_embedding
 
 
 # pylint: disable=invalid-name,too-many-instance-attributes
-class RoPE_DeiT3(DetectorBackbone):
+class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -46,7 +55,6 @@ class RoPE_DeiT3(DetectorBackbone):
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
-        layer_scale_init_value = 1e-5
         image_size = self.size
         attention_dropout = 0.0
         dropout = 0.0
@@ -56,6 +64,7 @@ class RoPE_DeiT3(DetectorBackbone):
         num_heads: int = self.config["num_heads"]
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
+        layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", 1e-5)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         pt_grid_size: Optional[tuple[int, int]] = self.config.get("pt_grid_size", None)
         drop_path_rate: float = self.config["drop_path_rate"]
@@ -134,6 +143,19 @@ class RoPE_DeiT3(DetectorBackbone):
         self.return_channels = [hidden_dim]
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
+
+        self.max_stride = patch_size
+        self.stem_stride = patch_size
+        self.stem_width = hidden_dim
+        self.encoding_size = hidden_dim
+        self.decoder_block = partial(
+            MAEDecoderBlock,
+            16,
+            num_special_tokens=self.num_special_tokens,
+            activation_layer=nn.GELU,
+            grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
+            layer_scale_init_value=layer_scale_init_value,
+        )
 
         # Weight initialization
         if isinstance(self.conv_proj, nn.Conv2d):
@@ -219,6 +241,118 @@ class RoPE_DeiT3(DetectorBackbone):
             for param in module.parameters():
                 param.requires_grad = False
 
+    def masked_encoding_omission(
+        self,
+        x: torch.Tensor,
+        ids_keep: Optional[torch.Tensor] = None,
+        return_all_features: bool = False,
+        return_keys: Literal["all", "tokens", "embedding"] = "tokens",
+    ) -> TokenOmissionResultType:
+        (H, W) = x.shape[-2:]
+
+        # Reshape and permute the input tensor
+        x = self.conv_proj(x)
+        x = self.patch_embed(x)
+
+        # Add pos embedding without special tokens
+        pos_embedding = self._get_pos_embed(H, W)
+        if self.pos_embed_class is True:
+            x = x + pos_embedding[:, self.num_special_tokens :, :]
+        else:
+            x = x + pos_embedding
+
+        # Mask tokens
+        if ids_keep is not None:
+            x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, x.size(2)))
+
+            rope_dim = self.rope.pos_embed.size(1)
+            rope = self.rope.pos_embed.unsqueeze(0).repeat(x.size(0), 1, 1)
+            rope_masked = torch.gather(rope, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, rope_dim))
+        else:
+            rope_masked = self.rope.pos_embed
+
+        # Append class and register tokens
+        if self.pos_embed_class is True:
+            cls_token = self.class_token + pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
+        else:
+            cls_token = self.class_token
+
+        batch_class_token = cls_token.expand(x.shape[0], -1, -1)
+        x = torch.concat((batch_class_token, x), dim=1)
+
+        if self.reg_tokens is not None:
+            if self.pos_embed_class is True:
+                reg_tokens = self.reg_tokens + pos_embedding[:, 0 : self.num_reg_tokens, :]
+            else:
+                reg_tokens = self.reg_tokens
+
+            batch_reg_tokens = reg_tokens.expand(x.shape[0], -1, -1)
+            x = torch.concat([batch_reg_tokens, x], dim=1)
+
+        # Apply transformer
+        if return_all_features is True:
+            xs = self.encoder.forward_features(x, rope_masked)
+            xs[-1] = self.norm(xs[-1])
+            x = torch.stack(xs, dim=-1)
+        else:
+            x = self.encoder(x, rope_masked)
+            x = self.norm(x)
+
+        result: TokenOmissionResultType = {}
+        if return_keys in ("all", "tokens"):
+            result["tokens"] = x
+
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = x[:, self.num_reg_tokens]
+
+        return result
+
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
+        (H, W) = x.shape[-2:]
+
+        x = self.conv_proj(x)
+        x = mask_tensor(x, mask, mask_token=mask_token, patch_factor=self.max_stride // self.stem_stride)
+
+        # Reshape and permute the input tensor
+        x = self.patch_embed(x)
+
+        # Expand the class token to the full batch
+        batch_special_tokens = self.class_token.expand(x.shape[0], -1, -1)
+
+        # Expand the register tokens to the full batch
+        if self.reg_tokens is not None:
+            batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
+            batch_special_tokens = torch.concat([batch_reg_tokens, batch_special_tokens], dim=1)
+
+        if self.pos_embed_class is True:
+            x = torch.concat([batch_special_tokens, x], dim=1)
+            x = x + self._get_pos_embed(H, W)
+        else:
+            x = x + self._get_pos_embed(H, W)
+            x = torch.concat([batch_special_tokens, x], dim=1)
+
+        x = self.encoder(x, self._get_rope_embed(H, W))
+        x = self.norm(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            features = x[:, self.num_special_tokens :]
+            features = features.permute(0, 2, 1)
+            (B, C, _) = features.size()
+            features = features.reshape(B, C, H // self.patch_size, W // self.patch_size)
+            result["features"] = features
+
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = x[:, self.num_reg_tokens]
+
+        return result
+
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         (H, W) = x.shape[-2:]
 
@@ -246,9 +380,6 @@ class RoPE_DeiT3(DetectorBackbone):
         x = x[:, self.num_reg_tokens]
 
         return x
-
-    def set_dynamic_size(self, dynamic_size: bool = True) -> None:
-        self.dynamic_size = dynamic_size
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:

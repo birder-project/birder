@@ -242,6 +242,7 @@ class MAEDecoderBlock(nn.Module):
         num_special_tokens: int,
         activation_layer: Callable[..., nn.Module],
         grid_size: tuple[int, int],
+        layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
     ) -> None:
         super().__init__()
@@ -253,14 +254,22 @@ class MAEDecoderBlock(nn.Module):
         self.attn = RoPEAttention(
             hidden_dim, num_heads, attn_drop=0.0, proj_drop=0.0, num_special_tokens=num_special_tokens
         )
+        if layer_scale_init_value is not None:
+            self.layer_scale_1 = LayerScale(hidden_dim, layer_scale_init_value)
+        else:
+            self.layer_scale_1 = nn.Identity()
 
         # MLP block
         self.norm2 = norm_layer(hidden_dim, eps=1e-6)
         self.mlp = MLP(hidden_dim, [mlp_dim, hidden_dim], activation_layer=activation_layer, inplace=None, dropout=0.0)
+        if layer_scale_init_value is not None:
+            self.layer_scale_2 = LayerScale(hidden_dim, layer_scale_init_value)
+        else:
+            self.layer_scale_2 = nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x + self.attn(self.norm1(x), self.rope.pos_embed)
-        x = x + self.mlp(self.norm2(x))
+        x = x + self.layer_scale_1(self.attn(self.norm1(x), self.rope.pos_embed))
+        x = x + self.layer_scale_2(self.mlp(self.norm2(x)))
 
         return x
 
@@ -290,6 +299,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         num_heads: int = self.config["num_heads"]
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
+        layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", None)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
@@ -373,6 +383,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             dropout,
             attention_dropout,
             dpr,
+            layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
         )
         self.norm = norm_layer(hidden_dim, eps=1e-6)
@@ -397,6 +408,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             num_special_tokens=self.num_special_tokens,
             activation_layer=nn.GELU,
             grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
+            layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
         )
 
@@ -639,9 +651,6 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         # Classifier "token" as used by standard language architectures
         return x[:, self.num_reg_tokens]
 
-    def set_dynamic_size(self, dynamic_size: bool = True) -> None:
-        self.dynamic_size = dynamic_size
-
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
@@ -864,7 +873,7 @@ registry.register_alias(  # From "Scaling Vision Transformers"
 
 # With registers
 registry.register_alias(
-    "rope_vit_reg4_s32",
+    "rope_vit_reg1_s32",
     RoPE_ViT,
     config={
         "patch_size": 32,
@@ -877,7 +886,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vit_reg4_s16",
+    "rope_vit_reg1_s16",
     RoPE_ViT,
     config={
         "patch_size": 16,
@@ -890,7 +899,7 @@ registry.register_alias(
     },
 )
 registry.register_alias(
-    "rope_vit_reg4_s14",
+    "rope_vit_reg1_s14",
     RoPE_ViT,
     config={
         "patch_size": 14,

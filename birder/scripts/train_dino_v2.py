@@ -171,7 +171,7 @@ class TrainCollator:
             "mask_indices_list": mask_indices_list,
             "masks_weight": masks_weight,
             "upper_bound": upper_bound,
-            "n_masked_patches": torch.full((1,), fill_value=mask_indices_list.shape[0], dtype=torch.long),
+            "n_masked_patches": torch.full((1,), fill_value=mask_indices_list.size(0), dtype=torch.long),
         }
 
 
@@ -574,6 +574,10 @@ def train(args: argparse.Namespace) -> None:
         tic = time.time()
         net.train()
         running_loss = training_utils.SmoothedValue()
+        running_loss_dino_local = training_utils.SmoothedValue()
+        running_loss_dino_global = training_utils.SmoothedValue()
+        running_loss_koleo = training_utils.SmoothedValue()
+        running_loss_ibot_patch = training_utils.SmoothedValue()
 
         if args.distributed is True:
             train_sampler.set_epoch(epoch)
@@ -676,10 +680,8 @@ def train(args: argparse.Namespace) -> None:
                 loss += args.dino_loss_weight * loss_dino_global_crops
 
                 # KoLeo loss
-                loss_koleo = args.koleo_loss_weight * sum(
-                    koleo_loss(p) for p in student_global_embedding.chunk(n_global_crops)
-                )
-                loss += loss_koleo
+                loss_koleo = sum(koleo_loss(p) for p in student_global_embedding.chunk(n_global_crops))
+                loss += args.koleo_loss_weight * loss_koleo
 
                 # iBOT loss
                 loss_ibot_patch = (
@@ -687,8 +689,8 @@ def train(args: argparse.Namespace) -> None:
                         student_global_masked_patch_tokens_after_head,
                         masked_teacher_ibot_softmax_centered,
                         student_masks_flat=masks,
-                        n_masked_patches=n_masked_patches,
                         masks_weight=masks_weight,
+                        n_masked_patches=n_masked_patches,
                     )
                     * loss_scales
                     * ibot_loss_scale
@@ -727,14 +729,28 @@ def train(args: argparse.Namespace) -> None:
 
             # Statistics
             running_loss.update(loss.detach())
+            running_loss_dino_local.update(loss_dino_local_crops.detach())
+            running_loss_dino_global.update(loss_dino_global_crops.detach())
+            running_loss_koleo.update(loss_koleo.detach())
+            running_loss_ibot_patch.update(loss_ibot_patch.detach())
 
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
                 running_loss.synchronize_between_processes(device)
+                running_loss_dino_local.synchronize_between_processes(device)
+                running_loss_dino_global.synchronize_between_processes(device)
+                running_loss_koleo.synchronize_between_processes(device)
+                running_loss_ibot_patch.synchronize_between_processes(device)
                 if args.rank == 0:
                     summary_writer.add_scalars(
                         "loss",
-                        {"training": running_loss.avg},
+                        {
+                            "training": running_loss.avg,
+                            "local": running_loss_dino_local.avg,
+                            "global": running_loss_dino_global.avg,
+                            "koleo": running_loss_koleo.avg,
+                            "patch": running_loss_ibot_patch.avg,
+                        },
                         ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
                     )
 
@@ -748,6 +764,18 @@ def train(args: argparse.Namespace) -> None:
         # Epoch training metrics
         epoch_loss = running_loss.global_avg
         logger.info(f"Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
+
+        epoch_loss_dino_local = running_loss_dino_local.global_avg
+        logger.info(f"Epoch {epoch}/{epochs-1} dino_local_loss: {epoch_loss_dino_local:.4f}")
+
+        epoch_loss_dino_global = running_loss_dino_global.global_avg
+        logger.info(f"Epoch {epoch}/{epochs-1} dino_global_loss: {epoch_loss_dino_global:.4f}")
+
+        epoch_loss_koleo = running_loss_koleo.global_avg
+        logger.info(f"Epoch {epoch}/{epochs-1} koleo_loss: {epoch_loss_koleo:.4f}")
+
+        epoch_loss_ibot_patch = running_loss_ibot_patch.global_avg
+        logger.info(f"Epoch {epoch}/{epochs-1} ibot_patch_loss: {epoch_loss_ibot_patch:.4f}")
 
         # Learning rate scheduler update
         if iter_update is False:
