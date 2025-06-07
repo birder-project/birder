@@ -4,8 +4,8 @@ from birder.common import cli
 from birder.tools import adversarial
 from birder.tools import avg_model
 from birder.tools import convert_model
+from birder.tools import download_model
 from birder.tools import ensemble_model
-from birder.tools import fetch_model
 from birder.tools import introspection
 from birder.tools import labelme_to_coco
 from birder.tools import list_models
@@ -31,8 +31,8 @@ def main() -> None:
             "--image 'data/training/Mallard/000112.jpeg'\n"
             "python -m birder.tools avg-model --network resnet_v2 --net-param 50 --epochs 95 95 100\n"
             "python -m birder.tools convert-model --network convnext_v2_base --epoch 0 --pt2\n"
+            "python -m birder.tools download-model mobilenet_v3_large_1_0\n"
             "python -m birder.tools ensemble-model --network convnext_v2_4_0 focalnet_3_0 --pts\n"
-            "python -m birder.tools fetch-model mobilenet_v3_large_1_0\n"
             "python -m birder.tools introspection --method gradcam --network efficientnet_v2 --net-param 1 "
             "--epoch 200 --image 'data/validation/Mallard/000003.jpeg'\n"
             "python -m birder.tools labelme-to-coco data/detection_data\n"
@@ -54,7 +54,7 @@ def main() -> None:
     avg_model.set_parser(subparsers)
     convert_model.set_parser(subparsers)
     ensemble_model.set_parser(subparsers)
-    fetch_model.set_parser(subparsers)
+    download_model.set_parser(subparsers)
     introspection.set_parser(subparsers)
     labelme_to_coco.set_parser(subparsers)
     list_models.set_parser(subparsers)

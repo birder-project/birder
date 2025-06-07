@@ -69,7 +69,7 @@ Get started with Birder by classifying a single image, visualizing the results a
 
 1. **Download a Pre-trained Model**
 
-        python -m birder.tools fetch-model mvit_v2_t_il-all
+        python -m birder.tools download-model mvit_v2_t_il-all
 
 1. **Download a Sample Image**
 

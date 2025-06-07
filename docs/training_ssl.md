@@ -12,6 +12,7 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 - [I-JEPA](#i-jepa)
 - [iBOT](#ibot)
 - [MMCR](#mmcr)
+- [SimCLR](#simclr)
 - [VICReg](#vicreg)
 
 ### Barlow Twins
@@ -263,7 +264,7 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network hieradet_b
 #### DINO v2: ViT reg1 s16 rms LS
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network vit_reg1_s16_rms_ls --dino-out-dim 32768 --opt adamw --lr 0.0002 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --batch-size 96 --wd 0.04 --wd-end 0.2 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --rgb-mode none --wds --wds-info data/ssl_micro_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network vit_reg1_s16_rms_ls --dino-out-dim 32768 --opt adamw --lr 0.0002 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 10 --batch-size 96 --wd 0.04 --wd-end 0.2 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --rgb-mode none --wds --wds-info data/ssl_micro_packed/_info.json
 ```
 
 #### DINO v2: ViT reg4 m16 rms AVG
@@ -420,6 +421,14 @@ Fine-tuning, first stage - linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network pvt_v2_b1 --tag mmcr --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --resume-epoch 0 --reset-head --freeze-body
+```
+
+### SimCLR
+
+#### SimCLR: Resnet v1 50
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_simclr --network resnet_v1_50 --opt lars --lr 0.075 --lr-scale 4096 --lr-scale-type sqrt --lr-scheduler cosine --warmup-epochs 10 --batch-size 256 --sync-bn --epochs 100 --wd 0.0001 --amp --compile --data-path data/training
 ```
 
 ### VICReg

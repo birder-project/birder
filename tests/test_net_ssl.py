@@ -14,6 +14,7 @@ from birder.net.ssl import dino_v2
 from birder.net.ssl import i_jepa
 from birder.net.ssl import ibot
 from birder.net.ssl import mmcr
+from birder.net.ssl import simclr
 from birder.net.ssl import vicreg
 
 logging.disable(logging.CRITICAL)
@@ -486,6 +487,22 @@ class TestNetSSL(unittest.TestCase):
         loss = mmcr_loss(out, out_m)
         self.assertFalse(torch.isnan(loss).any())
         self.assertEqual(loss.ndim, 0)
+
+    def test_simclr(self) -> None:
+        batch_size = 4
+        backbone = registry.net_factory("resnet_v2_18", 3, 0)
+        net = simclr.SimCLR(
+            backbone.input_channels,
+            backbone,
+            projection_dim=backbone.embedding_size,
+            projection_hidden_dim=128,
+            temperature=0.1,
+        )
+
+        # Test network
+        out = net(torch.rand((batch_size, 3, 128, 128)), torch.rand((batch_size, 3, 128, 128)))
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.ndim, 0)
 
     def test_vicreg(self) -> None:
         batch_size = 4

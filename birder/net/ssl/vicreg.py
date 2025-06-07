@@ -38,6 +38,9 @@ class FullGatherLayer(torch.autograd.Function):
     @staticmethod
     def backward(_ctx, *grads):  # type: ignore
         all_gradients = torch.stack(grads)
+        if training_utils.is_dist_available_and_initialized() is False:
+            return all_gradients
+
         dist.all_reduce(all_gradients)
         return all_gradients[dist.get_rank()]
 

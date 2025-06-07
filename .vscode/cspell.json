@@ -242,6 +242,7 @@
     "scipy",
     "shufflenet",
     "silu",
+    "simclr",
     "simmim",
     "sinkhorn",
     "skiprows",

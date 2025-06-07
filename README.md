@@ -59,11 +59,11 @@ If you prefer a local setup, follow the installation instructions below.
 
 Once Birder is installed, you can start exploring its capabilities.
 
-Birder provides pre-trained models that you can download using the `fetch-model` tool.
+Birder provides pre-trained models that you can download using the `download-model` tool.
 To download a model, use the following command:
 
 ```sh
-python -m birder.tools fetch-model mvit_v2_t_il-all
+python -m birder.tools download-model mvit_v2_t_il-all
 ```
 
 Create a data directory and download an example image:

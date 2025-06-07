@@ -11,14 +11,14 @@ logger = logging.getLogger(__name__)
 
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
-        "fetch-model",
+        "download-model",
         allow_abbrev=False,
         help="download pretrained model",
         description="download pretrained model",
         epilog=(
             "Usage examples:\n"
-            "python -m birder.tools fetch-model mobilenet_v3_large_1\n"
-            "python -m birder.tools fetch-model convnext_v2_tiny_0 --force\n"
+            "python -m birder.tools download-model mobilenet_v3_large_1\n"
+            "python -m birder.tools download-model convnext_v2_tiny_0 --force\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -54,9 +54,6 @@ def main(args: argparse.Namespace) -> None:
         logger.warning(f"File {model_file} already exists... aborting")
         raise SystemExit(1)
 
-    if "url" in model_metadata:
-        url = model_metadata["url"]
-    else:
-        url = f"{settings.REGISTRY_BASE_UTL}/{model_file}"
-
+    base_url = model_metadata.get("url", settings.REGISTRY_BASE_UTL)
+    url = f"{base_url}/{model_file}"
     cli.download_file(url, dst, model_metadata["formats"][args.format]["sha256"], override=args.force)

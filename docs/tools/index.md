@@ -27,8 +27,8 @@ python -m birder.tools [TOOL_NAME] --help
 - adversarial
 - avg-model
 - [convert-model](convert-model.md)
+- download-model
 - [ensemble-model](ensemble-model.md)
-- fetch-model
 - introspection
 - labelme-to-coco
 - list-models
