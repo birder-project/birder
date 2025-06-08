@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 import math
@@ -254,6 +255,10 @@ class TestNet(unittest.TestCase):
         # out = n(torch.rand((batch_size, 3, *size), dtype=torch.bfloat16))
         # self.assertEqual(out.numel(), 200 * batch_size)
 
+        # Ensure model is copyable
+        n_copy = copy.deepcopy(n)
+        self.assertIsNotNone(n_copy)
+
     @parameterized.expand(  # type: ignore[misc]
         [
             ("biformer_t"),
@@ -443,9 +448,19 @@ class TestNet(unittest.TestCase):
             ("davit_tiny"),
             ("deit3_t16"),
             ("deit3_reg4_t16"),
+            ("efficientnet_lite0"),
+            ("efficientnet_v1_b0"),
+            ("efficientnet_v2_s"),
+            ("fastvit_t8"),
+            ("fastvit_sa12"),
+            ("mobileclip_i0"),
             ("focalnet_t_srf"),
             ("hieradet_tiny"),
             ("maxvit_t"),
+            ("mobilenet_v4_s", None, 2),
+            ("mobilenet_v4_hybrid_m", None, 2),
+            ("mvit_v2_t"),
+            ("mvit_v2_t_cls"),
             ("nextvit_s"),
             ("regnet_x_200m"),
             ("regnet_y_200m"),
@@ -465,17 +480,20 @@ class TestNet(unittest.TestCase):
             ("vit_so150m_p14_ap"),
             ("vit_reg4_so150m_p14_ap"),
             ("vit_parallel_s16_18x2_ls"),
+            ("xcit_nano12_p16"),
         ]
     )
-    def test_pre_training_encoder_retention(self, network_name: str, net_param: Optional[float] = None) -> None:
+    def test_pre_training_encoder_retention(
+        self, network_name: str, net_param: Optional[float] = None, batch_size: int = 1
+    ) -> None:
         n = registry.net_factory(network_name, 3, 100, net_param=net_param)
         size = n.default_size
 
         # self.assertIsInstance(n, MaskedTokenRetentionMixin)
         assert isinstance(n, MaskedTokenRetentionMixin)
         seq_len = (size[0] // n.max_stride) * (size[1] // n.max_stride)
-        x = torch.rand((1, 3, *size))
-        mask = uniform_mask(1, seq_len, mask_ratio=0.6, device=x.device)[0]
+        x = torch.rand((batch_size, 3, *size))
+        mask = uniform_mask(batch_size, seq_len, mask_ratio=0.6, device=x.device)[0]
 
         # Test retention
         out = n.masked_encoding_retention(x, mask, return_keys="features")
@@ -490,14 +508,14 @@ class TestNet(unittest.TestCase):
 
         out = n.masked_encoding_retention(x, mask, torch.zeros(1, 1, 1, n.stem_width), return_keys="embedding")
         self.assertNotIn("features", out)
-        self.assertEqual(len(out["embedding"].flatten()), n.embedding_size)
+        self.assertEqual(len(out["embedding"].flatten()), n.embedding_size * batch_size)
 
         out = n.masked_encoding_retention(x, mask, torch.zeros(1, 1, 1, n.stem_width), return_keys="all")
         self.assertIsNotNone(out["features"])
         self.assertIsNotNone(out["embedding"])
 
         # Test "no mask" embedding returns the same as simple embedding
-        x = torch.ones((1, 3, *size)) * 0.25
+        x = torch.ones((batch_size, 3, *size)) * 0.25
         n.eval()
         zero_mask = torch.zeros_like(mask)
         out = n.masked_encoding_retention(x, zero_mask, torch.ones(1, 1, 1, n.stem_width), return_keys="embedding")
@@ -510,7 +528,7 @@ class TestNet(unittest.TestCase):
         names = [n for n, _ in n.named_parameters()]
         groups = group_by_regex(names, n.block_group_regex)  # type: ignore[arg-type]
         self.assertGreater(len(groups), 5)
-        self.assertLess(len(groups), 40)
+        self.assertLess(len(groups), 50)
 
     @parameterized.expand(  # type: ignore[misc]
         [

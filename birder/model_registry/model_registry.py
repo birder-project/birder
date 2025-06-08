@@ -14,9 +14,10 @@ if TYPE_CHECKING is True:
     from birder.net.base import PreTrainEncoder  # pylint: disable=cyclic-import
     from birder.net.detection.base import DetectionBaseNet  # pylint: disable=cyclic-import
     from birder.net.mim.base import MIMBaseNet  # pylint: disable=cyclic-import
+    from birder.net.ssl.base import SSLBaseNet  # pylint: disable=cyclic-import
 
-    BaseNetObjType = BaseNet | DetectionBaseNet | MIMBaseNet
-    BaseNetType = type[BaseNet] | type[DetectionBaseNet] | type[MIMBaseNet]
+    BaseNetObjType = BaseNet | DetectionBaseNet | MIMBaseNet | SSLBaseNet
+    BaseNetType = type[BaseNet] | type[DetectionBaseNet] | type[MIMBaseNet] | type[SSLBaseNet]
 
 
 def group_sort(model_list: list[str]) -> list[str]:
@@ -41,11 +42,12 @@ class ModelRegistry:
         self._nets: dict[str, type["BaseNet"]] = {}
         self._detection_nets: dict[str, type["DetectionBaseNet"]] = {}
         self._mim_nets: dict[str, type["MIMBaseNet"]] = {}
+        self._ssl_nets: dict[str, type["SSLBaseNet"]] = {}
         self._pretrained_nets = manifest.REGISTRY_MANIFEST
 
     @property
     def all_nets(self) -> dict[str, "BaseNetType"]:
-        return {**self._nets, **self._detection_nets, **self._mim_nets}
+        return {**self._nets, **self._detection_nets, **self._mim_nets, **self._ssl_nets}
 
     def register_model(self, name: str, net_type: "BaseNetType") -> None:
         if net_type.task == Task.IMAGE_CLASSIFICATION:
@@ -65,6 +67,12 @@ class ModelRegistry:
                 warnings.warn(f"MIM network named {name} is already registered", UserWarning)
 
             self._mim_nets[name] = net_type
+
+        elif net_type.task == Task.SELF_SUPERVISED_LEARNING:
+            if name in self._ssl_nets:
+                warnings.warn(f"SSL network named {name} is already registered", UserWarning)
+
+            self._ssl_nets[name] = net_type
 
         else:
             raise ValueError(f"Unsupported model task: {net_type.task}")
@@ -105,6 +113,8 @@ class ModelRegistry:
             net = self._detection_nets[name]
         elif name in self._mim_nets:
             net = self._mim_nets[name]
+        elif name in self._ssl_nets:
+            net = self._ssl_nets[name]
         else:
             raise ValueError(f"Network with name: {name} not found")
 
@@ -117,6 +127,8 @@ class ModelRegistry:
             nets = self._detection_nets
         elif task == Task.MASKED_IMAGE_MODELING:
             nets = self._mim_nets
+        elif task == Task.SELF_SUPERVISED_LEARNING:
+            nets = self._ssl_nets
         else:
             raise ValueError(f"Unsupported model task: {task}")
 

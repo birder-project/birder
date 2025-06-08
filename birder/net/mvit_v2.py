@@ -16,6 +16,7 @@ Changes from original:
 import math
 from collections import OrderedDict
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -24,8 +25,12 @@ from torch import nn
 from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenRetentionResultType
 
 
 def pre_pool(
@@ -420,7 +425,9 @@ class MultiScaleVitStage(nn.Module):
 
 
 # pylint: disable=invalid-name
-class MViT_v2(DetectorBackbone):
+class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
+    block_group_regex = r"body\.stage\d+\.blocks\.(\d+)"
+
     # pylint: disable=too-many-locals
     def __init__(
         self,
@@ -504,6 +511,10 @@ class MViT_v2(DetectorBackbone):
         self.embedding_size = embed_dim
         self.classifier = self.create_classifier()
 
+        self.stem_stride = 4
+        self.stem_width = embed_dims[0]
+        self.encoding_size = embed_dim
+
         # Weights initialization
         for m in self.modules():
             if isinstance(m, nn.Linear):
@@ -540,6 +551,49 @@ class MViT_v2(DetectorBackbone):
 
             for param in module.parameters():
                 param.requires_grad = False
+
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
+        B = x.size(0)
+
+        (x, hw_shape) = self.patch_embed(x)
+        x = mask_tensor(
+            x.permute(0, 2, 1).reshape(B, -1, hw_shape[0], hw_shape[1]),
+            mask,
+            patch_factor=self.max_stride // self.stem_stride,
+            mask_token=mask_token,
+        )
+        x = x.flatten(2).transpose(1, 2)
+
+        if self.cls_token is not None:
+            cls_tokens = self.cls_token.expand(B, -1, -1)
+            x = torch.concat((cls_tokens, x), dim=1)
+
+        (x, _) = self.body(x, hw_shape)
+        x = self.norm(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            if self.cls_token is not None:
+                features = x[:, 1:]
+            else:
+                features = x
+
+            features = features.reshape(B, hw_shape[0], hw_shape[1], -1).permute(0, 3, 1, 2)
+            result["features"] = features
+
+        if return_keys in ("all", "embedding"):
+            if self.cls_token is not None:
+                result["embedding"] = x[:, 0]
+            else:
+                result["embedding"] = x.mean(1)
+
+        return result
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         (x, hw_shape) = self.patch_embed(x)

@@ -12,6 +12,7 @@ Changes from original:
 # Reference license: Attribution-NonCommercial 4.0 International
 
 import math
+from typing import Any
 from typing import Optional
 
 import torch
@@ -20,6 +21,7 @@ from torch import nn
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import pos_embedding_sin_cos_2d
+from birder.net.ssl.base import SSLBaseNet
 from birder.net.vit import Encoder
 
 
@@ -258,12 +260,18 @@ class VisionTransformerPredictor(nn.Module):
         return x
 
 
-class WrappedModel(nn.Module):
-    def __init__(self, inner: PreTrainEncoder):
-        super().__init__()
-
-        assert isinstance(inner, MaskedTokenOmissionMixin)
-        self.inner = inner
+# pylint: disable=invalid-name
+class I_JEPA(SSLBaseNet):
+    def __init__(
+        self,
+        backbone: PreTrainEncoder,
+        *,
+        config: Optional[dict[str, Any]] = None,
+        size: Optional[tuple[int, int]] = None,
+    ) -> None:
+        super().__init__(backbone, config=config, size=size)
+        assert self.config is None, "config not supported"
+        assert isinstance(self.backbone, MaskedTokenOmissionMixin)
 
     def forward(self, x: torch.Tensor, ids_keep: Optional[torch.Tensor] = None) -> torch.Tensor:
-        return self.inner.masked_encoding_omission(x, ids_keep)["tokens"]
+        return self.backbone.masked_encoding_omission(x, ids_keep)["tokens"]

@@ -20,6 +20,7 @@ from birder.common import lib
 from birder.common.lib import get_detection_network_name
 from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
+from birder.common.lib import get_pretrained_model_url
 from birder.conf import settings
 from birder.model_registry import Task
 from birder.model_registry import registry
@@ -30,6 +31,7 @@ from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import DetectionSignatureType
 from birder.net.mim.base import MIMBaseNet
 from birder.net.mim.base import MIMSignatureType
+from birder.net.ssl.base import SSLSignatureType
 from birder.transforms.classification import RGBType
 from birder.version import __version__
 
@@ -206,7 +208,7 @@ def checkpoint_model(
     network_name: str,
     epoch: int,
     net: torch.nn.Module,
-    signature: SignatureType | DetectionSignatureType | MIMSignatureType,
+    signature: SignatureType | DetectionSignatureType | MIMSignatureType | SSLSignatureType,
     class_to_idx: dict[str, int],
     rgb_stats: RGBType,
     optimizer: Optional[torch.optim.Optimizer],
@@ -873,12 +875,10 @@ def load_pretrained_model(
         available_formats = ", ".join(model_metadata["formats"].keys())
         raise ValueError(f"{file_format} not available for {weights}, available formats: {available_formats}")
 
-    model_file = f"{weights}.{file_format}"
+    (model_file, url) = get_pretrained_model_url(weights, file_format)
     if dst is None:
         dst = settings.MODELS_DIR.joinpath(model_file)
 
-    base_url = model_metadata.get("url", settings.REGISTRY_BASE_UTL)
-    url = f"{base_url}/{model_file}"
     cli.download_file(url, dst, model_metadata["formats"][file_format]["sha256"], progress_bar=progress_bar)
 
     format_args: dict[str, Any] = {

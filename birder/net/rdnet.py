@@ -137,6 +137,8 @@ class DenseStage(nn.Module):
 
 
 class RDNet(DetectorBackbone):
+    block_group_regex = r"body\.stage\d+\.(\d+)"
+
     # pylint: disable=too-many-locals
     def __init__(
         self,

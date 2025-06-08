@@ -51,9 +51,10 @@ from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import get_signature
+from birder.net.ssl.base import get_ssl_signature
+from birder.net.ssl.i_jepa import I_JEPA
 from birder.net.ssl.i_jepa import MultiBlockMasking
 from birder.net.ssl.i_jepa import VisionTransformerPredictor
-from birder.net.ssl.i_jepa import WrappedModel
 from birder.net.ssl.i_jepa import apply_masks
 from birder.net.ssl.i_jepa import repeat_interleave_batch
 from birder.transforms.classification import RGBMode
@@ -132,7 +133,7 @@ def train(args: argparse.Namespace) -> None:
     else:
         model_config = {"drop_path_rate": 0.0}
 
-    encoder = registry.net_factory(
+    backbone = registry.net_factory(
         args.network,
         sample_shape[1],
         0,
@@ -140,8 +141,8 @@ def train(args: argparse.Namespace) -> None:
         config=model_config,
         size=args.size,
     )
-    num_special_tokens = encoder.num_special_tokens
-    target_encoder = registry.net_factory(
+    num_special_tokens = backbone.num_special_tokens
+    target_backbone = registry.net_factory(
         args.network,
         sample_shape[1],
         0,
@@ -149,14 +150,14 @@ def train(args: argparse.Namespace) -> None:
         config=model_config,
         size=args.size,
     )
-    encoder = WrappedModel(encoder)
-    target_encoder = WrappedModel(target_encoder)
+    encoder = I_JEPA(backbone)
+    target_encoder = I_JEPA(target_backbone)
     target_encoder.load_state_dict(encoder.state_dict())
 
-    mask_size = (args.size[0] // encoder.inner.max_stride, args.size[1] // encoder.inner.max_stride)
+    mask_size = (args.size[0] // encoder.backbone.max_stride, args.size[1] // encoder.backbone.max_stride)
     predictor = VisionTransformerPredictor(
         mask_size,
-        encoder.inner.embedding_size,
+        encoder.backbone.embedding_size,
         predictor_embed_dim=args.predictor_embed_dim,
         mlp_dim=4 * args.predictor_embed_dim,
         num_heads=args.predictor_num_heads,
@@ -171,7 +172,7 @@ def train(args: argparse.Namespace) -> None:
             "predictor": predictor,
         }
     )
-    net.task = encoder.inner.task
+    net.task = encoder.task
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
@@ -183,7 +184,7 @@ def train(args: argparse.Namespace) -> None:
     else:
         training_states = fs_ops.TrainingStates.empty()
 
-    assert isinstance(encoder.inner, MaskedTokenOmissionMixin)
+    assert isinstance(encoder.backbone, MaskedTokenOmissionMixin)
     assert isinstance(net, torch.nn.Module)
 
     net.to(device, dtype=model_dtype)
@@ -372,9 +373,9 @@ def train(args: argparse.Namespace) -> None:
     #
 
     # Print network summary
-    net_for_info = encoder_without_ddp.inner
+    net_for_info = encoder_without_ddp.backbone
     if args.compile is True and hasattr(encoder_without_ddp, "_orig_mod") is True:
-        net_for_info = encoder_without_ddp._orig_mod.inner  # pylint: disable=protected-access
+        net_for_info = encoder_without_ddp._orig_mod.backbone  # pylint: disable=protected-access
 
     if args.no_summary is False:
         torchinfo.summary(
@@ -393,7 +394,8 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Logging training run at {training_log_path}")
     summary_writer = SummaryWriter(training_log_path)
 
-    signature = get_signature(input_shape=sample_shape, num_outputs=0)
+    signature = get_ssl_signature(input_shape=sample_shape)
+    backbone_signature = get_signature(input_shape=sample_shape, num_outputs=0)
     if args.rank == 0:
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
@@ -546,8 +548,8 @@ def train(args: argparse.Namespace) -> None:
                 fs_ops.checkpoint_model(
                     encoder_name,
                     epoch,
-                    model_to_save["encoder"].inner,
-                    signature,
+                    model_to_save["encoder"].backbone,
+                    backbone_signature,
                     {},
                     rgb_stats,
                     optimizer=None,
@@ -584,8 +586,8 @@ def train(args: argparse.Namespace) -> None:
         fs_ops.checkpoint_model(
             encoder_name,
             epoch,
-            model_to_save["encoder"].inner,
-            signature,
+            model_to_save["encoder"].backbone,
+            backbone_signature,
             {},
             rgb_stats,
             optimizer=None,

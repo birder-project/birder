@@ -51,7 +51,7 @@ from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import get_signature
-from birder.net.ssl.dino_v2 import DINOHead
+from birder.net.ssl.base import get_ssl_signature
 from birder.net.ssl.dino_v2 import DINOLoss
 from birder.net.ssl.dino_v2 import DINOv2Student
 from birder.net.ssl.dino_v2 import DINOv2Teacher
@@ -247,48 +247,34 @@ def train(args: argparse.Namespace) -> None:
         size=args.size,
     )
     student_backbone.set_dynamic_size()
-    student_dino_head = DINOHead(
-        student_backbone.embedding_size,
-        args.dino_out_dim,
-        use_bn=False,
-        num_layers=3,
-        hidden_dim=2048,
-        bottleneck_dim=args.head_bottleneck_dim,
-    )
-    teacher_dino_head = DINOHead(
-        teacher_backbone.embedding_size,
-        args.dino_out_dim,
-        use_bn=False,
-        num_layers=3,
-        hidden_dim=2048,
-        bottleneck_dim=args.head_bottleneck_dim,
-    )
-    teacher_dino_head.load_state_dict(student_dino_head.state_dict())
-    if args.ibot_separate_head is True:
-        student_ibot_head = DINOHead(
-            student_backbone.embedding_size,
-            args.ibot_out_dim,
-            use_bn=False,
-            num_layers=3,
-            hidden_dim=2048,
-            bottleneck_dim=args.head_bottleneck_dim,
-        )
-        teacher_ibot_head = DINOHead(
-            teacher_backbone.embedding_size,
-            args.ibot_out_dim,
-            use_bn=False,
-            num_layers=3,
-            hidden_dim=2048,
-            bottleneck_dim=args.head_bottleneck_dim,
-        )
-        teacher_ibot_head.load_state_dict(student_ibot_head.state_dict())
-    else:
+    if args.ibot_separate_head is False:
         args.ibot_out_dim = args.dino_out_dim
-        student_ibot_head = None
-        teacher_ibot_head = None
 
-    student = DINOv2Student(student_backbone.input_channels, student_backbone, student_dino_head, student_ibot_head)
-    teacher = DINOv2Teacher(teacher_backbone.input_channels, teacher_backbone, teacher_dino_head, teacher_ibot_head)
+    student = DINOv2Student(
+        student_backbone,
+        config={
+            "dino_out_dim": args.dino_out_dim,
+            "use_bn": False,
+            "num_layers": 3,
+            "hidden_dim": 2048,
+            "head_bottleneck_dim": args.head_bottleneck_dim,
+            "ibot_separate_head": args.ibot_separate_head,
+            "ibot_out_dim": args.ibot_out_dim,
+        },
+    )
+    teacher = DINOv2Teacher(
+        teacher_backbone,
+        config={
+            "dino_out_dim": args.dino_out_dim,
+            "use_bn": False,
+            "num_layers": 3,
+            "hidden_dim": 2048,
+            "head_bottleneck_dim": args.head_bottleneck_dim,
+            "ibot_separate_head": args.ibot_separate_head,
+            "ibot_out_dim": args.ibot_out_dim,
+        },
+    )
+    teacher.load_state_dict(student.state_dict())
     teacher.eval()
 
     dino_loss = DINOLoss(args.dino_out_dim, student_temp=0.1, center_momentum=0.9)
@@ -551,7 +537,8 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Logging training run at {training_log_path}")
     summary_writer = SummaryWriter(training_log_path)
 
-    signature = get_signature(input_shape=sample_shape, num_outputs=0)
+    signature = get_ssl_signature(input_shape=sample_shape)
+    backbone_signature = get_signature(input_shape=sample_shape, num_outputs=0)
     if args.rank == 0:
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
@@ -803,7 +790,7 @@ def train(args: argparse.Namespace) -> None:
                     backbone_name,
                     epoch,
                     model_to_save["teacher"].backbone,
-                    signature,
+                    backbone_signature,
                     {},
                     rgb_stats,
                     optimizer=None,
@@ -841,7 +828,7 @@ def train(args: argparse.Namespace) -> None:
             backbone_name,
             epoch,
             model_to_save["teacher"].backbone,
-            signature,
+            backbone_signature,
             {},
             rgb_stats,
             optimizer=None,

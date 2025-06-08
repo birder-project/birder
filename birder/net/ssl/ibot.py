@@ -8,6 +8,7 @@ Paper "iBOT: Image BERT Pre-Training with Online Tokenizer", https://arxiv.org/a
 # Reference license: Apache-2.0
 
 
+from typing import Any
 from typing import Literal
 from typing import Optional
 
@@ -225,13 +226,36 @@ class iBOTHead(DINOHead):
 
 # pylint: disable=invalid-name
 class iBOT(SSLBaseNet):
-    default_size = (224, 224)
+    def __init__(
+        self,
+        backbone: PreTrainEncoder,
+        *,
+        config: Optional[dict[str, Any]] = None,
+        size: Optional[tuple[int, int]] = None,
+    ) -> None:
+        super().__init__(backbone, config=config, size=size)
+        assert self.config is not None, "must set config"
+        assert isinstance(self.backbone, MaskedTokenRetentionMixin)
 
-    def __init__(self, input_channels: int, backbone: PreTrainEncoder, head: DINOHead) -> None:
-        super().__init__(input_channels)
-        assert isinstance(backbone, MaskedTokenRetentionMixin)
-        self.backbone = backbone
-        self.head = head
+        out_dim: int = self.config["out_dim"]
+        norm_last_layer: bool = self.config["norm_last_layer"]
+        num_layers: int = self.config["num_layers"]
+        hidden_dim: int = self.config["hidden_dim"]
+        bottleneck_dim: int = self.config["bottleneck_dim"]
+        patch_out_dim: int = self.config["patch_out_dim"]
+        shared_head: bool = self.config["shared_head"]
+
+        self.head = iBOTHead(
+            self.backbone.embedding_size,
+            out_dim,
+            norm_last_layer=norm_last_layer,
+            num_layers=num_layers,
+            hidden_dim=hidden_dim,
+            bottleneck_dim=bottleneck_dim,
+            patch_out_dim=patch_out_dim,
+            shared_head=shared_head,
+        )
+
         self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width), requires_grad=True)
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ

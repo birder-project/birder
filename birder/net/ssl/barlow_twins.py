@@ -7,6 +7,9 @@ Paper "Barlow Twins: Self-Supervised Learning via Redundancy Reduction", https:/
 
 # Reference license: MIT
 
+from typing import Any
+from typing import Optional
+
 import torch
 import torch.distributed as dist
 from torch import nn
@@ -24,14 +27,20 @@ def off_diagonal(x: torch.Tensor) -> torch.Tensor:
 
 
 class BarlowTwins(SSLBaseNet):
-    default_size = (224, 224)
+    def __init__(
+        self,
+        backbone: BaseNet,
+        *,
+        config: Optional[dict[str, Any]] = None,
+        size: Optional[tuple[int, int]] = None,
+    ) -> None:
+        super().__init__(backbone, config=config, size=size)
+        assert self.config is not None, "must set config"
 
-    def __init__(self, input_channels: int, backbone: BaseNet, sizes: list[int], off_lambda: float) -> None:
-        super().__init__(input_channels)
-        self.backbone = backbone
-        self.off_lambda = off_lambda
-        sizes = [self.backbone.embedding_size] + sizes
+        projector_sizes: list[int] = self.config["projector_sizes"]
+        self.off_lambda: float = self.config["off_lambda"]
 
+        sizes = [self.backbone.embedding_size] + projector_sizes
         layers = []
         for i in range(len(sizes) - 2):
             layers.append(nn.Linear(sizes[i], sizes[i + 1], bias=False))

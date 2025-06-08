@@ -23,8 +23,12 @@ from torchvision.ops import MLP
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenRetentionResultType
 from birder.net.cait import ClassAttention
 
 
@@ -274,7 +278,7 @@ class XCABlock(nn.Module):
         return x
 
 
-class XCiT(DetectorBackbone):
+class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"block1\.stage\d+\.(\d+)"  # ClassAttentionBlock combined with the head
 
     def __init__(
@@ -356,6 +360,10 @@ class XCiT(DetectorBackbone):
         self.embedding_size = embed_dim
         self.classifier = self.create_classifier()
 
+        self.stem_stride = patch_size
+        self.stem_width = embed_dim
+        self.encoding_size = embed_dim
+
         # Weights initialization
         for m in self.modules():
             if isinstance(m, nn.Linear):
@@ -372,11 +380,11 @@ class XCiT(DetectorBackbone):
         self.classifier = nn.Identity()
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        B = x.shape[0]
+        B = x.size(0)
 
         (x, H, W) = self.patch_embed(x)
 
-        pos_encoding = self.pos_embed(B, H, W).reshape(B, -1, x.shape[1]).permute(0, 2, 1)
+        pos_encoding = self.pos_embed(B, H, W).reshape(B, -1, x.size(1)).permute(0, 2, 1)
         x = x + pos_encoding
 
         out = {}
@@ -398,12 +406,51 @@ class XCiT(DetectorBackbone):
             for param in module.parameters():
                 param.requires_grad = False
 
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
+        B = x.size(0)
+
+        (x, H, W) = self.patch_embed(x)
+        x = mask_tensor(
+            x.permute(0, 2, 1).reshape(B, -1, H, W),
+            mask,
+            patch_factor=self.max_stride // self.stem_stride,
+            mask_token=mask_token,
+        )
+        x = x.flatten(2).transpose(1, 2)
+
+        pos_encoding = self.pos_embed(B, H, W).reshape(B, -1, x.size(1)).permute(0, 2, 1)
+        x = x + pos_encoding
+        x = self.block1(x, H, W)
+
+        cls_tokens = self.cls_token.expand(B, -1, -1)
+        x = torch.concat((cls_tokens, x), dim=1)
+        x = self.block2(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            features = x[:, 1:]
+            features = features.permute(0, 2, 1)
+            (B, C, _) = features.size()
+            features = features.reshape(B, C, H, W)
+            result["features"] = features
+
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = x[:, 0]
+
+        return result
+
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        B = x.shape[0]
+        B = x.size(0)
 
         (x, H, W) = self.patch_embed(x)
 
-        pos_encoding = self.pos_embed(B, H, W).reshape(B, -1, x.shape[1]).permute(0, 2, 1)
+        pos_encoding = self.pos_embed(B, H, W).reshape(B, -1, x.size(1)).permute(0, 2, 1)
         x = x + pos_encoding
         x = self.block1(x, H, W)
 

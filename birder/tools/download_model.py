@@ -3,6 +3,7 @@ import logging
 from typing import Any
 
 from birder.common import cli
+from birder.common.lib import get_pretrained_model_url
 from birder.conf import settings
 from birder.model_registry import registry
 
@@ -48,12 +49,10 @@ def main(args: argparse.Namespace) -> None:
         logger.warning(f"Available formats for {args.model_name} are: {list(model_metadata['formats'].keys())}")
         raise SystemExit(1)
 
-    model_file = f"{args.model_name}.{args.format}"
+    (model_file, url) = get_pretrained_model_url(args.model_name, args.format)
     dst = settings.MODELS_DIR.joinpath(model_file)
     if dst.exists() is True and args.force is False:
         logger.warning(f"File {model_file} already exists... aborting")
         raise SystemExit(1)
 
-    base_url = model_metadata.get("url", settings.REGISTRY_BASE_UTL)
-    url = f"{base_url}/{model_file}"
     cli.download_file(url, dst, model_metadata["formats"][args.format]["sha256"], override=args.force)

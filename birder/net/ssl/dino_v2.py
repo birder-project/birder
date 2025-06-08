@@ -308,15 +308,44 @@ class DINOv2Student(SSLBaseNet):
     default_size = (224, 224)
 
     def __init__(
-        self, input_channels: int, backbone: PreTrainEncoder, dino_head: DINOHead, ibot_head: Optional[DINOHead]
+        self,
+        backbone: PreTrainEncoder,
+        *,
+        config: Optional[dict[str, Any]] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels)
-        assert isinstance(backbone, MaskedTokenRetentionMixin)
-        self.backbone = backbone
-        self.size = self.backbone.size
+        super().__init__(backbone, config=config, size=size)
+        assert self.config is not None, "must set config"
+        assert isinstance(self.backbone, MaskedTokenRetentionMixin)
 
-        self.dino_head = dino_head
-        self.ibot_head = ibot_head
+        dino_out_dim: int = self.config["dino_out_dim"]
+        use_bn: bool = self.config["use_bn"]
+        num_layers: int = self.config["num_layers"]
+        hidden_dim: int = self.config["hidden_dim"]
+        head_bottleneck_dim: int = self.config["head_bottleneck_dim"]
+        ibot_separate_head: bool = self.config["ibot_separate_head"]
+        ibot_out_dim: int = self.config.get("ibot_out_dim", dino_out_dim)
+
+        self.dino_head = DINOHead(
+            self.backbone.embedding_size,
+            dino_out_dim,
+            use_bn=use_bn,
+            num_layers=num_layers,
+            hidden_dim=hidden_dim,
+            bottleneck_dim=head_bottleneck_dim,
+        )
+        if ibot_separate_head is False:
+            self.ibot_head = None
+        else:
+            self.ibot_head = DINOHead(
+                self.backbone.embedding_size,
+                ibot_out_dim,
+                use_bn=use_bn,
+                num_layers=num_layers,
+                hidden_dim=hidden_dim,
+                bottleneck_dim=head_bottleneck_dim,
+            )
+
         self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width), requires_grad=True)
 
     # pylint: disable=arguments-differ
@@ -360,18 +389,44 @@ class DINOv2Student(SSLBaseNet):
 
 
 class DINOv2Teacher(SSLBaseNet):
-    default_size = (224, 224)
-
     def __init__(
-        self, input_channels: int, backbone: PreTrainEncoder, dino_head: DINOHead, ibot_head: Optional[DINOHead]
+        self,
+        backbone: PreTrainEncoder,
+        *,
+        config: Optional[dict[str, Any]] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels)
-        assert isinstance(backbone, MaskedTokenRetentionMixin)
-        self.backbone = backbone
-        self.size = self.backbone.size
+        super().__init__(backbone, config=config, size=size)
+        assert self.config is not None, "must set config"
+        assert isinstance(self.backbone, MaskedTokenRetentionMixin)
 
-        self.dino_head = dino_head
-        self.ibot_head = ibot_head
+        dino_out_dim: int = self.config["dino_out_dim"]
+        use_bn: bool = self.config["use_bn"]
+        num_layers: int = self.config["num_layers"]
+        hidden_dim: int = self.config["hidden_dim"]
+        head_bottleneck_dim: int = self.config["head_bottleneck_dim"]
+        ibot_separate_head: bool = self.config["ibot_separate_head"]
+        ibot_out_dim: int = self.config.get("ibot_out_dim", dino_out_dim)
+
+        self.dino_head = DINOHead(
+            self.backbone.embedding_size,
+            dino_out_dim,
+            use_bn=use_bn,
+            num_layers=num_layers,
+            hidden_dim=hidden_dim,
+            bottleneck_dim=head_bottleneck_dim,
+        )
+        if ibot_separate_head is False:
+            self.ibot_head = None
+        else:
+            self.ibot_head = DINOHead(
+                self.backbone.embedding_size,
+                ibot_out_dim,
+                use_bn=use_bn,
+                num_layers=num_layers,
+                hidden_dim=hidden_dim,
+                bottleneck_dim=head_bottleneck_dim,
+            )
 
         # Unused, Makes for an easier EMA update
         self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width), requires_grad=True)

@@ -6,6 +6,7 @@ from typing import Optional
 import numpy as np
 import torch
 
+from birder.conf import settings
 from birder.model_registry import registry
 from birder.net.base import BaseNet
 from birder.net.base import SignatureType
@@ -13,6 +14,7 @@ from birder.net.base import reparameterize_available
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import DetectionSignatureType
 from birder.net.mim.base import MIMBaseNet
+from birder.net.ssl.base import SSLBaseNet
 from birder.transforms.classification import RGBType
 from birder.version import __version__
 
@@ -99,7 +101,9 @@ def detection_class_to_idx(class_to_idx: dict[str, int]) -> dict[str, int]:
 
 
 def get_network_config(
-    net: BaseNet | DetectionBaseNet | MIMBaseNet, signature: SignatureType | DetectionSignatureType, rgb_stats: RGBType
+    net: BaseNet | DetectionBaseNet | MIMBaseNet | SSLBaseNet,
+    signature: SignatureType | DetectionSignatureType,
+    rgb_stats: RGBType,
 ) -> dict[str, Any]:
     model_name = registry.get_model_base_name(net)
     alias = registry.get_model_alias(net)
@@ -126,11 +130,20 @@ def get_network_config(
         encoder_config["encoder"] = registry.get_model_base_name(net.encoder)
         encoder_config["encoder_alias"] = registry.get_model_alias(net.encoder)
         if net.encoder.net_param is not None:
-            backbone_config["encoder_net_param"] = net.encoder.net_param
+            encoder_config["encoder_net_param"] = net.encoder.net_param
         if net.encoder.config is not None:
-            backbone_config["encoder_config"] = net.encoder.config
+            encoder_config["encoder_config"] = net.encoder.config
         if reparameterize_available(net.encoder) is True:
-            backbone_config["encoder_reparameterized"] = net.encoder.reparameterized
+            encoder_config["encoder_reparameterized"] = net.encoder.reparameterized
+
+    base_net_config: dict[str, Any] = {}
+    if isinstance(net, SSLBaseNet):
+        base_net_config["base_net"] = registry.get_model_base_name(net.backbone)
+        base_net_config["base_net_alias"] = registry.get_model_alias(net.backbone)
+        if net.backbone.config is not None:
+            base_net_config["base_net_config"] = net.backbone.config
+        if reparameterize_available(net.backbone) is True:
+            base_net_config["base_net_reparameterized"] = net.backbone.reparameterized
 
     net_config = {
         "birder_version": __version__,
@@ -141,6 +154,7 @@ def get_network_config(
         "model_config": model_config,
         **backbone_config,
         **encoder_config,
+        **base_net_config,
         "signature": signature,
         "rgb_stats": rgb_stats,
     }
@@ -149,3 +163,12 @@ def get_network_config(
         net_config["reparameterized"] = net.reparameterized
 
     return net_config
+
+
+def get_pretrained_model_url(weights: str, file_format: str) -> tuple[str, str]:
+    model_metadata = registry.get_pretrained_metadata(weights)
+    model_file = f"{weights}.{file_format}"
+    base_url = model_metadata.get("url", settings.REGISTRY_BASE_UTL)
+    url = f"{base_url}/{model_file}"
+
+    return (model_file, url)

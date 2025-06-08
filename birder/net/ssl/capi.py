@@ -206,15 +206,20 @@ class Decoder(nn.Module):
 
 
 class CAPIStudent(SSLBaseNet):
-    default_size = (224, 224)
-
     def __init__(
-        self, input_channels: int, backbone: PreTrainEncoder, decoder_layers: int, decoder_dim: int, num_clusters: int
+        self,
+        backbone: PreTrainEncoder,
+        *,
+        config: Optional[dict[str, Any]] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels)
-        assert isinstance(backbone, MaskedTokenOmissionMixin)
-        self.backbone = backbone
-        self.size = self.backbone.size
+        super().__init__(backbone, config=config, size=size)
+        assert self.config is not None, "must set config"
+        assert isinstance(self.backbone, MaskedTokenOmissionMixin)
+
+        decoder_layers: int = self.config["decoder_layers"]
+        decoder_dim: int = self.config["decoder_dim"]
+        num_clusters: int = self.config["num_clusters"]
 
         input_size = (self.size[0] // self.backbone.max_stride, self.size[1] // self.backbone.max_stride)
         self.seq_len = input_size[0] * input_size[1]
@@ -235,13 +240,31 @@ class CAPIStudent(SSLBaseNet):
 
 
 class CAPITeacher(SSLBaseNet):
-    default_size = (224, 224)
+    def __init__(
+        self,
+        backbone: PreTrainEncoder,
+        *,
+        config: Optional[dict[str, Any]] = None,
+        size: Optional[tuple[int, int]] = None,
+    ) -> None:
+        super().__init__(backbone, config=config, size=size)
+        assert self.config is not None, "must set config"
+        assert isinstance(self.backbone, MaskedTokenOmissionMixin)
 
-    def __init__(self, input_channels: int, backbone: PreTrainEncoder, head: OnlineClustering) -> None:
-        super().__init__(input_channels)
-        assert isinstance(backbone, MaskedTokenOmissionMixin)
-        self.backbone = backbone
-        self.head = head
+        num_clusters: int = self.config["num_clusters"]
+        bias: bool = self.config["bias"]
+        n_sk_iter: int = self.config["n_sk_iter"]
+        target_temp: float = self.config["target_temp"]
+        pred_temp: float = self.config["pred_temp"]
+
+        self.head = OnlineClustering(
+            self.backbone.embedding_size,
+            num_clusters,
+            bias=bias,
+            n_sk_iter=n_sk_iter,
+            target_temp=target_temp,
+            pred_temp=pred_temp,
+        )
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ
         self, x: torch.Tensor, ids_keep: Optional[torch.Tensor], ids_predict: torch.Tensor

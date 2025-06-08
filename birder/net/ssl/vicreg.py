@@ -8,6 +8,9 @@ https://arxiv.org/abs/2105.04906
 
 # Reference license: MIT
 
+from typing import Any
+from typing import Optional
+
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
@@ -46,21 +49,23 @@ class FullGatherLayer(torch.autograd.Function):
 
 
 class VICReg(SSLBaseNet):
-    default_size = (224, 224)
-
     def __init__(
         self,
-        input_channels: int,
         backbone: BaseNet,
-        mlp_dim: int,
-        batch_size: int,
-        sim_coeff: float,
-        std_coeff: float,
-        cov_coeff: float,
-        sync_batches: bool = False,
+        *,
+        config: Optional[dict[str, Any]] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels)
-        self.backbone = backbone
+        super().__init__(backbone, config=config, size=size)
+        assert self.config is not None, "must set config"
+
+        mlp_dim: int = self.config["mlp_dim"]
+        batch_size: int = self.config["batch_size"]
+        sim_coeff: float = self.config["sim_coeff"]
+        std_coeff: float = self.config["std_coeff"]
+        cov_coeff: float = self.config["cov_coeff"]
+        sync_batches: bool = self.config.get("sync_batches", False)
+
         self.num_features = mlp_dim
         self.world_batch_size = batch_size * training_utils.get_world_size()
         self.sim_coeff = sim_coeff

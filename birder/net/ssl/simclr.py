@@ -5,6 +5,9 @@ Paper "A Simple Framework for Contrastive Learning of Visual Representations",
 https://arxiv.org/abs/2002.05709
 """
 
+from typing import Any
+from typing import Optional
+
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
@@ -37,20 +40,21 @@ class FullGatherLayer(torch.autograd.Function):
 
 
 class SimCLR(SSLBaseNet):
-    default_size = (224, 224)
-
     def __init__(
         self,
-        input_channels: int,
         backbone: BaseNet,
-        projection_dim: int,
-        projection_hidden_dim: int,
-        temperature: float,
+        *,
+        config: Optional[dict[str, Any]] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels)
-        self.backbone = backbone
-        self.temperature = temperature
+        super().__init__(backbone, config=config, size=size)
+        assert self.config is not None, "must set config"
 
+        projection_dim: int = self.config["projection_dim"]
+        projection_hidden_dim: int = self.config["projection_hidden_dim"]
+        temperature: float = self.config["temperature"]
+
+        self.temperature = temperature
         self.projection_head = nn.Sequential(
             nn.Linear(self.backbone.embedding_size, projection_hidden_dim),
             nn.ReLU(),

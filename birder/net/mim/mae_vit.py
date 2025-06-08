@@ -39,6 +39,7 @@ class MAE_ViT(MIMBaseNet):
         assert self.net_param is None, "net-param not supported"
         assert self.config is None, "config not supported"
         assert isinstance(self.encoder, MaskedTokenOmissionMixin)
+        assert hasattr(self.encoder, "decoder_block")
 
         self.mask_ratio = 0.75
         self.patch_size = self.encoder.stem_stride

@@ -8,6 +8,10 @@ https://arxiv.org/abs/2303.03307
 
 # Reference license: MIT
 
+import copy
+from typing import Any
+from typing import Optional
+
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
@@ -97,12 +101,28 @@ class MMCREncoder(nn.Module):
 
 
 class MMCR(SSLBaseNet):
-    default_size = (224, 224)
+    def __init__(
+        self,
+        backbone: BaseNet,
+        *,
+        config: Optional[dict[str, Any]] = None,
+        size: Optional[tuple[int, int]] = None,
+    ) -> None:
+        super().__init__(backbone, config=config, size=size)
+        assert self.config is not None, "must set config"
 
-    def __init__(self, input_channels: int, encoder: MMCREncoder, momentum_encoder: MMCREncoder) -> None:
-        super().__init__(input_channels)
+        projector_dims: list[int] = self.config["projector_dims"]
+
+        momentum_backbone = copy.deepcopy(self.backbone)
+
+        encoder = MMCREncoder(self.backbone, projector_dims=projector_dims)
+        momentum_encoder = MMCREncoder(momentum_backbone, projector_dims=projector_dims)
+
         self.encoder = encoder
         self.momentum_encoder = momentum_encoder
+
+        # Weights initialization
+        self.momentum_encoder.load_state_dict(self.encoder.state_dict())
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         (C, H, W) = x.shape[-3:]  # B, num_views, C, H, W

@@ -49,8 +49,8 @@ from birder.datasets.webdataset import wds_args_from_info
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import get_signature
+from birder.net.ssl.base import get_ssl_signature
 from birder.net.ssl.dino_v1 import DINO_v1
-from birder.net.ssl.dino_v1 import DINOHead
 from birder.net.ssl.dino_v1 import DINOLoss
 from birder.transforms.classification import RGBMode
 from birder.transforms.classification import RGBType
@@ -239,26 +239,28 @@ def train(args: argparse.Namespace) -> None:
     )
     student_backbone.set_dynamic_size()
     teacher_backbone.set_dynamic_size()
-    student_dino_head = DINOHead(
-        student_backbone.embedding_size,
-        args.out_dim,
-        use_bn=args.use_bn_in_head,
-        norm_last_layer=args.norm_last_layer,
-        num_layers=3,
-        hidden_dim=2048,
-        bottleneck_dim=256,
+    student = DINO_v1(
+        student_backbone,
+        config={
+            "out_dim": args.out_dim,
+            "use_bn": args.use_bn_in_head,
+            "norm_last_layer": args.norm_last_layer,
+            "num_layers": 3,
+            "hidden_dim": 2048,
+            "bottleneck_dim": 256,
+        },
     )
-    teacher_dino_head = DINOHead(
-        teacher_backbone.embedding_size,
-        args.out_dim,
-        use_bn=args.use_bn_in_head,
-        norm_last_layer=True,
-        num_layers=3,
-        hidden_dim=2048,
-        bottleneck_dim=256,
+    teacher = DINO_v1(
+        teacher_backbone,
+        config={
+            "out_dim": args.out_dim,
+            "use_bn": args.use_bn_in_head,
+            "norm_last_layer": True,
+            "num_layers": 3,
+            "hidden_dim": 2048,
+            "bottleneck_dim": 256,
+        },
     )
-    student = DINO_v1(student_backbone.input_channels, student_backbone, student_dino_head)
-    teacher = DINO_v1(teacher_backbone.input_channels, teacher_backbone, teacher_dino_head)
     teacher.load_state_dict(student.state_dict())
 
     dino_loss = DINOLoss(
@@ -423,7 +425,8 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Logging training run at {training_log_path}")
     summary_writer = SummaryWriter(training_log_path)
 
-    signature = get_signature(input_shape=sample_shape, num_outputs=0)
+    signature = get_ssl_signature(input_shape=sample_shape)
+    backbone_signature = get_signature(input_shape=sample_shape, num_outputs=0)
     if args.rank == 0:
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
@@ -565,7 +568,7 @@ def train(args: argparse.Namespace) -> None:
                     backbone_name,
                     epoch,
                     model_to_save["teacher"].backbone,
-                    signature,
+                    backbone_signature,
                     {},
                     rgb_stats,
                     optimizer=None,
@@ -603,7 +606,7 @@ def train(args: argparse.Namespace) -> None:
             backbone_name,
             epoch,
             model_to_save["teacher"].backbone,
-            signature,
+            backbone_signature,
             {},
             rgb_stats,
             optimizer=None,

@@ -52,8 +52,8 @@ from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import get_signature
+from birder.net.ssl.base import get_ssl_signature
 from birder.net.ssl.ibot import iBOT
-from birder.net.ssl.ibot import iBOTHead
 from birder.net.ssl.ibot import iBOTLoss
 from birder.transforms.classification import RGBMode
 from birder.transforms.classification import RGBType
@@ -174,28 +174,30 @@ def train(args: argparse.Namespace) -> None:
         size=args.size,
     )
     student_backbone.set_dynamic_size()
-    student_ibot_head = iBOTHead(
-        student_backbone.embedding_size,
-        args.out_dim,
-        norm_last_layer=args.norm_last_layer,
-        num_layers=3,
-        hidden_dim=2048,
-        bottleneck_dim=256,
-        patch_out_dim=args.patch_out_dim,
-        shared_head=args.shared_head,
+    student = iBOT(
+        student_backbone,
+        config={
+            "out_dim": args.out_dim,
+            "norm_last_layer": args.norm_last_layer,
+            "num_layers": 3,
+            "hidden_dim": 2048,
+            "bottleneck_dim": 256,
+            "patch_out_dim": args.patch_out_dim,
+            "shared_head": args.shared_head,
+        },
     )
-    teacher_ibot_head = iBOTHead(
-        teacher_backbone.embedding_size,
-        args.out_dim,
-        norm_last_layer=True,
-        num_layers=3,
-        hidden_dim=2048,
-        bottleneck_dim=256,
-        patch_out_dim=args.patch_out_dim,
-        shared_head=args.shared_head,
+    teacher = iBOT(
+        teacher_backbone,
+        config={
+            "out_dim": args.out_dim,
+            "norm_last_layer": True,
+            "num_layers": 3,
+            "hidden_dim": 2048,
+            "bottleneck_dim": 256,
+            "patch_out_dim": args.patch_out_dim,
+            "shared_head": args.shared_head,
+        },
     )
-    student = iBOT(student_backbone.input_channels, student_backbone, student_ibot_head)
-    teacher = iBOT(teacher_backbone.input_channels, teacher_backbone, teacher_ibot_head)
     teacher.load_state_dict(student.state_dict())
     teacher.eval()
 
@@ -457,7 +459,8 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Logging training run at {training_log_path}")
     summary_writer = SummaryWriter(training_log_path)
 
-    signature = get_signature(input_shape=sample_shape, num_outputs=0)
+    signature = get_ssl_signature(input_shape=sample_shape)
+    backbone_signature = get_signature(input_shape=sample_shape, num_outputs=0)
     if args.rank == 0:
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
@@ -632,7 +635,7 @@ def train(args: argparse.Namespace) -> None:
                     backbone_name,
                     epoch,
                     model_to_save["teacher"].backbone,
-                    signature,
+                    backbone_signature,
                     {},
                     rgb_stats,
                     optimizer=None,
@@ -670,7 +673,7 @@ def train(args: argparse.Namespace) -> None:
             backbone_name,
             epoch,
             model_to_save["teacher"].backbone,
-            signature,
+            backbone_signature,
             {},
             rgb_stats,
             optimizer=None,

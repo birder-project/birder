@@ -5,7 +5,7 @@ import warnings
 
 import requests
 
-from birder.conf import settings
+from birder.common.lib import get_pretrained_model_url
 from birder.model_registry import registry
 from birder.model_registry.model_registry import ModelRegistry
 from birder.model_registry.model_registry import Task
@@ -55,12 +55,8 @@ class TestRegistry(unittest.TestCase):
     def test_manifest(self) -> None:
         for model_name, model_metadata in registry._pretrained_nets.items():
             for model_format in model_metadata["formats"]:
-                if "url" in model_metadata:
-                    base_url = model_metadata["url"]
-                else:
-                    base_url = settings.REGISTRY_BASE_UTL
+                (_, url) = get_pretrained_model_url(model_name, model_format)
 
-                url = f"{base_url}/{model_name}.{model_format}"
                 try:
                     resp = requests.head(url, timeout=5, allow_redirects=True)
                 except requests.RequestException:

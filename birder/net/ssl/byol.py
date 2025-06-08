@@ -8,6 +8,10 @@ https://arxiv.org/abs/2006.07733
 
 # Reference license: MIT
 
+import copy
+from typing import Any
+from typing import Optional
+
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -51,23 +55,30 @@ class BYOLEncoder(nn.Module):
 
 
 class BYOL(SSLBaseNet):
-    default_size = (224, 224)
-
     def __init__(
         self,
-        input_channels: int,
-        backbone: BYOLEncoder,
-        target_encoder: BYOLEncoder,
-        projection_size: int,
-        projection_hidden_size: int,
+        backbone: BaseNet,
+        *,
+        config: Optional[dict[str, Any]] = None,
+        size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels)
-        self.backbone = backbone
-        self.target_encoder = target_encoder
+        super().__init__(backbone, config=config, size=size)
+        assert self.config is not None, "must set config"
+
+        projection_size: int = self.config["projection_size"]
+        projection_hidden_size: int = self.config["projection_hidden_size"]
+
+        target_encoder_backbone = copy.deepcopy(self.backbone)
+
+        self.online_encoder = BYOLEncoder(self.backbone, projection_size, projection_hidden_size)
+        self.target_encoder = BYOLEncoder(target_encoder_backbone, projection_size, projection_hidden_size)
         self.online_predictor = MLP(projection_size, projection_hidden_size, projection_size)
 
+        # Weights initialization
+        self.target_encoder.load_state_dict(self.online_encoder.state_dict())
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        projection = self.backbone(x)
+        projection = self.online_encoder(x)
         online_predictions = self.online_predictor(projection)
         (online_pred_one, online_pred_two) = online_predictions.chunk(2, dim=0)
 

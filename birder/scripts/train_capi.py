@@ -52,9 +52,9 @@ from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import get_signature
+from birder.net.ssl.base import get_ssl_signature
 from birder.net.ssl.capi import CAPIStudent
 from birder.net.ssl.capi import CAPITeacher
-from birder.net.ssl.capi import OnlineClustering
 from birder.transforms.classification import RGBMode
 from birder.transforms.classification import get_rgb_stats
 
@@ -139,21 +139,26 @@ def train(args: argparse.Namespace) -> None:
         size=args.size,
     )
 
-    teacher_head = OnlineClustering(
-        student_backbone.embedding_size,
-        args.num_clusters,
-        bias=True,
-        n_sk_iter=3,
-        target_temp=0.06,
-        pred_temp=0.12,
-    )
-
     teacher_backbone.load_state_dict(student_backbone.state_dict())
 
     student = CAPIStudent(
-        student_backbone.input_channels, student_backbone, args.decoder_layers, args.decoder_dim, args.num_clusters
+        student_backbone,
+        config={
+            "decoder_layers": args.decoder_layers,
+            "decoder_dim": args.decoder_dim,
+            "num_clusters": args.num_clusters,
+        },
     )
-    teacher = CAPITeacher(teacher_backbone.input_channels, teacher_backbone, teacher_head)
+    teacher = CAPITeacher(
+        teacher_backbone,
+        config={
+            "num_clusters": args.num_clusters,
+            "bias": True,
+            "n_sk_iter": 3,
+            "target_temp": 0.06,
+            "pred_temp": 0.12,
+        },
+    )
 
     net = torch.nn.ModuleDict(
         {
@@ -161,7 +166,7 @@ def train(args: argparse.Namespace) -> None:
             "teacher": teacher,
         }
     )
-    net.task = student_backbone.task
+    net.task = student.task
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
@@ -365,9 +370,9 @@ def train(args: argparse.Namespace) -> None:
     #
 
     # Print network summary
-    net_for_info = teacher_without_ddp
-    if args.compile is True and hasattr(teacher_without_ddp, "_orig_mod") is True:
-        net_for_info = teacher_without_ddp._orig_mod  # pylint: disable=protected-access
+    net_for_info = student_without_ddp
+    if args.compile is True and hasattr(student_without_ddp, "_orig_mod") is True:
+        net_for_info = student_without_ddp._orig_mod  # pylint: disable=protected-access
 
     if args.no_summary is False:
         all_ids = torch.arange(seq_len, device=device).unsqueeze(0)
@@ -391,7 +396,8 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Logging training run at {training_log_path}")
     summary_writer = SummaryWriter(training_log_path)
 
-    signature = get_signature(input_shape=sample_shape, num_outputs=0)
+    signature = get_ssl_signature(input_shape=sample_shape)
+    backbone_signature = get_signature(input_shape=sample_shape, num_outputs=0)
     if args.rank == 0:
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
@@ -581,7 +587,7 @@ def train(args: argparse.Namespace) -> None:
                     backbone_name,
                     epoch,
                     model_to_save["teacher"].backbone,
-                    signature,
+                    backbone_signature,
                     {},
                     rgb_stats,
                     optimizer=None,
@@ -627,7 +633,7 @@ def train(args: argparse.Namespace) -> None:
             backbone_name,
             epoch,
             model_to_save["teacher"].backbone,
-            signature,
+            backbone_signature,
             {},
             rgb_stats,
             optimizer=None,

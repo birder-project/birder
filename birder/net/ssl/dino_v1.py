@@ -7,6 +7,9 @@ Paper "Emerging Properties in Self-Supervised Vision Transformers", https://arxi
 
 # Reference license: Apache-2.0
 
+from typing import Any
+from typing import Optional
+
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
@@ -139,12 +142,32 @@ class DINOHead(nn.Module):
 
 # pylint: disable=invalid-name
 class DINO_v1(SSLBaseNet):
-    default_size = (224, 224)
+    def __init__(
+        self,
+        backbone: BaseNet,
+        *,
+        config: Optional[dict[str, Any]] = None,
+        size: Optional[tuple[int, int]] = None,
+    ) -> None:
+        super().__init__(backbone, config=config, size=size)
+        assert self.config is not None, "must set config"
 
-    def __init__(self, input_channels: int, backbone: BaseNet, head: DINOHead) -> None:
-        super().__init__(input_channels)
-        self.backbone = backbone
-        self.head = head
+        out_dim: int = self.config["out_dim"]
+        use_bn: bool = self.config["use_bn"]
+        norm_last_layer: bool = self.config["norm_last_layer"]
+        num_layers: int = self.config["num_layers"]
+        hidden_dim: int = self.config["hidden_dim"]
+        bottleneck_dim: int = self.config["bottleneck_dim"]
+
+        self.head = DINOHead(
+            self.backbone.embedding_size,
+            out_dim,
+            use_bn=use_bn,
+            norm_last_layer=norm_last_layer,
+            num_layers=num_layers,
+            hidden_dim=hidden_dim,
+            bottleneck_dim=bottleneck_dim,
+        )
 
     def forward(self, xs: list[torch.Tensor]) -> torch.Tensor:  # pylint: disable=arguments-renamed
         idx_crops = torch.cumsum(

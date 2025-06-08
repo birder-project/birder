@@ -24,7 +24,7 @@ class TestNetSSL(unittest.TestCase):
     def test_barlow_twins(self) -> None:
         batch_size = 4
         backbone = registry.net_factory("resnet_v1_50", 3, 0)
-        net = barlow_twins.BarlowTwins(backbone.input_channels, backbone, sizes=[512, 512, 512], off_lambda=0.005)
+        net = barlow_twins.BarlowTwins(backbone, config={"projector_sizes": [512, 512, 512], "off_lambda": 0.005})
 
         # Test network
         out = net(torch.rand((batch_size, 3, 128, 128)), torch.rand((batch_size, 3, 128, 128)))
@@ -34,8 +34,7 @@ class TestNetSSL(unittest.TestCase):
     def test_byol(self) -> None:
         batch_size = 2
         backbone = registry.net_factory("resnet_v1_18", 3, 0)
-        encoder = byol.BYOLEncoder(backbone, 64, 128)
-        net = byol.BYOL(backbone.input_channels, encoder, encoder, 64, 128)
+        net = byol.BYOL(backbone, config={"projection_size": 64, "projection_hidden_size": 128})
 
         # Test network
         out = net(torch.rand((batch_size, 3, 96, 96)))
@@ -52,11 +51,13 @@ class TestNetSSL(unittest.TestCase):
         n_masked = int(seq_len * 0.65)
         prediction_subsampling = 0.05
 
-        teacher_head = capi.OnlineClustering(
-            backbone.embedding_size, num_clusters, bias=True, n_sk_iter=3, target_temp=0.06, pred_temp=0.12
+        teacher = capi.CAPITeacher(
+            backbone,
+            config={"num_clusters": num_clusters, "bias": True, "n_sk_iter": 3, "target_temp": 0.06, "pred_temp": 0.12},
         )
-        teacher = capi.CAPITeacher(backbone.input_channels, backbone, teacher_head)
-        student = capi.CAPIStudent(backbone.input_channels, backbone, 4, 256, num_clusters)
+        student = capi.CAPIStudent(
+            backbone, config={"decoder_layers": 4, "decoder_dim": 256, "num_clusters": num_clusters}
+        )
         mask_generator = masking.InverseRollBlockMasking(input_size, n_masked)
 
         masks = mask_generator(batch_size)
@@ -95,11 +96,13 @@ class TestNetSSL(unittest.TestCase):
         n_masked = int(seq_len * 0.65)
         prediction_subsampling = 0.05
 
-        teacher_head = capi.OnlineClustering(
-            backbone.embedding_size, num_clusters, bias=True, n_sk_iter=3, target_temp=0.06, pred_temp=0.12
+        teacher = capi.CAPITeacher(
+            backbone,
+            config={"num_clusters": num_clusters, "bias": True, "n_sk_iter": 3, "target_temp": 0.06, "pred_temp": 0.12},
         )
-        teacher = capi.CAPITeacher(backbone.input_channels, backbone, teacher_head)
-        student = capi.CAPIStudent(backbone.input_channels, backbone, 4, 256, num_clusters)
+        student = capi.CAPIStudent(
+            backbone, config={"decoder_layers": 4, "decoder_dim": 256, "num_clusters": num_clusters}
+        )
         mask_generator = masking.InverseRollBlockMasking(input_size, n_masked)
 
         masks = mask_generator(batch_size)
@@ -124,16 +127,17 @@ class TestNetSSL(unittest.TestCase):
     def test_dino_v1(self) -> None:
         batch_size = 4
         backbone = registry.net_factory("resnet_v2_18", 3, 0)
-        dino_head = dino_v1.DINOHead(
-            backbone.embedding_size,
-            128,
-            use_bn=True,
-            norm_last_layer=True,
-            num_layers=3,
-            hidden_dim=512,
-            bottleneck_dim=256,
+        net = dino_v1.DINO_v1(
+            backbone,
+            config={
+                "out_dim": 128,
+                "use_bn": True,
+                "norm_last_layer": True,
+                "num_layers": 3,
+                "hidden_dim": 512,
+                "bottleneck_dim": 256,
+            },
         )
-        net = dino_v1.DINO_v1(backbone.input_channels, backbone, dino_head)
 
         # Test network
         out = net(
@@ -171,16 +175,28 @@ class TestNetSSL(unittest.TestCase):
         backbone.set_dynamic_size()
 
         # Without iBOT head
-        dino_head = dino_v2.DINOHead(
-            backbone.embedding_size,
-            4096,
-            use_bn=False,
-            num_layers=3,
-            hidden_dim=2048,
-            bottleneck_dim=256,
+        teacher = dino_v2.DINOv2Teacher(
+            backbone,
+            config={
+                "dino_out_dim": 4096,
+                "use_bn": False,
+                "num_layers": 3,
+                "hidden_dim": 2048,
+                "head_bottleneck_dim": 256,
+                "ibot_separate_head": False,
+            },
         )
-        teacher = dino_v2.DINOv2Teacher(backbone.input_channels, backbone, dino_head, None)
-        student = dino_v2.DINOv2Student(backbone.input_channels, backbone, dino_head, None)
+        student = dino_v2.DINOv2Student(
+            backbone,
+            config={
+                "dino_out_dim": 4096,
+                "use_bn": False,
+                "num_layers": 3,
+                "hidden_dim": 2048,
+                "head_bottleneck_dim": 256,
+                "ibot_separate_head": False,
+            },
+        )
 
         x = torch.rand(batch_size * 2, 3, *size)
         local_x = torch.rand(batch_size * 4, 3, size[0] // 2, size[1] // 2)
@@ -218,16 +234,30 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(student_global_masked_patch_tokens_after_head.size(), (len(mask_indices_list), 4096))
 
         # With iBOT head
-        ibot_head = dino_v2.DINOHead(
-            backbone.embedding_size,
-            4096,
-            use_bn=False,
-            num_layers=3,
-            hidden_dim=2048,
-            bottleneck_dim=256,
+        teacher = dino_v2.DINOv2Teacher(
+            backbone,
+            config={
+                "dino_out_dim": 4096,
+                "use_bn": False,
+                "num_layers": 3,
+                "hidden_dim": 2048,
+                "head_bottleneck_dim": 256,
+                "ibot_separate_head": True,
+                "ibot_out_dim": 4096,
+            },
         )
-        teacher = dino_v2.DINOv2Teacher(backbone.input_channels, backbone, dino_head, ibot_head)
-        student = dino_v2.DINOv2Student(backbone.input_channels, backbone, dino_head, ibot_head)
+        student = dino_v2.DINOv2Student(
+            backbone,
+            config={
+                "dino_out_dim": 4096,
+                "use_bn": False,
+                "num_layers": 3,
+                "hidden_dim": 2048,
+                "head_bottleneck_dim": 256,
+                "ibot_separate_head": True,
+                "ibot_out_dim": 4096,
+            },
+        )
 
         x = torch.rand(batch_size * 2, 3, *size)
         local_x = torch.rand(batch_size * 4, 3, size[0] // 2, size[1] // 2)
@@ -390,17 +420,18 @@ class TestNetSSL(unittest.TestCase):
         batch_size = 4
         backbone = registry.net_factory("vit_b32", 3, 0)
         backbone.set_dynamic_size()
-        ibot_head = ibot.iBOTHead(
-            backbone.embedding_size,
-            128,
-            norm_last_layer=True,
-            num_layers=3,
-            hidden_dim=512,
-            bottleneck_dim=256,
-            patch_out_dim=192,
-            shared_head=False,
+        net = ibot.iBOT(
+            backbone,
+            config={
+                "out_dim": 128,
+                "norm_last_layer": True,
+                "num_layers": 3,
+                "hidden_dim": 512,
+                "bottleneck_dim": 256,
+                "patch_out_dim": 192,
+                "shared_head": False,
+            },
         )
-        net = ibot.iBOT(backbone.input_channels, backbone, ibot_head)
 
         # Test network
         images = [
@@ -471,9 +502,7 @@ class TestNetSSL(unittest.TestCase):
     def test_mmcr(self) -> None:
         batch_size = 4
         backbone = registry.net_factory("resnet_v1_50", 3, 0)
-        encoder = mmcr.MMCREncoder(backbone, projector_dims=[512, 512, 512])
-        m_encoder = mmcr.MMCREncoder(backbone, projector_dims=[512, 512, 512])
-        net = mmcr.MMCR(backbone.input_channels, encoder, m_encoder)
+        net = mmcr.MMCR(backbone, config={"projector_dims": [512, 512, 512]})
         mmcr_loss = mmcr.MMCRMomentumLoss(0.0, 2)
 
         # Test network
@@ -492,11 +521,12 @@ class TestNetSSL(unittest.TestCase):
         batch_size = 4
         backbone = registry.net_factory("resnet_v2_18", 3, 0)
         net = simclr.SimCLR(
-            backbone.input_channels,
             backbone,
-            projection_dim=backbone.embedding_size,
-            projection_hidden_dim=128,
-            temperature=0.1,
+            config={
+                "projection_dim": 96,
+                "projection_hidden_dim": 128,
+                "temperature": 0.1,
+            },
         )
 
         # Test network
@@ -508,13 +538,14 @@ class TestNetSSL(unittest.TestCase):
         batch_size = 4
         backbone = registry.net_factory("resnet_v1_18", 3, 0)
         net = vicreg.VICReg(
-            backbone.input_channels,
             backbone,
-            mlp_dim=128,
-            batch_size=batch_size,
-            sim_coeff=0.1,
-            std_coeff=0.1,
-            cov_coeff=0.1,
+            config={
+                "mlp_dim": 128,
+                "batch_size": batch_size,
+                "sim_coeff": 0.1,
+                "std_coeff": 0.1,
+                "cov_coeff": 0.1,
+            },
         )
 
         # Test network

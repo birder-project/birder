@@ -46,6 +46,7 @@ from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import get_signature
 from birder.net.ssl.barlow_twins import BarlowTwins
+from birder.net.ssl.base import get_ssl_signature
 from birder.transforms.classification import RGBMode
 from birder.transforms.classification import get_rgb_stats
 
@@ -185,7 +186,7 @@ def train(args: argparse.Namespace) -> None:
         config=args.model_config,
         size=args.size,
     )
-    net = BarlowTwins(backbone.input_channels, backbone, sizes=args.projector_dims, off_lambda=args.off_lambda)
+    net = BarlowTwins(backbone, config={"projector_sizes": args.projector_dims, "off_lambda": args.off_lambda})
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
@@ -307,7 +308,8 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Logging training run at {training_log_path}")
     summary_writer = SummaryWriter(training_log_path)
 
-    signature = get_signature(input_shape=sample_shape, num_outputs=0)
+    signature = get_ssl_signature(input_shape=sample_shape)
+    backbone_signature = get_signature(input_shape=sample_shape, num_outputs=0)
     if args.rank == 0:
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
@@ -430,7 +432,7 @@ def train(args: argparse.Namespace) -> None:
                     backbone_name,
                     epoch,
                     model_to_save.backbone,
-                    signature,
+                    backbone_signature,
                     {},
                     rgb_stats,
                     optimizer=None,
@@ -468,7 +470,7 @@ def train(args: argparse.Namespace) -> None:
             backbone_name,
             epoch,
             model_to_save.backbone,
-            signature,
+            backbone_signature,
             {},
             rgb_stats,
             optimizer=None,
