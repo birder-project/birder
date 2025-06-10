@@ -3,13 +3,13 @@ from collections.abc import Callable
 from functools import partial
 from typing import Any
 from typing import Literal
+from typing import NotRequired
 from typing import Optional
 from typing import TypedDict
 
 import torch
 import torch.nn.functional as F
 from torch import nn
-from typing_extensions import NotRequired
 
 from birder.model_registry import Task
 from birder.model_registry import registry

@@ -1,6 +1,6 @@
 import fnmatch
 import warnings
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Literal
@@ -27,13 +27,11 @@ def group_sort(model_list: list[str]) -> list[str]:
     return model_list
 
 
-class Task(str, Enum):
+class Task(StrEnum):
     IMAGE_CLASSIFICATION = "image_classification"
     OBJECT_DETECTION = "object_detection"
     MASKED_IMAGE_MODELING = "masked_image_modeling"
     SELF_SUPERVISED_LEARNING = "self_supervised_learning"
-
-    __str__ = str.__str__
 
 
 class ModelRegistry:

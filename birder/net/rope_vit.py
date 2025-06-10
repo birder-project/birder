@@ -1241,7 +1241,7 @@ registry.register_weights(
     "rope_vit_reg4_b14_capi-places365",
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-places365/resolve/main",
-        "description": "RoPE ViT b14 image encoder pre-trained using CAPI, then fine-tuned on the Places365 dataset",
+        "description": "RoPE ViT b14 model pre-trained using CAPI, then fine-tuned on the Places365 dataset",
         "resolution": (224, 224),
         "formats": {
             "pt": {
@@ -1256,9 +1256,7 @@ registry.register_weights(
     "rope_vit_reg4_b14_capi-inat21",
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-inat21/resolve/main",
-        "description": (
-            "RoPE ViT b14 image encoder pre-trained using CAPI, then fine-tuned on the iNaturalist 2021 dataset"
-        ),
+        "description": "RoPE ViT b14 model pre-trained using CAPI, then fine-tuned on the iNaturalist 2021 dataset",
         "resolution": (336, 336),
         "formats": {
             "pt": {
@@ -1273,9 +1271,7 @@ registry.register_weights(
     "rope_vit_reg4_b14_capi-imagenet21k",
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-imagenet21k/resolve/main",
-        "description": (
-            "RoPE ViT b14 image encoder pre-trained using CAPI, then fine-tuned on the ImageNet-21K dataset"
-        ),
+        "description": "RoPE ViT b14 model pre-trained using CAPI, then fine-tuned on the ImageNet-21K dataset",
         "resolution": (224, 224),
         "formats": {
             "pt": {

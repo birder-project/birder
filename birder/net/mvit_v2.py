@@ -773,7 +773,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 91.2,
-                "sha256": "c733af082b26fdb334aebbe81fcc13be42f0446ac4221e8718e536ec2acc41ad",
+                "sha256": "2f15635de9a9020b8e7123d3a342c072212fa720e65a5cae910efd202d427298",
             }
         },
         "net": {"network": "mvit_v2_t", "tag": "il-all"},

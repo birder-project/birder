@@ -89,7 +89,7 @@ class Results:
 
         output_df = pl.DataFrame(
             {
-                **{f"{i}": output[:, i] for i in range(output.shape[-1])},
+                **{f"{i}": output[:, i].astype(np.float32) for i in range(output.shape[-1])},
             }
         )
 
@@ -137,7 +137,7 @@ class Results:
 
     @cached_property
     def _top_k_indices(self) -> list[int]:
-        return top_k_accuracy_score(self.labels[self.valid_idx], self.output[self.valid_idx], top_k=settings.TOP_K)
+        return top_k_accuracy_score(self.labels, self.output, top_k=settings.TOP_K)
 
     @property
     def labels(self) -> npt.NDArray[np.int_]:
@@ -175,7 +175,7 @@ class Results:
     @property
     def prediction_names(self) -> pl.Series:
         prediction_names = pl.Series("prediction_names", self._label_names)
-        return prediction_names[np.argmax(self.output, axis=1)]  # type: ignore
+        return prediction_names[self.predictions]
 
     @property
     def mistakes(self) -> pl.DataFrame:
@@ -441,7 +441,7 @@ class Results:
                 self._results_df.write_csv(handle, include_header=False)
 
     @staticmethod
-    def load(path: str) -> "Results":
+    def load(path: str, lazy: bool = True) -> "Results":
         """
         Load results object from file
 
@@ -449,6 +449,9 @@ class Results:
         ----------
         path
             Path to load from.
+        lazy
+            If True, metrics and computed properties will be lazily evaluated (computed only when accessed).
+            If False, all metrics will be computed during initialization.
         """
 
         # Read label names
@@ -457,13 +460,169 @@ class Results:
             label_names = label_names[Results.num_desc_cols :]
 
         # Read the data frame
-        results_df = pl.read_csv(path, skip_rows=1)
+        schema_overrides = {
+            "sample": pl.String,
+            "label": pl.Int32,
+            "label_name": pl.String,
+            "prediction": pl.Int32,
+            **{str(i): pl.Float32 for i in range(len(label_names))},
+        }
+        results_df = pl.read_csv(path, skip_rows=1, schema_overrides=schema_overrides)
         return Results(
             results_df["sample"].to_list(),
             results_df["label"].to_list(),
             label_names,
             results_df[:, Results.num_desc_cols :].to_numpy(),
             results_df["prediction"].to_numpy(),
+            lazy=lazy,
+        )
+
+
+class SparseResults(Results):
+    """
+    Memory-efficient classification result analysis class that stores only top-k probabilities.
+    """
+
+    def __init__(  # pylint: disable=super-init-not-called
+        self,
+        sample_list: list[str],
+        labels: list[int],
+        label_names: list[str],
+        output: npt.NDArray[np.float32],
+        predictions: Optional[npt.NDArray[np.int_]] = None,
+        *,
+        lazy: bool = True,
+        sparse_k: int = 10,
+    ):
+        """
+        Initialize a sparse result object
+
+        Parameters
+        ----------
+        sample_list
+            Sample names.
+        labels
+            The ground truth labels per sample.
+        label_names
+            Label names by order.
+        output
+            Probability of each class for each sample.
+        predictions
+            Prediction of each sample.
+        lazy
+            If True, metrics and computed properties will be lazily evaluated (computed only when accessed).
+            If False, all metrics will be computed during initialization.
+        sparse_k
+            Number of top probabilities to keep per sample.
+        """
+
+        assert len(label_names) == len(output[0]), "Model output and label name list do not match"
+        assert len(sample_list) == len(output), "Each output must have a sample name"
+        assert sparse_k < output.shape[1], "sparse_k must be smaller than the number of classes"
+        assert sparse_k >= settings.TOP_K, "sparse_k must be larger than top-k being calculated"
+
+        self._sparse_k = min(sparse_k, len(label_names))
+        if predictions is None:
+            predictions = output.argmax(axis=1)
+
+        names = [label_names[label] if label != -1 else "" for label in labels]
+        self._label_names = label_names
+
+        # Extract and store only top-k probabilities and their indices
+        self._extract_sparse_probabilities(output)
+
+        self._results_df = pl.DataFrame(
+            {"sample": sample_list, "label": labels, "label_name": names, "prediction": predictions}
+        )
+        # self._results_df = pl.concat([self._results_df, output_df], how="horizontal")
+        self._results_df = self._results_df.sort("sample", descending=False)
+
+        if np.all(self.labels == -1) is np.True_:
+            self.missing_all_labels = True
+        else:
+            self.missing_all_labels = False
+
+        # Calculate metrics
+        if self.missing_all_labels is False:
+            self.valid_idx = self.labels != -1
+            self._valid_length: int = np.sum(self.valid_idx).item()
+            accuracy: int = int(
+                accuracy_score(self.labels[self.valid_idx], self.predictions[self.valid_idx], normalize=False)
+            )
+            self._num_mistakes = self._valid_length - accuracy
+            self._accuracy = accuracy / self._valid_length
+
+            if lazy is False:
+                _ = self.top_k
+                _ = self.confusion_matrix
+
+    def _extract_sparse_probabilities(self, output: npt.NDArray[np.float32]) -> None:
+        top_k_indices = np.argpartition(output, -self._sparse_k, axis=1)[:, -self._sparse_k :]
+        top_k_probs = np.take_along_axis(output, top_k_indices, axis=1)
+
+        # Sort within each row for easier access (highest prob first)
+        sort_idx = np.argsort(-top_k_probs, axis=1)
+        self._sparse_indices = np.take_along_axis(top_k_indices, sort_idx, axis=1).astype(np.int32)
+        self._sparse_probs = np.take_along_axis(top_k_probs, sort_idx, axis=1)
+
+    def save(self, name: str, append: bool = False) -> None:
+        raise NotImplementedError("Cannot save SparseResults object")
+
+    @property
+    def output(self) -> npt.NDArray[np.float64]:
+        raise NotImplementedError("Output not defined in a SparseResults object")
+
+    @property
+    def output_df(self) -> pl.DataFrame:
+        raise NotImplementedError("Output not defined in a SparseResults object")
+
+    @cached_property
+    def _top_k_indices(self) -> list[int]:
+        indices: list[int] = []
+        for i in range(len(self)):
+            if self.labels[i] in self._sparse_indices[i][: settings.TOP_K]:
+                indices.append(i)
+
+        return indices
+
+    @staticmethod
+    def load(path: str, lazy: bool = True, sparse_k: int = 10) -> "SparseResults":
+        """
+        Load results object from file
+
+        Parameters
+        ----------
+        path
+            Path to load from.
+        lazy
+            If True, metrics and computed properties will be lazily evaluated (computed only when accessed).
+            If False, all metrics will be computed during initialization.
+        sparse_k
+            Number of top probabilities to keep per sample.
+        """
+
+        # Read label names
+        with open(path, "r", encoding="utf-8") as handle:
+            label_names = handle.readline().rstrip(os.linesep).split(",")
+            label_names = label_names[Results.num_desc_cols :]
+
+        # Read the data frame
+        schema_overrides = {
+            "sample": pl.String,
+            "label": pl.Int32,
+            "label_name": pl.String,
+            "prediction": pl.Int32,
+            **{str(i): pl.Float32 for i in range(len(label_names))},
+        }
+        results_df = pl.read_csv(path, skip_rows=1, schema_overrides=schema_overrides)
+        return SparseResults(
+            results_df["sample"].to_list(),
+            results_df["label"].to_list(),
+            label_names,
+            results_df[:, Results.num_desc_cols :].to_numpy(),
+            results_df["prediction"].to_numpy(),
+            sparse_k=sparse_k,
+            lazy=lazy,
         )
 
 

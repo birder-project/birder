@@ -482,7 +482,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 107.0,
-                "sha256": "0d2f8e3e49633f83e3b4c4affa3a00fef8e617c45ae8e8cf4bd05dc72deeba60",
+                "sha256": "ba42050975d56527b61eac6faf0de77bb6aa0467fd676ef3556654cd967146a4",
             }
         },
         "net": {"network": "davit_tiny", "tag": "il-all"},

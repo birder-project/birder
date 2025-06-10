@@ -3,7 +3,7 @@ name = "birder"
 authors = [{ name = "Ofer Hasson" }]
 description = "A computer vision framework for wildlife image analysis, focusing on avian species."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 keywords = ["computer-vision", "image-classification"]
 license = "Apache-2.0"
 classifiers = [

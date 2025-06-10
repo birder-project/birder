@@ -1,7 +1,6 @@
 from typing import Literal
+from typing import NotRequired
 from typing import TypedDict
-
-from typing_extensions import NotRequired
 
 FileFormatType = Literal["pt", "safetensors", "pt2", "pts", "ptl"]
 

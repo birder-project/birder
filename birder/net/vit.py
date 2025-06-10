@@ -1214,8 +1214,76 @@ registry.register_weights(
         "net": {"network": "vit_l16", "tag": "mim"},
     },
 )
+registry.register_weights(
+    "vit_l16_mim-eu-common",
+    {
+        "url": "https://huggingface.co/birder-project/vit_l16_mim-eu-common/resolve/main",
+        "description": "ViT l16 model with MIM pretraining, then fine-tuned on the eu-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 1160.1,
+                "sha256": "3b7235b90f76fb1e0e36d4c4111777a4cc4e4500552fe840c51170b208310d16",
+            },
+        },
+        "net": {"network": "vit_l16", "tag": "mim-eu-common"},
+    },
+)
 
 # With registers
+registry.register_weights(
+    "vit_reg4_m16_rms_avg_i-jepa",
+    {
+        "url": "https://huggingface.co/birder-project/vit_reg4_m16_rms_avg_i-jepa/resolve/main",
+        "description": (
+            "ViT reg4 m16 RMS norm image encoder pre-trained using I-JEPA"
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 146.2,
+                "sha256": "bc4c9e600e93322440fb68c1001216d49c54c7587cdf61544f363f9537152f4a",
+            },
+        },
+        "net": {"network": "vit_reg4_m16_rms_avg", "tag": "i-jepa"},
+    },
+)
+registry.register_weights(
+    "vit_reg4_m16_rms_avg_i-jepa-inat21",
+    {
+        "url": "https://huggingface.co/birder-project/vit_reg4_m16_rms_avg_i-jepa-inat21/resolve/main",
+        "description": (
+            "ViT reg4 m16 RMS norm image encoder pre-trained using I-JEPA"
+            "then fine-tuned on the iNaturalist 2021 dataset"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 146.2,
+                "sha256": "bc4c9e600e93322440fb68c1001216d49c54c7587cdf61544f363f9537152f4a",
+            },
+        },
+        "net": {"network": "vit_reg4_m16_rms_avg", "tag": "i-jepa-inat21"},
+    },
+)
+registry.register_weights(
+    "vit_reg4_m16_rms_avg_i-jepa-imagenet21k",
+    {
+        "url": "https://huggingface.co/birder-project/vit_reg4_m16_rms_avg_i-jepa-imagenet21k/resolve/main",
+        "description": (
+            "ViT reg4 m16 RMS norm image encoder pre-trained using I-JEPA then fine-tuned on the ImageNet-21K dataset"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 146.2,
+                "sha256": "bc4c9e600e93322440fb68c1001216d49c54c7587cdf61544f363f9537152f4a",
+            },
+        },
+        "net": {"network": "vit_reg4_m16_rms_avg", "tag": "i-jepa-imagenet21k"},
+    },
+)
 registry.register_weights(
     "vit_reg4_b16_mim_200",
     {
@@ -1286,20 +1354,5 @@ registry.register_weights(
             },
         },
         "net": {"network": "vit_reg4_b16", "tag": "mim-intermediate-arabian-peninsula"},
-    },
-)
-registry.register_weights(
-    "vit_l16_mim-eu-common",
-    {
-        "url": "https://huggingface.co/birder-project/vit_l16_mim-eu-common/resolve/main",
-        "description": "ViT l16 model with MIM pretraining, then fine-tuned on the eu-common dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 1160.1,
-                "sha256": "3b7235b90f76fb1e0e36d4c4111777a4cc4e4500552fe840c51170b208310d16",
-            },
-        },
-        "net": {"network": "vit_l16", "tag": "mim-eu-common"},
     },
 )

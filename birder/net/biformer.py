@@ -556,7 +556,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 96.8,
-                "sha256": "c60e4be7b28832744c3e9b8d176347fd2f5b3dbcb986717e531e7b3b43010424",
+                "sha256": "ecce546d5adde5cc335a98245b9cc7fddb0ba43628b0d105d974ae6537cbacf7",
             }
         },
         "net": {"network": "biformer_s", "tag": "il-all"},
