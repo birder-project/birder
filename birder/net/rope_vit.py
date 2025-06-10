@@ -1253,6 +1253,21 @@ registry.register_weights(
     },
 )
 registry.register_weights(
+    "rope_vit_reg4_b14_capi-inat21-224px",
+    {
+        "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-inat21/resolve/main",
+        "description": "RoPE ViT b14 model pre-trained using CAPI, then fine-tuned on the iNaturalist 2021 dataset",
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 357.2,
+                "sha256": "fb98a4f29a1c6e552a4e22eaf614b0f2d2adedefe2d510fa7e69309208dc0f9f",
+            }
+        },
+        "net": {"network": "rope_vit_reg4_b14", "tag": "capi-inat21-224px"},
+    },
+)
+registry.register_weights(
     "rope_vit_reg4_b14_capi-inat21",
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-inat21/resolve/main",

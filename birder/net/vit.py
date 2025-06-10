@@ -1250,6 +1250,24 @@ registry.register_weights(
     },
 )
 registry.register_weights(
+    "vit_reg4_m16_rms_avg_i-jepa-inat21-256px",
+    {
+        "url": "https://huggingface.co/birder-project/vit_reg4_m16_rms_avg_i-jepa-inat21/resolve/main",
+        "description": (
+            "ViT reg4 m16 RMS norm image encoder pre-trained using I-JEPA"
+            "then fine-tuned on the iNaturalist 2021 dataset"
+        ),
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 166.8,
+                "sha256": "1cfa7ebea3db95363bf9e35fc24be94e419debe5db58746fe3320fbcb8bda6dd",
+            },
+        },
+        "net": {"network": "vit_reg4_m16_rms_avg", "tag": "i-jepa-inat21-256px"},
+    },
+)
+registry.register_weights(
     "vit_reg4_m16_rms_avg_i-jepa-inat21",
     {
         "url": "https://huggingface.co/birder-project/vit_reg4_m16_rms_avg_i-jepa-inat21/resolve/main",
@@ -1257,11 +1275,11 @@ registry.register_weights(
             "ViT reg4 m16 RMS norm image encoder pre-trained using I-JEPA"
             "then fine-tuned on the iNaturalist 2021 dataset"
         ),
-        "resolution": (224, 224),
+        "resolution": (384, 384),
         "formats": {
             "pt": {
-                "file_size": 146.2,
-                "sha256": "bc4c9e600e93322440fb68c1001216d49c54c7587cdf61544f363f9537152f4a",
+                "file_size": 167.4,
+                "sha256": "1cfa7ebea3db95363bf9e35fc24be94e419debe5db58746fe3320fbcb8bda6dd",
             },
         },
         "net": {"network": "vit_reg4_m16_rms_avg", "tag": "i-jepa-inat21"},
@@ -1277,8 +1295,8 @@ registry.register_weights(
         "resolution": (224, 224),
         "formats": {
             "pt": {
-                "file_size": 146.2,
-                "sha256": "bc4c9e600e93322440fb68c1001216d49c54c7587cdf61544f363f9537152f4a",
+                "file_size": 184.1,
+                "sha256": "e9e79c536133bddb8b8c249989effa51750b02955d400fa7a9091434de9902c7",
             },
         },
         "net": {"network": "vit_reg4_m16_rms_avg", "tag": "i-jepa-imagenet21k"},
