@@ -47,7 +47,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
         image_size = self.size
         attention_dropout = 0.0
         dropout = 0.0
-        pos_embed_class: bool = self.config.get("pos_embed_class", False)
+        pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", False)
         patch_size: int = self.config["patch_size"]
         num_layers: int = self.config["num_layers"]
         num_heads: int = self.config["num_heads"]
@@ -65,7 +65,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
         self.hidden_dim = hidden_dim
         self.num_reg_tokens = num_reg_tokens
         self.num_special_tokens = 1 + self.num_reg_tokens
-        self.pos_embed_class = pos_embed_class
+        self.pos_embed_special_tokens = pos_embed_special_tokens
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
         self.conv_proj = nn.Conv2d(
@@ -82,13 +82,13 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
 
         # Add a class token
         self.class_token = nn.Parameter(torch.zeros(1, 1, hidden_dim))
-        if pos_embed_class is True:
+        if pos_embed_special_tokens is True:
             seq_length += 1
 
         # Add optional register tokens
         if self.num_reg_tokens > 0:
             self.reg_tokens = nn.Parameter(torch.zeros(1, self.num_reg_tokens, hidden_dim))
-            if pos_embed_class is True:
+            if pos_embed_special_tokens is True:
                 seq_length += self.num_reg_tokens
         else:
             self.reg_tokens = None
@@ -108,7 +108,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
         )
         self.norm = nn.LayerNorm(hidden_dim, eps=1e-6)
 
-        self.return_stages = ["neck"]  # Actually meaningless, but for completeness
+        self.return_stages = ["neck"]  # Actually meaningless, just for completeness
         self.return_channels = [hidden_dim]
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
@@ -150,7 +150,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
             self.pos_embedding,
             (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
             (H // self.patch_size, W // self.patch_size),
-            self.num_special_tokens if self.pos_embed_class is True else 0,
+            self.num_special_tokens if self.pos_embed_special_tokens is True else 0,
             antialias=False,
         )
 
@@ -165,7 +165,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
             batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
             batch_special_tokens = torch.concat([batch_reg_tokens, batch_special_tokens], dim=1)
 
-        if self.pos_embed_class is True:
+        if self.pos_embed_special_tokens is True:
             x = torch.concat([batch_special_tokens, x], dim=1)
             x = x + self._get_pos_embed(H, W)
         else:
@@ -210,7 +210,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
 
         # Add pos embedding without special tokens
         pos_embedding = self._get_pos_embed(H, W)
-        if self.pos_embed_class is True:
+        if self.pos_embed_special_tokens is True:
             x = x + pos_embedding[:, self.num_special_tokens :, :]
         else:
             x = x + pos_embedding
@@ -220,7 +220,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
             x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, x.size(2)))
 
         # Append class and register tokens
-        if self.pos_embed_class is True:
+        if self.pos_embed_special_tokens is True:
             cls_token = self.class_token + pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
         else:
             cls_token = self.class_token
@@ -229,7 +229,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
         x = torch.concat((batch_class_token, x), dim=1)
 
         if self.reg_tokens is not None:
-            if self.pos_embed_class is True:
+            if self.pos_embed_special_tokens is True:
                 reg_tokens = self.reg_tokens + pos_embedding[:, 0 : self.num_reg_tokens, :]
             else:
                 reg_tokens = self.reg_tokens
@@ -278,7 +278,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
             batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
             batch_special_tokens = torch.concat([batch_reg_tokens, batch_special_tokens], dim=1)
 
-        if self.pos_embed_class is True:
+        if self.pos_embed_special_tokens is True:
             x = torch.concat([batch_special_tokens, x], dim=1)
             x = x + self._get_pos_embed(H, W)
         else:
@@ -316,7 +316,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
             batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
             batch_special_tokens = torch.concat([batch_reg_tokens, batch_special_tokens], dim=1)
 
-        if self.pos_embed_class is True:
+        if self.pos_embed_special_tokens is True:
             x = torch.concat([batch_special_tokens, x], dim=1)
             x = x + self._get_pos_embed(H, W)
         else:
@@ -340,7 +340,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
         super().adjust_size(new_size)
 
         # Sort out sizes
-        if self.pos_embed_class is True:
+        if self.pos_embed_special_tokens is True:
             num_prefix_tokens = self.num_special_tokens
         else:
             num_prefix_tokens = 0

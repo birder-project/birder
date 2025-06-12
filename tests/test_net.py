@@ -99,6 +99,7 @@ class TestNet(unittest.TestCase):
             ("fastvit_t8"),
             ("fastvit_sa12"),
             ("mobileclip_i0"),
+            ("flexivit_s16"),
             ("focalnet_t_srf"),
             ("ghostnet_v1", 1),
             ("ghostnet_v2", 1),
@@ -156,11 +157,13 @@ class TestNet(unittest.TestCase):
             ("resnext_50"),
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
+            ("rope_flexivit_s16"),
             ("rope_vit_s32"),
             ("rope_vit_reg4_b32"),
             ("rope_vit_reg4_m16_rms_avg"),
+            ("rope_vit_reg8_nps_b14_ap", None, False, 1, 14),
             ("rope_vit_so150m_p14_ap", None, False, 1, 14),
-            ("rope_vit_reg4_so150m_p14_ap", None, False, 1, 14),
+            ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", None, False, 1, 14),
             ("se_resnet_v1_18"),
             ("se_resnet_v2_18"),
             ("se_resnext_50"),
@@ -186,7 +189,7 @@ class TestNet(unittest.TestCase):
             ("vit_reg4_b32"),
             ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap", None, False, 1, 14),
-            ("vit_reg4_so150m_p14_ap", None, False, 1, 14),
+            ("vit_reg8_so150m_p14_swiglu_avg", None, False, 1, 14),
             ("vit_parallel_s16_18x2_ls"),
             ("vit_sam_b16"),
             ("wide_resnet_50"),
@@ -290,6 +293,7 @@ class TestNet(unittest.TestCase):
             ("efficientvit_msft_m0"),
             ("fasternet_t0"),
             ("fastvit_t8"),
+            ("flexivit_s16"),
             ("focalnet_t_srf"),
             ("ghostnet_v1", 1),
             ("ghostnet_v2", 1),
@@ -342,11 +346,13 @@ class TestNet(unittest.TestCase):
             ("resnext_50"),
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
+            ("rope_flexivit_s16"),
             ("rope_vit_b32"),
             ("rope_vit_reg4_b32"),
             ("rope_vit_reg4_m16_rms_avg"),
+            ("rope_vit_reg8_nps_b14_ap"),
             ("rope_vit_so150m_p14_ap"),
-            ("rope_vit_reg4_so150m_p14_ap"),
+            ("rope_vit_reg8_so150m_p14_swiglu_rms_avg"),
             ("se_resnet_v1_18"),
             ("se_resnet_v2_18"),
             ("se_resnext_50"),
@@ -368,7 +374,7 @@ class TestNet(unittest.TestCase):
             ("vit_reg4_b32"),
             ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap"),
-            ("vit_reg4_so150m_p14_ap"),
+            ("vit_reg8_so150m_p14_swiglu_avg"),
             ("vit_parallel_s16_18x2_ls"),
             ("vit_sam_b16"),
             ("wide_resnet_50"),
@@ -454,6 +460,7 @@ class TestNet(unittest.TestCase):
             ("fastvit_t8"),
             ("fastvit_sa12"),
             ("mobileclip_i0"),
+            ("flexivit_s16"),
             ("focalnet_t_srf"),
             ("hieradet_tiny"),
             ("maxvit_t"),
@@ -467,18 +474,20 @@ class TestNet(unittest.TestCase):
             ("regnet_z_500m"),
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
+            ("rope_flexivit_s16"),
             ("rope_vit_b32"),
             ("rope_vit_reg4_b32"),
             ("rope_vit_reg4_m16_rms_avg"),
+            ("rope_vit_reg8_nps_b14_ap"),
             ("rope_vit_so150m_p14_ap"),
-            ("rope_vit_reg4_so150m_p14_ap"),
+            ("rope_vit_reg8_so150m_p14_swiglu_rms_avg"),
             ("swin_transformer_v2_t"),
             ("swin_transformer_v2_w2_t"),
             ("vit_b32"),
             ("vit_reg4_b32"),
             ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap"),
-            ("vit_reg4_so150m_p14_ap"),
+            ("vit_reg8_so150m_p14_swiglu_avg"),
             ("vit_parallel_s16_18x2_ls"),
             ("xcit_nano12_p16"),
         ]
@@ -534,21 +543,24 @@ class TestNet(unittest.TestCase):
         [
             ("deit3_t16"),
             ("deit3_reg4_t16"),
+            ("flexivit_s16"),
             ("hiera_tiny"),
             ("hiera_abswin_tiny"),
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
+            ("rope_flexivit_s16"),
             ("rope_vit_b32"),
             ("rope_vit_reg4_b32"),
             ("rope_vit_reg4_m16_rms_avg"),
+            ("rope_vit_reg8_nps_b14_ap"),
             ("rope_vit_so150m_p14_ap"),
-            ("rope_vit_reg4_so150m_p14_ap"),
+            ("rope_vit_reg8_so150m_p14_swiglu_rms_avg"),
             ("simple_vit_b32"),
             ("vit_b32"),
             ("vit_reg4_b32"),
             ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap"),
-            ("vit_reg4_so150m_p14_ap"),
+            ("vit_reg8_so150m_p14_swiglu_avg"),
             ("vit_parallel_s16_18x2_ls"),
         ]
     )
@@ -629,6 +641,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("fastvit_t8"),
             ("fastvit_sa12"),
             ("mobileclip_i0"),
+            ("flexivit_s16"),
             ("focalnet_t_srf"),
             ("ghostnet_v1", 1),
             ("ghostnet_v2", 1),
@@ -685,11 +698,13 @@ class TestNonSquareNet(unittest.TestCase):
             ("resnext_50"),
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
+            ("rope_flexivit_s16"),
             ("rope_vit_b32"),
             ("rope_vit_reg4_b32"),
             ("rope_vit_reg4_m16_rms_avg"),
+            ("rope_vit_reg8_nps_b14_ap", None, 1, 14, 14),
             ("rope_vit_so150m_p14_ap", None, 1, 14, 14),
-            ("rope_vit_reg4_so150m_p14_ap", None, 1, 14, 14),
+            ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", None, 1, 14, 14),
             ("se_resnet_v1_18"),
             ("se_resnet_v2_18"),
             ("se_resnext_50"),
@@ -715,7 +730,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("vit_reg4_b32"),
             ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap", None, 1, 14, 14),
-            ("vit_reg4_so150m_p14_ap", None, 1, 14, 14),
+            ("vit_reg8_so150m_p14_swiglu_avg", None, 1, 14, 14),
             ("vit_parallel_s16_18x2_ls"),
             ("vit_sam_b16"),
             ("wide_resnet_50"),
@@ -760,13 +775,16 @@ class TestDynamicSize(unittest.TestCase):
             ("davit_tiny"),
             ("deit3_t16"),
             ("deit3_reg4_t16"),
+            ("flexivit_s16"),
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
+            ("rope_flexivit_s16"),
             ("rope_vit_b32"),
             ("rope_vit_reg4_b32"),
             ("rope_vit_reg4_m16_rms_avg"),
+            ("rope_vit_reg8_nps_b14_ap", None, 1, 14),
             ("rope_vit_so150m_p14_ap", None, 1, 14),
-            ("rope_vit_reg4_so150m_p14_ap", None, 1, 14),
+            ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", None, 1, 14),
             ("simple_vit_b32"),
             ("swin_transformer_v1_t"),
             ("swin_transformer_v2_t"),
@@ -775,7 +793,7 @@ class TestDynamicSize(unittest.TestCase):
             ("vit_reg4_b32"),
             ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap", None, 1, 14),
-            ("vit_reg4_so150m_p14_ap", None, 1, 14),
+            ("vit_reg8_so150m_p14_swiglu_avg", None, 1, 14),
             ("vit_parallel_s16_18x2_ls"),
         ]
     )
@@ -817,3 +835,41 @@ class TestSpecialFunctions(unittest.TestCase):
         hieradet_tiny = registry.net_factory("hieradet_tiny", 3, 100, size=(192, 192))
 
         hieradet_tiny.load_hiera_weights(hiera_abswin_tiny.state_dict())
+
+    def test_flexivit_proj(self) -> None:
+        flexivit_s16 = registry.net_factory("flexivit_s16", 3, 100, size=(160, 160))
+
+        out = flexivit_s16(torch.rand((1, 3, 160, 160)), patch_size=20)
+        self.assertEqual(out.numel(), 100)
+
+    def test_flexivit_weight_import(self) -> None:
+        # ViT
+        flexivit = registry.net_factory("flexivit_s16", 3, 100, size=(192, 192))
+        vit = registry.net_factory("vit_s16", 3, 100, size=(192, 192))
+        flexivit.load_vit_weights(vit.state_dict())
+
+        # ViT with register tokens
+        flexivit = registry.net_factory("flexivit_reg1_s16", 3, 100, size=(192, 192))
+        vit = registry.net_factory("vit_reg1_s16", 3, 100, size=(192, 192))
+        flexivit.load_vit_weights(vit.state_dict())
+
+        # ViT with AP
+        flexivit = registry.net_factory("flexivit_reg8_b14_ap", 3, 100, size=(196, 196))
+        vit = registry.net_factory("vit_reg8_b14_ap", 3, 100, size=(196, 196))
+        flexivit.load_vit_weights(vit.state_dict())
+
+        # ViT with RMS and LS
+        flexivit = registry.net_factory("flexivit_reg1_s16_rms_ls", 3, 100, size=(192, 192))
+        vit = registry.net_factory("vit_reg1_s16_rms_ls", 3, 100, size=(192, 192))
+        flexivit.load_vit_weights(vit.state_dict())
+
+        # DeiT3
+        flexivit = registry.net_factory("flexivit_s16_ls", 3, 100, size=(192, 192))
+        vit = registry.net_factory("deit3_s16", 3, 100, size=(192, 192))
+        flexivit.load_vit_weights(vit.state_dict())
+
+    def test_rope_flexivit_weight_import(self) -> None:
+        # ViT
+        flexivit = registry.net_factory("rope_flexivit_s16", 3, 100, size=(192, 192))
+        vit = registry.net_factory("rope_vit_s16", 3, 100, size=(192, 192))
+        flexivit.load_rope_vit_weights(vit.state_dict())

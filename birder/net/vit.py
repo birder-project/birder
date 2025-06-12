@@ -26,10 +26,11 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
-from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_tensor
+from birder.layers import FFN
+from birder.layers import SwiGLU_FFN
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
@@ -95,7 +96,7 @@ class MultiHeadAttentionPool(nn.Module):
         self.proj = nn.Linear(dim, dim)
 
         self.norm = nn.LayerNorm(dim)
-        self.mlp = MLP(dim, [mlp_dim, dim], activation_layer=nn.GELU, inplace=None)
+        self.mlp = FFN(dim, mlp_dim, act_layer=nn.GELU)
 
         # Weight initialization
         nn.init.trunc_normal_(self.latent, std=dim**-0.5)
@@ -162,6 +163,7 @@ class EncoderBlock(nn.Module):
         activation_layer: Callable[..., nn.Module],
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
+        mlp_layer: Callable[..., nn.Module] = FFN,
     ) -> None:
         super().__init__()
         self.need_attn = False
@@ -180,9 +182,7 @@ class EncoderBlock(nn.Module):
 
         # MLP block
         self.ln2 = norm_layer(hidden_dim, eps=1e-6)
-        self.mlp = MLP(
-            hidden_dim, [mlp_dim, hidden_dim], activation_layer=activation_layer, inplace=None, dropout=dropout
-        )
+        self.mlp = mlp_layer(hidden_dim, mlp_dim, act_layer=activation_layer, dropout=dropout)
         self.drop_path2 = StochasticDepth(drop_path, mode="row")
         if layer_scale_init_value is not None:
             self.layer_scale_2 = LayerScale(hidden_dim, layer_scale_init_value)
@@ -220,8 +220,10 @@ class Encoder(nn.Module):
         dropout: float,
         attention_dropout: float,
         dpr: list[float],
+        activation_layer: Callable[..., nn.Module] = nn.GELU,
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
+        mlp_layer: Callable[..., nn.Module] = FFN,
     ) -> None:
         super().__init__()
         layers = []
@@ -237,9 +239,10 @@ class Encoder(nn.Module):
                     dropout,
                     attention_dropout,
                     dpr[i],
-                    activation_layer=nn.GELU,
+                    activation_layer=activation_layer,
                     layer_scale_init_value=layer_scale_init_value,
                     norm_layer=norm_layer,
+                    mlp_layer=mlp_layer,
                 )
             )
 
@@ -268,6 +271,7 @@ class Encoder(nn.Module):
 class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
+    # pylint: disable=too-many-locals,too-many-branches
     def __init__(
         self,
         input_channels: int,
@@ -284,6 +288,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         image_size = self.size
         attention_dropout = 0.0
         dropout = 0.0
+        pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", True)
         patch_size: int = self.config["patch_size"]
         num_layers: int = self.config["num_layers"]
         num_heads: int = self.config["num_heads"]
@@ -294,6 +299,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
+        mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
         drop_path_rate: float = self.config["drop_path_rate"]
 
         if norm_layer_type == "LayerNorm":
@@ -303,9 +309,19 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         else:
             raise ValueError(f"Unknown norm_layer_type '{norm_layer_type}'")
 
+        if mlp_layer_type == "FFN":
+            mlp_layer = FFN
+            act_layer = nn.GELU
+        elif mlp_layer_type == "SwiGLU_FFN":
+            mlp_layer = SwiGLU_FFN
+            act_layer = nn.SiLU
+        else:
+            raise ValueError(f"Unknown mlp_layer_type '{mlp_layer_type}'")
+
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
+        self.pos_embed_special_tokens = pos_embed_special_tokens
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
@@ -328,16 +344,18 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         # Add a class token
         if class_token is True:
             self.class_token = nn.Parameter(torch.zeros(1, 1, hidden_dim))
-            seq_length += 1
             self.num_special_tokens += 1
+            if pos_embed_special_tokens is True:
+                seq_length += 1
         else:
             self.class_token = None
 
         # Add optional register tokens
         if self.num_reg_tokens > 0:
             self.reg_tokens = nn.Parameter(torch.zeros(1, self.num_reg_tokens, hidden_dim))
-            seq_length += self.num_reg_tokens
             self.num_special_tokens += self.num_reg_tokens
+            if pos_embed_special_tokens is True:
+                seq_length += self.num_reg_tokens
         else:
             self.reg_tokens = None
 
@@ -352,8 +370,10 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             dropout,
             attention_dropout,
             dpr,
+            activation_layer=act_layer,
             layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
+            mlp_layer=mlp_layer,
         )
         self.norm = norm_layer(hidden_dim, eps=1e-6)
 
@@ -362,7 +382,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         else:
             self.attn_pool = MultiHeadAttentionPool(hidden_dim, num_heads, mlp_dim, qkv_bias=True, latent_len=1)
 
-        self.return_stages = ["neck"]  # Actually meaningless, but for completeness
+        self.return_stages = ["neck"]  # Actually meaningless, just for completeness
         self.return_channels = [hidden_dim]
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
@@ -378,8 +398,9 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             dropout=0,
             attention_dropout=0,
             drop_path=0,
-            activation_layer=nn.GELU,
+            activation_layer=act_layer,
             norm_layer=norm_layer,
+            mlp_layer=mlp_layer,
         )
 
         # Weight initialization
@@ -405,7 +426,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             self.pos_embedding,
             (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
             (H // self.patch_size, W // self.patch_size),
-            self.num_special_tokens,
+            self.num_special_tokens if self.pos_embed_special_tokens is True else 0,
             antialias=False,
         )
 
@@ -427,6 +448,9 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
+        if self.pos_embed_special_tokens is False:
+            x = x + self._get_pos_embed(H, W)
+
         # Expand the class token to the full batch
         if self.class_token is not None:
             batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
@@ -437,7 +461,9 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
             x = torch.concat([batch_reg_tokens, x], dim=1)
 
-        x = x + self._get_pos_embed(H, W)
+        if self.pos_embed_special_tokens is True:
+            x = x + self._get_pos_embed(H, W)
+
         x = self.encoder(x)
         x = self.norm(x)
 
@@ -461,6 +487,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             for param in module.parameters():
                 param.requires_grad = False
 
+    # pylint: disable=too-many-branches
     def masked_encoding_omission(
         self,
         x: torch.Tensor,
@@ -476,7 +503,10 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
 
         # Add pos embedding without special tokens
         pos_embedding = self._get_pos_embed(H, W)
-        x = x + pos_embedding[:, self.num_special_tokens :, :]
+        if self.pos_embed_special_tokens is True:
+            x = x + pos_embedding[:, self.num_special_tokens :, :]
+        else:
+            x = x + pos_embedding
 
         # Mask tokens
         if ids_keep is not None:
@@ -484,12 +514,20 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
 
         # Append class and register tokens
         if self.class_token is not None:
-            cls_token = self.class_token + pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
+            if self.pos_embed_special_tokens is True:
+                cls_token = self.class_token + pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
+            else:
+                cls_token = self.class_token
+
             batch_class_token = cls_token.expand(x.shape[0], -1, -1)
             x = torch.concat((batch_class_token, x), dim=1)
 
         if self.reg_tokens is not None:
-            reg_tokens = self.reg_tokens + pos_embedding[:, 0 : self.num_reg_tokens, :]
+            if self.pos_embed_special_tokens is True:
+                reg_tokens = self.reg_tokens + pos_embedding[:, 0 : self.num_reg_tokens, :]
+            else:
+                reg_tokens = self.reg_tokens
+
             batch_reg_tokens = reg_tokens.expand(x.shape[0], -1, -1)
             x = torch.concat([batch_reg_tokens, x], dim=1)
 
@@ -533,6 +571,9 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         # Reshape and permute the input tensor
         x = self.patch_embed(x)
 
+        if self.pos_embed_special_tokens is False:
+            x = x + self._get_pos_embed(H, W)
+
         # Expand the class token to the full batch
         if self.class_token is not None:
             batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
@@ -543,7 +584,9 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
             x = torch.concat([batch_reg_tokens, x], dim=1)
 
-        x = x + self._get_pos_embed(H, W)
+        if self.pos_embed_special_tokens is True:
+            x = x + self._get_pos_embed(H, W)
+
         x = self.encoder(x)
         x = self.norm(x)
 
@@ -574,6 +617,9 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
+        if self.pos_embed_special_tokens is False:
+            x = x + self._get_pos_embed(H, W)
+
         # Expand the class token to the full batch
         if self.class_token is not None:
             batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
@@ -584,7 +630,9 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
             x = torch.concat([batch_reg_tokens, x], dim=1)
 
-        x = x + self._get_pos_embed(H, W)
+        if self.pos_embed_special_tokens is True:
+            x = x + self._get_pos_embed(H, W)
+
         x = self.encoder(x)
         x = self.norm(x)
         if self.attn_pool is not None:
@@ -608,6 +656,11 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         old_size = self.size
         super().adjust_size(new_size)
 
+        if self.pos_embed_special_tokens is True:
+            num_prefix_tokens = self.num_special_tokens
+        else:
+            num_prefix_tokens = 0
+
         # Add back class tokens
         self.pos_embedding = nn.Parameter(
             # On rounding error see: https://github.com/facebookresearch/dino/issues/8
@@ -615,7 +668,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
                 self.pos_embedding,
                 (old_size[0] // self.patch_size, old_size[1] // self.patch_size),
                 (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
-                self.num_special_tokens,
+                num_prefix_tokens,
             )
         )
 
@@ -811,7 +864,7 @@ registry.register_alias(
         "num_heads": 6,
         "hidden_dim": 384,
         "mlp_dim": 1536,
-        "num_reg_tokens": 4,
+        "num_reg_tokens": 1,
         "drop_path_rate": 0.0,
     },
 )
@@ -824,7 +877,7 @@ registry.register_alias(
         "num_heads": 6,
         "hidden_dim": 384,
         "mlp_dim": 1536,
-        "num_reg_tokens": 4,
+        "num_reg_tokens": 1,
         "drop_path_rate": 0.0,
     },
 )
@@ -852,7 +905,7 @@ registry.register_alias(
         "num_heads": 6,
         "hidden_dim": 384,
         "mlp_dim": 1536,
-        "num_reg_tokens": 4,
+        "num_reg_tokens": 1,
         "drop_path_rate": 0.0,
     },
 )
@@ -1129,6 +1182,21 @@ registry.register_alias(
         "mlp_dim": 2320,
         "num_reg_tokens": 8,
         "class_token": False,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "vit_reg8_so150m_p14_swiglu_avg",
+    ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 18,
+        "num_heads": 16,
+        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
+        "mlp_dim": 2320,
+        "num_reg_tokens": 8,
+        "class_token": False,
+        "mlp_layer_type": "SwiGLU_FFN",
         "drop_path_rate": 0.1,
     },
 )

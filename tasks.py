@@ -647,3 +647,45 @@ def hieradet_from_hiera(_ctx, network, tag=None, epoch=None):
         scaler=None,
         model_base=None,
     )
+
+
+@task
+def flexivit_from_vit(_ctx, network, tag=None, epoch=None):
+    """
+    Transform vanilla ViT / DieT3 to FlexiVit
+    """
+
+    flexivit_network = "flexi" + network
+    if tag is not None:
+        flexivit_network_tagged = flexivit_network + f"_{tag}"
+    else:
+        flexivit_network_tagged = flexivit_network
+
+    path = fs_ops.model_path(flexivit_network_tagged, epoch=epoch)
+    if path.exists() is True:
+        echo(f"{path} already exists")
+        echo("Aborting", color=COLOR_RED)
+        raise Exit(code=1)
+
+    # Load model
+    device = torch.device("cpu")
+    (net, model_info) = fs_ops.load_model(device, network, tag=tag, epoch=epoch, inference=False)
+    size = lib.get_size_from_signature(model_info.signature)
+    channels = lib.get_channels_from_signature(model_info.signature)
+
+    flexivit = registry.net_factory(flexivit_network, channels, len(model_info.class_to_idx), size=size)
+    flexivit.load_vit_weights(net.state_dict())
+
+    # Save model
+    fs_ops.checkpoint_model(
+        flexivit_network_tagged,
+        epoch,
+        flexivit,
+        model_info.signature,
+        model_info.class_to_idx,
+        model_info.rgb_stats,
+        optimizer=None,
+        scheduler=None,
+        scaler=None,
+        model_base=None,
+    )

@@ -247,7 +247,7 @@ class AggregatedAttention(nn.Module):
         assert window_size % 2 == 1, "window size must be odd"
 
         global SWATTENTION  # pylint: disable=global-statement
-        if SWATTENTION is None and torch.jit.is_tracing() is False and torch.jit.is_scripting() is False:
+        if SWATTENTION is None and not torch.jit.is_tracing() and not torch.jit.is_scripting():
             SWATTENTION = load_swattention()
 
         self.custom_kernel = SWATTENTION is not None

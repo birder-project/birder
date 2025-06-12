@@ -196,7 +196,7 @@ class MultiScaleDeformableAttention(nn.Module):
         super().__init__()
 
         global MSDA  # pylint: disable=global-statement
-        if MSDA is None and torch.jit.is_tracing() is False and torch.jit.is_scripting() is False:
+        if MSDA is None and not torch.jit.is_tracing() and not torch.jit.is_scripting():
             MSDA = load_msda()
 
         self.custom_kernel = MSDA is not None

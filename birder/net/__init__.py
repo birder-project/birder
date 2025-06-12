@@ -28,6 +28,7 @@ from birder.net.efficientvit_mit import EfficientViT_MIT
 from birder.net.efficientvit_msft import EfficientViT_MSFT
 from birder.net.fasternet import FasterNet
 from birder.net.fastvit import FastViT
+from birder.net.flexivit import FlexiViT
 from birder.net.focalnet import FocalNet
 from birder.net.ghostnet_v1 import GhostNet_v1
 from birder.net.ghostnet_v2 import GhostNet_v2
@@ -76,6 +77,7 @@ from birder.net.resnet_v1 import ResNet_v1
 from birder.net.resnet_v2 import ResNet_v2
 from birder.net.resnext import ResNeXt
 from birder.net.rope_deit3 import RoPE_DeiT3
+from birder.net.rope_flexivit import RoPE_FlexiViT
 from birder.net.rope_vit import RoPE_ViT
 from birder.net.se_resnet_v1 import SE_ResNet_v1
 from birder.net.se_resnet_v2 import SE_ResNet_v2
@@ -135,6 +137,7 @@ __all__ = [
     "EfficientViT_MSFT",
     "FasterNet",
     "FastViT",
+    "FlexiViT",
     "FocalNet",
     "GhostNet_v1",
     "GhostNet_v2",
@@ -183,6 +186,7 @@ __all__ = [
     "ResNet_v2",
     "ResNeXt",
     "RoPE_DeiT3",
+    "RoPE_FlexiViT",
     "RoPE_ViT",
     "SE_ResNet_v1",
     "SE_ResNet_v2",

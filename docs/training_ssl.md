@@ -273,6 +273,24 @@ torchrun --nproc_per_node=2 train.py --network hieradet_base --tag dino-v2 --opt
 torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network vit_reg1_s16_rms_ls --dino-out-dim 32768 --opt adamw --lr 0.0002 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 10 --batch-size 96 --wd 0.04 --wd-end 0.2 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --rgb-mode none --wds --wds-info data/ssl_micro_packed/_info.json
 ```
 
+Fine-tuning, first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_reg1_s16_rms_ls --tag dino-v2 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 240 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --resume-epoch 0 --reset-head --freeze-body
+```
+
+Transform to FlexiViT
+
+```sh
+inv flexivit-from-vit vit_reg1_s16_rms_ls --tag dino-v2 --epoch 0
+```
+
+Next, full fine-tuning with layer-wise learning rate decay
+
+```sh
+torchrun --nproc_per_node=2 train.py --network flexivit_reg1_s16_rms_ls --tag dino-v2 --opt adamw --lr 0.0004 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 192 --warmup-epochs 10 --epochs 100 --size 240 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --model-config min_patch_size=10,max_patch_size=40 --amp --amp-dtype bfloat16 --compile --layer-decay 0.7 --resume-epoch 0
+```
+
 #### DINO v2: ViT reg4 m16 rms AVG
 
 ```sh

@@ -46,6 +46,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [EfficientViT MSFT](#efficientvit-msft)
 - [FasterNet](#fasternet)
 - [FastViT](#fastvit)
+- [FlexiViT](#flexivit)
 - [FocalNet](#focalnet)
 - [GhostNet v1](#ghostnet-v1)
 - [GhostNet v2](#ghostnet-v2)
@@ -93,6 +94,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [ResNet v2](#resnet-v2)
 - [ResNeXt](#resnext)
 - [RoPE DeiT3](#rope-deit3)
+- [RoPE FlexiViT](#rope-flexivit)
 - [RoPE ViT](#rope-vit)
 - [SE ResNet v1](#se-resnet-v1)
 - [SE ResNet v2](#se-resnet-v2)
@@ -1021,6 +1023,10 @@ torchrun --nproc_per_node=2 train.py --network mobileclip_i0 --opt adamw --lr 0.
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobileclip_i2 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 128 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --amp --compile
 ```
+
+### FlexiViT
+
+Same as [ViT](#vit)
 
 ### FocalNet
 
@@ -2049,6 +2055,10 @@ torchrun --nproc_per_node=2 train.py --network resnext_101 --lr 0.04 --lr-schedu
 ### RoPE DeiT3
 
 Same as [DeiT3](#deit3)
+
+### RoPE FlexiViT
+
+Same as [FlexiViT](#flexivit)
 
 ### RoPE ViT
 
