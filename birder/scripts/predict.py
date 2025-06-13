@@ -258,6 +258,7 @@ def predict(args: argparse.Namespace) -> None:
         num_samples,
         batch_callback=batch_callback,
         chunk_size=args.chunk_size,
+        **args.forward_kwargs,
     )
     append = False
     summary_list = []
@@ -333,6 +334,14 @@ def get_args_parser() -> argparse.ArgumentParser:
         help=(
             "override the model default configuration, accepts key-value pairs or JSON "
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
+        ),
+    )
+    parser.add_argument(
+        "--forward-kwargs",
+        action=cli.FlexibleDictAction,
+        help=(
+            "additional model forward/embedding keyword args, accepts key-value pairs or JSON "
+            "('patch_size=12' or '{\"patch_size\": 20}'"
         ),
     )
     parser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")
@@ -422,6 +431,8 @@ def validate_args(args: argparse.Namespace) -> None:
     )
     assert args.wds is False or args.ignore_dir_names is False
     args.size = cli.parse_size(args.size)
+    if args.forward_kwargs is None:
+        args.forward_kwargs = {}
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

@@ -4,6 +4,7 @@ Paper "FlexiViT: One Model for All Patch Sizes", https://arxiv.org/abs/2212.0801
 
 # Reference license: Apache-2.0
 
+import logging
 import math
 import random
 from functools import partial
@@ -26,6 +27,7 @@ from birder.net.base import TokenOmissionResultType
 from birder.net.base import TokenRetentionResultType
 from birder.net.flexivit import flex_proj
 from birder.net.flexivit import get_patch_sizes
+from birder.net.flexivit import interpolate_proj
 from birder.net.rope_vit import Encoder
 from birder.net.rope_vit import MAEDecoderBlock
 from birder.net.rope_vit import RoPE
@@ -33,6 +35,8 @@ from birder.net.rope_vit import build_rotary_pos_embed
 from birder.net.vit import MultiHeadAttentionPool
 from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
+
+logger = logging.getLogger(__name__)
 
 
 # pylint: disable=invalid-name,too-many-instance-attributes
@@ -517,6 +521,38 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
             norm_layer=self.norm_layer,
         )
+
+    def adjust_patch_size(self, patch_size: int) -> None:
+        if self.patch_size == patch_size:
+            return
+
+        logger.debug(f"Setting patch size to: {patch_size}")
+        self.conv_proj.weight = nn.Parameter(interpolate_proj(self.conv_proj.weight, patch_size))
+
+        # Adjust pos_embedding accordingly
+        if self.pos_embed_special_tokens is True:
+            num_prefix_tokens = self.num_special_tokens
+        else:
+            num_prefix_tokens = 0
+
+        self.pos_embedding = nn.Parameter(
+            adjust_position_embedding(
+                self.pos_embedding,
+                (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
+                (self.size[0] // patch_size, self.size[1] // patch_size),
+                num_prefix_tokens,
+            )
+        )
+
+        # Adjust RoPE
+        self.rope = RoPE(
+            self.hidden_dim // self.num_heads,
+            temperature=self.rope_temperature,
+            grid_size=(self.size[0] // patch_size, self.size[1] // patch_size),
+            pt_grid_size=self.pt_grid_size,
+        )
+
+        self.patch_size = patch_size
 
     def load_rope_vit_weights(self, state_dict: dict[str, Any]) -> None:
         num_special_tokens = 0

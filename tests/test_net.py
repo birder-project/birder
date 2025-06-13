@@ -842,6 +842,14 @@ class TestSpecialFunctions(unittest.TestCase):
         out = flexivit_s16(torch.rand((1, 3, 160, 160)), patch_size=20)
         self.assertEqual(out.numel(), 100)
 
+    def test_flexivit_adjust_patch_size(self) -> None:
+        flexivit_s16 = registry.net_factory("flexivit_s16", 3, 100, size=(160, 160))
+
+        flexivit_s16.adjust_patch_size(20)
+        self.assertEqual(flexivit_s16.conv_proj.weight.shape[-2:], (20, 20))
+
+        self.assertEqual(flexivit_s16.pos_embedding.size(1), (160 // 20) * (160 // 20))
+
     def test_flexivit_weight_import(self) -> None:
         # ViT
         flexivit = registry.net_factory("flexivit_s16", 3, 100, size=(192, 192))
@@ -867,6 +875,21 @@ class TestSpecialFunctions(unittest.TestCase):
         flexivit = registry.net_factory("flexivit_s16_ls", 3, 100, size=(192, 192))
         vit = registry.net_factory("deit3_s16", 3, 100, size=(192, 192))
         flexivit.load_vit_weights(vit.state_dict())
+
+    def test_rope_flexivit_proj(self) -> None:
+        rope_flexivit_s16 = registry.net_factory("rope_flexivit_s16", 3, 100, size=(160, 160))
+
+        out = rope_flexivit_s16(torch.rand((1, 3, 160, 160)), patch_size=20)
+        self.assertEqual(out.numel(), 100)
+
+    def test_rope_flexivit_adjust_patch_size(self) -> None:
+        rope_flexivit_s16 = registry.net_factory("rope_flexivit_s16", 3, 100, size=(160, 160))
+
+        rope_flexivit_s16.adjust_patch_size(20)
+        self.assertEqual(rope_flexivit_s16.conv_proj.weight.shape[-2:], (20, 20))
+
+        self.assertEqual(rope_flexivit_s16.pos_embedding.size(1), (160 // 20) * (160 // 20))
+        self.assertEqual(rope_flexivit_s16.rope.pos_embed.size(0), (160 // 20) * (160 // 20))
 
     def test_rope_flexivit_weight_import(self) -> None:
         # ViT

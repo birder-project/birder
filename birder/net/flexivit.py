@@ -4,6 +4,7 @@ Paper "FlexiViT: One Model for All Patch Sizes", https://arxiv.org/abs/2212.0801
 
 # Reference license: Apache-2.0
 
+import logging
 import math
 import random
 from functools import partial
@@ -31,6 +32,8 @@ from birder.net.vit import MultiHeadAttentionPool
 from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
 
+logger = logging.getLogger(__name__)
+
 
 def get_patch_sizes(min_size: int, max_size: int, input_size: tuple[int, int]) -> list[int]:
     (H, W) = input_size
@@ -44,7 +47,7 @@ def get_patch_sizes(min_size: int, max_size: int, input_size: tuple[int, int]) -
 
 # No compile support for antialias
 @torch.compiler.disable()  # type: ignore[misc]
-def _interpolate_proj(proj_weight: torch.Tensor, patch_size: Optional[int]) -> torch.Tensor:
+def interpolate_proj(proj_weight: torch.Tensor, patch_size: int) -> torch.Tensor:
     orig_dtype = proj_weight.dtype
     proj_weight = proj_weight.float()  # Interpolate needs float32
     weight_resampled = F.interpolate(proj_weight, size=(patch_size, patch_size), mode="bicubic", antialias=True)
@@ -57,7 +60,7 @@ def flex_proj(
     x: torch.Tensor, proj_weight: torch.Tensor, proj_bias: Optional[torch.Tensor], patch_size: Optional[int]
 ) -> torch.Tensor:
     if patch_size is not None and patch_size != proj_weight.shape[-1] and not torch.jit.is_scripting():
-        weight_resampled = _interpolate_proj(proj_weight, patch_size)
+        weight_resampled = interpolate_proj(proj_weight, patch_size)
         x = F.conv2d(x, weight_resampled, proj_bias, stride=(patch_size, patch_size))  # pylint: disable=not-callable
     else:
         x = F.conv2d(x, proj_weight, proj_bias, stride=proj_weight.shape[-2:])  # pylint: disable=not-callable
@@ -477,7 +480,6 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         else:
             num_prefix_tokens = 0
 
-        # Add back class tokens
         self.pos_embedding = nn.Parameter(
             # On rounding error see: https://github.com/facebookresearch/dino/issues/8
             adjust_position_embedding(
@@ -487,6 +489,30 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
                 num_prefix_tokens,
             )
         )
+
+    def adjust_patch_size(self, patch_size: int) -> None:
+        if self.patch_size == patch_size:
+            return
+
+        logger.debug(f"Setting patch size to: {patch_size}")
+        self.conv_proj.weight = nn.Parameter(interpolate_proj(self.conv_proj.weight, patch_size))
+
+        # Adjust pos_embedding accordingly
+        if self.pos_embed_special_tokens is True:
+            num_prefix_tokens = self.num_special_tokens
+        else:
+            num_prefix_tokens = 0
+
+        self.pos_embedding = nn.Parameter(
+            adjust_position_embedding(
+                self.pos_embedding,
+                (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
+                (self.size[0] // patch_size, self.size[1] // patch_size),
+                num_prefix_tokens,
+            )
+        )
+
+        self.patch_size = patch_size
 
     def load_vit_weights(self, state_dict: dict[str, Any]) -> None:
         num_special_tokens = 0
@@ -577,5 +603,24 @@ registry.register_alias(
         "class_token": False,
         "attn_pool_head": True,
         "drop_path_rate": 0.1,
+    },
+)
+
+registry.register_weights(
+    "flexivit_reg1_s16_rms_ls_dino-v2-il-all",
+    {
+        "url": "https://huggingface.co/birder-project/flexivit_reg1_s16_rms_ls_dino-v2-il-all/resolve/main",
+        "description": (
+            "FlexiViT reg1 s16 RMS norm with layer scaling model pre-trained using DINOv2 on "
+            "the il-all dataset and then fine-tuned on the il-all dataset"
+        ),
+        "resolution": (240, 240),
+        "formats": {
+            "pt": {
+                "file_size": 83.6,
+                "sha256": "8d11fb14630f2a54632aeebd09c5a9c2b3b7de1099e09de5e91f433ed915b784",
+            },
+        },
+        "net": {"network": "flexivit_reg1_s16_rms_ls", "tag": "dino-v2-il-all"},
     },
 )

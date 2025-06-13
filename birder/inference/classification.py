@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from collections.abc import Iterator
+from typing import Any
 from typing import Optional
 from typing import overload
 
@@ -24,6 +25,7 @@ def infer_image(
     return_embedding: bool = False,
     tta: bool = False,
     device: Optional[torch.device] = None,
+    **kwargs: Any,
 ) -> tuple[npt.NDArray[np.float32], Optional[npt.NDArray[np.float32]]]:
     """
     Perform inference on a single image
@@ -48,14 +50,18 @@ def infer_image(
         device = torch.device("cpu")
 
     input_tensor = transform(image).unsqueeze(dim=0).to(device)
-    return infer_batch(net, input_tensor, return_embedding=return_embedding, tta=tta)
+    return infer_batch(net, input_tensor, return_embedding=return_embedding, tta=tta, **kwargs)
 
 
 def infer_batch(
-    net: torch.nn.Module | torch.ScriptModule, inputs: torch.Tensor, return_embedding: bool = False, tta: bool = False
+    net: torch.nn.Module | torch.ScriptModule,
+    inputs: torch.Tensor,
+    return_embedding: bool = False,
+    tta: bool = False,
+    **kwargs: Any,
 ) -> tuple[npt.NDArray[np.float32], Optional[npt.NDArray[np.float32]]]:
     if return_embedding is True:
-        embedding_tensor: torch.Tensor = net.embedding(inputs)
+        embedding_tensor: torch.Tensor = net.embedding(inputs, **kwargs)
         out = F.softmax(net.classify(embedding_tensor), dim=1)
         embedding: Optional[npt.NDArray[np.float32]] = embedding_tensor.cpu().float().numpy()
 
@@ -68,13 +74,13 @@ def infer_batch(
         t = v2.Resize((H, W), interpolation=v2.InterpolationMode.BICUBIC, antialias=True)
         outs = []
         for tta_input in tta_inputs:
-            outs.append(F.softmax(net(t(tta_input)), dim=1))
+            outs.append(F.softmax(net(t(tta_input), **kwargs), dim=1))
 
         out = torch.stack(outs).mean(axis=0)
 
     else:
         embedding = None
-        out = F.softmax(net(inputs), dim=1)
+        out = F.softmax(net(inputs, **kwargs), dim=1)
 
     return (out.cpu().float().numpy(), embedding)
 
@@ -94,6 +100,7 @@ def infer_dataloader_iter(
     num_samples: Optional[int] = None,
     batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], list[int]], None]] = None,
     chunk_size: Optional[float] = None,
+    **kwargs: Any,
 ) -> Iterator[DataloaderInferenceResult]:
     """
     See infer_dataloader for full documentation.
@@ -118,7 +125,7 @@ def infer_dataloader_iter(
             inputs = inputs.to(device, dtype=model_dtype)
 
             with torch.amp.autocast(device.type, enabled=amp, dtype=amp_dtype):
-                (out, embedding) = infer_batch(net, inputs, return_embedding=return_embedding, tta=tta)
+                (out, embedding) = infer_batch(net, inputs, return_embedding=return_embedding, tta=tta, **kwargs)
 
             out_list.append(out)
             if embedding is not None:
@@ -164,6 +171,7 @@ def infer_dataloader(
     num_samples: Optional[int] = None,
     batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], list[int]], None]] = None,
     chunk_size: None = None,
+    **kwargs: Any,
 ) -> DataloaderInferenceResult: ...
 
 
@@ -180,6 +188,7 @@ def infer_dataloader(
     num_samples: Optional[int] = None,
     batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], list[int]], None]] = None,
     chunk_size: int = 0,
+    **kwargs: Any,
 ) -> Iterator[DataloaderInferenceResult]: ...
 
 
@@ -195,6 +204,7 @@ def infer_dataloader(
     num_samples: Optional[int] = None,
     batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], list[int]], None]] = None,
     chunk_size: Optional[int] = None,
+    **kwargs: Any,
 ) -> Iterator[DataloaderInferenceResult] | DataloaderInferenceResult:
     """
     Perform inference on a DataLoader using a given neural network.
@@ -236,6 +246,8 @@ def infer_dataloader(
         Number of samples to process before yielding results. If None, the function
         will return all results at once. If an integer, the function will yield
         results after processing approximately that many samples.
+    kwargs
+        Keyword arguments to pass to the model forward or embedding functions.
 
     Returns
     -------
@@ -310,6 +322,7 @@ def infer_dataloader(
         num_samples,
         batch_callback,
         chunk_size,
+        **kwargs,
     )
     if chunk_size is None:
         return next(result_iter)

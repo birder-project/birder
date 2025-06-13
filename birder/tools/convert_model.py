@@ -198,6 +198,7 @@ def set_parser(subparsers: Any) -> None:
 
     format_group = subparser.add_mutually_exclusive_group(required=True)
     format_group.add_argument("--resize", type=int, nargs="+", metavar=("H", "W"), help="resize model (pt)")
+    format_group.add_argument("--resize-patch", type=int, help="resize model flexivit style model patch size (pt)")
     format_group.add_argument(
         "--add-config", action=cli.FlexibleDictAction, help=("add custom configuration to existing model (pt)")
     )
@@ -280,8 +281,10 @@ def main(args: argparse.Namespace) -> None:
 
     if args.resize is not None:
         network_name = f"{network_name}_{args.resize[0]}px"
-    elif args.add_config is not None or args.add_backbone_config:
+    elif args.add_config is not None or args.add_backbone_config is not None:
         network_name = f"{network_name}_custom_config"
+    elif args.resize_patch is not None:
+        network_name = f"{network_name}_ip{args.resize_patch}"
 
     model_path = fs_ops.model_path(
         network_name,
@@ -301,6 +304,23 @@ def main(args: argparse.Namespace) -> None:
         net.adjust_size(args.resize)
         signature["inputs"][0]["data_shape"][2] = args.resize[0]
         signature["inputs"][0]["data_shape"][3] = args.resize[1]
+        fs_ops.checkpoint_model(
+            network_name,
+            args.epoch,
+            net,
+            signature,
+            class_to_idx,
+            rgb_stats,
+            optimizer=None,
+            scheduler=None,
+            scaler=None,
+            model_base=None,
+            external_config=custom_config,
+            external_backbone_config=backbone_custom_config,
+        )
+
+    elif args.resize_patch is not None:
+        net.adjust_patch_size(args.resize_patch)
         fs_ops.checkpoint_model(
             network_name,
             args.epoch,

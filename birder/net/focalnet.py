@@ -634,7 +634,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/focalnet_b_lrf_intermediate-eu-common/resolve/main",
         "description": (
-            "FocalNet Base (LRF) model with intermediate training, " "then fine-tuned on the eu-common dataset"
+            "FocalNet Base (LRF) model with intermediate training, then fine-tuned on the eu-common dataset"
         ),
         "resolution": (384, 384),
         "formats": {
@@ -651,7 +651,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/focalnet_b_lrf_intermediate-arabian-peninsula/resolve/main",
         "description": (
-            "FocalNet Base (LRF) model with intermediate training, " "then fine-tuned on the arabian-peninsula dataset"
+            "FocalNet Base (LRF) model with intermediate training, then fine-tuned on the arabian-peninsula dataset"
         ),
         "resolution": (384, 384),
         "formats": {

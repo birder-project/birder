@@ -1157,7 +1157,13 @@ torchrun --nproc_per_node=2 train.py --network hgnet_v1_base --lr 0.5 --lr-sched
 #### HGNet v2: B0
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network hgnet_v2_b0 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 5 --batch-size 128 --epochs 400 --size 256 --wd 0.00004 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6 --amp --compile
+torchrun --nproc_per_node=2 train.py --network hgnet_v2_b0 --lr 0.125 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 5 --batch-size 128 --epochs 400 --size 256 --wd 0.00004 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6 --fast-matmul --compile
+```
+
+#### HGNet v2: B1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network hgnet_v2_b1 --lr 0.125 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 5 --batch-size 128 --epochs 400 --size 256 --wd 0.00004 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6 --amp --compile
 ```
 
 ### Hiera
