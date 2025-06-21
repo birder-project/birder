@@ -1360,11 +1360,11 @@ registry.register_weights(
         "description": (
             "ViT reg4 m16 RMS norm image encoder pre-trained using I-JEPA then fine-tuned on the ImageNet-21K dataset"
         ),
-        "resolution": (224, 224),
+        "resolution": (256, 256),
         "formats": {
             "pt": {
-                "file_size": 184.1,
-                "sha256": "e9e79c536133bddb8b8c249989effa51750b02955d400fa7a9091434de9902c7",
+                "file_size": 184.2,
+                "sha256": "d6d9fc47ecbad04a83b178bcd2eeecbd77569cc2a17fbdf52e02feda54523c3f",
             },
         },
         "net": {"network": "vit_reg4_m16_rms_avg", "tag": "i-jepa-imagenet21k"},

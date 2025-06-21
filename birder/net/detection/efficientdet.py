@@ -608,6 +608,14 @@ class EfficientDet(DetectionBaseNet):
             num_anchors=self.anchor_generator.num_anchors_per_location()[0],
         )
 
+    def freeze(self, freeze_classifier: bool = True) -> None:
+        for param in self.parameters():
+            param.requires_grad = False
+
+        if freeze_classifier is False:
+            for param in self.class_net.parameters():
+                param.requires_grad = True
+
     def compute_loss(
         self,
         targets: list[dict[str, torch.Tensor]],
@@ -699,7 +707,8 @@ class EfficientDet(DetectionBaseNet):
         return detections
 
     # pylint: disable=invalid-name
-    def forward(  # type: ignore[override]
+    @torch.compiler.disable(recursive=False)  # type: ignore[misc]
+    def forward(
         self, x: torch.Tensor, targets: Optional[list[dict[str, torch.Tensor]]] = None
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
         self._input_check(targets)
@@ -712,7 +721,7 @@ class EfficientDet(DetectionBaseNet):
         box_output = self.box_net(feature_list)
         anchors = self.anchor_generator(images, feature_list)
 
-        losses = {}
+        losses: dict[str, torch.Tensor] = {}
         detections: list[dict[str, torch.Tensor]] = []
         if self.training is True:
             assert targets is not None, "targets should not be none when in training mode"

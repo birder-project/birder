@@ -191,6 +191,7 @@ class TestNet(unittest.TestCase):
             ("vit_so150m_p14_ap", None, False, 1, 14),
             ("vit_reg8_so150m_p14_swiglu_avg", None, False, 1, 14),
             ("vit_parallel_s16_18x2_ls"),
+            ("vit_det_b16"),
             ("vit_sam_b16"),
             ("wide_resnet_50"),
             ("xception"),
@@ -376,6 +377,7 @@ class TestNet(unittest.TestCase):
             ("vit_so150m_p14_ap"),
             ("vit_reg8_so150m_p14_swiglu_avg"),
             ("vit_parallel_s16_18x2_ls"),
+            ("vit_det_b16"),
             ("vit_sam_b16"),
             ("wide_resnet_50"),
             ("xception"),
@@ -732,6 +734,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("vit_so150m_p14_ap", None, 1, 14, 14),
             ("vit_reg8_so150m_p14_swiglu_avg", None, 1, 14, 14),
             ("vit_parallel_s16_18x2_ls"),
+            ("vit_det_b16"),
             ("vit_sam_b16"),
             ("wide_resnet_50"),
             ("xception"),
@@ -816,6 +819,21 @@ class TestDynamicSize(unittest.TestCase):
 
 class TestSpecialFunctions(unittest.TestCase):
     def test_vit_sam_weight_import(self) -> None:
+        # ViTDet
+
+        # ViT
+        vit_det_b16 = registry.net_factory("vit_det_b16", 3, 100, size=(192, 192))
+        vit_b16 = registry.net_factory("vit_b16", 3, 100, size=(192, 192))
+        vit_det_b16.load_vit_weights(vit_b16.state_dict())
+
+        # DeiT3
+        vit_det_b16_ls = registry.net_factory(
+            "vit_det_b16", 3, 100, size=(192, 192), config={"layer_scale_init_value": 1e-5}
+        )
+        deit3_reg4_b16 = registry.net_factory("deit3_reg4_b16", 3, 100, size=(192, 192))
+        vit_det_b16_ls.load_vit_weights(deit3_reg4_b16.state_dict())
+
+        # SAM
         vit_sam_b16 = registry.net_factory("vit_sam_b16", 3, 100, size=(192, 192))
 
         # ViT

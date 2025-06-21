@@ -319,6 +319,14 @@ class DETR(DetectionBaseNet):
         empty_weight[0] = 0.1
         self.empty_weight = nn.Buffer(empty_weight)
 
+    def freeze(self, freeze_classifier: bool = True) -> None:
+        for param in self.parameters():
+            param.requires_grad = False
+
+        if freeze_classifier is False:
+            for param in self.class_embed.parameters():
+                param.requires_grad = True
+
     def _get_src_permutation_idx(self, indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         batch_idx = torch.concat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
         src_idx = torch.concat([src for (src, _) in indices])

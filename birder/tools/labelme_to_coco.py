@@ -38,6 +38,7 @@ def _create_annotation(
 
 
 def labelme_to_coco(args: argparse.Namespace) -> None:
+    prefix = str(settings.DETECTION_DATA_PATH) + "/"
     if args.class_file is not None:
         class_file = args.class_file
         base_name = Path(args.data_path).stem + "_" + Path(args.class_file).stem
@@ -46,7 +47,6 @@ def labelme_to_coco(args: argparse.Namespace) -> None:
         base_name = Path(args.data_path).stem
 
     target_path = Path(args.data_path).parent.joinpath(f"{base_name}_coco.json")
-    base_path = args.data_path.removeprefix(str(settings.DETECTION_DATA_PATH) + "/")
 
     class_to_idx = fs_ops.read_class_file(class_file)
     class_to_idx = lib.detection_class_to_idx(class_to_idx)
@@ -73,11 +73,12 @@ def labelme_to_coco(args: argparse.Namespace) -> None:
             if skip is True:
                 continue
 
+        image_path = Path(json_path).parent.joinpath(data["imagePath"])
         image = {
             "id": idx,
             "width": data["imageWidth"],
             "height": data["imageHeight"],
-            "file_name": os.path.normpath(f"{base_path}/{data['imagePath']}"),
+            "file_name": os.path.normpath(image_path).removeprefix(prefix),
         }
         image_list.append(image)
 

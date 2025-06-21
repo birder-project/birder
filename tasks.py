@@ -558,16 +558,26 @@ def model_pre_publish(_ctx, model, net_param=None, tag=None, epoch=None, reparam
 
 
 @task
-def sam_from_vit(_ctx, network, tag=None, epoch=None):
+def sam_from_vit(_ctx, network, tag=None, epoch=None, det=False):
     """
     Transform vanilla ViT to ViT SAM
     """
 
+    if det is True:
+        ext = "_det"
+    else:
+        ext = "_sam"
+
     # Assuming network is vit_{b, l, h}16 or vit_regN_{b, l, h}16
     if "reg" in network:
-        sam_network = network[0:3] + "_sam" + network[8:]
+        sam_network = network[0:3] + ext + network[8:]
     else:
-        sam_network = network[0:3] + "_sam" + network[3:]
+        sam_network = network[0:3] + ext + network[3:]
+
+    # Remove unsupported feature tags
+    sam_network = sam_network.replace("_avg", "")
+    sam_network = sam_network.replace("_nps", "")
+    sam_network = sam_network.replace("_ap", "")
 
     if tag is not None:
         sam_network_tagged = sam_network + f"_{tag}"

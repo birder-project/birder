@@ -785,6 +785,7 @@ class Faster_RCNN(DetectionBaseNet):
         self.backbone_with_fpn = BackboneWithFPN(self.backbone, fpn_width, extra_blocks=LastLevelMaxPool())
 
         anchor_sizes = [[32], [64], [128], [256], [512]]
+        anchor_sizes = anchor_sizes[-len(self.backbone.return_stages) - 1 :]
         aspect_ratios = [[0.5, 1.0, 2.0]] * len(anchor_sizes)
         rpn_anchor_generator = AnchorGenerator(anchor_sizes, aspect_ratios)
         rpn_head = RPNHead(
@@ -841,6 +842,14 @@ class Faster_RCNN(DetectionBaseNet):
         self.num_classes = num_classes + 1
         box_predictor = FastRCNNPredictor(self.representation_size, self.num_classes)
         self.roi_heads.box_predictor = box_predictor
+
+    def freeze(self, freeze_classifier: bool = True) -> None:
+        for param in self.parameters():
+            param.requires_grad = False
+
+        if freeze_classifier is False:
+            for param in self.roi_heads.box_predictor.parameters():
+                param.requires_grad = True
 
     def forward(  # type: ignore[override]
         self, x: torch.Tensor, targets: Optional[list[dict[str, torch.Tensor]]] = None

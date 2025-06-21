@@ -31,14 +31,18 @@ def show_det_iterator(args: argparse.Namespace) -> None:
 
     batch_size = 2
 
-    class_to_idx = fs_ops.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
-    class_to_idx = lib.detection_class_to_idx(class_to_idx)
+    dataset = CocoDetection(args.data_path, args.coco_json_path, transforms=transform)
+    dataset = wrap_dataset_for_transforms_v2(dataset)
+
+    if args.class_file is not None:
+        class_to_idx = fs_ops.read_class_file(args.class_file)
+        class_to_idx = lib.detection_class_to_idx(class_to_idx)
+    else:
+        class_to_idx = lib.class_to_idx_from_coco(dataset.coco.cats)
+
     class_list = list(class_to_idx.keys())
     class_list.insert(0, "Background")
     color_list = np.arange(0, len(class_list))
-
-    dataset = CocoDetection(args.data_path, args.coco_json_path, transforms=transform)
-    dataset = wrap_dataset_for_transforms_v2(dataset)
 
     data_loader = DataLoader(
         dataset,
@@ -89,6 +93,8 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools show-det-iterator --aug-level 0\n"
             "python -m birder.tools show-det-iterator --mode training --size 512 --aug-level 2\n"
             "python -m birder.tools show-det-iterator --mode inference --size 640\n"
+            "python -m birder.tools show-det-iterator --mode inference --coco-json-path "
+            "~/Datasets/Objects365-2020/val/zhiyuan_objv2_val.json --data-path ~/Datasets/Objects365-2020/val\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -115,6 +121,7 @@ def set_parser(subparsers: Any) -> None:
         default=f"{settings.TRAINING_DETECTION_ANNOTATIONS_PATH}_coco.json",
         help="training COCO json path",
     )
+    subparser.add_argument("--class-file", type=str, metavar="FILE", help="class list file, overrides json categories")
     subparser.set_defaults(func=main)
 
 

@@ -295,3 +295,18 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
+
+registry.register_weights(
+    "hgnet_v2_b0_il-common",
+    {
+        "description": "HGNet v2 B0 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 18.1,
+                "sha256": "bb1a45bb4f7612ca60d524c5c31e42b445c75bfac4142b029f0523c7e6a697ff",
+            }
+        },
+        "net": {"network": "hgnet_v2_b0", "tag": "il-common"},
+    },
+)

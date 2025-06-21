@@ -151,24 +151,9 @@ def set_parser(subparsers: Any) -> None:
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
-    subparser.add_argument(
-        "--print",
-        default=False,
-        action="store_true",
-        help="print results table",
-    )
-    subparser.add_argument(
-        "--short-print",
-        default=False,
-        action="store_true",
-        help="print results",
-    )
-    subparser.add_argument(
-        "--save-summary",
-        default=False,
-        action="store_true",
-        help="save results summary as csv",
-    )
+    subparser.add_argument("--print", default=False, action="store_true", help="print results table")
+    subparser.add_argument("--short-print", default=False, action="store_true", help="print results")
+    subparser.add_argument("--save-summary", default=False, action="store_true", help="save results summary as csv")
     subparser.add_argument("--summary-suffix", type=str, help="add suffix to summary file")
     subparser.add_argument(
         "--print-mistakes", default=False, action="store_true", help="print only classes with non-perfect f1-score"

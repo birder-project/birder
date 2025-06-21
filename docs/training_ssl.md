@@ -338,13 +338,19 @@ torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa
 ImageNet 21K fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa-imagenet21k --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 224 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-type ra --amp --compile --save-frequency 1 --resume-epoch 0 --reset-head --freeze-body --wds --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-info ~/Datasets/imagenet-w21-webp-wds/_info.json --wds-training-split train
+torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa-imagenet21k --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-type ra --amp --compile --save-frequency 1 --resume-epoch 0 --reset-head --freeze-body --wds --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-info ~/Datasets/imagenet-w21-webp-wds/_info.json --wds-training-split train
 ```
 
 ImageNet 21K next, full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa-imagenet21k --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --warmup-epochs 5 --epochs 50 --size 224 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-type ra --re-prob 0.25 --model-ema --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --compile-opt --layer-decay 0.65 --resume-epoch 0 --save-frequency 1 --wds --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-info ~/Datasets/imagenet-w21-webp-wds/_info.json --wds-training-split train
+torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa-imagenet21k --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --warmup-epochs 5 --epochs 50 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-type ra --re-prob 0.25 --model-ema --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --compile-opt --layer-decay 0.65 --resume-epoch 0 --save-frequency 1 --wds --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-info ~/Datasets/imagenet-w21-webp-wds/_info.json --wds-training-split train
+```
+
+ImageNet 1K fine-tuning of ImageNet 21K (after linear probing)
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa-imagenet21k-imagenet1k --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --warmup-epochs 10 --epochs 100 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 9 --use-grayscale --resize-min-scale 0.1 --model-ema --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --compile-opt --layer-decay 0.6 --resume-epoch 0 --save-frequency 1 --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
 ```
 
 iNaturalist 2021 fine-tuning, first stage - linear probing

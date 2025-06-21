@@ -191,7 +191,7 @@ class Results:
 
     @property
     def accuracy(self) -> float:
-        return self._accuracy
+        return self._accuracy  # type: ignore[no-any-return]
 
     @cached_property
     def top_k(self) -> float:
@@ -280,9 +280,7 @@ class Results:
                 }
             )
 
-        report_df = pl.DataFrame(row_list)
-
-        return report_df
+        return pl.DataFrame(row_list)
 
     def log_short_report(self) -> None:
         """

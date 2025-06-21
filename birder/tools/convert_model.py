@@ -265,7 +265,6 @@ def main(args: argparse.Namespace) -> None:
                 epoch=args.epoch,
                 new_size=args.resize,
                 inference=True,
-                pts=False,
             )
         )
         network_name = lib.get_detection_network_name(
@@ -276,8 +275,6 @@ def main(args: argparse.Namespace) -> None:
             backbone_param=args.backbone_param,
             backbone_tag=args.backbone_tag,
         )
-
-    net.eval()
 
     if args.resize is not None:
         network_name = f"{network_name}_{args.resize[0]}px"

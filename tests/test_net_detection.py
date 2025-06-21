@@ -28,8 +28,12 @@ class TestNetDetection(unittest.TestCase):
             ("detr", None, ("regnet_y_1_6g", None)),
             ("efficientdet_d0", None, ("efficientnet_v1_b0", None)),
             ("faster_rcnn", None, ("resnet_v2_18", None)),
+            ("faster_rcnn", None, ("efficientvit_msft_m0", None)),  # 3 stage network
             ("fcos", None, ("tiny_vit_5m", None)),
+            ("fcos", None, ("vit_s32", None)),  # 1 stage network
             ("retinanet", None, ("mobilenet_v3_small", 1)),
+            ("retinanet", None, ("efficientvit_msft_m0", None)),  # 3 stage network
+            ("retinanet_sfp", None, ("vit_det_m16_rms", None)),
             ("ssd", None, ("efficientnet_v2_s", None)),
             ("ssdlite", None, ("mobilenet_v2", 1)),
             ("vitdet", None, ("vit_sam_b16", None)),
@@ -85,3 +89,8 @@ class TestNetDetection(unittest.TestCase):
             n.eval()
             torch.jit.trace(n, example_inputs=torch.rand((1, 3, *size)))
             n.train()
+
+        # Freeze
+        n.eval()
+        n.freeze(freeze_classifier=False)
+        n(torch.rand((1, 3, *size)))

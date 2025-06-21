@@ -1,0 +1,3 @@
+images/v1/patch6/objects365_v1_00320534.jpg
+images/v1/patch6/objects365_v1_00320532.jpg
+images/v2/patch16/objects365_v2_00908726.jpg

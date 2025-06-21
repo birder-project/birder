@@ -163,7 +163,7 @@ class FCOSRegressionHead(nn.Module):
             bbox_ctrness = self.bbox_ctrness(bbox_feature)
 
             # Permute bbox regression output from (N, 4 * A, H, W) to (N, HWA, 4).
-            (N, _, H, W) = bbox_regression.shape
+            (N, _, H, W) = bbox_regression.size()
             bbox_regression = bbox_regression.view(N, -1, 4, H, W)
             bbox_regression = bbox_regression.permute(0, 3, 4, 1, 2)
             bbox_regression = bbox_regression.reshape(N, -1, 4)  # (N, HWA, 4)
@@ -295,8 +295,8 @@ class FCOS(DetectionBaseNet):
         self.detections_per_img = 100
         self.topk_candidates = 1000
 
-        self.backbone.return_channels = self.backbone.return_channels[1:]
-        self.backbone.return_stages = self.backbone.return_stages[1:]
+        self.backbone.return_channels = self.backbone.return_channels[-3:]
+        self.backbone.return_stages = self.backbone.return_stages[-3:]
         self.backbone_with_fpn = BackboneWithFPN(
             # Skip stage1
             self.backbone,
@@ -305,8 +305,12 @@ class FCOS(DetectionBaseNet):
         )
 
         anchor_sizes = [[8], [16], [32], [64], [128]]  # Equal to strides of multi-level feature map
+        anchor_sizes = anchor_sizes[-len(self.backbone.return_stages) - 2 :]
         aspect_ratios = [[1.0]] * len(anchor_sizes)  # Set only one anchor
         self.anchor_generator = AnchorGenerator(anchor_sizes, aspect_ratios)
+        assert (
+            self.anchor_generator.num_anchors_per_location()[0] == 1
+        ), f"num_anchors_per_location()[0] should be 1 instead of {self.anchor_generator.num_anchors_per_location()[0]}"
 
         self.head = FCOSHead(
             self.backbone_with_fpn.out_channels,
@@ -326,6 +330,14 @@ class FCOS(DetectionBaseNet):
             self.num_classes,
             self.head.num_convs,
         )
+
+    def freeze(self, freeze_classifier: bool = True) -> None:
+        for param in self.parameters():
+            param.requires_grad = False
+
+        if freeze_classifier is False:
+            for param in self.head.classification_head.parameters():
+                param.requires_grad = True
 
     def compute_loss(
         self,
@@ -371,7 +383,7 @@ class FCOS(DetectionBaseNet):
             # Match the GT box with minimum area, if there are multiple GT matches
             gt_areas = (gt_boxes[:, 2] - gt_boxes[:, 0]) * (gt_boxes[:, 3] - gt_boxes[:, 1])  # N
             pairwise_match = pairwise_match.to(torch.float32) * (1e8 - gt_areas[None, :])
-            min_values, matched_idx = pairwise_match.max(dim=1)  # R, per-anchor match
+            (min_values, matched_idx) = pairwise_match.max(dim=1)  # R, per-anchor match
             matched_idx[min_values < 1e-5] = -1  # Unmatched anchors are assigned -1
 
             matched_idxs.append(matched_idx)
@@ -395,7 +407,8 @@ class FCOS(DetectionBaseNet):
             box_regression_per_image = [br[index] for br in box_regression]
             logits_per_image = [cl[index] for cl in class_logits]
             box_ctrness_per_image = [bc[index] for bc in box_ctrness]
-            anchors_per_image, image_shape = anchors[index], image_shapes[index]
+            anchors_per_image = anchors[index]
+            image_shape = image_shapes[index]
 
             image_boxes = []
             image_scores = []

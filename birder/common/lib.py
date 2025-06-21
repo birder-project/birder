@@ -100,6 +100,12 @@ def detection_class_to_idx(class_to_idx: dict[str, int]) -> dict[str, int]:
     return class_to_idx
 
 
+def class_to_idx_from_coco(cats: dict[int, Any]) -> dict[str, int]:
+    class_list = [item["name"] for item in sorted(cats.values(), key=lambda x: x["id"])]
+    class_to_idx = {k: v for v, k in enumerate(class_list)}
+    return class_to_idx
+
+
 def get_network_config(
     net: BaseNet | DetectionBaseNet | MIMBaseNet | SSLBaseNet,
     signature: SignatureType | DetectionSignatureType,

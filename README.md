@@ -1,6 +1,6 @@
 # Birder
 
-Birder is an open-source computer vision framework for wildlife image analysis, focusing on avian species.
+An open-source computer vision framework for wildlife image analysis, featuring state-of-the-art models for species classification and detection.
 
 - [Introduction](#introduction)
 - [Setup](#setup)
@@ -12,7 +12,7 @@ Birder is an open-source computer vision framework for wildlife image analysis, 
 
 ## Introduction
 
-Birder is an open-source computer vision framework designed for wildlife imagery, specifically focused on bird species classification and detection. This project leverages deep neural networks to provide robust models that can handle real-world data challenges.
+Birder is an open-source computer vision framework designed for wildlife imagery analysis, offering robust classification and detection capabilities for various species. While initially developed with a focus on avian species, the framework's architecture and methodologies are applicable to a wide range of wildlife computer vision tasks. This project leverages deep neural networks to provide models that can handle real-world data challenges in natural environments.
 
 For comprehensive documentation, tutorials, and more visit the main documentation at [docs/README.md](docs/README.md).
 
@@ -26,13 +26,13 @@ The project features:
 - Advanced error analysis tools
 - Extensive documentation and tutorials (hopefully...)
 
-Unlike projects that aim to reproduce ImageNet training results from common papers, Birder is tailored specifically for practical applications in ornithology, conservation, and wildlife photography.
+Unlike projects that aim to reproduce ImageNet training results from common papers, Birder is tailored specifically for practical applications in wildlife monitoring, conservation efforts, ecological research, and nature photography.
 
 As Ross Wightman eloquently stated in the [timm README](https://github.com/huggingface/pytorch-image-models#introduction):
 
 > The work of many others is present here. I've tried to make sure all source material is acknowledged via links to github, arXiv papers, etc. in the README, documentation, and code docstrings. Please let me know if I missed anything.
 
-The same principle applies to Birder. We stand on the shoulders of giants in the fields of computer vision, machine learning, and ornithology. We've made every effort to acknowledge and credit the work that has influenced and contributed to this project. If you believe we've missed any attributions, please let us know by opening an issue.
+The same principle applies to Birder. We stand on the shoulders of giants in the fields of computer vision, machine learning, and ecology. We've made every effort to acknowledge and credit the work that has influenced and contributed to this project. If you believe we've missed any attributions, please let us know by opening an issue.
 
 ## Setup
 
@@ -89,7 +89,7 @@ For more detailed usage instructions and examples, please refer to our [document
 
 ## Pre-trained Models
 
-Birder provides a comprehensive suite of pre-trained models for bird species classification.
+Birder provides a comprehensive suite of pre-trained models for wildlife species classification, with current models specialized for avian species recognition.
 
 To explore the full range of available pre-trained models, use the `list-models` tool:
 
@@ -119,12 +119,12 @@ Net Param: The number following the model name (e.g., 50, 1.0, 0.5), called the 
 
 Epoch Number (optional): The last part of the model name may include an underscore followed by a number (e.g., `0`, `200`), which represents the epoch.
 
-For instance, *resnext_50_intermediate_300* represents a ResNeXt model with a `net_param` of 50 that underwent intermediate training and is from epoch 300.
+For instance, *mnasnet_1_intermediate_300* represents a MnasNet model with a `net_param` (alpha value in this case) of 1 that underwent intermediate training and is from epoch 300.
 
 ### Self-supervised Image Pre-training
 
-Our pre-training process utilizes a diverse collection of image datasets.
-This approach allows our models to learn rich, general-purpose visual representations before fine-tuning on specific bird classification tasks.
+Our pre-training process utilizes a diverse collection of image datasets, combining general imagery with wildlife-specific content.
+This approach allows our models to learn rich, general-purpose visual representations before fine-tuning on specific classification tasks.
 
 The pre-training dataset is composed of a mix of general images and bird specific imagery to improve downstream performance on the bird classification tasks.
 

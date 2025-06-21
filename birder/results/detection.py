@@ -1,9 +1,16 @@
 import json
 import logging
+from collections import Counter
 from typing import Any
+from typing import Literal
+from typing import Optional
 from typing import TypedDict
 
+import polars as pl
 import torch
+from rich.console import Console
+from rich.table import Table
+from rich.text import Text
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
 from birder.conf import settings
@@ -68,7 +75,9 @@ class Results:
         metrics(detections, targets)
         metrics_dict = metrics.compute()
 
+        self._iou_thresholds = metrics.iou_thresholds
         self._class_to_idx = class_to_idx
+        self._label_names = list(class_to_idx.keys())
         self._detections = detections
         self._targets = targets
         self._sample_paths = sample_paths
@@ -103,7 +112,6 @@ class Results:
         body = [
             f"Number of samples: {len(self)}",
         ]
-
         body.append(f"mAP: {self.map:.4f}")
 
         lines = [head] + ["    " + line for line in body]
@@ -113,6 +121,88 @@ class Results:
     @property
     def map(self) -> float:
         return self.metrics_dict["map"]
+
+    def detailed_report(self) -> pl.DataFrame:
+        """
+        Returns a detailed detection report with per-class metrics
+        """
+
+        object_count: Counter[int] = Counter()
+        for t in self._targets:
+            object_count.update(t["labels"].tolist())
+
+        row_list = []
+        for class_num, mean_ap in zip(self.metrics_dict["classes"], self.metrics_dict["map_per_class"]):
+            row_list.append(
+                {
+                    "Class": class_num,
+                    "Class name": self._label_names[class_num],
+                    "mAP": mean_ap,
+                    "Objects": object_count[class_num],
+                }
+            )
+
+        return pl.DataFrame(row_list)
+
+    def log_short_report(self) -> None:
+        """
+        Log using the Python logging module a short metrics summary
+        """
+
+        report_df = self.detailed_report()
+        total_objects = report_df["Objects"].sum()
+        lowest_map = report_df[report_df["mAP"].arg_min()]  # type: ignore[index]
+        highest_map = report_df[report_df["mAP"].arg_max()]  # type: ignore[index]
+
+        logger.info(f"mAP {self.map:.4f} on {len(self)} images with {total_objects} objects")
+        logger.info(f"Lowest mAP {lowest_map['mAP'][0]:.4f} for '{lowest_map['Class name'][0]}'")
+        logger.info(f"Highest mAP {highest_map['mAP'][0]:.4f} for '{highest_map['Class name'][0]}'")
+
+    def pretty_print(
+        self,
+        sort_by: Literal["class", "map"] = "class",
+        order: Literal["ascending", "descending"] = "ascending",
+        n: Optional[int] = None,
+    ) -> None:
+        console = Console()
+
+        table = Table(show_header=True, header_style="bold dark_magenta")
+        table.add_column("Class")
+        table.add_column("Class name", style="dim")
+        table.add_column("mAP", justify="right")
+        table.add_column("Objects", justify="right")
+
+        report_df = self.detailed_report()
+        total_objects = report_df["Objects"].sum()
+        if sort_by == "map":
+            sort_column = "mAP"
+        else:
+            sort_column = sort_by.capitalize()
+
+        report_df = report_df.sort(sort_column, descending=order == "descending")
+        if n is not None:
+            report_df = report_df[:n]
+
+        for row in report_df.iter_rows(named=True):
+            map_msg = f"{row['mAP']:.4f}"
+            if row["mAP"] < 0.4:
+                map_msg = "[red1]" + map_msg + "[/red1]"
+            elif row["mAP"] < 0.5:
+                map_msg = "[dark_orange]" + map_msg + "[/dark_orange]"
+
+            table.add_row(
+                f"{row['Class']}",
+                row["Class name"],
+                map_msg,
+                f"{row['Objects']}",
+            )
+
+        console.print(table)
+
+        map_text = Text()
+        map_text.append(f"mAP {self.map:.4f} on {len(self)} images with {total_objects} objects")
+
+        console.print(map_text)
 
     def save(self, name: str) -> None:
         """

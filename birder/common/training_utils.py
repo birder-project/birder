@@ -706,7 +706,7 @@ def setup_file_logging(log_file_path: str | Path) -> None:
 def get_grad_norm(parameters: Iterator[torch.Tensor], norm_type: float = 2.0) -> float:
     filtered_parameters = list(filter(lambda p: p.grad is not None, parameters))
     norm_type = float(norm_type)
-    total_norm = 0.0
+    total_norm: float = 0.0
     for p in filtered_parameters:
         param_norm = p.grad.data.norm(norm_type)
         total_norm += param_norm.item() ** norm_type

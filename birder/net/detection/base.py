@@ -94,6 +94,9 @@ class DetectionBaseNet(nn.Module):
         self.size = new_size
         self.backbone.adjust_size(new_size)
 
+    def freeze(self, freeze_classifier: bool = True) -> None:
+        raise NotImplementedError
+
     # pylint: disable=protected-access
     def _input_check(self, targets: Optional[list[dict[str, torch.Tensor]]]) -> None:
         if self.training is True:
@@ -188,7 +191,11 @@ class BackboneWithFPN(nn.Module):
 
 class BackboneWithSimpleFPN(nn.Module):
     def __init__(
-        self, backbone: DetectorBackbone, out_channels: int, extra_blocks: Optional[ExtraFPNBlock] = None
+        self,
+        backbone: DetectorBackbone,
+        out_channels: int,
+        extra_blocks: Optional[ExtraFPNBlock] = None,
+        num_stages: int = 4,
     ) -> None:
         super().__init__()
         self.backbone = backbone
@@ -198,6 +205,7 @@ class BackboneWithSimpleFPN(nn.Module):
             out_channels=out_channels,
             norm_layer=nn.BatchNorm2d,
             extra_blocks=extra_blocks,
+            num_stages=num_stages,
         )
 
         self.out_channels = out_channels
@@ -216,10 +224,11 @@ class SimpleFeaturePyramidNetwork(nn.Module):
         out_channels: int,
         norm_layer: Callable[..., nn.Module],
         extra_blocks: Optional[ExtraFPNBlock] = None,
+        num_stages: int = 4,
     ):
         super().__init__()
         self.blocks = nn.ModuleList()
-        for block_index in range(4):
+        for block_index in range(4 - num_stages, 4):
             layers = []
 
             current_in_channels = in_channels

@@ -22,9 +22,11 @@ from torchvision.ops import generalized_box_iou_loss
 from torchvision.ops import sigmoid_focal_loss
 from torchvision.ops.feature_pyramid_network import LastLevelP6P7
 
+from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import AnchorGenerator
 from birder.net.detection.base import BackboneWithFPN
+from birder.net.detection.base import BackboneWithSimpleFPN
 from birder.net.detection.base import BoxCoder
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import Matcher
@@ -140,13 +142,14 @@ class RetinaNetRegressionHead(nn.Module):
 
         conv = []
         for _ in range(4):
-            conv.append(Conv2dNormActivation(in_channels, in_channels, norm_layer=norm_layer))
+            conv.append(
+                Conv2dNormActivation(
+                    in_channels, in_channels, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), norm_layer=norm_layer
+                )
+            )
 
         self.conv = nn.Sequential(*conv)
-
         self.bbox_reg = nn.Conv2d(in_channels, num_anchors * 4, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-        nn.init.normal_(self.bbox_reg.weight, std=0.01)
-        nn.init.zeros_(self.bbox_reg.bias)
 
         # Weights initialization
         for layer in self.conv.modules():
@@ -193,13 +196,12 @@ class RetinaNetRegressionHead(nn.Module):
 
     def forward(self, x: list[torch.Tensor]) -> torch.Tensor:
         all_bbox_regression = []
-
         for features in x:
             bbox_regression: torch.Tensor = self.conv(features)
             bbox_regression = self.bbox_reg(bbox_regression)
 
             # Permute bbox regression output from (N, 4 * A, H, W) to (N, HWA, 4).
-            (N, _, H, W) = bbox_regression.shape
+            (N, _, H, W) = bbox_regression.size()
             bbox_regression = bbox_regression.view(N, -1, 4, H, W)
             bbox_regression = bbox_regression.permute(0, 3, 4, 1, 2)
             bbox_regression = bbox_regression.reshape(N, -1, 4)  # Size=(N, HWA, 4)
@@ -248,7 +250,6 @@ class RetinaNetHead(nn.Module):
 
 class RetinaNet(DetectionBaseNet):
     default_size = (640, 640)
-    auto_register = True
 
     def __init__(
         self,
@@ -261,7 +262,7 @@ class RetinaNet(DetectionBaseNet):
     ) -> None:
         super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
-        assert self.config is None, "config not supported"
+        assert self.config is not None, "must set config"
 
         self.num_classes = self.num_classes - 1
 
@@ -273,17 +274,28 @@ class RetinaNet(DetectionBaseNet):
         detections_per_img = 300
         topk_candidates = 1000
         giou_loss = True
+        feature_pyramid_type: str = self.config["feature_pyramid_type"]
 
+        if feature_pyramid_type == "fpn":
+            feature_pyramid: Callable[..., nn.Module] = BackboneWithFPN
+            num_anchor_sizes = len(self.backbone.return_stages) + 2
+        elif feature_pyramid_type == "sfp":
+            feature_pyramid = partial(BackboneWithSimpleFPN, num_stages=3)
+            num_anchor_sizes = 3 + 2
+        else:
+            raise ValueError(f"Unknown feature_pyramid_type '{feature_pyramid_type}'")
+
+        # Skip stage1 because it generates too many anchors (according to their paper)
         self.backbone.return_channels = self.backbone.return_channels[-3:]
         self.backbone.return_stages = self.backbone.return_stages[-3:]
-        self.backbone_with_fpn = BackboneWithFPN(
-            # Skip stage1 because it generates too many anchors (according to their paper)
+        self.backbone_with_fpn = feature_pyramid(
             self.backbone,
             fpn_width,
             extra_blocks=LastLevelP6P7(self.backbone.return_channels[-1], 256),
         )
 
         anchor_sizes = [[x, int(x * 2 ** (1.0 / 3)), int(x * 2 ** (2.0 / 3))] for x in [32, 64, 128, 256, 512]]
+        anchor_sizes = anchor_sizes[-num_anchor_sizes:]
         aspect_ratios = [[0.5, 1.0, 2.0]] * len(anchor_sizes)
         self.anchor_generator = AnchorGenerator(anchor_sizes, aspect_ratios)
 
@@ -313,6 +325,16 @@ class RetinaNet(DetectionBaseNet):
             norm_layer=norm_layer,
         )
 
+    def freeze(self, freeze_classifier: bool = True) -> None:
+        for param in self.parameters():
+            param.requires_grad = False
+
+        if freeze_classifier is False:
+            for param in self.head.classification_head.parameters():
+                param.requires_grad = True
+
+    @torch.jit.unused  # type: ignore[misc]
+    @torch.compiler.disable()  # type: ignore[misc]
     def compute_loss(
         self,
         targets: list[dict[str, torch.Tensor]],
@@ -414,7 +436,7 @@ class RetinaNet(DetectionBaseNet):
         head_outputs = self.head(feature_list)
         anchors = self.anchor_generator(images, feature_list)
 
-        losses = {}
+        losses: dict[str, torch.Tensor] = {}
         detections: list[dict[str, torch.Tensor]] = []
         if self.training is True:
             assert targets is not None, "targets should not be none when in training mode"
@@ -442,3 +464,7 @@ class RetinaNet(DetectionBaseNet):
             detections = self.postprocess_detections(split_head_outputs, split_anchors, images.image_sizes)
 
         return (detections, losses)
+
+
+registry.register_alias("retinanet", RetinaNet, config={"feature_pyramid_type": "fpn"})
+registry.register_alias("retinanet_sfp", RetinaNet, config={"feature_pyramid_type": "sfp"})

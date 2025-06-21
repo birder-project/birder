@@ -47,18 +47,21 @@ from birder.tools.model_info import get_model_info
 ```
 
 ```{python}
-PATTERN = "il-common"
+PATTERN = "il-all"
 RESULTS_PATH = PATTERN
 ```
 
 ## Helper Functions
 
 ```{python}
-def get_model_name_and_num_parameters(file_name: str, tag: str = PATTERN) -> tuple[str, str, int, bool, bool]:
+def get_model_name_and_num_parameters(
+    file_name: str, tag: str = PATTERN
+) -> tuple[str, str, int, bool, bool, bool, bool]:
     reparameterized = False
     intermediate = False
     mim = False
     dist = False
+    ssl = False
     prop_list = []
     if file_name.find("reparameterized") != -1:
         reparameterized = True
@@ -79,6 +82,34 @@ def get_model_name_and_num_parameters(file_name: str, tag: str = PATTERN) -> tup
         file_name = file_name.replace("_intermediate", "")
         file_name = file_name.replace("-intermediate", "")
         prop_list.append("i")
+
+    def mark_ssl(ssl_name: str) -> bool:
+        nonlocal file_name
+        nonlocal prop_list
+
+        if file_name.find(ssl_name) != -1:
+            file_name = file_name.replace(f"_{ssl_name}", "")
+            file_name = file_name.replace(f"-{ssl_name}", "")
+            if "ssl" not in prop_list:
+                prop_list.append("ssl")
+
+            return True
+
+        return False
+
+    for ssl_name in [
+        "barlow-twins",
+        "byol",
+        "capi",
+        "dino-v1",
+        "dino-v2",
+        "i-jepa",
+        "ibot",
+        "mmcr",
+        "simclr",
+        "vicreg",
+    ]:
+        ssl |= mark_ssl(ssl_name)
 
     file_name = file_name.split("/")[-1]
     tag_end_idx = file_name.find("_", file_name.find(tag))
@@ -105,7 +136,15 @@ def get_model_name_and_num_parameters(file_name: str, tag: str = PATTERN) -> tup
     else:
         model_type = model.__class__.__name__
 
-    return (model_name.replace("_", " "), model_type.replace("_", " "), info["num_params"], intermediate, mim, dist)
+    return (
+        model_name.replace("_", " "),
+        model_type.replace("_", " "),
+        info["num_params"],
+        intermediate,
+        mim,
+        dist,
+        ssl,
+    )
 ```
 
 ```{python}
@@ -149,8 +188,11 @@ resolution = []
 intermediate = []
 mim = []
 dist = []
+ssl = []
 for file_name in compare_results_df["File name"]:
-    (model_name, model_type, count, intermediate_trn, mim_trn, dist_trn) = get_model_name_and_num_parameters(file_name)
+    (model_name, model_type, count, intermediate_trn, mim_trn, dist_trn, ssl_trn) = get_model_name_and_num_parameters(
+        file_name
+    )
     num_param.append(count / 1e6)
     model_names.append(model_name)
     model_types.append(model_type)
@@ -159,6 +201,7 @@ for file_name in compare_results_df["File name"]:
     intermediate.append(intermediate_trn)
     mim.append(mim_trn)
     dist.append(dist_trn)
+    ssl.append(ssl_trn)
 
 compare_results_df = compare_results_df.with_columns(
     pl.Series("Parameters (M)", num_param),
@@ -169,6 +212,7 @@ compare_results_df = compare_results_df.with_columns(
     pl.Series("Intermediate", intermediate),
     pl.Series("MIM", mim),
     pl.Series("Distilled", dist),
+    pl.Series("Self-supervised learning", ssl),
 )
 ```
 

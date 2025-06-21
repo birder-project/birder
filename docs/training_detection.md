@@ -50,7 +50,7 @@ torchrun --nproc_per_node=2 train_detection.py --network detr --backbone regnet_
 Optional warmup: actual training
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network detr --backbone regnet_y_8g --backbone-epoch 0 --opt adamw --lr 0.0001 --backbone-lr 0.00001 --lr-scheduler cosine --freeze-backbone-bn --batch-size 8 --epochs 300 --wd 0.0001 --clip-grad-norm 0.1 --fast-matmul --compile-opt --resume-epoch 0
+torchrun --nproc_per_node=2 train_detection.py --network detr --backbone regnet_y_8g --backbone-epoch 0 --opt adamw --lr 0.0001 --backbone-lr 0.00001 --lr-scheduler cosine --freeze-backbone-bn --batch-size 8 --epochs 300 --wd 0.0001 --clip-grad-norm 0.1 --fast-matmul --compile-backbone --resume-epoch 0
 ```
 
 ### EfficientDet
@@ -58,32 +58,42 @@ torchrun --nproc_per_node=2 train_detection.py --network detr --backbone regnet_
 #### EfficientDet D0: EfficientNet v1 B0
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d0 --backbone efficientnet_v1_b0 --lr 0.08 --lr-scheduler cosine --sync-bn --warmup-epochs 5 --batch-size 16 --epochs 300 --wd 0.00004 --model-ema --clip-grad-norm 10 --amp --compile-backbone --compile-custom bifpn
+torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d0 --backbone efficientnet_v1_b0 --lr 0.08 --lr-scheduler cosine --sync-bn --warmup-epochs 5 --batch-size 16 --epochs 300 --wd 0.00004 --model-ema --clip-grad-norm 10 --amp --amp-dtype bfloat16 --compile
+```
+
+#### EfficientDet D3: EfficientNet v1 B3
+
+Optional intermediate training (COCO)
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d3 --tag coco --backbone efficientnet_v1_b3 --lr 0.08 --lr-scheduler cosine --sync-bn --warmup-epochs 5 --batch-size 16 --epochs 300 --wd 0.00004 --model-ema --clip-grad-norm 10 --amp --amp-dtype bfloat16 --compile --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 #### EfficientDet D4: RegNet Y 8 GF
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d4 --backbone regnet_y_8g --backbone-epoch 0 --freeze-backbone --lr 0.08 --lr-scheduler cosine --warmup-epochs 2 --freeze-backbone-bn --batch-size 8 --epochs 300 --wd 0.00004 --clip-grad-norm 10 --amp --compile-backbone --compile-custom bifpn
+torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d4 --backbone regnet_y_8g --backbone-epoch 0 --freeze-backbone --lr 0.08 --lr-scheduler cosine --warmup-epochs 2 --freeze-backbone-bn --batch-size 8 --epochs 300 --wd 0.00004 --clip-grad-norm 10 --amp --amp-dtype bfloat16 --compile
 ```
 
 ### Faster R-CNN
 
-#### Faster R-CNN: EfficientNet v2 Small Backbone
+#### Faster R-CNN: EfficientNet v2 Small
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone efficientnet_v2_s --backbone-epoch 0 --lr 0.02 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --freeze-backbone-stages 2 --freeze-backbone-bn --batch-size 16 --epochs 26 --wd 0.0001 --fast-matmul --compile-custom backbone_with_fpn
+torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone efficientnet_v2_s --backbone-epoch 0 --lr 0.02 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --freeze-backbone-stages 2 --freeze-backbone-bn --batch-size 16 --epochs 26 --wd 0.0001 --fast-matmul --compile-backbone
 ```
 
 ### FCOS
 
-#### FCOS: Tiny ViT 5M Backbone
+Does not work well with AMP
+
+#### FCOS: Tiny ViT 5M
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network fcos --backbone tiny_vit_5m --backbone-epoch 0 --lr 0.01 --lr-scheduler step --lr-step-size 15 --lr-step-gamma 0.1 --freeze-backbone-bn --batch-size 16 --epochs 32 --wd 0.0001 --amp
+torchrun --nproc_per_node=2 train_detection.py --network fcos --backbone tiny_vit_5m --backbone-epoch 0 --lr 0.01 --lr-scheduler step --lr-step-size 15 --lr-step-gamma 0.1 --freeze-backbone-bn --batch-size 16 --epochs 32 --wd 0.0001 --fast-matmul
 ```
 
-#### FCOS: EfficientNet v2 Small Backbone
+#### FCOS: EfficientNet v2 Small
 
 Optional warmup
 
@@ -94,20 +104,20 @@ torchrun --nproc_per_node=2 train_detection.py --network fcos --backbone efficie
 Optional warmup: actual training
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network fcos --backbone efficientnet_v2_s --backbone-pretrained --lr 0.01 --lr-scheduler step --lr-step-size 15 --lr-step-gamma 0.1 --freeze-backbone-bn --batch-size 16 --epochs 32 --wd 0.0001 --amp --resume-epoch 0
+torchrun --nproc_per_node=2 train_detection.py --network fcos --backbone efficientnet_v2_s --backbone-pretrained --lr 0.01 --lr-scheduler step --lr-step-size 15 --lr-step-gamma 0.1 --freeze-backbone-bn --batch-size 16 --epochs 32 --wd 0.0001 --fast-matmul --resume-epoch 0
 ```
 
 ### RetinaNet
 
-#### RetinaNet: CSP ResNet 50 Backbone
+#### RetinaNet: CSP ResNet 50
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network retinanet --backbone csp_resnet_50 --backbone-epoch 0 --opt adamw --lr 0.0001 --epochs 26 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --freeze-backbone-stages 1 --freeze-backbone-bn --batch-size 32 --wd 0.05 --norm-wd 0 --amp --compile-backbone --compile-opt
+torchrun --nproc_per_node=2 train_detection.py --network retinanet --backbone csp_resnet_50 --backbone-epoch 0 --opt adamw --lr 0.0001 --epochs 26 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --freeze-backbone-stages 1 --freeze-backbone-bn --batch-size 32 --wd 0.05 --norm-wd 0 --amp --compile --compile-opt
 ```
 
 ### SSD
 
-#### SSD: MobileNet v4 Medium Backbone
+#### SSD: MobileNet v4 Medium
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network ssd --backbone mobilenet_v4_m --backbone-epoch 0 --freeze-backbone-stages 4 --lr 0.015 --lr-scheduler cosine --batch-size 64 --epochs 300 --wd 0.00002 --fast-matmul
@@ -115,13 +125,13 @@ torchrun --nproc_per_node=2 train_detection.py --network ssd --backbone mobilene
 
 ### SSDLite
 
-#### SSDLite: MobileNet v2 1 Backbone
+#### SSDLite: MobileNet v2 1
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network ssdlite --backbone mobilenet_v2 --backbone-param 1 --backbone-epoch 0 --lr 0.15 --lr-scheduler cosine --batch-size 32 --epochs 600 --wd 0.00004 --fast-matmul
 ```
 
-#### SSDLite: MobileNet v4 Hybrid Medium Backbone
+#### SSDLite: MobileNet v4 Hybrid Medium
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network ssdlite --backbone mobilenet_v4_hybrid_m --backbone-epoch 0 --opt adamw --lr 0.002 --backbone-lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-8 --batch-size 32 --warmup-epochs 20 --epochs 600 --wd 0.0001 --fast-matmul --compile-opt
@@ -129,10 +139,28 @@ torchrun --nproc_per_node=2 train_detection.py --network ssdlite --backbone mobi
 
 ### ViTDet
 
-#### ViTDet: ViT SAM b16 Backbone
+#### ViTDet: ViT Det m16 rms
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network vitdet --backbone vit_sam_b16 --backbone-epoch 0 --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 8 --warmup-epochs 2 --epochs 100 --wd 0.1 --norm-wd 0 --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.7
+torchrun --nproc_per_node=2 train_detection.py --network vitdet --backbone vit_det_m16_rms --backbone-tag i-jepa-imagenet21k --backbone-pretrained --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 16 --warmup-epochs 2 --epochs 100 --size 672 --wd 0.1 --norm-wd 0 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile-backbone --layer-decay 0.9
+```
+
+Optional intermediate training (Objects365-2020)
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network vitdet --tag objects365 --backbone vit_det_m16_rms --backbone-tag i-jepa --backbone-pretrained --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 16 --warmup-epochs 2 --epochs 20 --size 672 --wd 0.1 --norm-wd 0 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile-backbone --layer-decay 0.9 --save-frequency 1 --data-path ~/Datasets/Objects365-2020/train --val-path ~/Datasets/Objects365-2020/val --coco-json-path ~/Datasets/Objects365-2020/train/zhiyuan_objv2_train.json --coco-val-json-path ~/Datasets/Objects365-2020/val/zhiyuan_objv2_val.json --ignore-file public_datasets_metadata/objects365_ignore.txt
+```
+
+Optional intermediate training (COCO)
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network vitdet --tag coco --backbone vit_det_m16_rms --backbone-tag i-jepa-imagenet21k --backbone-pretrained --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 16 --warmup-epochs 2 --epochs 100 --size 672 --wd 0.1 --norm-wd 0 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile-backbone --layer-decay 0.9 --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json
+```
+
+#### ViTDet: ViT SAM b16
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network vitdet --backbone vit_sam_b16 --backbone-epoch 0 --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 8 --warmup-epochs 2 --epochs 100 --size 672 --wd 0.1 --norm-wd 0 --clip-grad-norm 1 --amp --compile-backbone --compile-opt --layer-decay 0.7
 ```
 
 ## Common Dataset Training Scenarios
@@ -142,19 +170,19 @@ torchrun --nproc_per_node=2 train_detection.py --network vitdet --backbone vit_s
 #### Faster R-CNN: CSP ResNet 50 Backbone COCO example
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --tag coco --backbone csp_resnet_50 --backbone-pretrained --backbone-tag imagenet1k --lr 0.02 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --freeze-backbone-stages 2 --freeze-backbone-bn --batch-size 16 --epochs 26 --wd 0.0001 --fast-matmul --compile-custom backbone_with_fpn --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --tag coco --backbone csp_resnet_50 --backbone-tag imagenet1k --backbone-pretrained --lr 0.02 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --freeze-backbone-stages 2 --freeze-backbone-bn --batch-size 16 --epochs 26 --wd 0.0001 --fast-matmul --compile-backbone --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 #### Faster R-CNN: ResNet v1 50 Backbone COCO example
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --tag coco --backbone resnet_v1_50 --lr 0.1 --lr-scheduler multistep --lr-steps 352 384 --lr-step-gamma 0.1 --batch-size 16 --epochs 400 --wd 0.0004 --amp --compile-custom backbone_with_fpn --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --tag coco --backbone resnet_v1_50 --lr 0.1 --lr-scheduler multistep --lr-steps 352 384 --lr-step-gamma 0.1 --batch-size 16 --epochs 400 --wd 0.0004 --amp --compile-backbone --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 #### RetinaNet: ResNet v1 50 Backbone COCO example
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network retinanet --tag coco --backbone resnet_v1_50 --backbone-pretrained --backbone-tag imagenet1k --opt adamw --lr 0.0001 --epochs 26 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --freeze-backbone-stages 1 --freeze-backbone-bn --batch-size 32 --wd 0.05 --norm-wd 0 --amp --compile-backbone --compile-opt --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+torchrun --nproc_per_node=2 train_detection.py --network retinanet --tag coco --backbone resnet_v1_50 --backbone-tag imagenet1k --backbone-pretrained --opt adamw --lr 0.0001 --epochs 26 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --freeze-backbone-stages 1 --freeze-backbone-bn --batch-size 32 --wd 0.05 --norm-wd 0 --amp --compile --compile-opt --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 #### SSD: MobileNet v4 Medium Backbone COCO example
@@ -170,7 +198,7 @@ torchrun --nproc_per_node=2 train_detection.py --network ssd --tag coco --backbo
 Step 1: Warmup
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network fcos --backbone efficientnet_v2_m --backbone-pretrained --backbone-tag il-all --freeze-backbone --lr 0.01 --freeze-backbone-bn --batch-size 32 --epochs 2 --wd 0.0001 --fast-matmul --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+torchrun --nproc_per_node=2 train_detection.py --network fcos --backbone efficientnet_v2_m --backbone-tag il-all --backbone-pretrained --freeze-backbone --lr 0.01 --freeze-backbone-bn --batch-size 32 --epochs 2 --wd 0.0001 --fast-matmul --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 Step 2: Training

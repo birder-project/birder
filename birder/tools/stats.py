@@ -27,18 +27,22 @@ def detection_object_count(directory: Path) -> tuple[Counter[str], int]:
 
     file_count = 0
     detection_count: Counter[str] = Counter()
-    for file_path in directory.glob("*.json"):
-        with open(file_path, "r", encoding="utf=8") as handle:
-            raw_label = json.load(handle)
-
-        if raw_label["flags"].get("unknown", False) is True:
-            # Don't count images with unknown species
+    for d in directory.iterdir():
+        if d.is_dir() is False:
             continue
 
-        for shape in raw_label["shapes"]:
-            detection_count.update([shape["label"]])
+        for file_path in d.glob("*.json"):
+            with open(file_path, "r", encoding="utf=8") as handle:
+                raw_label = json.load(handle)
 
-        file_count += 1
+            if raw_label["flags"].get("unknown", False) is True:
+                # Don't count images with unknown species
+                continue
+
+            for shape in raw_label["shapes"]:
+                detection_count.update([shape["label"]])
+
+            file_count += 1
 
     return (detection_count, file_count)
 

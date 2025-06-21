@@ -39,7 +39,7 @@ from birder.transforms.detection import training_preset
 logger = logging.getLogger(__name__)
 
 
-def _remove_images_without_annotations(dataset: CocoDetection) -> CocoDetection:
+def _remove_images_without_annotations(dataset: CocoDetection, ignore_list: list[str]) -> CocoDetection:
     def _has_only_empty_bbox(anno: list[dict[str, Any]]) -> bool:
         return all(any(o <= 1 for o in obj["bbox"][2:]) for obj in anno)
 
@@ -56,6 +56,11 @@ def _remove_images_without_annotations(dataset: CocoDetection) -> CocoDetection:
 
     ids = []
     for ds_idx, img_id in enumerate(dataset.ids):
+        img_path = dataset.coco.loadImgs(img_id)[0]["file_name"]
+        if img_path in ignore_list:
+            logger.debug(f"Ignoring {img_path}")
+            continue
+
         ann_ids = dataset.coco.getAnnIds(imgIds=img_id, iscrowd=None)
         anno = dataset.coco.loadAnns(ann_ids)
         if _has_valid_annotation(anno):
@@ -114,15 +119,24 @@ def train(args: argparse.Namespace) -> None:
     )
     validation_dataset = wrap_dataset_for_transforms_v2(validation_dataset)
 
-    class_to_idx = fs_ops.read_class_file(args.class_file)
+    if args.class_file is not None:
+        class_to_idx = fs_ops.read_class_file(args.class_file)
+    else:
+        class_to_idx = lib.class_to_idx_from_coco(training_dataset.coco.cats)
+
     class_to_idx = lib.detection_class_to_idx(class_to_idx)
+    if args.ignore_file is not None:
+        with open(args.ignore_file, "r", encoding="utf-8") as handle:
+            ignore_list = handle.read().splitlines()
+    else:
+        ignore_list = []
 
     if args.binary_mode is True:
         training_dataset = _convert_to_binary_annotations(training_dataset)
         validation_dataset = _convert_to_binary_annotations(validation_dataset)
         class_to_idx = {"Object": 1}
 
-    training_dataset = _remove_images_without_annotations(training_dataset)
+    training_dataset = _remove_images_without_annotations(training_dataset, ignore_list)
 
     assert args.model_ema is False or args.model_ema_steps <= len(training_dataset) / args.batch_size
 
@@ -258,8 +272,10 @@ def train(args: argparse.Namespace) -> None:
         ).to(device)
         training_states = fs_ops.TrainingStates.empty()
 
-    # Freeze backbone
-    if args.freeze_backbone is True:
+    # Freeze
+    if args.freeze_body is True:
+        net.freeze(freeze_classifier=False)
+    elif args.freeze_backbone is True:
         net.backbone.freeze()
     elif args.freeze_backbone_stages is not None:
         net.backbone.freeze_stages(up_to_stage=args.freeze_backbone_stages)
@@ -278,10 +294,6 @@ def train(args: argparse.Namespace) -> None:
         net = torch.compile(net)
     elif args.compile_backbone is True:
         net.backbone.detection_features = torch.compile(net.backbone.detection_features)  # type: ignore[method-assign]
-
-    if args.compile_custom is not None:
-        mod = getattr(net, args.compile_custom)
-        setattr(net, args.compile_custom, torch.compile(mod))
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
@@ -382,9 +394,6 @@ def train(args: argparse.Namespace) -> None:
         model_to_save = model_to_save._orig_mod  # pylint: disable=protected-access
     if args.compile is True and hasattr(model_base, "_orig_mod") is True:
         model_base = model_base._orig_mod  # type: ignore[union-attr] # pylint: disable=protected-access
-    if args.compile_custom is not None and hasattr(getattr(model_to_save, args.compile_custom), "_orig_mod") is True:
-        mod = getattr(model_to_save, args.compile_custom)
-        setattr(model_to_save, args.compile_custom, mod._orig_mod)  # pylint: disable=protected-access
 
     #
     # Misc
@@ -676,7 +685,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "    --epochs 26  \\\n"
             "    --wd 0.0001  \\\n"
             "    --fast-matmul  \\\n"
-            "    --compile-custom backbone_with_fpn\n"
+            "    --compile\n"
             "\n"
             "A more modern Deformable-DETR example:\n"
             "torchrun --nproc_per_node=2 train_detection.py \\\n"
@@ -737,13 +746,18 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="start with pretrained version of specified network, reset the classification head",
     )
     parser.add_argument("--reset-head", default=False, action="store_true", help="reset the classification head")
+    parser.add_argument(
+        "--freeze-body",
+        default=False,
+        action="store_true",
+        help="freeze all layers of the model except the classification head",
+    )
     parser.add_argument("--freeze-backbone", default=False, action="store_true", help="freeze backbone")
     parser.add_argument("--freeze-backbone-stages", type=int, help="number of backbone stages to freeze")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
         "--compile-backbone", default=False, action="store_true", help="enable backbone only compilation"
     )
-    parser.add_argument("--compile-custom", type=str, help="enable compilation for specific module")
     parser.add_argument(
         "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
     )
@@ -820,13 +834,13 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--model-ema-steps",
         type=int,
-        default=32,
+        default=1,
         help="the number of iterations that controls how often to update the EMA model",
     )
     parser.add_argument(
         "--model-ema-decay",
         type=float,
-        default=0.9999,
+        default=0.9998,
         help="decay factor for exponential moving average of model parameters",
     )
     parser.add_argument(
@@ -906,12 +920,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         default=f"{settings.TRAINING_DETECTION_ANNOTATIONS_PATH}_coco.json",
         help="training COCO json path",
     )
+    parser.add_argument("--class-file", type=str, metavar="FILE", help="class list file, overrides json categories")
     parser.add_argument(
-        "--class-file",
-        type=str,
-        default=str(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME)),
-        metavar="FILE",
-        help="class list file",
+        "--ignore-file", type=str, metavar="FILE", help="ignore list file, list of samples to ignore in training"
     )
 
     return parser
@@ -934,7 +945,7 @@ def validate_args(args: argparse.Namespace) -> None:
     assert (
         args.load_scheduler is False or args.resume_epoch is not None
     ), "Load scheduler must be from resumed training (--resume-epoch)"
-    assert args.freeze_backbone is False or args.freeze_backbone_stages is None
+    assert args.freeze_backbone is False or args.freeze_backbone_stages is None or args.freeze_body is False
     assert (
         registry.exists(args.network, task=Task.OBJECT_DETECTION) is True
     ), "Unknown network, see list-models tool for available options"

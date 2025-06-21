@@ -244,7 +244,7 @@ def predict(args: argparse.Namespace) -> None:
         if args.save_results is True:
             results.save(f"{base_output_path}.json")
 
-        # Log short report
+        results.log_short_report()
 
     else:
         if args.save_results is True:

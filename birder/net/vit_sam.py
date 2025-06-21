@@ -1,5 +1,5 @@
 """
-ViT SAM, adapted from
+ViTDet backbone / ViT SAM, adapted from
 https://github.com/facebookresearch/segment-anything/blob/main/segment_anything/modeling/image_encoder.py
 
 Paper "Exploring Plain Vision Transformer Backbones for Object Detection",
@@ -10,6 +10,7 @@ and as used as an image encoder at the paper "Segment Anything", https://arxiv.o
 
 # Reference license: Apache-2.0
 
+from collections.abc import Callable
 from functools import partial
 from typing import Any
 from typing import Optional
@@ -17,13 +18,15 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
-from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
+from birder.layers import FFN
+from birder.layers import SwiGLU_FFN
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.convnext_v1 import LayerNorm2d
 from birder.net.vit import EncoderBlock as MAEDecoderBlock
+from birder.net.vit import LayerScale
 
 
 # pylint: disable=invalid-name
@@ -161,12 +164,16 @@ class EncoderBlock(nn.Module):
         use_rel_pos: bool,
         window_size: int,
         input_size: Optional[tuple[int, int]] = None,
+        activation_layer: Callable[..., nn.Module] = nn.GELU,
+        layer_scale_init_value: Optional[float] = None,
+        norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
+        mlp_layer: Callable[..., nn.Module] = FFN,
     ) -> None:
         super().__init__()
         self.window_size = window_size
 
         # Attention block
-        self.norm1 = nn.LayerNorm(dim)
+        self.norm1 = norm_layer(dim, eps=1e-6)
         self.attn = Attention(
             dim,
             num_heads=num_heads,
@@ -175,11 +182,19 @@ class EncoderBlock(nn.Module):
             input_size=input_size if window_size == 0 else (window_size, window_size),
         )
         self.drop_path1 = StochasticDepth(drop_path, mode="row")
+        if layer_scale_init_value is not None:
+            self.layer_scale_1 = LayerScale(dim, layer_scale_init_value)
+        else:
+            self.layer_scale_1 = nn.Identity()
 
         # MLP block
-        self.norm2 = nn.LayerNorm(dim)
-        self.mlp = MLP(dim, [int(dim * mlp_ratio), dim], activation_layer=nn.GELU)
+        self.norm2 = norm_layer(dim, eps=1e-6)
+        self.mlp = mlp_layer(dim, int(dim * mlp_ratio), act_layer=activation_layer, dropout=0.0)
         self.drop_path2 = StochasticDepth(drop_path, mode="row")
+        if layer_scale_init_value is not None:
+            self.layer_scale_2 = LayerScale(dim, layer_scale_init_value)
+        else:
+            self.layer_scale_2 = nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         (_, H, W, _) = x.shape
@@ -194,8 +209,9 @@ class EncoderBlock(nn.Module):
         if self.window_size > 0:
             x = window_unpartition(x, self.window_size, pad_hw, (H, W))
 
+        x = self.layer_scale_1(x)
         x = self.drop_path1(x) + shortcut
-        x = x + self.drop_path2(self.mlp(self.norm2(x)))
+        x = x + self.drop_path2(self.layer_scale_2(self.mlp(self.norm2(x))))
 
         return x
 
@@ -204,6 +220,7 @@ class EncoderBlock(nn.Module):
 class ViT_SAM(DetectorBackbone):
     block_group_regex = r"body\.(\d+)"
 
+    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,
@@ -219,15 +236,34 @@ class ViT_SAM(DetectorBackbone):
 
         image_size = self.size
         use_rel_pos = True
-        out_channels = 256
         patch_size: int = self.config["patch_size"]
         num_layers: int = self.config["num_layers"]
         num_heads: int = self.config["num_heads"]
         hidden_dim: int = self.config["hidden_dim"]
         mlp_ratio: float = self.config["mlp_ratio"]
+        layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", None)
+        norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
+        mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
         window_size: int = self.config["window_size"]
         global_attn_indexes: list[int] = self.config["global_attn_indexes"]
+        neck_channels: Optional[int] = self.config.get("neck_channels", None)
         drop_path_rate: float = self.config["drop_path_rate"]
+
+        if norm_layer_type == "LayerNorm":
+            norm_layer = nn.LayerNorm
+        elif norm_layer_type == "RMSNorm":
+            norm_layer = nn.RMSNorm
+        else:
+            raise ValueError(f"Unknown norm_layer_type '{norm_layer_type}'")
+
+        if mlp_layer_type == "FFN":
+            mlp_layer = FFN
+            act_layer = nn.GELU
+        elif mlp_layer_type == "SwiGLU_FFN":
+            mlp_layer = SwiGLU_FFN
+            act_layer = nn.SiLU
+        else:
+            raise ValueError(f"Unknown mlp_layer_type '{mlp_layer_type}'")
 
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
@@ -263,38 +299,47 @@ class ViT_SAM(DetectorBackbone):
                     use_rel_pos=use_rel_pos,
                     window_size=window_size if i not in global_attn_indexes else 0,
                     input_size=(image_size[0] // patch_size, image_size[1] // patch_size),
+                    activation_layer=act_layer,
+                    layer_scale_init_value=layer_scale_init_value,
+                    norm_layer=norm_layer,
+                    mlp_layer=mlp_layer,
                 )
             )
 
         self.body = nn.Sequential(*layers)
-        self.neck = nn.Sequential(
-            nn.Conv2d(
-                hidden_dim,
-                out_channels,
-                kernel_size=(1, 1),
-                stride=(1, 1),
-                padding=(0, 0),
-                bias=False,
-            ),
-            LayerNorm2d(out_channels),
-            nn.Conv2d(
-                out_channels,
-                out_channels,
-                kernel_size=(3, 3),
-                stride=(1, 1),
-                padding=(1, 1),
-                bias=False,
-            ),
-            LayerNorm2d(out_channels),
-        )
+        if neck_channels is not None:
+            self.neck = nn.Sequential(
+                nn.Conv2d(
+                    hidden_dim,
+                    neck_channels,
+                    kernel_size=(1, 1),
+                    stride=(1, 1),
+                    padding=(0, 0),
+                    bias=False,
+                ),
+                LayerNorm2d(neck_channels),
+                nn.Conv2d(
+                    neck_channels,
+                    neck_channels,
+                    kernel_size=(3, 3),
+                    stride=(1, 1),
+                    padding=(1, 1),
+                    bias=False,
+                ),
+                LayerNorm2d(neck_channels),
+            )
+        else:
+            neck_channels = hidden_dim
+            self.neck = LayerNorm2d(neck_channels)
+
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
 
         self.return_stages = ["neck"]  # Actually meaningless, but for completeness
-        self.return_channels = [out_channels]
-        self.embedding_size = out_channels
+        self.return_channels = [neck_channels]
+        self.embedding_size = neck_channels
         self.classifier = self.create_classifier()
 
         self.encoding_size = hidden_dim * (image_size[0] // patch_size) * (image_size[1] // patch_size)
@@ -345,6 +390,9 @@ class ViT_SAM(DetectorBackbone):
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
+
+        assert new_size[0] % self.patch_size == 0, "Input shape indivisible by patch size!"
+        assert new_size[1] % self.patch_size == 0, "Input shape indivisible by patch size!"
 
         super().adjust_size(new_size)
 
@@ -397,8 +445,6 @@ class ViT_SAM(DetectorBackbone):
         The relative position embedding and "neck" convolutions are left intact.
         """
 
-        # NOTE: SoVit variant not supported
-
         # Remove all special token
         num_special_tokens = 0
         if "class_token" in state_dict:
@@ -411,18 +457,25 @@ class ViT_SAM(DetectorBackbone):
 
         # Remove final norm
         del state_dict["norm.weight"]
-        del state_dict["norm.bias"]
+        if "norm.bias" in state_dict:
+            del state_dict["norm.bias"]
 
         # Remove classifier weights
         if "classifier.weight" in state_dict:
             del state_dict["classifier.weight"]
             del state_dict["classifier.bias"]
 
+        seq_length = (self.size[0] // self.patch_size) * (self.size[1] // self.patch_size)
+
         # Adjust pos_embedding
         if state_dict["pos_embedding"].ndim == 2:
-            state_dict["pos_embedding"] = state_dict["pos_embedding"][num_special_tokens:, :]
+            vit_pos_embed_special_tokens = state_dict["pos_embedding"].size(0) != seq_length
+            if vit_pos_embed_special_tokens is True:
+                state_dict["pos_embedding"] = state_dict["pos_embedding"][num_special_tokens:, :]
         else:
-            state_dict["pos_embedding"] = state_dict["pos_embedding"][:, num_special_tokens:, :]
+            vit_pos_embed_special_tokens = state_dict["pos_embedding"].size(1) != seq_length
+            if vit_pos_embed_special_tokens is True:
+                state_dict["pos_embedding"] = state_dict["pos_embedding"][:, num_special_tokens:, :]
 
         state_dict["pos_embedding"] = state_dict["pos_embedding"].reshape(
             1, self.size[0] // self.patch_size, self.size[1] // self.patch_size, -1
@@ -449,6 +502,39 @@ class ViT_SAM(DetectorBackbone):
         assert len(incompatible_keys.unexpected_keys) == 0
 
 
+# ViTDet (no neck)
+registry.register_alias(
+    "vit_det_m16_rms",
+    ViT_SAM,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_ratio": 4.0,
+        "norm_layer_type": "RMSNorm",
+        "window_size": 14,
+        "global_attn_indexes": [2, 5, 8, 11],
+        "drop_path_rate": 0.0,
+    },
+)
+
+registry.register_alias(
+    "vit_det_b16",
+    ViT_SAM,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 12,
+        "hidden_dim": 768,
+        "mlp_ratio": 4.0,
+        "window_size": 14,
+        "global_attn_indexes": [2, 5, 8, 11],
+        "drop_path_rate": 0.1,
+    },
+)
+
+# ViT SAM (with neck)
 registry.register_alias(
     "vit_sam_b16",
     ViT_SAM,
@@ -460,6 +546,7 @@ registry.register_alias(
         "mlp_ratio": 4.0,
         "window_size": 14,
         "global_attn_indexes": [2, 5, 8, 11],
+        "neck_channels": 256,
         "drop_path_rate": 0.1,
     },
 )
@@ -474,6 +561,7 @@ registry.register_alias(
         "mlp_ratio": 4.0,
         "window_size": 14,
         "global_attn_indexes": [5, 11, 17, 23],
+        "neck_channels": 256,
         "drop_path_rate": 0.4,
     },
 )
@@ -488,6 +576,7 @@ registry.register_alias(
         "mlp_ratio": 4.0,
         "window_size": 14,
         "global_attn_indexes": [7, 15, 23, 31],
+        "neck_channels": 256,
         "drop_path_rate": 0.5,
     },
 )

@@ -518,11 +518,9 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         num_special_tokens = 0
         if "class_token" in state_dict:
             num_special_tokens += 1
-            # del state_dict["class_token"]
 
         if "reg_tokens" in state_dict:
             num_special_tokens += state_dict["reg_tokens"].size(1)
-            # del state_dict["reg_tokens"]
 
         seq_length = (self.size[0] // self.patch_size) * (self.size[1] // self.patch_size)
         vit_pos_embed_special_tokens = state_dict["pos_embedding"].size(1) != seq_length

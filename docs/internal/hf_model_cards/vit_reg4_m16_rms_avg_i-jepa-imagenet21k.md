@@ -20,7 +20,7 @@ A ViT image classification model. The model follows a two-stage training process
 - **Model Type:** Image classification and detection backbone
 - **Model Stats:**
     - Params (M): 48.1
-    - Input image size: 224 x 224
+    - Input image size: 256 x 256
 - **Dataset:** ImageNet-21K (19167 classes)
 
 - **Papers:**
@@ -87,7 +87,7 @@ features = net.detection_features(transform(image).unsqueeze(0))
 # features is a dict (stage name -> torch.Tensor)
 print([(k, v.size()) for k, v in features.items()])
 # Output example:
-# [('neck', torch.Size([1, 512, 14, 14]))]
+# [('neck', torch.Size([1, 512, 16, 16]))]
 ```
 
 ## Citation

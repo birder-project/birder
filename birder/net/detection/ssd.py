@@ -336,6 +336,14 @@ class SSD(DetectionBaseNet):
             self.num_classes,
         )
 
+    def freeze(self, freeze_classifier: bool = True) -> None:
+        for param in self.parameters():
+            param.requires_grad = False
+
+        if freeze_classifier is False:
+            for param in self.head.classification_head.parameters():
+                param.requires_grad = True
+
     # pylint: disable=too-many-locals
     def compute_loss(
         self,
