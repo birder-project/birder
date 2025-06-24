@@ -158,6 +158,7 @@ def multi_scale_deformable_attention(
 # pylint: disable=abstract-method,arguments-differ
 class MSDAFunction(Function):
     @staticmethod
+    @torch.compiler.disable()
     @torch.amp.custom_fwd(device_type="cuda", cast_inputs=torch.float32)
     def forward(  # type: ignore
         ctx, value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, im2col_step
@@ -172,6 +173,7 @@ class MSDAFunction(Function):
         return output
 
     @staticmethod
+    @torch.compiler.disable()
     @torch.amp.custom_bwd(device_type="cuda")
     @once_differentiable
     def backward(ctx, grad_output):  # type: ignore
@@ -252,12 +254,16 @@ class MultiScaleDeformableAttention(nn.Module):
         input_flatten: torch.Tensor,
         input_spatial_shapes: torch.Tensor,
         input_level_start_index: torch.Tensor,
+        input_padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         (N, num_queries, _) = query.size()
         (N, sequence_length, _) = input_flatten.size()
         assert (input_spatial_shapes[:, 0] * input_spatial_shapes[:, 1]).sum() == sequence_length
 
         value = self.value_proj(input_flatten)
+        if input_padding_mask is not None:
+            value = value.masked_fill(input_padding_mask[..., None], float(0))
+
         value = value.view(N, sequence_length, self.n_heads, self.d_model // self.n_heads)
         sampling_offsets = self.sampling_offsets(query).view(
             N, num_queries, self.n_heads, self.n_levels, self.n_points, 2
@@ -327,8 +333,9 @@ class DeformableTransformerEncoderLayer(nn.Module):
         reference_points: torch.Tensor,
         spatial_shapes: torch.Tensor,
         level_start_index: torch.Tensor,
+        mask: torch.Tensor,
     ) -> torch.Tensor:
-        src2 = self.self_attn(src + pos, reference_points, src, spatial_shapes, level_start_index)
+        src2 = self.self_attn(src + pos, reference_points, src, spatial_shapes, level_start_index, mask)
         src = src + self.dropout(src2)
         src = self.norm1(src)
 
@@ -367,6 +374,7 @@ class DeformableTransformerDecoderLayer(nn.Module):
         src: torch.Tensor,
         src_spatial_shapes: torch.Tensor,
         level_start_index: torch.Tensor,
+        src_padding_mask: torch.Tensor,
     ) -> torch.Tensor:
         # Self attention
         q = tgt + query_pos
@@ -377,7 +385,9 @@ class DeformableTransformerDecoderLayer(nn.Module):
         tgt = self.norm1(tgt)
 
         # Cross attention
-        tgt2 = self.cross_attn(tgt + query_pos, reference_points, src, src_spatial_shapes, level_start_index)
+        tgt2 = self.cross_attn(
+            tgt + query_pos, reference_points, src, src_spatial_shapes, level_start_index, src_padding_mask
+        )
         tgt = tgt + self.dropout(tgt2)
         tgt = self.norm2(tgt)
 
@@ -395,9 +405,11 @@ class DeformableTransformerEncoder(nn.Module):
         self.layers = _get_clones(encoder_layer, num_layers)
 
     @staticmethod
-    def get_reference_points(spatial_shapes: torch.Tensor, device: torch.device) -> torch.Tensor:
+    def get_reference_points(
+        spatial_shapes: torch.Tensor, valid_ratios: torch.Tensor, device: torch.device
+    ) -> torch.Tensor:
         reference_points_list = []
-        for spatial_shape in spatial_shapes:
+        for lvl, spatial_shape in enumerate(spatial_shapes):
             H = spatial_shape[0]
             W = spatial_shape[1]
             (ref_y, ref_x) = torch.meshgrid(
@@ -405,23 +417,29 @@ class DeformableTransformerEncoder(nn.Module):
                 torch.linspace(0.5, W - 0.5, W, dtype=torch.float32, device=device),
                 indexing="ij",
             )
-            ref_y = ref_y.reshape(-1)[None] / H
-            ref_x = ref_x.reshape(-1)[None] / W
-            ref = torch.stack((ref_x, ref_y), -1)
+            ref_y = ref_y.reshape(-1)[None] / (valid_ratios[:, None, lvl, 1] * H)
+            ref_x = ref_x.reshape(-1)[None] / (valid_ratios[:, None, lvl, 0] * W)
+            ref = torch.stack((ref_x, ref_y), dim=-1)
             reference_points_list.append(ref)
 
         reference_points = torch.concat(reference_points_list, dim=1)
-        reference_points = reference_points[:, :, None]
+        reference_points = reference_points[:, :, None] * valid_ratios[:, None]
 
         return reference_points
 
     def forward(
-        self, src: torch.Tensor, spatial_shapes: torch.Tensor, level_start_index: torch.Tensor, pos: torch.Tensor
+        self,
+        src: torch.Tensor,
+        spatial_shapes: torch.Tensor,
+        level_start_index: torch.Tensor,
+        pos: torch.Tensor,
+        valid_ratios: torch.Tensor,
+        mask: torch.Tensor,
     ) -> torch.Tensor:
         out = src
-        reference_points = self.get_reference_points(spatial_shapes, device=src.device)
+        reference_points = self.get_reference_points(spatial_shapes, valid_ratios, device=src.device)
         for layer in self.layers:
-            out = layer(out, pos, reference_points, spatial_shapes, level_start_index)
+            out = layer(out, pos, reference_points, spatial_shapes, level_start_index, mask)
 
         return out
 
@@ -444,6 +462,8 @@ class DeformableTransformerDecoder(nn.Module):
         src_spatial_shapes: torch.Tensor,
         src_level_start_index: torch.Tensor,
         query_pos: torch.Tensor,
+        src_valid_ratios: torch.Tensor,
+        src_padding_mask: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         output = tgt
 
@@ -451,10 +471,12 @@ class DeformableTransformerDecoder(nn.Module):
         intermediate_reference_points = []
         for layer, bbox_embed in zip(self.layers, self.bbox_embed):
             if reference_points.shape[-1] == 4:
-                reference_points_input = reference_points[:, :, None]
+                reference_points_input = (
+                    reference_points[:, :, None] * torch.concat([src_valid_ratios, src_valid_ratios], dim=-1)[:, None]
+                )
             else:
                 assert reference_points.shape[-1] == 2
-                reference_points_input = reference_points[:, :, None]
+                reference_points_input = reference_points[:, :, None] * src_valid_ratios[:, None]
 
             output = layer(
                 output,
@@ -463,6 +485,7 @@ class DeformableTransformerDecoder(nn.Module):
                 src,
                 src_spatial_shapes,
                 src_level_start_index,
+                src_padding_mask,
             )
 
             if self.box_refine is True:
@@ -542,29 +565,41 @@ class DeformableTransformer(nn.Module):
 
         return valid_ratio
 
+    # pylint: disable=too-many-locals
     def forward(
-        self, srcs: list[torch.Tensor], pos_embeds: list[torch.Tensor], query_embed: torch.Tensor
+        self,
+        srcs: list[torch.Tensor],
+        pos_embeds: list[torch.Tensor],
+        query_embed: torch.Tensor,
+        masks: list[torch.Tensor],
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # Prepare input for encoder
         src_list = []
         lvl_pos_embed_list = []
+        mask_flatten = []
         spatial_shape_list: list[tuple[int, int]] = []
-        for lvl, (src, pos_embed) in enumerate(zip(srcs, pos_embeds)):
+        for lvl, (src, pos_embed, mask) in enumerate(zip(srcs, pos_embeds, masks)):
             (bs, c, h, w) = src.size()
             spatial_shape_list.append((h, w))
             src = src.flatten(2).transpose(1, 2)
             pos_embed = pos_embed.flatten(2).transpose(1, 2)
+            mask = mask.flatten(1)
             lvl_pos_embed = pos_embed + self.level_embed[lvl].view(1, 1, -1)
             lvl_pos_embed_list.append(lvl_pos_embed)
             src_list.append(src)
+            mask_flatten.append(mask)
 
         src_flatten = torch.concat(src_list, dim=1)
+        mask_flatten = torch.concat(mask_flatten, dim=1)
         lvl_pos_embed_flatten = torch.concat(lvl_pos_embed_list, dim=1)
         spatial_shapes = torch.as_tensor(spatial_shape_list, dtype=torch.long, device=src_flatten.device)
         level_start_index = torch.concat((spatial_shapes.new_zeros((1,)), spatial_shapes.prod(1).cumsum(0)[:-1]), dim=0)
+        valid_ratios = torch.stack([self.get_valid_ratio(m) for m in masks], dim=1)
 
         # Encoder
-        memory = self.encoder(src_flatten, spatial_shapes, level_start_index, lvl_pos_embed_flatten)
+        memory = self.encoder(
+            src_flatten, spatial_shapes, level_start_index, lvl_pos_embed_flatten, valid_ratios, mask_flatten
+        )
 
         # Prepare input for decoder
         (bs, _, c) = memory.size()
@@ -575,7 +610,7 @@ class DeformableTransformer(nn.Module):
 
         # Decoder
         (hs, inter_references) = self.decoder(
-            tgt, reference_points, memory, spatial_shapes, level_start_index, query_embed
+            tgt, reference_points, memory, spatial_shapes, level_start_index, query_embed, valid_ratios, mask_flatten
         )
 
         return (hs, reference_points, inter_references)
@@ -607,7 +642,6 @@ class Deformable_DETR(DetectionBaseNet):
         num_decoder_layers = 6
         dim_feedforward = 1024
         dropout = 0.1
-        num_feature_levels = 4
         dec_n_points = 4
         enc_n_points = 4
         num_queries = 300
@@ -635,7 +669,7 @@ class Deformable_DETR(DetectionBaseNet):
             dim_feedforward=dim_feedforward,
             dropout=dropout,
             return_intermediate_dec=True,
-            num_feature_levels=num_feature_levels,
+            num_feature_levels=len(self.backbone.return_channels),
             dec_n_points=dec_n_points,
             enc_n_points=enc_n_points,
         )
@@ -751,6 +785,7 @@ class Deformable_DETR(DetectionBaseNet):
         return (loss_bbox, loss_giou)
 
     @torch.jit.unused  # type: ignore[misc]
+    @torch.compiler.disable()  # type: ignore[misc]
     def compute_loss(
         self,
         targets: list[dict[str, torch.Tensor]],
@@ -820,29 +855,37 @@ class Deformable_DETR(DetectionBaseNet):
 
         return detections
 
-    # pylint: disable=protected-access,too-many-locals
-    def forward(  # type: ignore[override]
-        self, x: torch.Tensor, targets: Optional[list[dict[str, torch.Tensor]]] = None
+    # pylint: disable=too-many-locals
+    @torch.compiler.disable(recursive=False)  # type: ignore[misc]
+    def forward(
+        self,
+        x: torch.Tensor,
+        targets: Optional[list[dict[str, torch.Tensor]]] = None,
+        masks: Optional[torch.Tensor] = None,
+        image_sizes: Optional[list[list[int]]] = None,
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
         self._input_check(targets)
-
-        image_sizes = [img.shape[-2:] for img in x]
-        image_sizes_list: list[tuple[int, int]] = []
-        for image_size in image_sizes:
-            torch._assert(
-                len(image_size) == 2,
-                f"Input tensors expected to have in the last two elements H and W, instead got {image_size}",
-            )
-            image_sizes_list.append((image_size[0], image_size[1]))
+        images = self._to_img_list(x, image_sizes)
 
         features: dict[str, torch.Tensor] = self.backbone.detection_features(x)
         feature_list = list(features.values())
+        mask_list = []
         pos_list = []
         for idx, proj in enumerate(self.input_proj):
-            feature_list[idx] = proj(feature_list[idx])
-            pos_list.append(self.pos_enc(feature_list[idx]))
+            if masks is not None:
+                mask_size = feature_list[idx].shape[-2:]
+                m = F.interpolate(masks[None].float(), size=mask_size, mode="nearest").to(torch.bool)[0]
+            else:
+                (B, _, H, W) = feature_list[idx].size()
+                m = torch.zeros(B, H, W, dtype=torch.bool, device=x.device)
 
-        (hs, init_reference, inter_references) = self.transformer(feature_list, pos_list, self.query_embed.weight)
+            feature_list[idx] = proj(feature_list[idx])
+            mask_list.append(m)
+            pos_list.append(self.pos_enc(feature_list[idx], m))
+
+        (hs, init_reference, inter_references) = self.transformer(
+            feature_list, pos_list, self.query_embed.weight, mask_list
+        )
         outputs_classes = []
         outputs_coords = []
         for lvl, (class_embed, bbox_embed) in enumerate(zip(self.class_embed, self.bbox_embed)):
@@ -876,14 +919,14 @@ class Deformable_DETR(DetectionBaseNet):
             for idx, target in enumerate(targets):
                 boxes = target["boxes"]
                 boxes = box_ops.box_convert(boxes, in_fmt="xyxy", out_fmt="cxcywh")
-                boxes = boxes / torch.tensor(image_sizes[idx] * 2, dtype=torch.float32, device=x.device)
+                boxes = boxes / torch.tensor(images.image_sizes[idx] * 2, dtype=torch.float32, device=x.device)
                 targets[idx]["boxes"] = boxes
                 targets[idx]["labels"] = target["labels"] - 1  # No background
 
             losses = self.compute_loss(targets, outputs_class, outputs_coord)
 
         else:
-            detections = self.postprocess_detections(outputs_class[-1], outputs_coord[-1], image_sizes_list)
+            detections = self.postprocess_detections(outputs_class[-1], outputs_coord[-1], images.image_sizes)
 
         return (detections, losses)
 

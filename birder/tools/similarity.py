@@ -20,9 +20,9 @@ from tqdm import tqdm
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
-from birder.datasets.directory import make_image_dataset
+from birder.data.datasets.directory import make_image_dataset
+from birder.data.transforms.classification import inference_preset
 from birder.inference import classification
-from birder.transforms.classification import inference_preset
 
 logger = logging.getLogger(__name__)
 

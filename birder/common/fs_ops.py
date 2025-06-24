@@ -22,6 +22,7 @@ from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
 from birder.common.lib import get_pretrained_model_url
 from birder.conf import settings
+from birder.data.transforms.classification import RGBType
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.model_registry.manifest import FileFormatType
@@ -32,7 +33,6 @@ from birder.net.detection.base import DetectionSignatureType
 from birder.net.mim.base import MIMBaseNet
 from birder.net.mim.base import MIMSignatureType
 from birder.net.ssl.base import SSLSignatureType
-from birder.transforms.classification import RGBType
 from birder.version import __version__
 
 try:

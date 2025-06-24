@@ -13,6 +13,7 @@ from tqdm import tqdm
 
 from birder.common import cli
 from birder.conf import settings
+from birder.data.collators.detection import collate_fn
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ def verify_coco(args: argparse.Namespace) -> None:
         batch_size=batch_size,
         shuffle=False,
         num_workers=8,
-        collate_fn=lambda batch: tuple(zip(*batch)),
+        collate_fn=collate_fn,
         drop_last=False,
     )
 

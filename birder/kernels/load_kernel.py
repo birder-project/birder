@@ -1,3 +1,4 @@
+import logging
 import os
 import warnings
 from pathlib import Path
@@ -8,6 +9,8 @@ import torch
 from torch.utils.cpp_extension import load
 
 import birder
+
+logger = logging.getLogger(__name__)
 
 
 def load_msda() -> Optional[ModuleType]:
@@ -25,7 +28,7 @@ def load_msda() -> Optional[ModuleType]:
 
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=UserWarning)
-        msda: ModuleType = load(
+        msda: Optional[ModuleType] = load(
             "MultiScaleDeformableAttention",
             src_files,
             with_cuda=True,
@@ -38,6 +41,11 @@ def load_msda() -> Optional[ModuleType]:
                 "-D__CUDA_NO_HALF2_OPERATORS__",
             ],
         )
+
+    if msda is not None:
+        logger.info("MSDA custom kernel loaded")
+    else:
+        logger.debug("MSDA custom kernel NOT loaded")
 
     return msda
 
@@ -59,7 +67,7 @@ def load_swattention() -> Optional[ModuleType]:
 
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=UserWarning)
-        msda: ModuleType = load(
+        swattention: Optional[ModuleType] = load(
             "swattention",
             src_files,
             with_cuda=True,
@@ -72,4 +80,42 @@ def load_swattention() -> Optional[ModuleType]:
             ],
         )
 
-    return msda
+    if swattention is not None:
+        logger.info("swattention custom kernel loaded")
+    else:
+        logger.debug("swattention custom kernel NOT loaded")
+
+    return swattention
+
+
+def load_soft_nms() -> Optional[ModuleType]:
+    if os.environ.get("DISABLE_CUSTOM_KERNELS", "0") == "1":
+        return None
+
+    root = Path(birder.__file__).resolve().parent.joinpath("kernels/soft_nms")
+    src_files = [
+        root.joinpath("op.cpp"),
+        root.joinpath("soft_nms.cpp"),
+    ]
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UserWarning)
+        soft_nms: Optional[ModuleType] = load(
+            "soft_nms",
+            src_files,
+            with_cuda=True,
+            extra_cflags=["-DWITH_CUDA=1"],
+            extra_cuda_cflags=[
+                "-DCUDA_HAS_FP16=1",
+                "-D__CUDA_NO_HALF_OPERATORS__",
+                "-D__CUDA_NO_HALF_CONVERSIONS__",
+                "-D__CUDA_NO_HALF2_OPERATORS__",
+            ],
+        )
+
+    if soft_nms is not None:
+        logger.info("soft_nms custom kernel loaded")
+    else:
+        logger.debug("soft_nms custom kernel NOT loaded")
+
+    return soft_nms

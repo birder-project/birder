@@ -13,12 +13,12 @@ from torch.utils.mobile_optimizer import optimize_for_mobile
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
+from birder.data.transforms.classification import RGBType
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import SignatureType
 from birder.net.base import reparameterize_available
 from birder.net.detection.base import DetectionSignatureType
-from birder.transforms.classification import RGBType
 from birder.version import __version__
 
 logger = logging.getLogger(__name__)

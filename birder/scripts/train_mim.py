@@ -26,19 +26,19 @@ from birder.common import training_utils
 from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
 from birder.conf import settings
-from birder.dataloader.webdataset import make_wds_loader
-from birder.datasets.directory import make_image_dataset
-from birder.datasets.directory import tv_loader
-from birder.datasets.webdataset import make_wds_dataset
-from birder.datasets.webdataset import prepare_wds_args
-from birder.datasets.webdataset import wds_args_from_info
+from birder.data.dataloader.webdataset import make_wds_loader
+from birder.data.datasets.directory import make_image_dataset
+from birder.data.datasets.directory import tv_loader
+from birder.data.datasets.webdataset import make_wds_dataset
+from birder.data.datasets.webdataset import prepare_wds_args
+from birder.data.datasets.webdataset import wds_args_from_info
+from birder.data.transforms.classification import RGBMode
+from birder.data.transforms.classification import get_rgb_stats
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import PreTrainEncoder
 from birder.net.base import get_signature
 from birder.net.mim.base import get_mim_signature
-from birder.transforms.classification import RGBMode
-from birder.transforms.classification import get_rgb_stats
 
 logger = logging.getLogger(__name__)
 

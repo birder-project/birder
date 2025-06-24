@@ -7,11 +7,14 @@ import torch.amp
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from birder.transforms.detection import batch_images
 
-
-def infer_batch(net: torch.nn.Module | torch.ScriptModule, inputs: torch.Tensor) -> list[dict[str, torch.Tensor]]:
-    (detections, _) = net(inputs)
+def infer_batch(
+    net: torch.nn.Module | torch.ScriptModule,
+    inputs: torch.Tensor,
+    masks: Optional[torch.Tensor] = None,
+    image_sizes: Optional[list[list[int]]] = None,
+) -> list[dict[str, torch.Tensor]]:
+    (detections, _) = net(inputs, masks=masks, image_sizes=image_sizes)
     return detections  # type: ignore[no-any-return]
 
 
@@ -24,7 +27,7 @@ def infer_dataloader(
     amp_dtype: Optional[torch.dtype] = None,
     num_samples: Optional[int] = None,
     batch_callback: Optional[
-        Callable[[list[str], torch.Tensor, list[dict[str, torch.Tensor]], list[dict[str, Any]]], None]
+        Callable[[list[str], torch.Tensor, list[dict[str, torch.Tensor]], list[dict[str, Any]], list[list[int]]], None]
     ] = None,
 ) -> tuple[list[str], list[dict[str, torch.Tensor]], list[dict[str, Any]]]:
     """
@@ -79,13 +82,13 @@ def infer_dataloader(
     sample_paths: list[str] = []
     batch_size = dataloader.batch_size
     with tqdm(total=num_samples, initial=0, unit="images", unit_scale=True, leave=False) as progress:
-        for file_paths, inputs, targets in dataloader:
+        for file_paths, inputs, targets, masks, image_sizes in dataloader:
             # Inference
-            inputs = [i.to(device, dtype=model_dtype) for i in inputs]
-            inputs = batch_images(inputs)
+            inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
+            masks = masks.to(device, non_blocking=True)
 
             with torch.amp.autocast(device.type, enabled=amp, dtype=amp_dtype):
-                detections = infer_batch(net, inputs)
+                detections = infer_batch(net, inputs, masks, image_sizes)
 
             detections_list.extend(detections)
 
@@ -94,7 +97,7 @@ def infer_dataloader(
             sample_paths.extend(file_paths)
 
             if batch_callback is not None:
-                batch_callback(file_paths, inputs, detections, targets)
+                batch_callback(file_paths, inputs, detections, targets, image_sizes)
 
             # Update progress bar
             progress.update(n=batch_size)

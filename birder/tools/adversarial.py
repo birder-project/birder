@@ -12,8 +12,8 @@ from birder.adversarial.pgd import PGD
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
-from birder.transforms.classification import inference_preset
-from birder.transforms.classification import reverse_preset
+from birder.data.transforms.classification import inference_preset
+from birder.data.transforms.classification import reverse_preset
 
 logger = logging.getLogger(__name__)
 

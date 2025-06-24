@@ -25,6 +25,7 @@ from torchvision.ops import MLP
 from torchvision.ops import boxes as box_ops
 
 from birder.common import training_utils
+from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import DetectionBaseNet
 
@@ -101,11 +102,13 @@ class TransformerEncoderLayer(nn.Module):
 
         self.activation = nn.ReLU()
 
-    def forward(self, src: torch.Tensor, pos: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, src: torch.Tensor, pos: torch.Tensor, src_key_padding_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         q = src + pos
         k = src + pos
 
-        (src2, _) = self.self_attn(q, k, value=src)
+        (src2, _) = self.self_attn(q, k, value=src, key_padding_mask=src_key_padding_mask)
         src = src + self.dropout1(src2)
         src = self.norm1(src)
         src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
@@ -135,7 +138,12 @@ class TransformerDecoderLayer(nn.Module):
         self.activation = nn.ReLU()
 
     def forward(
-        self, tgt: torch.Tensor, memory: torch.Tensor, pos: torch.Tensor, query_pos: torch.Tensor
+        self,
+        tgt: torch.Tensor,
+        memory: torch.Tensor,
+        pos: torch.Tensor,
+        query_pos: torch.Tensor,
+        memory_key_padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         q = tgt + query_pos
         k = tgt + query_pos
@@ -143,7 +151,9 @@ class TransformerDecoderLayer(nn.Module):
         (tgt2, _) = self.self_attn(q, k, value=tgt)
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
-        (tgt2, _) = self.multihead_attn(query=tgt + query_pos, key=memory + pos, value=memory)
+        (tgt2, _) = self.multihead_attn(
+            query=tgt + query_pos, key=memory + pos, value=memory, key_padding_mask=memory_key_padding_mask
+        )
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
@@ -158,10 +168,12 @@ class TransformerEncoder(nn.Module):
         super().__init__()
         self.layers = _get_clones(encoder_layer, num_layers)
 
-    def forward(self, x: torch.Tensor, pos: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, pos: torch.Tensor, x_key_padding_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         out = x
         for layer in self.layers:
-            out = layer(out, pos=pos)
+            out = layer(out, pos=pos, src_key_padding_mask=x_key_padding_mask)
 
         return out
 
@@ -175,12 +187,19 @@ class TransformerDecoder(nn.Module):
         self.return_intermediate = return_intermediate
 
     def forward(
-        self, tgt: torch.Tensor, memory: torch.Tensor, pos: torch.Tensor, query_pos: torch.Tensor
+        self,
+        tgt: torch.Tensor,
+        memory: torch.Tensor,
+        pos: torch.Tensor,
+        query_pos: torch.Tensor,
+        memory_key_padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         output = tgt
         intermediate = []
         for layer in self.layers:
-            output = layer(output, memory, pos=pos, query_pos=query_pos)
+            output = layer(
+                output, memory, pos=pos, query_pos=query_pos, memory_key_padding_mask=memory_key_padding_mask
+            )
             if self.return_intermediate is True:
                 intermediate.append(self.norm(output))
 
@@ -216,16 +235,20 @@ class Transformer(nn.Module):
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
 
-    def forward(self, src: torch.Tensor, query_embed: torch.Tensor, pos_embed: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, src: torch.Tensor, query_embed: torch.Tensor, pos_embed: torch.Tensor, mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         # Flatten BxCxHxW to HWxBxC
         B = src.size(0)
         src = src.flatten(2).permute(2, 0, 1)
         pos_embed = pos_embed.flatten(2).permute(2, 0, 1)
         query_embed = query_embed.unsqueeze(1).repeat(1, B, 1)
+        if mask is not None:
+            mask = mask.flatten(1)
 
         tgt = torch.zeros_like(query_embed)
-        memory = self.encoder(src, pos=pos_embed)
-        hs = self.decoder(tgt, memory, pos=pos_embed, query_pos=query_embed)
+        memory = self.encoder(src, pos=pos_embed, x_key_padding_mask=mask)
+        hs = self.decoder(tgt, memory, pos=pos_embed, query_pos=query_embed, memory_key_padding_mask=mask)
 
         return hs.transpose(1, 2)
 
@@ -238,11 +261,13 @@ class PositionEmbeddingSine(nn.Module):
         self.normalize = normalize
         self.scale = 2 * math.pi
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, _, H, W) = x.shape
-        mask = torch.zeros(B, H, W, dtype=torch.bool, device=x.device)
-        not_mask = ~mask
+    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        (B, _, H, W) = x.size()
 
+        if mask is None:
+            mask = torch.zeros(B, H, W, dtype=torch.bool, device=x.device)
+
+        not_mask = ~mask
         y_embed = not_mask.cumsum(1, dtype=torch.float32)
         x_embed = not_mask.cumsum(2, dtype=torch.float32)
         if self.normalize is True:
@@ -264,7 +289,6 @@ class PositionEmbeddingSine(nn.Module):
 
 class DETR(DetectionBaseNet):
     default_size = (640, 640)
-    auto_register = True
 
     def __init__(
         self,
@@ -277,15 +301,15 @@ class DETR(DetectionBaseNet):
     ) -> None:
         super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
-        assert self.config is None, "config not supported"
+        assert self.config is not None, "must set config"
 
         hidden_dim = 256
         nhead = 8
-        num_encoder_layers = 6
-        num_decoder_layers = 6
         dim_feedforward = 2048
         dropout = 0.1
-        num_queries = 100
+        num_encoder_layers: int = self.config["num_encoder_layers"]
+        num_decoder_layers: int = self.config["num_decoder_layers"]
+        num_queries: int = self.config.get("num_queries", 100)
 
         self.hidden_dim = hidden_dim
         self.transformer = Transformer(
@@ -371,6 +395,7 @@ class DETR(DetectionBaseNet):
         return (loss_bbox, loss_giou)
 
     @torch.jit.unused  # type: ignore[misc]
+    @torch.compiler.disable()  # type: ignore[misc]
     def compute_loss(
         self,
         targets: list[dict[str, torch.Tensor]],
@@ -435,25 +460,24 @@ class DETR(DetectionBaseNet):
 
         return detections
 
-    # pylint: disable=protected-access
-    def forward(  # type: ignore[override]
-        self, x: torch.Tensor, targets: Optional[list[dict[str, torch.Tensor]]] = None
+    @torch.compiler.disable(recursive=False)  # type: ignore[misc]
+    def forward(
+        self,
+        x: torch.Tensor,
+        targets: Optional[list[dict[str, torch.Tensor]]] = None,
+        masks: Optional[torch.Tensor] = None,
+        image_sizes: Optional[list[list[int]]] = None,
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
         self._input_check(targets)
-
-        image_sizes = [img.shape[-2:] for img in x]
-        image_sizes_list: list[tuple[int, int]] = []
-        for image_size in image_sizes:
-            torch._assert(
-                len(image_size) == 2,
-                f"Input tensors expected to have in the last two elements H and W, instead got {image_size}",
-            )
-            image_sizes_list.append((image_size[0], image_size[1]))
+        images = self._to_img_list(x, image_sizes)
 
         features: dict[str, torch.Tensor] = self.backbone.detection_features(x)
         x = features[self.backbone.return_stages[-1]]
-        pos = self.pos_enc(x)
-        hs = self.transformer(self.input_proj(x), self.query_embed.weight, pos_embed=pos)
+        if masks is not None:
+            masks = F.interpolate(masks[None].float(), size=x.shape[-2:], mode="nearest").to(torch.bool)[0]
+
+        pos = self.pos_enc(x, masks)
+        hs = self.transformer(self.input_proj(x), self.query_embed.weight, pos_embed=pos, mask=masks)
         outputs_class = self.class_embed(hs)
         outputs_coord = self.bbox_embed(hs).sigmoid()
 
@@ -466,12 +490,15 @@ class DETR(DetectionBaseNet):
             for idx, target in enumerate(targets):
                 boxes = target["boxes"]
                 boxes = box_ops.box_convert(boxes, in_fmt="xyxy", out_fmt="cxcywh")
-                boxes = boxes / torch.tensor(image_sizes[idx] * 2, dtype=torch.float32, device=x.device)
+                boxes = boxes / torch.tensor(images.image_sizes[idx] * 2, dtype=torch.float32, device=x.device)
                 targets[idx]["boxes"] = boxes
 
             losses = self.compute_loss(targets, outputs_class, outputs_coord)
 
         else:
-            detections = self.postprocess_detections(outputs_class[-1], outputs_coord[-1], image_sizes_list)
+            detections = self.postprocess_detections(outputs_class[-1], outputs_coord[-1], images.image_sizes)
 
         return (detections, losses)
+
+
+registry.register_alias("detr", DETR, config={"num_encoder_layers": 6, "num_decoder_layers": 6})

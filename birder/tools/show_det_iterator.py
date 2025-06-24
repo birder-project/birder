@@ -1,44 +1,45 @@
 import argparse
 from typing import Any
+from typing import get_args
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torchvision.transforms.v2.functional as F
 from torch.utils.data import DataLoader
-from torchvision.datasets import CocoDetection
-from torchvision.datasets import wrap_dataset_for_transforms_v2
 from torchvision.utils import draw_bounding_boxes
 
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
-from birder.transforms.classification import get_rgb_stats
-from birder.transforms.classification import reverse_preset
-from birder.transforms.detection import inference_preset
-from birder.transforms.detection import training_preset
+from birder.data.collators.detection import collate_fn
+from birder.data.datasets.coco import CocoInference
+from birder.data.transforms.classification import get_rgb_stats
+from birder.data.transforms.classification import reverse_preset
+from birder.data.transforms.detection import AugType
+from birder.data.transforms.detection import inference_preset
+from birder.data.transforms.detection import training_preset
 
 
 # pylint: disable=too-many-locals
 def show_det_iterator(args: argparse.Namespace) -> None:
     reverse_transform = reverse_preset(get_rgb_stats("birder"))
     if args.mode == "training":
-        transform = training_preset(args.size, args.aug_level, get_rgb_stats("birder"))
+        transform = training_preset(
+            args.size, args.aug_type, args.aug_level, get_rgb_stats("birder"), args.dynamic_size, args.multiscale
+        )
     elif args.mode == "inference":
-        transform = inference_preset(args.size, get_rgb_stats("birder"))
+        transform = inference_preset(args.size, get_rgb_stats("birder"), args.dynamic_size)
     else:
         raise ValueError(f"Unknown mode={args.mode}")
 
     batch_size = 2
-
-    dataset = CocoDetection(args.data_path, args.coco_json_path, transforms=transform)
-    dataset = wrap_dataset_for_transforms_v2(dataset)
-
+    dataset = CocoInference(args.data_path, args.coco_json_path, transforms=transform)
     if args.class_file is not None:
         class_to_idx = fs_ops.read_class_file(args.class_file)
         class_to_idx = lib.detection_class_to_idx(class_to_idx)
     else:
-        class_to_idx = lib.class_to_idx_from_coco(dataset.coco.cats)
+        class_to_idx = lib.class_to_idx_from_coco(dataset.dataset.coco.cats)
 
     class_list = list(class_to_idx.keys())
     class_list.insert(0, "Background")
@@ -48,13 +49,13 @@ def show_det_iterator(args: argparse.Namespace) -> None:
         dataset,
         batch_size=batch_size,
         shuffle=True,
-        collate_fn=lambda batch: tuple(zip(*batch)),
+        collate_fn=collate_fn,
     )
 
     no_iterations = 6
     cols = 2
     rows = 1
-    for k, (inputs, targets) in enumerate(data_loader):
+    for k, (sample_paths, inputs, targets) in enumerate(data_loader):
         if k >= no_iterations:
             break
 
@@ -76,7 +77,7 @@ def show_det_iterator(args: argparse.Namespace) -> None:
                 transformed_img = F.to_pil_image(annotated_img)
                 ax = fig.add_subplot(grid_spec[j, i])
                 ax.imshow(np.asarray(transformed_img))
-                ax.set_title(f"#{counter}")
+                ax.set_title(f"#{counter}: {sample_paths[i+cols*j]}")
                 counter += 1
 
         plt.show()
@@ -95,6 +96,9 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools show-det-iterator --mode inference --size 640\n"
             "python -m birder.tools show-det-iterator --mode inference --coco-json-path "
             "~/Datasets/Objects365-2020/val/zhiyuan_objv2_val.json --data-path ~/Datasets/Objects365-2020/val\n"
+            "python -m birder.tools show-det-iterator --aug-type ssd --dynamic-size --coco-json-path "
+            "~/Datasets/cocodataset/annotations/instances_val2017.json --data-path "
+            "~/Datasets/cocodataset/val2017 --class-file public_datasets_metadata/coco-classes.txt\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -103,11 +107,25 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--size", type=int, nargs="+", default=[512], metavar=("H", "W"), help="image size")
     subparser.add_argument(
+        "--dynamic-size",
+        default=False,
+        action="store_true",
+        help="allow variable image sizes while preserving aspect ratios",
+    )
+    subparser.add_argument("--multiscale", default=False, action="store_true", help="enable random scale per image")
+    subparser.add_argument(
+        "--aug-type",
+        type=str,
+        choices=list(get_args(AugType)),
+        default="birder",
+        help="augmentation type",
+    )
+    subparser.add_argument(
         "--aug-level",
         type=int,
-        choices=[0, 1, 2, 3],
-        default=2,
-        help="magnitude of augmentations (0 off -> 3 highest)",
+        choices=list(range(10 + 1)),
+        default=4,
+        help="magnitude of birder augmentations (0 off -> 10 highest)",
     )
     subparser.add_argument(
         "--data-path",
@@ -126,5 +144,6 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
+    assert args.aug_type == "birder" or args.multiscale is False, "multiscale only supported for birder augmentations"
     args.size = cli.parse_size(args.size)
     show_det_iterator(args)

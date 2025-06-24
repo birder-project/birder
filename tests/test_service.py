@@ -3,8 +3,8 @@ import unittest
 
 from torchvision.transforms import v2
 
-from birder.transforms.classification import get_rgb_stats
-from birder.transforms.classification import inference_preset
+from birder.data.transforms.classification import get_rgb_stats
+from birder.data.transforms.classification import inference_preset
 
 logging.disable(logging.CRITICAL)
 from birder.service import classification  # noqa: E402 # pylint: disable=wrong-import-position

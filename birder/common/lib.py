@@ -7,6 +7,7 @@ import numpy as np
 import torch
 
 from birder.conf import settings
+from birder.data.transforms.classification import RGBType
 from birder.model_registry import registry
 from birder.net.base import BaseNet
 from birder.net.base import SignatureType
@@ -15,7 +16,6 @@ from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import DetectionSignatureType
 from birder.net.mim.base import MIMBaseNet
 from birder.net.ssl.base import SSLBaseNet
-from birder.transforms.classification import RGBType
 from birder.version import __version__
 
 

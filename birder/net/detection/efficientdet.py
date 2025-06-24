@@ -27,6 +27,7 @@ from birder.net.detection.base import AnchorGenerator
 from birder.net.detection.base import BoxCoder
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import Matcher
+from birder.ops.soft_nms import SoftNMS
 
 
 def get_bifpn_config(min_level: int, max_level: int, weight_method: Literal["fastattn", "sum"]) -> list[dict[str, Any]]:
@@ -543,26 +544,29 @@ class EfficientDet(DetectionBaseNet):
 
         self.num_classes = self.num_classes - 1
 
-        score_thresh = 0.001
-        fg_iou_thresh = 0.5
-        bg_iou_thresh = 0.3
-        nms_thresh = 0.5
-        detections_per_img = 100
-        topk_candidates = 5000
-
         min_level = 3
         max_level = 7
         num_levels = max_level - min_level + 1
         anchor_sizes = [[x, int(x * 2 ** (1.0 / 3)), int(x * 2 ** (2.0 / 3))] for x in [32, 64, 128, 256, 512]]
         aspect_ratios = [[0.5, 1.0, 2.0]] * len(anchor_sizes)
 
+        score_thresh = 0.001
+        fg_iou_thresh = 0.5
+        bg_iou_thresh = 0.3
+        topk_candidates = 2000
         fpn_cell_repeats: int = self.config["fpn_cell_repeats"]
         box_class_repeats: int = self.config["box_class_repeats"]
         fpn_channels: int = self.config["fpn_channels"]
         weight_method: Literal["fastattn", "sum"] = self.config["weight_method"]
+        detections_per_img: int = self.config.get("detections_per_img", 100)
+        nms_thresh: float = self.config.get("nms_thresh", 0.5)
+        soft_nms: bool = self.config.get("soft_nms", False)
 
         self.box_class_repeats = box_class_repeats
         self.fpn_channels = fpn_channels
+        self.soft_nms = None
+        if soft_nms is True:
+            self.soft_nms = SoftNMS()
 
         bifpn_config = get_bifpn_config(min_level, max_level, weight_method)
         self.backbone.return_channels = self.backbone.return_channels[-3:]
@@ -595,9 +599,9 @@ class EfficientDet(DetectionBaseNet):
         self.box_coder = BoxCoder(weights=(1.0, 1.0, 1.0, 1.0))
 
         self.score_thresh = score_thresh
-        self.nms_thresh = nms_thresh
-        self.detections_per_img = detections_per_img
         self.topk_candidates = topk_candidates
+        self.detections_per_img = detections_per_img
+        self.nms_thresh = nms_thresh
 
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes
@@ -607,6 +611,12 @@ class EfficientDet(DetectionBaseNet):
             fpn_channels=self.fpn_channels,
             num_anchors=self.anchor_generator.num_anchors_per_location()[0],
         )
+
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
+        if new_size == self.size:
+            return
+
+        raise RuntimeError("Model resizing not supported")
 
     def freeze(self, freeze_classifier: bool = True) -> None:
         for param in self.parameters():
@@ -656,9 +666,9 @@ class EfficientDet(DetectionBaseNet):
             anchors_per_image = anchors[index]
             image_shape = image_shapes[index]
 
-            image_boxes = []
-            image_scores = []
-            image_labels = []
+            image_boxes_list = []
+            image_scores_list = []
+            image_labels_list = []
             for box_regression_per_level, logits_per_level, anchors_per_level in zip(
                 box_regression_per_image, logits_per_image, anchors_per_image
             ):
@@ -684,16 +694,26 @@ class EfficientDet(DetectionBaseNet):
                 )
                 boxes_per_level = box_ops.clip_boxes_to_image(boxes_per_level, image_shape)
 
-                image_boxes.append(boxes_per_level)
-                image_scores.append(scores_per_level)
-                image_labels.append(labels_per_level)
+                image_boxes_list.append(boxes_per_level)
+                image_scores_list.append(scores_per_level)
+                image_labels_list.append(labels_per_level)
 
-            image_boxes = torch.concat(image_boxes, dim=0)
-            image_scores = torch.concat(image_scores, dim=0)
-            image_labels = torch.concat(image_labels, dim=0)
+            image_boxes = torch.concat(image_boxes_list, dim=0)
+            image_scores = torch.concat(image_scores_list, dim=0)
+            image_labels = torch.concat(image_labels_list, dim=0)
 
             # Non-maximum suppression
-            keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)
+            if self.soft_nms is not None:
+                # Actually much faster on CPU
+                device = image_boxes.device
+                (soft_scores, keep) = self.soft_nms(
+                    image_boxes.cpu(), image_scores.cpu(), image_labels.cpu(), score_threshold=0.001
+                )
+                keep = keep.to(device)
+                image_scores[keep] = soft_scores.to(device)
+            else:
+                keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)
+
             keep = keep[: self.detections_per_img]
 
             detections.append(
@@ -709,10 +729,14 @@ class EfficientDet(DetectionBaseNet):
     # pylint: disable=invalid-name
     @torch.compiler.disable(recursive=False)  # type: ignore[misc]
     def forward(
-        self, x: torch.Tensor, targets: Optional[list[dict[str, torch.Tensor]]] = None
+        self,
+        x: torch.Tensor,
+        targets: Optional[list[dict[str, torch.Tensor]]] = None,
+        masks: Optional[torch.Tensor] = None,
+        image_sizes: Optional[list[list[int]]] = None,
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
         self._input_check(targets)
-        images = self._to_img_list(x)
+        images = self._to_img_list(x, image_sizes)
 
         features: dict[str, torch.Tensor] = self.backbone.detection_features(x)
         feature_list = list(features.values())

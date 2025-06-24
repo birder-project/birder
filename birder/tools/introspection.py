@@ -8,11 +8,11 @@ import torch
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
+from birder.data.transforms.classification import inference_preset
 from birder.introspection import AttentionRolloutInterpreter
 from birder.introspection import GradCamInterpreter
 from birder.introspection import GuidedBackpropInterpreter
 from birder.net.base import BaseNet
-from birder.transforms.classification import inference_preset
 
 logger = logging.getLogger(__name__)
 

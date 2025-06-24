@@ -18,15 +18,15 @@ from birder.common import fs_ops
 from birder.common import masking
 from birder.common import training_utils
 from birder.conf import settings
-from birder.dataloader.webdataset import make_wds_loader
-from birder.datasets.webdataset import make_wds_dataset
-from birder.datasets.webdataset import prepare_wds_args
-from birder.datasets.webdataset import wds_args_from_info
-from birder.transforms.classification import get_mixup_cutmix
-from birder.transforms.classification import get_rgb_stats
-from birder.transforms.classification import inference_preset
-from birder.transforms.classification import reverse_preset
-from birder.transforms.classification import training_preset
+from birder.data.dataloader.webdataset import make_wds_loader
+from birder.data.datasets.webdataset import make_wds_dataset
+from birder.data.datasets.webdataset import prepare_wds_args
+from birder.data.datasets.webdataset import wds_args_from_info
+from birder.data.transforms.classification import get_mixup_cutmix
+from birder.data.transforms.classification import get_rgb_stats
+from birder.data.transforms.classification import inference_preset
+from birder.data.transforms.classification import reverse_preset
+from birder.data.transforms.classification import training_preset
 
 logger = logging.getLogger(__name__)
 

@@ -14,15 +14,15 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
-from birder.dataloader.webdataset import make_wds_loader
-from birder.datasets.directory import make_image_dataset
-from birder.datasets.webdataset import make_wds_dataset
-from birder.datasets.webdataset import prepare_wds_args
-from birder.datasets.webdataset import wds_args_from_info
+from birder.data.dataloader.webdataset import make_wds_loader
+from birder.data.datasets.directory import make_image_dataset
+from birder.data.datasets.webdataset import make_wds_dataset
+from birder.data.datasets.webdataset import prepare_wds_args
+from birder.data.datasets.webdataset import wds_args_from_info
+from birder.data.transforms.classification import inference_preset
 from birder.inference.classification import infer_dataloader_iter
 from birder.results.classification import Results
 from birder.results.gui import show_top_k
-from birder.transforms.classification import inference_preset
 
 logger = logging.getLogger(__name__)
 

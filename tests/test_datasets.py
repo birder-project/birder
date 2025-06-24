@@ -1,8 +1,8 @@
 import logging
 import unittest
 
-from birder.datasets import directory
-from birder.datasets import webdataset
+from birder.data.datasets import directory
+from birder.data.datasets import webdataset
 
 logging.disable(logging.CRITICAL)
 

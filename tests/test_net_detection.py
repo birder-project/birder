@@ -24,6 +24,7 @@ class TestNetDetection(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
             ("deformable_detr", None, ("fasternet_t0", None)),
+            ("deformable_detr", None, ("efficientvit_msft_m0", None)),  # 3 stage network
             ("deformable_detr_boxref", None, ("regnet_x_200m", None)),
             ("detr", None, ("regnet_y_1_6g", None)),
             ("efficientdet_d0", None, ("efficientnet_v1_b0", None)),

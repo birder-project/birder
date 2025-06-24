@@ -16,13 +16,14 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
-from birder.datasets.coco import CocoInference
-from birder.datasets.directory import make_image_dataset
+from birder.data.collators.detection import inference_collate_fn
+from birder.data.datasets.coco import CocoInference
+from birder.data.datasets.directory import make_image_dataset
+from birder.data.transforms.detection import inference_preset
 from birder.inference.detection import infer_dataloader
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.results.detection import Results
-from birder.transforms.detection import inference_preset
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +41,15 @@ def save_output(
 
 def show_detections(
     img_path: str,
-    input_tensor: torch.Tensor,
+    _input_tensor: torch.Tensor,
     detection: dict[str, torch.Tensor],
     score_threshold: float,
+    image_size: list[int],
     class_list: list[str],
     color_list: list[tuple[int, ...]],
     root_path: Path,
 ) -> None:
-    (w, h) = input_tensor.shape[1:]
+    (H, W) = image_size
     scores = detection["scores"]
     idxs = torch.where(scores > score_threshold)
     scores = scores[idxs]
@@ -57,10 +59,10 @@ def show_detections(
     colors = [color_list[label] for label in labels]
 
     img = decode_image(root_path.joinpath(img_path))
-    (orig_w, orig_h) = img.shape[1:]
-    w_ratio = orig_w / w
-    h_ratio = orig_h / h
-    adjusted_boxes = boxes * torch.tensor([h_ratio, w_ratio, h_ratio, w_ratio]).to(input_tensor.device)
+    (orig_h, orig_w) = img.shape[1:]
+    h_ratio = orig_h / H
+    w_ratio = orig_w / W
+    adjusted_boxes = boxes * torch.tensor([w_ratio, h_ratio, w_ratio, h_ratio]).to(boxes.device)
 
     if adjusted_boxes.size(0) == 0:
         result_with_boxes = img
@@ -133,6 +135,9 @@ def predict(args: argparse.Namespace) -> None:
         dtype=model_dtype,
     )
 
+    if args.dynamic_size is True:
+        net.set_dynamic_size()
+
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
@@ -164,21 +169,25 @@ def predict(args: argparse.Namespace) -> None:
     if args.coco_json_path is not None:
         labeled = True
         root_path = Path(args.data_path[0])
-        dataset = CocoInference(root_path, args.coco_json_path, transforms=inference_preset(args.size, rgb_stats))
+        dataset = CocoInference(
+            root_path, args.coco_json_path, transforms=inference_preset(args.size, rgb_stats, args.dynamic_size)
+        )
         if dataset.class_to_idx != class_to_idx:
             logger.warning("Dataset class to index differs from model")
     else:
         labeled = False
         root_path = Path("")
-        dataset = make_image_dataset(args.data_path, {}, transforms=inference_preset(args.size, rgb_stats))
+        dataset = make_image_dataset(
+            args.data_path, {}, transforms=inference_preset(args.size, rgb_stats, args.dynamic_size)
+        )
 
     num_samples = len(dataset)
     inference_loader = DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=args.shuffle,
-        num_workers=8,
-        collate_fn=lambda batch: tuple(zip(*batch)),
+        num_workers=4,
+        collate_fn=inference_collate_fn,
     )
 
     show_flag = args.show is True
@@ -188,15 +197,17 @@ def predict(args: argparse.Namespace) -> None:
         inputs: torch.Tensor,
         detections: list[dict[str, torch.Tensor]],
         _targets: list[dict[str, Any]],
+        image_sizes: list[list[int]],
     ) -> None:
         # Show flags
         if show_flag is True:
-            for img_path, input_tensor, detection in zip(file_paths, inputs, detections):
+            for img_path, input_tensor, detection, image_size in zip(file_paths, inputs, detections, image_sizes):
                 show_detections(
                     img_path,
                     input_tensor,
                     detection,
                     score_threshold=score_threshold,
+                    image_size=image_size,
                     class_list=class_list,
                     color_list=color_list,
                     root_path=root_path,
@@ -338,6 +349,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-score", type=float, default=0.5, help="prediction score threshold")
     parser.add_argument(
         "--size", type=int, nargs="+", metavar=("H", "W"), help="image size for inference (defaults to model signature)"
+    )
+    parser.add_argument(
+        "--dynamic-size",
+        default=False,
+        action="store_true",
+        help="allow variable image sizes while preserving aspect ratios",
     )
     parser.add_argument("--batch-size", type=int, default=8, metavar="N", help="the batch size")
     parser.add_argument("--show", default=False, action="store_true", help="show image predictions")

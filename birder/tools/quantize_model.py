@@ -19,7 +19,7 @@ from birder.common import fs_ops
 from birder.common import lib
 from birder.common.lib import get_network_name
 from birder.conf import settings
-from birder.transforms.classification import inference_preset
+from birder.data.transforms.classification import inference_preset
 
 logger = logging.getLogger(__name__)
 

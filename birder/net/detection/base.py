@@ -82,6 +82,8 @@ class DetectionBaseNet(nn.Module):
         assert isinstance(self.size[0], int)
         assert isinstance(self.size[1], int)
 
+        self.dynamic_size = False
+
     def reset_classifier(self, num_classes: int) -> None:
         raise NotImplementedError
 
@@ -93,6 +95,10 @@ class DetectionBaseNet(nn.Module):
 
         self.size = new_size
         self.backbone.adjust_size(new_size)
+
+    def set_dynamic_size(self, dynamic_size: bool = True) -> None:
+        self.backbone.set_dynamic_size(dynamic_size)
+        self.dynamic_size = dynamic_size
 
     def freeze(self, freeze_classifier: bool = True) -> None:
         raise NotImplementedError
@@ -130,8 +136,10 @@ class DetectionBaseNet(nn.Module):
                     )
 
     # pylint: disable=protected-access
-    def _to_img_list(self, x: torch.Tensor) -> "ImageList":
-        image_sizes = [img.shape[-2:] for img in x]
+    def _to_img_list(self, x: torch.Tensor, image_sizes: Optional[list[list[int]]] = None) -> "ImageList":
+        if image_sizes is None:
+            image_sizes = [img.shape[-2:] for img in x]
+
         image_sizes_list: list[tuple[int, int]] = []
         for image_size in image_sizes:
             torch._assert(
@@ -143,8 +151,13 @@ class DetectionBaseNet(nn.Module):
         return ImageList(x, image_sizes_list)
 
     def forward(
-        self, x: torch.Tensor, targets: Optional[list[dict[str, torch.Tensor]]] = None
-    ) -> tuple[list[DetectorResultType], dict[str, torch.Tensor]]:
+        self,
+        x: torch.Tensor,
+        targets: Optional[list[dict[str, torch.Tensor]]] = None,
+        masks: Optional[torch.Tensor] = None,
+        image_sizes: Optional[list[list[int]]] = None,
+    ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
+        # TypedDict not supported for TorchScript - avoid returning DetectorResultType
         raise NotImplementedError
 
 

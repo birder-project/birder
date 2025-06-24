@@ -473,11 +473,15 @@ class SSD(DetectionBaseNet):
 
         return detections
 
-    def forward(  # type: ignore[override]
-        self, x: torch.Tensor, targets: Optional[list[dict[str, torch.Tensor]]] = None
+    def forward(
+        self,
+        x: torch.Tensor,
+        targets: Optional[list[dict[str, torch.Tensor]]] = None,
+        masks: Optional[torch.Tensor] = None,
+        image_sizes: Optional[list[list[int]]] = None,
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
         self._input_check(targets)
-        images = self._to_img_list(x)
+        images = self._to_img_list(x, image_sizes)
 
         features = self.backbone.detection_features(x)
         feature_list = list(features.values())

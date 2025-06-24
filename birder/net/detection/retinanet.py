@@ -30,6 +30,7 @@ from birder.net.detection.base import BackboneWithSimpleFPN
 from birder.net.detection.base import BoxCoder
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import Matcher
+from birder.ops.soft_nms import SoftNMS
 
 
 def _sum(x: list[torch.Tensor]) -> torch.Tensor:
@@ -275,6 +276,11 @@ class RetinaNet(DetectionBaseNet):
         topk_candidates = 1000
         giou_loss = True
         feature_pyramid_type: str = self.config["feature_pyramid_type"]
+        soft_nms: bool = self.config.get("soft_nms", False)
+
+        self.soft_nms = None
+        if soft_nms is True:
+            self.soft_nms = SoftNMS()
 
         if feature_pyramid_type == "fpn":
             feature_pyramid: Callable[..., nn.Module] = BackboneWithFPN
@@ -374,9 +380,9 @@ class RetinaNet(DetectionBaseNet):
             anchors_per_image = anchors[index]
             image_shape = image_shapes[index]
 
-            image_boxes = []
-            image_scores = []
-            image_labels = []
+            image_boxes_list = []
+            image_scores_list = []
+            image_labels_list = []
             for box_regression_per_level, logits_per_level, anchors_per_level in zip(
                 box_regression_per_image, logits_per_image, anchors_per_image
             ):
@@ -402,16 +408,26 @@ class RetinaNet(DetectionBaseNet):
                 )
                 boxes_per_level = box_ops.clip_boxes_to_image(boxes_per_level, image_shape)
 
-                image_boxes.append(boxes_per_level)
-                image_scores.append(scores_per_level)
-                image_labels.append(labels_per_level)
+                image_boxes_list.append(boxes_per_level)
+                image_scores_list.append(scores_per_level)
+                image_labels_list.append(labels_per_level)
 
-            image_boxes = torch.concat(image_boxes, dim=0)
-            image_scores = torch.concat(image_scores, dim=0)
-            image_labels = torch.concat(image_labels, dim=0)
+            image_boxes = torch.concat(image_boxes_list, dim=0)
+            image_scores = torch.concat(image_scores_list, dim=0)
+            image_labels = torch.concat(image_labels_list, dim=0)
 
             # Non-maximum suppression
-            keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)
+            if self.soft_nms is not None:
+                # Actually much faster on CPU
+                device = image_boxes.device
+                (soft_scores, keep) = self.soft_nms(
+                    image_boxes.cpu(), image_scores.cpu(), image_labels.cpu(), score_threshold=0.001
+                )
+                keep = keep.to(device)
+                image_scores[keep] = soft_scores.to(device)
+            else:
+                keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)
+
             keep = keep[: self.detections_per_img]
 
             detections.append(
@@ -425,11 +441,15 @@ class RetinaNet(DetectionBaseNet):
         return detections
 
     # pylint: disable=invalid-name
-    def forward(  # type: ignore[override]
-        self, x: torch.Tensor, targets: Optional[list[dict[str, torch.Tensor]]] = None
+    def forward(
+        self,
+        x: torch.Tensor,
+        targets: Optional[list[dict[str, torch.Tensor]]] = None,
+        masks: Optional[torch.Tensor] = None,
+        image_sizes: Optional[list[list[int]]] = None,
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
         self._input_check(targets)
-        images = self._to_img_list(x)
+        images = self._to_img_list(x, image_sizes)
 
         features: dict[str, torch.Tensor] = self.backbone_with_fpn(x)
         feature_list = list(features.values())

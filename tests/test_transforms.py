@@ -5,8 +5,8 @@ import unittest
 import torch
 from torchvision.transforms import v2
 
-from birder.transforms import classification
-from birder.transforms import detection
+from birder.data.transforms import classification
+from birder.data.transforms import detection
 
 logging.disable(logging.CRITICAL)
 
@@ -47,19 +47,9 @@ class TestTransforms(unittest.TestCase):
         classification.inference_preset((256, 256), classification.get_rgb_stats("none"), 0.9)
 
     def test_detection(self) -> None:
-        images = detection.batch_images(
-            [
-                torch.ones((3, 10, 10)),
-                torch.ones((3, 12, 12)),
-            ],
-            size_divisible=4,
-        )
-
-        self.assertSequenceEqual(images.size(), (2, 3, 12, 12))
-        self.assertEqual(images[0][0][0][10].item(), 0)
-        self.assertEqual(images[0][0][10][0].item(), 0)
-        self.assertEqual(images[0][0][9][9].item(), 1)
-
         # Presets
-        detection.training_preset((256, 256), 0, classification.get_rgb_stats("none"))
-        detection.inference_preset((256, 256), classification.get_rgb_stats("none"))
+        detection.training_preset((256, 256), "birder", 0, classification.get_rgb_stats("none"), False, False)
+        detection.training_preset((256, 256), "birder", 5, classification.get_rgb_stats("birder"), False, True)
+        detection.training_preset((256, 256), "ssd", 0, classification.get_rgb_stats("none"), True, False)
+        detection.training_preset((256, 256), "multiscale", 0, classification.get_rgb_stats("none"), False, False)
+        detection.inference_preset((256, 256), classification.get_rgb_stats("birder"), False)

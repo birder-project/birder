@@ -76,3 +76,60 @@ class TestKernels(unittest.TestCase):
             x_local = swattention.av_forward(attn_local, v_local, H, W, window_size, num_threads)  # type: ignore
 
         self.assertEqual(x_local.size(), (1, 2, 3136, 9))
+
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+    def test_soft_nms(self) -> None:
+        device = torch.device("cuda")
+        soft_nms = load_kernel.load_soft_nms()
+        self.assertIsNotNone(soft_nms)
+
+        boxes = torch.tensor(
+            [
+                [10.0, 10.0, 20.0, 20.0],  # Box 1
+                [15.0, 15.0, 25.0, 25.0],  # Box 2 (overlaps with 1)
+                [30.0, 30.0, 40.0, 40.0],  # Box 3 (no overlap)
+            ],
+            device=device,
+        )
+        scores = torch.tensor([0.9, 0.8, 0.7], device=device)
+
+        sigma = 0.5
+        score_threshold = 0.001
+
+        (updated_scores, keep) = soft_nms.soft_nms(boxes, scores, sigma, score_threshold)  # type: ignore
+
+        # Check outputs
+        self.assertIsInstance(updated_scores, torch.Tensor)
+        self.assertIsInstance(keep, torch.Tensor)
+        self.assertEqual(keep.dtype, torch.int64)
+
+        # All boxes should be kept (threshold is very low)
+        self.assertEqual(len(keep), 3)
+
+        # First box should have highest score (unchanged)
+        self.assertAlmostEqual(updated_scores[0].item(), 0.9, places=5)
+
+        # Second box score should be reduced due to overlap
+        self.assertLess(updated_scores[1].item(), 0.8)
+
+        # Third box should be mostly unchanged (no overlap)
+        self.assertAlmostEqual(updated_scores[2].item(), 0.7, places=3)
+
+        # Test with identical boxes (complete overlap)
+        boxes = torch.tensor(
+            [
+                [10.0, 10.0, 20.0, 20.0],
+                [10.0, 10.0, 20.0, 20.0],
+                [10.0, 10.0, 20.0, 20.0],
+            ],
+            device=device,
+        )
+
+        scores = torch.tensor([0.9, 0.8, 0.7], device=device)
+        sigma = 0.25
+        score_threshold = 0.1
+        (updated_scores, keep) = soft_nms.soft_nms(boxes, scores, sigma, score_threshold)  # type: ignore
+
+        # Only the first box should survive with high threshold
+        self.assertEqual(len(keep), 1)
+        self.assertEqual(keep[0].item(), 0)  # First box index

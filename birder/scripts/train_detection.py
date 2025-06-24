@@ -7,6 +7,7 @@ import sys
 import time
 import typing
 from typing import Any
+from typing import get_args
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -26,15 +27,16 @@ from birder.common import fs_ops
 from birder.common import lib
 from birder.common import training_utils
 from birder.conf import settings
+from birder.data.collators.detection import training_collate_fn
+from birder.data.transforms.classification import RGBMode
+from birder.data.transforms.classification import get_rgb_stats
+from birder.data.transforms.detection import AugType
+from birder.data.transforms.detection import inference_preset
+from birder.data.transforms.detection import training_preset
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import get_detection_signature
-from birder.transforms.classification import RGBMode
-from birder.transforms.classification import get_rgb_stats
-from birder.transforms.detection import batch_images
-from birder.transforms.detection import inference_preset
-from birder.transforms.detection import training_preset
 
 logger = logging.getLogger(__name__)
 
@@ -111,11 +113,15 @@ def train(args: argparse.Namespace) -> None:
     #
     rgb_stats = get_rgb_stats(args.rgb_mode)
     training_dataset = CocoDetection(
-        args.data_path, args.coco_json_path, transforms=training_preset(args.size, args.aug_level, rgb_stats)
+        args.data_path,
+        args.coco_json_path,
+        transforms=training_preset(
+            args.size, args.aug_type, args.aug_level, rgb_stats, args.dynamic_size, args.multiscale
+        ),
     )
     training_dataset = wrap_dataset_for_transforms_v2(training_dataset)
     validation_dataset = CocoDetection(
-        args.val_path, args.coco_val_json_path, transforms=inference_preset(args.size, rgb_stats)
+        args.val_path, args.coco_val_json_path, transforms=inference_preset(args.size, rgb_stats, args.dynamic_size)
     )
     validation_dataset = wrap_dataset_for_transforms_v2(validation_dataset)
 
@@ -156,7 +162,7 @@ def train(args: argparse.Namespace) -> None:
         sampler=train_sampler,
         num_workers=args.num_workers,
         prefetch_factor=args.prefetch_factor,
-        collate_fn=lambda batch: tuple(zip(*batch)),
+        collate_fn=training_collate_fn,
         pin_memory=True,
     )
     validation_loader = DataLoader(
@@ -165,7 +171,7 @@ def train(args: argparse.Namespace) -> None:
         sampler=validation_sampler,
         num_workers=args.num_workers,
         prefetch_factor=args.prefetch_factor,
-        collate_fn=lambda batch: tuple(zip(*batch)),
+        collate_fn=training_collate_fn,
         pin_memory=True,
     )
 
@@ -271,6 +277,9 @@ def train(args: argparse.Namespace) -> None:
             size=args.size,
         ).to(device)
         training_states = fs_ops.TrainingStates.empty()
+
+    if args.multiscale is True or args.dynamic_size is True:
+        net.set_dynamic_size()
 
     # Freeze
     if args.freeze_body is True:
@@ -469,19 +478,19 @@ def train(args: argparse.Namespace) -> None:
         # Zero the parameter gradients
         optimizer.zero_grad()
 
-        for i, (inputs, targets) in enumerate(training_loader):
-            inputs = [i.to(device, non_blocking=True) for i in inputs]
+        for i, (inputs, targets, masks, image_sizes) in enumerate(training_loader):
+            inputs = inputs.to(device, non_blocking=True)
             targets = [
                 {k: v.to(device, non_blocking=True) if isinstance(v, torch.Tensor) else v for k, v in t.items()}
                 for t in targets
             ]
-            inputs = batch_images(inputs)
+            masks = masks.to(device, non_blocking=True)
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
 
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                (_detections, losses) = net(inputs, targets)
+                (_detections, losses) = net(inputs, targets, masks, image_sizes)
                 loss = sum(v for v in losses.values())
 
             if scaler is not None:
@@ -551,15 +560,16 @@ def train(args: argparse.Namespace) -> None:
             )
 
         with torch.inference_mode():
-            for inputs, targets in validation_loader:
-                inputs = [i.to(device, non_blocking=True) for i in inputs]
+            for inputs, targets, masks, image_sizes in validation_loader:
+                inputs = inputs.to(device, non_blocking=True)
                 targets = [
                     {k: v.to(device, non_blocking=True) if isinstance(v, torch.Tensor) else v for k, v in t.items()}
                     for t in targets
                 ]
-                inputs = batch_images(inputs)
+                masks = masks.to(device, non_blocking=True)
+
                 with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                    (detections, losses) = eval_model(inputs)
+                    (detections, losses) = eval_model(inputs, masks=masks, image_sizes=image_sizes)
 
                 for target in targets:
                     # TorchMetrics can't handle "empty" images
@@ -789,6 +799,13 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--size", type=int, nargs="+", metavar=("H", "W"), help="image size (defaults to network recommendation)"
     )
     parser.add_argument(
+        "--dynamic-size",
+        default=False,
+        action="store_true",
+        help="allow variable image sizes while preserving aspect ratios",
+    )
+    parser.add_argument("--multiscale", default=False, action="store_true", help="enable random scale per image")
+    parser.add_argument(
         "--freeze-backbone-bn",
         default=False,
         action="store_true",
@@ -798,11 +815,18 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch-size", type=int, default=16, metavar="N", help="the batch size")
     parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
     parser.add_argument(
+        "--aug-type",
+        type=str,
+        choices=list(get_args(AugType)),
+        default="birder",
+        help="augmentation type",
+    )
+    parser.add_argument(
         "--aug-level",
         type=int,
-        choices=[0, 1, 2, 3],
-        default=2,
-        help="magnitude of augmentations (0 off -> 3 highest)",
+        choices=list(range(10 + 1)),
+        default=4,
+        help="magnitude of birder augmentations (0 off -> 10 highest)",
     )
     parser.add_argument(
         "--rgb-mode",
@@ -858,7 +882,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "-j",
         "--num-workers",
         type=int,
-        default=min(16, max(os.cpu_count() // 4, 4)),  # type: ignore[operator]
+        default=min(8, max(os.cpu_count() // 8, 2)),  # type: ignore[operator]
         metavar="N",
         help="number of preprocessing workers",
     )
@@ -953,6 +977,7 @@ def validate_args(args: argparse.Namespace) -> None:
         registry.exists(args.backbone, net_type=DetectorBackbone) is True
     ), "Unknown backbone, see list-models tool for available options"
     assert args.compile is False or args.compile_backbone is False
+    assert args.aug_type == "birder" or args.multiscale is False, "multiscale only supported for birder augmentations"
     args.size = cli.parse_size(args.size)
 
 

@@ -22,11 +22,11 @@ import torch.utils.data
 import torch.utils.data.distributed
 from torchvision.ops import FrozenBatchNorm2d
 
+from birder.data.transforms.classification import AugType
+from birder.data.transforms.classification import get_rgb_stats
+from birder.data.transforms.classification import training_preset
 from birder.optim import Lamb
 from birder.optim import Lars
-from birder.transforms.classification import AugType
-from birder.transforms.classification import get_rgb_stats
-from birder.transforms.classification import training_preset
 
 logger = logging.getLogger(__name__)
 

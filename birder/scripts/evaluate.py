@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 import birder
 from birder.common import cli
 from birder.conf import settings
-from birder.datasets.directory import make_image_dataset
+from birder.data.datasets.directory import make_image_dataset
 
 logger = logging.getLogger(__name__)
 

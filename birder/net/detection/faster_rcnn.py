@@ -716,8 +716,8 @@ class RoIHeads(nn.Module):
         box_features = self.box_head(box_features)
         (class_logits, box_regression) = self.box_predictor(box_features)
 
-        result: list[dict[str, torch.Tensor]] = []
         losses = {}
+        result: list[dict[str, torch.Tensor]] = []
         if self.training is True:
             if labels is None:
                 raise ValueError("labels cannot be None")
@@ -851,11 +851,15 @@ class Faster_RCNN(DetectionBaseNet):
             for param in self.roi_heads.box_predictor.parameters():
                 param.requires_grad = True
 
-    def forward(  # type: ignore[override]
-        self, x: torch.Tensor, targets: Optional[list[dict[str, torch.Tensor]]] = None
+    def forward(
+        self,
+        x: torch.Tensor,
+        targets: Optional[list[dict[str, torch.Tensor]]] = None,
+        masks: Optional[torch.Tensor] = None,
+        image_sizes: Optional[list[list[int]]] = None,
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
         self._input_check(targets)
-        images = self._to_img_list(x)
+        images = self._to_img_list(x, image_sizes)
 
         features = self.backbone_with_fpn(x)
         (proposals, proposal_losses) = self.rpn(images, features, targets)
