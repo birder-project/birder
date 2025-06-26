@@ -135,7 +135,7 @@ def predict(args: argparse.Namespace) -> None:
         dtype=model_dtype,
     )
 
-    if args.dynamic_size is True:
+    if args.dynamic_size is True or args.max_size is not None:
         net.set_dynamic_size()
 
     if args.fast_matmul is True or args.amp is True:
@@ -170,7 +170,9 @@ def predict(args: argparse.Namespace) -> None:
         labeled = True
         root_path = Path(args.data_path[0])
         dataset = CocoInference(
-            root_path, args.coco_json_path, transforms=inference_preset(args.size, rgb_stats, args.dynamic_size)
+            root_path,
+            args.coco_json_path,
+            transforms=inference_preset(args.size, rgb_stats, args.dynamic_size, args.max_size),
         )
         if dataset.class_to_idx != class_to_idx:
             logger.warning("Dataset class to index differs from model")
@@ -178,7 +180,7 @@ def predict(args: argparse.Namespace) -> None:
         labeled = False
         root_path = Path("")
         dataset = make_image_dataset(
-            args.data_path, {}, transforms=inference_preset(args.size, rgb_stats, args.dynamic_size)
+            args.data_path, {}, transforms=inference_preset(args.size, rgb_stats, args.dynamic_size, args.max_size)
         )
 
     num_samples = len(dataset)
@@ -348,7 +350,19 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--min-score", type=float, default=0.5, help="prediction score threshold")
     parser.add_argument(
-        "--size", type=int, nargs="+", metavar=("H", "W"), help="image size for inference (defaults to model signature)"
+        "--size",
+        type=int,
+        nargs="+",
+        metavar=("H", "W"),
+        help=(
+            "target image size as [height, width], if --dynamic-size is enabled, "
+            "uses the smaller dimension as target size while preserving aspect ratio (defaults to model's signature)"
+        ),
+    )
+    parser.add_argument(
+        "--max-size",
+        type=int,
+        help="maximum size for the longer edge of resized images, when specified, enables dynamic sizing",
     )
     parser.add_argument(
         "--dynamic-size",

@@ -1,17 +1,13 @@
-import logging
-
 import torch
 
 from birder.kernels.load_kernel import load_soft_nms
 
-logger = logging.getLogger(__name__)
-
 
 class SoftNMS:
     """
-    Soft-NMS -- Improving Object Detection With One Line of Code: <https://arxiv.org/abs/1704.04503>
+    Soft-NMS -- Improving Object Detection With One Line of Code: https://arxiv.org/abs/1704.04503
 
-    Lazy-loading soft-NMS operator with batched processing support
+    Lazy-loading Soft-NMS operator with batched processing support.
 
     The custom kernel is loaded on first instantiation, not at import time.
     Falls back to pure PyTorch implementation if kernel loading fails.

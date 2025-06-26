@@ -6,7 +6,6 @@ Paper "End-to-End Object Detection with Transformers", https://arxiv.org/abs/200
 
 Changes from original:
 * Move background index to first from last (to be inline with the rest of Birder detectors)
-* Removed masking / padding and nested tensors (images are resized at the dataloader)
 * Zero cost matrix elements on overflow (HungarianMatcher)
 """
 
@@ -28,6 +27,7 @@ from birder.common import training_utils
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import DetectionBaseNet
+from birder.ops.soft_nms import SoftNMS
 
 
 def _get_clones(module: nn.Module, N: int) -> nn.ModuleList:
@@ -87,9 +87,9 @@ class HungarianMatcher(nn.Module):
 
 
 class TransformerEncoderLayer(nn.Module):
-    def __init__(self, d_model: int, nhead: int, dim_feedforward: int, dropout: float) -> None:
+    def __init__(self, d_model: int, num_heads: int, dim_feedforward: int, dropout: float) -> None:
         super().__init__()
-        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.self_attn = nn.MultiheadAttention(d_model, num_heads, dropout=dropout)
 
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = nn.Dropout(dropout)
@@ -119,10 +119,10 @@ class TransformerEncoderLayer(nn.Module):
 
 
 class TransformerDecoderLayer(nn.Module):
-    def __init__(self, d_model: int, nhead: int, dim_feedforward: int, dropout: float) -> None:
+    def __init__(self, d_model: int, num_heads: int, dim_feedforward: int, dropout: float) -> None:
         super().__init__()
-        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.self_attn = nn.MultiheadAttention(d_model, num_heads, dropout=dropout)
+        self.multihead_attn = nn.MultiheadAttention(d_model, num_heads, dropout=dropout)
 
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = nn.Dropout(dropout)
@@ -213,7 +213,7 @@ class Transformer(nn.Module):
     def __init__(
         self,
         d_model: int,
-        nhead: int,
+        num_heads: int,
         num_encoder_layers: int,
         num_decoder_layers: int,
         dim_feedforward: int,
@@ -221,10 +221,10 @@ class Transformer(nn.Module):
         return_intermediate_dec: bool,
     ) -> None:
         super().__init__()
-        encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout)
+        encoder_layer = TransformerEncoderLayer(d_model, num_heads, dim_feedforward, dropout)
         self.encoder = TransformerEncoder(encoder_layer, num_encoder_layers)
 
-        decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward, dropout)
+        decoder_layer = TransformerDecoderLayer(d_model, num_heads, dim_feedforward, dropout)
         decoder_norm = nn.LayerNorm(d_model)
         self.decoder = TransformerDecoder(
             decoder_layer, num_decoder_layers, decoder_norm, return_intermediate=return_intermediate_dec
@@ -304,17 +304,22 @@ class DETR(DetectionBaseNet):
         assert self.config is not None, "must set config"
 
         hidden_dim = 256
-        nhead = 8
+        num_heads = 8
         dim_feedforward = 2048
-        dropout = 0.1
+        dropout: float = self.config.get("dropout", 0.1)
         num_encoder_layers: int = self.config["num_encoder_layers"]
         num_decoder_layers: int = self.config["num_decoder_layers"]
         num_queries: int = self.config.get("num_queries", 100)
+        soft_nms: bool = self.config.get("soft_nms", False)
+
+        self.soft_nms = None
+        if soft_nms is True:
+            self.soft_nms = SoftNMS()
 
         self.hidden_dim = hidden_dim
         self.transformer = Transformer(
             d_model=hidden_dim,
-            nhead=nhead,
+            num_heads=num_heads,
             num_encoder_layers=num_encoder_layers,
             num_decoder_layers=num_decoder_layers,
             dim_feedforward=dim_feedforward,
@@ -438,7 +443,9 @@ class DETR(DetectionBaseNet):
         prob = F.softmax(class_logits, -1)
         (scores, labels) = prob[..., 1:].max(-1)
         labels = labels + 1
-        target_sizes = torch.tensor(image_shapes, device=class_logits.device)
+
+        # TorchScript doesn't support creating tensor from tuples, convert everything to lists
+        target_sizes = torch.tensor([list(s) for s in image_shapes], device=class_logits.device)
 
         # Convert to [x0, y0, x1, y1] format
         boxes = box_ops.box_convert(box_regression, in_fmt="cxcywh", out_fmt="xyxy")
@@ -450,6 +457,18 @@ class DETR(DetectionBaseNet):
 
         detections: list[dict[str, torch.Tensor]] = []
         for s, l, b in zip(scores, labels, boxes):
+            # Non-maximum suppression
+            if self.soft_nms is not None:
+                # Actually much faster on CPU
+                device = b.device
+                (soft_scores, keep) = self.soft_nms(b.cpu(), s.cpu(), l.cpu(), score_threshold=0.001)
+                keep = keep.to(device)
+                s[keep] = soft_scores.to(device)
+
+                b = b[keep]
+                s = s[keep]
+                l = l[keep]  # noqa: E741
+
             detections.append(
                 {
                     "boxes": b,
@@ -483,7 +502,7 @@ class DETR(DetectionBaseNet):
 
         losses = {}
         detections: list[dict[str, torch.Tensor]] = []
-        if self.training:
+        if self.training is True:
             assert targets is not None, "targets should not be none when in training mode"
 
             # Convert target boxes

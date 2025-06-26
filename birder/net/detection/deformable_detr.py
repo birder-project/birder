@@ -8,7 +8,6 @@ Paper "Deformable DETR: Deformable Transformers for End-to-End Object Detection"
 https://arxiv.org/abs/2010.04159
 
 Changes from original:
-* Removed masking / padding and nested tensors (images are resized at the dataloader)
 * Removed two stage support
 * Zero cost matrix elements on overflow (HungarianMatcher)
 """
@@ -24,20 +23,17 @@ import torch
 import torch.nn.functional as F
 from scipy.optimize import linear_sum_assignment
 from torch import nn
-from torch.autograd import Function
-from torch.autograd.function import once_differentiable
 from torchvision.ops import MLP
 from torchvision.ops import boxes as box_ops
 from torchvision.ops import sigmoid_focal_loss
 
 from birder.common import training_utils
-from birder.kernels.load_kernel import load_msda
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.detr import PositionEmbeddingSine
-
-MSDA = None
+from birder.ops.msda import MultiScaleDeformableAttention as MSDA
+from birder.ops.soft_nms import SoftNMS
 
 
 def _get_clones(module: nn.Module, N: int) -> nn.ModuleList:
@@ -106,102 +102,9 @@ def inverse_sigmoid(x: torch.Tensor, eps: float = 1e-5) -> torch.Tensor:
     return torch.log(x1 / x2)
 
 
-def multi_scale_deformable_attention(
-    value: torch.Tensor,
-    value_spatial_shapes: torch.Tensor,
-    sampling_locations: torch.Tensor,
-    attention_weights: torch.Tensor,
-) -> torch.Tensor:
-    (batch_size, _, num_heads, hidden_dim) = value.size()
-    (_, num_queries, num_heads, num_levels, num_points, _) = sampling_locations.size()
-    areas: list[int] = value_spatial_shapes.prod(dim=1).tolist()
-    value_list = value.split(areas, dim=1)
-    sampling_grids = 2 * sampling_locations - 1
-    sampling_value_list = []
-    for level_id, spatial_shape in enumerate(value_spatial_shapes):
-        # (batch_size, height*width, num_heads, hidden_dim)
-        # -> (batch_size, height*width, num_heads*hidden_dim)
-        # -> (batch_size, num_heads*hidden_dim, height*width)
-        # -> (batch_size*num_heads, hidden_dim, height, width)
-        height = spatial_shape[0]
-        width = spatial_shape[1]
-        value_l_ = (
-            value_list[level_id].flatten(2).transpose(1, 2).reshape(batch_size * num_heads, hidden_dim, height, width)
-        )
-
-        # (batch_size, num_queries, num_heads, num_points, 2)
-        # -> (batch_size, num_heads, num_queries, num_points, 2)
-        # -> (batch_size*num_heads, num_queries, num_points, 2)
-        sampling_grid_l_ = sampling_grids[:, :, :, level_id].transpose(1, 2).flatten(0, 1)
-
-        # (batch_size*num_heads, hidden_dim, num_queries, num_points)
-        sampling_value_l_ = F.grid_sample(
-            value_l_, sampling_grid_l_, mode="bilinear", padding_mode="zeros", align_corners=False
-        )
-        sampling_value_list.append(sampling_value_l_)
-
-    # (batch_size, num_queries, num_heads, num_levels, num_points)
-    # -> (batch_size, num_heads, num_queries, num_levels, num_points)
-    # -> (batch_size, num_heads, 1, num_queries, num_levels*num_points)
-    attention_weights = attention_weights.transpose(1, 2).reshape(
-        batch_size * num_heads, 1, num_queries, num_levels * num_points
-    )
-    output = (
-        (torch.stack(sampling_value_list, dim=-2).flatten(-2) * attention_weights)
-        .sum(-1)
-        .view(batch_size, num_heads * hidden_dim, num_queries)
-    )
-
-    return output.transpose(1, 2).contiguous()
-
-
-# pylint: disable=abstract-method,arguments-differ
-class MSDAFunction(Function):
-    @staticmethod
-    @torch.compiler.disable()
-    @torch.amp.custom_fwd(device_type="cuda", cast_inputs=torch.float32)
-    def forward(  # type: ignore
-        ctx, value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, im2col_step
-    ):
-        ctx.im2col_step = im2col_step
-        output = MSDA.ms_deform_attn_forward(  # type: ignore[attr-defined]
-            value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, ctx.im2col_step
-        )
-        ctx.save_for_backward(
-            value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights
-        )
-        return output
-
-    @staticmethod
-    @torch.compiler.disable()
-    @torch.amp.custom_bwd(device_type="cuda")
-    @once_differentiable
-    def backward(ctx, grad_output):  # type: ignore
-        (value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights) = (
-            ctx.saved_tensors
-        )
-        grad_value, grad_sampling_loc, grad_attn_weight = MSDA.ms_deform_attn_backward(  # type: ignore[attr-defined]
-            value,
-            value_spatial_shapes,
-            value_level_start_index,
-            sampling_locations,
-            attention_weights,
-            grad_output,
-            ctx.im2col_step,
-        )
-
-        return (grad_value, None, None, grad_sampling_loc, grad_attn_weight, None)
-
-
 class MultiScaleDeformableAttention(nn.Module):
     def __init__(self, d_model: int, n_levels: int, n_heads: int, n_points: int) -> None:
         super().__init__()
-
-        global MSDA  # pylint: disable=global-statement
-        if MSDA is None and not torch.jit.is_tracing() and not torch.jit.is_scripting():
-            MSDA = load_msda()
-
-        self.custom_kernel = MSDA is not None
         if d_model % n_heads != 0:
             raise ValueError(f"d_model must be divisible by n_heads, but got {d_model} and {n_heads}")
 
@@ -218,6 +121,7 @@ class MultiScaleDeformableAttention(nn.Module):
         self.n_heads = n_heads
         self.n_points = n_points
 
+        self.msda = MSDA()
         self.sampling_offsets = nn.Linear(d_model, n_heads * n_levels * n_points * 2)
         self.attention_weights = nn.Linear(d_model, n_heads * n_levels * n_points)
         self.value_proj = nn.Linear(d_model, d_model)
@@ -292,22 +196,14 @@ class MultiScaleDeformableAttention(nn.Module):
                 f"Last dim of reference_points must be 2 or 4, but get {reference_points.shape[-1]} instead"
             )
 
-        # Pure PyTorch
-        if self.custom_kernel is False or value.is_cuda is False:
-            output = multi_scale_deformable_attention(
-                value, input_spatial_shapes, sampling_locations, attention_weights
-            )
-
-        # Custom kernel
-        else:
-            output = MSDAFunction.apply(
-                value,
-                input_spatial_shapes,
-                input_level_start_index,
-                sampling_locations,
-                attention_weights,
-                self.im2col_step,
-            )
+        output = self.msda(
+            value,
+            input_spatial_shapes,
+            input_level_start_index,
+            sampling_locations,
+            attention_weights,
+            self.im2col_step,
+        )
 
         output = self.output_proj(output)
 
@@ -515,7 +411,7 @@ class DeformableTransformer(nn.Module):
     def __init__(
         self,
         d_model: int,
-        nhead: int,
+        num_heads: int,
         num_encoder_layers: int,
         num_decoder_layers: int,
         dim_feedforward: int,
@@ -527,15 +423,15 @@ class DeformableTransformer(nn.Module):
     ) -> None:
         super().__init__()
         self.d_model = d_model
-        self.nhead = nhead
+        self.num_heads = num_heads
 
         encoder_layer = DeformableTransformerEncoderLayer(
-            d_model, dim_feedforward, dropout, num_feature_levels, nhead, enc_n_points
+            d_model, dim_feedforward, dropout, num_feature_levels, num_heads, enc_n_points
         )
         self.encoder = DeformableTransformerEncoder(encoder_layer, num_encoder_layers)
 
         decoder_layer = DeformableTransformerDecoderLayer(
-            d_model, dim_feedforward, dropout, num_feature_levels, nhead, dec_n_points
+            d_model, dim_feedforward, dropout, num_feature_levels, num_heads, dec_n_points
         )
         self.decoder = DeformableTransformerDecoder(decoder_layer, num_decoder_layers, return_intermediate_dec)
         self.level_embed = nn.Parameter(torch.Tensor(num_feature_levels, d_model))
@@ -577,10 +473,10 @@ class DeformableTransformer(nn.Module):
         src_list = []
         lvl_pos_embed_list = []
         mask_flatten = []
-        spatial_shape_list: list[tuple[int, int]] = []
+        spatial_shape_list: list[list[int]] = []  # list[tuple[int, int]] not supported on TorchScript
         for lvl, (src, pos_embed, mask) in enumerate(zip(srcs, pos_embeds, masks)):
             (bs, c, h, w) = src.size()
-            spatial_shape_list.append((h, w))
+            spatial_shape_list.append([h, w])
             src = src.flatten(2).transpose(1, 2)
             pos_embed = pos_embed.flatten(2).transpose(1, 2)
             mask = mask.flatten(1)
@@ -637,18 +533,23 @@ class Deformable_DETR(DetectionBaseNet):
         self.num_classes = self.num_classes - 1
 
         hidden_dim = 256
-        nhead = 8
-        num_encoder_layers = 6
-        num_decoder_layers = 6
+        num_heads = 8
         dim_feedforward = 1024
-        dropout = 0.1
         dec_n_points = 4
         enc_n_points = 4
-        num_queries = 300
-
+        dropout: float = self.config.get("dropout", 0.1)
+        num_encoder_layers: int = self.config.get("num_encoder_layers", 6)
+        num_decoder_layers: int = self.config.get("num_decoder_layers", 6)
+        num_queries: int = self.config.get("num_queries", 300)
         box_refine: bool = self.config["box_refine"]
-        self.box_refine = box_refine
+        soft_nms: bool = self.config.get("soft_nms", False)
 
+        self.soft_nms = None
+        if soft_nms is True:
+            self.soft_nms = SoftNMS()
+
+        self.nms_thresh = 0.5
+        self.box_refine = box_refine
         self.hidden_dim = hidden_dim
         input_proj_list = []
         for ch in self.backbone.return_channels:
@@ -663,7 +564,7 @@ class Deformable_DETR(DetectionBaseNet):
 
         self.transformer = DeformableTransformer(
             d_model=hidden_dim,
-            nhead=nhead,
+            num_heads=num_heads,
             num_encoder_layers=num_encoder_layers,
             num_decoder_layers=num_decoder_layers,
             dim_feedforward=dim_feedforward,
@@ -845,6 +746,18 @@ class Deformable_DETR(DetectionBaseNet):
 
         detections: list[dict[str, torch.Tensor]] = []
         for s, l, b in zip(scores, labels, boxes):
+            # Non-maximum suppression
+            if self.soft_nms is not None:
+                # Actually much faster on CPU
+                device = b.device
+                (soft_scores, keep) = self.soft_nms(b.cpu(), s.cpu(), l.cpu(), score_threshold=0.001)
+                keep = keep.to(device)
+                s[keep] = soft_scores.to(device)
+
+                b = b[keep]
+                s = s[keep]
+                l = l[keep]  # noqa: E741
+
             detections.append(
                 {
                     "boxes": b,
@@ -912,7 +825,7 @@ class Deformable_DETR(DetectionBaseNet):
 
         losses = {}
         detections: list[dict[str, torch.Tensor]] = []
-        if self.training:
+        if self.training is True:
             assert targets is not None, "targets should not be none when in training mode"
 
             # Convert target boxes and classes

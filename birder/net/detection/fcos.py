@@ -21,10 +21,12 @@ from torchvision.ops import generalized_box_iou_loss
 from torchvision.ops import sigmoid_focal_loss
 from torchvision.ops.feature_pyramid_network import LastLevelP6P7
 
+from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import AnchorGenerator
 from birder.net.detection.base import BackboneWithFPN
 from birder.net.detection.base import DetectionBaseNet
+from birder.ops.soft_nms import SoftNMS
 
 
 class BoxLinearCoder:
@@ -271,7 +273,6 @@ class FCOSHead(nn.Module):
 
 class FCOS(DetectionBaseNet):
     default_size = (640, 640)
-    auto_register = True
 
     def __init__(
         self,
@@ -284,16 +285,21 @@ class FCOS(DetectionBaseNet):
     ) -> None:
         super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size)
         assert self.net_param is None, "net-param not supported"
-        assert self.config is None, "config not supported"
+        assert self.config is not None, "must set config"
 
         self.num_classes = self.num_classes - 1
 
-        fpn_width = 256
         self.center_sampling_radius = 1.5
         self.score_thresh = 0.2
         self.nms_thresh = 0.6
         self.detections_per_img = 100
         self.topk_candidates = 1000
+        fpn_width: int = self.config["fpn_width"]
+        soft_nms: bool = self.config.get("soft_nms", False)
+
+        self.soft_nms = None
+        if soft_nms is True:
+            self.soft_nms = SoftNMS()
 
         self.backbone.return_channels = self.backbone.return_channels[-3:]
         self.backbone.return_stages = self.backbone.return_stages[-3:]
@@ -410,9 +416,9 @@ class FCOS(DetectionBaseNet):
             anchors_per_image = anchors[index]
             image_shape = image_shapes[index]
 
-            image_boxes = []
-            image_scores = []
-            image_labels = []
+            image_boxes_list = []
+            image_scores_list = []
+            image_labels_list = []
             for box_regression_per_level, logits_per_level, box_ctrness_per_level, anchors_per_level in zip(
                 box_regression_per_image, logits_per_image, box_ctrness_per_image, anchors_per_image
             ):
@@ -440,16 +446,26 @@ class FCOS(DetectionBaseNet):
                 )
                 boxes_per_level = box_ops.clip_boxes_to_image(boxes_per_level, image_shape)
 
-                image_boxes.append(boxes_per_level)
-                image_scores.append(scores_per_level)
-                image_labels.append(labels_per_level)
+                image_boxes_list.append(boxes_per_level)
+                image_scores_list.append(scores_per_level)
+                image_labels_list.append(labels_per_level)
 
-            image_boxes = torch.concat(image_boxes, dim=0)
-            image_scores = torch.concat(image_scores, dim=0)
-            image_labels = torch.concat(image_labels, dim=0)
+            image_boxes = torch.concat(image_boxes_list, dim=0)
+            image_scores = torch.concat(image_scores_list, dim=0)
+            image_labels = torch.concat(image_labels_list, dim=0)
 
             # Non-maximum suppression
-            keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)
+            if self.soft_nms is not None:
+                # Actually much faster on CPU
+                device = image_boxes.device
+                (soft_scores, keep) = self.soft_nms(
+                    image_boxes.cpu(), image_scores.cpu(), image_labels.cpu(), score_threshold=0.001
+                )
+                keep = keep.to(device)
+                image_scores[keep] = soft_scores.to(device)
+            else:
+                keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)
+
             keep = keep[: self.detections_per_img]
 
             detections.append(
@@ -501,3 +517,6 @@ class FCOS(DetectionBaseNet):
             detections = self.postprocess_detections(split_head_outputs, split_anchors, images.image_sizes)
 
         return (detections, losses)
+
+
+registry.register_alias("fcos", FCOS, config={"fpn_width": 256})

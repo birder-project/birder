@@ -6,6 +6,7 @@ from typing import Optional
 import torch
 from parameterized import parameterized
 
+from birder.data.collators.detection import batch_images
 from birder.model_registry import registry
 from birder.net.detection import base
 
@@ -57,6 +58,12 @@ class TestNetDetection(unittest.TestCase):
         for detection in detections:
             for key in ["boxes", "labels", "scores"]:
                 self.assertFalse(torch.isnan(detection[key]).any())
+
+        # Again in "dynamic size" mode
+        (images, masks, image_sizes) = batch_images(
+            [torch.rand((3, *size)), torch.rand((3, size[0] - 12, size[1] - 24))], size_divisible=4
+        )
+        out = n(images, masks=masks, image_sizes=image_sizes)
 
         # Reset classifier
         n.reset_classifier(20)

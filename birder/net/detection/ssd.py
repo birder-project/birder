@@ -433,9 +433,9 @@ class SSD(DetectionBaseNet):
             boxes = box_ops.clip_boxes_to_image(boxes, image_shape)
 
             list_empty = True
-            image_boxes = []
-            image_scores = []
-            image_labels = []
+            image_boxes_list = []
+            image_scores_list = []
+            image_labels_list = []
             for label in range(1, num_classes):
                 score = scores[:, label]
 
@@ -450,14 +450,14 @@ class SSD(DetectionBaseNet):
                 if len(box) == 0 and list_empty is False:
                     continue
 
-                image_boxes.append(box)
-                image_scores.append(score)
-                image_labels.append(torch.full_like(score, fill_value=label, dtype=torch.int64, device=device))
+                image_boxes_list.append(box)
+                image_scores_list.append(score)
+                image_labels_list.append(torch.full_like(score, fill_value=label, dtype=torch.int64, device=device))
                 list_empty = False
 
-            image_boxes = torch.concat(image_boxes, dim=0)
-            image_scores = torch.concat(image_scores, dim=0)
-            image_labels = torch.concat(image_labels, dim=0)
+            image_boxes = torch.concat(image_boxes_list, dim=0)
+            image_scores = torch.concat(image_scores_list, dim=0)
+            image_labels = torch.concat(image_labels_list, dim=0)
 
             # Non-maximum suppression
             keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)

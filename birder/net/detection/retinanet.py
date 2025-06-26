@@ -267,7 +267,6 @@ class RetinaNet(DetectionBaseNet):
 
         self.num_classes = self.num_classes - 1
 
-        fpn_width = 256
         fg_iou_thresh = 0.5
         bg_iou_thresh = 0.4
         score_thresh = 0.05
@@ -275,6 +274,7 @@ class RetinaNet(DetectionBaseNet):
         detections_per_img = 300
         topk_candidates = 1000
         giou_loss = True
+        fpn_width: int = self.config["fpn_width"]
         feature_pyramid_type: str = self.config["feature_pyramid_type"]
         soft_nms: bool = self.config.get("soft_nms", False)
 
@@ -486,5 +486,5 @@ class RetinaNet(DetectionBaseNet):
         return (detections, losses)
 
 
-registry.register_alias("retinanet", RetinaNet, config={"feature_pyramid_type": "fpn"})
-registry.register_alias("retinanet_sfp", RetinaNet, config={"feature_pyramid_type": "sfp"})
+registry.register_alias("retinanet", RetinaNet, config={"fpn_width": 256, "feature_pyramid_type": "fpn"})
+registry.register_alias("retinanet_sfp", RetinaNet, config={"fpn_width": 256, "feature_pyramid_type": "sfp"})

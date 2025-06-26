@@ -87,10 +87,24 @@ def train(args: argparse.Namespace) -> None:
     # Initialize
     #
     training_utils.init_distributed_mode(args)
+    if (
+        args.multiscale is True
+        or args.dynamic_size is True
+        or args.max_size is not None
+        or args.aug_type == "multiscale"
+        or args.aug_type == "detr"
+    ):
+        dynamic_size = True
+    else:
+        dynamic_size = False
+
     if args.size is None:
         args.size = registry.get_default_size(args.network)
 
-    logger.info(f"Using size={args.size}")
+    if dynamic_size is False:
+        logger.info(f"Using size={args.size}")
+    else:
+        logger.info(f"Running with dynamic size, wish base size={args.size}")
 
     if args.cpu is True:
         device = torch.device("cpu")
@@ -102,7 +116,7 @@ def train(args: argparse.Namespace) -> None:
     if args.use_deterministic_algorithms is True:
         torch.backends.cudnn.benchmark = False
         torch.use_deterministic_algorithms(True)
-    else:
+    elif dynamic_size is False:
         torch.backends.cudnn.benchmark = True
 
     # Enable or disable the autograd anomaly detection
@@ -116,12 +130,14 @@ def train(args: argparse.Namespace) -> None:
         args.data_path,
         args.coco_json_path,
         transforms=training_preset(
-            args.size, args.aug_type, args.aug_level, rgb_stats, args.dynamic_size, args.multiscale
+            args.size, args.aug_type, args.aug_level, rgb_stats, args.dynamic_size, args.multiscale, args.max_size
         ),
     )
     training_dataset = wrap_dataset_for_transforms_v2(training_dataset)
     validation_dataset = CocoDetection(
-        args.val_path, args.coco_val_json_path, transforms=inference_preset(args.size, rgb_stats, args.dynamic_size)
+        args.val_path,
+        args.coco_val_json_path,
+        transforms=inference_preset(args.size, rgb_stats, args.dynamic_size, args.max_size),
     )
     validation_dataset = wrap_dataset_for_transforms_v2(validation_dataset)
 
@@ -278,7 +294,7 @@ def train(args: argparse.Namespace) -> None:
         ).to(device)
         training_states = fs_ops.TrainingStates.empty()
 
-    if args.multiscale is True or args.dynamic_size is True:
+    if dynamic_size is True:
         net.set_dynamic_size()
 
     # Freeze
@@ -299,10 +315,16 @@ def train(args: argparse.Namespace) -> None:
         torch.set_float32_matmul_precision("high")
 
     # Compile network
+    dynamic_compile = None
+    if args.compile_dynamic is True:
+        dynamic_compile = True
+
     if args.compile is True:
-        net = torch.compile(net)
+        net = torch.compile(net, dynamic=dynamic_compile)
     elif args.compile_backbone is True:
-        net.backbone.detection_features = torch.compile(net.backbone.detection_features)  # type: ignore[method-assign]
+        net.backbone.detection_features = torch.compile(  # type: ignore[method-assign]
+            net.backbone.detection_features, dynamic=dynamic_compile
+        )
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
@@ -768,6 +790,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--compile-backbone", default=False, action="store_true", help="enable backbone only compilation"
     )
+    parser.add_argument("--compile-dynamic", default=False, action="store_true", help="use dynamic shape tracing")
     parser.add_argument(
         "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
     )
@@ -796,7 +819,19 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--channels", type=int, default=3, metavar="N", help="no. of image channels")
     parser.add_argument(
-        "--size", type=int, nargs="+", metavar=("H", "W"), help="image size (defaults to network recommendation)"
+        "--size",
+        type=int,
+        nargs="+",
+        metavar=("H", "W"),
+        help=(
+            "target image size as [height, width], if --dynamic-size is enabled, "
+            "uses the smaller dimension as target size while preserving aspect ratio (defaults to model's signature)"
+        ),
+    )
+    parser.add_argument(
+        "--max-size",
+        type=int,
+        help="maximum size for the longer edge of resized images, when specified, enables dynamic sizing",
     )
     parser.add_argument(
         "--dynamic-size",

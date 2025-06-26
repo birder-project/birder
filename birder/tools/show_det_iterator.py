@@ -26,10 +26,16 @@ def show_det_iterator(args: argparse.Namespace) -> None:
     reverse_transform = reverse_preset(get_rgb_stats("birder"))
     if args.mode == "training":
         transform = training_preset(
-            args.size, args.aug_type, args.aug_level, get_rgb_stats("birder"), args.dynamic_size, args.multiscale
+            args.size,
+            args.aug_type,
+            args.aug_level,
+            get_rgb_stats("birder"),
+            args.dynamic_size,
+            args.multiscale,
+            args.max_size,
         )
     elif args.mode == "inference":
-        transform = inference_preset(args.size, get_rgb_stats("birder"), args.dynamic_size)
+        transform = inference_preset(args.size, get_rgb_stats("birder"), args.dynamic_size, args.max_size)
     else:
         raise ValueError(f"Unknown mode={args.mode}")
 
@@ -105,7 +111,22 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--mode", type=str, choices=["training", "inference"], default="training", help="iterator mode"
     )
-    subparser.add_argument("--size", type=int, nargs="+", default=[512], metavar=("H", "W"), help="image size")
+    subparser.add_argument(
+        "--size",
+        type=int,
+        nargs="+",
+        default=[512],
+        metavar=("H", "W"),
+        help=(
+            "target image size as [height, width], if --dynamic-size is enabled, "
+            "uses the smaller dimension as target size while preserving aspect ratio (defaults to model's signature)"
+        ),
+    )
+    subparser.add_argument(
+        "--max-size",
+        type=int,
+        help="maximum size for the longer edge of resized images, when specified, enables dynamic sizing",
+    )
     subparser.add_argument(
         "--dynamic-size",
         default=False,

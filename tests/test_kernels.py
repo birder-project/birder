@@ -4,7 +4,6 @@ import unittest
 import torch
 
 from birder.kernels import load_kernel
-from birder.net.detection.deformable_detr import multi_scale_deformable_attention
 
 logging.disable(logging.CRITICAL)
 
@@ -36,11 +35,6 @@ class TestKernels(unittest.TestCase):
             )
 
         self.assertEqual(output_kernel.size(), (1, 34000, 256))
-
-        output_torch = multi_scale_deformable_attention(
-            value, value_spatial_shapes, sampling_locations, attention_weights
-        )
-        self.assertEqual(output_torch.size(), (1, 34000, 256))
 
     @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
     def test_swattention(self) -> None:

@@ -13,9 +13,16 @@ import birder
 logger = logging.getLogger(__name__)
 
 
+_CACHED_KERNELS: dict[str, ModuleType] = {}
+
+
 def load_msda() -> Optional[ModuleType]:
+    name = "msda"
     if torch.cuda.is_available() is False or os.environ.get("DISABLE_CUSTOM_KERNELS", "0") == "1":
         return None
+
+    if name in _CACHED_KERNELS:
+        return _CACHED_KERNELS[name]
 
     # Adapted from:
     # https://github.com/huggingface/transformers/blob/main/src/transformers/models/deformable_detr/load_custom.py
@@ -44,6 +51,7 @@ def load_msda() -> Optional[ModuleType]:
 
     if msda is not None:
         logger.info("MSDA custom kernel loaded")
+        _CACHED_KERNELS[name] = msda
     else:
         logger.debug("MSDA custom kernel NOT loaded")
 
@@ -51,8 +59,12 @@ def load_msda() -> Optional[ModuleType]:
 
 
 def load_swattention() -> Optional[ModuleType]:
+    name = "swattention"
     if torch.cuda.is_available() is False or os.environ.get("DISABLE_CUSTOM_KERNELS", "0") == "1":
         return None
+
+    if name in _CACHED_KERNELS:
+        return _CACHED_KERNELS[name]
 
     root = Path(birder.__file__).resolve().parent.joinpath("kernels/transnext")
     src_files = [
@@ -82,6 +94,7 @@ def load_swattention() -> Optional[ModuleType]:
 
     if swattention is not None:
         logger.info("swattention custom kernel loaded")
+        _CACHED_KERNELS[name] = swattention
     else:
         logger.debug("swattention custom kernel NOT loaded")
 
@@ -89,8 +102,12 @@ def load_swattention() -> Optional[ModuleType]:
 
 
 def load_soft_nms() -> Optional[ModuleType]:
+    name = "soft_nms"
     if os.environ.get("DISABLE_CUSTOM_KERNELS", "0") == "1":
         return None
+
+    if name in _CACHED_KERNELS:
+        return _CACHED_KERNELS[name]
 
     root = Path(birder.__file__).resolve().parent.joinpath("kernels/soft_nms")
     src_files = [
@@ -115,6 +132,7 @@ def load_soft_nms() -> Optional[ModuleType]:
 
     if soft_nms is not None:
         logger.info("soft_nms custom kernel loaded")
+        _CACHED_KERNELS[name] = soft_nms
     else:
         logger.debug("soft_nms custom kernel NOT loaded")
 
