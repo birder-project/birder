@@ -300,7 +300,7 @@ class RollBlockMasking(Masking):
             # Roll
             shift_x = random.randint(0, mask_2d.shape[0] - 1)
             shift_y = random.randint(0, mask_2d.shape[1] - 1)
-            mask = np.roll(mask_2d, (shift_x, shift_y), (0, 1))  # type: ignore[assignment]
+            mask = np.roll(mask_2d, (shift_x, shift_y), (0, 1))
             masks.append(torch.from_numpy(mask.flatten()))
 
         return torch.stack(masks, dim=0)

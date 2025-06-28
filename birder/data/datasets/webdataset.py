@@ -6,7 +6,6 @@ from typing import Literal
 from typing import Optional
 
 import torch
-import torch.utils.data
 import webdataset as wds
 from torchvision.datasets.folder import IMG_EXTENSIONS
 from torchvision.io import ImageReadMode

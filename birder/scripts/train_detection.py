@@ -13,13 +13,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.amp
-import torch.utils.data
 import torchinfo
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
-from torchvision.datasets import CocoDetection
-from torchvision.datasets import wrap_dataset_for_transforms_v2
 from tqdm import tqdm
 
 from birder.common import cli
@@ -28,6 +25,7 @@ from birder.common import lib
 from birder.common import training_utils
 from birder.conf import settings
 from birder.data.collators.detection import training_collate_fn
+from birder.data.datasets.coco import CocoTraining
 from birder.data.transforms.classification import RGBMode
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.detection import AugType
@@ -39,46 +37,6 @@ from birder.net.base import DetectorBackbone
 from birder.net.detection.base import get_detection_signature
 
 logger = logging.getLogger(__name__)
-
-
-def _remove_images_without_annotations(dataset: CocoDetection, ignore_list: list[str]) -> CocoDetection:
-    def _has_only_empty_bbox(anno: list[dict[str, Any]]) -> bool:
-        return all(any(o <= 1 for o in obj["bbox"][2:]) for obj in anno)
-
-    def _has_valid_annotation(anno: list[dict[str, Any]]) -> bool:
-        # If it's empty, there is no annotation
-        if len(anno) == 0:
-            return False
-
-        # If all boxes have close to zero area, there is no annotation
-        if _has_only_empty_bbox(anno):
-            return False
-
-        return True
-
-    ids = []
-    for ds_idx, img_id in enumerate(dataset.ids):
-        img_path = dataset.coco.loadImgs(img_id)[0]["file_name"]
-        if img_path in ignore_list:
-            logger.debug(f"Ignoring {img_path}")
-            continue
-
-        ann_ids = dataset.coco.getAnnIds(imgIds=img_id, iscrowd=None)
-        anno = dataset.coco.loadAnns(ann_ids)
-        if _has_valid_annotation(anno):
-            ids.append(ds_idx)
-
-    return torch.utils.data.Subset(dataset, ids)
-
-
-def _convert_to_binary_annotations(dataset: CocoDetection) -> CocoDetection:
-    for img_id in dataset.ids:
-        ann_ids = dataset.coco.getAnnIds(imgIds=img_id, iscrowd=None)
-        anno = dataset.coco.loadAnns(ann_ids)
-        for obj in anno:
-            obj["category_id"] = 1
-
-    return dataset
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
@@ -104,7 +62,7 @@ def train(args: argparse.Namespace) -> None:
     if dynamic_size is False:
         logger.info(f"Using size={args.size}")
     else:
-        logger.info(f"Running with dynamic size, wish base size={args.size}")
+        logger.info(f"Running with dynamic size, with base size={args.size}")
 
     if args.cpu is True:
         device = torch.device("cpu")
@@ -126,25 +84,23 @@ def train(args: argparse.Namespace) -> None:
     # Data
     #
     rgb_stats = get_rgb_stats(args.rgb_mode)
-    training_dataset = CocoDetection(
+    training_dataset = CocoTraining(
         args.data_path,
         args.coco_json_path,
         transforms=training_preset(
             args.size, args.aug_type, args.aug_level, rgb_stats, args.dynamic_size, args.multiscale, args.max_size
         ),
     )
-    training_dataset = wrap_dataset_for_transforms_v2(training_dataset)
-    validation_dataset = CocoDetection(
+    validation_dataset = CocoTraining(
         args.val_path,
         args.coco_val_json_path,
-        transforms=inference_preset(args.size, rgb_stats, args.dynamic_size, args.max_size),
+        transforms=inference_preset(args.size, rgb_stats, dynamic_size, args.max_size),
     )
-    validation_dataset = wrap_dataset_for_transforms_v2(validation_dataset)
 
     if args.class_file is not None:
         class_to_idx = fs_ops.read_class_file(args.class_file)
     else:
-        class_to_idx = lib.class_to_idx_from_coco(training_dataset.coco.cats)
+        class_to_idx = lib.class_to_idx_from_coco(training_dataset.dataset.coco.cats)
 
     class_to_idx = lib.detection_class_to_idx(class_to_idx)
     if args.ignore_file is not None:
@@ -154,11 +110,11 @@ def train(args: argparse.Namespace) -> None:
         ignore_list = []
 
     if args.binary_mode is True:
-        training_dataset = _convert_to_binary_annotations(training_dataset)
-        validation_dataset = _convert_to_binary_annotations(validation_dataset)
-        class_to_idx = {"Object": 1}
+        training_dataset.convert_to_binary_annotations()
+        validation_dataset.convert_to_binary_annotations()
+        class_to_idx = training_dataset.class_to_idx
 
-    training_dataset = _remove_images_without_annotations(training_dataset, ignore_list)
+    training_dataset.remove_images_without_annotations(ignore_list)
 
     assert args.model_ema is False or args.model_ema_steps <= len(training_dataset) / args.batch_size
 
@@ -456,7 +412,7 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Logging training run at {training_log_path}")
     summary_writer = SummaryWriter(training_log_path)
 
-    signature = get_detection_signature(input_shape=sample_shape, num_outputs=num_outputs)
+    signature = get_detection_signature(input_shape=sample_shape, num_outputs=num_outputs, dynamic=dynamic_size)
     if args.rank == 0:
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)

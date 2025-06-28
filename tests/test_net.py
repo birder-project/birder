@@ -399,6 +399,7 @@ class TestNet(unittest.TestCase):
         for i, stage_name in enumerate(n.return_stages):
             self.assertIn(stage_name, out)
             self.assertEqual(out[stage_name].shape[1], n.return_channels[i])
+            self.assertFalse(torch.isnan(out[stage_name]).any())
 
         prev_h = 0
         prev_w = 0
@@ -815,6 +816,11 @@ class TestDynamicSize(unittest.TestCase):
         size = (default_size[0] + size_step, default_size[1] + size_step)
         out = n(torch.rand((batch_size, 3, *size)))
         self.assertEqual(out.numel(), 100 * batch_size)
+
+        if isinstance(n, base.DetectorBackbone):
+            out = n.detection_features(torch.rand((batch_size, 3, *size)))
+            for stage_name in n.return_stages:
+                self.assertFalse(torch.isnan(out[stage_name]).any())
 
 
 class TestSpecialFunctions(unittest.TestCase):

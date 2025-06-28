@@ -149,9 +149,7 @@ class Results:
 
     @cached_property
     def unique_labels(self) -> npt.NDArray[np.int_]:
-        return (  # type: ignore
-            np.unique(np.concatenate([self.labels[self.valid_idx], self.predictions[self.valid_idx]], axis=0))
-        )
+        return np.unique(np.concatenate([self.labels[self.valid_idx], self.predictions[self.valid_idx]], axis=0))
 
     @property
     def missing_labels(self) -> bool:

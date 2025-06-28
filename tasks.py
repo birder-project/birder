@@ -283,6 +283,7 @@ def gen_classes_file(_ctx):
         # Remove "Unknown" class (not required in detection)
         class_list.remove("Unknown")
         doc = "\n".join(class_list)
+        doc += "\n"
 
         echo("data/detection_data/classes.txt")
         with open("data/detection_data/classes.txt", "w", encoding="utf-8") as handle:

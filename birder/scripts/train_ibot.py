@@ -26,7 +26,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.amp
-import torch.utils.data
 import torchinfo
 import torchmetrics
 from torch.utils.data import DataLoader

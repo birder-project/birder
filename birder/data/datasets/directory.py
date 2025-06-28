@@ -4,7 +4,6 @@ from typing import Optional
 
 import numpy as np
 import torch
-import torch.utils.data
 from torchvision.io import ImageReadMode
 from torchvision.io import decode_image
 

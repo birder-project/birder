@@ -15,7 +15,8 @@ logging.disable(logging.CRITICAL)
 
 class TestBase(unittest.TestCase):
     def test_get_signature(self) -> None:
-        signature = base.get_detection_signature((1, 3, 224, 224), 10)
+        signature = base.get_detection_signature((1, 3, 224, 224), 10, dynamic=False)
+        self.assertIn("dynamic", signature)
         self.assertIn("inputs", signature)
         self.assertIn("outputs", signature)
         self.assertIn("boxes", signature["outputs"][0][0])

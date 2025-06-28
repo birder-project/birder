@@ -32,6 +32,7 @@ class TestLib(unittest.TestCase):
             "outputs": [{"data_shape": [0, 371]}],
         }
         detection_signature: DetectionSignatureType = {
+            "dynamic": False,
             "inputs": [{"data_shape": [0, 3, 640, 640]}],
             "outputs": ([{"boxes": [0, 4], "labels": [0], "scores": [0]}], {}),
             "num_labels": 91,

@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.amp
-import torch.utils.data
 import torchinfo
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter

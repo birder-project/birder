@@ -343,7 +343,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         x = x[:, self.num_special_tokens :]
         x = x.permute(0, 2, 1)
         (B, C, _) = x.size()
-        x = x.reshape(B, C, self.size[0] // self.patch_size, self.size[1] // self.patch_size)
+        x = x.reshape(B, C, H // self.patch_size, W // self.patch_size)
 
         return {self.return_stages[0]: x}
 

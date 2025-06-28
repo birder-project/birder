@@ -190,6 +190,7 @@
     "nsight",
     "nsys",
     "numel",
+    "numpy",
     "nvtx",
     "objectness",
     "onednn",

@@ -66,7 +66,12 @@ def get_birder_augment(
             )
 
     if level >= 3:
-        transformations.extend([v2.RandomIoUCrop()])
+        transformations.extend(
+            [
+                v2.RandomIoUCrop(),
+                v2.ClampBoundingBoxes(),
+            ]
+        )
 
     # Resize
     if multiscale is True:

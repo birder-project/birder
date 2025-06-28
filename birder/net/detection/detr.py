@@ -262,9 +262,8 @@ class PositionEmbeddingSine(nn.Module):
         self.scale = 2 * math.pi
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
-        (B, _, H, W) = x.size()
-
         if mask is None:
+            (B, _, H, W) = x.size()
             mask = torch.zeros(B, H, W, dtype=torch.bool, device=x.device)
 
         not_mask = ~mask
@@ -310,6 +309,7 @@ class DETR(DetectionBaseNet):
         num_encoder_layers: int = self.config["num_encoder_layers"]
         num_decoder_layers: int = self.config["num_decoder_layers"]
         num_queries: int = self.config.get("num_queries", 100)
+        return_intermediate: bool = self.config.get("return_intermediate", True)
         soft_nms: bool = self.config.get("soft_nms", False)
 
         self.soft_nms = None
@@ -324,7 +324,7 @@ class DETR(DetectionBaseNet):
             num_decoder_layers=num_decoder_layers,
             dim_feedforward=dim_feedforward,
             dropout=dropout,
-            return_intermediate_dec=True,
+            return_intermediate_dec=return_intermediate,
         )
 
         self.class_embed = nn.Linear(hidden_dim, self.num_classes)
@@ -422,13 +422,13 @@ class DETR(DetectionBaseNet):
             indices = self.matcher(cls_logits[idx], box_output[idx], targets)
             loss_ce_i = self._class_loss(cls_logits[idx], targets, indices)
             (loss_bbox_i, loss_giou_i) = self._box_loss(box_output[idx], targets, indices, num_boxes)
-            loss_ce_list.append(loss_ce_i * 1)
-            loss_bbox_list.append(loss_bbox_i * 5)
-            loss_giou_list.append(loss_giou_i * 2)
+            loss_ce_list.append(loss_ce_i)
+            loss_bbox_list.append(loss_bbox_i)
+            loss_giou_list.append(loss_giou_i)
 
-        loss_ce = torch.stack(loss_ce_list).sum()
-        loss_bbox = torch.stack(loss_bbox_list).sum()
-        loss_giou = torch.stack(loss_giou_list).sum()
+        loss_ce = torch.stack(loss_ce_list).sum() * 1
+        loss_bbox = torch.stack(loss_bbox_list).sum() * 5
+        loss_giou = torch.stack(loss_giou_list).sum() * 2
         losses = {
             "labels": loss_ce,
             "boxes": loss_bbox,
@@ -509,7 +509,7 @@ class DETR(DetectionBaseNet):
             for idx, target in enumerate(targets):
                 boxes = target["boxes"]
                 boxes = box_ops.box_convert(boxes, in_fmt="xyxy", out_fmt="cxcywh")
-                boxes = boxes / torch.tensor(images.image_sizes[idx] * 2, dtype=torch.float32, device=x.device)
+                boxes = boxes / torch.tensor(images.image_sizes[idx][::-1] * 2, dtype=torch.float32, device=x.device)
                 targets[idx]["boxes"] = boxes
 
             losses = self.compute_loss(targets, outputs_class, outputs_coord)

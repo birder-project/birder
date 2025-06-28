@@ -22,6 +22,7 @@ DetectorResultType = TypedDict(
 DetectionSignatureType = TypedDict(
     "DetectionSignatureType",
     {
+        "dynamic": bool,
         "inputs": list[DataShapeType],
         "outputs": tuple[list[DetectorResultType], dict[str, torch.Tensor]],
         "num_labels": int,
@@ -29,8 +30,9 @@ DetectionSignatureType = TypedDict(
 )
 
 
-def get_detection_signature(input_shape: tuple[int, ...], num_outputs: int) -> DetectionSignatureType:
+def get_detection_signature(input_shape: tuple[int, ...], num_outputs: int, dynamic: bool) -> DetectionSignatureType:
     return {
+        "dynamic": dynamic,
         "inputs": [{"data_shape": [0, *input_shape[1:]]}],
         "outputs": ([{"boxes": [0, 4], "labels": [0], "scores": [0]}], {}),
         "num_labels": num_outputs,

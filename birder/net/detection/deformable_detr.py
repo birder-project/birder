@@ -472,21 +472,21 @@ class DeformableTransformer(nn.Module):
         # Prepare input for encoder
         src_list = []
         lvl_pos_embed_list = []
-        mask_flatten = []
+        mask_list = []
         spatial_shape_list: list[list[int]] = []  # list[tuple[int, int]] not supported on TorchScript
         for lvl, (src, pos_embed, mask) in enumerate(zip(srcs, pos_embeds, masks)):
-            (bs, c, h, w) = src.size()
-            spatial_shape_list.append([h, w])
+            (_, _, H, W) = src.size()
+            spatial_shape_list.append([H, W])
             src = src.flatten(2).transpose(1, 2)
             pos_embed = pos_embed.flatten(2).transpose(1, 2)
             mask = mask.flatten(1)
             lvl_pos_embed = pos_embed + self.level_embed[lvl].view(1, 1, -1)
             lvl_pos_embed_list.append(lvl_pos_embed)
             src_list.append(src)
-            mask_flatten.append(mask)
+            mask_list.append(mask)
 
         src_flatten = torch.concat(src_list, dim=1)
-        mask_flatten = torch.concat(mask_flatten, dim=1)
+        mask_flatten = torch.concat(mask_list, dim=1)
         lvl_pos_embed_flatten = torch.concat(lvl_pos_embed_list, dim=1)
         spatial_shapes = torch.as_tensor(spatial_shape_list, dtype=torch.long, device=src_flatten.device)
         level_start_index = torch.concat((spatial_shapes.new_zeros((1,)), spatial_shapes.prod(1).cumsum(0)[:-1]), dim=0)
@@ -498,10 +498,10 @@ class DeformableTransformer(nn.Module):
         )
 
         # Prepare input for decoder
-        (bs, _, c) = memory.size()
-        query_embed, tgt = torch.split(query_embed, c, dim=1)
-        query_embed = query_embed.unsqueeze(0).expand(bs, -1, -1)
-        tgt = tgt.unsqueeze(0).expand(bs, -1, -1)
+        (B, _, C) = memory.size()
+        query_embed, tgt = torch.split(query_embed, C, dim=1)
+        query_embed = query_embed.unsqueeze(0).expand(B, -1, -1)
+        tgt = tgt.unsqueeze(0).expand(B, -1, -1)
         reference_points = self.reference_points(query_embed).sigmoid()
 
         # Decoder
@@ -708,13 +708,13 @@ class Deformable_DETR(DetectionBaseNet):
             indices = self.matcher(cls_logits[idx], box_output[idx], targets)
             loss_ce_i = self._class_loss(cls_logits[idx], targets, indices, num_boxes)
             (loss_bbox_i, loss_giou_i) = self._box_loss(box_output[idx], targets, indices, num_boxes)
-            loss_ce_list.append(loss_ce_i * 2)
-            loss_bbox_list.append(loss_bbox_i * 5)
-            loss_giou_list.append(loss_giou_i * 2)
+            loss_ce_list.append(loss_ce_i)
+            loss_bbox_list.append(loss_bbox_i)
+            loss_giou_list.append(loss_giou_i)
 
-        loss_ce = torch.stack(loss_ce_list).sum()
-        loss_bbox = torch.stack(loss_bbox_list).sum()
-        loss_giou = torch.stack(loss_giou_list).sum()
+        loss_ce = torch.stack(loss_ce_list).sum() * 2
+        loss_bbox = torch.stack(loss_bbox_list).sum() * 5
+        loss_giou = torch.stack(loss_giou_list).sum() * 2
         losses = {
             "labels": loss_ce,
             "boxes": loss_bbox,
@@ -832,7 +832,7 @@ class Deformable_DETR(DetectionBaseNet):
             for idx, target in enumerate(targets):
                 boxes = target["boxes"]
                 boxes = box_ops.box_convert(boxes, in_fmt="xyxy", out_fmt="cxcywh")
-                boxes = boxes / torch.tensor(images.image_sizes[idx] * 2, dtype=torch.float32, device=x.device)
+                boxes = boxes / torch.tensor(images.image_sizes[idx][::-1] * 2, dtype=torch.float32, device=x.device)
                 targets[idx]["boxes"] = boxes
                 targets[idx]["labels"] = target["labels"] - 1  # No background
 

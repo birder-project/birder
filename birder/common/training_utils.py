@@ -18,7 +18,6 @@ import numpy as np
 import torch
 import torch.amp
 import torch.distributed as dist
-import torch.utils.data
 import torch.utils.data.distributed
 from torchvision.ops import FrozenBatchNorm2d
 
