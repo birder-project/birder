@@ -36,6 +36,7 @@ class TestOps(unittest.TestCase):
 
         self.assertEqual(op_kernel.size(), fb_kernel.size())
 
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")  # CUDA not actually required
     def test_soft_nms(self) -> None:
         soft_nms = SoftNMS()
         self.assertTrue(soft_nms.is_available)

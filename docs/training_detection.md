@@ -68,7 +68,7 @@ torchrun --nproc_per_node=2 train_detection.py --network detr --tag coco --backb
 #### EfficientDet D0: EfficientNet v1 B0
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d0 --backbone efficientnet_v1_b0 --lr 0.08 --lr-scheduler cosine --sync-bn --warmup-epochs 10 --batch-size 32 --epochs 300 --wd 0.00004 --model-ema --clip-grad-norm 10 --amp --amp-dtype bfloat16 --compile
+torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d0 --backbone efficientnet_v1_b0 --lr 0.08 --lr-scheduler cosine --warmup-epochs 10 --batch-size 32 --epochs 300 --wd 0.00004 --model-ema --clip-grad-norm 10 --amp --amp-dtype bfloat16 --compile
 ```
 
 #### EfficientDet D3: EfficientNet v1 B3
@@ -76,7 +76,7 @@ torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d0 --backb
 Optional intermediate training (COCO)
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d3 --tag coco --backbone efficientnet_v1_b3 --lr 0.08 --lr-scheduler cosine --sync-bn --warmup-epochs 10 --batch-size 24 --epochs 300 --wd 0.00004 --model-ema --clip-grad-norm 10 --amp --amp-dtype bfloat16 --compile --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d3 --tag coco --backbone efficientnet_v1_b3 --lr 0.08 --lr-scheduler cosine --warmup-epochs 10 --batch-size 24 --epochs 300 --wd 0.00004 --sync-bn --model-ema --clip-grad-norm 10 --amp --amp-dtype bfloat16 --compile --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 ### Faster R-CNN
@@ -85,6 +85,12 @@ torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d3 --tag c
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone efficientnet_v2_s --backbone-epoch 0 --lr 0.02 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --freeze-backbone-stages 2 --freeze-backbone-bn --batch-size 16 --epochs 26 --wd 0.0001 --fast-matmul --compile-backbone
+```
+
+#### Faster R-CNN: Hiera AbsWin Base
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --tag coco --backbone hieradet_base --backbone-tag mim --backbone-pretrained --lr 0.02 --backbone-lr 0.005 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --batch-size 8 --epochs 26 --size 768 --wd 0.0001 --amp --amp-dtype bfloat16 --compile --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 ### FCOS

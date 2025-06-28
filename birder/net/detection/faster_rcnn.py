@@ -690,6 +690,7 @@ class RoIHeads(nn.Module):
 
         return (all_boxes, all_scores, all_labels)
 
+    @torch.compiler.disable(recursive=False)  # type: ignore[misc]
     def forward(
         self,
         features: dict[str, torch.Tensor],
