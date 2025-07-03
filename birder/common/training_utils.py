@@ -567,29 +567,36 @@ class SmoothedValue:
 
 def init_distributed_mode(args: argparse.Namespace) -> None:
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
+        # torch.distributed.run, torchrun
         args.rank = int(os.environ["RANK"])
         args.world_size = int(os.environ["WORLD_SIZE"])
-        args.gpu = int(os.environ["LOCAL_RANK"])
+        args.local_rank = int(os.environ["LOCAL_RANK"])
+
+    elif "SLURM_PROCID" in os.environ:
+        args.rank = int(os.environ["SLURM_PROCID"])
+        args.world_size = int(os.environ["SLURM_NTASKS"])
+        args.local_rank = int(os.environ["SLURM_LOCALID"])
 
     else:
         logger.info("Not using distributed mode")
         args.rank = 0
         args.distributed = False
-        if args.gpu is not None:
-            torch.cuda.set_device(args.gpu)
+        if args.local_rank is None:
+            args.local_rank = 0
 
+        torch.cuda.set_device(args.local_rank)
         return
 
     args.distributed = True
 
-    torch.cuda.set_device(args.gpu)
+    torch.cuda.set_device(args.local_rank)
     args.dist_backend = "nccl"
-    logger.info(f"Distributed init (rank {args.rank}): {args.dist_url}")
+    logger.info(f"Distributed init (rank {args.rank}), total {args.world_size}: {args.dist_url}")
     dist.init_process_group(
         backend=args.dist_backend, init_method=args.dist_url, world_size=args.world_size, rank=args.rank
     )
     dist.barrier(device_ids=[args.rank])
-    if args.rank != 0:
+    if is_local_primary(args) is False:
         disable_print()
         logging.disable(logging.CRITICAL)
 
@@ -637,6 +644,17 @@ def get_world_size() -> int:
         return 1
 
     return dist.get_world_size()  # type: ignore[no-any-return]
+
+
+def is_global_primary(args: argparse.Namespace) -> bool:
+    return args.rank == 0  # type: ignore[no-any-return]
+
+
+def is_local_primary(args: argparse.Namespace) -> bool:
+    if is_dist_available_and_initialized() is False:
+        return True
+
+    return args.local_rank == 0  # type: ignore[no-any-return]
 
 
 ###############################################################################

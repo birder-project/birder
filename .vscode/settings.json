@@ -26,5 +26,6 @@
   "python.testing.unittestArgs": ["discover", "-s", "tests", "-v"],
   "python.testing.pytestEnabled": false,
   "python.testing.unittestEnabled": true,
-  "pylint.importStrategy": "fromEnvironment"
+  "pylint.importStrategy": "fromEnvironment",
+  "mypy-type-checker.importStrategy": "fromEnvironment"
 }

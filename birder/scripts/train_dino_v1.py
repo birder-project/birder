@@ -389,7 +389,7 @@ def train(args: argparse.Namespace) -> None:
 
     student_without_ddp = student
     if args.distributed is True:
-        student = torch.nn.parallel.DistributedDataParallel(student, device_ids=[args.gpu])
+        student = torch.nn.parallel.DistributedDataParallel(student, device_ids=[args.local_rank])
         student_without_ddp = student.module
 
     model_to_save = net
@@ -426,7 +426,7 @@ def train(args: argparse.Namespace) -> None:
 
     signature = get_ssl_signature(input_shape=sample_shape)
     backbone_signature = get_signature(input_shape=sample_shape, num_outputs=0)
-    if args.rank == 0:
+    if training_utils.is_local_primary(args) is True:
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
         training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
@@ -460,7 +460,7 @@ def train(args: argparse.Namespace) -> None:
 
             logger.info(f"Updated wd to: {wd}")
 
-        if args.rank == 0:
+        if training_utils.is_local_primary(args) is True:
             progress = tqdm(
                 desc=f"Epoch {epoch}/{epochs-1}",
                 total=len(training_dataset),
@@ -523,7 +523,7 @@ def train(args: argparse.Namespace) -> None:
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
                 running_loss.synchronize_between_processes(device)
-                if args.rank == 0:
+                if training_utils.is_local_primary(args) is True:
                     summary_writer.add_scalars(
                         "loss",
                         {"training": running_loss.avg},
@@ -531,10 +531,10 @@ def train(args: argparse.Namespace) -> None:
                     )
 
             # Update progress bar
-            if args.rank == 0:
+            if training_utils.is_local_primary(args) is True:
                 progress.update(n=batch_size * args.world_size)
 
-        if args.rank == 0:
+        if training_utils.is_local_primary(args) is True:
             progress.close()
 
         # Epoch training metrics
@@ -548,7 +548,7 @@ def train(args: argparse.Namespace) -> None:
             last_lr = max(scheduler.get_last_lr())
             logger.info(f"Updated learning rate to: {last_lr}")
 
-        if args.rank == 0:
+        if training_utils.is_local_primary(args) is True:
             # Checkpoint model
             if epoch % args.save_frequency == 0:
                 fs_ops.checkpoint_model(
@@ -588,7 +588,7 @@ def train(args: argparse.Namespace) -> None:
     summary_writer.close()
 
     # Checkpoint model
-    if args.distributed is False or (args.distributed is True and args.rank == 0):
+    if training_utils.is_local_primary(args) is True:
         fs_ops.checkpoint_model(
             network_name,
             epoch,
@@ -804,7 +804,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--world-size", type=int, default=1, metavar="N", help="number of distributed processes")
     parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
     parser.add_argument("--clip-grad-norm", type=float, help="the maximum gradient norm")
-    parser.add_argument("--gpu", type=int, metavar="ID", help="gpu id to use (ignored in distributed mode)")
+    parser.add_argument("--local-rank", type=int, help="local rank")
     parser.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")
     parser.add_argument(
         "--use-deterministic-algorithms", default=False, action="store_true", help="use only deterministic algorithms"

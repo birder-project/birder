@@ -89,8 +89,16 @@ torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone 
 
 #### Faster R-CNN: Hiera AbsWin Base
 
+Optional intermediate training (COCO) - warmup
+
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --tag coco --backbone hieradet_base --backbone-tag mim --backbone-pretrained --lr 0.02 --backbone-lr 0.005 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --batch-size 8 --epochs 26 --size 768 --wd 0.0001 --amp --amp-dtype bfloat16 --compile --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --tag coco --backbone hieradet_base --backbone-tag mim --backbone-pretrained --freeze-backbone --lr 0.01 --batch-size 32 --epochs 2 --size 768 --wd 0.0001 --sync-bn --amp --amp-dtype bfloat16 --compile-backbone --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+```
+
+Optional intermediate training (COCO)
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --tag coco --backbone hieradet_base --backbone-tag mim --backbone-pretrained --lr 0.02 --backbone-lr 0.01 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --batch-size 16 --epochs 26 --size 768 --wd 0.0001 --grad-accum-steps 2 --amp --amp-dtype bfloat16 --compile --save-frequency 1 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 ### FCOS

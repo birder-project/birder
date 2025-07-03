@@ -15,15 +15,12 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
-from torch.autograd import Function
 from torchvision.ops import StochasticDepth
 
-from birder.kernels.load_kernel import load_swattention
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-
-SWATTENTION = None
-SWATTENTION_CUDA_NUM_THREADS = 128
+from birder.ops.swattention import SWAttention_AV
+from birder.ops.swattention import SWAttention_QK_RPB
 
 
 @torch.no_grad()  # type: ignore[misc]
@@ -171,64 +168,6 @@ class Attention(nn.Module):
         return x
 
 
-# pylint: disable=abstract-method,arguments-differ,invalid-name
-class SWAttentionFunction_QK_RPB(Function):
-    @staticmethod
-    def forward(ctx, query, key, rpb, height, width, kernel_size):  # type: ignore
-        attn_weight = SWATTENTION.qk_rpb_forward(  # type: ignore[attr-defined]
-            query, key, rpb, height, width, kernel_size, SWATTENTION_CUDA_NUM_THREADS
-        )
-
-        ctx.save_for_backward(query, key)
-        ctx.height = height
-        ctx.width = width
-        ctx.kernel_size = kernel_size
-
-        return attn_weight
-
-    @staticmethod
-    def backward(ctx, d_attn_weight):  # type: ignore
-        (query, key) = ctx.saved_tensors
-        height = ctx.height
-        width = ctx.width
-        kernel_size = ctx.kernel_size
-
-        (d_query, d_key, d_rpb) = SWATTENTION.qk_rpb_backward(  # type: ignore[attr-defined]
-            d_attn_weight.contiguous(), query, key, height, width, kernel_size, SWATTENTION_CUDA_NUM_THREADS
-        )
-
-        return (d_query, d_key, d_rpb, None, None, None)
-
-
-# pylint: disable=abstract-method,arguments-differ,invalid-name
-class SWAttentionFunction_AV(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, attn_weight, value, height, width, kernel_size):  # type: ignore
-        output = SWATTENTION.av_forward(  # type: ignore[attr-defined]
-            attn_weight, value, height, width, kernel_size, SWATTENTION_CUDA_NUM_THREADS
-        )
-
-        ctx.save_for_backward(attn_weight, value)
-        ctx.height = height
-        ctx.width = width
-        ctx.kernel_size = kernel_size
-
-        return output
-
-    @staticmethod
-    def backward(ctx, d_output):  # type: ignore
-        (attn_weight, value) = ctx.saved_tensors
-        height = ctx.height
-        width = ctx.width
-        kernel_size = ctx.kernel_size
-
-        d_attn_weight, d_value = SWATTENTION.av_backward(  # type: ignore[attr-defined]
-            d_output.contiguous(), attn_weight, value, height, width, kernel_size, SWATTENTION_CUDA_NUM_THREADS
-        )
-
-        return (d_attn_weight, d_value, None, None, None)
-
-
 # pylint: disable=too-many-instance-attributes
 class AggregatedAttention(nn.Module):
     def __init__(
@@ -246,12 +185,6 @@ class AggregatedAttention(nn.Module):
         assert dim % num_heads == 0, f"dim {dim} should be divided by num_heads {num_heads}"
         assert window_size % 2 == 1, "window size must be odd"
 
-        global SWATTENTION  # pylint: disable=global-statement
-        if SWATTENTION is None and not torch.jit.is_tracing() and not torch.jit.is_scripting():
-            SWATTENTION = load_swattention()
-
-        self.custom_kernel = SWATTENTION is not None
-
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
 
@@ -262,7 +195,8 @@ class AggregatedAttention(nn.Module):
         pool_w = input_resolution[1] // sr_ratio
         self.pool_len = pool_h * pool_w
 
-        self.unfold = nn.Unfold(kernel_size=window_size, padding=window_size // 2, stride=1)
+        self.swa_qk_rpb = SWAttention_QK_RPB()
+        self.swa_av = SWAttention_AV()
         self.temperature = nn.Parameter(torch.log((torch.ones(num_heads, 1, 1) / 0.24).exp() - 1))
 
         self.q = nn.Linear(dim, dim, bias=qkv_bias)
@@ -316,40 +250,18 @@ class AggregatedAttention(nn.Module):
             * self.seq_length_scale
         )
 
-        # Custom kernel
-        if self.custom_kernel is True and x.is_cuda is True:
-            # Generate unfolded keys and values and l2-normalize them
-            (k_local, v_local) = (
-                self.kv(x).reshape(B, N, 2 * self.num_heads, self.head_dim).permute(0, 2, 1, 3).chunk(2, dim=1)
-            )
-
-            # Compute local similarity
-            attn_local = SWAttentionFunction_QK_RPB.apply(
-                q_norm_scaled.contiguous(),
-                F.normalize(k_local, dim=-1).contiguous(),
-                self.relative_pos_bias_local,
-                H,
-                W,
-                self.window_size,
-            )
-
-        # Pure PyTorch
-        else:
-            # Generate unfolded keys and values and l2-normalize them
-            (k_local, v_local) = self.kv(x).chunk(2, dim=-1)
-            k_local = F.normalize(k_local.reshape(B, N, self.num_heads, self.head_dim), dim=-1).reshape(B, N, -1)
-            kv_local = torch.concat([k_local, v_local], dim=-1).permute(0, 2, 1).reshape(B, -1, H, W)
-            (k_local, v_local) = (
-                self.unfold(kv_local)
-                .reshape(B, 2 * self.num_heads, self.head_dim, self.local_len, N)
-                .permute(0, 1, 4, 2, 3)
-                .chunk(2, dim=1)
-            )
-
-            # Compute local similarity
-            attn_local = (
-                (q_norm_scaled.unsqueeze(-2) @ k_local).squeeze(-2) + self.relative_pos_bias_local.unsqueeze(1)
-            ).masked_fill(self.padding_mask, float("-inf"))
+        (attn_local, v_local) = self.swa_qk_rpb(
+            self.kv(x),
+            q_norm_scaled.contiguous(),
+            self.relative_pos_bias_local,
+            self.padding_mask,
+            self.num_heads,
+            self.head_dim,
+            self.window_size,
+            self.local_len,
+            H,
+            W,
+        )
 
         # Generate pooled features
         x_ = x.permute(0, 2, 1).reshape(B, -1, H, W).contiguous()
@@ -376,19 +288,9 @@ class AggregatedAttention(nn.Module):
         # Split the attention weights and separately aggregate the values of local & pooled features
         (attn_local, attn_pool) = torch.split(attn, [self.local_len, self.pool_len], dim=-1)
 
-        # Custom kernel
-        if self.custom_kernel is True and x.is_cuda is True:
-            attn_local = (q_norm @ self.learnable_tokens) + self.learnable_bias + attn_local
-            x_local = SWAttentionFunction_AV.apply(
-                attn_local.type_as(v_local), v_local.contiguous(), H, W, self.window_size
-            )
-
-        # Pure PyTorch
-        else:
-            x_local = (
-                ((q_norm @ self.learnable_tokens) + self.learnable_bias + attn_local).unsqueeze(-2)
-                @ v_local.transpose(-2, -1)
-            ).squeeze(-2)
+        x_local = self.swa_av(
+            q_norm, attn_local, v_local.contiguous(), self.learnable_tokens, self.learnable_bias, self.window_size, H, W
+        )
 
         x_pool = attn_pool @ v_pool
         x = (x_local + x_pool).transpose(1, 2).reshape(B, N, C)

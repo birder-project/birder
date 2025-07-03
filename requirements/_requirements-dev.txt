@@ -2,13 +2,13 @@ altair~=5.5.0
 bandit~=1.8.5
 black~=25.1.0
 build~=1.2.2
-bumpver~=2024.1130
+bumpver~=2025.1131
 captum~=0.7.0
-coverage~=7.9.1
+coverage~=7.9.2
 flake8-pep585~=0.1.7
 flake8~=7.3.0
 invoke~=2.2.0
-ipython~=8.33.0
+ipython
 isort~=6.0.1
 Jinja2~=3.1.5
 mkdocs~=1.6.1

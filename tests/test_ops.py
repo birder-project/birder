@@ -7,6 +7,11 @@ from birder.ops.msda import MultiScaleDeformableAttention
 from birder.ops.msda import multi_scale_deformable_attention
 from birder.ops.soft_nms import SoftNMS
 from birder.ops.soft_nms import batched_soft_nms
+from birder.ops.swattention import SWAttention_AV
+from birder.ops.swattention import SWAttention_QK_RPB
+from birder.ops.swattention import set_swattention_num_threads
+from birder.ops.swattention import swattention_av
+from birder.ops.swattention import swattention_qk_rpb
 
 logging.disable(logging.CRITICAL)
 
@@ -69,3 +74,48 @@ class TestOps(unittest.TestCase):
 
         self.assertEqual(len(op_keep), 0)
         self.assertEqual(len(fb_keep), 0)
+
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+    def test_swattention(self) -> None:
+        device = torch.device("cuda")
+        set_swattention_num_threads(32)
+
+        # QK RPB
+        swa_qk_rpb = SWAttention_QK_RPB()
+        self.assertTrue(swa_qk_rpb.is_available)
+
+        kv = torch.rand(1, 196, 192 * 2, device=device)
+        q_norm_scaled = torch.rand(1, 2, 196, 96, device=device)
+        relative_pos_bias_local = torch.rand(2, 9, device=device)
+        padding_mask = torch.rand(196, 9, device=device) > 0.5
+        num_heads = 2
+        head_dim = 96
+        H = 14
+        W = 14
+        window_size = 3
+        local_len = 9
+
+        (op_attn_local, op_v_local) = swa_qk_rpb(
+            kv, q_norm_scaled, relative_pos_bias_local, padding_mask, num_heads, head_dim, window_size, local_len, H, W
+        )
+        (fb_attn_local, fb_v_local) = swattention_qk_rpb(
+            kv, q_norm_scaled, relative_pos_bias_local, padding_mask, num_heads, head_dim, window_size, local_len, H, W
+        )
+        self.assertEqual(op_attn_local.size(), fb_attn_local.size())
+
+        op_v_local = op_v_local.contiguous()
+        fb_v_local = fb_v_local.contiguous()
+
+        # AV
+        swa_av = SWAttention_AV()
+        self.assertTrue(swa_av.is_available)
+
+        q_norm = torch.rand(1, 2, 196, 24, device=device)
+        attn_local = torch.rand(1, 2, 196, 9, device=device)
+        learnable_tokens = torch.rand(2, 24, 9, device=device)
+        learnable_bias = torch.rand(2, 1, 9, device=device)
+
+        op_x_local = swa_av(q_norm, attn_local, op_v_local, learnable_tokens, learnable_bias, window_size, H, W)
+        fb_x_local = swattention_av(q_norm, attn_local, fb_v_local, learnable_tokens, learnable_bias)
+
+        self.assertEqual(op_x_local.size(), fb_x_local.size())

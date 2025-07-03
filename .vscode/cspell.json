@@ -249,6 +249,7 @@
     "sinkhorn",
     "skiprows",
     "sklearn",
+    "slurm",
     "softmax",
     "softplus",
     "squareform",

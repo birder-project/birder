@@ -213,9 +213,14 @@ def update_annotation_table(_ctx):
             if column == column_class:
                 continue
 
-            new_annotations_status = new_annotations_status.with_columns(
-                pl.lit(0).cast(annotations_status[column].dtype).alias(column)
-            )
+            if column == "weakly_labeled":
+                new_annotations_status = new_annotations_status.with_columns(
+                    pl.lit(1).cast(annotations_status[column].dtype).alias(column)
+                )
+            else:
+                new_annotations_status = new_annotations_status.with_columns(
+                    pl.lit(None).cast(annotations_status[column].dtype).alias(column)
+                )
 
         annotations_status = pl.concat([annotations_status, new_annotations_status])
         annotations_status = annotations_status.sort(column_class, descending=False)

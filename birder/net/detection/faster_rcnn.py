@@ -581,6 +581,7 @@ class RoIHeads(nn.Module):
 
         return proposals
 
+    @torch.compiler.disable()  # type: ignore[misc]
     def select_training_samples(
         self,
         proposals: list[torch.Tensor],
