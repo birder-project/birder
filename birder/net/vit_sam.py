@@ -21,10 +21,10 @@ from torch import nn
 from torchvision.ops import StochasticDepth
 
 from birder.layers import FFN
+from birder.layers import LayerNorm2d
 from birder.layers import SwiGLU_FFN
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.convnext_v1 import LayerNorm2d
 from birder.net.vit import EncoderBlock as MAEDecoderBlock
 from birder.net.vit import LayerScale
 
@@ -374,15 +374,18 @@ class ViT_SAM(DetectorBackbone):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)
         x = x + self.pos_embedding
 
         x = self.body(x)
         x = self.neck(x.permute(0, 3, 1, 2))
-        x = self.features(x)
 
         return x
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
+        return self.features(x)
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
         assert dynamic_size is False, "Dynamic size not supported for this network"

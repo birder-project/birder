@@ -501,12 +501,16 @@ class RegionViT(DetectorBackbone):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         o_x = x
         x = self.patch_embed(x)
         cls_tokens = self.cls_token(o_x, extra_padding=True)
-
         (cls_tokens, x) = self.body(cls_tokens, x)
+
+        return (cls_tokens, x)
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        (cls_tokens, _) = self.forward_features(x)
 
         (N, C, _, _) = cls_tokens.size()
         cls_tokens = cls_tokens.reshape(N, C, -1).transpose(1, 2)

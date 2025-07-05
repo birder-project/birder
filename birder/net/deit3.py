@@ -251,6 +251,9 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
             result["tokens"] = x
 
         if return_keys in ("all", "embedding"):
+            if return_all_features is True:
+                x = x[..., -1]
+
             result["embedding"] = x[:, self.num_reg_tokens]
 
         return result
@@ -301,7 +304,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
 
         return result
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         (H, W) = x.shape[-2:]
 
         # Reshape and permute the input tensor
@@ -325,6 +328,11 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
 
         x = self.encoder(x)
         x = self.norm(x)
+
+        return x
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
         x = x[:, self.num_reg_tokens]
 
         return x

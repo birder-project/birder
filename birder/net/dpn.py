@@ -99,6 +99,7 @@ class DualPathBlock(nn.Module):
         )
 
     # pylint: disable=protected-access
+
     @overload
     @torch.jit._overload_method  # type: ignore[misc]
     def forward(self, x: tuple[torch.Tensor, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
@@ -192,12 +193,16 @@ class DPN(BaseNet):
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
         x = self.body(x)
         x = torch.concat(x, dim=1)
         x = self.norm_act(x)
 
+        return x
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
         return self.features(x)
 
 

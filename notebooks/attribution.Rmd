@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.16.4
+      jupytext_version: 1.17.2
   kernelspec:
     display_name: birder
     language: python
@@ -30,7 +30,7 @@ from PIL import Image
 ```
 
 ```{python}
-sys.path.append("..")
+# %cd ..
 ```
 
 ```{python}
@@ -38,11 +38,7 @@ from birder.common import fs_ops
 from birder.common import lib
 from birder.common.lib import get_label_from_path
 from birder.conf import settings
-from birder.transforms.classification import inference_preset
-```
-
-```{python}
-# %cd ..
+from birder.data.transforms.classification import inference_preset
 ```
 
 ```{python}
@@ -61,7 +57,7 @@ tag = "raw384px"
 
 ```{python}
 device = torch.device("cpu")
-(net, class_to_idx, signature, rgb_stats) = fs_ops.load_model(
+(net, (class_to_idx, signature, rgb_stats, _)) = fs_ops.load_model(
     device, network, net_param=net_param, epoch=epoch, tag=tag, inference=True
 )
 idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
@@ -73,8 +69,7 @@ transform = inference_preset(size, rgb_stats, 1.0)
 # image = "data/testing/Lesser kestrel/000202.jpeg"
 # image = "data/testing/Lesser grey shrike/000200.jpeg"
 # image = "data/testing/Great bittern/000107.jpeg"
-# image = "data/testing/Crowned sandgrouse/000012.jpeg"
-image = "data/a.jpeg"
+image = "data/testing/Crowned sandgrouse/000012.jpeg"
 img = Image.open(image)
 input_tensor = transform(img).unsqueeze(dim=0).to(device)
 ```
@@ -144,7 +139,7 @@ attributions_ig_nt = noise_tunnel.attribute(
 ```{python}
 _ = viz.visualize_image_attr_multiple(
     np.transpose(attributions_ig_nt.squeeze().cpu().detach().numpy(), (1, 2, 0)),
-    np.array(img.resize(size),
+    np.array(img.resize(size)),
     ["original_image", "heat_map"],
     ["all", "positive"],
     cmap=default_cmap,

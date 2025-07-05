@@ -570,11 +570,16 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
 
         return (out, mask)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
         x = x + self._get_pos_embed()
         x = self.unroll(x)
         x = self.body(x)
+
+        return x
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
         x = x.mean(dim=1)
         x = self.features(x)
 

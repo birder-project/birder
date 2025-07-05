@@ -303,6 +303,9 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             result["tokens"] = x
 
         if return_keys in ("all", "embedding"):
+            if return_all_features is True:
+                x = x[..., -1]
+
             result["embedding"] = x[:, self.num_reg_tokens]
 
         return result
@@ -353,7 +356,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
 
         return result
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         (H, W) = x.shape[-2:]
 
         # Reshape and permute the input tensor
@@ -377,9 +380,12 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
 
         x = self.encoder(x, self._get_rope_embed(H, W))
         x = self.norm(x)
-        x = x[:, self.num_reg_tokens]
 
         return x
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
+        return x[:, self.num_reg_tokens]
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:

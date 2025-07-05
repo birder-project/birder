@@ -315,7 +315,7 @@ class CrossViT(BaseNet):
         for i in range(self.num_branches):
             self.classifier.append(self.create_classifier(self.embed_dim[i]))
 
-    def embedding(self, x: torch.Tensor) -> list[torch.Tensor]:
+    def forward_features(self, x: torch.Tensor) -> list[torch.Tensor]:
         B = x.shape[0]
         xs = []
         for patch_embed, cls_tokens, pos_embed in zip(self.patch_embed, self.cls_token, self.pos_embed):
@@ -330,6 +330,11 @@ class CrossViT(BaseNet):
             xs = block(xs)
 
         xs = [norm(xs[i]) for i, norm in enumerate(self.norm)]
+
+        return xs
+
+    def embedding(self, x: torch.Tensor) -> list[torch.Tensor]:
+        xs = self.forward_features(x)
         out = [x[:, 0] for x in xs]
 
         return out

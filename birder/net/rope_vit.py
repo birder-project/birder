@@ -598,6 +598,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             result["tokens"] = x
 
         if return_keys in ("all", "embedding"):
+            if return_all_features is True:
+                x = x[..., -1]
+
             if self.attn_pool is not None:
                 x = self.attn_pool(x)
                 result["embedding"] = x[:, 0]
@@ -663,7 +666,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
         return result
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         (H, W) = x.shape[-2:]
 
         # Reshape and permute the input tensor
@@ -688,6 +691,12 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
         x = self.encoder(x, self._get_rope_embed(H, W))
         x = self.norm(x)
+
+        return x
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
+
         if self.attn_pool is not None:
             x = self.attn_pool(x)
             return x[:, 0]

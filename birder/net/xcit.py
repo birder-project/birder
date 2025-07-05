@@ -445,7 +445,7 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         return result
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         B = x.size(0)
 
         (x, H, W) = self.patch_embed(x)
@@ -458,6 +458,10 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         x = torch.concat((cls_tokens, x), dim=1)
         x = self.block2(x)
 
+        return x
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
         return x[:, 0]
 
 

@@ -595,7 +595,7 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         return result
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         (x, hw_shape) = self.patch_embed(x)
         if self.cls_token is not None:
             cls_tokens = self.cls_token.expand(x.size(0), -1, -1)
@@ -603,6 +603,11 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         (x, _) = self.body(x, hw_shape)
         x = self.norm(x)
+
+        return x
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
 
         if self.cls_token is not None:
             x = x[:, 0]

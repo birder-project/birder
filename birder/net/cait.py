@@ -242,7 +242,7 @@ class CaiT(BaseNet):
         nn.init.trunc_normal_(self.pos_embed, std=0.02)
         nn.init.trunc_normal_(self.cls_token, std=0.02)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)
         x = x + self.pos_embed
         x = self.block1(x)
@@ -253,6 +253,10 @@ class CaiT(BaseNet):
         x = torch.concat((cls_tokens, x), dim=1)
         x = self.norm(x)
 
+        return x
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
         return x[:, 0]
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:

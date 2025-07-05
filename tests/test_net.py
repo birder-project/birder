@@ -72,7 +72,7 @@ class TestNet(unittest.TestCase):
             ("convnext_v1_tiny"),
             ("convnext_v2_atto"),
             ("crossformer_t"),
-            ("crossvit_9d", None, True, 1, 48),
+            ("crossvit_9d", None, True, True, 1, 48),
             ("csp_resnet_50"),
             ("csp_resnext_50"),
             ("csp_darknet_53"),
@@ -94,7 +94,7 @@ class TestNet(unittest.TestCase):
             ("efficientnet_v2_s"),
             ("efficientvit_mit_b0"),
             ("efficientvit_mit_l1"),
-            ("efficientvit_msft_m0", None, False, 2),
+            ("efficientvit_msft_m0", None, False, False, 2),
             ("fasternet_t0"),
             ("fastvit_t8"),
             ("fastvit_sa12"),
@@ -128,9 +128,9 @@ class TestNet(unittest.TestCase):
             ("mobilenet_v2", 1),
             ("mobilenet_v3_large", 1),
             ("mobilenet_v3_small", 1),
-            ("mobilenet_v4_s", None, False, 2),
-            ("mobilenet_v4_hybrid_m", None, False, 2),
-            ("mobilenet_v4_hybrid_l", None, False, 2),  # GELU (inplace)
+            ("mobilenet_v4_s", None, False, False, 2),
+            ("mobilenet_v4_hybrid_m", None, False, False, 2),
+            ("mobilenet_v4_hybrid_l", None, False, False, 2),  # GELU (inplace)
             ("mobileone_s0"),
             ("mobilevit_v1_xxs"),
             ("mobilevit_v2", 1),
@@ -139,19 +139,19 @@ class TestNet(unittest.TestCase):
             ("mvit_v2_t_cls"),
             ("nextvit_s"),
             ("nfnet_f0"),
-            ("pit_t", None, True),
+            ("pit_t", None, True, True),
             ("pvt_v1_t"),
             ("pvt_v2_b0"),
             ("rdnet_t"),
-            ("regionvit_t"),
+            ("regionvit_t", None, False, True),
             ("regnet_x_200m"),
             ("regnet_y_200m"),
             ("regnet_z_500m"),
             ("repghost", 1),
             ("repvgg_a0"),
-            ("repvit_m0_6", None, False, 2),
-            ("resmlp_12", None, False, 1, 0),  # No resize support
-            ("resnest_14", None, False, 2),
+            ("repvit_m0_6", None, False, False, 2),
+            ("resmlp_12", None, False, False, 1, 0),  # No resize support
+            ("resnest_14", None, False, False, 2),
             ("resnet_v1_18"),
             ("resnet_v2_18"),
             ("resnext_50"),
@@ -161,9 +161,9 @@ class TestNet(unittest.TestCase):
             ("rope_vit_s32"),
             ("rope_vit_reg4_b32"),
             ("rope_vit_reg4_m16_rms_avg"),
-            ("rope_vit_reg8_nps_b14_ap", None, False, 1, 14),
-            ("rope_vit_so150m_p14_ap", None, False, 1, 14),
-            ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", None, False, 1, 14),
+            ("rope_vit_reg8_nps_b14_ap", None, False, False, 1, 14),
+            ("rope_vit_so150m_p14_ap", None, False, False, 1, 14),
+            ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", None, False, False, 1, 14),
             ("se_resnet_v1_18"),
             ("se_resnet_v2_18"),
             ("se_resnext_50"),
@@ -188,8 +188,8 @@ class TestNet(unittest.TestCase):
             ("vit_s32"),
             ("vit_reg4_b32"),
             ("vit_reg4_m16_rms_avg"),
-            ("vit_so150m_p14_ap", None, False, 1, 14),
-            ("vit_reg8_so150m_p14_swiglu_avg", None, False, 1, 14),
+            ("vit_so150m_p14_ap", None, False, False, 1, 14),
+            ("vit_reg8_so150m_p14_swiglu_avg", None, False, False, 1, 14),
             ("vit_parallel_s16_18x2_ls"),
             ("vit_det_b16"),
             ("vit_sam_b16"),
@@ -203,6 +203,7 @@ class TestNet(unittest.TestCase):
         network_name: str,
         net_param: Optional[float] = None,
         skip_embedding: bool = False,
+        skip_features: bool = False,
         batch_size: int = 1,
         size_step: int = 2**5,
     ) -> None:
@@ -220,6 +221,11 @@ class TestNet(unittest.TestCase):
         if skip_embedding is False:
             embedding = n.embedding(torch.rand((batch_size, 3, *size))).flatten()
             self.assertEqual(len(embedding), n.embedding_size * batch_size)
+
+        if skip_features is False:
+            features = n.forward_features(torch.rand((batch_size, 3, *size)))
+            self.assertFalse(torch.isnan(features).any())
+            self.assertEqual(features.size(0), batch_size)
 
         # Test TorchScript support
         if n.scriptable is True:
@@ -467,11 +473,17 @@ class TestNet(unittest.TestCase):
             ("focalnet_t_srf"),
             ("hieradet_tiny"),
             ("maxvit_t"),
+            ("poolformer_v1_s12"),
+            ("poolformer_v2_s12"),
+            ("convformer_s18"),
+            ("caformer_s18"),
             ("mobilenet_v4_s", None, 2),
             ("mobilenet_v4_hybrid_m", None, 2),
+            ("moganet_xt"),
             ("mvit_v2_t"),
             ("mvit_v2_t_cls"),
             ("nextvit_s"),
+            ("rdnet_t"),
             ("regnet_x_200m"),
             ("regnet_y_200m"),
             ("regnet_z_500m"),
@@ -547,8 +559,8 @@ class TestNet(unittest.TestCase):
             ("deit3_t16"),
             ("deit3_reg4_t16"),
             ("flexivit_s16"),
-            ("hiera_tiny"),
-            ("hiera_abswin_tiny"),
+            ("hiera_tiny", None, False),
+            ("hiera_abswin_tiny", None, False),
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
             ("rope_flexivit_s16"),
@@ -567,7 +579,9 @@ class TestNet(unittest.TestCase):
             ("vit_parallel_s16_18x2_ls"),
         ]
     )
-    def test_pre_training_encoder_omission(self, network_name: str, net_param: Optional[float] = None) -> None:
+    def test_pre_training_encoder_omission(
+        self, network_name: str, net_param: Optional[float] = None, test_all_features: bool = True
+    ) -> None:
         n = registry.net_factory(network_name, 3, 100, net_param=net_param)
         size = n.default_size
 
@@ -583,6 +597,17 @@ class TestNet(unittest.TestCase):
         self.assertEqual(tokens.ndim, 3)
         self.assertFalse(torch.isnan(embedding).any())
         self.assertEqual(embedding.ndim, 2)
+        self.assertEqual(embedding.size(), (1, n.embedding_size))
+
+        if test_all_features is True:
+            out = n.masked_encoding_omission(x, ids_keep, return_all_features=True, return_keys="all")
+            tokens = out["tokens"]
+            embedding = out["embedding"]
+            self.assertFalse(torch.isnan(tokens).any())
+            self.assertEqual(tokens.ndim, 4)
+            self.assertFalse(torch.isnan(embedding).any())
+            self.assertEqual(embedding.ndim, 2)
+            self.assertEqual(embedding.size(), (1, n.embedding_size))
 
         out = n.masked_encoding_omission(x, return_keys="all")
         tokens = out["tokens"]
@@ -622,7 +647,6 @@ class TestNonSquareNet(unittest.TestCase):
             ("csp_resnext_50"),
             ("csp_darknet_53"),
             ("csp_se_resnet_50"),
-            ("cswin_transformer_t"),
             ("darknet_53"),
             ("davit_tiny"),
             ("deit_t16"),

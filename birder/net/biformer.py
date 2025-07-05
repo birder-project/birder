@@ -22,9 +22,9 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
+from birder.layers import LayerNorm2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.convnext_v1 import LayerNorm2d
 
 
 def _grid2seq(x: torch.Tensor, region_size: tuple[int, int], num_heads: int) -> tuple[torch.Tensor, int, int]:
@@ -491,9 +491,12 @@ class BiFormer(DetectorBackbone):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
-        x = self.body(x)
+        return self.body(x)
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
         return self.features(x)
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:

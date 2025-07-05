@@ -584,6 +584,10 @@ class CoaT(DetectorBackbone):
             for param in self.serial_blocks4.parameters():
                 param.requires_grad = False
 
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+        features = self._features(x)
+        return features["stage4"][0]
+
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         features = self._features(x)
         if self.parallel_blocks is None:
@@ -595,10 +599,6 @@ class CoaT(DetectorBackbone):
         x2 = self.norm2(features["stage2"][0])
         x3 = self.norm3(features["stage3"][0])
         x4 = self.norm4(features["stage4"][0])
-
-        x2 = self.norm2(x2)
-        x3 = self.norm3(x3)
-        x4 = self.norm4(x4)
 
         x2_cls = x2[:, :1]
         x3_cls = x3[:, :1]

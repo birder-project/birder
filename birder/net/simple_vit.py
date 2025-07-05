@@ -167,17 +167,25 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
             result["tokens"] = x
 
         if return_keys in ("all", "embedding"):
+            if return_all_features is True:
+                x = x[..., -1]
+
             result["embedding"] = x.mean(dim=1)
 
         return result
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         (H, W) = x.shape[-2:]
         x = self.conv_proj(x)
         x = self.patch_embed(x)
         x = x + self._get_pos_embed(H, W)
         x = self.encoder(x)
         x = self.norm(x)
+
+        return x
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
         x = x.permute(0, 2, 1)
         return self.features(x)
 

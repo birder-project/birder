@@ -128,7 +128,7 @@ class DeiT(BaseNet):
             for param in self.dist_classifier.parameters():
                 param.requires_grad = True
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
         x = self.patch_embed(x)
@@ -142,6 +142,11 @@ class DeiT(BaseNet):
 
         x = self.encoder(x)
         x = self.norm(x)
+
+        return x
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
         x = x[:, 0:2]
 
         return x

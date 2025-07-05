@@ -251,6 +251,8 @@ class PyramidVisionTransformerStage(nn.Module):
 
 # pylint: disable=invalid-name
 class PVT_v2(DetectorBackbone):
+    block_group_regex = r"body\.stage\d+\.blocks\.(\d+)"
+
     def __init__(
         self,
         input_channels: int,
@@ -345,9 +347,12 @@ class PVT_v2(DetectorBackbone):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)
-        x = self.body(x)
+        return self.body(x)
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
         return self.features(x)
 
 

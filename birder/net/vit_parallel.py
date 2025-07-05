@@ -406,6 +406,9 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
             result["tokens"] = x
 
         if return_keys in ("all", "embedding"):
+            if return_all_features is True:
+                x = x[..., -1]
+
             if self.class_token is None:
                 x = x[:, self.num_special_tokens :]
                 result["embedding"] = x.mean(dim=1)
@@ -460,7 +463,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
 
         return result
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         (H, W) = x.shape[-2:]
 
         # Reshape and permute the input tensor
@@ -480,6 +483,11 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         x = x + self._get_pos_embed(H, W)
         x = self.encoder(x)
         x = self.norm(x)
+
+        return x
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
 
         if self.class_token is None:
             x = x[:, self.num_special_tokens :]

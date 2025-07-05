@@ -335,9 +335,12 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
 
         return result
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
-        x = self.body(x)
+        return self.body(x)
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
         return self.features(x)
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:

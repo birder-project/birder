@@ -9,6 +9,7 @@ from birder.model_registry import registry
 from birder.net.ssl import barlow_twins
 from birder.net.ssl import byol
 from birder.net.ssl import capi
+from birder.net.ssl import data2vec
 from birder.net.ssl import dino_v1
 from birder.net.ssl import dino_v2
 from birder.net.ssl import i_jepa
@@ -123,6 +124,21 @@ class TestNetSSL(unittest.TestCase):
         pred = student(x, ids_keep, predict_indices)
         self.assertEqual(pred.size(), (masks.count_nonzero().item(), num_clusters))
         self.assertFalse(torch.isnan(pred).any())
+
+    def test_data2vec(self) -> None:
+        batch_size = 2
+        backbone = registry.net_factory("vit_t16", 3, 0, size=(96, 96))
+        net = data2vec.Data2Vec(
+            backbone, config={"normalize_targets": True, "average_top_k_layers": 6, "loss_beta": 2.0}
+        )
+
+        mask_generator = masking.BlockMasking((96 // backbone.stem_stride, 96 // backbone.stem_stride), 1, 3, 0.66, 1.5)
+        masks = mask_generator(batch_size)
+
+        # Test network
+        out = net(torch.rand((batch_size, 3, 96, 96)), masks)
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.ndim, 0)
 
     def test_dino_v1(self) -> None:
         batch_size = 4

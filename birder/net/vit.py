@@ -545,6 +545,9 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             result["tokens"] = x
 
         if return_keys in ("all", "embedding"):
+            if return_all_features is True:
+                x = x[..., -1]
+
             if self.attn_pool is not None:
                 x = self.attn_pool(x)
                 result["embedding"] = x[:, 0]
@@ -610,7 +613,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
 
         return result
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         (H, W) = x.shape[-2:]
 
         # Reshape and permute the input tensor
@@ -635,6 +638,12 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
 
         x = self.encoder(x)
         x = self.norm(x)
+
+        return x
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
+
         if self.attn_pool is not None:
             x = self.attn_pool(x)
             return x[:, 0]
@@ -673,6 +682,30 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         )
 
 
+registry.register_alias(
+    "vit_t32",
+    ViT,
+    config={
+        "patch_size": 32,
+        "num_layers": 12,
+        "num_heads": 3,
+        "hidden_dim": 192,
+        "mlp_dim": 768,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "vit_t16",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 3,
+        "hidden_dim": 192,
+        "mlp_dim": 768,
+        "drop_path_rate": 0.0,
+    },
+)
 registry.register_alias(
     "vit_s32",
     ViT,
@@ -856,6 +889,19 @@ registry.register_alias(  # From "Scaling Vision Transformers"
 
 # With registers
 registry.register_alias(
+    "vit_reg1_t16",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 3,
+        "hidden_dim": 192,
+        "mlp_dim": 768,
+        "num_reg_tokens": 1,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
     "vit_reg1_s32",
     ViT,
     config={
@@ -877,6 +923,20 @@ registry.register_alias(
         "num_heads": 6,
         "hidden_dim": 384,
         "mlp_dim": 1536,
+        "num_reg_tokens": 1,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_alias(
+    "vit_reg1_s16_ls",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "layer_scale_init_value": 1e-5,
         "num_reg_tokens": 1,
         "drop_path_rate": 0.0,
     },
@@ -986,6 +1046,20 @@ registry.register_alias(
         "hidden_dim": 768,
         "mlp_dim": 3072,
         "num_reg_tokens": 4,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_alias(
+    "vit_reg4_b16_avg",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 12,
+        "hidden_dim": 768,
+        "mlp_dim": 3072,
+        "num_reg_tokens": 4,
+        "class_token": False,
         "drop_path_rate": 0.1,
     },
 )

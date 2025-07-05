@@ -358,8 +358,11 @@ class EdgeViT(DetectorBackbone):
             for param in module.parameters():
                 param.requires_grad = False
 
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+        return self.body(x)
+
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.body(x)
+        x = self.forward_features(x)
         return self.features(x)
 
     def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:

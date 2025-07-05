@@ -7,8 +7,10 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 - [Barlow Twins](#barlow-twins)
 - [BYOL](#byol)
 - [CAPI](#capi)
+- [Data2Vec](#data2vec)
 - [DINO v1](#dino-v1)
 - [DINO v2](#dino-v2)
+- [DINO v2 Dist](#dino-v2-dist)
 - [I-JEPA](#i-jepa)
 - [iBOT](#ibot)
 - [MMCR](#mmcr)
@@ -197,6 +199,20 @@ Fine-tuning, first stage - linear probing
 torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_so150m_p14_ap --tag capi --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 252 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --rgb-mode none --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
 ```
 
+### Data2Vec
+
+#### Data2Vec: ViT reg1 s16 LS
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec --network vit_reg1_s16_ls --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 10 --batch-size 256 --epochs 400 --wd 0.05 --clip-grad-norm 3 --model-config drop_path_rate=0.1 --amp --amp-dtype bfloat16 --compile --rgb-mode none --data-path data/training
+```
+
+#### Data2Vec: ViT reg4 b16 AVG
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec --network vit_reg4_b16_avg --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 192 --epochs 600 --wd 0.05 --clip-grad-norm 3 --model-config drop_path_rate=0.25 --amp --amp-dtype bfloat16 --compile --compile-opt --rgb-mode none --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
+
 ### DINO v1
 
 #### DINO v1: ConvNeXt v2 Tiny
@@ -267,6 +283,12 @@ Fine-tuning, first stage - linear probing
 torchrun --nproc_per_node=2 train.py --network hieradet_base --tag dino-v2 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --resume-epoch 0 --reset-head --freeze-body
 ```
 
+#### DINO v2: Next-ViT Base
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network nextvit_b --ibot-separate-head --dino-out-dim 131072 --ibot-out-dim 131072 --head-bottleneck-dim 384 --centering sinkhorn_knopp --opt adamw --lr 0.0002 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --batch-size 64 --wd 0.04 --wd-end 0.2 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --rgb-mode none --wds --wds-info data/ssl_packed/_info.json
+```
+
 #### DINO v2: ViT reg1 s16 rms LS
 
 ```sh
@@ -301,6 +323,14 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network vit_reg4_m
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network rope_vit_reg8_so150m_p14_ap --ibot-separate-head --dino-out-dim 131072 --ibot-out-dim 131072 --head-bottleneck-dim 384 --centering sinkhorn_knopp --local-crop-size 98 --opt adamw --lr 0.0002 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --batch-size 32 --wd 0.04 --wd-end 0.2 --clip-grad-norm 3 --model-config drop_path_rate=0.3 --amp --amp-dtype bfloat16 --compile --rgb-mode none --wds --wds-info data/ssl_packed/_info.json
+```
+
+### DINO v2 Dist
+
+#### DINO v2 Dist: ViT reg1 t16 with a ViT reg1 s16 rms LS teacher
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2_dist --network vit_reg1_t16 --teacher vit_reg1_s16_rms_ls --teacher-epoch 200 --dino-out-dim 32768 --opt adamw --lr 0.0002 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 10 --batch-size 96 --wd 0.04 --wd-end 0.2 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --rgb-mode none --data-path data/training_il-all_packed
 ```
 
 ### I-JEPA
@@ -444,7 +474,7 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mmcr --network efficientnet_
 #### MMCR: PVT v2 B1
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_mmcr --network pvt_v2_b1 --opt adamw --lr 0.0005 --opt-betas 0.9 0.95 --lr-scheduler-update iter --lr-scheduler cosine --warmup-epochs 10 --batch-size 128 --epochs 100 --wd 0.000001 --amp --compile --data-path data/training
+torchrun --nproc_per_node=2 -m birder.scripts.train_mmcr --network pvt_v2_b1 --opt adamw --lr 0.0005 --opt-betas 0.9 0.95 --lr-scheduler-update iter --lr-scheduler cosine --warmup-epochs 10 --batch-size 128 --epochs 100 --wd 0.000001 --amp --amp-dtype bfloat16 --compile --data-path data/training
 ```
 
 Fine-tuning, first stage - linear probing

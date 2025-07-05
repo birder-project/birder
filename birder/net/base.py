@@ -153,6 +153,13 @@ class BaseNet(nn.Module):
             for param in self.features.parameters():
                 param.requires_grad = True
 
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Return full feature map, including special tokens
+        """
+
+        raise NotImplementedError
+
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError
 

@@ -341,10 +341,15 @@ class HieraDet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         return result
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
         x = x + self._get_pos_embed(x)
         x = self.body(x)
+
+        return x
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
         x = self.features(x)
 
         return x

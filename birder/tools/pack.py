@@ -24,6 +24,9 @@ from birder.conf import settings
 
 logger = logging.getLogger(__name__)
 
+# Few datasets like Objects365 have some very big files
+Image.MAX_IMAGE_PIXELS = int(2048 * 2048 * 1024 // 4 // 3)
+
 
 class CustomImageFolder(ImageFolder):
     def __init__(
@@ -63,11 +66,11 @@ def _save_classes(pack_path: Path, class_to_idx: dict[str, int]) -> None:
 
 def _encode_image(path: str, file_format: str, size: Optional[int] = None) -> bytes:
     image: Image.Image = Image.open(path)
-    if size is not None:
+    if size is not None and size < min(image.size):
         if image.size[0] > image.size[1]:
-            ratio = image.size[0] / size
-        else:
             ratio = image.size[1] / size
+        else:
+            ratio = image.size[0] / size
 
         width = round(image.size[0] / ratio)
         height = round(image.size[1] / ratio)
@@ -355,7 +358,7 @@ def set_parser(subparsers: Any) -> None:
         help="performs calculation on multiple cores, set -1 to run on all cores",
     )
     subparser.add_argument("--shuffle", default=False, action="store_true", help="shuffle the dataset during packing")
-    subparser.add_argument("--size", type=int, help="resize image longest dimension to size")
+    subparser.add_argument("--size", type=int, help="resize image short dimension to size if bigger")
     subparser.add_argument("--format", type=str, choices=["webp", "png", "jpeg"], default="webp", help="file format")
     subparser.add_argument("--class-file", type=str, help="class list file")
     subparser.add_argument("--no-cls", default=False, action="store_true", help="pack without class information")

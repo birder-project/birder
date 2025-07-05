@@ -216,11 +216,16 @@ class PiT(DetectorBackbone):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         x = self.stem(x)
         x = x + self.pos_embed
         cls_tokens = self.cls_token.expand(x.shape[0], -1, -1)
         (x, cls_tokens) = self.body((x, cls_tokens))
+
+        return (x, cls_tokens)
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        (_, cls_tokens) = self.forward_features(x)
         cls_tokens = self.norm(cls_tokens)
 
         return cls_tokens

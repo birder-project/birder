@@ -265,6 +265,16 @@ def clean_checkpoints(network_name: str, keep_last: int) -> None:
             p.unlink()
 
 
+def load_state_dict(device: torch.device, network_name: str, *, epoch: Optional[int] = None) -> dict[str, Any]:
+    path = model_path(network_name, epoch=epoch)
+
+    # Load state dict
+    logger.info(f"Loading state dict from {path} on device {device}...")
+    model_dict: dict[str, Any] = torch.load(path, map_location=device, weights_only=True)["state"]
+
+    return model_dict
+
+
 class TrainingStates(NamedTuple):
     optimizer_state: Optional[dict[str, Any]]
     scheduler_state: Optional[dict[str, Any]]

@@ -16,9 +16,9 @@ import torch
 from torch import nn
 from torchvision.ops import StochasticDepth
 
+from birder.layers import LayerNorm2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.convnext_v1 import LayerNorm2d
 
 
 class DWConvMLP(nn.Module):
@@ -238,8 +238,11 @@ class VAN(DetectorBackbone):
             for param in module.parameters():
                 param.requires_grad = False
 
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+        return self.body(x)
+
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.body(x)
+        x = self.forward_features(x)
         return self.features(x)
 
 

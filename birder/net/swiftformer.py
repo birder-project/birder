@@ -354,9 +354,12 @@ class SwiftFormer(DetectorBackbone):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
-        x = self.body(x)
+        return self.body(x)
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
         return self.features(x)
 
     def set_distillation_output(self, enable: bool = True) -> None:

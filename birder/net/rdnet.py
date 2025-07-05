@@ -10,15 +10,20 @@ Paper "DenseNets Reloaded: Paradigm Shift Beyond ResNets and ViTs", https://arxi
 from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
 from torch import nn
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask_tensor
+from birder.layers import LayerNorm2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.convnext_v1 import LayerNorm2d
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenRetentionResultType
 
 
 class EffectiveSEModule(nn.Module):
@@ -136,7 +141,7 @@ class DenseStage(nn.Module):
         return torch.concat(features, dim=1)
 
 
-class RDNet(DetectorBackbone):
+class RDNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"body\.stage\d+\.(\d+)"
 
     # pylint: disable=too-many-locals
@@ -220,6 +225,10 @@ class RDNet(DetectorBackbone):
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
+        self.stem_stride = 4
+        self.stem_width = num_init_features
+        self.encoding_size = num_features
+
         # Weight initialization
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -250,9 +259,31 @@ class RDNet(DetectorBackbone):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
         x = self.stem(x)
+        x = mask_tensor(x, mask, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token)
         x = self.body(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            result["features"] = x
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = self.features(x)
+
+        return result
+
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.stem(x)
+        return self.body(x)
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
         return self.features(x)
 
 

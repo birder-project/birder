@@ -80,9 +80,12 @@ class SqueezeNet(BaseNet):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
         return self.body(x)
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        return self.forward_features(x)
 
     def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
         if self.num_classes == 0:

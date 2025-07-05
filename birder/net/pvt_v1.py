@@ -288,9 +288,12 @@ class PVT_v1(DetectorBackbone):
             for param in module.parameters():
                 param.requires_grad = False
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)
-        x = self.body(x)
+        return self.body(x)
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
         return x[:, 0]
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
