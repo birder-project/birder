@@ -15,6 +15,7 @@ import torch
 from torch import nn
 
 from birder.common.masking import uniform_mask
+from birder.model_registry import registry
 from birder.net.hiera import Hiera
 from birder.net.hiera import HieraBlock
 from birder.net.hiera import undo_windowing
@@ -239,3 +240,21 @@ class MAE_Hiera(MIMBaseNet):
         loss = self.forward_loss(x, pred, ~pred_mask)
 
         return {"loss": loss, "pred": pred, "mask": mask}
+
+
+registry.register_weights(
+    "mae_hiera_hiera_abswin_base",
+    {
+        "url": "https://huggingface.co/birder-project/mae_hiera_hiera_abswin_base/resolve/main",
+        "description": "Masked auto-encoder Hiera with a Hiera abswin base image encoder, trained on 12M images",
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 328.1,
+                "sha256": "bdf8a8495c99f4cb0f345cfcc5d616a427b59d46be0c5a7936766b60cd1efa60",
+            }
+        },
+        "net": {"network": "mae_hiera"},
+        "encoder": {"network": "hiera_abswin_base"},
+    },
+)

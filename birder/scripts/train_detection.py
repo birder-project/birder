@@ -200,11 +200,14 @@ def train(args: argparse.Namespace) -> None:
             backbone_param=args.backbone_param,
             backbone_config=args.backbone_model_config,
             backbone_tag=args.backbone_tag,
-            epoch=args.resume_epoch,
+            epoch=None,
             new_size=args.size,
         )
-        net.reset_classifier(len(class_to_idx))
-        net.to(device)
+        if args.reset_head is True:
+            net.reset_classifier(len(class_to_idx))
+            net.to(device)
+        else:
+            assert class_to_idx == class_to_idx_saved
 
     else:
         if args.backbone_epoch is not None:
@@ -728,10 +731,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="start with pretrained version of specified backbone",
     )
     parser.add_argument(
-        "--pretrained",
-        default=False,
-        action="store_true",
-        help="start with pretrained version of specified network, reset the classification head",
+        "--pretrained", default=False, action="store_true", help="start with pretrained version of specified network"
     )
     parser.add_argument("--reset-head", default=False, action="store_true", help="reset the classification head")
     parser.add_argument(

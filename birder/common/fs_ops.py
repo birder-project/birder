@@ -401,10 +401,10 @@ def load_mim_checkpoint(
     device: torch.device,
     network: str,
     *,
-    net_param: Optional[float],
+    net_param: Optional[float] = None,
     config: Optional[dict[str, Any]] = None,
     encoder: str,
-    encoder_param: Optional[float],
+    encoder_param: Optional[float] = None,
     encoder_config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
     epoch: Optional[int] = None,
@@ -447,13 +447,13 @@ def load_detection_checkpoint(
     device: torch.device,
     network: str,
     *,
-    net_param: Optional[float],
+    net_param: Optional[float] = None,
     config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
     backbone: str,
-    backbone_param: Optional[float],
+    backbone_param: Optional[float] = None,
     backbone_config: Optional[dict[str, Any]] = None,
-    backbone_tag: Optional[str],
+    backbone_tag: Optional[str] = None,
     epoch: Optional[int] = None,
     new_size: Optional[tuple[int, int]] = None,
 ) -> DetectionCheckpointStates:
@@ -900,7 +900,20 @@ def load_pretrained_model(
     if device is None:
         device = torch.device("cpu")
 
-    if "backbone" in model_metadata:
+    if model_metadata["task"] == Task.IMAGE_CLASSIFICATION:
+        return load_model(
+            device,
+            model_metadata["net"]["network"],
+            path=dst,
+            net_param=model_metadata["net"].get("net_param", None),
+            tag=model_metadata["net"].get("tag", None),
+            reparameterized=model_metadata["net"].get("reparameterized", False),
+            inference=inference,
+            dtype=dtype,
+            **format_args,
+        )
+
+    if model_metadata["task"] == Task.OBJECT_DETECTION:
         return load_detection_model(
             device,
             model_metadata["net"]["network"],
@@ -917,17 +930,7 @@ def load_pretrained_model(
             **format_args,
         )
 
-    return load_model(
-        device,
-        model_metadata["net"]["network"],
-        path=dst,
-        net_param=model_metadata["net"].get("net_param", None),
-        tag=model_metadata["net"].get("tag", None),
-        reparameterized=model_metadata["net"].get("reparameterized", False),
-        inference=inference,
-        dtype=dtype,
-        **format_args,
-    )
+    raise ValueError(f"Unknown model type: {model_metadata['task']}")
 
 
 def load_model_with_cfg(
@@ -1002,7 +1005,7 @@ def load_model_with_cfg(
         )
 
     else:
-        raise ValueError("Configuration not supported")
+        raise ValueError(f"Configuration not supported: {cfg['task']}")
 
     if cfg.get("reparameterized", False) is True:
         net.reparameterize_model()

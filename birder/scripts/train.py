@@ -221,7 +221,10 @@ def train(args: argparse.Namespace) -> None:
             epoch=None,
             new_size=args.size,
         )
-        net.reset_classifier(len(class_to_idx))
+        if args.reset_head is True:
+            net.reset_classifier(len(class_to_idx))
+        else:
+            assert class_to_idx == class_to_idx_saved
 
     else:
         net = registry.net_factory(
@@ -720,10 +723,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--pretrained",
-        default=False,
-        action="store_true",
-        help="start with pretrained version of specified network, reset the classification head",
+        "--pretrained", default=False, action="store_true", help="start with pretrained version of specified network"
     )
     parser.add_argument("--reset-head", default=False, action="store_true", help="reset the classification head")
     parser.add_argument(

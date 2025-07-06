@@ -172,6 +172,19 @@ def train(args: argparse.Namespace) -> None:
             epoch=args.resume_epoch,
         )
 
+    elif args.pretrained is True:
+        (net, training_states) = fs_ops.load_mim_checkpoint(
+            device,
+            args.network,
+            net_param=args.net_param,
+            config=args.model_config,
+            encoder=args.encoder,
+            encoder_param=args.encoder_param,
+            encoder_config=args.encoder_model_config,
+            tag=args.tag,
+            epoch=None,
+        )
+
     else:
         encoder = registry.net_factory(
             args.encoder,
@@ -521,6 +534,9 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
+    parser.add_argument(
+        "--pretrained", default=False, action="store_true", help="start with pretrained version of specified network"
+    )
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
         "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
@@ -644,6 +660,9 @@ def get_args_parser() -> argparse.ArgumentParser:
 def validate_args(args: argparse.Namespace) -> None:
     args.data_path = [str(p) for p in args.data_path]
     assert args.network is not None
+    assert (
+        args.pretrained is False or args.resume_epoch is None
+    ), "Cannot set resume epoch while starting from a pretrained network"
     assert args.load_states is False or (
         args.load_states is True and args.resume_epoch is not None
     ), "Load states must be from resumed training (--resume-epoch)"

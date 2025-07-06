@@ -212,7 +212,11 @@ class ModelRegistry:
         return net.default_size
 
     def get_pretrained_metadata(self, model_name: str) -> manifest.ModelMetadataType:
-        return self._pretrained_nets[model_name]
+        metadata = self._pretrained_nets[model_name]
+        if "task" not in metadata:
+            metadata["task"] = self.all_nets[metadata["net"]["network"]].task
+
+        return metadata
 
     def net_factory(
         self,

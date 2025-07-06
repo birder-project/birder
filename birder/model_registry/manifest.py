@@ -28,6 +28,8 @@ ModelMetadataType = TypedDict(
         "formats": dict[FileFormatType, FormatInfoType],
         "net": NetworkInfoType,
         "backbone": NotRequired[NetworkInfoType],
+        "encoder": NotRequired[NetworkInfoType],
+        "task": NotRequired[str],
     },
 )
 

@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.16.7
+      jupytext_version: 1.17.2
   kernelspec:
     display_name: birder
     language: python
@@ -31,9 +31,9 @@ from PIL import Image
 from birder.common import fs_ops
 from birder.common.lib import get_label_from_path
 from birder.conf import settings
+from birder.data.transforms.classification import get_rgb_stats
+from birder.data.transforms.classification import inference_preset
 from birder.model_registry import registry
-from birder.transforms.classification import get_rgb_stats
-from birder.transforms.classification import inference_preset
 ```
 
 ```{python}
@@ -42,8 +42,8 @@ plt.rcParams["figure.figsize"] = [24, 24]
 
 ```{python}
 def show_image(image, title=""):
-    mean = np.array((0.5189, 0.5255, 0.4845))
-    std = np.array((0.2124, 0.2083, 0.2555))
+    mean = torch.tensor((0.5189, 0.5255, 0.4845))
+    std = torch.tensor((0.2124, 0.2083, 0.2555))
     # image is [H, W, 3]
     assert image.shape[2] == 3
     plt.imshow(torch.clip((image * std + mean) * 255, 0, 255).int())
