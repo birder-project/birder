@@ -1,6 +1,6 @@
 """
 data2vec, adapted from
-https://github.com/arxyzan/data2vec-pytorch/tree/main
+https://github.com/arxyzan/data2vec-pytorch/blob/main/data2vec/data2vec.py
 and
 https://github.com/facebookresearch/fairseq/blob/main/examples/data2vec/models/data2vec_vision.py
 

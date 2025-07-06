@@ -3,11 +3,11 @@ import json
 import logging
 import multiprocessing
 import os
+import signal
 import time
 from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
-from queue import Empty
 from typing import Any
 from typing import Optional
 
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 # Few datasets like Objects365 have some very big files
 Image.MAX_IMAGE_PIXELS = int(2048 * 2048 * 1024 // 4 // 3)
+MAX_SIZE = 16_000
 
 
 class CustomImageFolder(ImageFolder):
@@ -74,6 +75,25 @@ def _encode_image(path: str, file_format: str, size: Optional[int] = None) -> by
 
         width = round(image.size[0] / ratio)
         height = round(image.size[1] / ratio)
+        if max(width, height) > MAX_SIZE:
+            if width > height:
+                ratio = width / MAX_SIZE
+            else:
+                ratio = height / MAX_SIZE
+
+            width = round(width / ratio)
+            height = round(height / ratio)
+
+        image = image.resize((width, height), Image.Resampling.BICUBIC)
+
+    elif max(image.size) > MAX_SIZE:
+        if image.size[0] > image.size[1]:
+            ratio = image.size[0] / MAX_SIZE
+        else:
+            ratio = image.size[1] / MAX_SIZE
+
+        width = round(image.size[0] / ratio)
+        height = round(image.size[1] / ratio)
         image = image.resize((width, height), Image.Resampling.BICUBIC)
 
     sample_buffer = BytesIO()
@@ -81,29 +101,37 @@ def _encode_image(path: str, file_format: str, size: Optional[int] = None) -> by
     return sample_buffer.getvalue()
 
 
-def read_worker(q_in: Any, q_out: Any, _error_queue: Any, size: Optional[int], file_format: str) -> None:
+def read_worker(q_in: Any, q_out: Any, error_event: Any, size: Optional[int], file_format: str) -> None:
     while True:
         deq: Optional[tuple[int, str, int]] = q_in.get()
         if deq is None:
             break
 
-        (idx, path, target) = deq
-        if size is None:
-            suffix = Path(path).suffix[1:]
-            if file_format != suffix:
-                sample = _encode_image(path, file_format)
-            else:
-                with open(path, "rb") as stream:
-                    sample = stream.read()
+        try:
+            (idx, path, target) = deq
+            if size is None:
+                suffix = Path(path).suffix[1:]
+                if file_format != suffix:
+                    sample = _encode_image(path, file_format)
+                else:
+                    with open(path, "rb") as stream:
+                        sample = stream.read()
 
-        else:
-            sample = _encode_image(path, file_format, size)
+            else:
+                sample = _encode_image(path, file_format, size)
+
+        except Exception:
+            error_event.set()
+            raise
+
+        if error_event.is_set() is True:
+            break
 
         q_out.put((idx, sample, file_format, target), block=True, timeout=None)
 
 
 def wds_write_worker(
-    q_out: Any, error_queue: Any, pack_path: Path, total: int, args: argparse.Namespace, _: dict[int, str]
+    q_out: Any, error_event: Any, pack_path: Path, total: int, args: argparse.Namespace, _: dict[int, str]
 ) -> None:
     try:
         info_path = pack_path.joinpath("_info.json")
@@ -114,9 +142,8 @@ def wds_write_worker(
 
         else:
             info = None
-    except Exception as e:
-        # Put the error on the error queue so the main process knows something went wrong in this worker
-        error_queue.put(str(e))
+    except Exception:
+        error_event.set()
         # Re-raise to terminate this process
         raise
 
@@ -184,7 +211,7 @@ def wds_write_worker(
 
 
 def directory_write_worker(
-    q_out: Any, _error_queue: Any, pack_path: Path, total: int, _: argparse.Namespace, idx_to_class: dict[int, str]
+    q_out: Any, _error_event: Any, pack_path: Path, total: int, _: argparse.Namespace, idx_to_class: dict[int, str]
 ) -> None:
     count = 0
     buf = {}
@@ -269,13 +296,13 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
         q_in.append(multiprocessing.Queue(1024))
 
     q_out = multiprocessing.Queue(1024)  # type: ignore
-    error_queue = multiprocessing.Queue()  # type: ignore # For reporting errors from worker processes
+    error_event = multiprocessing.Event()
 
     read_processes: list[multiprocessing.Process] = []
     for idx in range(args.jobs):
         read_processes.append(
             multiprocessing.Process(
-                target=read_worker, args=(q_in[idx], q_out, error_queue, args.size, args.format), daemon=True
+                target=read_worker, args=(q_in[idx], q_out, error_event, args.size, args.format), daemon=True
             )
         )
 
@@ -292,18 +319,22 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
         raise ValueError("Unknown pack type")
 
     write_process = multiprocessing.Process(
-        target=target_writer, args=(q_out, error_queue, pack_path, len(dataset), args, idx_to_class), daemon=True
+        target=target_writer, args=(q_out, error_event, pack_path, len(dataset), args, idx_to_class), daemon=True
     )
     write_process.start()
+
+    def signal_handler(signum, _frame) -> None:  # type: ignore
+        logger.info(f"Received signal: {signum} at {multiprocessing.current_process().name}, aborting...")
+        error_event.set()
+        raise SystemExit(1)
+
+    signal.signal(signal.SIGINT, signal_handler)
 
     tic = time.time()
     for idx, sample_idx in enumerate(indices):
         if idx % 1000 == 0:
-            try:
-                error = error_queue.get_nowait()
-                raise RuntimeError(f"Packing aborted due to: {error}")
-            except Empty:
-                pass
+            if error_event.is_set() is True:
+                raise RuntimeError()
 
         (path, target) = dataset[sample_idx]
         q_in[idx % len(q_in)].put((idx, path, target), block=True, timeout=None)
@@ -312,10 +343,19 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
         q.put(None, block=True, timeout=None)
 
     for p in read_processes:
-        p.join()
+        while True:
+            p.join(timeout=2)
+            if p.is_alive() is False:
+                break
+
+            if error_event.is_set() is True:
+                raise RuntimeError()
 
     q_out.put(None, block=True, timeout=None)
     write_process.join()
+
+    if error_event.is_set() is True:
+        raise RuntimeError()
 
     if args.type == "wds":
         (wds_path, num_shards) = fs_ops.wds_braces_from_path(pack_path, prefix=f"{args.suffix}-{args.split}")
