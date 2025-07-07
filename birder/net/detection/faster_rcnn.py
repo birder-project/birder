@@ -872,23 +872,3 @@ class Faster_RCNN(DetectionBaseNet):
         losses.update(proposal_losses)
 
         return (detections, losses)
-
-
-# registry.register_weights(
-#     "faster_rcnn_coco_csp_resnet_50_imagenet1k",
-#     {
-#         "description": (
-#             "Faster R-CNN with a CSP ResNet 50 backbone pretrained on ImageNet 1K, "
-#             "detection model trained on the COCO dataset"
-#         ),
-#         "resolution": (640, 640),
-#         "formats": {
-#             "pt": {
-#                 "file_size": 151.9,
-#                 "sha256": "275edeeccaa74547056a9a3ee09dd36b17c7c97e453030b6f62b18dd02107bf1",
-#             }
-#         },
-#         "net": {"network": "faster_rcnn", "tag": "coco"},
-#         "backbone": {"network": "csp_resnet_50", "tag": "imagenet1k"},
-#     },
-# )

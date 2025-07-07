@@ -17,6 +17,7 @@ import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import StochasticDepth
 
+from birder.layers import LayerScale2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 
@@ -39,19 +40,6 @@ class ChannelsFirstLayerNorm(nn.Module):
         x = self.weight[:, None, None] * x + self.bias[:, None, None]
 
         return x
-
-
-class LayerScale2d(nn.Module):
-    def __init__(self, dim: int, init_value: float, inplace: bool = False) -> None:
-        super().__init__()
-        self.inplace = inplace
-        self.gamma = nn.Parameter(init_value * torch.ones(dim, 1, 1), requires_grad=True)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.inplace is True:
-            return x.mul_(self.gamma)
-
-        return x * self.gamma
 
 
 class GlobalLocalFilter(nn.Module):

@@ -13,7 +13,7 @@ license: apache-2.0
 
 ## Model Details
 
-- **Model Type:** Image classification and detection backbone
+- **Model Type:** Image classification{% if detector_backbone %} and detection backbone{% endif %}
 - **Model Stats:**
     - Params (M): {{ num_params }}
     - Input image size: {{ size[0] }} x {{ size[1] }}

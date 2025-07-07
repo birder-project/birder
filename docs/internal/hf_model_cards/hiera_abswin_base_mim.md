@@ -11,6 +11,8 @@ license: apache-2.0
 
 A Hiera with absolute window position embedding strategy image encoder pre-trained using Masked Image Modeling (MIM). This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
 
+The full MAE model is available at <https://huggingface.co/birder-project/mae_hiera_hiera_abswin_base>
+
 ## Model Details
 
 - **Model Type:** Image encoder and detection backbone
@@ -18,7 +20,7 @@ A Hiera with absolute window position embedding strategy image encoder pre-train
     - Params (M): 50.5
     - Input image size: 224 x 224
 - **Dataset:** Trained on a diverse dataset of approximately 12M images, including:
-    - iNaturalist 2021 (~3.3M)
+    - iNaturalist 2021 (~2.6M)
     - WebVision-2.0 (~1.5M random subset)
     - imagenet-w21-webp-wds (~1M random subset)
     - SA-1B (~220K random subset of 20 chunks)

@@ -30,6 +30,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_tensor
 from birder.layers import FFN
+from birder.layers import LayerScale
 from birder.layers import SwiGLU_FFN
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
@@ -116,19 +117,6 @@ class MultiHeadAttentionPool(nn.Module):
         x = x + self.mlp(self.norm(x))
 
         return x
-
-
-class LayerScale(nn.Module):
-    def __init__(self, dim: int, init_values: float, inplace: bool = False) -> None:
-        super().__init__()
-        self.inplace = inplace
-        self.gamma = nn.Parameter(init_values * torch.ones(dim), requires_grad=True)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.inplace is True:
-            return x.mul_(self.gamma)
-
-        return x * self.gamma
 
 
 class PatchEmbed(nn.Module):

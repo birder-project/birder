@@ -27,6 +27,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_tensor
 from birder.layers import FFN
+from birder.layers import LayerScale
 from birder.layers import SwiGLU_FFN
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
@@ -35,7 +36,6 @@ from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenOmissionResultType
 from birder.net.base import TokenRetentionResultType
-from birder.net.vit import LayerScale
 from birder.net.vit import MultiHeadAttentionPool
 from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding

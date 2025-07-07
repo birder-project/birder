@@ -22,11 +22,11 @@ from torchvision.ops import StochasticDepth
 
 from birder.layers import FFN
 from birder.layers import LayerNorm2d
+from birder.layers import LayerScale
 from birder.layers import SwiGLU_FFN
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.vit import EncoderBlock as MAEDecoderBlock
-from birder.net.vit import LayerScale
 
 
 # pylint: disable=invalid-name

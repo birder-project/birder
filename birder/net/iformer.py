@@ -12,6 +12,7 @@ Changes from original:
 
 from collections import OrderedDict
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -22,21 +23,13 @@ from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import Permute
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask_tensor
+from birder.layers import LayerScale
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-
-
-class LayerScale2d(nn.Module):
-    def __init__(self, dim: int, init_values: float, inplace: bool = False) -> None:
-        super().__init__()
-        self.inplace = inplace
-        self.gamma = nn.Parameter(init_values * torch.ones(dim))
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.inplace is True:
-            return x.mul_(self.gamma)
-
-        return x * self.gamma
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenRetentionResultType
 
 
 class PatchEmbed(nn.Module):
@@ -223,8 +216,8 @@ class InceptionTransformerBlock(nn.Module):
         self.mlp = MLP(dim, [int(dim * mlp_ratio), dim], activation_layer=nn.GELU, dropout=drop)
 
         if layer_scale_init_value is not None:
-            self.layer_scale_1 = LayerScale2d(dim, layer_scale_init_value)
-            self.layer_scale_2 = LayerScale2d(dim, layer_scale_init_value)
+            self.layer_scale_1 = LayerScale(dim, layer_scale_init_value)
+            self.layer_scale_2 = LayerScale(dim, layer_scale_init_value)
         else:
             self.layer_scale_1 = nn.Identity()
             self.layer_scale_2 = nn.Identity()
@@ -255,6 +248,8 @@ class InceptionTransformerStage(nn.Module):
         downsample: bool,
     ) -> None:
         super().__init__()
+        self.dynamic_size = False
+        self.resolution = resolution
         if downsample is True:
             self.downsample = PatchEmbed(
                 kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), in_channels=dim, embed_dim=out_dim
@@ -286,9 +281,29 @@ class InceptionTransformerStage(nn.Module):
         # Weight initialization
         nn.init.trunc_normal_(self.pos_embed, std=0.02)
 
+    def set_dynamic_size(self, dynamic_size: bool = True) -> None:
+        self.dynamic_size = dynamic_size
+
+    def _get_pos_embed(self, H: int, W: int) -> torch.Tensor:
+        if self.dynamic_size is False:
+            return self.pos_embed
+
+        if H == self.resolution[0] and W == self.resolution[1]:
+            return self.pos_embed
+
+        orig_dtype = self.pos_embed.dtype
+        pos_embedding = self.pos_embed.float()
+        pos_embedding = F.interpolate(pos_embedding.permute(0, 3, 1, 2), size=(H, W), mode="bilinear").permute(
+            0, 2, 3, 1
+        )
+        pos_embedding = pos_embedding.to(orig_dtype)
+        return pos_embedding
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.downsample(x)
-        x = x + self.pos_embed
+        (H, W) = x.shape[1:3]
+
+        x = x + self._get_pos_embed(H, W)
         x = self.blocks(x)
         x = x.permute(0, 3, 1, 2)
 
@@ -296,7 +311,9 @@ class InceptionTransformerStage(nn.Module):
 
 
 # pylint: disable=invalid-name
-class iFormer(DetectorBackbone):
+class iFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
+    block_group_regex = r"body\.stage\d+\.blocks\.(\d+)"
+
     def __init__(
         self,
         input_channels: int,
@@ -381,6 +398,10 @@ class iFormer(DetectorBackbone):
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
 
+        self.stem_stride = 4
+        self.stem_width = embed_dims[0]
+        self.encoding_size = embed_dims[-1]
+
         # Weight initialization
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.Linear)):
@@ -414,6 +435,27 @@ class iFormer(DetectorBackbone):
             for param in module.parameters():
                 param.requires_grad = False
 
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
+        x = self.stem(x)
+        x = mask_tensor(
+            x, mask, channels_last=True, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token
+        )
+        x = self.body(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            result["features"] = x
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = self.features(x)
+
+        return result
+
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
         return self.body(x)
@@ -423,7 +465,10 @@ class iFormer(DetectorBackbone):
         return self.features(x)
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
-        assert dynamic_size is False, "Dynamic size not supported for this network"
+        super().set_dynamic_size(dynamic_size)
+        for stage in self.body.modules():
+            if isinstance(stage, InceptionTransformerStage):
+                stage.set_dynamic_size(dynamic_size)
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
@@ -434,11 +479,14 @@ class iFormer(DetectorBackbone):
         resolution = (new_size[0] // 4, new_size[1] // 4)
         for stage in self.body.modules():
             if isinstance(stage, InceptionTransformerStage):
-                stage.pos_embed = nn.Parameter(
-                    F.interpolate(stage.pos_embed.permute(0, 3, 1, 2), size=resolution, mode="bilinear").permute(
-                        0, 2, 3, 1
-                    )
-                )
+                orig_dtype = stage.pos_embed.dtype
+                pos_embedding = stage.pos_embed.float()
+                pos_embedding = F.interpolate(
+                    pos_embedding.permute(0, 3, 1, 2), size=resolution, mode="bilinear"
+                ).permute(0, 2, 3, 1)
+                pos_embedding = pos_embedding.to(orig_dtype)
+                stage.pos_embed = nn.Parameter(pos_embedding)
+                stage.resolution = resolution
                 resolution = (resolution[0] // 2, resolution[1] // 2)
 
 

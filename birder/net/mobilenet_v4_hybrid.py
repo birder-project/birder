@@ -21,6 +21,7 @@ from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_tensor
+from birder.layers import LayerScale2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
@@ -29,7 +30,6 @@ from birder.net.base import TokenRetentionResultType
 from birder.net.mobilenet_v4 import ConvNormActConfig
 from birder.net.mobilenet_v4 import InvertedResidual
 from birder.net.mobilenet_v4 import InvertedResidualConfig
-from birder.net.mobilenet_v4 import LayerScale2d
 from birder.net.mobilenet_v4 import UniversalInvertedBottleneck
 from birder.net.mobilenet_v4 import UniversalInvertedBottleneckConfig
 

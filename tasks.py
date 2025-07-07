@@ -30,6 +30,7 @@ DEFAULT_COLOR = COLOR_GRAY
 PROJECT_DIR = "birder"
 HF_DOCS_DIR = "docs/internal/hf_model_cards"
 HF_MODEL_CARD_TEMPLATE = "docs/internal/model_card_template.md.j2"
+HF_MODEL_CARD_DETECTION_TEMPLATE = "docs/internal/model_card_detection_template.md.j2"
 
 
 def echo(msg: str, color: int = DEFAULT_COLOR) -> None:
@@ -345,7 +346,7 @@ def pack_intermediate(ctx, jobs=12, size=384, suffix="intermediate_packed"):
 
 
 @task
-def pack_ssl(ctx, jobs=12, size=320, suffix="ssl_packed"):
+def pack_ssl(ctx, jobs=12, size=384, suffix="ssl_packed"):
     """
     Pack data for self-supervised training
     """
@@ -494,25 +495,56 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
 
 @task
-def model_pre_publish(_ctx, model, net_param=None, tag=None, epoch=None, reparameterized=False, hf=True):
+def model_pre_publish(  # pylint: disable=too-many-locals
+    _ctx,
+    model,
+    net_param=None,
+    tag=None,
+    backbone=None,
+    backbone_param=None,
+    backbone_tag=None,
+    backbone_reparameterized=None,
+    epoch=None,
+    reparameterized=False,
+    hf=True,
+):
     """
     Generate data required for publishing a model
     """
 
     if net_param is not None:
         net_param = float(net_param)
+    if backbone_param is not None:
+        backbone_param = float(backbone_param)
 
-    network_name = fs_ops.get_network_name(model, net_param, tag)
+    if backbone is not None:
+        network_name = fs_ops.get_detection_network_name(model, net_param, tag, backbone, backbone_param, backbone_tag)
+        (net, model_info) = fs_ops.load_detection_model(
+            torch.device("cpu"),
+            model,
+            net_param=net_param,
+            tag=tag,
+            backbone=backbone,
+            backbone_param=backbone_param,
+            backbone_tag=backbone_tag,
+            backbone_reparameterized=backbone_reparameterized,
+            epoch=epoch,
+            inference=True,
+            reparameterized=reparameterized,
+        )
 
-    (net, model_info) = fs_ops.load_model(
-        torch.device("cpu"),
-        model,
-        net_param=net_param,
-        tag=tag,
-        epoch=epoch,
-        inference=True,
-        reparameterized=reparameterized,
-    )
+    else:
+        network_name = fs_ops.get_network_name(model, net_param, tag)
+        (net, model_info) = fs_ops.load_model(
+            torch.device("cpu"),
+            model,
+            net_param=net_param,
+            tag=tag,
+            epoch=epoch,
+            inference=True,
+            reparameterized=reparameterized,
+        )
+
     num_params = sum(p.numel() for p in net.parameters())
     num_params = round(num_params / 1_000_000, 1)
     size = lib.get_size_from_signature(model_info.signature)
@@ -530,33 +562,50 @@ def model_pre_publish(_ctx, model, net_param=None, tag=None, epoch=None, reparam
         print(f'"file_size": {file_size}')
         print(f'"sha256": "{sha256}"')
 
-    # Check if HF model card already exist
+    # Generate HF model card
     if hf is True:
         model_card_path = pathlib.Path(HF_DOCS_DIR).joinpath(f"{network_name}.md")
         if model_card_path.exists() is False:
             echo("Model card does not exist, creating from template")
-            with open(HF_MODEL_CARD_TEMPLATE, mode="r", encoding="utf-8") as handle:
-                template_str = handle.read()
+            if backbone is not None:
+                # Detection model
+                with open(HF_MODEL_CARD_DETECTION_TEMPLATE, mode="r", encoding="utf-8") as handle:
+                    template_str = handle.read()
 
-            template = Template(template_str)
-            if isinstance(net, DetectorBackbone):
-                detector_backbone = True
-                out = net.detection_features(torch.rand((1, 3, *size)))
-                feature_map_shapes = [(k, v.size()) for k, v in out.items()]
+                template = Template(template_str)
+                dynamic = model_info.signature["dynamic"]
+                model_card = template.render(
+                    model_name=network_name,
+                    num_params=num_params,
+                    size=size,
+                    num_outputs=num_outputs,
+                    dynamic=dynamic,
+                )
+
             else:
-                detector_backbone = False
-                print("Feature maps not supported")
-                feature_map_shapes = []
+                # Classification model
+                with open(HF_MODEL_CARD_TEMPLATE, mode="r", encoding="utf-8") as handle:
+                    template_str = handle.read()
 
-            model_card = template.render(
-                model_name=network_name,
-                num_params=num_params,
-                size=size,
-                num_outputs=num_outputs,
-                embedding_size=net.embedding_size,
-                detector_backbone=detector_backbone,
-                feature_map_shapes=feature_map_shapes,
-            )
+                template = Template(template_str)
+                if isinstance(net, DetectorBackbone):
+                    detector_backbone = True
+                    out = net.detection_features(torch.rand((1, 3, *size)))
+                    feature_map_shapes = [(k, v.size()) for k, v in out.items()]
+                else:
+                    detector_backbone = False
+                    print("Feature maps not supported")
+                    feature_map_shapes = []
+
+                model_card = template.render(
+                    model_name=network_name,
+                    num_params=num_params,
+                    size=size,
+                    num_outputs=num_outputs,
+                    embedding_size=net.embedding_size,
+                    detector_backbone=detector_backbone,
+                    feature_map_shapes=feature_map_shapes,
+                )
 
             echo(f"Writing model card at {model_card_path}...")
             with open(model_card_path, mode="w", encoding="utf-8") as handle:

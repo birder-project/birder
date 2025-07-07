@@ -176,6 +176,14 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v1_b2 --tag il-commo
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag il-common --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 256 --epochs 300 --size 256 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### EfficientViM
+
+#### EfficientViM: M1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientvim_m1 --tag il-common --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 20 --batch-size 512 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --model-ema-steps 1 --model-ema-decay 0.9995 --clip-grad-norm 0.02 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### EfficientViT MIT
 
 #### EfficientViT MIT: B0

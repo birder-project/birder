@@ -92,6 +92,7 @@ class TestNet(unittest.TestCase):
             ("efficientnet_lite0"),
             ("efficientnet_v1_b0"),
             ("efficientnet_v2_s"),
+            ("efficientvim_m1", None, True, True),
             ("efficientvit_mit_b0"),
             ("efficientvit_mit_l1"),
             ("efficientvit_msft_m0", None, False, False, 2),
@@ -295,6 +296,7 @@ class TestNet(unittest.TestCase):
             ("efficientnet_lite0"),
             ("efficientnet_v1_b0"),
             ("efficientnet_v2_s"),
+            ("efficientvim_m1"),
             ("efficientvit_mit_b0"),
             ("efficientvit_mit_l1"),
             ("efficientvit_msft_m0"),
@@ -459,6 +461,7 @@ class TestNet(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[misc]
         [
+            ("conv2former_n"),
             ("convnext_v2_atto"),
             ("davit_tiny"),
             ("deit3_t16"),
@@ -472,6 +475,7 @@ class TestNet(unittest.TestCase):
             ("flexivit_s16"),
             ("focalnet_t_srf"),
             ("hieradet_tiny"),
+            ("iformer_s"),
             ("maxvit_t"),
             ("poolformer_v1_s12"),
             ("poolformer_v2_s12"),
@@ -661,6 +665,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("efficientnet_lite0"),
             ("efficientnet_v1_b0"),
             ("efficientnet_v2_s"),
+            ("efficientvim_m1"),
             ("efficientvit_mit_b0"),
             ("efficientvit_mit_l1"),
             ("efficientvit_msft_m0", None, 2),
@@ -804,6 +809,7 @@ class TestDynamicSize(unittest.TestCase):
             ("deit3_t16"),
             ("deit3_reg4_t16"),
             ("flexivit_s16"),
+            ("iformer_s"),
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
             ("rope_flexivit_s16"),

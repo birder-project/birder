@@ -1,0 +1,54 @@
+---
+tags:
+- object-detection
+- birder
+- pytorch
+library_name: birder
+license: apache-2.0
+---
+
+# Model Card for {{ model_name }}
+
+<SHORT_DESCRIPTION>
+
+## Model Details
+
+- **Model Type:** Object detection
+- **Model Stats:**
+    - Params (M): {{ num_params }}
+    - Input image size: {{ size[0] }} x {{ size[1] }}{% if dynamic %} (short side){% endif %}
+- **Dataset:** <DATASET_NAME> ({{ num_outputs }} classes)
+
+- **Papers:**
+    - <PAPER_TITLE>: <PAPER_LINK>
+
+## Model Usage
+
+### Object Detection
+
+```python
+import birder
+from birder.inference.detection import infer_image
+
+(net, model_info) = birder.load_pretrained_model("{{ model_name }}", inference=True)
+
+# Get the image size the model was trained on
+size = birder.get_size_from_signature(model_info.signature)
+
+# Create an inference transform
+transform = birder.detection_transform(size, model_info.rgb_stats, dynamic_size=model_info.signature["dynamic"])
+
+image = "path/to/image.jpeg"  # or a PIL image, must be loaded in RGB format
+detections = infer_image(net, image, transform)
+# detections is a dict with keys: 'boxes', 'labels', 'scores'
+# boxes: torch.Tensor with shape (N, 4) in [x1, y1, x2, y2] format
+# labels: torch.Tensor with shape (N,) containing class indices
+# scores: torch.Tensor with shape (N,) containing confidence scores
+```
+
+## Citation
+
+```bibtex
+<BibTeX>
+```
+

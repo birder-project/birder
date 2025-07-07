@@ -28,6 +28,7 @@ from torchvision.ops import SqueezeExcitation
 from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_tensor
+from birder.layers import LayerScale2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
@@ -262,19 +263,6 @@ class PatchEmbed(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.proj(x)
-
-
-class LayerScale2d(nn.Module):
-    def __init__(self, dim: int, init_value: float, inplace: bool = False) -> None:
-        super().__init__()
-        self.inplace = inplace
-        self.gamma = nn.Parameter(init_value * torch.ones(dim, 1, 1), requires_grad=True)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.inplace is True:
-            return x.mul_(self.gamma)
-
-        return x * self.gamma
 
 
 class RepMixer(nn.Module):

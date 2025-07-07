@@ -846,3 +846,22 @@ class Deformable_DETR(DetectionBaseNet):
 
 registry.register_alias("deformable_detr", Deformable_DETR, config={"box_refine": False})
 registry.register_alias("deformable_detr_boxref", Deformable_DETR, config={"box_refine": True})
+
+registry.register_weights(
+    "deformable_detr_boxref_coco_convnext_v2_tiny_imagenet21k",
+    {
+        "description": (
+            "Deformable DETR box refinement with a ConvNeXt v2 tiny backbone pretrained on ImageNet 21K, "
+            "detection model trained on the COCO dataset"
+        ),
+        "resolution": (640, 640),
+        "formats": {
+            "pt": {
+                "file_size": 152.8,
+                "sha256": "5043f66bd79c0aa168396835ddee936161f33c325b91efb9c29d5bcfb0286fee",
+            }
+        },
+        "net": {"network": "deformable_detr_boxref", "tag": "coco"},
+        "backbone": {"network": "convnext_v2_tiny", "tag": "imagenet21k"},
+    },
+)

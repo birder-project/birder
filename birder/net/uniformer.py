@@ -17,6 +17,7 @@ import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import StochasticDepth
 
+from birder.layers import LayerScale
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 
@@ -105,19 +106,6 @@ class ConvBlock(nn.Module):
         return x
 
 
-class LayerScale2d(nn.Module):
-    def __init__(self, dim: int, init_values: float, inplace: bool = False) -> None:
-        super().__init__()
-        self.inplace = inplace
-        self.gamma = nn.Parameter(init_values * torch.ones([dim]))
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.inplace is True:
-            return x.mul_(self.gamma)
-
-        return x * self.gamma
-
-
 class AttentionBlock(nn.Module):
     def __init__(
         self,
@@ -141,8 +129,8 @@ class AttentionBlock(nn.Module):
         self.mlp = MLP(dim, hidden_features=mlp_hidden_dim, drop=drop)
 
         if layer_scale_init_value is not None:
-            self.layer_scale_1 = LayerScale2d(dim, layer_scale_init_value)
-            self.layer_scale_2 = LayerScale2d(dim, layer_scale_init_value)
+            self.layer_scale_1 = LayerScale(dim, layer_scale_init_value)
+            self.layer_scale_2 = LayerScale(dim, layer_scale_init_value)
         else:
             self.layer_scale_1 = nn.Identity()
             self.layer_scale_2 = nn.Identity()

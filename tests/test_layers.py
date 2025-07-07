@@ -26,3 +26,22 @@ class TestLayers(unittest.TestCase):
         out = ln(torch.rand(1, 16, 64, 64))
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.size(), (1, 16, 64, 64))
+
+    def test_layer_scale(self) -> None:
+        ls = layers.LayerScale(16, 1e-5)
+
+        # 1D
+        out = ls(torch.rand(1, 64, 16))
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.size(), (1, 64, 16))
+
+        # 2D channels last
+        out = ls(torch.rand(1, 64, 64, 16))
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.size(), (1, 64, 64, 16))
+
+    def test_layer_scale2d(self) -> None:
+        ls = layers.LayerScale2d(16, 1e-5)
+        out = ls(torch.rand(2, 16, 64, 64))
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.size(), (2, 16, 64, 64))

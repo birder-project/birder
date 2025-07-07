@@ -42,6 +42,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [EfficientNet Lite](#efficientnet-lite)
 - [EfficientNet v1](#efficientnet-v1)
 - [EfficientNet v2](#efficientnet-v2)
+- [EfficientViM](#efficientvim)
 - [EfficientViT MIT](#efficientvit-mit)
 - [EfficientViT MSFT](#efficientvit-msft)
 - [FasterNet](#fasternet)
@@ -918,6 +919,32 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --tag intermedi
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_l --lr 0.5 --lr-scheduler cosine --lr-cosine-min 1e-6 --warmup-epochs 10 --batch-size 16 --epochs 300 --size 384 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+```
+
+### EfficientViM
+
+#### EfficientViM: M1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientvim_m1 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 20 --batch-size 512 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --model-ema-steps 1 --model-ema-decay 0.9995 --clip-grad-norm 0.02 --fast-matmul --compile
+```
+
+When finished, run 30 more epochs at increased resolution
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientvim_m1 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 5e-6 --batch-size 256 --epochs 330 --size 384 --wd 1e-8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --model-ema-steps 1 --model-ema-decay 0.9995 --clip-grad-norm 0.02 --fast-matmul --compile --resume-epoch 300
+```
+
+#### EfficientViM: M3
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientvim_m3 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-5 --warmup-epochs 20 --batch-size 512 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --model-ema-steps 1 --model-ema-decay 0.9995 --clip-grad-norm 0.02 --fast-matmul --compile
+```
+
+When finished, run 30 more epochs at increased resolution
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientvim_m3 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 5e-6 --batch-size 256 --epochs 330 --size 384 --wd 1e-8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --model-ema-steps 1 --model-ema-decay 0.9995 --clip-grad-norm 0.02 --amp --compile --resume-epoch 300
 ```
 
 ### EfficientViT MIT

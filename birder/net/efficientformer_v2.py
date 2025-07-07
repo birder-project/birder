@@ -23,6 +23,7 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
+from birder.layers import LayerScale2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import interpolate_attention_bias
@@ -261,20 +262,6 @@ class ConvMLP(nn.Module):
         x = self.drop2(x)
 
         return x
-
-
-class LayerScale2d(nn.Module):
-    def __init__(self, dim: int, init_values: float, inplace: bool = False) -> None:
-        super().__init__()
-        self.inplace = inplace
-        self.gamma = nn.Parameter(init_values * torch.ones(dim))
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        gamma = self.gamma.view(1, -1, 1, 1)
-        if self.inplace is True:
-            return x.mul_(gamma)
-
-        return x * gamma
 
 
 class EfficientFormerBlock(nn.Module):

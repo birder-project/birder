@@ -4,8 +4,42 @@ from typing import Optional
 
 import torch
 import torch.amp
+from PIL import Image
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+
+
+def infer_image(
+    net: torch.nn.Module | torch.ScriptModule,
+    sample: Image.Image | str,
+    transform: Callable[..., torch.Tensor],
+    device: Optional[torch.device] = None,
+    **kwargs: Any,
+) -> dict[str, torch.Tensor]:
+    """
+    Perform inference on a single image
+
+    This convenience function allows for quick, one-off detection of an image.
+
+    Raises
+    ------
+    TypeError
+        If the sample is neither a string nor a PIL Image object.
+    """
+
+    image: Image.Image
+    if isinstance(sample, str):
+        image = Image.open(sample)
+    elif isinstance(sample, Image.Image):
+        image = sample
+    else:
+        raise TypeError("Unknown sample type")
+
+    if device is None:
+        device = torch.device("cpu")
+
+    input_tensor = transform(image).unsqueeze(dim=0).to(device)
+    return infer_batch(net, input_tensor, **kwargs)[0]
 
 
 def infer_batch(
@@ -13,8 +47,9 @@ def infer_batch(
     inputs: torch.Tensor,
     masks: Optional[torch.Tensor] = None,
     image_sizes: Optional[list[list[int]]] = None,
+    **kwargs: Any,
 ) -> list[dict[str, torch.Tensor]]:
-    (detections, _) = net(inputs, masks=masks, image_sizes=image_sizes)
+    (detections, _) = net(inputs, masks=masks, image_sizes=image_sizes, **kwargs)
     return detections  # type: ignore[no-any-return]
 
 

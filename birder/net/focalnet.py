@@ -20,25 +20,12 @@ from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_tensor
 from birder.layers import LayerNorm2d
+from birder.layers import LayerScale2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
-
-
-class LayerScale2d(nn.Module):
-    def __init__(self, dim: int, init_values: float = 1e-5, inplace: bool = False) -> None:
-        super().__init__()
-        self.inplace = inplace
-        self.gamma = nn.Parameter(init_values * torch.ones(dim))
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        gamma = self.gamma.view(1, -1, 1, 1)
-        if self.inplace is True:
-            return x.mul_(gamma)
-
-        return x * gamma
 
 
 class MLP(nn.Module):
@@ -228,7 +215,7 @@ class FocalNetBlock(nn.Module):
         )
         self.norm1_post = norm_layer(dim) if use_post_norm else nn.Identity()
         self.ls1 = LayerScale2d(dim, layer_scale_value) if layer_scale_value is not None else nn.Identity()
-        self.drop_path1 = StochasticDepth(drop_path, mode="row") if drop_path > 0.0 else nn.Identity()
+        self.drop_path1 = StochasticDepth(drop_path, mode="row")
 
         self.norm2 = norm_layer(dim) if not use_post_norm else nn.Identity()
         self.mlp = MLP(
@@ -240,7 +227,7 @@ class FocalNetBlock(nn.Module):
         )
         self.norm2_post = norm_layer(dim) if use_post_norm else nn.Identity()
         self.ls2 = LayerScale2d(dim, layer_scale_value) if layer_scale_value is not None else nn.Identity()
-        self.drop_path2 = StochasticDepth(drop_path, mode="row") if drop_path > 0.0 else nn.Identity()
+        self.drop_path2 = StochasticDepth(drop_path, mode="row")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         shortcut = x
