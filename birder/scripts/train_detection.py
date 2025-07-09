@@ -29,7 +29,7 @@ from birder.data.datasets.coco import CocoTraining
 from birder.data.transforms.classification import RGBMode
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.detection import AugType
-from birder.data.transforms.detection import inference_preset
+from birder.data.transforms.detection import InferenceTransform
 from birder.data.transforms.detection import training_preset
 from birder.model_registry import Task
 from birder.model_registry import registry
@@ -94,7 +94,7 @@ def train(args: argparse.Namespace) -> None:
     validation_dataset = CocoTraining(
         args.val_path,
         args.coco_val_json_path,
-        transforms=inference_preset(args.size, rgb_stats, dynamic_size, args.max_size),
+        transforms=InferenceTransform(args.size, rgb_stats, dynamic_size, args.max_size),
     )
 
     if args.class_file is not None:

@@ -533,6 +533,21 @@ registry.register_alias(
     },
 )
 registry.register_alias(
+    "vit_parallel_s16_18x2_ls_avg",
+    ViT_Parallel,
+    config={
+        "patch_size": 16,
+        "num_layers": 18,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "num_parallel": 2,
+        "layer_scale_init_value": 1e-5,
+        "class_token": False,
+        "drop_path_rate": 0.05,
+    },
+)
+registry.register_alias(
     "vit_parallel_b16_18x2_ls",
     ViT_Parallel,
     config={

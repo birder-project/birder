@@ -30,6 +30,7 @@ def set_parser(subparsers: Any) -> None:
         default="pt",
         help="model serialization format",
     )
+    subparser.add_argument("--no-verify", action="store_true", help="skip SHA256 checksum verification")
     subparser.add_argument("--force", action="store_true", help="force download even if model already exists")
     subparser.add_argument("model_name", help="the model to download")
     subparser.set_defaults(func=main)
@@ -55,4 +56,9 @@ def main(args: argparse.Namespace) -> None:
         logger.warning(f"File {model_file} already exists... aborting")
         raise SystemExit(1)
 
-    cli.download_file(url, dst, model_metadata["formats"][args.format]["sha256"], override=args.force)
+    if args.no_verify is True:
+        checksum = None
+    else:
+        checksum = model_metadata["formats"][args.format]["sha256"]
+
+    cli.download_file(url, dst, checksum, override=args.force)

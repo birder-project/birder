@@ -47,7 +47,7 @@ from birder.tools.model_info import get_model_info
 ```
 
 ```{python}
-PATTERN = "il-all"
+PATTERN = "il-common"
 RESULTS_PATH = PATTERN
 ```
 

@@ -77,7 +77,7 @@ class Results:
 
         self._iou_thresholds = metrics.iou_thresholds
         self._class_to_idx = class_to_idx
-        self._label_names = list(class_to_idx.keys())
+        self._label_names = ["Background"] + list(class_to_idx.keys())
         self._detections = detections
         self._targets = targets
         self._sample_paths = sample_paths
@@ -133,6 +133,9 @@ class Results:
 
         row_list = []
         for class_num, mean_ap in zip(self.metrics_dict["classes"], self.metrics_dict["map_per_class"]):
+            if mean_ap < 0:
+                continue
+
             row_list.append(
                 {
                     "Class": class_num,

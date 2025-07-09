@@ -50,7 +50,7 @@ python -m birder.tools download-model mae_hiera_hiera_abswin_base
 Then run training:
 
 ```sh
-python train_mim.py --network mae_hiera --encoder hiera_abswin_base --pretrained --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 400 --batch-size 512 --wd 0.05 --encoder-model-config drop_path_rate=0.2 --amp --compile --compile-opt --find-unused-parameters --data-path data/training
+python -m birder.scripts.train_mim --network mae_hiera --encoder hiera_abswin_base --pretrained --opt adamw --lr 0.0008 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 40 --epochs 400 --batch-size 512 --wd 0.05 --encoder-model-config drop_path_rate=0.2 --amp --compile --compile-opt --find-unused-parameters --data-path data/training
 ```
 
 ### Python API

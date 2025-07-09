@@ -201,6 +201,18 @@ torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_so150m_p14_ap --tag
 
 ### Data2Vec
 
+#### Data2Vec: ViT Parallel s16 18x2 LS AVG
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec --network vit_parallel_s16_18x2_ls_avg --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 192 --epochs 400 --wd 0.05 --clip-grad-norm 3 --model-config drop_path_rate=0.25 --amp --amp-dtype bfloat16 --compile --compile-opt --rgb-mode none --wds --wds-info data/ssl_micro_packed/_info.json
+```
+
+Fine-tuning, first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls_avg --tag data2vec --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 224 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --rgb-mode none --resume-epoch 0 --reset-head --freeze-body
+```
+
 #### Data2Vec: ViT reg1 s16 LS
 
 ```sh
@@ -269,6 +281,12 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_nano --tag dino-v2 --
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network davit_small --ibot-separate-head --dino-out-dim 49152 --ibot-out-dim 49152 --centering sinkhorn_knopp --opt adamw --lr 0.0002 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --batch-size 64 --wd 0.04 --wd-end 0.2 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_micro_packed/_info.json
+```
+
+#### DINO v2: DaViT Base
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network davit_base --ibot-separate-head --centering sinkhorn_knopp --opt adamw --lr 0.0002 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 400 --warmup-epochs 50 --batch-size 56 --wd 0.04 --wd-end 0.2 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
 ```
 
 #### DINO v2: HieraDet Base

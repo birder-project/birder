@@ -677,7 +677,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 13.2,
-                "sha256": "2d78e74b03771c14850a025a4c6e84b37cb1933a39dc4c28e5a7eef09ac9b490",
+                "sha256": "b5ba923d351d45a04686b5bda037438719e0f442a41a34207a7f19737a8edb45",
             }
         },
         "net": {"network": "efficientformer_v2_s0", "tag": "il-common"},
@@ -691,7 +691,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 22.9,
-                "sha256": "7228fda939ec82fd215fca297210eb9e9c5b1876017b57122b6c9b6b9ed751c9",
+                "sha256": "6b7ce6bbf5aa83e222cd16d8f07e749cdbb703fd383f99e88362ec8401d81401",
             }
         },
         "net": {"network": "efficientformer_v2_s1", "tag": "il-common"},

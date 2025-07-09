@@ -490,3 +490,19 @@ registry.register_alias(
     EfficientViM,
     config={"embed_dim": [224, 320, 512], "depths": [3, 4, 2], "state_dim": [64, 32, 16]},
 )
+
+registry.register_weights(
+    "efficientvim_m1_il-common",
+    {
+        "url": "https://huggingface.co/birder-project/efficientvim_m1_il-common/resolve/main",
+        "description": "EfficientViM M1 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 23.4,
+                "sha256": "065c039bc07b1d59f58d1fe30a162a97f30e90d909d35d0df8966abaa26d8999",
+            }
+        },
+        "net": {"network": "efficientvim_m1", "tag": "il-common"},
+    },
+)

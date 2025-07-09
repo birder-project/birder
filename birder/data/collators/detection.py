@@ -43,6 +43,10 @@ class DetectionCollator:
         self.size_divisible = size_divisible
 
     def __call__(self, batch: list[tuple[Any, ...]]) -> tuple[Any, ...]:
+        # In case that the "transforms" returning a tuple, flatten it
+        # if isinstance(batch[0][self.offset], tuple):
+        #     batch = [(*sample[: self.offset], *sample[self.offset], *sample[self.offset + 1 :]) for sample in batch]
+
         data = collate_fn(batch)
         images: list[torch.Tensor] = data[self.offset]
         assert images[0].ndim == 3

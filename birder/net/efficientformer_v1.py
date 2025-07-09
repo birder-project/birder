@@ -395,7 +395,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 45,
-                "sha256": "e311c1d8e624de5c9571208674ec826ef16d47018d79dfdc649f8273f85cd51e",
+                "sha256": "f0497d4e7bad7035ca84da57601e52ce303126b481197a916520b3761f0bd652",
             }
         },
         "net": {"network": "efficientformer_v1_l1", "tag": "il-common"},

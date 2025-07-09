@@ -8,17 +8,63 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import polars as pl
+import torch
 from sklearn.metrics import auc
 from sklearn.metrics import average_precision_score
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import roc_curve
 from sklearn.preprocessing import label_binarize
 from torchvision.datasets.folder import pil_loader
+from torchvision.io import decode_image
+from torchvision.utils import draw_bounding_boxes
 
 from birder.conf import settings
 from birder.results.classification import Results
 
 logger = logging.getLogger(__name__)
+
+
+def show_detections(
+    image_path: str,
+    detection: dict[str, torch.Tensor],
+    class_to_idx: dict[str, int],
+    score_threshold: float = 0.5,
+    color_list: Optional[list[tuple[int, ...]]] = None,
+) -> None:
+    img = decode_image(image_path)
+    idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
+
+    scores = detection["scores"]
+    idxs = torch.where(scores > score_threshold)
+    scores = scores[idxs]
+    boxes = detection["boxes"][idxs]
+    labels = detection["labels"][idxs]
+    label_names = [f"{idx_to_class[i.item()]}: {s:.4f}" for i, s in zip(labels, scores)]
+    if color_list is not None:
+        colors = [color_list[label] for label in labels]
+    else:
+        colors = None
+
+    if boxes.size(0) == 0:
+        result_with_boxes = img
+    else:
+        result_with_boxes = draw_bounding_boxes(
+            image=img,
+            boxes=boxes,
+            labels=label_names,
+            colors=colors,
+            width=3,
+            font="DejaVuSans",
+            font_size=14,
+        )
+
+    fig = plt.figure(num=image_path, figsize=(12, 9))
+    ax = fig.add_subplot(1, 1, 1)
+    ax.imshow(np.transpose(result_with_boxes, [1, 2, 0]))
+    ax.axis("off")
+
+    plt.tight_layout()
+    plt.show()
 
 
 def show_top_k(

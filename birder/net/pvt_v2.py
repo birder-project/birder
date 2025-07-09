@@ -495,3 +495,33 @@ registry.register_weights(
         "net": {"network": "pvt_v2_b0", "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "pvt_v2_b2_mmcr-il-all256px",
+    {
+        "url": "https://huggingface.co/birder-project/pvt_v2_b2_mmcr-il-all/resolve/main",
+        "description": "PVT v2 B2 model trained on the il-all dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 96.0,
+                "sha256": "1b160a37d6fdd172ba21842de2d32cf2cc9524db155218a6949be81b88a70fe4",
+            }
+        },
+        "net": {"network": "pvt_v2_b2", "tag": "il-all"},
+    },
+)
+registry.register_weights(
+    "pvt_v2_b2_mmcr-il-all",
+    {
+        "url": "https://huggingface.co/birder-project/pvt_v2_b2_mmcr-il-all/resolve/main",
+        "description": "PVT v2 B2 model trained on the il-all dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 96.0,
+                "sha256": "c0ffa0feb298e40c4335347ff648fe952fb0310e4c931d79be96a6af6bcbf1eb",
+            }
+        },
+        "net": {"network": "pvt_v2_b2", "tag": "il-all"},
+    },
+)

@@ -8,12 +8,15 @@ from PIL import Image
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from birder.data.transforms.detection import InferenceTransform
+
 
 def infer_image(
     net: torch.nn.Module | torch.ScriptModule,
     sample: Image.Image | str,
     transform: Callable[..., torch.Tensor],
     device: Optional[torch.device] = None,
+    score_threshold: Optional[float] = None,
     **kwargs: Any,
 ) -> dict[str, torch.Tensor]:
     """
@@ -39,7 +42,19 @@ def infer_image(
         device = torch.device("cpu")
 
     input_tensor = transform(image).unsqueeze(dim=0).to(device)
-    return infer_batch(net, input_tensor, **kwargs)[0]
+    detections = infer_batch(net, input_tensor, **kwargs)
+    if score_threshold is not None:
+        for i, detection in enumerate(detections):
+            idxs = torch.where(detection["scores"] > score_threshold)
+            detections[i]["scores"] = detection["scores"][idxs]
+            detections[i]["boxes"] = detection["boxes"][idxs]
+            detections[i]["labels"] = detection["labels"][idxs]
+
+    detections = InferenceTransform.postprocess(
+        detections, [input_tensor.shape[2:]], [image.size[::-1]]  # type: ignore[list-item]
+    )
+
+    return detections[0]
 
 
 def infer_batch(
@@ -117,13 +132,17 @@ def infer_dataloader(
     sample_paths: list[str] = []
     batch_size = dataloader.batch_size
     with tqdm(total=num_samples, initial=0, unit="images", unit_scale=True, leave=False) as progress:
-        for file_paths, inputs, targets, masks, image_sizes in dataloader:
+        for file_paths, inputs, targets, orig_sizes, masks, image_sizes in dataloader:
             # Inference
             inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
             masks = masks.to(device, non_blocking=True)
 
             with torch.amp.autocast(device.type, enabled=amp, dtype=amp_dtype):
                 detections = infer_batch(net, inputs, masks, image_sizes)
+
+            detections = InferenceTransform.postprocess(detections, image_sizes, orig_sizes)
+            if targets[0] != -1:
+                targets = InferenceTransform.postprocess(targets, image_sizes, orig_sizes)
 
             detections_list.extend(detections)
 

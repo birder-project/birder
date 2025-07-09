@@ -52,4 +52,4 @@ class TestTransforms(unittest.TestCase):
         detection.training_preset((256, 256), "birder", 5, classification.get_rgb_stats("birder"), False, True)
         detection.training_preset((256, 256), "ssd", 0, classification.get_rgb_stats("none"), True, False)
         detection.training_preset((256, 256), "multiscale", 0, classification.get_rgb_stats("none"), False, False)
-        detection.inference_preset((256, 256), classification.get_rgb_stats("birder"), False)
+        detection.InferenceTransform((256, 256), classification.get_rgb_stats("birder"), False)

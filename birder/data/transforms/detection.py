@@ -43,7 +43,7 @@ def get_birder_augment(
     if dynamic_size is True:
         target_size: Optional[int] | tuple[int, int] = min(size)
     elif max_size is not None:
-        target_size = None
+        target_size = min(size)
     else:
         target_size = size
 
@@ -145,7 +145,7 @@ def training_preset(
     if dynamic_size is True:
         target_size: Optional[int] | tuple[int, int] = min(size)
     elif max_size is not None:
-        target_size = None
+        target_size = min(size)
     else:
         target_size = size
 
@@ -259,55 +259,86 @@ def training_preset(
     raise ValueError("Unsupported augmentation type")
 
 
-def inference_preset(
-    size: tuple[int, int], rgv_values: RGBType, dynamic_size: bool = False, max_size: Optional[int] = None
-) -> Callable[..., torch.Tensor]:
-    """
-    Create a torchvision transform pipeline for detection inference
+class InferenceTransform:
+    def __init__(
+        self,
+        size: tuple[int, int],
+        rgv_values: RGBType,
+        dynamic_size: bool = False,
+        max_size: Optional[int] = None,
+        no_resize: bool = False,
+    ):
+        """
+        Create a torchvision transform pipeline for detection inference
 
-    This function builds a standardized preprocessing pipeline that converts input images
-    to tensors with proper normalization and resizing for detection model inference.
-    The pipeline handles various sizing strategies.
+        This function builds a standardized preprocessing pipeline that converts input images
+        to tensors with proper normalization and resizing for detection model inference.
+        The pipeline handles various sizing strategies.
 
-    Parameters
-    ----------
-    size
-        Target image dimensions as (height, width). Behavior depends on other parameters:
-        - With dynamic_size=False and max_size=None: Images resized exactly to this size
-        - With dynamic_size=True: min(size) used as target for shorter edge, aspect ratio preserved
-        - With max_size specified: Ignored in favor of max_size-based scaling
-    rgv_values
-        RGB normalization statistics containing 'mean' and 'std' tuples.
-        Typically obtained from get_rgb_stats().
-    dynamic_size
-        When True, preserves aspect ratios by using min(size) as the target
-        for the shorter edge. Longer edge scales proportionally.
-        Respects max_size is specified.
-    max_size
-        Maximum allowed size for the longer edge.
+        Parameters
+        ----------
+        size
+            Target image dimensions as (height, width). Behavior depends on other parameters:
+            - With dynamic_size=False and max_size=None: Images resized exactly to this size
+            - With dynamic_size=True: min(size) used as target for shorter edge, aspect ratio preserved
+            - With max_size specified: Ignored in favor of max_size-based scaling
+        rgv_values
+            RGB normalization statistics containing 'mean' and 'std' tuples.
+            Typically obtained from get_rgb_stats().
+        dynamic_size
+            When True, preserves aspect ratios by using min(size) as the target
+            for the shorter edge. Longer edge scales proportionally.
+            Respects max_size is specified.
+        max_size
+            Maximum allowed size for the longer edge.
+        no_resize
+            When True, skips resizing step entirely.
+        """
 
-    Returns
-    -------
-    Callable[..., torch.Tensor]
-        A callable transform pipeline that takes PIL Images or tensors and returns
-        normalized float32 tensors ready for model inference.
-    """
+        mean = rgv_values["mean"]
+        std = rgv_values["std"]
+        if dynamic_size is True:
+            target_size: Optional[int] | tuple[int, int] = min(size)
+        elif max_size is not None:
+            target_size = min(size)
+        else:
+            target_size = size
 
-    mean = rgv_values["mean"]
-    std = rgv_values["std"]
-    if dynamic_size is True:
-        target_size: Optional[int] | tuple[int, int] = min(size)
-    elif max_size is not None:
-        target_size = None
-    else:
-        target_size = size
+        if no_resize is True:
+            resize = v2.Identity()
+        else:
+            resize = v2.Resize(
+                target_size, interpolation=v2.InterpolationMode.BICUBIC, max_size=max_size, antialias=True
+            )
 
-    return v2.Compose(  # type: ignore
-        [
-            v2.ToImage(),
-            v2.Resize(target_size, interpolation=v2.InterpolationMode.BICUBIC, max_size=max_size, antialias=True),
-            v2.ToDtype(torch.float32, scale=True),
-            v2.Normalize(mean=mean, std=std),
-            v2.ToPureTensor(),
-        ]
-    )
+        self.transform = v2.Compose(
+            [
+                v2.ToImage(),
+                resize,
+                v2.ToDtype(torch.float32, scale=True),
+                v2.Normalize(mean=mean, std=std),
+                v2.ToPureTensor(),
+            ]
+        )
+
+    def __call__(self, *inpt: Any, **kwargs: Any) -> Any:
+        return self.transform(*inpt, **kwargs)
+
+    @staticmethod
+    def postprocess(
+        detections: list[dict[str, torch.Tensor]], image_sizes: list[list[int]], original_image_sizes: list[list[int]]
+    ) -> list[dict[str, torch.Tensor]]:
+        for i, (detection, image_size, original_size) in enumerate(zip(detections, image_sizes, original_image_sizes)):
+            if "boxes" not in detection:
+                continue
+
+            boxes = detection["boxes"]
+
+            (orig_h, orig_w) = original_size
+            h_ratio = orig_h / image_size[0]
+            w_ratio = orig_w / image_size[1]
+            adjusted_boxes = boxes * torch.tensor([w_ratio, h_ratio, w_ratio, h_ratio], device=boxes.device)
+
+            detections[i]["boxes"] = adjusted_boxes
+
+        return detections

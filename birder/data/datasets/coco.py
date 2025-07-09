@@ -7,6 +7,7 @@ from typing import Optional
 import torch
 from torchvision.datasets import CocoDetection
 from torchvision.datasets import wrap_dataset_for_transforms_v2
+from torchvision.transforms.v2 import functional as F
 
 logger = logging.getLogger(__name__)
 
@@ -88,9 +89,9 @@ class CocoTraining(CocoBase):
 
 
 class CocoInference(CocoBase):
-    def __getitem__(self, index: int) -> tuple[str, torch.Tensor, Any]:
+    def __getitem__(self, index: int) -> tuple[str, torch.Tensor, Any, list[int]]:
         coco_id = self.dataset.ids[index]
         path = self.dataset.coco.loadImgs(coco_id)[0]["file_name"]
         (sample, labels) = self.dataset[index]
 
-        return (path, sample, labels)
+        return (path, sample, labels, F.get_size(sample))

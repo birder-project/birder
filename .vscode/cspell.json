@@ -130,6 +130,7 @@
     "iloc",
     "imagenet",
     "imshow",
+    "inpt",
     "instancenorm",
     "interp",
     "ipykernel",

@@ -850,6 +850,10 @@ registry.register_alias("deformable_detr_boxref", Deformable_DETR, config={"box_
 registry.register_weights(
     "deformable_detr_boxref_coco_convnext_v2_tiny_imagenet21k",
     {
+        "url": (
+            "https://huggingface.co/birder-project/"
+            "deformable_detr_boxref_coco_convnext_v2_tiny_imagenet21k/resolve/main"
+        ),
         "description": (
             "Deformable DETR box refinement with a ConvNeXt v2 tiny backbone pretrained on ImageNet 21K, "
             "detection model trained on the COCO dataset"
@@ -858,7 +862,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 152.8,
-                "sha256": "5043f66bd79c0aa168396835ddee936161f33c325b91efb9c29d5bcfb0286fee",
+                "sha256": "bd3ee455a98569e19b36de550784995fffd78fd27ac836fc94c18f194b2df580",
             }
         },
         "net": {"network": "deformable_detr_boxref", "tag": "coco"},

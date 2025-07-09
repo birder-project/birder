@@ -3,7 +3,7 @@ from birder.common.fs_ops import load_pretrained_model
 from birder.common.lib import get_channels_from_signature
 from birder.common.lib import get_size_from_signature
 from birder.data.transforms.classification import inference_preset as classification_transform
-from birder.data.transforms.detection import inference_preset as detection_transform
+from birder.data.transforms.detection import InferenceTransform as detection_transform
 from birder.inference.classification import evaluate as evaluate_classification
 from birder.model_registry.model_registry import list_pretrained_models
 from birder.version import __version__

@@ -9,8 +9,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-from torchvision.io import decode_image
-from torchvision.utils import draw_bounding_boxes
 
 from birder.common import cli
 from birder.common import fs_ops
@@ -19,11 +17,12 @@ from birder.conf import settings
 from birder.data.collators.detection import inference_collate_fn
 from birder.data.datasets.coco import CocoInference
 from birder.data.datasets.directory import make_image_dataset
-from birder.data.transforms.detection import inference_preset
+from birder.data.transforms.detection import InferenceTransform
 from birder.inference.detection import infer_dataloader
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.results.detection import Results
+from birder.results.gui import show_detections
 
 logger = logging.getLogger(__name__)
 
@@ -37,53 +36,6 @@ def save_output(
     logger.info(f"Saving output at {output_path}")
     with open(output_path, "w", encoding="utf-8") as handle:
         json.dump(output, handle, indent=2)
-
-
-def show_detections(
-    img_path: str,
-    _input_tensor: torch.Tensor,
-    detection: dict[str, torch.Tensor],
-    score_threshold: float,
-    image_size: list[int],
-    class_list: list[str],
-    color_list: list[tuple[int, ...]],
-    root_path: Path,
-) -> None:
-    (H, W) = image_size
-    scores = detection["scores"]
-    idxs = torch.where(scores > score_threshold)
-    scores = scores[idxs]
-    boxes = detection["boxes"][idxs]
-    labels = detection["labels"][idxs]
-    label_names = [f"{class_list[i]}: {s:.4f}" for i, s in zip(labels, scores)]
-    colors = [color_list[label] for label in labels]
-
-    img = decode_image(root_path.joinpath(img_path))
-    (orig_h, orig_w) = img.shape[1:]
-    h_ratio = orig_h / H
-    w_ratio = orig_w / W
-    adjusted_boxes = boxes * torch.tensor([w_ratio, h_ratio, w_ratio, h_ratio]).to(boxes.device)
-
-    if adjusted_boxes.size(0) == 0:
-        result_with_boxes = img
-    else:
-        result_with_boxes = draw_bounding_boxes(
-            image=img,
-            boxes=adjusted_boxes,
-            labels=label_names,
-            colors=colors,
-            width=3,
-            font="DejaVuSans",
-            font_size=14,
-        )
-
-    fig = plt.figure(num=img_path, figsize=(12, 9))
-    ax = fig.add_subplot(1, 1, 1)
-    ax.imshow(np.transpose(result_with_boxes, [1, 2, 0]))
-    ax.axis("off")
-
-    plt.tight_layout()
-    plt.show()
 
 
 # pylint: disable=too-many-locals,too-many-branches
@@ -135,7 +87,7 @@ def predict(args: argparse.Namespace) -> None:
         dtype=model_dtype,
     )
 
-    if args.dynamic_size is True or args.max_size is not None:
+    if args.dynamic_size is True or args.max_size is not None or args.no_resize:
         net.set_dynamic_size()
 
     if args.fast_matmul is True or args.amp is True:
@@ -154,13 +106,11 @@ def predict(args: argparse.Namespace) -> None:
         logger.debug(f"Using size={args.size}")
 
     score_threshold = args.min_score
-    class_list = list(class_to_idx.keys())
-    class_list.insert(0, "Background")
 
     # Set label colors
     cmap = plt.get_cmap("jet")
     color_list = []
-    for c in np.linspace(0, 1, len(class_list)):
+    for c in np.linspace(0, 1, len(class_to_idx) + 1):  # Include background
         rgb = cmap(c)[0:3]
         rgb = tuple(int(x * 255) for x in rgb)
         color_list.append(rgb)
@@ -172,7 +122,7 @@ def predict(args: argparse.Namespace) -> None:
         dataset = CocoInference(
             root_path,
             args.coco_json_path,
-            transforms=inference_preset(args.size, rgb_stats, args.dynamic_size, args.max_size),
+            transforms=InferenceTransform(args.size, rgb_stats, args.dynamic_size, args.max_size, args.no_resize),
         )
         if dataset.class_to_idx != class_to_idx:
             logger.warning("Dataset class to index differs from model")
@@ -180,7 +130,10 @@ def predict(args: argparse.Namespace) -> None:
         labeled = False
         root_path = Path("")
         dataset = make_image_dataset(
-            args.data_path, {}, transforms=inference_preset(args.size, rgb_stats, args.dynamic_size, args.max_size)
+            args.data_path,
+            {},
+            transforms=InferenceTransform(args.size, rgb_stats, args.dynamic_size, args.max_size, args.no_resize),
+            return_orig_sizes=True,
         )
 
     num_samples = len(dataset)
@@ -196,23 +149,20 @@ def predict(args: argparse.Namespace) -> None:
 
     def batch_callback(
         file_paths: list[str],
-        inputs: torch.Tensor,
+        _inputs: torch.Tensor,
         detections: list[dict[str, torch.Tensor]],
         _targets: list[dict[str, Any]],
-        image_sizes: list[list[int]],
+        _image_sizes: list[list[int]],
     ) -> None:
         # Show flags
         if show_flag is True:
-            for img_path, input_tensor, detection, image_size in zip(file_paths, inputs, detections, image_sizes):
+            for img_path, detection in zip(file_paths, detections):
                 show_detections(
-                    img_path,
-                    input_tensor,
+                    str(root_path.joinpath(img_path)),
                     detection,
+                    class_to_idx=class_to_idx,
                     score_threshold=score_threshold,
-                    image_size=image_size,
-                    class_list=class_list,
                     color_list=color_list,
-                    root_path=root_path,
                 )
 
     # Sort out output file names
@@ -369,6 +319,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         default=False,
         action="store_true",
         help="allow variable image sizes while preserving aspect ratios",
+    )
+    parser.add_argument(
+        "--no-resize", default=False, action="store_true", help="process images at original size without resizing"
     )
     parser.add_argument("--batch-size", type=int, default=8, metavar="N", help="the batch size")
     parser.add_argument("--show", default=False, action="store_true", help="show image predictions")

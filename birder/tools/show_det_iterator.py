@@ -22,7 +22,7 @@ from birder.data.datasets.directory import tv_loader
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.classification import reverse_preset
 from birder.data.transforms.detection import AugType
-from birder.data.transforms.detection import inference_preset
+from birder.data.transforms.detection import InferenceTransform
 from birder.data.transforms.detection import training_preset
 
 
@@ -44,7 +44,7 @@ def show_det_iterator(args: argparse.Namespace) -> None:
         dataset = CocoTraining(args.data_path, args.coco_json_path, transforms=transform)
     elif args.mode == "inference":
         offset = 1
-        transform = inference_preset(args.size, get_rgb_stats("birder"), args.dynamic_size, args.max_size)
+        transform = InferenceTransform(args.size, get_rgb_stats("birder"), args.dynamic_size, args.max_size)
         dataset = CocoInference(args.data_path, args.coco_json_path, transforms=transform)
     else:
         raise ValueError(f"Unknown mode={args.mode}")
