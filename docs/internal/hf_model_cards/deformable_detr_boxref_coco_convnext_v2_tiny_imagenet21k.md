@@ -11,6 +11,8 @@ license: apache-2.0
 
 A Deformable DETR with box refinement object detection model with ConvNeXt v2 Tiny backbone (pre-trained on ImageNet-21k) and trained on COCO 2017 dataset.
 
+**Custom Kernels**: This model uses optimized custom kernels for Soft-NMS and Deformable Attention operations. If you encounter compilation issues or prefer to use pure PyTorch implementations, set the environment variable `DISABLE_CUSTOM_KERNELS=1` before loading the model.
+
 ## Model Details
 
 - **Model Type:** Object detection
@@ -21,6 +23,7 @@ A Deformable DETR with box refinement object detection model with ConvNeXt v2 Ti
 
 - **Papers:**
     - Deformable DETR: Deformable Transformers for End-to-End Object Detection: <https://arxiv.org/abs/2010.04159>
+    - Soft-NMS -- Improving Object Detection With One Line of Code: <https://arxiv.org/abs/1704.04503>
     - ConvNeXt V2: Co-designing and Scaling ConvNets with Masked Autoencoders: <https://arxiv.org/abs/2301.00808>
 
 - **Metrics:**
@@ -39,6 +42,7 @@ import birder
 from birder.inference.detection import infer_image
 
 (net, model_info) = birder.load_pretrained_model("deformable_detr_boxref_coco_convnext_v2_tiny_imagenet21k", inference=True)
+# Can also load model with Soft-NMS by passing custom_config={"soft_nms": True}
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -65,6 +69,16 @@ detections = infer_image(net, image, transform)
       archivePrefix={arXiv},
       primaryClass={cs.CV},
       url={https://arxiv.org/abs/2010.04159},
+}
+
+@misc{bodla2017softnmsimprovingobject,
+      title={Soft-NMS -- Improving Object Detection With One Line of Code},
+      author={Navaneeth Bodla and Bharat Singh and Rama Chellappa and Larry S. Davis},
+      year={2017},
+      eprint={1704.04503},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/1704.04503},
 }
 
 @misc{woo2023convnextv2codesigningscaling,

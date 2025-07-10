@@ -828,6 +828,7 @@ def load_pretrained_model(
     inference: bool = False,
     device: Optional[torch.device] = None,
     dtype: Optional[torch.dtype] = None,
+    custom_config: Optional[dict[str, Any]] = None,
     progress_bar: bool = True,
 ) -> tuple[BaseNet | DetectionBaseNet, ModelInfo | DetectionModelInfo]:
     """
@@ -849,6 +850,8 @@ def load_pretrained_model(
     dtype
         Data type for model parameters and computations (e.g., torch.float32, torch.float16).
         Determines precision of numerical operations.
+    custom_config
+        Additional model configuration that overrides or extends the predefined configuration.
     progress_bar
         Whether to display a progress bar during file download.
 
@@ -906,6 +909,7 @@ def load_pretrained_model(
             model_metadata["net"]["network"],
             path=dst,
             net_param=model_metadata["net"].get("net_param", None),
+            config=custom_config,
             tag=model_metadata["net"].get("tag", None),
             reparameterized=model_metadata["net"].get("reparameterized", False),
             inference=inference,
@@ -919,6 +923,7 @@ def load_pretrained_model(
             model_metadata["net"]["network"],
             path=dst,
             net_param=model_metadata["net"].get("net_param", None),
+            config=custom_config,
             tag=model_metadata["net"].get("tag", None),
             reparameterized=model_metadata["net"].get("reparameterized", False),
             backbone=model_metadata["backbone"]["network"],

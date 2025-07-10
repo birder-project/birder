@@ -50,7 +50,7 @@ include = ["birder*"]
 namespaces = false
 
 [tool.setuptools.package-data]
-birder = ["**/*.cpp", "**/*.hpp", "**/*.cu", "**/*.cuh"]
+birder = ["**/*.cpp", "**/*.h", "**/*.hpp", "**/*.cu", "**/*.cuh"]
 
 [tool.setuptools.dynamic]
 version = { attr = "birder.version.__version__" }
