@@ -228,16 +228,28 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec --network vit_reg4_
 
 ### Data2Vec2
 
+#### Data2Vec2: ViT reg4 m16
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_reg4_m16 --opt adamw --lr 0.0005 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 128 --epochs 200 --wd 0.05 --clip-grad-norm 4 --amp --amp-dtype bfloat16 --compile --compile-opt --rgb-mode none --data-path data/training data/raw_data data/detection_data/training
+```
+
+Fine-tuning, first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_reg4_m16 --tag data2vec2 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 224 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --fast-matmul --compile --rgb-mode none --save-frequency 1 --resume-epoch 0 --reset-head --freeze-body
+```
+
 #### Data2Vec2: ViT b16
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_b16 --opt adamw --lr 0.0005 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 16 --epochs 200 --wd 0.05 --clip-grad-norm 4 --amp --amp-dtype bfloat16 --compile --compile-opt --rgb-mode none --data-path data/training data/raw_data data/detection_data/training
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_b16 --opt adamw --lr 0.0005 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 96 --epochs 200 --wd 0.05 --clip-grad-norm 4 --amp --amp-dtype bfloat16 --compile --compile-opt --rgb-mode none --data-path data/training data/raw_data data/detection_data/training
 ```
 
 #### Data2Vec2: SoViT reg8 150m p14 swiglu AVG
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_reg8_so150m_p14_swiglu_avg --average-layers 12 --decoder-dim 896 --decoder-kernel-size 5 --decoder-layers 3 --opt adamw --lr 0.0004 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 8 --epochs 200 --wd 0.05 --clip-grad-norm 4 --amp --amp-dtype bfloat16 --compile --compile-opt --rgb-mode none --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_reg8_so150m_p14_swiglu_avg --average-layers 12 --decoder-dim 896 --decoder-kernel-size 5 --decoder-layers 3 --opt adamw --lr 0.0004 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 32 --epochs 200 --wd 0.05 --clip-grad-norm 4 --amp --amp-dtype bfloat16 --compile --compile-opt --rgb-mode none --wds --wds-info data/ssl_packed/_info.json
 ```
 
 ### DINO v1

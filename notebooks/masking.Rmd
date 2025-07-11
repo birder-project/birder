@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.16.7
+      jupytext_version: 1.17.2
   kernelspec:
     display_name: birder
     language: python
@@ -30,8 +30,8 @@ from PIL import Image
 from birder.common import lib
 from birder.common import masking
 from birder.conf import settings
-from birder.transforms.classification import get_rgb_stats
-from birder.transforms.classification import inference_preset
+from birder.data.transforms.classification import get_rgb_stats
+from birder.data.transforms.classification import inference_preset
 ```
 
 ```{python}

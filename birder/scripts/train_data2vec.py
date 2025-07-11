@@ -504,7 +504,7 @@ def train(args: argparse.Namespace) -> None:
         fs_ops.checkpoint_model(
             backbone_name,
             epoch,
-            model_to_save.backbone.backbone,
+            model_to_save.ema_backbone,
             backbone_signature,
             {},
             rgb_stats,

@@ -121,6 +121,14 @@ class Data2Vec2(SSLBaseNet):
             self.size[0] // self.backbone.max_stride,
             self.size[1] // self.backbone.max_stride,
         )
+        self.head = nn.Linear(self.backbone.embedding_size, self.backbone.embedding_size)
+
+        # Weights initialization
+        self.ema_backbone.load_state_dict(self.backbone.state_dict())
+
+        nn.init.trunc_normal_(self.head.weight, std=0.02)
+        if self.head.bias is not None:
+            nn.init.zeros_(self.head.bias)
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ
         self, src: torch.Tensor, masks: torch.Tensor
@@ -146,21 +154,23 @@ class Data2Vec2(SSLBaseNet):
         x_cls = x["embedding"]
         x = x["tokens"][:, self.backbone.num_special_tokens :]
 
+        x_cls = self.head(x_cls)
+
         # Using noise instead of mask tokens
         full_sequence = (
-            torch.randn(x.size(0) * self.num_patches, self.backbone.embedding_size, device=x.device, dtype=x.dtype)
+            torch.randn(x.size(0), self.num_patches, self.backbone.embedding_size, device=x.device, dtype=x.dtype)
             * 0.02
         )
+        indices_expanded = ids_keep.unsqueeze(-1).expand(-1, -1, self.backbone.embedding_size)  # (B, num_kept, d_model)
+        full_sequence.scatter_(1, indices_expanded, x)
         masks = ~masks.bool()
-        full_sequence[masks.reshape(-1)] = x.reshape(-1, x.size(2))
-        full_sequence = full_sequence.reshape(x.size(0), self.num_patches, self.backbone.embedding_size)
 
         predictions = self.decoder(full_sequence)
 
         # Compute loss only on masked positions
-        patch_loss = F.mse_loss(predictions[masks], y[masks], reduction="mean")
+        patch_loss = F.mse_loss(predictions[masks], y[masks], reduction="none").sum(dim=-1).mean()
 
         # CLS loss
-        cls_loss = F.mse_loss(x_cls, y_cls, reduction="mean") * self.cls_loss_weight
+        cls_loss = F.mse_loss(x_cls, y_cls, reduction="none").sum(dim=-1).mean() * self.cls_loss_weight
 
         return patch_loss + cls_loss

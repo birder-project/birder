@@ -93,13 +93,13 @@ class MAE_ViT(MIMBaseNet):
         """
 
         p = self.patch_size
-        h = int(x.shape[1] ** 0.5)
-        w = int(x.shape[1] ** 0.5)
+        h = int(x.size(1) ** 0.5)
+        w = int(x.size(1) ** 0.5)
         assert h * w == x.shape[1]
 
-        x = x.reshape(shape=(x.shape[0], h, w, p, p, 3))
+        x = x.reshape(shape=(x.size(0), h, w, p, p, 3))
         x = torch.einsum("nhwpqc->nchpwq", x)
-        imgs = x.reshape(shape=(x.shape[0], 3, h * p, h * p))
+        imgs = x.reshape(shape=(x.size(0), 3, h * p, h * p))
 
         return imgs
 
@@ -108,9 +108,9 @@ class MAE_ViT(MIMBaseNet):
 
         # Append mask tokens to sequence
         special_token_len = self.encoder.num_special_tokens
-        mask_tokens = self.mask_token.repeat(x.shape[0], ids_restore.shape[1] + special_token_len - x.shape[1], 1)
+        mask_tokens = self.mask_token.repeat(x.size(0), ids_restore.size(1) + special_token_len - x.size(1), 1)
         x_ = torch.concat([x[:, special_token_len:, :], mask_tokens], dim=1)  # No special tokens
-        x_ = torch.gather(x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2]))  # Un-shuffle
+        x_ = torch.gather(x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.size(2)))  # Un-shuffle
         x = torch.concat([x[:, :special_token_len, :], x_], dim=1)  # Append special tokens
 
         # Add pos embed

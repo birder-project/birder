@@ -62,7 +62,7 @@ class TrainTransform:
 
     def __call__(self, image: Any) -> tuple[list[torch.Tensor], torch.Tensor]:
         image = self.transform(image)
-        mask = self.mask_generator(self.clone_batch).squeeze()
+        mask = self.mask_generator(self.clone_batch)
 
         return (image, mask)
 
@@ -165,9 +165,10 @@ def train(args: argparse.Namespace) -> None:
     #
     rgb_stats = get_rgb_stats(args.rgb_mode)
     mask_size = (args.size[0] // net.backbone.max_stride, args.size[1] // net.backbone.max_stride)
+    seq_len = mask_size[0] * mask_size[1]
     mask_generator = InverseRollBlockMasking(
         mask_size,
-        num_masking_patches=mask_size * args.mask_ratio,
+        num_masking_patches=int(seq_len * args.mask_ratio),
         min_aspect=0.33,
         max_aspect=3.33,
     )
@@ -329,7 +330,7 @@ def train(args: argparse.Namespace) -> None:
         torchinfo.summary(
             net_for_info,
             device=device,
-            input_data={"src": torch.rand(sample_shape), "mask": mask_generator(batch_size)},
+            input_data={"src": torch.rand(sample_shape), "masks": mask_generator(batch_size * args.clone_batch)},
             dtypes=[model_dtype],
             col_names=["input_size", "output_size", "kernel_size", "num_params"],
             depth=4,
@@ -386,6 +387,7 @@ def train(args: argparse.Namespace) -> None:
             global_step = ((epoch - 1) * (last_batch_idx + 1)) + i
             x = x.to(device, dtype=model_dtype, non_blocking=True)
             masks = masks.to(device, dtype=model_dtype, non_blocking=True)
+            masks = masks.reshape(-1, masks.size(-1))
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
 
@@ -512,7 +514,7 @@ def train(args: argparse.Namespace) -> None:
         fs_ops.checkpoint_model(
             backbone_name,
             epoch,
-            model_to_save.backbone.backbone,
+            model_to_save.ema_backbone,
             backbone_signature,
             {},
             rgb_stats,
@@ -565,7 +567,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--decoder-kernel-size", type=int, default=3, help="decoder kernel size")
     parser.add_argument("--decoder-layers", type=int, default=6, help="number of decoder layers")
     parser.add_argument("--mask-ratio", type=float, default=0.75, help="masking ratio")
-    parser.add_argument("--clone-batch", type=int, default=16, help="number of different masked versions")
+    parser.add_argument("--clone-batch", type=int, default=8, help="number of different masked versions")
     parser.add_argument(
         "--momentum-teacher",
         type=float,
