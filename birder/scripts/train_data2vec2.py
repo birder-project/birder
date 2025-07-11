@@ -1,6 +1,9 @@
 """
-Paper "data2vec: A General Framework for Self-supervised Learning in Speech, Vision and Language",
-https://arxiv.org/abs/2202.03555
+Paper "Efficient Self-supervised Learning with Contextualized Target Representations for Vision, Speech and Language",
+https://arxiv.org/abs/2212.07525
+
+Changes from original:
+* No teacher momentum truncation
 """
 
 import argparse
@@ -30,7 +33,7 @@ from birder.common import fs_ops
 from birder.common import training_utils
 from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
-from birder.common.masking import BlockMasking
+from birder.common.masking import InverseRollBlockMasking
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import make_image_dataset
@@ -44,19 +47,22 @@ from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import get_signature
 from birder.net.ssl.base import get_ssl_signature
-from birder.net.ssl.data2vec import Data2Vec
+from birder.net.ssl.data2vec2 import Data2Vec2
 
 logger = logging.getLogger(__name__)
 
 
 class TrainTransform:
-    def __init__(self, transform: Callable[..., torch.Tensor], mask_generator: Callable[[int], torch.Tensor]) -> None:
+    def __init__(
+        self, transform: Callable[..., torch.Tensor], mask_generator: Callable[[int], torch.Tensor], clone_batch: int
+    ) -> None:
         self.transform = transform
         self.mask_generator = mask_generator
+        self.clone_batch = clone_batch
 
     def __call__(self, image: Any) -> tuple[list[torch.Tensor], torch.Tensor]:
         image = self.transform(image)
-        mask = self.mask_generator(1).squeeze()
+        mask = self.mask_generator(self.clone_batch).squeeze()
 
         return (image, mask)
 
@@ -102,9 +108,9 @@ def train(args: argparse.Namespace) -> None:
     #
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
-    backbone_name = get_network_name(args.network, net_param=args.net_param, tag="data2vec")
+    backbone_name = get_network_name(args.network, net_param=args.net_param, tag="data2vec2")
     network_name = get_mim_network_name(
-        "data2vec",
+        "data2vec2",
         net_param=None,
         encoder=args.network,
         encoder_param=args.net_param,
@@ -119,12 +125,15 @@ def train(args: argparse.Namespace) -> None:
         config=args.model_config,
         size=args.size,
     )
-    net = Data2Vec(
+    net = Data2Vec2(
         backbone,
         config={
-            "normalize_targets": True,
-            "average_top_k_layers": 6,
-            "loss_beta": 2.0,
+            "average_top_k_layers": args.average_layers,
+            "decoder_dim": args.decoder_dim,
+            "decoder_kernel_size": args.decoder_kernel_size,
+            "decoder_layers": args.decoder_layers,
+            "clone_batch": args.clone_batch,
+            "cls_loss_weight": 0.01,
         },
     )
     net.ema_backbone.eval()
@@ -156,14 +165,13 @@ def train(args: argparse.Namespace) -> None:
     #
     rgb_stats = get_rgb_stats(args.rgb_mode)
     mask_size = (args.size[0] // net.backbone.max_stride, args.size[1] // net.backbone.max_stride)
-    mask_generator = BlockMasking(
+    mask_generator = InverseRollBlockMasking(
         mask_size,
-        min_num_patches=16,
-        max_num_patches=int(mask_size[0] * mask_size[1] * 0.6),
+        num_masking_patches=mask_size * args.mask_ratio,
         min_aspect=0.33,
         max_aspect=3.33,
     )
-    training_transform = TrainTransform(training_utils.get_training_transform(args), mask_generator)
+    training_transform = TrainTransform(training_utils.get_training_transform(args), mask_generator, args.clone_batch)
     if args.wds is True:
         wds_path: str | list[str]
         if args.wds_info is not None:
@@ -261,7 +269,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Teacher momentum schedule
     momentum_schedule = training_utils.cosine_scheduler(
-        args.momentum_teacher, 0.9998, args.epochs, 0, last_batch_idx + 1
+        args.momentum_teacher, 0.99999, args.epochs, 0, last_batch_idx + 1
     )
 
     # Gradient scaler and AMP related tasks
@@ -524,15 +532,17 @@ def get_args_parser() -> argparse.ArgumentParser:
         epilog=(
             "Usage examples\n"
             "==============\n"
-            "torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec \\\n"
-            "    --network vit_reg4_b16_avg \\\n"
+            "torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 \\\n"
+            "    --network vit_b16 \\\n"
             "    --opt adamw \\\n"
             "    --lr 0.0005 \\\n"
+            "    --opt-betas 0.9 0.95 \\\n"
             "    --lr-scheduler cosine \\\n"
             "    --warmup-epochs 10 \\\n"
-            "    --batch-size 256 \\\n"
-            "    --epochs 800 \\\n"
+            "    --batch-size 16 \\\n"
+            "    --epochs 100 \\\n"
             "    --wd 0.05 \\\n"
+            "    --clip-grad-norm 4 \\\n"
             "    --amp --amp-dtype bfloat16 \\\n"
             "    --compile \\\n"
             "    --rgb-mode none \\\n"
@@ -550,10 +560,16 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
+    parser.add_argument("--average-layers", type=int, default=10, help="number of encoder layers to average")
+    parser.add_argument("--decoder-dim", type=int, default=768, help="decoder dimensionality")
+    parser.add_argument("--decoder-kernel-size", type=int, default=3, help="decoder kernel size")
+    parser.add_argument("--decoder-layers", type=int, default=6, help="number of decoder layers")
+    parser.add_argument("--mask-ratio", type=float, default=0.75, help="masking ratio")
+    parser.add_argument("--clone-batch", type=int, default=16, help="number of different masked versions")
     parser.add_argument(
         "--momentum-teacher",
         type=float,
-        default=0.999,
+        default=0.9998,
         help="base EMA parameter for teacher update, set a higher value with small batches",
     )
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
@@ -589,7 +605,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sync-bn", default=False, action="store_true", help="use synchronized BatchNorm")
     parser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
     parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
-    training_utils.add_aug_args(parser, default_min_scale=0.3)
+    training_utils.add_aug_args(parser, default_level=1, default_min_scale=0.3)
     parser.add_argument(
         "--rgb-mode",
         type=str,

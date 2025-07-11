@@ -1,12 +1,11 @@
 #!/bin/bash
 
 #SBATCH --job-name=birder_training
-#SBATCH --nodes=2                         # Number of nodes
-#SBATCH --ntasks-per-node=4               # Number of tasks (GPUs) per node
-#SBATCH --gres=gpu:4                      # Number of GPUs per node
+#SBATCH --nodes=1                         # Number of nodes
+#SBATCH --ntasks-per-node=2               # Number of tasks (GPUs) per node
+#SBATCH --gpus=2                          # Number of GPUs (NON-STANDARD, see template for standard usage)
 #SBATCH --cpus-per-task=8                 # CPU cores per task
-#SBATCH --mem=64G                         # Memory per node
-#SBATCH --time=24:00:00                   # Maximum runtime (HH:MM:SS) or (days-HH:MM:SS) e.g. --time=7-00:00:00
+#SBATCH --time=01:00:00                   # Maximum runtime (HH:MM:SS) or (days-HH:MM:SS) e.g. --time=7-00:00:00
 #SBATCH --partition=main                  # Partition name (adjust as needed)
 #SBATCH --output=logs/slurm_%j.out        # Output log file
 #SBATCH --error=logs/slurm_%j.err         # Error log file
@@ -39,7 +38,7 @@ echo "Node list: $SLURM_JOB_NODELIST"
 echo "========================"
 
 # Load required modules (adjust based on your cluster)
-module load python/3.11
+# module load python/3.11
 module load cuda/12.8
 
 # Activate your virtual environment
@@ -50,7 +49,6 @@ export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
 export MASTER_PORT=12355
 export WORLD_SIZE=$SLURM_NTASKS
 export NCCL_DEBUG=INFO
-export NCCL_SOCKET_IFNAME=ib0 # Adjust based on your network interface
 
 # Optional: Set CUDA visible devices and other optimizations
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -65,30 +63,29 @@ echo "World size: $WORLD_SIZE"
 echo "========================================="
 
 # Launch distributed training
-srun python -m birder.scripts.train_dino_v2 \
-    --network rope_vit_reg8_so150m_p14_ap \
-    --ibot-separate-head \
-    --dino-out-dim 131072 \
-    --ibot-out-dim 131072 \
-    --head-bottleneck-dim 384 \
-    --centering sinkhorn_knopp \
-    --local-crop-size 98 \
-    --opt adamw \
-    --lr 0.0002 \
-    --lr-scheduler-update iter \
+srun python -m birder.scripts.train \
+    --network resnet_v1_101 \
+    --tag test \
+    --opt lamb \
+    --lr 0.005 \
     --lr-scheduler cosine \
-    --lr-cosine-min 1e-6 \
-    --epochs 400 \
-    --warmup-epochs 40 \
-    --batch-size 64 \
-    --wd 0.04 \
-    --wd-end 0.2 \
-    --clip-grad-norm 3 \
-    --model-config drop_path_rate=0.3 \
+    --lr-cosine-min 1e-7 \
+    --warmup-epochs 5 \
+    --epochs 300 \
+    --wd 0.02 \
+    --grad-accum-steps 4 \
+    --mixup-alpha 0.1 \
+    --cutmix \
+    --aug-type ra \
+    --re-prob 0.25 \
+    --rgb-mode imagenet \
     --amp --amp-dtype bfloat16 \
     --compile \
-    --rgb-mode none \
-    --wds --wds-info /mnt/data/ssl_packed/_info.json
+    --wds \
+    --wds-class-file https://huggingface.co/datasets/birder-project/CUB_200_2011-WDS/resolve/main/classes.txt \
+    --wds-info https://huggingface.co/datasets/birder-project/CUB_200_2011-WDS/resolve/main/_info.json
+
+    
 
 # ==============================================================================
 # POST-TRAINING CLEANUP AND REPORTING

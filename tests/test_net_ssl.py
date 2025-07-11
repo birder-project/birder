@@ -10,6 +10,7 @@ from birder.net.ssl import barlow_twins
 from birder.net.ssl import byol
 from birder.net.ssl import capi
 from birder.net.ssl import data2vec
+from birder.net.ssl import data2vec2
 from birder.net.ssl import dino_v1
 from birder.net.ssl import dino_v2
 from birder.net.ssl import i_jepa
@@ -137,6 +138,34 @@ class TestNetSSL(unittest.TestCase):
 
         # Test network
         out = net(torch.rand((batch_size, 3, 96, 96)), masks)
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.ndim, 0)
+
+    def test_data2vec2(self) -> None:
+        batch_size = 2
+        backbone = registry.net_factory("vit_t16", 3, 0, size=(128, 128))
+        net = data2vec2.Data2Vec2(
+            backbone,
+            config={
+                "average_top_k_layers": 6,
+                "decoder_dim": 128,
+                "decoder_kernel_size": 3,
+                "decoder_layers": 4,
+                "clone_batch": 3,
+                "cls_loss_weight": 0.1,
+            },
+        )
+
+        mask_generator = masking.InverseRollBlockMasking(
+            (128 // backbone.stem_stride, 128 // backbone.stem_stride),
+            num_masking_patches=32,
+            min_aspect=0.66,
+            max_aspect=1.5,
+        )
+        masks = mask_generator(batch_size * 3)
+
+        # Test network
+        out = net(torch.rand((batch_size, 3, 128, 128)), masks)
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 0)
 

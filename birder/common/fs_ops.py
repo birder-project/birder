@@ -46,9 +46,9 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def read_url(url: str | Request) -> Any:
+def read_url(url: str | Request) -> str:
     with urlopen(url) as r:  # nosec # allowing all schemas (including file:)
-        return r.read().decode(r.headers.get_content_charset("utf-8"))
+        return r.read().decode(r.headers.get_content_charset("utf-8"))  # type: ignore[no-any-return]
 
 
 def write_signature(network_name: str, signature: SignatureType | DetectionSignatureType) -> None:
@@ -96,7 +96,7 @@ def read_config_from_path(path: str | Path) -> dict[str, Any]:
 
 def read_class_file(path: str | Path) -> dict[str, int]:
     if isinstance(path, str) and "://" in path:
-        class_list = read_url(path)
+        class_list = read_url(path).splitlines()
     else:
         with open(path, "r", encoding="utf-8") as handle:
             class_list = handle.read().splitlines()
@@ -108,7 +108,7 @@ def read_class_file(path: str | Path) -> dict[str, int]:
 
 def read_json_class_file(path: str | Path) -> dict[str, int]:
     if isinstance(path, str) and "://" in path:
-        class_dict = read_url(path)
+        class_dict = json.loads(read_url(path))
     else:
         with open(path, "r", encoding="utf-8") as handle:
             class_dict = json.load(handle)
@@ -658,7 +658,7 @@ def load_detection_model(
     tag: Optional[str] = None,
     reparameterized: bool = False,
     backbone: str,
-    backbone_param: Optional[float],
+    backbone_param: Optional[float] = None,
     backbone_config: Optional[dict[str, Any]] = None,
     backbone_tag: Optional[str] = None,
     backbone_reparameterized: bool = False,

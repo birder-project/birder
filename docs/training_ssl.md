@@ -8,6 +8,7 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 - [BYOL](#byol)
 - [CAPI](#capi)
 - [Data2Vec](#data2vec)
+- [Data2Vec2](#data2vec2)
 - [DINO v1](#dino-v1)
 - [DINO v2](#dino-v2)
 - [DINO v2 Dist](#dino-v2-dist)
@@ -223,6 +224,20 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec --network vit_reg1_
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec --network vit_reg4_b16_avg --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 192 --epochs 600 --wd 0.05 --clip-grad-norm 3 --model-config drop_path_rate=0.25 --amp --amp-dtype bfloat16 --compile --compile-opt --rgb-mode none --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
+
+### Data2Vec2
+
+#### Data2Vec2: ViT b16
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_b16 --opt adamw --lr 0.0005 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 16 --epochs 200 --wd 0.05 --clip-grad-norm 4 --amp --amp-dtype bfloat16 --compile --compile-opt --rgb-mode none --data-path data/training data/raw_data data/detection_data/training
+```
+
+#### Data2Vec2: SoViT reg8 150m p14 swiglu AVG
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_reg8_so150m_p14_swiglu_avg --average-layers 12 --decoder-dim 896 --decoder-kernel-size 5 --decoder-layers 3 --opt adamw --lr 0.0004 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 8 --epochs 200 --wd 0.05 --clip-grad-norm 4 --amp --amp-dtype bfloat16 --compile --compile-opt --rgb-mode none --wds --wds-info data/ssl_packed/_info.json
 ```
 
 ### DINO v1
