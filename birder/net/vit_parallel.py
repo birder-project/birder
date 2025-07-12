@@ -518,7 +518,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         )
 
 
-registry.register_alias(
+registry.register_model_config(
     "vit_parallel_s16_18x2_ls",
     ViT_Parallel,
     config={
@@ -532,7 +532,7 @@ registry.register_alias(
         "drop_path_rate": 0.05,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_parallel_s16_18x2_ls_avg",
     ViT_Parallel,
     config={
@@ -547,7 +547,7 @@ registry.register_alias(
         "drop_path_rate": 0.05,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_parallel_b16_18x2_ls",
     ViT_Parallel,
     config={

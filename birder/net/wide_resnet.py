@@ -173,8 +173,8 @@ class Wide_ResNet(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias("wide_resnet_50", Wide_ResNet, config={"units": [3, 4, 6, 3]})
-registry.register_alias("wide_resnet_101", Wide_ResNet, config={"units": [3, 4, 23, 3]})
-registry.register_alias("wide_resnet_152", Wide_ResNet, config={"units": [3, 8, 36, 3]})
-registry.register_alias("wide_resnet_200", Wide_ResNet, config={"units": [3, 24, 36, 3]})
-registry.register_alias("wide_resnet_269", Wide_ResNet, config={"units": [3, 30, 48, 8]})
+registry.register_model_config("wide_resnet_50", Wide_ResNet, config={"units": [3, 4, 6, 3]})
+registry.register_model_config("wide_resnet_101", Wide_ResNet, config={"units": [3, 4, 23, 3]})
+registry.register_model_config("wide_resnet_152", Wide_ResNet, config={"units": [3, 8, 36, 3]})
+registry.register_model_config("wide_resnet_200", Wide_ResNet, config={"units": [3, 24, 36, 3]})
+registry.register_model_config("wide_resnet_269", Wide_ResNet, config={"units": [3, 30, 48, 8]})

@@ -295,7 +295,7 @@ class Inception_NeXt(DetectorBackbone):
         )
 
 
-registry.register_alias(
+registry.register_model_config(
     "inception_next_a",
     Inception_NeXt,
     config={
@@ -306,7 +306,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "inception_next_t",
     Inception_NeXt,
     config={
@@ -317,7 +317,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "inception_next_s",
     Inception_NeXt,
     config={
@@ -328,7 +328,7 @@ registry.register_alias(
         "drop_path_rate": 0.3,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "inception_next_b",
     Inception_NeXt,
     config={
@@ -339,7 +339,7 @@ registry.register_alias(
         "drop_path_rate": 0.4,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "inception_next_l",
     Inception_NeXt,
     config={

@@ -196,37 +196,37 @@ class ResNet_v1(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "resnet_v1_18",
     ResNet_v1,
     config={"bottle_neck": False, "filter_list": [64, 64, 128, 256, 512], "units": [2, 2, 2, 2]},
 )
-registry.register_alias(
+registry.register_model_config(
     "resnet_v1_34",
     ResNet_v1,
     config={"bottle_neck": False, "filter_list": [64, 64, 128, 256, 512], "units": [3, 4, 6, 3]},
 )
-registry.register_alias(
+registry.register_model_config(
     "resnet_v1_50",
     ResNet_v1,
     config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 4, 6, 3]},
 )
-registry.register_alias(
+registry.register_model_config(
     "resnet_v1_101",
     ResNet_v1,
     config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 4, 23, 3]},
 )
-registry.register_alias(
+registry.register_model_config(
     "resnet_v1_152",
     ResNet_v1,
     config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 8, 36, 3]},
 )
-registry.register_alias(
+registry.register_model_config(
     "resnet_v1_200",
     ResNet_v1,
     config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 24, 36, 3]},
 )
-registry.register_alias(
+registry.register_model_config(
     "resnet_v1_269",
     ResNet_v1,
     config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 30, 48, 8]},

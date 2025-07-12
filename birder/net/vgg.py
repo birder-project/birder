@@ -98,7 +98,7 @@ class Vgg(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias("vgg_11", Vgg, config={"repeats": [1, 1, 2, 2, 2]})
-registry.register_alias("vgg_13", Vgg, config={"repeats": [2, 2, 2, 2, 2]})
-registry.register_alias("vgg_16", Vgg, config={"repeats": [2, 2, 3, 3, 3]})
-registry.register_alias("vgg_19", Vgg, config={"repeats": [2, 2, 4, 4, 4]})
+registry.register_model_config("vgg_11", Vgg, config={"repeats": [1, 1, 2, 2, 2]})
+registry.register_model_config("vgg_13", Vgg, config={"repeats": [2, 2, 2, 2, 2]})
+registry.register_model_config("vgg_16", Vgg, config={"repeats": [2, 2, 3, 3, 3]})
+registry.register_model_config("vgg_19", Vgg, config={"repeats": [2, 2, 4, 4, 4]})

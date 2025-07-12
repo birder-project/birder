@@ -373,7 +373,7 @@ class HieraDet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         assert len(incompatible_keys.unexpected_keys) == 0
 
 
-registry.register_alias(
+registry.register_model_config(
     "hieradet_tiny",
     HieraDet,
     config={
@@ -386,7 +386,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hieradet_small",
     HieraDet,
     config={
@@ -399,7 +399,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hieradet_base",
     HieraDet,
     config={
@@ -412,7 +412,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hieradet_base_plus",
     HieraDet,
     config={
@@ -425,7 +425,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hieradet_large",
     HieraDet,
     config={

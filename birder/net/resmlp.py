@@ -119,22 +119,22 @@ class ResMLP(BaseNet):
         raise RuntimeError("Model resizing not supported")
 
 
-registry.register_alias(
+registry.register_model_config(
     "resmlp_12",
     ResMLP,
     config={"embed_dim": 384, "depth": 12, "patch_size": (16, 16), "init_value": 0.1, "drop_path_rate": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "resmlp_24",
     ResMLP,
     config={"embed_dim": 384, "depth": 24, "patch_size": (16, 16), "init_value": 1e-5, "drop_path_rate": 0.1},
 )
-registry.register_alias(
+registry.register_model_config(
     "resmlp_36",
     ResMLP,
     config={"embed_dim": 384, "depth": 36, "patch_size": (16, 16), "init_value": 1e-6, "drop_path_rate": 0.2},
 )
-registry.register_alias(
+registry.register_model_config(
     "resmlp_24_big",
     ResMLP,
     config={"embed_dim": 768, "depth": 24, "patch_size": (8, 8), "init_value": 1e-6, "drop_path_rate": 0.2},

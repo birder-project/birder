@@ -465,72 +465,72 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         return x[:, 0]
 
 
-registry.register_alias(
+registry.register_model_config(
     "xcit_nano12_p16",
     XCiT,
     config={"patch_size": 16, "embed_dim": 128, "depth": 12, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "xcit_nano12_p8",
     XCiT,
     config={"patch_size": 8, "embed_dim": 128, "depth": 12, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "xcit_tiny12_p16",
     XCiT,
     config={"patch_size": 16, "embed_dim": 192, "depth": 12, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "xcit_tiny12_p8",
     XCiT,
     config={"patch_size": 8, "embed_dim": 192, "depth": 12, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "xcit_tiny24_p16",
     XCiT,
     config={"patch_size": 16, "embed_dim": 192, "depth": 24, "num_heads": 4, "eta": 1e-5, "drop_path_rate": 0.05},
 )
-registry.register_alias(
+registry.register_model_config(
     "xcit_tiny24_p8",
     XCiT,
     config={"patch_size": 8, "embed_dim": 192, "depth": 24, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.05},
 )
-registry.register_alias(
+registry.register_model_config(
     "xcit_small12_p16",
     XCiT,
     config={"patch_size": 16, "embed_dim": 384, "depth": 12, "num_heads": 8, "eta": 1.0, "drop_path_rate": 0.05},
 )
-registry.register_alias(
+registry.register_model_config(
     "xcit_small12_p8",
     XCiT,
     config={"patch_size": 8, "embed_dim": 384, "depth": 12, "num_heads": 8, "eta": 1.0, "drop_path_rate": 0.05},
 )
-registry.register_alias(
+registry.register_model_config(
     "xcit_small24_p16",
     XCiT,
     config={"patch_size": 16, "embed_dim": 384, "depth": 24, "num_heads": 8, "eta": 1e-5, "drop_path_rate": 0.1},
 )
-registry.register_alias(
+registry.register_model_config(
     "xcit_small24_p8",
     XCiT,
     config={"patch_size": 8, "embed_dim": 384, "depth": 24, "num_heads": 8, "eta": 1e-5, "drop_path_rate": 0.1},
 )
-registry.register_alias(
+registry.register_model_config(
     "xcit_medium24_p16",
     XCiT,
     config={"patch_size": 16, "embed_dim": 512, "depth": 24, "num_heads": 8, "eta": 1e-5, "drop_path_rate": 0.15},
 )
-registry.register_alias(
+registry.register_model_config(
     "xcit_medium24_p8",
     XCiT,
     config={"patch_size": 8, "embed_dim": 512, "depth": 24, "num_heads": 8, "eta": 1e-5, "drop_path_rate": 0.15},
 )
-registry.register_alias(
+registry.register_model_config(
     "xcit_large24_16",
     XCiT,
     config={"patch_size": 16, "embed_dim": 768, "depth": 24, "num_heads": 16, "eta": 1e-5, "drop_path_rate": 0.25},
 )
-registry.register_alias(
+registry.register_model_config(
     "xcit_large24_8",
     XCiT,
     config={"patch_size": 8, "embed_dim": 768, "depth": 24, "num_heads": 16, "eta": 1e-5, "drop_path_rate": 0.3},

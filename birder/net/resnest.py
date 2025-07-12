@@ -291,12 +291,24 @@ class ResNeSt(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias("resnest_14", ResNeSt, config={"stem_width": 32, "units": [1, 1, 1, 1], "final_drop": 0.0})
-registry.register_alias("resnest_26", ResNeSt, config={"stem_width": 32, "units": [2, 2, 2, 2], "final_drop": 0.0})
-registry.register_alias("resnest_50", ResNeSt, config={"stem_width": 32, "units": [3, 4, 6, 3], "final_drop": 0.0})
-registry.register_alias("resnest_101", ResNeSt, config={"stem_width": 64, "units": [3, 4, 23, 3], "final_drop": 0.0})
-registry.register_alias("resnest_200", ResNeSt, config={"stem_width": 64, "units": [3, 24, 36, 3], "final_drop": 0.2})
-registry.register_alias("resnest_269", ResNeSt, config={"stem_width": 64, "units": [3, 30, 48, 8], "final_drop": 0.2})
+registry.register_model_config(
+    "resnest_14", ResNeSt, config={"stem_width": 32, "units": [1, 1, 1, 1], "final_drop": 0.0}
+)
+registry.register_model_config(
+    "resnest_26", ResNeSt, config={"stem_width": 32, "units": [2, 2, 2, 2], "final_drop": 0.0}
+)
+registry.register_model_config(
+    "resnest_50", ResNeSt, config={"stem_width": 32, "units": [3, 4, 6, 3], "final_drop": 0.0}
+)
+registry.register_model_config(
+    "resnest_101", ResNeSt, config={"stem_width": 64, "units": [3, 4, 23, 3], "final_drop": 0.0}
+)
+registry.register_model_config(
+    "resnest_200", ResNeSt, config={"stem_width": 64, "units": [3, 24, 36, 3], "final_drop": 0.2}
+)
+registry.register_model_config(
+    "resnest_269", ResNeSt, config={"stem_width": 64, "units": [3, 30, 48, 8], "final_drop": 0.2}
+)
 
 registry.register_weights(
     "resnest_14_il-common",

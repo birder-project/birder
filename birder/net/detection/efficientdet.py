@@ -779,37 +779,37 @@ class EfficientDet(DetectionBaseNet):
         return (detections, losses)
 
 
-registry.register_alias(
+registry.register_model_config(
     "efficientdet_d0",
     EfficientDet,
     config={"fpn_cell_repeats": 3, "box_class_repeats": 3, "fpn_channels": 64, "weight_method": "fastattn"},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientdet_d1",
     EfficientDet,
     config={"fpn_cell_repeats": 4, "box_class_repeats": 3, "fpn_channels": 88, "weight_method": "fastattn"},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientdet_d2",
     EfficientDet,
     config={"fpn_cell_repeats": 5, "box_class_repeats": 3, "fpn_channels": 112, "weight_method": "fastattn"},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientdet_d3",
     EfficientDet,
     config={"fpn_cell_repeats": 6, "box_class_repeats": 4, "fpn_channels": 160, "weight_method": "fastattn"},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientdet_d4",
     EfficientDet,
     config={"fpn_cell_repeats": 7, "box_class_repeats": 4, "fpn_channels": 224, "weight_method": "fastattn"},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientdet_d5",
     EfficientDet,
     config={"fpn_cell_repeats": 7, "box_class_repeats": 4, "fpn_channels": 288, "weight_method": "fastattn"},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientdet_d6",
     EfficientDet,
     config={"fpn_cell_repeats": 8, "box_class_repeats": 5, "fpn_channels": 384, "weight_method": "sum"},

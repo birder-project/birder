@@ -249,12 +249,12 @@ class RegNet_Z(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "regnet_z_500m",
     RegNet_Z,
     config={"depth": 21, "w_0": 16, "w_a": 10.7, "w_m": 2.51, "group_width": 4, "num_features": 1024},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_z_4g",
     RegNet_Z,
     config={"depth": 28, "w_0": 48, "w_a": 14.5, "w_m": 2.226, "group_width": 8, "num_features": 1536},

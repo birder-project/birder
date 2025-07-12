@@ -163,7 +163,7 @@ class Data2Vec2(SSLBaseNet):
         )
         indices_expanded = ids_keep.unsqueeze(-1).expand(-1, -1, self.backbone.embedding_size)  # (B, num_kept, d_model)
         full_sequence.scatter_(1, indices_expanded, x)
-        masks = ~masks.bool()
+        masks = masks.bool()
 
         predictions = self.decoder(full_sequence)
 

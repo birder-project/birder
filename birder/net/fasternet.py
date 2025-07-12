@@ -219,32 +219,32 @@ class FasterNet(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "fasternet_t0",
     FasterNet,
     config={"depths": [1, 2, 8, 2], "embed_dim": 40, "act_layer_name": "gelu", "drop_path_rate": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "fasternet_t1",
     FasterNet,
     config={"depths": [1, 2, 8, 2], "embed_dim": 64, "act_layer_name": "gelu", "drop_path_rate": 0.02},
 )
-registry.register_alias(
+registry.register_model_config(
     "fasternet_t2",
     FasterNet,
     config={"depths": [1, 2, 8, 2], "embed_dim": 96, "act_layer_name": "relu", "drop_path_rate": 0.05},
 )
-registry.register_alias(
+registry.register_model_config(
     "fasternet_s",
     FasterNet,
     config={"depths": [1, 2, 13, 2], "embed_dim": 128, "act_layer_name": "relu", "drop_path_rate": 0.1},
 )
-registry.register_alias(
+registry.register_model_config(
     "fasternet_m",
     FasterNet,
     config={"depths": [3, 4, 18, 3], "embed_dim": 144, "act_layer_name": "relu", "drop_path_rate": 0.2},
 )
-registry.register_alias(
+registry.register_model_config(
     "fasternet_l",
     FasterNet,
     config={"depths": [3, 4, 18, 3], "embed_dim": 192, "act_layer_name": "relu", "drop_path_rate": 0.3},

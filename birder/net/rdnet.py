@@ -287,7 +287,7 @@ class RDNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "rdnet_t",
     RDNet,
     config={
@@ -301,7 +301,7 @@ registry.register_alias(
         "drop_path_rate": 0.15,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rdnet_s",
     RDNet,
     config={
@@ -315,7 +315,7 @@ registry.register_alias(
         "drop_path_rate": 0.35,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rdnet_b",
     RDNet,
     config={
@@ -329,7 +329,7 @@ registry.register_alias(
         "drop_path_rate": 0.4,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rdnet_l",
     RDNet,
     config={

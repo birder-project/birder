@@ -752,7 +752,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         )
 
 
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_s32",
     RoPE_ViT,
     config={
@@ -764,7 +764,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_s16",
     RoPE_ViT,
     config={
@@ -776,7 +776,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_s14",
     RoPE_ViT,
     config={
@@ -788,7 +788,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_m32",
     RoPE_ViT,
     config={
@@ -800,7 +800,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_m16",
     RoPE_ViT,
     config={
@@ -812,7 +812,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_m14",
     RoPE_ViT,
     config={
@@ -824,7 +824,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_b32",
     RoPE_ViT,
     config={
@@ -836,7 +836,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_b16",
     RoPE_ViT,
     config={
@@ -848,7 +848,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_b14",
     RoPE_ViT,
     config={
@@ -860,7 +860,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_l32",
     RoPE_ViT,
     config={
@@ -872,7 +872,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_l16",
     RoPE_ViT,
     config={
@@ -884,7 +884,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_l14",
     RoPE_ViT,
     config={
@@ -896,7 +896,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_h16",
     RoPE_ViT,
     config={
@@ -908,7 +908,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_h14",
     RoPE_ViT,
     config={
@@ -920,7 +920,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(  # From "Scaling Vision Transformers"
+registry.register_model_config(  # From "Scaling Vision Transformers"
     "rope_vit_g14",
     RoPE_ViT,
     config={
@@ -934,7 +934,7 @@ registry.register_alias(  # From "Scaling Vision Transformers"
 )
 
 # With registers
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg1_s32",
     RoPE_ViT,
     config={
@@ -947,7 +947,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg1_s16",
     RoPE_ViT,
     config={
@@ -960,7 +960,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg1_s14",
     RoPE_ViT,
     config={
@@ -973,7 +973,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg4_m32",
     RoPE_ViT,
     config={
@@ -986,7 +986,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg4_m16",
     RoPE_ViT,
     config={
@@ -999,7 +999,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg4_m16_rms_avg",
     RoPE_ViT,
     config={
@@ -1014,7 +1014,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg4_m14",
     RoPE_ViT,
     config={
@@ -1027,7 +1027,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg4_b32",
     RoPE_ViT,
     config={
@@ -1040,7 +1040,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg4_b16",
     RoPE_ViT,
     config={
@@ -1053,7 +1053,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg4_b14",
     RoPE_ViT,
     config={
@@ -1066,7 +1066,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg8_nps_b14_ap",
     RoPE_ViT,
     config={
@@ -1082,7 +1082,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg4_l32",
     RoPE_ViT,
     config={
@@ -1095,7 +1095,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg4_l16",
     RoPE_ViT,
     config={
@@ -1108,7 +1108,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg4_l14",
     RoPE_ViT,
     config={
@@ -1121,7 +1121,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg8_l14_ap",
     RoPE_ViT,
     config={
@@ -1136,7 +1136,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg8_l14_rms_ap",
     RoPE_ViT,
     config={
@@ -1152,7 +1152,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg4_h16",
     RoPE_ViT,
     config={
@@ -1165,7 +1165,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg4_h14",
     RoPE_ViT,
     config={
@@ -1178,7 +1178,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(  # From "Scaling Vision Transformers"
+registry.register_model_config(  # From "Scaling Vision Transformers"
     "rope_vit_reg4_g14",
     RoPE_ViT,
     config={
@@ -1193,7 +1193,7 @@ registry.register_alias(  # From "Scaling Vision Transformers"
 )
 
 # Shape-optimized vision transformer (SoViT)
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_so150m_p14_ap",
     RoPE_ViT,
     config={
@@ -1207,7 +1207,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_so400m_p14_ap",
     RoPE_ViT,
     config={
@@ -1221,7 +1221,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg4_so150m_p14_ap",
     RoPE_ViT,
     config={
@@ -1236,7 +1236,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg8_so150m_p14_swiglu_rms_avg",
     RoPE_ViT,
     config={
@@ -1252,7 +1252,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg8_so150m_p14_ap",
     RoPE_ViT,
     config={
@@ -1267,7 +1267,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg4_so400m_p14_ap",
     RoPE_ViT,
     config={
@@ -1282,7 +1282,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_vit_reg8_so400m_p14_ap",
     RoPE_ViT,
     config={

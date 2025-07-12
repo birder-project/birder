@@ -577,7 +577,7 @@ class TransNeXt(DetectorBackbone):
                 i += 1
 
 
-registry.register_alias(
+registry.register_model_config(
     "transnext_micro",
     TransNeXt,
     config={
@@ -588,7 +588,7 @@ registry.register_alias(
         "drop_path_rate": 0.15,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "transnext_tiny",
     TransNeXt,
     config={
@@ -599,7 +599,7 @@ registry.register_alias(
         "drop_path_rate": 0.25,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "transnext_small",
     TransNeXt,
     config={
@@ -610,7 +610,7 @@ registry.register_alias(
         "drop_path_rate": 0.45,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "transnext_base",
     TransNeXt,
     config={

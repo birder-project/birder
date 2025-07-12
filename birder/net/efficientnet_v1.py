@@ -300,42 +300,42 @@ class EfficientNet_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMix
         )
 
 
-registry.register_alias(
+registry.register_model_config(
     "efficientnet_v1_b0",
     EfficientNet_v1,  # input_resolution = 224
     config={"width_coefficient": 1.0, "depth_coefficient": 1.0, "dropout_rate": 0.2},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientnet_v1_b1",
     EfficientNet_v1,  # input_resolution = 240
     config={"width_coefficient": 1.0, "depth_coefficient": 1.1, "dropout_rate": 0.2},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientnet_v1_b2",
     EfficientNet_v1,  # input_resolution = 260
     config={"width_coefficient": 1.1, "depth_coefficient": 1.2, "dropout_rate": 0.3},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientnet_v1_b3",
     EfficientNet_v1,  # input_resolution = 300
     config={"width_coefficient": 1.2, "depth_coefficient": 1.4, "dropout_rate": 0.3},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientnet_v1_b4",
     EfficientNet_v1,  # input_resolution = 380
     config={"width_coefficient": 1.4, "depth_coefficient": 1.8, "dropout_rate": 0.4},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientnet_v1_b5",
     EfficientNet_v1,  # input_resolution = 456
     config={"width_coefficient": 1.6, "depth_coefficient": 2.2, "dropout_rate": 0.4},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientnet_v1_b6",
     EfficientNet_v1,  # input_resolution = 528
     config={"width_coefficient": 1.8, "depth_coefficient": 2.6, "dropout_rate": 0.5},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientnet_v1_b7",
     EfficientNet_v1,  # input_resolution = 600
     config={"width_coefficient": 2.0, "depth_coefficient": 3.1, "dropout_rate": 0.5},

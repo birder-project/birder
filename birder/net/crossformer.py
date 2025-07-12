@@ -460,22 +460,22 @@ class CrossFormer(DetectorBackbone):
                 m.define_relative_position_index()
 
 
-registry.register_alias(
+registry.register_model_config(
     "crossformer_t",
     CrossFormer,
     config={"embed_dim": 64, "depths": [1, 1, 8, 6], "num_heads": [2, 4, 8, 16], "drop_path_rate": 0.1},
 )
-registry.register_alias(
+registry.register_model_config(
     "crossformer_s",
     CrossFormer,
     config={"embed_dim": 96, "depths": [2, 2, 6, 2], "num_heads": [3, 6, 12, 24], "drop_path_rate": 0.2},
 )
-registry.register_alias(
+registry.register_model_config(
     "crossformer_b",
     CrossFormer,
     config={"embed_dim": 96, "depths": [2, 2, 18, 2], "num_heads": [3, 6, 12, 24], "drop_path_rate": 0.3},
 )
-registry.register_alias(
+registry.register_model_config(
     "crossformer_l",
     CrossFormer,
     config={"embed_dim": 128, "depths": [2, 2, 18, 2], "num_heads": [4, 8, 16, 32], "drop_path_rate": 0.5},

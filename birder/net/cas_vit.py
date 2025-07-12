@@ -335,16 +335,16 @@ class CAS_ViT(DetectorBackbone):
         return x
 
 
-registry.register_alias(
+registry.register_model_config(
     "cas_vit_xs", CAS_ViT, config={"depths": [2, 2, 4, 2], "embed_dims": [48, 56, 112, 220], "drop_path_rate": 0.0}
 )
-registry.register_alias(
+registry.register_model_config(
     "cas_vit_s", CAS_ViT, config={"depths": [3, 3, 6, 3], "embed_dims": [48, 64, 128, 256], "drop_path_rate": 0.0}
 )
-registry.register_alias(
+registry.register_model_config(
     "cas_vit_m", CAS_ViT, config={"depths": [3, 3, 6, 3], "embed_dims": [64, 96, 192, 384], "drop_path_rate": 0.0}
 )
-registry.register_alias(
+registry.register_model_config(
     "cas_vit_t", CAS_ViT, config={"depths": [3, 3, 6, 3], "embed_dims": [96, 128, 256, 512], "drop_path_rate": 0.0}
 )
 

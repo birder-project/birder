@@ -308,7 +308,7 @@ class EfficientNet_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMix
         )
 
 
-registry.register_alias(
+registry.register_model_config(
     "efficientnet_v2_s",
     EfficientNet_v2,  # input_resolution = 300 / 384 (train / eval)
     config={
@@ -321,7 +321,7 @@ registry.register_alias(
         "dropout_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientnet_v2_m",
     EfficientNet_v2,  # input_resolution = 384 / 480 (train / eval)
     config={
@@ -334,7 +334,7 @@ registry.register_alias(
         "dropout_rate": 0.3,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientnet_v2_l",
     EfficientNet_v2,  # input_resolution = 384 / 480 (train / eval)
     config={
@@ -347,7 +347,7 @@ registry.register_alias(
         "dropout_rate": 0.4,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientnet_v2_xl",
     EfficientNet_v2,  # input_resolution = 384 / 512 (train / eval)
     config={

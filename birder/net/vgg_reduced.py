@@ -94,7 +94,7 @@ class Vgg_Reduced(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias("vgg_reduced_11", Vgg_Reduced, config={"repeats": [1, 1, 2, 2, 2]})
-registry.register_alias("vgg_reduced_13", Vgg_Reduced, config={"repeats": [2, 2, 2, 2, 2]})
-registry.register_alias("vgg_reduced_16", Vgg_Reduced, config={"repeats": [2, 2, 3, 3, 3]})
-registry.register_alias("vgg_reduced_19", Vgg_Reduced, config={"repeats": [2, 2, 4, 4, 4]})
+registry.register_model_config("vgg_reduced_11", Vgg_Reduced, config={"repeats": [1, 1, 2, 2, 2]})
+registry.register_model_config("vgg_reduced_13", Vgg_Reduced, config={"repeats": [2, 2, 2, 2, 2]})
+registry.register_model_config("vgg_reduced_16", Vgg_Reduced, config={"repeats": [2, 2, 3, 3, 3]})
+registry.register_model_config("vgg_reduced_19", Vgg_Reduced, config={"repeats": [2, 2, 4, 4, 4]})

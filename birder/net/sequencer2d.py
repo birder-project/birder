@@ -234,7 +234,7 @@ class Sequencer2d(BaseNet):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "sequencer2d_s",
     Sequencer2d,
     config={
@@ -244,7 +244,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "sequencer2d_m",
     Sequencer2d,
     config={
@@ -254,7 +254,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "sequencer2d_l",
     Sequencer2d,
     config={

@@ -240,11 +240,11 @@ class ShuffleNet_v1(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias("shufflenet_v1_1", ShuffleNet_v1, config={"groups": 1})
-registry.register_alias("shufflenet_v1_2", ShuffleNet_v1, config={"groups": 2})
-registry.register_alias("shufflenet_v1_3", ShuffleNet_v1, config={"groups": 3})
-registry.register_alias("shufflenet_v1_4", ShuffleNet_v1, config={"groups": 4})
-registry.register_alias("shufflenet_v1_8", ShuffleNet_v1, config={"groups": 8})
+registry.register_model_config("shufflenet_v1_1", ShuffleNet_v1, config={"groups": 1})
+registry.register_model_config("shufflenet_v1_2", ShuffleNet_v1, config={"groups": 2})
+registry.register_model_config("shufflenet_v1_3", ShuffleNet_v1, config={"groups": 3})
+registry.register_model_config("shufflenet_v1_4", ShuffleNet_v1, config={"groups": 4})
+registry.register_model_config("shufflenet_v1_8", ShuffleNet_v1, config={"groups": 8})
 
 registry.register_weights(
     "shufflenet_v1_4_il-common",

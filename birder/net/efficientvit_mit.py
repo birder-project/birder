@@ -639,7 +639,7 @@ class EfficientViT_MIT(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "efficientvit_mit_b0",
     EfficientViT_MIT,
     config={
@@ -657,7 +657,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientvit_mit_b1",
     EfficientViT_MIT,
     config={
@@ -675,7 +675,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientvit_mit_b2",
     EfficientViT_MIT,
     config={
@@ -693,7 +693,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientvit_mit_b3",
     EfficientViT_MIT,
     config={
@@ -711,7 +711,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientvit_mit_l1",
     EfficientViT_MIT,
     config={
@@ -729,7 +729,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientvit_mit_l2",
     EfficientViT_MIT,
     config={
@@ -747,7 +747,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientvit_mit_l3",
     EfficientViT_MIT,
     config={

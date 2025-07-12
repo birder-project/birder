@@ -844,8 +844,8 @@ class Deformable_DETR(DetectionBaseNet):
         return (detections, losses)
 
 
-registry.register_alias("deformable_detr", Deformable_DETR, config={"box_refine": False})
-registry.register_alias("deformable_detr_boxref", Deformable_DETR, config={"box_refine": True})
+registry.register_model_config("deformable_detr", Deformable_DETR, config={"box_refine": False})
+registry.register_model_config("deformable_detr_boxref", Deformable_DETR, config={"box_refine": True})
 
 registry.register_weights(
     "deformable_detr_boxref_coco_convnext_v2_tiny_imagenet21k",

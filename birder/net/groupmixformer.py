@@ -411,7 +411,7 @@ class GroupMixFormer(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "groupmixformer_mobile",
     GroupMixFormer,
     config={
@@ -421,7 +421,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "groupmixformer_t",
     GroupMixFormer,
     config={
@@ -431,7 +431,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "groupmixformer_s",
     GroupMixFormer,
     config={
@@ -441,7 +441,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "groupmixformer_b",
     GroupMixFormer,
     config={
@@ -451,7 +451,7 @@ registry.register_alias(
         "drop_path_rate": 0.4,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "groupmixformer_l",
     GroupMixFormer,
     config={

@@ -211,9 +211,9 @@ class TestTrainingUtils(unittest.TestCase):
             config={
                 "patch_size": 32,
                 "num_layers": 12,
-                "num_heads": 12,
-                "hidden_dim": 768,
-                "mlp_dim": 3072,
+                "num_heads": 8,
+                "hidden_dim": 128,
+                "mlp_dim": 512,
                 "num_reg_tokens": 0,
                 "drop_path_rate": 0.0,
             },
@@ -227,6 +227,53 @@ class TestTrainingUtils(unittest.TestCase):
             self.assertAlmostEqual(param["lr_scale"], 0.01)
         for param in params[:4]:  # CLS token, positional encoding and conv_proj
             self.assertAlmostEqual(param["lr_scale"], 1e-13)
+
+        # Test layer decay with custom options
+        model = ViT(
+            3,
+            2,
+            config={
+                "patch_size": 32,
+                "num_layers": 12,
+                "num_heads": 8,
+                "hidden_dim": 128,
+                "mlp_dim": 512,
+                "num_reg_tokens": 0,
+                "drop_path_rate": 0.0,
+            },
+        )
+        params = training_utils.optimizer_parameter_groups(model, 0, layer_decay=0.1, layer_decay_min_scale=0.01)
+        for param in params[-4:]:  # Head + norm
+            self.assertEqual(param["lr_scale"], 1.0)
+        for param in params[-16:-4]:  # Block 12
+            self.assertAlmostEqual(param["lr_scale"], 0.1)
+        for param in params[-28:-16]:  # Block 12
+            self.assertAlmostEqual(param["lr_scale"], 0.01)
+        for param in params[-40:-28]:  # Block 11
+            self.assertAlmostEqual(param["lr_scale"], 0.01)
+        for param in params[:4]:  # CLS token, positional encoding and conv_proj
+            self.assertAlmostEqual(param["lr_scale"], 0.01)
+
+        model = ViT(
+            3,
+            2,
+            config={
+                "patch_size": 32,
+                "num_layers": 12,
+                "num_heads": 8,
+                "hidden_dim": 128,
+                "mlp_dim": 512,
+                "num_reg_tokens": 0,
+                "drop_path_rate": 0.0,
+            },
+        )
+        params = training_utils.optimizer_parameter_groups(model, 0, layer_decay=0.1, layer_decay_no_opt_scale=1e-4)
+        for param in params[-4:]:  # Head + norm
+            self.assertTrue(param["params"].requires_grad)
+        for param in params[-16:-4]:  # Block 12
+            self.assertTrue(param["params"].requires_grad)
+        for param in params[:4]:  # CLS token, positional encoding and conv_proj
+            self.assertFalse(param["params"].requires_grad)
 
         # Test backbone
         model = torch.nn.Sequential(
@@ -249,6 +296,16 @@ class TestTrainingUtils(unittest.TestCase):
             self.assertEqual(param["lr"], 0.1)
         for param in params[4:]:
             self.assertNotIn("lr", param)
+
+        # Test bias
+        model = torch.nn.Sequential(
+            torch.nn.Linear(1, 2, bias=True),
+            torch.nn.BatchNorm1d(2),
+            torch.nn.Linear(2, 1, bias=False),
+        )
+        params = training_utils.optimizer_parameter_groups(model, 0, bias_lr=0.01)
+        self.assertEqual(params[1]["lr"], 0.01)
+        self.assertEqual(params[3]["lr"], 0.01)
 
     def test_get_optimizer(self) -> None:
         for opt_type in typing.get_args(training_utils.OptimizerType):

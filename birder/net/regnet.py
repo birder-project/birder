@@ -404,134 +404,134 @@ class RegNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
 
 # RegNet X
-registry.register_alias(
+registry.register_model_config(
     "regnet_x_200m",
     RegNet,
     config={"depth": 13, "w_0": 24, "w_a": 36.44, "w_m": 2.49, "group_width": 8, "se_ratio": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_x_400m",
     RegNet,
     config={"depth": 22, "w_0": 24, "w_a": 24.48, "w_m": 2.54, "group_width": 16, "se_ratio": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_x_600m",
     RegNet,
     config={"depth": 16, "w_0": 48, "w_a": 36.97, "w_m": 2.24, "group_width": 24, "se_ratio": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_x_800m",
     RegNet,
     config={"depth": 16, "w_0": 56, "w_a": 35.73, "w_m": 2.28, "group_width": 16, "se_ratio": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_x_1_6g",
     RegNet,
     config={"depth": 18, "w_0": 80, "w_a": 34.01, "w_m": 2.25, "group_width": 24, "se_ratio": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_x_3_2g",
     RegNet,
     config={"depth": 25, "w_0": 88, "w_a": 26.31, "w_m": 2.25, "group_width": 48, "se_ratio": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_x_4g",
     RegNet,
     config={"depth": 23, "w_0": 96, "w_a": 38.65, "w_m": 2.43, "group_width": 40, "se_ratio": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_x_6_4g",
     RegNet,
     config={"depth": 17, "w_0": 184, "w_a": 60.83, "w_m": 2.07, "group_width": 56, "se_ratio": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_x_8g",
     RegNet,
     config={"depth": 23, "w_0": 80, "w_a": 49.56, "w_m": 2.88, "group_width": 120, "se_ratio": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_x_12g",
     RegNet,
     config={"depth": 19, "w_0": 168, "w_a": 73.36, "w_m": 2.37, "group_width": 112, "se_ratio": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_x_16g",
     RegNet,
     config={"depth": 22, "w_0": 216, "w_a": 55.59, "w_m": 2.1, "group_width": 128, "se_ratio": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_x_32g",
     RegNet,
     config={"depth": 23, "w_0": 320, "w_a": 69.86, "w_m": 2.0, "group_width": 168, "se_ratio": 0.0},
 )
 
 # RegNet Y
-registry.register_alias(
+registry.register_model_config(
     "regnet_y_200m",
     RegNet,
     config={"depth": 13, "w_0": 24, "w_a": 36.44, "w_m": 2.49, "group_width": 8, "se_ratio": 0.25},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_y_400m",
     RegNet,
     config={"depth": 16, "w_0": 48, "w_a": 27.89, "w_m": 2.09, "group_width": 8, "se_ratio": 0.25},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_y_600m",
     RegNet,
     config={"depth": 15, "w_0": 48, "w_a": 32.54, "w_m": 2.32, "group_width": 16, "se_ratio": 0.25},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_y_800m",
     RegNet,
     config={"depth": 14, "w_0": 56, "w_a": 38.84, "w_m": 2.4, "group_width": 16, "se_ratio": 0.25},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_y_1_6g",
     RegNet,
     config={"depth": 27, "w_0": 48, "w_a": 20.71, "w_m": 2.65, "group_width": 24, "se_ratio": 0.25},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_y_3_2g",
     RegNet,
     config={"depth": 21, "w_0": 80, "w_a": 42.63, "w_m": 2.66, "group_width": 24, "se_ratio": 0.25},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_y_4g",
     RegNet,
     config={"depth": 22, "w_0": 96, "w_a": 31.41, "w_m": 2.24, "group_width": 64, "se_ratio": 0.25},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_y_6_4g",
     RegNet,
     config={"depth": 25, "w_0": 112, "w_a": 33.22, "w_m": 2.27, "group_width": 72, "se_ratio": 0.25},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_y_8g",
     RegNet,
     config={"depth": 17, "w_0": 192, "w_a": 76.82, "w_m": 2.19, "group_width": 56, "se_ratio": 0.25},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_y_12g",
     RegNet,
     config={"depth": 19, "w_0": 168, "w_a": 73.36, "w_m": 2.37, "group_width": 112, "se_ratio": 0.25},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_y_16g",
     RegNet,
     config={"depth": 18, "w_0": 200, "w_a": 106.23, "w_m": 2.48, "group_width": 112, "se_ratio": 0.25},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_y_32g",
     RegNet,
     config={"depth": 20, "w_0": 232, "w_a": 115.89, "w_m": 2.53, "group_width": 232, "se_ratio": 0.25},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_y_64g",
     RegNet,
     config={"depth": 20, "w_0": 352, "w_a": 147.48, "w_m": 2.4, "group_width": 328, "se_ratio": 0.25},
 )
-registry.register_alias(
+registry.register_model_config(
     "regnet_y_128g",
     RegNet,
     config={"depth": 27, "w_0": 456, "w_a": 160.83, "w_m": 2.52, "group_width": 264, "se_ratio": 0.25},

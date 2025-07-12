@@ -75,7 +75,7 @@ class ModelRegistry:
         else:
             raise ValueError(f"Unsupported model task: {net_type.task}")
 
-    def register_alias(
+    def register_model_config(
         self,
         alias: str,
         net_type: "BaseNetType",
@@ -100,6 +100,9 @@ class ModelRegistry:
     def register_weights(self, name: str, weights_info: manifest.ModelMetadataType) -> None:
         if name in self._pretrained_nets:
             warnings.warn(f"Weights {name} is already registered", UserWarning)
+
+        if "task" not in weights_info:
+            weights_info["task"] = self.all_nets[weights_info["net"]["network"]].task
 
         manifest.REGISTRY_MANIFEST[name] = weights_info
         self._pretrained_nets[name] = weights_info
@@ -185,12 +188,14 @@ class ModelRegistry:
 
         return None
 
-    def list_pretrained_models(self, include_filter: Optional[str] = None) -> list[str]:
+    def list_pretrained_models(self, include_filter: Optional[str] = None, task: Optional[Task] = None) -> list[str]:
         """
         Parameters
         ----------
         include_filter
             Filter string that goes into fnmatch
+        task
+            Filter by network task
 
         Returns
         -------
@@ -201,6 +206,9 @@ class ModelRegistry:
 
         if include_filter is not None:
             model_list = fnmatch.filter(model_list, include_filter)
+
+        if task is not None:
+            model_list = [model_name for model_name in model_list if self._pretrained_nets[model_name]["task"] == task]
 
         return group_sort(model_list)
 

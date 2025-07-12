@@ -344,7 +344,7 @@ class HorNet(DetectorBackbone):
                             m.gn_conv.dwconv.complex_weight = nn.Parameter(weight)
 
 
-registry.register_alias(
+registry.register_model_config(
     "hornet_tiny_7x7",
     HorNet,
     config={
@@ -354,7 +354,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hornet_tiny_gf",
     HorNet,
     config={
@@ -364,7 +364,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hornet_small_7x7",
     HorNet,
     config={
@@ -374,7 +374,7 @@ registry.register_alias(
         "drop_path_rate": 0.4,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hornet_small_gf",
     HorNet,
     config={
@@ -384,7 +384,7 @@ registry.register_alias(
         "drop_path_rate": 0.4,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hornet_base_7x7",
     HorNet,
     config={
@@ -394,7 +394,7 @@ registry.register_alias(
         "drop_path_rate": 0.5,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hornet_base_gf",
     HorNet,
     config={
@@ -404,7 +404,7 @@ registry.register_alias(
         "drop_path_rate": 0.5,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hornet_large_7x7",
     HorNet,
     config={
@@ -414,7 +414,7 @@ registry.register_alias(
         "drop_path_rate": 0.4,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hornet_large_gf",
     HorNet,
     config={

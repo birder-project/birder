@@ -375,13 +375,13 @@ class EdgeViT(DetectorBackbone):
         return nn.Linear(embed_dim, self.num_classes, bias=False)
 
 
-registry.register_alias(
+registry.register_model_config(
     "edgevit_xxs", EdgeViT, config={"depth": [1, 1, 3, 2], "embed_dim": [36, 72, 144, 288], "head_dim": 36}
 )
-registry.register_alias(
+registry.register_model_config(
     "edgevit_xs", EdgeViT, config={"depth": [1, 1, 3, 1], "embed_dim": [48, 96, 240, 384], "head_dim": 48}
 )
-registry.register_alias(
+registry.register_model_config(
     "edgevit_s", EdgeViT, config={"depth": [1, 2, 5, 3], "embed_dim": [48, 96, 240, 384], "head_dim": 48}
 )
 

@@ -337,7 +337,7 @@ class CSPNet(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "csp_resnet_50",
     CSPNet,
     config={
@@ -359,7 +359,7 @@ registry.register_alias(
         "block_type_name": "BottleneckBlock",
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "csp_resnext_50",
     CSPNet,
     config={
@@ -381,7 +381,7 @@ registry.register_alias(
         "block_type_name": "BottleneckBlock",
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "csp_darknet_53",
     CSPNet,
     config={
@@ -403,7 +403,7 @@ registry.register_alias(
         "block_type_name": "DarkBlock",
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "csp_se_resnet_50",
     CSPNet,
     config={
@@ -425,7 +425,7 @@ registry.register_alias(
         "block_type_name": "BottleneckBlock",
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "csp_se_resnext_50",
     CSPNet,
     config={
@@ -447,7 +447,7 @@ registry.register_alias(
         "block_type_name": "BottleneckBlock",
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "csp_se_darknet_53",
     CSPNet,
     config={

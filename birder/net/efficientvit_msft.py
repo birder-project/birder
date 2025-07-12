@@ -509,32 +509,32 @@ class EfficientViT_MSFT(DetectorBackbone):
                         )
 
 
-registry.register_alias(
+registry.register_model_config(
     "efficientvit_msft_m0",
     EfficientViT_MSFT,
     config={"embed_dims": [64, 128, 192], "depths": [1, 2, 3], "num_heads": [4, 4, 4], "kernels": [5, 5, 5, 5]},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientvit_msft_m1",
     EfficientViT_MSFT,
     config={"embed_dims": [128, 144, 192], "depths": [1, 2, 3], "num_heads": [2, 3, 3], "kernels": [7, 5, 3, 3]},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientvit_msft_m2",
     EfficientViT_MSFT,
     config={"embed_dims": [128, 192, 224], "depths": [1, 2, 3], "num_heads": [4, 3, 2], "kernels": [7, 5, 3, 3]},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientvit_msft_m3",
     EfficientViT_MSFT,
     config={"embed_dims": [128, 240, 320], "depths": [1, 2, 3], "num_heads": [4, 3, 4], "kernels": [5, 5, 5, 5]},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientvit_msft_m4",
     EfficientViT_MSFT,
     config={"embed_dims": [128, 256, 384], "depths": [1, 2, 3], "num_heads": [4, 4, 4], "kernels": [7, 5, 3, 3]},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientvit_msft_m5",
     EfficientViT_MSFT,
     config={"embed_dims": [192, 288, 384], "depths": [1, 3, 4], "num_heads": [3, 3, 4], "kernels": [7, 5, 3, 3]},

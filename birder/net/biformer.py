@@ -504,7 +504,7 @@ class BiFormer(DetectorBackbone):
                 m.n_win_w = n_win_w
 
 
-registry.register_alias(
+registry.register_model_config(
     "biformer_t",
     BiFormer,
     config={
@@ -515,7 +515,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "biformer_s",
     BiFormer,
     config={
@@ -526,7 +526,7 @@ registry.register_alias(
         "drop_path_rate": 0.15,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "biformer_b",
     BiFormer,
     config={

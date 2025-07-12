@@ -494,7 +494,7 @@ class LeViT(BaseNet):
                         m.attention_bias_idxs = nn.Buffer(rel_pos, persistent=False)
 
 
-registry.register_alias(
+registry.register_model_config(
     "levit_128s",
     LeViT,
     config={
@@ -505,7 +505,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "levit_128",
     LeViT,
     config={
@@ -516,7 +516,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "levit_192",
     LeViT,
     config={
@@ -527,7 +527,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "levit_256",
     LeViT,
     config={
@@ -538,7 +538,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "levit_384",
     LeViT,
     config={

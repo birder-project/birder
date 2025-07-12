@@ -544,7 +544,7 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         self.load_state_dict(state_dict, strict=True)
 
 
-registry.register_alias(
+registry.register_model_config(
     "flexivit_s16",
     FlexiViT,
     config={
@@ -556,7 +556,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "flexivit_s16_ls",
     FlexiViT,
     config={
@@ -569,7 +569,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "flexivit_reg1_s16",
     FlexiViT,
     config={
@@ -582,7 +582,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "flexivit_reg1_s16_rms_ls",
     FlexiViT,
     config={
@@ -597,7 +597,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "flexivit_reg8_b14_ap",
     FlexiViT,
     config={

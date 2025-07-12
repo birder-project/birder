@@ -422,7 +422,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
         )
 
 
-registry.register_alias(
+registry.register_model_config(
     "rope_deit3_t16",
     RoPE_DeiT3,
     config={
@@ -434,7 +434,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_deit3_s16",
     RoPE_DeiT3,
     config={
@@ -446,7 +446,7 @@ registry.register_alias(
         "drop_path_rate": 0.05,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_deit3_s14",
     RoPE_DeiT3,
     config={
@@ -458,7 +458,7 @@ registry.register_alias(
         "drop_path_rate": 0.05,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_deit3_m16",
     RoPE_DeiT3,
     config={
@@ -470,7 +470,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_deit3_m14",
     RoPE_DeiT3,
     config={
@@ -482,7 +482,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_deit3_b16",
     RoPE_DeiT3,
     config={
@@ -494,7 +494,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_deit3_b14",
     RoPE_DeiT3,
     config={
@@ -506,7 +506,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_deit3_l16",
     RoPE_DeiT3,
     config={
@@ -520,7 +520,7 @@ registry.register_alias(
 )
 
 # With registers
-registry.register_alias(
+registry.register_model_config(
     "rope_deit3_reg4_t16",
     RoPE_DeiT3,
     config={
@@ -533,7 +533,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_deit3_reg4_s16",
     RoPE_DeiT3,
     config={
@@ -546,7 +546,7 @@ registry.register_alias(
         "drop_path_rate": 0.05,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_deit3_reg4_s14",
     RoPE_DeiT3,
     config={
@@ -559,7 +559,7 @@ registry.register_alias(
         "drop_path_rate": 0.05,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_deit3_reg4_m16",
     RoPE_DeiT3,
     config={
@@ -572,7 +572,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_deit3_reg4_m14",
     RoPE_DeiT3,
     config={
@@ -585,7 +585,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_deit3_reg4_b16",
     RoPE_DeiT3,
     config={
@@ -598,7 +598,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_deit3_reg4_b14",
     RoPE_DeiT3,
     config={
@@ -611,7 +611,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_deit3_reg4_l16",
     RoPE_DeiT3,
     config={

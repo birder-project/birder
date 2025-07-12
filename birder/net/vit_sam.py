@@ -506,7 +506,7 @@ class ViT_SAM(DetectorBackbone):
 
 
 # ViTDet (no neck)
-registry.register_alias(
+registry.register_model_config(
     "vit_det_m16_rms",
     ViT_SAM,
     config={
@@ -522,7 +522,7 @@ registry.register_alias(
     },
 )
 
-registry.register_alias(
+registry.register_model_config(
     "vit_det_b16",
     ViT_SAM,
     config={
@@ -538,7 +538,7 @@ registry.register_alias(
 )
 
 # ViT SAM (with neck)
-registry.register_alias(
+registry.register_model_config(
     "vit_sam_b16",
     ViT_SAM,
     config={
@@ -553,7 +553,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_sam_l16",
     ViT_SAM,
     config={
@@ -568,7 +568,7 @@ registry.register_alias(
         "drop_path_rate": 0.4,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_sam_h16",
     ViT_SAM,
     config={

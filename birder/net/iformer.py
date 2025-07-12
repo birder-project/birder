@@ -490,7 +490,7 @@ class iFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                 resolution = (resolution[0] // 2, resolution[1] // 2)
 
 
-registry.register_alias(
+registry.register_model_config(
     "iformer_s",
     iFormer,
     config={
@@ -502,7 +502,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "iformer_b",
     iFormer,
     config={
@@ -514,7 +514,7 @@ registry.register_alias(
         "drop_path_rate": 0.4,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "iformer_l",
     iFormer,
     config={

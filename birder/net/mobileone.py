@@ -390,27 +390,27 @@ class MobileOne(DetectorBackbone):
         self.reparameterized = True
 
 
-registry.register_alias(
+registry.register_model_config(
     "mobileone_s0",
     MobileOne,
     config={"width_multipliers": [0.75, 1.0, 1.0, 2.0], "num_conv_branches": 4, "num_se_blocks": [0, 0, 0, 0]},
 )
-registry.register_alias(
+registry.register_model_config(
     "mobileone_s1",
     MobileOne,
     config={"width_multipliers": [1.5, 1.5, 2.0, 2.5], "num_conv_branches": 1, "num_se_blocks": [0, 0, 0, 0]},
 )
-registry.register_alias(
+registry.register_model_config(
     "mobileone_s2",
     MobileOne,
     config={"width_multipliers": [1.5, 2.0, 2.5, 4.0], "num_conv_branches": 1, "num_se_blocks": [0, 0, 0, 0]},
 )
-registry.register_alias(
+registry.register_model_config(
     "mobileone_s3",
     MobileOne,
     config={"width_multipliers": [2.0, 2.5, 3.0, 4.0], "num_conv_branches": 1, "num_se_blocks": [0, 0, 0, 0]},
 )
-registry.register_alias(
+registry.register_model_config(
     "mobileone_s4",
     MobileOne,
     config={"width_multipliers": [3.0, 3.5, 3.5, 4.0], "num_conv_branches": 1, "num_se_blocks": [0, 0, 5, 1]},

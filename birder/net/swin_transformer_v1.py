@@ -475,7 +475,7 @@ class Swin_Transformer_v1(DetectorBackbone):
                 m.attn.relative_position_bias_table = nn.Parameter(rel_pos_bias)
 
 
-registry.register_alias(
+registry.register_model_config(
     "swin_transformer_v1_t",
     Swin_Transformer_v1,
     config={
@@ -485,7 +485,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "swin_transformer_v1_s",
     Swin_Transformer_v1,
     config={
@@ -495,7 +495,7 @@ registry.register_alias(
         "drop_path_rate": 0.3,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "swin_transformer_v1_b",
     Swin_Transformer_v1,
     config={
@@ -505,7 +505,7 @@ registry.register_alias(
         "drop_path_rate": 0.5,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "swin_transformer_v1_l",
     Swin_Transformer_v1,
     config={

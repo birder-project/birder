@@ -470,22 +470,22 @@ class EfficientViM(DetectorBackbone):
         return self.classify(x, hs)
 
 
-registry.register_alias(
+registry.register_model_config(
     "efficientvim_m1",
     EfficientViM,
     config={"embed_dim": [128, 192, 320], "depths": [2, 2, 2], "state_dim": [49, 25, 9]},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientvim_m2",
     EfficientViM,
     config={"embed_dim": [128, 256, 512], "depths": [2, 2, 2], "state_dim": [49, 25, 9]},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientvim_m3",
     EfficientViM,
     config={"embed_dim": [224, 320, 512], "depths": [2, 2, 2], "state_dim": [49, 25, 9]},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientvim_m4",
     EfficientViM,
     config={"embed_dim": [224, 320, 512], "depths": [3, 4, 2], "state_dim": [64, 32, 16]},

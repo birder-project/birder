@@ -167,22 +167,22 @@ class ConvNeXt_v1(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "convnext_v1_tiny",
     ConvNeXt_v1,
     config={"in_channels": [96, 192, 384, 768], "num_layers": [3, 3, 9, 3], "drop_path_rate": 0.1},
 )
-registry.register_alias(
+registry.register_model_config(
     "convnext_v1_small",
     ConvNeXt_v1,
     config={"in_channels": [96, 192, 384, 768], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.4},
 )
-registry.register_alias(
+registry.register_model_config(
     "convnext_v1_base",
     ConvNeXt_v1,
     config={"in_channels": [128, 256, 512, 1024], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.5},
 )
-registry.register_alias(
+registry.register_model_config(
     "convnext_v1_large",
     ConvNeXt_v1,
     config={"in_channels": [192, 384, 768, 1536], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.5},

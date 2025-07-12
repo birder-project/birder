@@ -208,6 +208,6 @@ class ResNeXt(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias("resnext_50", ResNeXt, config={"units": [3, 4, 6, 3]})
-registry.register_alias("resnext_101", ResNeXt, config={"units": [3, 4, 23, 3]})
-registry.register_alias("resnext_152", ResNeXt, config={"units": [3, 8, 36, 3]})
+registry.register_model_config("resnext_50", ResNeXt, config={"units": [3, 4, 6, 3]})
+registry.register_model_config("resnext_101", ResNeXt, config={"units": [3, 4, 23, 3]})
+registry.register_model_config("resnext_152", ResNeXt, config={"units": [3, 8, 36, 3]})

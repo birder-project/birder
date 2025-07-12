@@ -259,7 +259,7 @@ class MobileViT_v1(BaseNet):
         return nn.Linear(embed_dim, self.num_classes, bias=False)
 
 
-registry.register_alias(
+registry.register_model_config(
     "mobilevit_v1_xxs",
     MobileViT_v1,
     config={
@@ -270,7 +270,7 @@ registry.register_alias(
         "expansion": 2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "mobilevit_v1_xs",
     MobileViT_v1,
     config={
@@ -281,7 +281,7 @@ registry.register_alias(
         "expansion": 4,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "mobilevit_v1_s",
     MobileViT_v1,
     config={

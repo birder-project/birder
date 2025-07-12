@@ -507,7 +507,7 @@ class MetaFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
 
 # PoolFormer v1
-registry.register_alias(
+registry.register_model_config(
     "poolformer_v1_s12",
     MetaFormer,
     config={
@@ -525,7 +525,7 @@ registry.register_alias(
         "mlp_head_dropout": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "poolformer_v1_s24",
     MetaFormer,
     config={
@@ -543,7 +543,7 @@ registry.register_alias(
         "mlp_head_dropout": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "poolformer_v1_s36",
     MetaFormer,
     config={
@@ -561,7 +561,7 @@ registry.register_alias(
         "mlp_head_dropout": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "poolformer_v1_m36",
     MetaFormer,
     config={
@@ -579,7 +579,7 @@ registry.register_alias(
         "mlp_head_dropout": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "poolformer_v1_m48",
     MetaFormer,
     config={
@@ -599,7 +599,7 @@ registry.register_alias(
 )
 
 # PoolFormer v2
-registry.register_alias(
+registry.register_model_config(
     "poolformer_v2_s12",
     MetaFormer,
     config={
@@ -617,7 +617,7 @@ registry.register_alias(
         "mlp_head_dropout": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "poolformer_v2_s24",
     MetaFormer,
     config={
@@ -635,7 +635,7 @@ registry.register_alias(
         "mlp_head_dropout": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "poolformer_v2_s36",
     MetaFormer,
     config={
@@ -653,7 +653,7 @@ registry.register_alias(
         "mlp_head_dropout": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "poolformer_v2_m36",
     MetaFormer,
     config={
@@ -671,7 +671,7 @@ registry.register_alias(
         "mlp_head_dropout": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "poolformer_v2_m48",
     MetaFormer,
     config={
@@ -691,7 +691,7 @@ registry.register_alias(
 )
 
 # ConvFormer
-registry.register_alias(
+registry.register_model_config(
     "convformer_s18",
     MetaFormer,
     config={
@@ -709,7 +709,7 @@ registry.register_alias(
         "mlp_head_dropout": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "convformer_s36",
     MetaFormer,
     config={
@@ -727,7 +727,7 @@ registry.register_alias(
         "mlp_head_dropout": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "convformer_m36",
     MetaFormer,
     config={
@@ -745,7 +745,7 @@ registry.register_alias(
         "mlp_head_dropout": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "convformer_b36",
     MetaFormer,
     config={
@@ -765,7 +765,7 @@ registry.register_alias(
 )
 
 # CAFormer
-registry.register_alias(
+registry.register_model_config(
     "caformer_s18",
     MetaFormer,
     config={
@@ -783,7 +783,7 @@ registry.register_alias(
         "mlp_head_dropout": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "caformer_s36",
     MetaFormer,
     config={
@@ -801,7 +801,7 @@ registry.register_alias(
         "mlp_head_dropout": 0.4,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "caformer_m36",
     MetaFormer,
     config={
@@ -819,7 +819,7 @@ registry.register_alias(
         "mlp_head_dropout": 0.4,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "caformer_b36",
     MetaFormer,
     config={

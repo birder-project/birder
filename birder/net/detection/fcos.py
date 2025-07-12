@@ -519,4 +519,4 @@ class FCOS(DetectionBaseNet):
         return (detections, losses)
 
 
-registry.register_alias("fcos", FCOS, config={"fpn_width": 256})
+registry.register_model_config("fcos", FCOS, config={"fpn_width": 256})

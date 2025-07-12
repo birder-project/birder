@@ -366,22 +366,22 @@ class SwiftFormer(DetectorBackbone):
         return x
 
 
-registry.register_alias(
+registry.register_model_config(
     "swiftformer_xs",
     SwiftFormer,
     config={"layers": [3, 3, 6, 4], "embed_dims": [48, 56, 112, 220], "drop_path_rate": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "swiftformer_s",
     SwiftFormer,
     config={"layers": [3, 3, 9, 6], "embed_dims": [48, 64, 168, 224], "drop_path_rate": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "swiftformer_l1",
     SwiftFormer,
     config={"layers": [4, 3, 10, 5], "embed_dims": [48, 96, 192, 384], "drop_path_rate": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "swiftformer_l3",
     SwiftFormer,
     config={"layers": [4, 4, 12, 6], "embed_dims": [64, 128, 320, 512], "drop_path_rate": 0.0},

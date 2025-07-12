@@ -470,7 +470,7 @@ class Tiny_ViT(DetectorBackbone):
             idx += 1
 
 
-registry.register_alias(
+registry.register_model_config(
     "tiny_vit_5m",
     Tiny_ViT,
     config={
@@ -480,7 +480,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "tiny_vit_11m",
     Tiny_ViT,
     config={
@@ -490,7 +490,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "tiny_vit_21m",
     Tiny_ViT,
     config={

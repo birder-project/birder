@@ -265,7 +265,7 @@ class PiT(DetectorBackbone):
         )
 
 
-registry.register_alias(
+registry.register_model_config(
     "pit_t",
     PiT,
     config={
@@ -277,7 +277,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "pit_xs",
     PiT,
     config={
@@ -289,7 +289,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "pit_s",
     PiT,
     config={
@@ -301,7 +301,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "pit_b",
     PiT,
     config={

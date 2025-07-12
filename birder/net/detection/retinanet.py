@@ -486,5 +486,5 @@ class RetinaNet(DetectionBaseNet):
         return (detections, losses)
 
 
-registry.register_alias("retinanet", RetinaNet, config={"fpn_width": 256, "feature_pyramid_type": "fpn"})
-registry.register_alias("retinanet_sfp", RetinaNet, config={"fpn_width": 256, "feature_pyramid_type": "sfp"})
+registry.register_model_config("retinanet", RetinaNet, config={"fpn_width": 256, "feature_pyramid_type": "fpn"})
+registry.register_model_config("retinanet_sfp", RetinaNet, config={"fpn_width": 256, "feature_pyramid_type": "sfp"})

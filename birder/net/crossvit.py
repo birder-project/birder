@@ -366,7 +366,7 @@ class CrossViT(BaseNet):
             )
 
 
-registry.register_alias(
+registry.register_model_config(
     "crossvit_t",
     CrossViT,
     config={
@@ -378,7 +378,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "crossvit_9",
     CrossViT,
     config={
@@ -390,7 +390,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "crossvit_9d",
     CrossViT,
     config={
@@ -402,7 +402,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "crossvit_s",
     CrossViT,
     config={
@@ -414,7 +414,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "crossvit_15",
     CrossViT,
     config={
@@ -426,7 +426,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "crossvit_15d",
     CrossViT,
     config={
@@ -438,7 +438,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "crossvit_b",
     CrossViT,
     config={
@@ -450,7 +450,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "crossvit_18",
     CrossViT,
     config={
@@ -462,7 +462,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "crossvit_18d",
     CrossViT,
     config={

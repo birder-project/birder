@@ -257,27 +257,27 @@ class Conv2Former(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "conv2former_n",
     Conv2Former,
     config={"kernel_size": (7, 7), "dims": [64, 128, 256, 512], "depths": [2, 2, 8, 2], "drop_path_rate": 0.1},
 )
-registry.register_alias(
+registry.register_model_config(
     "conv2former_t",
     Conv2Former,
     config={"kernel_size": (11, 11), "dims": [72, 144, 288, 576], "depths": [3, 3, 12, 3], "drop_path_rate": 0.15},
 )
-registry.register_alias(
+registry.register_model_config(
     "conv2former_s",
     Conv2Former,
     config={"kernel_size": (11, 11), "dims": [72, 144, 288, 576], "depths": [4, 4, 32, 4], "drop_path_rate": 0.2},
 )
-registry.register_alias(
+registry.register_model_config(
     "conv2former_b",
     Conv2Former,
     config={"kernel_size": (11, 11), "dims": [96, 192, 384, 768], "depths": [4, 4, 34, 4], "drop_path_rate": 0.2},
 )
-registry.register_alias(
+registry.register_model_config(
     "conv2former_l",
     Conv2Former,
     config={"kernel_size": (11, 11), "dims": [128, 256, 512, 1024], "depths": [4, 4, 48, 4], "drop_path_rate": 0.3},

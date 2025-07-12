@@ -584,7 +584,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         self.load_state_dict(state_dict, strict=True)
 
 
-registry.register_alias(
+registry.register_model_config(
     "rope_flexivit_s16",
     RoPE_FlexiViT,
     config={
@@ -596,7 +596,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "rope_flexivit_reg4_b16_avg",
     RoPE_FlexiViT,
     config={

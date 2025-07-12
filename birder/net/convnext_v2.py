@@ -219,47 +219,47 @@ class ConvNeXt_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "convnext_v2_atto",
     ConvNeXt_v2,
     config={"in_channels": [40, 80, 160, 320], "num_layers": [2, 2, 6, 2], "drop_path_rate": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "convnext_v2_femto",
     ConvNeXt_v2,
     config={"in_channels": [48, 96, 192, 384], "num_layers": [2, 2, 6, 2], "drop_path_rate": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "convnext_v2_pico",
     ConvNeXt_v2,
     config={"in_channels": [64, 128, 256, 512], "num_layers": [2, 2, 6, 2], "drop_path_rate": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "convnext_v2_nano",
     ConvNeXt_v2,
     config={"in_channels": [80, 160, 320, 640], "num_layers": [2, 2, 8, 2], "drop_path_rate": 0.1},
 )
-registry.register_alias(
+registry.register_model_config(
     "convnext_v2_tiny",
     ConvNeXt_v2,
     config={"in_channels": [96, 192, 384, 768], "num_layers": [3, 3, 9, 3], "drop_path_rate": 0.2},
 )
-registry.register_alias(
+registry.register_model_config(
     "convnext_v2_small",  # Not in the original v2, taken from v1
     ConvNeXt_v2,
     config={"in_channels": [96, 192, 384, 768], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.1},
 )
-registry.register_alias(
+registry.register_model_config(
     "convnext_v2_base",
     ConvNeXt_v2,
     config={"in_channels": [128, 256, 512, 1024], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.1},
 )
-registry.register_alias(
+registry.register_model_config(
     "convnext_v2_large",
     ConvNeXt_v2,
     config={"in_channels": [192, 384, 768, 1536], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.2},
 )
-registry.register_alias(
+registry.register_model_config(
     "convnext_v2_huge",
     ConvNeXt_v2,
     config={"in_channels": [352, 704, 1408, 2816], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.3},

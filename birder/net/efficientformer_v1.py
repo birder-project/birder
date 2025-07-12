@@ -371,17 +371,17 @@ class EfficientFormer_v1(BaseNet):
                 m.attention_bias_idxs = nn.Buffer(rel_pos)
 
 
-registry.register_alias(
+registry.register_model_config(
     "efficientformer_v1_l1",
     EfficientFormer_v1,
     config={"embed_dims": (48, 96, 224, 448), "depths": (3, 2, 6, 4), "drop_path_rate": 0.0, "num_vit": 1},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientformer_v1_l3",
     EfficientFormer_v1,
     config={"embed_dims": (64, 128, 320, 512), "depths": (4, 4, 12, 6), "drop_path_rate": 0.1, "num_vit": 4},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientformer_v1_l7",
     EfficientFormer_v1,
     config={"embed_dims": (96, 192, 384, 768), "depths": (6, 6, 18, 8), "drop_path_rate": 0.1, "num_vit": 8},

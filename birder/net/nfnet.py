@@ -315,10 +315,10 @@ class NFNet(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias("nfnet_f0", NFNet, config={"depths": [1, 2, 6, 3], "drop_path_rate": 0.2})
-registry.register_alias("nfnet_f1", NFNet, config={"depths": [2, 4, 12, 6], "drop_path_rate": 0.3})
-registry.register_alias("nfnet_f2", NFNet, config={"depths": [3, 6, 18, 9], "drop_path_rate": 0.4})
-registry.register_alias("nfnet_f3", NFNet, config={"depths": [4, 8, 24, 12], "drop_path_rate": 0.4})
-registry.register_alias("nfnet_f4", NFNet, config={"depths": [5, 10, 30, 15], "drop_path_rate": 0.5})
-registry.register_alias("nfnet_f5", NFNet, config={"depths": [6, 12, 36, 18], "drop_path_rate": 0.5})
-registry.register_alias("nfnet_f6", NFNet, config={"depths": [7, 14, 42, 21], "drop_path_rate": 0.5})
+registry.register_model_config("nfnet_f0", NFNet, config={"depths": [1, 2, 6, 3], "drop_path_rate": 0.2})
+registry.register_model_config("nfnet_f1", NFNet, config={"depths": [2, 4, 12, 6], "drop_path_rate": 0.3})
+registry.register_model_config("nfnet_f2", NFNet, config={"depths": [3, 6, 18, 9], "drop_path_rate": 0.4})
+registry.register_model_config("nfnet_f3", NFNet, config={"depths": [4, 8, 24, 12], "drop_path_rate": 0.4})
+registry.register_model_config("nfnet_f4", NFNet, config={"depths": [5, 10, 30, 15], "drop_path_rate": 0.5})
+registry.register_model_config("nfnet_f5", NFNet, config={"depths": [6, 12, 36, 18], "drop_path_rate": 0.5})
+registry.register_model_config("nfnet_f6", NFNet, config={"depths": [7, 14, 42, 21], "drop_path_rate": 0.5})

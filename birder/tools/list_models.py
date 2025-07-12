@@ -30,7 +30,8 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools list-models --pretrain-encoder\n"
             "python -m birder.tools list-models --detection\n"
             "python -m birder.tools list-models --pretrained\n"
-            "python -m birder.tools list-models --pretrained --verbose\n"
+            "python -m birder.tools list-models --pretrained\n"
+            "python -m birder.tools list-models --pretrained --detection --verbose\n"
             "python tool.py list-models --pretrained --verbose --filter '*mobile*'\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
@@ -41,7 +42,8 @@ def set_parser(subparsers: Any) -> None:
     task_group.add_argument("--detection", default=False, action="store_true", help="list detection models")
     task_group.add_argument("--mim", default=False, action="store_true", help="list MIM models")
     task_group.add_argument("--ssl", default=False, action="store_true", help="list SSL models")
-    task_group.add_argument("--pretrained", default=False, action="store_true", help="list pretrained models")
+
+    subparser.add_argument("--pretrained", default=False, action="store_true", help="list pretrained models")
 
     type_group = subparser.add_argument_group()
     type_group.add_argument(
@@ -88,18 +90,21 @@ def main(args: argparse.Namespace) -> None:
     else:
         t = tuple(types)
 
+    # Determine the task based on the selected flags
+    task = None
     if args.classification is True:
-        model_list = registry.list_models(task=Task.IMAGE_CLASSIFICATION, net_type=t)
+        task = Task.IMAGE_CLASSIFICATION
     elif args.detection is True:
-        model_list = registry.list_models(task=Task.OBJECT_DETECTION, net_type=t)
+        task = Task.OBJECT_DETECTION
     elif args.mim is True:
-        model_list = registry.list_models(task=Task.MASKED_IMAGE_MODELING, net_type=t)
+        task = Task.MASKED_IMAGE_MODELING
     elif args.ssl is True:
-        model_list = registry.list_models(task=Task.SELF_SUPERVISED_LEARNING, net_type=t)
-    elif args.pretrained is True:
-        model_list = registry.list_pretrained_models()
+        task = Task.SELF_SUPERVISED_LEARNING
+
+    if args.pretrained is True:
+        model_list = registry.list_pretrained_models(task=task)
     else:
-        model_list = registry.list_models(net_type=t)
+        model_list = registry.list_models(task=task, net_type=t)
 
     model_list = group_sort(model_list)
     if args.filter is not None:

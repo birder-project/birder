@@ -326,7 +326,7 @@ class RepVgg(DetectorBackbone):
         self.reparameterized = True
 
 
-registry.register_alias(
+registry.register_model_config(
     "repvgg_a0",
     RepVgg,
     config={
@@ -336,12 +336,12 @@ registry.register_alias(
         "use_se": False,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "repvgg_a1",
     RepVgg,
     config={"width_multipliers": [1, 1, 1, 2.5], "num_blocks_per_stage": [2, 4, 14, 1], "groups": 1, "use_se": False},
 )
-registry.register_alias(
+registry.register_model_config(
     "repvgg_a2",
     RepVgg,
     config={
@@ -351,22 +351,22 @@ registry.register_alias(
         "use_se": False,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "repvgg_b0",
     RepVgg,
     config={"width_multipliers": [1, 1, 1, 2.5], "num_blocks_per_stage": [4, 6, 16, 1], "groups": 1, "use_se": False},
 )
-registry.register_alias(
+registry.register_model_config(
     "repvgg_b1",
     RepVgg,
     config={"width_multipliers": [2, 2, 2, 4], "num_blocks_per_stage": [4, 6, 16, 1], "groups": 1, "use_se": False},
 )
-registry.register_alias(
+registry.register_model_config(
     "repvgg_b1g4",
     RepVgg,
     config={"width_multipliers": [2, 2, 2, 4], "num_blocks_per_stage": [4, 6, 16, 1], "groups": 4, "use_se": False},
 )
-registry.register_alias(
+registry.register_model_config(
     "repvgg_b2",
     RepVgg,
     config={
@@ -376,7 +376,7 @@ registry.register_alias(
         "use_se": False,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "repvgg_b2g4",
     RepVgg,
     config={
@@ -386,17 +386,17 @@ registry.register_alias(
         "use_se": False,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "repvgg_b3",
     RepVgg,
     config={"width_multipliers": [3, 3, 3, 5], "num_blocks_per_stage": [4, 6, 16, 1], "groups": 1, "use_se": False},
 )
-registry.register_alias(
+registry.register_model_config(
     "repvgg_b3g4",
     RepVgg,
     config={"width_multipliers": [3, 3, 3, 5], "num_blocks_per_stage": [4, 6, 16, 1], "groups": 4, "use_se": False},
 )
-registry.register_alias(
+registry.register_model_config(
     "repvgg_d2se",
     RepVgg,
     config={

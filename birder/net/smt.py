@@ -441,7 +441,7 @@ class SMT(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "smt_t",
     SMT,
     config={
@@ -452,7 +452,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "smt_s",
     SMT,
     config={
@@ -463,7 +463,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "smt_b",
     SMT,
     config={
@@ -474,7 +474,7 @@ registry.register_alias(
         "drop_path_rate": 0.3,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "smt_l",
     SMT,
     config={

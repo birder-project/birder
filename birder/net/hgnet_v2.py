@@ -200,7 +200,7 @@ class HGNet_v2(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "hgnet_v2_b0",
     HGNet_v2,
     config={
@@ -214,7 +214,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hgnet_v2_b1",
     HGNet_v2,
     config={
@@ -228,7 +228,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hgnet_v2_b2",
     HGNet_v2,
     config={
@@ -242,7 +242,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hgnet_v2_b3",
     HGNet_v2,
     config={
@@ -256,7 +256,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hgnet_v2_b4",
     HGNet_v2,
     config={
@@ -270,7 +270,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hgnet_v2_b5",
     HGNet_v2,
     config={
@@ -284,7 +284,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hgnet_v2_b6",
     HGNet_v2,
     config={

@@ -206,17 +206,17 @@ class DPN(BaseNet):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "dpn_92",
     DPN,
     config={"num_init_features": 64, "k_sec": [3, 4, 20, 3], "inc_sec": [16, 32, 24, 128], "k_r": 96, "groups": 32},
 )
-registry.register_alias(
+registry.register_model_config(
     "dpn_98",
     DPN,
     config={"num_init_features": 96, "k_sec": [3, 6, 20, 3], "inc_sec": [16, 32, 32, 128], "k_r": 160, "groups": 40},
 )
-registry.register_alias(
+registry.register_model_config(
     "dpn_131",
     DPN,
     config={"num_init_features": 128, "k_sec": [4, 8, 28, 3], "inc_sec": [16, 32, 32, 128], "k_r": 160, "groups": 40},

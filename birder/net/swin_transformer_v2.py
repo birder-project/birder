@@ -389,7 +389,7 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
 
 
 # Window factor = 1
-registry.register_alias(
+registry.register_model_config(
     "swin_transformer_v2_t",
     Swin_Transformer_v2,
     config={
@@ -400,7 +400,7 @@ registry.register_alias(
         "window_scale_factor": 1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "swin_transformer_v2_s",
     Swin_Transformer_v2,
     config={
@@ -411,7 +411,7 @@ registry.register_alias(
         "window_scale_factor": 1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "swin_transformer_v2_b",
     Swin_Transformer_v2,
     config={
@@ -422,7 +422,7 @@ registry.register_alias(
         "window_scale_factor": 1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "swin_transformer_v2_l",
     Swin_Transformer_v2,
     config={
@@ -435,7 +435,7 @@ registry.register_alias(
 )
 
 # Window factor = 2
-registry.register_alias(
+registry.register_model_config(
     "swin_transformer_v2_w2_t",
     Swin_Transformer_v2,
     config={
@@ -446,7 +446,7 @@ registry.register_alias(
         "window_scale_factor": 2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "swin_transformer_v2_w2_s",
     Swin_Transformer_v2,
     config={
@@ -457,7 +457,7 @@ registry.register_alias(
         "window_scale_factor": 2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "swin_transformer_v2_w2_b",
     Swin_Transformer_v2,
     config={
@@ -468,7 +468,7 @@ registry.register_alias(
         "window_scale_factor": 2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "swin_transformer_v2_w2_l",
     Swin_Transformer_v2,
     config={

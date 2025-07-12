@@ -520,7 +520,7 @@ class RegionViT(DetectorBackbone):
         return out
 
 
-registry.register_alias(
+registry.register_model_config(
     "regionvit_t",
     RegionViT,
     config={
@@ -532,7 +532,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "regionvit_s",
     RegionViT,
     config={
@@ -544,7 +544,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "regionvit_m",
     RegionViT,
     config={
@@ -556,7 +556,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "regionvit_b",
     RegionViT,
     config={

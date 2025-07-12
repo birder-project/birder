@@ -445,32 +445,32 @@ class DaViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                 m.window_size = new_window_size
 
 
-registry.register_alias(
+registry.register_model_config(
     "davit_tiny",
     DaViT,
     config={"depths": [1, 1, 3, 1], "dims": [96, 192, 384, 768], "heads": [3, 6, 12, 24], "drop_path_rate": 0.1},
 )
-registry.register_alias(
+registry.register_model_config(
     "davit_small",
     DaViT,
     config={"depths": [1, 1, 9, 1], "dims": [96, 192, 384, 768], "heads": [3, 6, 12, 24], "drop_path_rate": 0.2},
 )
-registry.register_alias(
+registry.register_model_config(
     "davit_base",
     DaViT,
     config={"depths": [1, 1, 9, 1], "dims": [128, 256, 512, 1024], "heads": [4, 8, 16, 32], "drop_path_rate": 0.4},
 )
-registry.register_alias(
+registry.register_model_config(
     "davit_large",
     DaViT,
     config={"depths": [1, 1, 9, 1], "dims": [192, 384, 768, 1536], "heads": [6, 12, 24, 48], "drop_path_rate": 0.4},
 )
-registry.register_alias(
+registry.register_model_config(
     "davit_huge",
     DaViT,
     config={"depths": [1, 1, 9, 1], "dims": [256, 512, 1024, 2048], "heads": [8, 16, 32, 64], "drop_path_rate": 0.5},
 )
-registry.register_alias(
+registry.register_model_config(
     "davit_giant",
     DaViT,
     config={"depths": [1, 1, 12, 3], "dims": [384, 768, 1536, 3072], "heads": [12, 24, 48, 96], "drop_path_rate": 0.5},

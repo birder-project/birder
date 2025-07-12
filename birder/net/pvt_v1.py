@@ -315,7 +315,7 @@ class PVT_v1(DetectorBackbone):
                 s = (s[0] // 2, s[1] // 2)
 
 
-registry.register_alias("pvt_v1_t", PVT_v1, config={"depths": [2, 2, 2, 2], "drop_path_rate": 0.1})
-registry.register_alias("pvt_v1_s", PVT_v1, config={"depths": [3, 4, 6, 3], "drop_path_rate": 0.1})
-registry.register_alias("pvt_v1_m", PVT_v1, config={"depths": [3, 4, 18, 3], "drop_path_rate": 0.3})
-registry.register_alias("pvt_v1_l", PVT_v1, config={"depths": [3, 8, 27, 3], "drop_path_rate": 0.3})
+registry.register_model_config("pvt_v1_t", PVT_v1, config={"depths": [2, 2, 2, 2], "drop_path_rate": 0.1})
+registry.register_model_config("pvt_v1_s", PVT_v1, config={"depths": [3, 4, 6, 3], "drop_path_rate": 0.1})
+registry.register_model_config("pvt_v1_m", PVT_v1, config={"depths": [3, 4, 18, 3], "drop_path_rate": 0.3})
+registry.register_model_config("pvt_v1_l", PVT_v1, config={"depths": [3, 8, 27, 3], "drop_path_rate": 0.3})

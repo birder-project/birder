@@ -196,7 +196,7 @@ class DeiT(BaseNet):
         )
 
 
-registry.register_alias(
+registry.register_model_config(
     "deit_t16",
     DeiT,
     config={
@@ -208,7 +208,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit_s16",
     DeiT,
     config={
@@ -220,7 +220,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit_b16",
     DeiT,
     config={

@@ -364,7 +364,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
         )
 
 
-registry.register_alias(
+registry.register_model_config(
     "deit3_t16",
     DeiT3,
     config={
@@ -376,7 +376,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_s16",
     DeiT3,
     config={
@@ -388,7 +388,7 @@ registry.register_alias(
         "drop_path_rate": 0.05,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_s14",
     DeiT3,
     config={
@@ -400,7 +400,7 @@ registry.register_alias(
         "drop_path_rate": 0.05,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_m16",
     DeiT3,
     config={
@@ -412,7 +412,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_m14",
     DeiT3,
     config={
@@ -424,7 +424,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_b16",
     DeiT3,
     config={
@@ -436,7 +436,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_b14",
     DeiT3,
     config={
@@ -448,7 +448,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_l16",
     DeiT3,
     config={
@@ -460,7 +460,7 @@ registry.register_alias(
         "drop_path_rate": 0.45,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_l14",
     DeiT3,
     config={
@@ -472,7 +472,7 @@ registry.register_alias(
         "drop_path_rate": 0.45,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_h16",
     DeiT3,
     config={
@@ -484,7 +484,7 @@ registry.register_alias(
         "drop_path_rate": 0.55,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_h14",
     DeiT3,
     config={
@@ -498,7 +498,7 @@ registry.register_alias(
 )
 
 # With registers
-registry.register_alias(
+registry.register_model_config(
     "deit3_reg4_t16",
     DeiT3,
     config={
@@ -511,7 +511,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_reg4_s16",
     DeiT3,
     config={
@@ -524,7 +524,7 @@ registry.register_alias(
         "drop_path_rate": 0.05,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_reg4_s14",
     DeiT3,
     config={
@@ -537,7 +537,7 @@ registry.register_alias(
         "drop_path_rate": 0.05,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_reg4_m16",
     DeiT3,
     config={
@@ -550,7 +550,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_reg4_m14",
     DeiT3,
     config={
@@ -563,7 +563,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_reg4_b16",
     DeiT3,
     config={
@@ -576,7 +576,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_reg4_b14",
     DeiT3,
     config={
@@ -589,7 +589,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_reg4_l16",
     DeiT3,
     config={
@@ -602,7 +602,7 @@ registry.register_alias(
         "drop_path_rate": 0.45,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_reg4_l14",
     DeiT3,
     config={
@@ -615,7 +615,7 @@ registry.register_alias(
         "drop_path_rate": 0.45,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_reg4_h16",
     DeiT3,
     config={
@@ -628,7 +628,7 @@ registry.register_alias(
         "drop_path_rate": 0.55,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "deit3_reg4_h14",
     DeiT3,
     config={

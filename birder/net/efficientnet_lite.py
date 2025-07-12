@@ -293,27 +293,27 @@ class EfficientNet_Lite(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionM
         )
 
 
-registry.register_alias(
+registry.register_model_config(
     "efficientnet_lite0",
     EfficientNet_Lite,
     config={"width_coefficient": 1.0, "depth_coefficient": 1.0, "dropout_rate": 0.2},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientnet_lite1",
     EfficientNet_Lite,
     config={"width_coefficient": 1.0, "depth_coefficient": 1.1, "dropout_rate": 0.2},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientnet_lite2",
     EfficientNet_Lite,
     config={"width_coefficient": 1.1, "depth_coefficient": 1.2, "dropout_rate": 0.3},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientnet_lite3",
     EfficientNet_Lite,
     config={"width_coefficient": 1.2, "depth_coefficient": 1.4, "dropout_rate": 0.3},
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientnet_lite4",
     EfficientNet_Lite,
     config={"width_coefficient": 1.4, "depth_coefficient": 1.8, "dropout_rate": 0.4},

@@ -106,12 +106,12 @@ class ConvMixer(BaseNet):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "convmixer_768_32", ConvMixer, config={"dim": 768, "depth": 32, "kernel_size": (7, 7), "patch_size": (7, 7)}
 )
-registry.register_alias(
+registry.register_model_config(
     "convmixer_1024_20", ConvMixer, config={"dim": 1024, "depth": 20, "kernel_size": (9, 9), "patch_size": (14, 14)}
 )
-registry.register_alias(
+registry.register_model_config(
     "convmixer_1536_20", ConvMixer, config={"dim": 1536, "depth": 20, "kernel_size": (9, 9), "patch_size": (7, 7)}
 )

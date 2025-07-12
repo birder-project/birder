@@ -369,32 +369,32 @@ class MogaNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "moganet_xt",
     MogaNet,
     config={"embed_dims": [32, 64, 96, 192], "depths": [3, 3, 10, 2], "drop_path_rate": 0.05},
 )
-registry.register_alias(
+registry.register_model_config(
     "moganet_t",
     MogaNet,
     config={"embed_dims": [32, 64, 128, 256], "depths": [3, 3, 12, 2], "drop_path_rate": 0.1},
 )
-registry.register_alias(
+registry.register_model_config(
     "moganet_s",
     MogaNet,
     config={"embed_dims": [64, 128, 320, 512], "depths": [2, 3, 12, 2], "drop_path_rate": 0.1},
 )
-registry.register_alias(
+registry.register_model_config(
     "moganet_b",
     MogaNet,
     config={"embed_dims": [64, 160, 320, 512], "depths": [4, 6, 22, 3], "drop_path_rate": 0.2},
 )
-registry.register_alias(
+registry.register_model_config(
     "moganet_l",
     MogaNet,
     config={"embed_dims": [64, 160, 320, 640], "depths": [4, 6, 44, 4], "drop_path_rate": 0.3},
 )
-registry.register_alias(
+registry.register_model_config(
     "moganet_xl",
     MogaNet,
     config={"embed_dims": [96, 192, 480, 960], "depths": [6, 6, 44, 4], "drop_path_rate": 0.4},

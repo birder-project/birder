@@ -221,6 +221,8 @@ class MultiScaleAttention(nn.Module):
 
         self.rel_pos_h = nn.Parameter(torch.zeros(rel_sp_dim_h, head_dim))
         self.rel_pos_w = nn.Parameter(torch.zeros(rel_sp_dim_w, head_dim))
+
+        # Weights initialization
         nn.init.trunc_normal_(self.rel_pos_h, std=0.02)
         nn.init.trunc_normal_(self.rel_pos_w, std=0.02)
 
@@ -660,7 +662,7 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                         idx += 1
 
 
-registry.register_alias(
+registry.register_model_config(
     "mvit_v2_t",
     MViT_v2,
     config={
@@ -672,7 +674,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "mvit_v2_s",
     MViT_v2,
     config={
@@ -684,7 +686,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "mvit_v2_b",
     MViT_v2,
     config={
@@ -696,7 +698,7 @@ registry.register_alias(
         "drop_path_rate": 0.3,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "mvit_v2_l",
     MViT_v2,
     config={
@@ -708,7 +710,7 @@ registry.register_alias(
         "drop_path_rate": 0.5,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "mvit_v2_t_cls",
     MViT_v2,
     config={
@@ -720,7 +722,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "mvit_v2_s_cls",
     MViT_v2,
     config={
@@ -732,7 +734,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "mvit_v2_b_cls",
     MViT_v2,
     config={
@@ -744,7 +746,7 @@ registry.register_alias(
         "drop_path_rate": 0.3,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "mvit_v2_l_cls",
     MViT_v2,
     config={
@@ -756,7 +758,7 @@ registry.register_alias(
         "drop_path_rate": 0.5,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "mvit_v2_h_cls",
     MViT_v2,
     config={

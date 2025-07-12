@@ -866,7 +866,7 @@ class FastViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.reparameterized = True
 
 
-registry.register_alias(
+registry.register_model_config(
     "fastvit_t8",
     FastViT,
     config={
@@ -880,7 +880,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "fastvit_t12",
     FastViT,
     config={
@@ -894,7 +894,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "fastvit_s12",
     FastViT,
     config={
@@ -908,7 +908,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "fastvit_sa12",
     FastViT,
     config={
@@ -922,7 +922,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "fastvit_sa24",
     FastViT,
     config={
@@ -936,7 +936,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "fastvit_sa36",
     FastViT,
     config={
@@ -950,7 +950,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "fastvit_ma36",
     FastViT,
     config={
@@ -965,7 +965,7 @@ registry.register_alias(
     },
 )
 
-registry.register_alias(
+registry.register_model_config(
     "mobileclip_i0",
     FastViT,
     config={
@@ -979,7 +979,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "mobileclip_i1",
     FastViT,
     config={
@@ -993,7 +993,7 @@ registry.register_alias(
         "drop_path_rate": 0.05,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "mobileclip_i2",
     FastViT,
     config={

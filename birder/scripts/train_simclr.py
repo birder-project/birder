@@ -222,6 +222,8 @@ def train(args: argparse.Namespace) -> None:
         norm_weight_decay=args.norm_wd,
         custom_keys_weight_decay=custom_keys_weight_decay,
         layer_decay=args.layer_decay,
+        layer_decay_min_scale=args.layer_decay_min_scale,
+        layer_decay_no_opt_scale=args.layer_decay_no_opt_scale,
         bias_lr=args.bias_lr,
     )
 
@@ -527,23 +529,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
     )
     training_utils.add_optimizer_args(parser)
-    parser.add_argument("--lr", type=float, default=0.1, help="base learning rate")
-    parser.add_argument("--bias-lr", type=float, help="learning rate of biases")
-    parser.add_argument(
-        "--lr-scale", type=int, help="reference batch size for LR scaling, if provided, LR will be scaled accordingly"
-    )
-    parser.add_argument(
-        "--lr-scale-type", type=str, choices=["linear", "sqrt"], default="linear", help="learning rate scaling type"
-    )
-    parser.add_argument("--wd", type=float, default=0.0001, help="weight decay")
-    parser.add_argument("--norm-wd", type=float, help="weight decay for Normalization layers")
-    parser.add_argument("--bias-weight-decay", type=float, help="weight decay for bias parameters of all layers")
-    parser.add_argument(
-        "--transformer-embedding-decay",
-        type=float,
-        help="weight decay for embedding parameters for vision transformer models",
-    )
-    parser.add_argument("--layer-decay", type=float, help="layer-wise learning rate decay (LLRD)")
+    training_utils.add_lr_wd_args(parser)
     training_utils.add_scheduler_args(parser)
     parser.add_argument(
         "--grad-accum-steps", type=int, default=1, metavar="N", help="number of steps to accumulate gradients"

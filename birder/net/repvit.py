@@ -480,12 +480,22 @@ class RepViT(DetectorBackbone):
         self.reparameterized = True
 
 
-registry.register_alias("repvit_m0_6", RepViT, config={"embed_dims": [48, 80, 160, 320], "depths": [1, 2, 9, 1]})
-registry.register_alias("repvit_m0_9", RepViT, config={"embed_dims": [48, 96, 192, 384], "depths": [2, 2, 14, 2]})
-registry.register_alias("repvit_m1_0", RepViT, config={"embed_dims": [56, 112, 224, 448], "depths": [2, 2, 14, 2]})
-registry.register_alias("repvit_m1_1", RepViT, config={"embed_dims": [64, 128, 256, 512], "depths": [2, 2, 12, 2]})
-registry.register_alias("repvit_m1_5", RepViT, config={"embed_dims": [64, 128, 256, 512], "depths": [4, 4, 24, 4]})
-registry.register_alias("repvit_m2_3", RepViT, config={"embed_dims": [80, 160, 320, 640], "depths": [6, 6, 34, 2]})
+registry.register_model_config("repvit_m0_6", RepViT, config={"embed_dims": [48, 80, 160, 320], "depths": [1, 2, 9, 1]})
+registry.register_model_config(
+    "repvit_m0_9", RepViT, config={"embed_dims": [48, 96, 192, 384], "depths": [2, 2, 14, 2]}
+)
+registry.register_model_config(
+    "repvit_m1_0", RepViT, config={"embed_dims": [56, 112, 224, 448], "depths": [2, 2, 14, 2]}
+)
+registry.register_model_config(
+    "repvit_m1_1", RepViT, config={"embed_dims": [64, 128, 256, 512], "depths": [2, 2, 12, 2]}
+)
+registry.register_model_config(
+    "repvit_m1_5", RepViT, config={"embed_dims": [64, 128, 256, 512], "depths": [4, 4, 24, 4]}
+)
+registry.register_model_config(
+    "repvit_m2_3", RepViT, config={"embed_dims": [80, 160, 320, 640], "depths": [6, 6, 34, 2]}
+)
 
 registry.register_weights(
     "repvit_m0_6_il-common",

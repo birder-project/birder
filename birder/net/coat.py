@@ -610,7 +610,7 @@ class CoaT(DetectorBackbone):
         return merged_cls
 
 
-registry.register_alias(
+registry.register_model_config(
     "coat_tiny",
     CoaT,
     config={
@@ -621,7 +621,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "coat_mini",
     CoaT,
     config={
@@ -632,7 +632,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "coat_small",
     CoaT,
     config={
@@ -643,7 +643,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "coat_lite_tiny",
     CoaT,
     config={
@@ -654,7 +654,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "coat_lite_mini",
     CoaT,
     config={
@@ -665,7 +665,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "coat_lite_small",
     CoaT,
     config={
@@ -676,7 +676,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "coat_lite_medium",
     CoaT,
     config={

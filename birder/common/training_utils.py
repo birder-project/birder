@@ -207,14 +207,56 @@ def optimizer_parameter_groups(
     norm_weight_decay: Optional[float] = None,
     custom_keys_weight_decay: Optional[list[tuple[str, float]]] = None,
     layer_decay: Optional[float] = None,
+    layer_decay_min_scale: Optional[float] = None,
+    layer_decay_no_opt_scale: Optional[float] = None,
     bias_lr: Optional[float] = None,
     backbone_lr: Optional[float] = None,
 ) -> list[dict[str, Any]]:
     """
     Return parameter groups for optimizers with per-parameter group weight decay.
 
+    This function creates parameter groups with customizable weight decay, layer-wise
+    learning rate scaling, and special handling for different parameter types. It supports
+    advanced optimization techniques like layer decay and custom weight decay rules.
+
     Referenced from https://github.com/pytorch/vision/blob/main/references/classification/utils.py and from
     https://github.com/karpathy/minGPT/blob/3ed14b2cec0dfdad3f4b2831f2b4a86d11aef150/mingpt/model.py#L136
+
+    Layer decay optimization trick from: https://github.com/huggingface/pytorch-image-models/pull/2537/files
+
+    Parameters
+    ----------
+    model
+        The PyTorch model whose parameters will be grouped for optimization.
+    weight_decay
+        Default weight decay (L2 regularization) value applied to parameters.
+    norm_weight_decay
+        Weight decay value specifically for normalization layers. If None, uses weight_decay.
+    custom_keys_weight_decay
+        List of (parameter_name, weight_decay) tuples for applying custom weight decay
+        values to specific parameters by name matching.
+    layer_decay
+        Layer-wise learning rate decay factor.
+    layer_decay_min_scale
+        Minimum learning rate scale factor when using layer decay. Prevents layers from having too small learning rates.
+    layer_decay_no_opt_scale
+        Learning rate scale threshold below which parameters are frozen (requires_grad=False).
+    bias_lr
+        Custom learning rate for bias parameters (parameters ending with '.bias').
+    backbone_lr
+        Custom learning rate for backbone parameters (parameters starting with 'backbone.').
+
+    Returns
+    -------
+    List of parameter group dictionaries suitable for PyTorch optimizers.
+
+    Notes
+    -----
+    - The function handles duplicate parameters (module aliases) by warning and skipping them
+    - Layer grouping is determined by the model's `block_group_regex` attribute if available,
+      otherwise layers are counted sequentially
+    - Parameters with requires_grad=False are automatically skipped
+    - Custom key matching supports both full parameter names and shortened names for nested modules
     """
 
     norm_classes = (
@@ -239,10 +281,16 @@ def optimizer_parameter_groups(
             logger.warning("Assigning lr scaling (layer decay) without a block group map")
 
     # Build layer scale
+    if layer_decay_min_scale is None:
+        layer_decay_min_scale = 0.0
+
     layer_scales = []
     if layer_decay is not None:
         layer_max = num_layers - 1
-        layer_scales = [layer_decay ** (layer_max - i) for i in range(num_layers)]
+        layer_scales = [max(layer_decay_min_scale, layer_decay ** (layer_max - i)) for i in range(num_layers)]
+        logger.info(
+            f"Layer scaling in range of {min(layer_scales)} - {max(layer_scales)} on {len(layer_scales)} layers"
+        )
 
     # Set weight decay and layer decay
     user_warned = False
@@ -271,6 +319,9 @@ def optimizer_parameter_groups(
             parameters_found = True
             if p.requires_grad is False:
                 continue
+            if layer_decay is not None and layer_decay_no_opt_scale is not None:
+                if layer_scales[idx] < layer_decay_no_opt_scale:
+                    p.requires_grad_(False)
 
             is_custom_key = False
             if custom_keys_weight_decay is not None:
@@ -779,6 +830,36 @@ def add_optimizer_args(parser: argparse.ArgumentParser) -> None:
         "--opt-betas", type=float, nargs="+", help="optimizer betas (None to use the optimizer default)"
     )
     parser.add_argument("--opt-alpha", type=float, help="optimizer alpha (None to use the optimizer default)")
+
+
+def add_lr_wd_args(parser: argparse.ArgumentParser, backbone_lr: bool = False, wd_end: bool = False) -> None:
+    parser.add_argument("--lr", type=float, default=0.1, help="base learning rate")
+    parser.add_argument("--bias-lr", type=float, help="learning rate of biases")
+    if backbone_lr is True:
+        parser.add_argument("--backbone-lr", type=float, help="backbone learning rate")
+
+    parser.add_argument(
+        "--lr-scale", type=int, help="reference batch size for LR scaling, if provided, LR will be scaled accordingly"
+    )
+    parser.add_argument(
+        "--lr-scale-type", type=str, choices=["linear", "sqrt"], default="linear", help="learning rate scaling type"
+    )
+    parser.add_argument("--wd", type=float, default=0.0001, help="weight decay")
+    if wd_end is True:
+        parser.add_argument("--wd-end", type=float, help="final value of the weight decay (None for constant wd)")
+
+    parser.add_argument("--norm-wd", type=float, help="weight decay for Normalization layers")
+    parser.add_argument("--bias-weight-decay", type=float, help="weight decay for bias parameters of all layers")
+    parser.add_argument(
+        "--transformer-embedding-decay",
+        type=float,
+        help="weight decay for embedding parameters for vision transformer models",
+    )
+    parser.add_argument("--layer-decay", type=float, help="layer-wise learning rate decay (LLRD)")
+    parser.add_argument("--layer-decay-min-scale", type=float, help="minimum layer scale factor clamp value")
+    parser.add_argument(
+        "--layer-decay-no-opt-scale", type=float, help="layer scale threshold below which parameters are frozen"
+    )
 
 
 def add_scheduler_args(parser: argparse.ArgumentParser) -> None:

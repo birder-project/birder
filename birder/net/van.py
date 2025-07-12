@@ -246,25 +246,25 @@ class VAN(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "van_b0", VAN, config={"embed_dims": [32, 64, 160, 256], "depths": [3, 3, 5, 2], "drop_path_rate": 0.1}
 )
-registry.register_alias(
+registry.register_model_config(
     "van_b1", VAN, config={"embed_dims": [64, 128, 320, 512], "depths": [2, 2, 4, 2], "drop_path_rate": 0.1}
 )
-registry.register_alias(
+registry.register_model_config(
     "van_b2", VAN, config={"embed_dims": [64, 128, 320, 512], "depths": [3, 3, 12, 3], "drop_path_rate": 0.1}
 )
-registry.register_alias(
+registry.register_model_config(
     "van_b3", VAN, config={"embed_dims": [64, 128, 320, 512], "depths": [3, 5, 27, 3], "drop_path_rate": 0.2}
 )
-registry.register_alias(
+registry.register_model_config(
     "van_b4", VAN, config={"embed_dims": [64, 128, 320, 512], "depths": [3, 6, 40, 3], "drop_path_rate": 0.3}
 )
-registry.register_alias(
+registry.register_model_config(
     "van_b5", VAN, config={"embed_dims": [96, 192, 480, 768], "depths": [3, 3, 24, 3], "drop_path_rate": 0.3}
 )
-registry.register_alias(
+registry.register_model_config(
     "van_b6", VAN, config={"embed_dims": [96, 192, 384, 768], "depths": [6, 6, 90, 6], "drop_path_rate": 0.5}
 )
 

@@ -301,7 +301,7 @@ class UniFormer(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "uniformer_s",
     UniFormer,
     config={
@@ -313,7 +313,7 @@ registry.register_alias(
         "layer_scale_init_value": None,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "uniformer_b",
     UniFormer,
     config={
@@ -325,7 +325,7 @@ registry.register_alias(
         "layer_scale_init_value": None,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "uniformer_l",
     UniFormer,
     config={

@@ -356,7 +356,7 @@ class PVT_v2(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "pvt_v2_b0_li",
     PVT_v2,
     config={
@@ -367,7 +367,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "pvt_v2_b0",
     PVT_v2,
     config={
@@ -378,7 +378,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "pvt_v2_b1_li",
     PVT_v2,
     config={
@@ -389,7 +389,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "pvt_v2_b1",
     PVT_v2,
     config={
@@ -400,7 +400,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "pvt_v2_b2_li",
     PVT_v2,
     config={
@@ -411,7 +411,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "pvt_v2_b2",
     PVT_v2,
     config={
@@ -422,7 +422,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "pvt_v2_b3_li",
     PVT_v2,
     config={
@@ -433,7 +433,7 @@ registry.register_alias(
         "drop_path_rate": 0.3,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "pvt_v2_b3",
     PVT_v2,
     config={
@@ -444,7 +444,7 @@ registry.register_alias(
         "drop_path_rate": 0.3,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "pvt_v2_b4",
     PVT_v2,
     config={
@@ -455,7 +455,7 @@ registry.register_alias(
         "drop_path_rate": 0.3,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "pvt_v2_b5",
     PVT_v2,
     config={

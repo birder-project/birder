@@ -356,22 +356,22 @@ class EdgeNeXt(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "edgenext_xxs",
     EdgeNeXt,
     config={"depths": [2, 2, 6, 2], "dims": [24, 48, 88, 168], "heads": [4, 4, 4, 4], "drop_path_rate": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "edgenext_xs",
     EdgeNeXt,
     config={"depths": [3, 3, 9, 3], "dims": [32, 64, 100, 192], "heads": [4, 4, 4, 4], "drop_path_rate": 0.0},
 )
-registry.register_alias(
+registry.register_model_config(
     "edgenext_s",
     EdgeNeXt,
     config={"depths": [3, 3, 9, 3], "dims": [48, 96, 160, 304], "heads": [8, 8, 8, 8], "drop_path_rate": 0.1},
 )
-registry.register_alias(
+registry.register_model_config(
     "edgenext_b",
     EdgeNeXt,
     config={"depths": [3, 3, 9, 3], "dims": [80, 160, 288, 584], "heads": [8, 8, 8, 8], "drop_path_rate": 0.1},

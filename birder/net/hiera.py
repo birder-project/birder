@@ -630,7 +630,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         )
 
 
-registry.register_alias(
+registry.register_model_config(
     "hiera_tiny",
     Hiera,
     config={
@@ -641,7 +641,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hiera_small",
     Hiera,
     config={
@@ -652,7 +652,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hiera_base",
     Hiera,
     config={
@@ -663,7 +663,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hiera_base_plus",
     Hiera,
     config={
@@ -674,7 +674,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hiera_large",
     Hiera,
     config={
@@ -685,7 +685,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hiera_huge",
     Hiera,
     config={
@@ -698,7 +698,7 @@ registry.register_alias(
 )
 
 # AbsWin variant
-registry.register_alias(
+registry.register_model_config(
     "hiera_abswin_tiny",
     Hiera,
     config={
@@ -709,7 +709,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hiera_abswin_small",
     Hiera,
     config={
@@ -720,7 +720,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hiera_abswin_base",
     Hiera,
     config={
@@ -731,7 +731,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hiera_abswin_base_plus",
     Hiera,
     config={
@@ -742,7 +742,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hiera_abswin_large",
     Hiera,
     config={
@@ -753,7 +753,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "hiera_abswin_huge",
     Hiera,
     config={

@@ -420,6 +420,6 @@ class NextViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         return self.features(x)
 
 
-registry.register_alias("nextvit_s", NextViT, config={"depths": [3, 4, 10, 3], "drop_path_rate": 0.1})
-registry.register_alias("nextvit_b", NextViT, config={"depths": [3, 4, 20, 3], "drop_path_rate": 0.2})
-registry.register_alias("nextvit_l", NextViT, config={"depths": [3, 4, 30, 3], "drop_path_rate": 0.2})
+registry.register_model_config("nextvit_s", NextViT, config={"depths": [3, 4, 10, 3], "drop_path_rate": 0.1})
+registry.register_model_config("nextvit_b", NextViT, config={"depths": [3, 4, 20, 3], "drop_path_rate": 0.2})
+registry.register_model_config("nextvit_l", NextViT, config={"depths": [3, 4, 30, 3], "drop_path_rate": 0.2})

@@ -9203,6 +9203,7 @@ n03930313 picket_fence, paling
 n03930431 picket_ship
 n03930515 pickle_barrel
 n03930630 pickup, pickup_truck
+n03931044 picture, image, icon, ikon
 n03931765 picture_frame
 n03931885 picture_hat
 n03931980 picture_rail
@@ -12210,6 +12211,7 @@ n06278338 cable_television, cable
 n06278475 high-definition_television, HDTV
 n06281040 reception
 n06281175 signal_detection, detection
+n06340977 Hakham
 n06359193 web_site, website, internet_site, site
 n06359467 chat_room, chatroom
 n06359657 portal_site, portal
@@ -14449,176 +14451,2850 @@ n09476123 water_table, water_level, groundwater_level
 n09478210 whinstone, whin
 n09480959 wormcast
 n09481120 xenolith
+n09493983 Circe
 n09495962 gryphon, griffin, griffon
+n09505153 spiritual_leader
+n09537660 messiah, christ
+n09556121 Rhea_Silvia, Rea_Silvia
+n09605110 number_one
+n09606009 adventurer, venturer
+n09606527 anomaly, unusual_person
+n09607630 appointee, appointment
+n09607782 argonaut
+n09607903 Ashkenazi
+n09608709 benefactor, helper
+n09610255 color-blind_person
+n09610405 commoner, common_man, common_person
+n09611722 conservator
+n09612700 contrarian
+n09613118 contadino
+n09613191 contestant
+n09613690 cosigner, cosignatory
+n09615336 discussant
+n09616573 enologist, oenologist, fermentologist
+n09616922 entertainer
+n09617161 eulogist, panegyrist
+n09617435 ex-gambler
+n09617577 experimenter
+n09617696 experimenter
+n09618760 exponent
 n09618880 ex-president
 n09618957 face
+n09619168 female, female_person
+n09619452 finisher
+n09620078 inhabitant, habitant, dweller, denizen, indweller
+n09620794 native, indigen, indigene, aborigine, aboriginal
+n09621232 native
+n09622049 juvenile, juvenile_person
+n09622302 lover
+n09624168 male, male_person
+n09624559 mediator, go-between, intermediator, intermediary, intercessor
+n09624899 mediatrix
+n09625401 national, subject
+n09626238 peer, equal, match, compeer
+n09627807 prize_winner, lottery_winner
+n09627906 recipient, receiver
+n09629065 religionist
+n09629246 sensualist
+n09629752 traveler, traveller
+n09631129 unwelcome_person, persona_non_grata
+n09632274 unskilled_person
+n09632518 worker
+n09633969 wrongdoer, offender
+n09635534 Black_African
+n09635635 Afrikaner, Afrikander, Boer
+n09635973 Aryan
+n09636339 Black, Black_person, blackamoor, Negro, Negroid
+n09637339 Black_woman
+n09638454 mulatto
+n09638875 White, White_person, Caucasian
+n09639382 Circassian
+n09639919 Semite
+n09640327 Chaldean, Chaldaean, Chaldee
+n09640715 Elamite
+n09641002 white_man
+n09641578 WASP, white_Anglo-Saxon_Protestant
+n09643799 gook, slant-eye
+n09644152 Mongol, Mongolian
+n09644657 Tatar, Tartar, Mongol_Tatar
+n09648743 Nahuatl
+n09648911 Aztec
+n09649067 Olmec
+n09650729 Biloxi
+n09650839 Blackfoot
+n09650989 Brule
+n09651123 Caddo
+n09651968 Cheyenne
+n09652149 Chickasaw
+n09653144 Cocopa, Cocopah
+n09653438 Comanche
+n09654079 Creek
+n09654518 Delaware
+n09654898 Diegueno
+n09655213 Esselen
+n09655466 Eyeish
+n09656077 Havasupai
+n09657206 Hunkpapa
+n09657748 Iowa, Ioway
+n09658254 Kalapooia, Kalapuya, Calapooya, Calapuya
+n09658398 Kamia
+n09658815 Kekchi
+n09658921 Kichai
+n09659039 Kickapoo
+n09659188 Kiliwa, Kiliwi
+n09660010 Malecite
+n09660240 Maricopa
+n09661873 Mohican, Mahican
+n09662038 Muskhogean, Muskogean
+n09662661 Navaho, Navajo
+n09662951 Nootka
+n09663248 Oglala, Ogalala
+n09663786 Osage
+n09663999 Oneida
+n09664556 Paiute, Piute
+n09664908 Passamaquody
+n09665367 Penobscot
+n09665545 Penutian
+n09666349 Potawatomi
+n09666476 Powhatan
 n09666883 kachina
+n09667358 Salish
+n09668199 Shahaptian, Sahaptin, Sahaptino
+n09668437 Shasta
+n09668562 Shawnee
+n09668988 Sihasapa
+n09669631 Teton, Lakota, Teton_Sioux, Teton_Dakota
+n09670280 Taracahitian
+n09670521 Tarahumara
+n09670909 Tuscarora
+n09671089 Tutelo
+n09672590 Yana
+n09672725 Yavapai
+n09672840 Yokuts
+n09673091 Yuma
+n09674412 Gadaba
+n09674786 Kolam
+n09675045 Kui
+n09675673 Toda
+n09675799 Tulu
+n09675922 Gujarati, Gujerati
+n09676021 Kashmiri
+n09676247 Punjabi, Panjabi
+n09676884 Slav
+n09677427 Anabaptist
+n09678747 Adventist, Second_Adventist
+n09679028 gentile, non-Jew, goy
+n09679170 gentile
+n09679925 Catholic
+n09680908 Old_Catholic
+n09681107 Uniat, Uniate, Uniate_Christian
+n09681234 Copt
+n09681973 Jewess
+n09683180 Jihadist
+n09683757 Buddhist
+n09683924 Zen_Buddhist
+n09684082 Mahayanist
+n09684901 swami
+n09685233 Hare_Krishna
+n09685806 Shintoist
+n09686262 Eurafrican
+n09686401 Eurasian
+n09688233 Gael
+n09688804 Frank
+n09689435 Afghan, Afghanistani
+n09689958 Albanian
+n09690083 Algerian
+n09690208 Altaic
+n09690496 Andorran
+n09690621 Angolan
+n09690864 Anguillan
+n09691604 Austrian
+n09691729 Bahamian
+n09691858 Bahraini, Bahreini
+n09692125 Basotho
+n09692915 Herero
+n09693244 Luba, Chiluba
+n09693982 Barbadian
+n09694664 Bolivian
+n09694771 Bornean
+n09695019 Carioca
+n09695132 Tupi
+n09695514 Bruneian
+n09695620 Bulgarian
+n09695979 Byelorussian, Belorussian, White_Russian
+n09696456 Cameroonian
+n09696585 Canadian
+n09696763 French_Canadian
+n09697401 Central_American
+n09697986 Chilean
+n09698644 Congolese
+n09699020 Cypriot, Cypriote, Cyprian
+n09699642 Dane
+n09700125 Djiboutian
+n09700964 Britisher, Briton, Brit
+n09701148 English_person
+n09701833 Englishwoman
+n09702134 Anglo-Saxon
+n09702673 Angle
+n09703101 West_Saxon
+n09703344 Lombard, Langobard
+n09703485 limey, John_Bull
+n09703708 Cantabrigian
+n09703809 Cornishman
+n09703932 Cornishwoman
+n09704057 Lancastrian
+n09704157 Lancastrian
+n09704283 Geordie
+n09705003 Oxonian
+n09705124 Ethiopian
+n09705671 Amhara
+n09705784 Eritrean
+n09706029 Finn
+n09706255 Komi
+n09707061 Livonian
+n09707289 Lithuanian
+n09707735 Selkup, Ostyak-Samoyed
+n09708750 Parisian
+n09708889 Parisienne
+n09709531 Creole
+n09709673 Creole
+n09710041 Gabonese
+n09710164 Greek, Hellene
+n09710886 Dorian
+n09711132 Athenian
+n09711435 Laconian
+n09712324 Guyanese
+n09712448 Haitian
+n09712696 Malay, Malayan
+n09712967 Moro
+n09713108 Netherlander, Dutchman, Hollander
+n09714120 Icelander
+n09714694 Iraqi, Iraki
+n09715165 Irishman
+n09715303 Irishwoman
+n09715427 Dubliner
+n09716047 Italian
+n09716933 Roman
+n09717233 Sabine
+n09718217 Japanese, Nipponese
+n09718811 Jordanian
+n09718936 Korean
+n09719309 Kenyan
+n09719794 Lao, Laotian
+n09720033 Lapp, Lapplander, Sami, Saami, Same, Saame
+n09720256 Latin_American, Latino
+n09720595 Lebanese
+n09720702 Levantine
+n09720842 Liberian
+n09721244 Luxemburger, Luxembourger
+n09721444 Macedonian
+n09722064 Sabahan
+n09722658 Mexican
+n09722817 Chicano
+n09723067 Mexican-American, Mexicano
+n09723819 Namibian
+n09723944 Nauruan
+n09724234 Gurkha
+n09724533 New_Zealander, Kiwi
+n09724656 Nicaraguan
+n09724785 Nigerian
+n09725000 Hausa, Haussa
+n09725229 North_American
+n09725546 Nova_Scotian, bluenose
+n09725653 Omani
+n09725772 Pakistani
+n09725935 Brahui
+n09726621 South_American_Indian
+n09726811 Carib, Carib_Indian
+n09727440 Filipino
+n09727826 Polynesian
+n09728137 Qatari, Katari
+n09728285 Romanian, Rumanian
+n09729062 Muscovite
+n09729156 Georgian
+n09730077 Sarawakian
+n09730204 Scandinavian, Norse, Northman
+n09730824 Senegalese
+n09731343 Slovene
+n09731436 South_African
+n09731571 South_American
+n09732170 Sudanese
+n09733459 Syrian
+n09733793 Tahitian
+n09734185 Tanzanian
+n09734450 Tibetan
+n09734535 Togolese
+n09734639 Tuareg
+n09735258 Turki
+n09735654 Chuvash
+n09736485 Turkoman, Turkmen, Turcoman
+n09736798 Uzbek, Uzbeg, Uzbak, Usbek, Usbeg
+n09736945 Ugandan
+n09737050 Ukranian
+n09737161 Yakut
+n09737453 Tungus, Evenk
+n09738121 Igbo
+n09738400 American
+n09740724 Anglo-American
+n09741074 Alaska_Native, Alaskan_Native, Native_Alaskan
+n09741331 Arkansan, Arkansawyer
+n09741722 Carolinian
+n09741816 Coloradan
+n09741904 Connecticuter
+n09741999 Delawarean, Delawarian
+n09742101 Floridian
+n09742315 German_American
+n09742927 Illinoisan
+n09743487 Mainer, Down_Easter
+n09743601 Marylander
+n09743792 Minnesotan, Gopher
+n09744161 Nebraskan, Cornhusker
+n09744346 New_Hampshirite, Granite_Stater
+n09744462 New_Jerseyan, New_Jerseyite, Garden_Stater
+n09744679 New_Yorker
+n09744834 North_Carolinian, Tarheel
+n09745229 Oregonian, Beaver
+n09745324 Pennsylvanian, Keystone_Stater
+n09745834 Texan
+n09745933 Utahan
+n09746936 Uruguayan
+n09747191 Vietnamese, Annamese
+n09747495 Gambian
+n09748101 East_German
+n09748408 Berliner
+n09748648 Prussian
+n09748889 Ghanian
+n09749386 Guinean
+n09750282 Papuan
+n09750641 Walloon
+n09750770 Yemeni
+n09750891 Yugoslav, Jugoslav, Yugoslavian, Jugoslavian
+n09751076 Serbian, Serb
+n09751496 Xhosa
+n09751622 Zairese, Zairean
+n09751895 Zimbabwean
+n09752023 Zulu
+n09752519 Gemini, Twin
+n09753348 Sagittarius, Archer
+n09753792 Pisces, Fish
+n09754152 abbe
+n09754217 abbess, mother_superior, prioress
+n09754633 abnegator
+n09754907 abridger, abbreviator
+n09755086 abstractor, abstracter
+n09755241 absconder
+n09755555 absolver
+n09755788 abecedarian
+n09755893 aberrant
+n09756049 abettor, abetter
+n09756195 abhorrer
+n09756961 abomination
+n09757449 abseiler, rappeller
+n09758173 abstainer, ascetic
+n09758885 academic_administrator
+n09759501 academician
+n09760290 accessory_before_the_fact
+n09760609 companion
+n09760913 accompanist, accompanyist
+n09761068 accomplice, confederate
+n09761753 account_executive, account_representative, registered_representative, customer's_broker, customer's_man
+n09762011 accused
+n09762385 accuser
+n09763272 acid_head
 n09763784 acquaintance, friend
+n09764201 acquirer
+n09764598 aerialist
+n09764732 action_officer
+n09764900 active
+n09765118 active_citizen
+n09765278 actor, histrion, player, thespian, role_player
+n09767197 actor, doer, worker
+n09769076 addict, nut, freak, junkie, junky
+n09769525 adducer
+n09769929 adjuster, adjustor, claims_adjuster, claims_adjustor, claim_agent
+n09770179 adjutant, aide, aide-de-camp
+n09770359 adjutant_general
+n09771435 admirer, adorer
+n09772330 adoptee
+n09772746 adulterer, fornicator
+n09772930 adulteress, fornicatress, hussy, jade, loose_woman, slut, strumpet, trollop
+n09773962 advertiser, advertizer, adman
+n09774167 advisee
+n09774783 advocate, advocator, proponent, exponent
+n09775907 aeronautical_engineer
+n09776346 affiliate
+n09776642 affluent
+n09776807 aficionado
+n09777870 buck_sergeant
+n09778266 agent-in-place
+n09778537 aggravator, annoyance
+n09778783 agitator, fomenter
+n09778927 agnostic
+n09779124 agnostic, doubter
+n09779280 agonist
+n09779461 agony_aunt
+n09779790 agriculturist, agriculturalist, cultivator, grower, raiser
+n09780395 air_attache
+n09780828 air_force_officer, commander
+n09780984 airhead
 n09781398 air_traveler, air_traveller
+n09781504 alarmist
+n09781650 albino
+n09782167 alcoholic, alky, dipsomaniac, boozer, lush, soaker, souse
+n09782397 alderman
+n09782855 alexic
+n09783537 alienee, grantee
+n09783776 alienor
+n09783884 aliterate, aliterate_person
+n09784043 algebraist
+n09784160 allegorizer, allegoriser
+n09784564 alliterator
+n09785236 almoner, medical_social_worker
+n09785659 alpinist
+n09785891 altar_boy
+n09786115 alto
+n09787534 ambassador, embassador
+n09787765 ambassador
+n09788073 ambusher
+n09788237 amicus_curiae, friend_of_the_court
+n09789150 amoralist
+n09789566 amputee
+n09789898 analogist
+n09790047 analphabet, analphabetic
+n09790482 analyst
+n09791014 industry_analyst
+n09791419 market_strategist
+n09791816 anarchist, nihilist, syndicalist
+n09792125 anathema, bete_noire
+n09792555 ancestor, ascendant, ascendent, antecedent, root
 n09792969 anchor, anchorman, anchorperson
+n09793141 ancient
+n09793352 anecdotist, raconteur
+n09793946 angler, troller
+n09794550 animator
+n09794668 animist
+n09795010 annotator
+n09795124 announcer
+n09795334 announcer
+n09796809 anti
+n09796974 anti-American
+n09797742 anti-Semite, Jew-baiter
+n09797873 Anzac
+n09797998 ape-man
+n09798096 aphakic
+n09800469 appellant, plaintiff_in_error
+n09800964 appointee
+n09801102 apprehender
+n09801275 April_fool
+n09801533 aspirant, aspirer, hopeful, wannabe, wannabee
+n09802445 appreciator
+n09802641 appropriator
+n09802951 Arabist
+n09804230 archaist
+n09805151 archbishop
+n09805324 archer, bowman
+n09805475 architect, designer
+n09806944 archivist
+n09807075 archpriest, hierarch, high_priest, prelate, primate
+n09808080 Aristotelian, Aristotelean, Peripatetic
+n09808591 armiger
+n09809279 army_attache
+n09809538 army_engineer, military_engineer
+n09809749 army_officer
+n09809925 arranger, adapter, transcriber
+n09810166 arrival, arriver, comer
+n09811568 arthritic
+n09811712 articulator
+n09811852 artilleryman, cannoneer, gunner, machine_gunner
+n09813219 artist's_model, sitter
+n09814252 assayer
+n09814381 assemblyman
+n09814488 assemblywoman
+n09814567 assenter
+n09814660 asserter, declarer, affirmer, asseverator, avower
+n09815455 assignee
+n09815790 assistant, helper, help, supporter
+n09816654 assistant_professor
+n09816771 associate
+n09817174 associate
+n09817386 associate_professor
 n09818022 astronaut, spaceman, cosmonaut
+n09819477 cosmographer, cosmographist
+n09820044 atheist
 n09820263 athlete, jock
+n09821831 attendant, attender, tender
+n09822830 attorney_general
+n09823153 auditor
+n09823287 augur, auspex
+n09823502 aunt, auntie, aunty
+n09823832 au_pair_girl
+n09824135 authoritarian, dictator
+n09824609 authority
+n09825096 authorizer, authoriser
 n09825750 automobile_mechanic, auto-mechanic, car-mechanic, mechanic, grease_monkey
+n09826204 aviator, aeronaut, airman, flier, flyer
+n09826605 aviatrix, airwoman, aviatress
+n09826821 ayah
+n09827246 babu, baboo
+n09827363 baby, babe, sister
 n09828216 baby
+n09828403 baby_boomer, boomer
+n09828988 baby_farmer
+n09830194 back
+n09830400 backbencher
+n09830629 backpacker, packer
+n09830759 backroom_boy, brain_truster
+n09830926 backscratcher
+n09831962 bad_person
+n09832456 baggage
+n09832633 bag_lady
+n09832978 bailee
+n09833111 bailiff
+n09833275 bailor
+n09833441 bairn
 n09833536 baker, bread_maker
+n09833751 balancer
+n09833997 balker, baulker, noncompliant
+n09834258 ball-buster, ball-breaker
+n09834378 ball_carrier, runner
 n09834699 ballet_dancer
+n09834885 ballet_master
+n09835017 ballet_mistress
+n09835153 balletomane
+n09835230 ball_hawk
+n09835348 balloonist
 n09835506 ballplayer, baseball_player
+n09836160 bullfighter, toreador
+n09836343 banderillero
+n09836519 matador
+n09836786 picador
+n09837459 bandsman
+n09837720 banker
+n09838295 bank_robber
+n09838370 bankrupt, insolvent
+n09838621 bantamweight
+n09839702 barmaid
+n09840217 baron, big_businessman, business_leader, king, magnate, mogul, power, top_executive, tycoon
+n09840435 baron
+n09840520 baron
+n09841188 bartender, barman, barkeep, barkeeper, mixologist
 n09841515 baseball_coach, baseball_manager
+n09841696 base_runner, runner
 n09842047 basketball_player, basketeer, cager
+n09842288 basketweaver, basketmaker
+n09842395 Basket_Maker
+n09842528 bass, basso
+n09842823 bastard, by-blow, love_child, illegitimate_child, illegitimate, whoreson
+n09843443 bat_boy
+n09843602 bather
+n09843716 batman
+n09843824 baton_twirler, twirler
+n09844457 Bavarian
+n09844898 beadsman, bedesman
+n09845401 beard
+n09845849 beatnik, beat
+n09846142 beauty_consultant
+n09846469 Bedouin, Beduin
+n09846586 bedwetter, bed_wetter, wetter
 n09846755 beekeeper, apiarist, apiculturist
+n09846894 beer_drinker, ale_drinker
+n09847267 beggarman
+n09847344 beggarwoman
+n09847543 beldam, beldame
+n09848110 theist
+n09848489 believer, truster
+n09849167 bell_founder
+n09849990 benedick, benedict
+n09850760 berserker, berserk
+n09850974 besieger
+n09851165 best, topper
+n09851575 betrothed
+n09853541 Big_Brother
+n09853645 bigot
+n09853881 big_shot, big_gun, big_wheel, big_cheese, big_deal, big_enchilada, big_fish, head_honcho
+n09854218 big_sister
+n09854421 billiard_player
+n09854915 biochemist
+n09855433 biographer
+n09856401 bird_fancier
 n09856671 birth
+n09856827 birth-control_campaigner, birth-control_reformer
+n09857007 bisexual, bisexual_person
 n09858165 black_belt
+n09858299 blackmailer, extortioner, extortionist
+n09858733 Black_Muslim
+n09859152 blacksmith
+n09859285 blade
+n09859684 bleacher
+n09859975 blind_date
+n09861287 bluecoat
+n09861599 bluestocking, bas_bleu
+n09861863 boatbuilder
 n09861946 boatman, boater, waterman
+n09862183 boatswain, bos'n, bo's'n, bosun, bo'sun
+n09862621 bobby
+n09863031 bodyguard, escort
+n09863339 boffin
+n09863749 Bolshevik, Marxist, red, bolshie, bolshy
+n09863936 Bolshevik, Bolshevist
+n09864632 bombshell
+n09864968 bondman, bondsman
+n09865068 bondwoman, bondswoman, bondmaid
+n09865162 bondwoman, bondswoman, bondmaid
+n09865398 bond_servant
+n09865672 book_agent
+n09865744 bookbinder
+n09866115 bookkeeper
+n09866354 bookmaker
+n09866559 bookworm
+n09866661 booster, shoplifter, lifter
+n09866817 bootblack, shoeblack
+n09866922 bootlegger, moonshiner
+n09867069 bootmaker, boot_maker
+n09867154 borderer
 n09867311 border_patrolman
+n09868270 botanist, phytologist, plant_scientist
+n09868782 bottom_feeder
+n09868899 boulevardier
+n09869317 bounty_hunter
+n09869447 bounty_hunter
+n09869578 Bourbon
+n09870096 bowler
+n09871095 slugger, slogger
+n09871229 cub, lad, laddie, sonny, sonny_boy
+n09871681 Boy_Scout
+n09871867 boy_scout
+n09871952 boy_wonder
+n09872066 bragger, braggart, boaster, blowhard, line-shooter, vaunter
+n09872557 brahman, brahmin
+n09873348 brawler
+n09873473 breadwinner
+n09873769 breaststroker
+n09873899 breeder, stock_breeder
+n09874428 brick
+n09874725 bride
 n09874862 bridesmaid, maid_of_honor
+n09875025 bridge_agent
+n09875979 broadcast_journalist
+n09876701 Brother
+n09877288 brother-in-law
+n09877587 browser
+n09877750 Brummie, Brummy
 n09877951 buddy, brother, chum, crony, pal, sidekick
+n09878921 bull
+n09879552 bully
+n09880189 bunny, bunny_girl
+n09880741 burglar
+n09881265 bursar
 n09881358 busboy, waiter's_assistant
+n09881895 business_editor
+n09883047 business_traveler
+n09883452 buster
+n09883807 busybody, nosy-parker, nosey-parker, quidnunc
+n09885059 buttinsky
 n09885866 cabinetmaker, furniture_maker
+n09886403 caddie, golf_caddie
+n09886540 cadet, plebe
+n09888635 caller, caller-out
+n09889065 call_girl
+n09889170 calligrapher, calligraphist
+n09889691 campaigner, candidate, nominee
+n09889941 camper
+n09890192 camp_follower
+n09890749 candidate, prospect
+n09891730 canonist
+n09892262 capitalist
+n09892513 captain, headwaiter, maitre_d'hotel, maitre_d'
 n09892693 captain, senior_pilot
 n09893191 captain
+n09893344 captain, chieftain
 n09893502 captive
+n09893600 captive
+n09894143 cardinal
 n09894445 cardiologist, heart_specialist, heart_surgeon
+n09894654 card_player
+n09894909 cardsharp, card_sharp, cardsharper, card_sharper, sharper, sharpie, sharpy, card_shark
+n09895222 careerist
+n09895480 career_man
+n09895561 caregiver
+n09895701 caretaker
+n09895902 caretaker
+n09896170 caricaturist
+n09896311 carillonneur
+n09896401 caroler, caroller
 n09896685 carpenter
+n09896826 carper, niggler
+n09898020 Cartesian
 n09899289 cashier
+n09899671 casualty, injured_party
+n09899782 casualty
+n09899929 casuist, sophist
+n09901337 catechist
+n09901502 catechumen, neophyte
+n09901642 caterer
+n09901786 Catholicos
+n09901921 cat_fancier
+n09902128 Cavalier, Royalist
+n09902353 cavalryman, trooper
+n09902731 caveman, cave_man, cave_dweller, troglodyte
+n09902851 celebrant
+n09902954 celebrant, celebrator, celebrater
+n09903153 celebrity, famous_person
+n09903501 cellist, violoncellist
+n09903639 censor
+n09903936 censor
+n09904208 centenarian
+n09904837 centrist, middle_of_the_roader, moderate, moderationist
+n09905050 centurion
+n09905185 certified_public_accountant, CPA
+n09905530 chachka, tsatske, tshatshke, tchotchke, tchotchkeleh
+n09906293 chambermaid, fille_de_chambre
+n09906449 chameleon
 n09906704 champion, champ, title-holder
+n09907804 chandler
+n09908769 prison_chaplain
+n09909660 charcoal_burner
+n09909929 charge_d'affaires
+n09910222 charioteer
+n09910374 charmer, beguiler
+n09910556 chartered_accountant
+n09910840 chartist, technical_analyst
+n09911226 charwoman, char, cleaning_woman, cleaning_lady, woman
+n09912431 male_chauvinist, sexist
+n09912681 cheapskate, tightwad
+n09912907 Chechen
+n09912995 checker
+n09913329 cheerer
+n09913455 cheerleader
 n09913593 cheerleader
+n09915434 Cheops, Khufu
 n09915651 chess_master
+n09916348 chief_executive_officer, CEO, chief_operating_officer
 n09917214 chief_of_staff
+n09917345 chief_petty_officer
+n09917481 Chief_Secretary
+n09917593 child, kid, youngster, minor, shaver, nipper, small_fry, tiddler, tike, tyke, fry, nestling
+n09918248 child, kid
+n09918554 child, baby
+n09918867 child_prodigy, infant_prodigy, wonder_child
+n09919061 chimneysweeper, chimneysweep, sweep
+n09919200 chiropractor
+n09919451 chit
+n09919899 choker
+n09920106 choragus
+n09920283 choreographer
+n09920901 chorus_girl, showgirl, chorine
+n09921034 chosen
+n09923003 cicerone
+n09923186 cigar_smoker
+n09923418 cipher, cypher, nobody, nonentity
 n09923561 circus_acrobat
+n09923673 citizen
+n09923996 city_editor
+n09924106 city_father
+n09924195 city_man
 n09924313 city_slicker, city_boy
+n09924437 civic_leader, civil_leader
+n09924996 civil_rights_leader, civil_rights_worker, civil_rights_activist
 n09927089 cleaner
+n09927451 clergyman, reverend, man_of_the_cloth
+n09928136 cleric, churchman, divine, ecclesiastic
+n09928451 clerk
+n09928845 clever_Dick, clever_clogs
+n09929202 climatologist
+n09929298 climber
+n09929577 clinician
+n09930257 closer, finisher
+n09930628 closet_queen
+n09930876 clown, buffoon, goof, goofball, merry_andrew
+n09931165 clown, buffoon
+n09931418 coach, private_instructor, tutor
 n09931640 coach, manager, handler
+n09932098 pitching_coach
+n09932336 coachman
 n09932508 coal_miner, collier, pitman
+n09932788 coastguardsman
+n09933020 cobber
+n09933098 cobbler, shoemaker
+n09933842 codger, old_codger
+n09933972 co-beneficiary
+n09934337 cog
+n09934488 cognitive_neuroscientist
+n09934774 coiffeur
+n09935107 coiner
+n09935434 collaborator, cooperator, partner, pardner
+n09936825 colleen
+n09936892 college_student, university_student
+n09937056 collegian, college_man, college_boy
+n09937688 colonial
+n09937802 colonialist
+n09937903 colonizer, coloniser
+n09938080 coloratura, coloratura_soprano
+n09938449 color_guard
+n09938991 colossus, behemoth, giant, heavyweight, titan
+n09940725 comedian
+n09940818 comedienne
+n09941089 comer
+n09941571 commander
+n09941787 commander_in_chief, generalissimo
+n09941964 commanding_officer, commandant, commander
+n09942697 commissar, political_commissar
+n09942970 commissioned_officer
+n09943239 commissioned_military_officer
+n09943811 commissioner
+n09944022 commissioner
+n09944160 committee_member
+n09944430 committeewoman
+n09945021 commodore
+n09945223 communicant
+n09945319 communist, commie
+n09945603 Communist
 n09945745 commuter
+n09946814 compere
+n09947127 complexifier
+n09950457 compulsive
+n09950728 computational_linguist
+n09951070 computer_scientist
+n09951274 computer_user
+n09951524 Comrade
+n09951616 concert-goer, music_lover
+n09952163 conciliator, make-peace, pacifier, peacemaker, reconciler
 n09953052 conductor
+n09953350 confectioner, candymaker
+n09953615 Confederate
+n09954355 confessor
+n09954639 confidant, intimate
+n09955406 Confucian, Confucianist
+n09955944 rep
+n09956578 conqueror, vanquisher
+n09957523 Conservative
+n09958133 Nonconformist, chapelgoer
+n09958292 Anglican
+n09958447 consignee
+n09958569 consigner, consignor
+n09959142 constable
+n09959658 constructivist
+n09960688 contractor
+n09961198 contralto
+n09961331 contributor
+n09961469 control_freak
+n09961605 convalescent
+n09961739 convener
+n09962966 convict, con, inmate, yard_bird, yardbird
+n09964202 copilot, co-pilot
+n09964411 copycat, imitator, emulator, ape, aper
+n09965515 coreligionist
+n09965787 cornerback
+n09966470 corporatist
+n09966554 correspondent, letter_writer
+n09967063 cosmetician
+n09967406 cosmopolitan, cosmopolite
+n09967555 Cossack
+n09967816 cost_accountant
+n09967967 co-star
+n09968259 costumier, costumer, costume_designer
+n09968652 cotter, cottier
+n09968741 cotter, cottar
+n09968845 counselor, counsellor
+n09970088 counterterrorist
+n09970192 counterspy, mole
+n09970402 countess
+n09970822 compromiser
+n09971273 countrywoman
+n09971385 county_agent, agricultural_agent, extension_agent
+n09971839 courtier
+n09972010 cousin, first_cousin, cousin-german, full_cousin
+n09972458 cover_girl, pin-up, lovely
+n09972587 cow
+n09974648 craftsman, artisan, journeyman, artificer
+n09975425 craftsman, crafter
+n09976024 crapshooter
+n09976283 crazy, loony, looney, nutcase, weirdo
+n09976429 creature, wight
+n09976728 creditor
+n09976917 creep, weirdo, weirdie, weirdy, spook
+n09978442 criminologist
+n09979321 critic
+n09979913 Croesus
+n09980458 cross-examiner, cross-questioner
+n09980805 crossover_voter, crossover
+n09980985 croupier
+n09981092 crown_prince
+n09981278 crown_princess
+n09981540 cryptanalyst, cryptographer, cryptologist
+n09981939 Cub_Scout
+n09982152 cuckold
+n09982525 cultist
+n09983314 curandera
+n09983572 curate, minister_of_religion, minister, parson, pastor, rector
+n09983889 curator, conservator
+n09984960 customer_agent
+n09985470 cutter, carver
+n09985809 cyberpunk
+n09985978 cyborg, bionic_man, bionic_woman
+n09986450 cymbalist
+n09986700 Cynic
+n09986904 cytogeneticist
+n09987045 cytologist
+n09987161 czar
+n09987239 czar, tsar, tzar
+n09988063 dad, dada, daddy, pa, papa, pappa, pop
+n09988311 dairyman
+n09988493 Dalai_Lama, Grand_Lama
+n09988703 dallier, dillydallier, dilly-dallier, mope, lounger
+n09989502 dancer, professional_dancer, terpsichorean
 n09990415 dancer, social_dancer
+n09990690 clog_dancer
 n09990777 dancing-master, dance_master
+n09991740 dark_horse
+n09991867 darling, favorite, favourite, pet, dearie, deary, ducky
+n09992538 date, escort
 n09992837 daughter, girl
+n09993252 dawdler, drone, laggard, lagger, trailer, poke
+n09993651 day_boarder
+n09994400 day_laborer, day_labourer
+n09994673 deacon, Protestant_deacon
+n09994808 deaconess
+n09994878 deadeye
+n09995829 deipnosophist
+n09996039 dropout
+n09996304 deadhead
+n09996481 deaf_person
+n09997622 debtor, debitor
+n09998788 deckhand, roustabout
+n09999135 defamer, maligner, slanderer, vilifier, libeler, backbiter, traducer
+n10000294 defense_contractor
+n10000459 deist, freethinker
+n10000787 delegate
 n10001217 deliveryman, delivery_boy, deliverer
+n10001481 demagogue, demagog, rabble-rouser
+n10001764 demigod, superman, Ubermensch
+n10002257 demographer, demographist, population_scientist
+n10002760 demonstrator, protester
+n10003476 den_mother
+n10004718 department_head
+n10005006 depositor
+n10005934 deputy
+n10006177 dermatologist, skin_doctor
+n10006748 descender
+n10007684 designated_hitter
+n10007809 designer, intriguer
 n10007995 desk_clerk, hotel_desk_clerk, hotel_clerk
+n10008123 desk_officer
+n10008254 desk_sergeant, deskman, station_keeper
+n10009162 detainee, political_detainee
+n10009276 detective, investigator, tec, police_detective
+n10009484 detective
+n10009671 detractor, disparager, depreciator, knocker
+n10010062 developer
+n10010243 deviationist
+n10010632 devisee
+n10010767 devisor
+n10010864 devourer
+n10011360 dialectician
+n10011486 diarist, diary_keeper, journalist
+n10012484 dietician, dietitian, nutritionist
+n10013811 diocesan
+n10015215 director, theater_director, theatre_director
+n10015485 director
+n10015792 dirty_old_man
+n10015897 disbeliever, nonbeliever, unbeliever
+n10017272 disk_jockey, disc_jockey, dj
+n10017422 dispatcher
+n10018747 distortionist
+n10018861 distributor, distributer
+n10019072 district_attorney, DA
+n10019187 district_manager
+n10019406 diver, plunger
+n10020366 divorcee, grass_widow
+n10020533 ex-wife, ex
+n10020670 divorce_lawyer
+n10020807 docent
 n10020890 doctor, doc, physician, MD, Dr., medico
+n10022908 dodo, fogy, fogey, fossil
+n10023264 doge
+n10023506 dog_in_the_manger
+n10023656 dogmatist, doctrinaire
+n10024025 dolichocephalic
+n10024362 domestic_partner, significant_other, spousal_equivalent, spouse_equivalent
+n10024937 Dominican
+n10025060 dominus, dominie, domine, dominee
+n10025295 don, father
+n10025391 Donatist
+n10025635 donna
+n10026976 dosser, street_person
+n10027246 double, image, look-alike
+n10027590 double-crosser, double-dealer, two-timer, betrayer, traitor
+n10028402 down-and-out
+n10028541 doyenne
+n10029068 draftsman, drawer
+n10030277 dramatist, playwright
+n10032987 dreamer
+n10033412 dressmaker, modiste, needlewoman, seamstress, sempstress
+n10033572 dressmaker's_model
+n10033663 dribbler, driveller, slobberer, drooler
+n10033888 dribbler
+n10034201 drinker, imbiber, toper, juicer
+n10034614 drinker
+n10035952 drug_addict, junkie, junky
+n10036266 drug_user, substance_abuser, user
+n10036444 Druid
+n10036692 drum_majorette, majorette
+n10036929 drummer
+n10037080 drunk
+n10037385 drunkard, drunk, rummy, sot, inebriate, wino
+n10037588 Druze, Druse
+n10037922 dry, prohibitionist
+n10038119 dry_nurse
+n10038409 duchess
+n10038620 duke
+n10039271 duffer
+n10039946 dunker
+n10040240 Dutch_uncle
+n10040698 dyspeptic
+n10040945 eager_beaver, busy_bee, live_wire, sharpie, sharpy
+n10041373 earl
 n10041887 earner, wage_earner
+n10042690 eavesdropper
+n10042845 eccentric, eccentric_person, flake, oddball, geek
+n10043024 eclectic, eclecticist
+n10043491 econometrician, econometrist
 n10043643 economist, economic_expert
+n10044682 ectomorph
+n10044879 editor, editor_in_chief
+n10047199 egocentric, egoist
+n10047459 egotist, egoist, swellhead
+n10048117 ejaculator
+n10048367 elder
+n10048612 elder_statesman
+n10048836 elected_official
+n10049363 electrician, lineman, linesman
+n10050043 elegist
+n10050880 elocutionist
+n10051026 emancipator, manumitter
+n10051761 embryologist
+n10051861 emeritus
+n10051975 emigrant, emigre, emigree, outgoer
+n10052694 emissary, envoy
+n10053439 empress
+n10053808 employee
+n10054657 employer
+n10055297 enchantress, witch
+n10055410 enchantress, temptress, siren, Delilah, femme_fatale
+n10055566 encyclopedist, encyclopaedist
+n10055730 endomorph
+n10055847 enemy, foe, foeman, opposition
+n10056103 energizer, energiser, vitalizer, vitaliser, animator
+n10056611 end_man
+n10056719 end_man, corner_man
+n10057271 endorser, indorser
+n10058411 enjoyer
+n10058962 enlisted_woman
+n10059067 enophile, oenophile
+n10060075 entrant
+n10060175 entrant
+n10060352 entrepreneur, enterpriser
+n10061043 envoy, envoy_extraordinary, minister_plenipotentiary
+n10061195 enzymologist
+n10061431 eparch
+n10061882 epidemiologist
+n10062042 epigone, epigon
+n10062176 epileptic
+n10062275 Episcopalian
+n10062492 equerry
+n10062594 equerry
+n10062716 erotic
+n10062905 escapee
+n10062996 escapist, dreamer, wishful_thinker
+n10063635 Eskimo, Esquimau, Inuit
+n10063919 espionage_agent
+n10064831 esthetician, aesthetician
+n10064977 etcher
+n10065758 ethnologist
+n10066206 Etonian
+n10066314 etymologist
+n10067011 evangelist, revivalist, gospeler, gospeller
+n10067305 Evangelist
+n10067600 event_planner
+n10067968 examiner, inspector
+n10068234 examiner, tester, quizzer
+n10068425 exarch
+n10069296 executant
+n10069981 executive_secretary
+n10070108 executive_vice_president
+n10070377 executrix
+n10070449 exegete
+n10070563 exhibitor, exhibitioner, shower
+n10070711 exhibitionist, show-off
+n10071332 exile, expatriate, expat
+n10071557 existentialist, existentialist_philosopher, existential_philosopher
+n10072054 exorcist, exorciser
+n10074249 ex-spouse
+n10074578 extern, medical_extern
+n10074735 extremist
+n10074841 extrovert, extravert
+n10075299 eyewitness
+n10075693 facilitator
+n10076224 fairy_godmother
+n10076483 falangist, phalangist
+n10076604 falconer, hawker
+n10076957 falsifier
+n10077106 familiar
+n10077593 fan, buff, devotee, lover
+n10077879 fanatic, fiend
+n10078131 fancier, enthusiast
+n10078719 farm_boy
+n10078806 farmer, husbandman, granger, sodbuster
+n10079399 farmhand, fieldhand, field_hand, farm_worker
+n10079893 fascist
+n10080117 fascista
+n10080508 fatalist, determinist, predestinarian, predestinationist
 n10080869 father, male_parent, begetter
+n10081204 Father, Padre
+n10081842 father-figure
 n10082043 father-in-law
+n10082299 Fauntleroy, Little_Lord_Fauntleroy
+n10082423 Fauve, fauvist
+n10082562 favorite_son
+n10082687 featherweight
+n10082997 federalist
+n10083677 fellow_traveler, fellow_traveller
+n10083823 female_aristocrat
+n10084043 female_offspring
+n10084295 female_child, girl, little_girl
+n10085101 fence
+n10085869 fiance, groom-to-be
+n10086383 fielder, fieldsman
+n10086744 field_judge
 n10087434 fighter_pilot
+n10087736 filer
 n10088200 film_director, director
+n10090745 finder
+n10091349 fire_chief, fire_marshal
+n10091450 fire-eater, fire-swallower
+n10091564 fire-eater, hothead
 n10091651 fireman, firefighter, fire_fighter, fire-eater
+n10091861 fire_marshall
+n10091997 fire_walker
+n10092488 first_baseman, first_sacker
+n10092643 firstborn, eldest
 n10092794 first_lady
+n10092978 first_lieutenant, 1st_lieutenant
+n10093167 first_offender
+n10093475 first_sergeant, sergeant_first_class
+n10093818 fishmonger, fishwife
+n10094320 flagellant
+n10094584 flag_officer
+n10094782 flak_catcher, flak, flack_catcher, flack
+n10095265 flanker_back, flanker
+n10095420 flapper
+n10095769 flatmate
+n10095869 flatterer, adulator
+n10096126 flibbertigibbet, foolish_woman
+n10096508 flight_surgeon
+n10097262 floorwalker, shopwalker
+n10097477 flop, dud, washout
+n10097590 Florentine
+n10097842 flower_girl
+n10097995 flower_girl
+n10098245 flutist, flautist, flute_player
+n10098388 fly-by-night
+n10098517 flyweight
+n10098624 flyweight
+n10098710 foe, enemy
+n10098862 folk_dancer
+n10099002 folk_poet
+n10099375 follower
 n10101308 football_hero
+n10101634 football_player, footballer
+n10101981 footman
+n10102800 forefather, father, sire
+n10103155 foremother
+n10103228 foreign_agent
+n10103921 foreigner, outsider
+n10104064 boss
+n10104487 foreman
+n10104756 forester, tree_farmer, arboriculturist
+n10104888 forewoman
+n10105085 forger, counterfeiter
+n10105733 forward
+n10105906 foster-brother, foster_brother
+n10106387 foster-father, foster_father
+n10106509 foster-mother, foster_mother
+n10106995 foster-sister, foster_sister
+n10107173 foster-son, foster_son
+n10107303 founder, beginner, founding_father, father
+n10108018 foundress
+n10108089 four-minute_man
+n10108464 framer
+n10108832 Francophobe
 n10109443 freak, monster, monstrosity, lusus_naturae
+n10109662 free_agent, free_spirit, freewheeler
+n10109826 free_agent
+n10110093 freedom_rider
+n10110731 free-liver
+n10110893 freeloader
+n10111358 free_trader
+n10111779 Freudian
+n10111903 friar, mendicant
+n10112129 monk, monastic
+n10113249 frontierswoman
+n10113583 front_man, front, figurehead, nominal_head, straw_man, strawman
+n10113869 frotteur
+n10114476 fucker
+n10114550 fucker
+n10114662 fuddy-duddy
+n10115430 fullback
+n10115946 funambulist, tightrope_walker
+n10116370 fundamentalist
+n10116478 fundraiser
+n10116702 futurist
+n10117017 gadgeteer
+n10117267 gagman, gagster, gagwriter
+n10117415 gagman, standup_comedian
+n10117739 gainer, weight_gainer
+n10117851 gal
+n10118301 galoot
+n10118743 gambist
+n10118844 gambler
+n10119609 gamine
+n10120330 garbage_man, garbageman, garbage_collector, garbage_carter, garbage_hauler, refuse_collector, dustman
 n10120671 gardener
+n10121026 garment_cutter
+n10121246 garroter, garrotter, strangler, throttler, choker
+n10121714 gasman
+n10121800 gastroenterologist
+n10122300 gatherer
+n10122531 gawker
+n10123122 gendarme
 n10123844 general, full_general
+n10126177 generator, source, author
+n10126424 geneticist
+n10126708 genitor
+n10127186 gent
+n10127689 geologist
+n10128519 geophysicist
+n10128748 ghostwriter, ghost
+n10129338 Gibson_girl
+n10129825 girl, miss, missy, young_lady, young_woman, fille
+n10130686 girlfriend, girl, lady_friend
+n10130877 girlfriend
+n10131151 girl_wonder
+n10131268 Girondist, Girondin
+n10131590 gitano
+n10131815 gladiator
+n10132035 glassblower
+n10132502 gleaner
+n10134178 goat_herder, goatherd
+n10134396 godchild
+n10134760 godfather
+n10134982 godparent
+n10135129 godson
+n10135197 gofer
+n10135297 goffer, gopher
+n10136615 goldsmith, goldworker, gold-worker
 n10136959 golfer, golf_player, linksman
+n10137825 gondolier, gondoliere
+n10138369 good_guy
+n10138472 good_old_boy, good_ole_boy, good_ol'_boy
+n10139077 good_Samaritan
+n10139651 gossip_columnist
+n10140051 gouger
+n10140597 governor_general
+n10140683 grabber
+n10140783 grader
+n10140929 graduate_nurse, trained_nurse
+n10141364 grammarian, syntactician
+n10141732 granddaughter
+n10142166 grande_dame
+n10142391 grandfather, gramps, granddad, grandad, granddaddy, grandpa
+n10142537 Grand_Inquisitor
 n10142747 grandma, grandmother, granny, grannie, gran, nan, nanna
+n10142946 grandmaster
+n10143172 grandparent
+n10143595 grantee
+n10143725 granter
+n10144338 grass_widower, divorced_man
+n10145239 great-aunt, grandaunt
+n10145340 great_grandchild
+n10145480 great_granddaughter
+n10145590 great_grandmother
+n10145774 great_grandparent
+n10145902 great_grandson
+n10146002 great-nephew, grandnephew
+n10146104 great-niece, grandniece
+n10146416 Green_Beret
+n10146816 grenadier, grenade_thrower
+n10146927 greeter, saluter, welcomer
+n10147121 gringo
+n10147262 grinner
 n10147710 grocer
 n10147935 groom, bridegroom
 n10148035 groom, bridegroom
+n10148305 grouch, grump, crank, churl, crosspatch
+n10148825 group_captain
+n10149436 grunter
 n10149867 prison_guard, jailer, jailor, gaoler, screw, turnkey
 n10150071 guard
+n10150794 guesser
+n10150940 guest, invitee
+n10151133 guest
+n10151261 guest_of_honor
+n10151367 guest_worker, guestworker
+n10151570 guide
 n10151760 guitarist, guitar_player
+n10152306 gunnery_sergeant
+n10152616 guru
+n10152763 guru
+n10153155 guvnor
+n10153414 guy, cat, hombre, bozo
 n10153594 gymnast
+n10153865 gym_rat
+n10154013 gynecologist, gynaecologist, woman's_doctor
+n10154186 Gypsy, Gipsy, Romany, Rommany, Romani, Roma, Bohemian
+n10154601 hack, drudge, hacker
+n10155222 hacker, cyber-terrorist, cyberpunk
+n10155600 haggler
 n10155849 hairdresser, hairstylist, stylist, styler
+n10156629 hakim, hakeem
+n10156831 Hakka
+n10157016 halberdier
+n10157128 halfback
+n10157271 half_blood
+n10158506 hand
+n10159045 animal_trainer, handler
+n10159289 handyman, jack_of_all_trades, odd-job_man
+n10159533 hang_glider
+n10160188 hardliner
+n10160280 harlequin
+n10160412 harmonizer, harmoniser
+n10161622 hash_head
+n10162016 hatchet_man, iceman
+n10162194 hater
+n10162354 hatmaker, hatter, milliner, modiste
+n10164025 headman, tribal_chief, chieftain, chief
 n10164233 headmaster, schoolmaster, master
 n10164492 head_nurse
+n10165448 hearer, listener, auditor, attender
+n10166189 heartbreaker
+n10166394 heathen, pagan, gentile, infidel
+n10167152 heavyweight
+n10167361 heavy
+n10167565 heckler, badgerer
+n10167838 hedger
+n10168012 hedger, equivocator, tergiversator
+n10168183 hedonist, pagan, pleasure_seeker
+n10168584 heir, inheritor, heritor
+n10168837 heir_apparent
+n10169147 heiress, inheritress, inheritrix
+n10169241 heir_presumptive
+n10169419 hellion, heller, devil
+n10169796 helmsman, steersman, steerer
+n10170060 hire
+n10170681 hematologist, haematologist
+n10170866 hemiplegic
+n10171219 herald, trumpeter
+n10171456 herbalist, herb_doctor
+n10171567 herder, herdsman, drover
+n10172080 hermaphrodite, intersex, gynandromorph, androgyne, epicene, epicene_person
+n10173410 heroine
+n10173579 heroin_addict
+n10173665 hero_worshiper, hero_worshipper
+n10173771 Herr
+n10174253 highbinder
+n10174330 highbrow
+n10174445 high_commissioner
+n10174589 highflier, highflyer
+n10174695 Highlander, Scottish_Highlander, Highland_Scot
+n10174971 high-muck-a-muck, pooh-bah
+n10175248 high_priest
+n10175725 highjacker, hijacker
+n10176913 hireling, pensionary
+n10177150 historian, historiographer
+n10178077 hitchhiker
+n10178216 hitter, striker
+n10179069 hobbyist
+n10180580 holdout
+n10180791 holdover, hangover
+n10180923 holdup_man, stickup_man
+n10181445 homeboy
+n10181547 homeboy
+n10181799 home_buyer
+n10181878 homegirl
+n10182190 homeless, homeless_person
+n10182402 homeopath, homoeopath
+n10183347 honest_woman
+n10183931 honor_guard, guard_of_honor
+n10184505 hooker
+n10185148 hoper
+n10185483 hornist
 n10185793 horseman, equestrian, horseback_rider
+n10186068 horse_trader
+n10186143 horsewoman
 n10186216 horse_wrangler, wrangler
+n10186350 horticulturist, plantsman
+n10186686 hospital_chaplain
+n10186774 host, innkeeper, boniface
+n10187130 host
+n10187491 hostess
+n10187990 hotelier, hotelkeeper, hotel_manager, hotelman, hosteller
+n10188715 housekeeper
+n10188856 housemaster
+n10188957 housemate
+n10189278 house_physician, resident, resident_physician
+n10189597 house_sitter
+n10190122 housing_commissioner
+n10190516 huckster, cheap-jack
+n10191001 hugger
+n10191388 humanist, humanitarian
+n10191613 humanitarian, do-gooder, improver
+n10192839 hunk
+n10193650 huntress
+n10194231 ex-husband, ex
+n10194775 hydrologist
+n10195056 hyperope
+n10195155 hypertensive
+n10195261 hypnotist, hypnotizer, hypnotiser, mesmerist, mesmerizer
+n10195593 hypocrite, dissembler, dissimulator, phony, phoney, pretender
+n10196404 iceman
+n10196725 iconoclast
+n10197392 ideologist, ideologue
+n10198437 idol, matinee_idol
+n10198832 idolizer, idoliser
+n10199251 imam, imaum
+n10200246 imperialist
+n10200781 important_person, influential_person, personage
+n10202225 inamorato
+n10202624 incumbent, officeholder
+n10202763 incurable
+n10203949 inductee
+n10204177 industrialist
+n10204833 infanticide
+n10205231 inferior
+n10205344 infernal
+n10205457 infielder
+n10205714 infiltrator
+n10206173 informer, betrayer, rat, squealer, blabber
+n10206506 ingenue
+n10206629 ingenue
+n10207077 polymath
+n10207169 in-law, relative-in-law
+n10208189 inquiry_agent
+n10208847 inspector
+n10208950 inspector_general
+n10209082 instigator, initiator
+n10209731 insurance_broker, insurance_agent, general_agent, underwriter
+n10210137 insurgent, insurrectionist, freedom_fighter, rebel
+n10210512 intelligence_analyst
+n10210648 interior_designer, designer, interior_decorator, house_decorator, room_decorator, decorator
+n10210911 interlocutor, conversational_partner
+n10211036 interlocutor, middleman
+n10211666 International_Grandmaster
+n10211830 internationalist
+n10212231 internist
+n10212501 interpreter, translator
+n10212780 interpreter
+n10213034 intervenor
+n10213429 introvert
+n10214062 invader, encroacher
+n10214390 invalidator, voider, nullifier
+n10215623 investigator
+n10216106 investor
+n10216403 invigilator
+n10217208 irreligionist
+n10218043 Ivy_Leaguer
+n10218164 Jack_of_all_trades
+n10218292 Jacksonian
+n10219240 Jane_Doe
+n10219453 janissary
+n10219879 Jat
+n10220080 Javanese, Javan
+n10220924 Jekyll_and_Hyde
+n10221312 jester, fool, motley_fool
+n10221520 Jesuit
+n10222170 jezebel
+n10222259 jilt
 n10222497 jobber, middleman, wholesaler
+n10222716 job_candidate
+n10223069 Job's_comforter
 n10223177 jockey
+n10223606 John_Doe
 n10224578 journalist
+n10225219 judge, justice, jurist
+n10225931 judge_advocate
+n10226413 juggler
+n10227166 Jungian
 n10227266 junior
+n10227393 junior
+n10227490 Junior, Jr, Jnr
+n10227698 junior_lightweight
+n10227793 junior_middleweight
+n10227985 jurist, legal_expert
+n10228278 juror, juryman, jurywoman
+n10228468 justice_of_the_peace
+n10228592 justiciar, justiciary
+n10228712 kachina
 n10229883 keyboardist
+n10230216 Khedive
+n10233248 kingmaker
+n10235024 king, queen, world-beater
+n10235269 King's_Counsel
+n10235385 Counsel_to_the_Crown
+n10236304 kin, kinsperson, family
+n10236521 enate, matrikin, matrilineal_kin, matrisib, matrilineal_sib
+n10236842 kink
+n10237069 kinswoman
+n10237196 kisser, osculator
 n10237464 kitchen_help
+n10237556 kitchen_police, KP
+n10237676 Klansman, Ku_Kluxer, Kluxer
+n10237799 kleptomaniac
+n10238272 kneeler
 n10238375 knight
+n10239928 knocker
+n10240082 knower, apprehender
+n10240235 know-it-all, know-all
+n10240417 kolkhoznik
+n10240821 Kshatriya
+n10241024 labor_coach, birthing_coach, doula, monitrice
+n10241300 laborer, manual_laborer, labourer, jack
+n10242328 Labourite
+n10243137 lady
+n10243273 lady-in-waiting
+n10243483 lady's_maid
+n10243664 lama
+n10243872 lamb, dear
+n10244108 lame_duck
+n10244359 lamplighter
+n10244913 land_agent
+n10245029 landgrave
+n10245341 landlubber, lubber, landsman
+n10245507 landlubber, landsman, landman
+n10245639 landowner, landholder, property_owner
+n10245863 landscape_architect, landscape_gardener, landscaper, landscapist
+n10246317 langlaufer
+n10246395 languisher
+n10246703 lapidary, lapidarist
+n10247358 lass, lassie, young_girl, jeune_fille
+n10247880 Latin
+n10248008 Latin
+n10248198 latitudinarian
+n10248377 Jehovah's_Witness
+n10249191 law_agent
+n10249270 lawgiver, lawmaker
+n10249459 lawman, law_officer, peace_officer
+n10249869 law_student
+n10249950 lawyer, attorney
+n10250712 lay_reader
+n10251329 lazybones
+n10251612 leaker
+n10252075 leaseholder, lessee
+n10252222 lector, lecturer, reader
+n10252354 lector, reader
+n10252547 lecturer
+n10253122 left-hander, lefty, southpaw
 n10253296 legal_representative
+n10253479 legate, official_emissary
+n10253611 legatee
+n10253703 legionnaire, legionary
+n10255459 letterman
+n10257221 liberator
+n10258602 licenser
+n10258786 licentiate
+n10259348 lieutenant
+n10259780 lieutenant_colonel, light_colonel
+n10259997 lieutenant_commander
+n10260473 lieutenant_junior_grade, lieutenant_JG
+n10260706 life
 n10260800 lifeguard, lifesaver
+n10261211 life_tenant
+n10261511 light_flyweight
+n10261624 light_heavyweight, cruiserweight
+n10261862 light_heavyweight
+n10262343 light-o'-love, light-of-love
+n10262445 lightweight
+n10262561 lightweight
+n10262655 lightweight
+n10262880 lilliputian
+n10263146 limnologist
 n10263411 lineman
+n10263790 line_officer
+n10265281 lion-hunter
+n10265801 lisper
+n10265891 lister
+n10266016 literary_critic
+n10266328 literate, literate_person
+n10266848 litigant, litigator
+n10267166 litterer, litterbug, litter_lout
+n10267311 little_brother
+n10267865 little_sister
+n10268629 lobbyist
+n10269199 locksmith
+n10269289 locum_tenens, locum
+n10271677 Lord, noble, nobleman
+n10272782 loser
+n10272913 loser, also-ran
+n10273064 failure, loser, nonstarter, unsuccessful_person
+n10274173 Lothario
+n10274318 loudmouth, blusterer
+n10274815 lowerclassman, underclassman
+n10275249 Lowlander, Scottish_Lowlander, Lowland_Scot
+n10275395 loyalist, stalwart
+n10275848 Luddite
 n10276045 lumberman, lumberjack, logger, feller, faller
+n10276477 lumper
+n10276942 bedlamite
+n10277027 pyromaniac
+n10277638 lutist, lutanist, lutenist
+n10277815 Lutheran
+n10277912 lyricist, lyrist
+n10278456 macebearer, mace, macer
+n10279018 machinist, mechanic, shop_mechanic
+n10279778 madame
+n10280034 maenad
+n10280130 maestro, master
+n10280598 magdalen
+n10280674 magician, prestidigitator, conjurer, conjuror, illusionist
+n10281546 magus
+n10281770 maharani, maharanee
+n10281896 mahatma
+n10282482 maid, maiden
+n10282672 maid, maidservant, housemaid, amah
 n10283170 major
+n10283366 major
+n10283546 major-domo, seneschal
+n10284064 maker, shaper
+n10284871 malahini
+n10284965 malcontent
+n10286282 malik
+n10286539 malingerer, skulker, shammer
+n10286749 Malthusian
+n10288964 adonis
+n10289039 man
+n10289176 man
+n10289462 manageress
+n10289766 mandarin
+n10290422 maneuverer, manoeuvrer
+n10290541 maniac
+n10290813 Manichaean, Manichean, Manichee
+n10290919 manicurist
+n10291110 manipulator
+n10291469 man-at-arms
+n10291822 man_of_action, man_of_deeds
+n10291942 man_of_letters
+n10292316 manufacturer, producer
+n10293332 marcher, parader
+n10293590 marchioness, marquise
+n10293861 margrave
+n10294020 margrave
+n10294139 Marine, devil_dog, leatherneck, shipboard_soldier
+n10295371 marquess
+n10295479 marquis, marquess
+n10296176 marshal, marshall
+n10296444 martinet, disciplinarian, moralist
 n10297234 mascot
+n10297367 masochist
+n10297531 mason, stonemason
+n10297841 masquerader, masker, masquer
+n10298202 masseur
+n10298271 masseuse
+n10298647 master
 n10298912 master, captain, sea_captain, skipper
+n10299125 master-at-arms
+n10299250 master_of_ceremonies, emcee, host
+n10299700 masturbator, onanist
+n10299875 matchmaker, matcher, marriage_broker
+n10300041 mate, first_mate
+n10300154 mate
 n10300303 mate
+n10300500 mater
+n10300654 material
+n10300829 materialist
+n10302576 matriarch, materfamilias
+n10302700 matriarch
+n10302905 matriculate
+n10303037 matron
+n10303814 mayor, city_manager
+n10304086 mayoress
+n10304650 mechanical_engineer
 n10304914 medalist, medallist, medal_winner
 n10305635 medical_officer, medic
 n10305802 medical_practitioner, medical_man
 n10306004 medical_scientist
+n10306279 medium, spiritualist, sensitive
+n10306496 megalomaniac
+n10306595 melancholic, melancholiac
+n10306890 Melkite, Melchite
+n10307114 melter
+n10308066 nonmember
+n10308168 board_member
+n10308275 clansman, clanswoman, clan_member
+n10308504 memorizer, memoriser
+n10308653 Mendelian
+n10308732 mender, repairer, fixer
+n10310783 Mesoamerican
+n10311506 messmate
+n10311661 mestiza
+n10312287 meteorologist
+n10312491 meter_maid
+n10312600 Methodist
+n10313000 Metis
+n10313239 metropolitan
+n10313441 mezzo-soprano, mezzo
+n10313724 microeconomist, microeconomic_expert
+n10314054 middle-aged_man
+n10314182 middlebrow
+n10314517 middleweight
+n10314836 midwife, accoucheuse
+n10315217 mikado, tenno
+n10315456 Milanese
+n10315561 miler
+n10315730 miles_gloriosus
+n10316360 military_attache
+n10316527 military_chaplain, padre, Holy_Joe, sky_pilot
 n10316862 military_leader
+n10317007 military_officer, officer
+n10317500 military_policeman, MP
+n10317963 mill_agent
+n10318293 mill-hand, factory_worker
+n10318607 millionairess
+n10318686 millwright
+n10319313 minder
+n10320484 mining_engineer
+n10320863 minister, government_minister
+n10321126 ministrant
+n10321340 minor_leaguer, bush_leaguer
+n10321632 Minuteman
+n10321882 misanthrope, misanthropist
+n10322238 misfit
+n10323634 mistress
+n10323752 mistress, kept_woman, fancy_woman
+n10323999 mixed-blood
 n10324560 model, poser
+n10325549 class_act
+n10325774 modeler, modeller
+n10326776 modifier
+n10327143 molecular_biologist
+n10327987 Monegasque, Monacan
+n10328123 monetarist
+n10328328 moneygrubber
+n10328437 moneymaker
+n10328696 Mongoloid
+n10328941 monolingual
+n10329035 monologist
+n10330593 moonlighter
+n10330931 moralist
+n10331098 morosoph
+n10331167 morris_dancer
+n10331258 mortal_enemy
+n10331347 mortgagee, mortgage_holder
+n10331841 mortician, undertaker, funeral_undertaker, funeral_director
+n10332110 moss-trooper
+n10332385 mother, female_parent
+n10332861 mother
+n10332953 mother
+n10333044 mother_figure
+n10333165 mother_hen
+n10333317 mother-in-law
+n10333439 mother's_boy, mamma's_boy, mama's_boy
 n10333601 mother's_daughter
+n10333838 motorcycle_cop, motorcycle_policeman, speed_cop
 n10334009 motorcyclist
+n10334461 Mound_Builder
+n10334782 mountebank, charlatan
+n10335246 mourner, griever, sorrower, lamenter
+n10335801 mouthpiece, mouth
+n10335931 mover
+n10336411 moviegoer, motion-picture_fan
+n10336904 muffin_man
+n10337488 mugwump, independent, fencesitter
+n10338231 Mullah, Mollah, Mulla
+n10338391 muncher
+n10339179 murderess
+n10339251 murder_suspect
+n10339717 musher
 n10340312 musician, instrumentalist, player
+n10341243 musicologist
 n10341343 music_teacher
+n10341446 musketeer
+n10341573 Muslimah
+n10341955 mutilator, maimer, mangler
+n10342180 mutineer
+n10342367 mute, deaf-mute, deaf-and-dumb_person
+n10342543 mutterer, mumbler, murmurer
+n10342893 muzzler
+n10342992 Mycenaen
+n10343088 mycologist
+n10343355 myope
+n10343449 myrmidon
+n10343554 mystic, religious_mystic
+n10343869 mythologist
+n10344121 naif
+n10344203 nailer
+n10344319 namby-pamby
+n10344656 name_dropper
+n10344774 namer
 n10345015 nan
+n10345100 nanny, nursemaid, nurse
+n10345302 narc, nark, narcotics_agent
+n10345422 narcissist, narcist
+n10345659 nark, copper's_nark
+n10346015 nationalist
+n10347204 nautch_girl
+n10347446 naval_commander
 n10348526 Navy_SEAL, SEAL
+n10349243 obstructionist, obstructor, obstructer, resister, thwarter
+n10349750 Nazarene
+n10349836 Nazarene, Ebionite
+n10350220 Nazi, German_Nazi
+n10350774 nebbish, nebbech
+n10351064 necker
+n10353016 neonate, newborn, newborn_infant, newborn_baby
+n10353355 nephew
+n10353928 neurobiologist
+n10354265 neurologist, brain_doctor
+n10354754 neurosurgeon, brain_surgeon
+n10355142 neutral
+n10355306 neutralist
+n10355449 newcomer, fledgling, fledgeling, starter, neophyte, freshman, newbie, entrant
+n10355688 newcomer
+n10355806 New_Dealer
+n10356450 newspaper_editor
+n10356877 newsreader, news_reader
+n10357012 Newtonian
+n10357613 niece
+n10357737 niggard, skinflint, scrooge, churl
 n10358032 night_porter
+n10358124 night_rider, nightrider
+n10358575 NIMBY
+n10359117 niqaabi
+n10359422 nitpicker
+n10359546 Nobelist, Nobel_Laureate
+n10359659 NOC
+n10360366 noncandidate
+n10360747 noncommissioned_officer, noncom, enlisted_officer
+n10361060 nondescript
+n10361194 nondriver
+n10361296 nonparticipant
+n10361525 nonperson, unperson
+n10362003 nonresident
+n10362319 nonsmoker
+n10362557 Northern_Baptist
+n10363445 noticer
+n10363573 novelist
+n10364198 novitiate, novice
+n10364502 nuclear_chemist, radiochemist
+n10365514 nudger
+n10366145 nullipara
+n10366276 number_theorist
 n10366966 nurse
+n10368291 nursling, nurseling, suckling
+n10368528 nymph, houri
+n10368624 nymphet
+n10368711 nympholept
+n10368798 nymphomaniac, nympho
+n10369095 oarswoman
+n10369317 oboist
+n10369417 obscurantist
+n10369528 observer, commentator
+n10369699 obstetrician, accoucheur
+n10369955 occupier
+n10370381 occultist
+n10370955 wine_lover
+n10371052 offerer, offeror
+n10371221 office-bearer
+n10371330 office_boy
+n10371450 officeholder, officer
+n10373390 officiant
+n10373525 Federal, Fed, federal_official
+n10374541 oilman
+n10374849 oil_tycoon
+n10374943 old-age_pensioner
+n10375052 old_boy
+n10375314 old_lady
+n10375402 old_man
+n10376523 oldster, old_person, senior_citizen, golden_ager
+n10376890 old-timer, oldtimer, gaffer, old_geezer, antique
+n10377021 old_woman
+n10377185 oligarch
+n10377291 Olympian
+n10377542 omnivore
+n10377633 oncologist
+n10378026 onlooker, looker-on
+n10378113 onomancer
+n10378780 operator
+n10379376 opportunist, self-seeker
+n10380126 optimist
+n10380499 Orangeman
+n10380672 orator, speechmaker, rhetorician, public_speaker, speechifier
 n10381804 orderly, hospital_attendant
+n10381981 orderly
+n10382157 orderly_sergeant
+n10382302 ordinand
+n10382480 ordinary
 n10382710 organ-grinder
+n10382825 organist
+n10383094 organization_man
+n10383237 organizer, organiser, arranger
+n10383505 organizer, organiser, labor_organizer
+n10383816 originator, conceiver, mastermind
+n10384214 ornithologist, bird_watcher
+n10384392 orphan
+n10384496 orphan
+n10385566 osteopath, osteopathist
+n10386196 out-and-outer
+n10386754 outdoorswoman
+n10386874 outfielder
 n10386984 outfielder
+n10387196 right_fielder
+n10387324 right-handed_pitcher, right-hander
+n10387836 outlier
+n10389865 owner-occupier
+n10389976 oyabun
+n10390600 packrat
+n10390698 padrone
+n10390807 padrone
+n10391416 page, pageboy
 n10393909 painter
+n10394434 Paleo-American, Paleo-Amerind, Paleo-Indian
+n10394786 paleontologist, palaeontologist, fossilist
+n10395073 pallbearer, bearer
+n10395209 palmist, palmister, chiromancer
+n10395390 pamperer, spoiler, coddler, mollycoddler
+n10395828 Panchen_Lama
+n10396106 panelist, panellist
+n10396337 panhandler
+n10396727 paparazzo
 n10396908 paperboy
+n10397001 paperhanger, paperer
+n10397142 paperhanger
+n10397392 papoose, pappoose
+n10399130 pardoner
+n10400003 paretic
+n10400108 parishioner
+n10400205 park_commissioner
+n10400437 Parliamentarian, Member_of_Parliament
+n10400618 parliamentary_agent
+n10400998 parodist, lampooner
+n10401204 parricide
+n10401331 parrot
+n10401639 partaker, sharer
+n10402709 part-timer
+n10402824 party
+n10403633 party_man, party_liner
+n10403876 passenger, rider
+n10404426 passer
+n10404998 paster
+n10405540 pater
 n10405694 patient
+n10406266 patriarch
+n10406391 patriarch
+n10406765 patriarch, paterfamilias
+n10407310 patriot, nationalist
+n10407954 patron, sponsor, supporter
+n10408809 patternmaker
+n10409459 pawnbroker
+n10409752 payer, remunerator
+n10410246 peacekeeper
+n10410996 peasant
+n10411356 pedant, bookworm, scholastic
+n10411551 peddler, pedlar, packman, hawker, pitchman
+n10411867 pederast, paederast, child_molester
+n10414239 penologist
+n10414768 pentathlete
+n10414865 Pentecostal, Pentecostalist
+n10415037 percussionist
+n10416567 periodontist
+n10417288 peshmerga
+n10417424 personality
+n10417551 personal_representative
+n10417682 personage
+n10417843 persona_grata
+n10417969 persona_non_grata
+n10418101 personification
+n10418735 perspirer, sweater
+n10419047 pervert, deviant, deviate, degenerate
+n10419472 pessimist
+n10419630 pest, blighter, cuss, pesterer, gadfly
+n10419785 Peter_Pan
+n10420031 petitioner, suppliant, supplicant, requester
+n10420277 petit_juror, petty_juror
+n10420507 pet_sitter, critter_sitter
+n10420649 petter, fondler
+n10421016 Pharaoh, Pharaoh_of_Egypt
 n10421470 pharmacist, druggist, chemist, apothecary, pill_pusher, pill_roller
+n10421956 philanthropist, altruist
+n10422405 philatelist, stamp_collector
+n10425946 philosopher
+n10426454 phonetician
+n10426630 phonologist
+n10427223 photojournalist
+n10427359 photometrist, photometrician
+n10427764 physical_therapist, physiotherapist
+n10428004 physicist
+n10431122 piano_maker
+n10431625 picker, chooser, selector
+n10432189 picnicker, picknicker
+n10432441 pilgrim
+n10432875 pill
+n10432957 pillar, mainstay
+n10433077 pill_head
+n10433452 pilot
+n10433610 Piltdown_man, Piltdown_hoax
+n10433737 pimp, procurer, panderer, pander, pandar, fancy_man, ponce
+n10435169 pipe_smoker
+n10435251 pip-squeak, squirt, small_fry
+n10435716 pisser, urinator
+n10435988 pitcher, hurler, twirler
+n10436334 pitchman
+n10437014 placeman, placeseeker
+n10437137 placer_miner
+n10437262 plagiarist, plagiarizer, plagiariser, literary_pirate, pirate
+n10437698 plainsman
+n10438172 planner, contriver, deviser
+n10438619 planter, plantation_owner
+n10438842 plasterer
+n10439373 platinum_blond, platinum_blonde
+n10439523 platitudinarian
+n10439727 playboy, man-about-town, Corinthian
+n10439851 player, participant
+n10441037 playmate, playfellow
+n10441124 pleaser
+n10441694 pledger
+n10441962 plenipotentiary
+n10442093 plier, plyer
+n10442232 plodder, slowpoke, stick-in-the-mud, slowcoach
+n10442417 plodder, slogger
+n10442573 plotter, mapper
 n10443032 plumber, pipe_fitter
+n10443659 pluralist
+n10443830 pluralist
+n10444194 poet
+n10448322 pointsman
+n10448455 point_woman
+n10449664 policyholder
+n10450038 political_prisoner
+n10450161 political_scientist
+n10450303 politician, politico, pol, political_leader
+n10451450 politician
+n10451590 pollster, poll_taker, headcounter, canvasser
+n10451858 polluter, defiler
+n10453184 pool_player
+n10455619 portraitist, portrait_painter, portrayer, limner
+n10456070 poseuse
+n10456138 positivist, rationalist
+n10456696 postdoc, post_doc
+n10457214 poster_girl
+n10457444 postulator
+n10457903 private_citizen
+n10458111 problem_solver, solver, convergent_thinker
+n10458356 pro-lifer
+n10458596 prosthetist
+n10459882 postulant
+n10460033 potboy, potman
+n10461060 poultryman, poulterer
+n10462588 power_user
+n10462751 power_worker, power-station_worker
+n10462860 practitioner, practician
+n10464052 prayer, supplicant
+n10464542 preceptor, don
+n10464711 predecessor
+n10464870 preemptor, pre-emptor
+n10465002 preemptor, pre-emptor
+n10465451 premature_baby, preterm_baby, premature_infant, preterm_infant, preemie, premie
+n10465831 presbyter
+n10466198 presenter, sponsor
+n10466564 presentist
+n10466918 preserver
 n10467179 president
+n10467395 President_of_the_United_States, United_States_President, President, Chief_Executive
+n10468750 president, prexy
+n10469611 press_agent, publicity_man, public_relations_man, PR_man
 n10469874 press_photographer
+n10470779 priest
+n10471640 prima_ballerina
+n10471732 prima_donna, diva
+n10471859 prima_donna
+n10472129 primigravida, gravida_I
+n10472447 primordial_dwarf, hypoplastic_dwarf, true_dwarf, normal_dwarf
+n10473453 prince_charming
+n10473562 prince_consort
+n10473789 princeling
+n10473917 Prince_of_Wales
 n10474064 princess
+n10474343 princess_royal
+n10474446 principal, dealer
 n10474645 principal, school_principal, head_teacher, head
+n10475835 print_seller
+n10475940 prior
+n10476467 private, buck_private, common_soldier
+n10477713 probationer, student_nurse
+n10477955 processor
+n10478118 process-server
+n10478293 proconsul
+n10478462 proconsul
+n10478827 proctologist
+n10478960 proctor, monitor
+n10479135 procurator
+n10479328 procurer, securer
+n10481167 profit_taker
+n10481268 programmer, computer_programmer, coder, software_engineer
+n10482054 promiser, promisor
+n10482220 promoter, booster, plugger
+n10482587 promulgator
+n10482921 propagandist
+n10483138 propagator, disseminator
+n10483395 property_man, propman, property_master
+n10483799 prophetess
+n10483890 prophet
+n10484858 prosecutor, public_prosecutor, prosecuting_officer, prosecuting_attorney
+n10485298 prospector
+n10485883 protectionist
+n10486166 protegee
+n10486236 protozoologist
+n10486561 provost_marshal
+n10487182 pruner, trimmer
+n10487363 psalmist
+n10487592 psephologist
+n10488016 psychiatrist, head-shrinker, shrink
+n10488309 psychic
+n10488656 psycholinguist
+n10489426 psychophysicist
+n10490421 publican, tavern_keeper
+n10491998 pudge
+n10492086 puerpera
+n10492727 punching_bag
+n10493199 punter
+n10493419 punter
+n10493685 puppeteer
+n10493835 puppy, pup
+n10493922 purchasing_agent
+n10494195 puritan
+n10494373 Puritan
+n10495167 pursuer
+n10495421 pusher, shover
+n10495555 pusher, drug_peddler, peddler, drug_dealer, drug_trafficker
+n10495756 pusher, thruster
+n10496393 putz
+n10496489 Pygmy, Pigmy
+n10497135 qadi
+n10497534 quadriplegic
+n10497645 quadruplet, quad
+n10498046 quaker, trembler
+n10498699 quarter
+n10498816 quarterback, signal_caller, field_general
+n10498986 quartermaster
+n10499110 quartermaster_general
+n10499232 Quebecois
+n10499355 queen, queen_regnant, female_monarch
 n10499631 Queen_of_England
+n10499857 queen
 n10500217 queen
+n10500419 queen_consort
+n10500603 queen_mother
+n10500824 Queen's_Counsel
+n10500942 question_master, quizmaster
+n10501453 quick_study, sponge
+n10501635 quietist
+n10502046 quitter
+n10502329 rabbi
+n10502950 racist, racialist
+n10503818 radiobiologist
+n10504090 radiologic_technologist
+n10504206 radiologist, radiotherapist
+n10505347 rainmaker
+n10505613 raiser
 n10505732 raja, rajah
+n10505942 rake, rakehell, profligate, rip, blood, roue
+n10506336 ramrod
+n10506544 ranch_hand
+n10506915 ranker
+n10507070 ranter, raver
+n10507380 rape_suspect
 n10507482 rapper
+n10507565 rapporteur
+n10507692 rare_bird, rara_avis
+n10508141 ratepayer
+n10508379 raw_recruit
+n10508710 reader
 n10509063 reading_teacher
+n10509161 realist
+n10509810 real_estate_broker, real_estate_agent, estate_agent, land_agent, house_agent
+n10510245 rear_admiral
+n10510974 receiver
+n10511771 reciter
+n10512201 recruit, enlistee
+n10512372 recruit, military_recruit
+n10512708 recruiter
+n10512859 recruiting-sergeant
+n10513509 redcap
+n10513823 redhead, redheader, red-header, carrottop
+n10513938 redneck, cracker
+n10514051 reeler
+n10514121 reenactor
+n10514255 referral
 n10514429 referee, ref
+n10514784 refiner
+n10515863 Reform_Jew
+n10516527 registered_nurse, RN
+n10517137 registrar
+n10517283 Regius_professor
+n10518349 reliever, allayer, comforter
+n10519126 anchorite, hermit
+n10519494 religious_leader
+n10519984 remover
+n10520286 Renaissance_man, generalist
+n10520544 renegade
+n10520964 rentier
+n10521100 repairman, maintenance_man, service_man
 n10521662 reporter, newsman, newsperson
+n10521853 newswoman
+n10522035 representative
+n10522324 reprobate, miscreant
+n10522759 rescuer, recoverer, saver
+n10523341 reservist
+n10524076 resident_commissioner
+n10524223 respecter
+n10524869 restaurateur, restauranter
+n10525134 restrainer, controller
+n10525436 retailer, retail_merchant
+n10525617 retiree, retired_person
+n10525878 returning_officer
+n10526534 revenant
+n10527147 revisionist
+n10527334 revolutionist, revolutionary, subversive, subverter
+n10528023 rheumatologist
 n10528148 Rhodesian_man, Homo_rhodesiensis
+n10528493 rhymer, rhymester, versifier, poetizer, poetiser
+n10529231 rich_person, wealthy_person, have
 n10530150 rider
 n10530383 riding_master
+n10530571 rifleman
+n10530959 right-hander, right_hander, righthander
+n10531109 right-hand_man, chief_assistant, man_Friday
+n10531445 ringer
+n10531838 ringleader
+n10533874 roadman, road_mender
+n10533983 roarer, bawler, bellower, screamer, screecher, shouter, yeller
+n10536134 rocket_engineer, rocket_scientist
+n10536274 rocket_scientist
 n10536416 rock_star
+n10537708 Romanov, Romanoff
+n10537906 romanticist, romantic
+n10538629 ropemaker, rope-maker, roper
+n10538733 roper
+n10538853 roper
 n10539015 ropewalker, ropedancer
+n10539160 rosebud
+n10539278 Rosicrucian
+n10540114 Mountie
+n10540252 Rough_Rider
+n10540656 roundhead
+n10541833 civil_authority, civil_officer
+n10542608 runner
 n10542761 runner
 n10542888 runner
+n10543161 running_back
+n10543937 rusher
+n10544232 rustic
+n10544748 saboteur, wrecker, diversionist
+n10545792 sadist
+n10546428 sailing_master, navigator
+n10546633 sailor, crewman
+n10548419 salesgirl, saleswoman, saleslady
+n10548537 salesman
+n10548681 salesperson, sales_representative, sales_rep
+n10549510 salvager, salvor
+n10550252 sandwichman
+n10550369 sangoma
+n10550468 sannup
+n10551576 sapper
+n10552393 Sassenach
+n10553140 satrap
+n10553235 saunterer, stroller, ambler
+n10554024 Savoyard
+n10554141 sawyer
+n10554846 scalper
+n10555059 scandalmonger
+n10555430 scapegrace, black_sheep
+n10556033 scene_painter
+n10556518 schemer, plotter
+n10556704 schizophrenic
+n10556825 schlemiel, shlemiel
+n10557246 schlockmeister, shlockmeister
+n10557854 scholar, scholarly_person, bookman, student
+n10559009 scholiast
 n10559288 schoolchild, school-age_child, pupil
+n10559508 schoolfriend
+n10559683 Schoolman, medieval_Schoolman
+n10559996 schoolmaster
 n10560106 schoolmate, classmate, schoolfellow, class_fellow
+n10560637 scientist
+n10561222 scion
+n10561320 scoffer, flouter, mocker, jeerer
+n10561736 scofflaw
 n10562135 scorekeeper, scorer
+n10562283 scorer
+n10562509 scourer
+n10562968 scout, talent_scout
+n10563314 scoutmaster
+n10563403 scrambler
+n10563711 scratcher
 n10564098 screen_actor, movie_actor
+n10565502 scrutineer, canvasser
 n10565667 scuba_diver
+n10566072 sculptor, sculpturer, carver, statue_maker
+n10567613 Sea_Scout
+n10567722 seasonal_worker, seasonal
+n10567848 seasoner
+n10568200 second_baseman, second_sacker
+n10568358 second_cousin
+n10568443 seconder
+n10568608 second_fiddle, second_banana
+n10568915 second-in-command
+n10569011 second_lieutenant, 2nd_lieutenant
+n10569179 second-rater, mediocrity
+n10570019 secretary
+n10570704 Secretary_of_Agriculture, Agriculture_Secretary
+n10571907 Secretary_of_Health_and_Human_Services
+n10572706 Secretary_of_State
+n10572889 Secretary_of_the_Interior, Interior_Secretary
+n10573957 sectarian, sectary, sectarist
+n10574311 section_hand
+n10574538 secularist
+n10574840 security_consultant
+n10575463 seeded_player, seed
+n10575594 seeder, cloud_seeder
+n10575787 seeker, searcher, quester
+n10576223 segregate
+n10576316 segregator, segregationist
+n10576676 selectman
+n10576818 selectwoman
+n10576962 selfish_person
+n10577182 self-starter
+n10577284 seller, marketer, vender, vendor, trafficker
+n10577710 selling_agent
+n10577820 semanticist, semiotician
+n10578021 semifinalist
+n10578162 seminarian, seminarist
+n10578471 senator
+n10578656 sendee
+n10579062 senior
+n10579549 senior_vice_president
+n10580030 separatist, separationist
+n10580437 septuagenarian
+n10580535 serf, helot, villein
+n10581648 spree_killer
+n10581890 serjeant-at-law, serjeant, sergeant-at-law, sergeant
 n10582604 server
 n10582746 serviceman, military_man, man, military_personnel
+n10583387 settler, colonist
+n10583790 settler
+n10585077 sex_symbol
+n10585217 sexton, sacristan
+n10585628 shaheed
+n10586166 Shakespearian, Shakespearean
+n10586265 shanghaier, seizer
+n10586444 sharecropper, cropper, sharecrop_farmer
+n10586903 shaver
+n10586998 Shavian
+n10588074 sheep
+n10588357 sheik, tribal_sheik, sheikh, tribal_sheikh, Arab_chief
+n10588724 shelver
+n10588965 shepherd
+n10589666 ship-breaker
+n10590146 shipmate
+n10590239 shipowner
+n10590452 shipping_agent
+n10590903 shirtmaker
+n10591072 shogun
+n10591811 shopaholic
+n10592049 shop_girl
+n10592811 shop_steward, steward
+n10593521 shot_putter
+n10594147 shrew, termagant
+n10594523 shuffler
+n10594857 shyster, pettifogger
+n10595164 sibling, sib
+n10595647 sick_person, diseased_person, sufferer
+n10596517 sightreader
+n10596899 signaler, signaller
+n10597505 signer
+n10597745 signor, signior
+n10597889 signora
+n10598013 signore
+n10598181 signorina
+n10598459 silent_partner, sleeping_partner
+n10598904 addle-head, addlehead, loon, birdbrain
+n10599215 simperer
 n10599806 singer, vocalist, vocalizer, vocaliser
+n10601234 Sinologist
 n10601362 sipper
+n10602119 sirrah
+n10602470 Sister
+n10602985 sister, sis
+n10603528 waverer, vacillator, hesitator, hesitater
+n10603851 sitar_player
+n10604275 sixth-former
+n10604380 skateboarder
+n10604634 skeptic, sceptic, doubter
+n10604880 sketcher
+n10604979 skidder
 n10605253 skier
+n10605737 skinny-dipper
+n10607291 skin-diver, aquanaut
+n10607478 skinhead
+n10609092 slasher
+n10609198 slattern, slut, slovenly_woman, trollop
 n10610465 sleeper, slumberer
+n10610850 sleeper
+n10611267 sleeping_beauty
+n10611613 sleuth, sleuthhound
+n10612210 slob, sloven, pig, slovenly_person
+n10612373 sloganeer
+n10612518 slopseller, slop-seller
+n10613996 smasher, stunner, knockout, beauty, ravisher, sweetheart, peach, lulu, looker, mantrap, dish
+n10614507 smirker
+n10614629 smith, metalworker
+n10615179 smoothie, smoothy, sweet_talker, charmer
+n10615334 smuggler, runner, contrabandist, moon_curser, moon-curser
+n10616578 sneezer
+n10617024 snob, prig, snot, snoot
+n10617193 snoop, snooper
+n10617397 snorer
+n10618234 sob_sister
 n10618342 soccer_player
+n10618465 social_anthropologist, cultural_anthropologist
+n10618685 social_climber, climber
+n10618848 socialist
+n10619492 socializer, socialiser
+n10619642 social_scientist
+n10619888 social_secretary
+n10620212 Socinian
+n10620586 sociolinguist
+n10620758 sociologist
+n10621294 soda_jerk, soda_jerker
+n10621400 sodalist
+n10621514 sodomite, sodomist, sod, bugger
+n10622053 soldier
+n10624074 son, boy
+n10624310 songster
+n10624437 songstress
+n10624540 songwriter, songster, ballad_maker
+n10625860 sorcerer, magician, wizard, necromancer, thaumaturge, thaumaturgist
+n10626630 sorehead
+n10627252 soul_mate
+n10628097 Southern_Baptist
 n10628644 sovereign, crowned_head, monarch
+n10629329 spacewalker
+n10629647 Spanish_American, Hispanic_American, Hispanic
+n10629939 sparring_partner, sparring_mate
+n10630093 spastic
+n10630188 speaker, talker, utterer, verbalizer, verbaliser
+n10631131 native_speaker
+n10631309 Speaker
+n10631654 speechwriter
+n10632576 specialist, medical_specialist
+n10633298 specifier
+n10633450 spectator, witness, viewer, watcher, looker
+n10634464 speech_therapist
 n10634849 speedskater, speed_skater
+n10634990 spellbinder
+n10635788 sphinx
+n10636488 spinster, old_maid
+n10637483 split_end
 n10638922 sport, sportsman, sportswoman
+n10639238 sport, summercater
+n10639359 sporting_man, outdoor_man
+n10639637 sports_announcer, sportscaster, sports_commentator
+n10639817 sports_editor
+n10641223 sprog
 n10642596 square_dancer
+n10642705 square_shooter, straight_shooter, straight_arrow
+n10643095 squatter
+n10643837 squire
+n10643937 squire
+n10644598 staff_member, staffer
+n10645017 staff_sergeant
+n10645223 stage_director
+n10646032 stainer
+n10646140 stakeholder
+n10646433 stalker
+n10646641 stalking-horse
+n10646780 stammerer, stutterer
+n10646942 stamper, stomper, tramper, trampler
 n10647745 standee
+n10648237 stand-in, substitute, relief, reliever, backup, backup_man, fill-in
 n10648696 star, principal, lead
+n10649197 starlet
+n10649308 starter, dispatcher
+n10650162 statesman, solon, national_leader
+n10652605 state_treasurer
+n10652703 stationer, stationery_seller
+n10654015 stenographer, amanuensis, shorthand_typist
+n10654211 stentor
+n10654321 stepbrother, half-brother, half_brother
+n10654827 stepmother
+n10654932 stepparent
+n10655169 stevedore, loader, longshoreman, docker, dockhand, dock_worker, dockworker, dock-walloper, lumper
+n10655442 steward
 n10655594 steward, flight_attendant
+n10655730 steward
+n10655986 stickler
+n10656120 stiff
+n10656223 stifler, smotherer
+n10656969 stipendiary, stipendiary_magistrate
+n10657306 stitcher
+n10657556 stockjobber
+n10657835 stock_trader
+n10658304 stockist
+n10659042 stoker, fireman
+n10659762 stooper
+n10660128 store_detective
+n10660621 strafer
+n10660883 straight_man, second_banana
+n10661002 stranger, alien, unknown
 n10661216 stranger
+n10661563 strategist, strategian
+n10661732 straw_boss, assistant_foreman
+n10663315 streetwalker, street_girl, hooker, hustler, floozy, floozie, slattern
+n10663549 stretcher-bearer, litter-bearer
+n10665302 struggler
+n10665587 stud, he-man, macho-man
 n10665698 student, pupil, educatee
+n10666752 stumblebum, palooka
+n10667477 stylist
+n10667709 subaltern
+n10667863 subcontractor
+n10668450 subduer, surmounter, overcomer
+n10668666 subject, case, guinea_pig
+n10669991 subordinate, subsidiary, underling, foot_soldier
+n10671042 substitute, reserve, second-stringer
+n10671613 successor, heir
+n10671736 successor, replacement
+n10671898 succorer, succourer
+n10672371 Sufi
+n10672540 suffragan, suffragan_bishop
+n10672662 suffragette
+n10673296 sugar_daddy
+n10673776 suicide_bomber
+n10674130 suitor, suer, wooer
+n10674713 sumo_wrestler
+n10675010 sunbather
+n10675142 sundowner
+n10675609 super_heavyweight
+n10676018 superior, higher-up, superordinate
+n10676434 supermom
+n10676569 supernumerary, spear_carrier, extra
+n10678937 supremo
 n10679174 surgeon, operating_surgeon, sawbones
+n10679503 Surgeon_General
+n10679610 Surgeon_General
+n10679723 surpriser
+n10680609 surveyor
+n10680796 surveyor
+n10681194 survivor, subsister
+n10681557 sutler, victualer, victualler, provisioner
+n10682713 sweeper
+n10682953 sweetheart, sweetie, steady, truelove
+n10683675 swinger, tramp
+n10684146 switcher, whipper
+n10684630 swot, grind, nerd, wonk, dweeb
+n10684827 sycophant, toady, crawler, lackey, ass-kisser
+n10685398 sylph
+n10686073 sympathizer, sympathiser, well-wisher
+n10686517 symphonist
+n10686694 syncopator
+n10686885 syndic
+n10688356 tactician
+n10688811 tagger
+n10689306 tailback
+n10690268 tallyman, tally_clerk
+n10690421 tallyman
+n10690648 tanker, tank_driver
+n10691318 tapper, wiretapper, phone_tapper
+n10691937 Tartuffe, Tartufe
+n10692090 Tarzan
+n10692482 taster, taste_tester, taste-tester, sampler
+n10692883 tax_assessor, assessor
+n10693235 taxer
+n10693334 taxi_dancer
+n10693824 taxonomist, taxonomer, systematist
+n10694258 teacher, instructor
+n10694939 teaching_fellow
+n10695450 tearaway
+n10696101 technical_sergeant
+n10696508 technician
+n10697135 Ted, Teddy_boy
+n10697282 teetotaler, teetotaller, teetotalist
+n10698368 television_reporter, television_newscaster, TV_reporter, TV_newsman
+n10699558 temporizer, temporiser
+n10699752 tempter
+n10699981 term_infant
+n10700105 toiler
+n10700201 tenant, renter
+n10700640 tenant
+n10700963 tenderfoot
 n10701180 tennis_player
 n10701644 tennis_pro, professional_tennis_player
+n10701962 tenor_saxophonist, tenorist
+n10702167 termer
+n10702615 terror, scourge, threat
+n10703221 tertigravida, gravida_III
+n10703336 testator, testate
+n10703480 testatrix
+n10703692 testee, examinee
+n10704238 test-tube_baby
+n10704712 Texas_Ranger, Ranger
+n10704886 thane
+n10705448 theatrical_producer
+n10705615 theologian, theologist, theologizer, theologiser
+n10706812 theorist, theoretician, theorizer, theoriser, idealogue
+n10707134 theosophist
 n10707233 therapist, healer
+n10707707 Thessalonian
+n10708292 thinker, creative_thinker, mind
+n10708454 thinker
+n10709529 thrower
+n10710171 thurifer
+n10710259 ticket_collector, ticket_taker
+n10710778 tight_end
+n10710913 tiler
+n10711483 timekeeper, timer
+n10711766 Timorese
+n10712229 tinkerer, fiddler
+n10712374 tinsmith, tinner
+n10712474 tinter
+n10712690 tippler, social_drinker
+n10712835 tipster, tout
+n10713254 T-man
+n10713686 toastmaster, symposiarch
+n10713843 toast_mistress
+n10714195 tobogganist
+n10715030 tomboy, romp, hoyden
+n10715347 toolmaker
+n10715789 torchbearer
+n10716576 Tory
+n10716864 Tory
+n10717055 tosser
+n10717196 tosser, jerk-off, wanker
+n10717337 totalitarian
+n10718131 tourist, tourer, holidaymaker
+n10718349 tout, touter
+n10718509 tout, ticket_tout
+n10718665 tovarich, tovarisch
+n10718952 towhead
+n10719036 town_clerk
+n10719132 town_crier, crier
+n10719267 townsman, towner
+n10719807 toxicologist
+n10720197 track_star
+n10720453 trader, bargainer, dealer, monger
+n10720964 trade_unionist, unionist, union_member
+n10721124 traditionalist, diehard
 n10721321 traffic_cop
+n10721612 tragedian
+n10721708 tragedian
+n10721819 tragedienne
+n10722029 trail_boss
 n10722575 trainer
+n10722965 traitor, treasonist
+n10723230 traitress
+n10723597 transactor
+n10724132 transcriber
+n10724372 transfer, transferee
+n10724570 transferee
+n10725280 translator, transcriber
+n10726031 transvestite, cross-dresser
+n10726786 traveling_salesman, travelling_salesman, commercial_traveler, commercial_traveller, roadman, bagman
+n10727016 traverser
+n10727171 trawler
+n10727458 Treasury, First_Lord_of_the_Treasury
+n10728117 trencher
+n10728233 trend-setter, taste-maker, fashion_arbiter
+n10728624 tribesman
+n10728998 trier, attempter, essayer
+n10729330 trifler
 n10730542 trooper
+n10730728 trooper, state_trooper
+n10731013 Trotskyite, Trotskyist, Trot
+n10731732 truant, hooky_player
 n10732010 trumpeter, cornetist
+n10732521 trusty
+n10732854 Tudor
+n10732967 tumbler
+n10733820 tutee
+n10734394 twin
+n10734741 two-timer
+n10734891 Tyke
+n10734963 tympanist, timpanist
 n10735173 typist
+n10735298 tyrant, autocrat, despot
 n10735984 umpire, ump
+n10737103 understudy, standby
+n10737264 undesirable
+n10738111 unicyclist
+n10738215 unilateralist
+n10738670 Unitarian
+n10738871 Arminian
+n10739135 universal_donor
+n10739297 UNIX_guru
+n10739391 Unknown_Soldier
+n10740594 upsetter
+n10740732 upstager
+n10740868 upstart, parvenu, nouveau-riche, arriviste
+n10741152 upstart
+n10741367 urchin
+n10741493 urologist
+n10742005 usherette
+n10742111 usher, doorkeeper
+n10742546 usurper, supplanter
+n10742997 utility_man
+n10743124 utilizer, utiliser
+n10743356 Utopian
+n10744078 uxoricide
+n10744164 vacationer, vacationist
+n10745006 valedictorian, valedictory_speaker
+n10745770 valley_girl
+n10746931 vaulter, pole_vaulter, pole_jumper
+n10747119 vegetarian
+n10747424 vegan
+n10747548 venerator
+n10747965 venture_capitalist
+n10748142 venturer, merchant-venturer
+n10748506 vermin, varmint
+n10748620 very_important_person, VIP, high-up, dignitary, panjandrum, high_muckamuck
+n10749928 vibist, vibraphonist
+n10750031 vicar
+n10750188 vicar
+n10750640 vicar-general
+n10751026 vice_chancellor
+n10751152 vicegerent
+n10751265 vice_president, V.P.
+n10751710 vice-regent
+n10752480 victim, dupe
+n10753061 Victorian
+n10753182 victualer, victualler
+n10753339 vigilante, vigilance_man
+n10753442 villager
+n10753989 vintager
+n10754189 vintner, wine_merchant
+n10754281 violator, debaucher, ravisher
+n10754449 violator, lawbreaker, law_offender
 n10755080 violist
+n10755164 virago
+n10755394 virologist
+n10755648 Visayan, Bisayan
+n10756061 viscountess
+n10756148 viscount
+n10756261 Visigoth
+n10756641 visionary
+n10756837 visiting_fireman
+n10757050 visiting_professor
+n10757492 visualizer, visualiser
+n10758337 vixen, harpy, hellcat
+n10758445 vizier
+n10758949 voicer
+n10759151 volunteer, unpaid_worker
+n10759331 volunteer, military_volunteer, voluntary
+n10759982 votary
+n10760199 votary
+n10760622 vouchee
+n10760951 vower
+n10761190 voyager
+n10761326 voyeur, Peeping_Tom, peeper
+n10761519 vulcanizer, vulcaniser
+n10762212 waffler
+n10762480 Wagnerian
+n10763075 waif, street_child
+n10763245 wailer
 n10763383 waiter, server
+n10763620 waitress
+n10764465 walking_delegate
+n10764622 walk-on
+n10764719 wallah
+n10765305 wally
+n10765587 waltzer
+n10765679 wanderer, roamer, rover, bird_of_passage
+n10765885 Wandering_Jew
+n10766260 wanton
+n10768148 warrantee
+n10768272 warrantee
+n10768903 washer
+n10769084 washerman, laundryman
 n10769188 washwoman, washerwoman, laundrywoman, laundress
+n10769321 wassailer, carouser
+n10769459 wastrel, waster
+n10771066 Wave
 n10772092 weatherman, weather_forecaster
+n10772580 weekend_warrior
+n10772937 weeder
+n10773665 welder
+n10773800 welfare_case, charity_case
+n10774329 westerner
+n10774756 West-sider
+n10775003 wetter
+n10775128 whaler
+n10776052 Whig
+n10776339 whiner, complainer, moaner, sniveller, crybaby, bellyacher, grumbler, squawker
+n10776887 whipper-in
+n10777299 whisperer
+n10778044 whiteface
+n10778148 Carmelite, White_Friar
+n10778711 Augustinian
+n10778999 white_hope, great_white_hope
+n10779610 white_supremacist
+n10779897 whoremaster, whoremonger
+n10779995 whoremaster, whoremonger, john, trick
+n10780284 widow, widow_woman
 n10780632 wife, married_woman
+n10781236 wiggler, wriggler, squirmer
+n10781817 wimp, chicken, crybaby
+n10782362 wing_commander
+n10782471 winger
+n10782791 winner
+n10782940 winner, victor
+n10783240 window_dresser, window_trimmer
+n10783539 winker
+n10783646 wiper
+n10783734 wireman, wirer
+n10784113 wise_guy, smart_aleck, wiseacre, wisenheimer, weisenheimer
+n10784544 witch_doctor
+n10784922 withdrawer
+n10785480 withdrawer
+n10787470 woman, adult_female
+n10788852 woman
+n10789415 wonder_boy, golden_boy
+n10789709 wonderer
+n10791115 working_girl
+n10791221 workman, workingman, working_man, working_person
+n10791820 workmate
+n10791890 worldling
+n10792335 worshiper, worshipper
+n10792506 worthy
+n10792856 wrecker
+n10793570 wright
+n10793799 write-in_candidate, write-in
+n10794014 writer, author
+n10801561 Wykehamist
+n10801802 yakuza
+n10802507 yard_bird, yardbird
+n10802621 yardie
+n10802953 yardman
+n10803031 yardmaster, trainmaster, train_dispatcher
+n10803282 yenta
 n10803978 yogi
+n10804287 young_buck, young_man
+n10804636 young_Turk
+n10804732 Young_Turk
+n10805501 Zionist
 n10806113 zoo_keeper
 n10994097 Genet, Edmund_Charles_Edouard_Genet, Citizen_Genet
+n11100798 Kennan, George_F._Kennan, George_Frost_Kennan
 n11196627 Munro, H._H._Munro, Hector_Hugh_Munro, Saki
+n11242849 Popper, Karl_Popper, Sir_Karl_Raimund_Popper
 n11318824 Stoker, Bram_Stoker, Abraham_Stoker
+n11346873 Townes, Charles_Townes, Charles_Hard_Townes
 n11448153 dust_storm, duster, sandstorm, sirocco
 n11487732 parhelion, mock_sun, sundog
 n11508382 snow, snowfall

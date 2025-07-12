@@ -520,4 +520,4 @@ class DETR(DetectionBaseNet):
         return (detections, losses)
 
 
-registry.register_alias("detr", DETR, config={"num_encoder_layers": 6, "num_decoder_layers": 6})
+registry.register_model_config("detr", DETR, config={"num_encoder_layers": 6, "num_decoder_layers": 6})

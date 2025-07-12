@@ -280,37 +280,37 @@ class CaiT(BaseNet):
         )
 
 
-registry.register_alias(
+registry.register_model_config(
     "cait_xxs24",
     CaiT,
     config={"embed_dim": 192, "depth": 24, "num_heads": 4, "init_values": 1e-5, "drop_path_rate": 0.05},
 )
-registry.register_alias(
+registry.register_model_config(
     "cait_xxs36",
     CaiT,
     config={"embed_dim": 192, "depth": 36, "num_heads": 4, "init_values": 1e-5, "drop_path_rate": 0.1},
 )
-registry.register_alias(
+registry.register_model_config(
     "cait_xs24",
     CaiT,
     config={"embed_dim": 288, "depth": 24, "num_heads": 6, "init_values": 1e-5, "drop_path_rate": 0.05},
 )
-registry.register_alias(
+registry.register_model_config(
     "cait_s24",
     CaiT,
     config={"embed_dim": 384, "depth": 24, "num_heads": 8, "init_values": 1e-5, "drop_path_rate": 0.1},
 )
-registry.register_alias(
+registry.register_model_config(
     "cait_s36",
     CaiT,
     config={"embed_dim": 384, "depth": 36, "num_heads": 8, "init_values": 1e-6, "drop_path_rate": 0.2},
 )
-registry.register_alias(
+registry.register_model_config(
     "cait_m36",
     CaiT,
     config={"embed_dim": 768, "depth": 36, "num_heads": 16, "init_values": 1e-6, "drop_path_rate": 0.3},
 )
-registry.register_alias(
+registry.register_model_config(
     "cait_m48",
     CaiT,
     config={"embed_dim": 768, "depth": 48, "num_heads": 16, "init_values": 1e-6, "drop_path_rate": 0.4},

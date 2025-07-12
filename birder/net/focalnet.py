@@ -438,7 +438,7 @@ class FocalNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "focalnet_t_srf",
     FocalNet,
     config={
@@ -453,7 +453,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "focalnet_t_lrf",
     FocalNet,
     config={
@@ -468,7 +468,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "focalnet_s_srf",
     FocalNet,
     config={
@@ -483,7 +483,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "focalnet_s_lrf",
     FocalNet,
     config={
@@ -498,7 +498,7 @@ registry.register_alias(
         "drop_path_rate": 0.2,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "focalnet_b_srf",
     FocalNet,
     config={
@@ -513,7 +513,7 @@ registry.register_alias(
         "drop_path_rate": 0.3,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "focalnet_b_lrf",
     FocalNet,
     config={
@@ -528,7 +528,7 @@ registry.register_alias(
         "drop_path_rate": 0.3,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "focalnet_l3",
     FocalNet,
     config={
@@ -543,7 +543,7 @@ registry.register_alias(
         "drop_path_rate": 0.3,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "focalnet_l4",
     FocalNet,
     config={
@@ -558,7 +558,7 @@ registry.register_alias(
         "drop_path_rate": 0.3,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "focalnet_xl3",
     FocalNet,
     config={
@@ -573,7 +573,7 @@ registry.register_alias(
         "drop_path_rate": 0.3,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "focalnet_xl4",
     FocalNet,
     config={
@@ -588,7 +588,7 @@ registry.register_alias(
         "drop_path_rate": 0.3,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "focalnet_h3",
     FocalNet,
     config={
@@ -603,7 +603,7 @@ registry.register_alias(
         "drop_path_rate": 0.3,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "focalnet_h4",
     FocalNet,
     config={

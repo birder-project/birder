@@ -406,22 +406,22 @@ class CSWin_Transformer(DetectorBackbone):
                 idx += 1
 
 
-registry.register_alias(
+registry.register_model_config(
     "cswin_transformer_t",
     CSWin_Transformer,
     config={"embed_dim": 64, "depths": [1, 2, 21, 1], "num_heads": [2, 4, 8, 16], "drop_path_rate": 0.2},
 )
-registry.register_alias(
+registry.register_model_config(
     "cswin_transformer_s",
     CSWin_Transformer,
     config={"embed_dim": 64, "depths": [2, 4, 32, 2], "num_heads": [2, 4, 8, 16], "drop_path_rate": 0.4},
 )
-registry.register_alias(
+registry.register_model_config(
     "cswin_transformer_b",
     CSWin_Transformer,
     config={"embed_dim": 96, "depths": [2, 4, 32, 2], "num_heads": [4, 8, 16, 32], "drop_path_rate": 0.5},
 )
-registry.register_alias(
+registry.register_model_config(
     "cswin_transformer_l",
     CSWin_Transformer,
     config={"embed_dim": 144, "depths": [2, 4, 32, 2], "num_heads": [6, 12, 24, 24], "drop_path_rate": 0.5},

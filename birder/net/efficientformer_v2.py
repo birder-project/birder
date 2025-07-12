@@ -604,7 +604,7 @@ class EfficientFormer_v2(DetectorBackbone):
                             m.token_mixer.attention_bias_idxs = nn.Buffer(torch.LongTensor(rel_pos), persistent=False)
 
 
-registry.register_alias(
+registry.register_model_config(
     "efficientformer_v2_s0",
     EfficientFormer_v2,
     config={
@@ -620,7 +620,7 @@ registry.register_alias(
         ],
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientformer_v2_s1",
     EfficientFormer_v2,
     config={
@@ -636,7 +636,7 @@ registry.register_alias(
         ],
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientformer_v2_s2",
     EfficientFormer_v2,
     config={
@@ -652,7 +652,7 @@ registry.register_alias(
         ],
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "efficientformer_v2_l",
     EfficientFormer_v2,
     config={

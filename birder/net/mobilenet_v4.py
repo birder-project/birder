@@ -532,13 +532,13 @@ class MobileNet_v4(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin)
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "mobilenet_v4_s", MobileNet_v4, config={"dropout": 0.3, "drop_path_rate": 0.0, "net_size": "small"}
 )
-registry.register_alias(
+registry.register_model_config(
     "mobilenet_v4_m", MobileNet_v4, config={"dropout": 0.2, "drop_path_rate": 0.075, "net_size": "medium"}
 )
-registry.register_alias(
+registry.register_model_config(
     "mobilenet_v4_l", MobileNet_v4, config={"dropout": 0.2, "drop_path_rate": 0.35, "net_size": "large"}
 )
 

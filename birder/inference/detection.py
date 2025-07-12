@@ -85,6 +85,8 @@ def infer_dataloader(
 
     This function runs inference on a dataset provided through a DataLoader,
     optionally using mixed precision (amp).
+    All returned detections and targets are transformed to original
+    image coordinates regardless of the model's inference resolution.
 
     Parameters
     ----------
@@ -109,6 +111,7 @@ def infer_dataloader(
         - torch.Tensor: The input tensor for the current batch
         - list[dict[str, torch.Tensor]]: The detections for the current batch
         - list[dict[str, Any]]: A list of targets for the current batch
+        - list[list[int]]: The image sizes for the current batch
 
     Returns
     -------

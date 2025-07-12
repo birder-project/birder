@@ -160,15 +160,15 @@ class DenseNet(DetectorBackbone):
         return self.features(x)
 
 
-registry.register_alias(
+registry.register_model_config(
     "densenet_121", DenseNet, config={"growth_rate": 32, "num_init_features": 64, "layer_list": [6, 12, 24, 16]}
 )
-registry.register_alias(
+registry.register_model_config(
     "densenet_161", DenseNet, config={"growth_rate": 48, "num_init_features": 96, "layer_list": [6, 12, 36, 24]}
 )
-registry.register_alias(
+registry.register_model_config(
     "densenet_169", DenseNet, config={"growth_rate": 32, "num_init_features": 64, "layer_list": [6, 12, 32, 32]}
 )
-registry.register_alias(
+registry.register_model_config(
     "densenet_201", DenseNet, config={"growth_rate": 32, "num_init_features": 64, "layer_list": [6, 12, 48, 32]}
 )

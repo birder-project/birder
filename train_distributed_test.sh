@@ -10,20 +10,6 @@
 #SBATCH --output=logs/slurm_%j.out        # Output log file
 #SBATCH --error=logs/slurm_%j.err         # Error log file
 
-# ==============================================================================
-# DISTRIBUTED TRAINING TEMPLATE FOR BIRDER FRAMEWORK
-# ==============================================================================
-# This template demonstrates how to run distributed training using Slurm
-# with the Birder deep learning framework.
-#
-# Key Features:
-# - Multi-node, multi-GPU support
-# - Automatic distributed environment setup
-# - Configurable training parameters
-# - Error handling and logging
-# - Easy customization for different experiments
-# ==============================================================================
-
 # Create logs directory if it doesn't exist
 mkdir -p logs
 
@@ -35,23 +21,49 @@ echo "Nodes: $SLURM_JOB_NUM_NODES"
 echo "Tasks per node: $SLURM_NTASKS_PER_NODE"
 echo "Total tasks: $SLURM_NTASKS"
 echo "Node list: $SLURM_JOB_NODELIST"
+echo "Partition: $SLURM_JOB_PARTITION"
+echo "Start time: $(date)"
 echo "========================"
+
+# System information
+echo "--- System Info ---"
+echo "Kernel: $(uname -r)"
+echo "Architecture: $(uname -m)"
+echo "CPU Info: $(lscpu | grep 'Model name' | cut -d':' -f2 | xargs)"
+echo "CPU Cores: $(nproc)"
+echo ""
+
+# Memory information
+echo "--- Memory Info ---"
+free -h
+echo ""
+
+# GPU information
+echo "--- GPU Info ---"
+nvidia-smi --query-gpu=index,name,driver_version,memory.total --format=csv
+echo ""
 
 # Load required modules (adjust based on your cluster)
 # module load python/3.11
 module load cuda/12.8
 
 # Activate your virtual environment
+echo "=== ACTIVATING ENVIRONMENT ==="
 source .venv/bin/activate
+echo "Virtual environment activated"
+echo "Python version: $(python --version)"
+echo "Python path: $(which python)"
+echo "========================"
 
 # Set distributed training environment variables
 export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
 export MASTER_PORT=12355
 export WORLD_SIZE=$SLURM_NTASKS
 export NCCL_DEBUG=INFO
+# export NCCL_SOCKET_IFNAME=ib0  # Adjust based on your network interface
 
 # Optional: Set CUDA visible devices and other optimizations
-export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+# export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 # ==============================================================================
 # DISTRIBUTED TRAINING COMMAND
@@ -60,6 +72,7 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 echo "=== STARTING DISTRIBUTED TRAINING ==="
 echo "Master node: $MASTER_ADDR:$MASTER_PORT"
 echo "World size: $WORLD_SIZE"
+echo "Training start time: $(date)"
 echo "========================================="
 
 # Launch distributed training
@@ -94,6 +107,7 @@ srun python -m birder.scripts.train \
 TRAINING_EXIT_CODE=$?
 
 echo "=== TRAINING COMPLETED ==="
+echo "Training end time: $(date)"
 echo "Exit code: $TRAINING_EXIT_CODE"
 echo "Job ID: $SLURM_JOB_ID"
 
@@ -104,20 +118,3 @@ else
 fi
 
 echo "=========================="
-
-# ==============================================================================
-# USAGE INSTRUCTIONS
-# ==============================================================================
-#
-# To use this template:
-#
-# 1. Customize the SBATCH parameters at the top based on your cluster resources
-# 2. Modify the training configuration
-# 3. Adjust module loading and environment activation commands
-# 4. Submit the job with: sbatch distributed_training.sh
-#
-# Monitor your job with:
-# - squeue -u $USER
-# - tail -f logs/slurm_<job_id>.out
-#
-# ==============================================================================

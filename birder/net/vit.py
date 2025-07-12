@@ -670,7 +670,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         )
 
 
-registry.register_alias(
+registry.register_model_config(
     "vit_t32",
     ViT,
     config={
@@ -682,7 +682,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_t16",
     ViT,
     config={
@@ -694,7 +694,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_s32",
     ViT,
     config={
@@ -706,7 +706,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_s16",
     ViT,
     config={
@@ -718,7 +718,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_s14",
     ViT,
     config={
@@ -730,7 +730,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_m32",
     ViT,
     config={
@@ -742,7 +742,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_m16",
     ViT,
     config={
@@ -754,7 +754,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_m14",
     ViT,
     config={
@@ -766,7 +766,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_b32",
     ViT,
     config={
@@ -778,7 +778,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_b16",
     ViT,
     config={
@@ -790,7 +790,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_b14",
     ViT,
     config={
@@ -802,7 +802,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_l32",
     ViT,
     config={
@@ -814,7 +814,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_l16",
     ViT,
     config={
@@ -826,7 +826,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_l14",
     ViT,
     config={
@@ -838,7 +838,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_h16",
     ViT,
     config={
@@ -850,7 +850,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_h14",
     ViT,
     config={
@@ -862,7 +862,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(  # From "Scaling Vision Transformers"
+registry.register_model_config(  # From "Scaling Vision Transformers"
     "vit_g14",
     ViT,
     config={
@@ -876,7 +876,7 @@ registry.register_alias(  # From "Scaling Vision Transformers"
 )
 
 # With registers
-registry.register_alias(
+registry.register_model_config(
     "vit_reg1_t16",
     ViT,
     config={
@@ -889,7 +889,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg1_s32",
     ViT,
     config={
@@ -902,7 +902,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg1_s16",
     ViT,
     config={
@@ -915,7 +915,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg1_s16_ls",
     ViT,
     config={
@@ -929,7 +929,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg1_s16_rms_ls",
     ViT,
     config={
@@ -944,7 +944,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg1_s14",
     ViT,
     config={
@@ -957,7 +957,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg4_m32",
     ViT,
     config={
@@ -970,7 +970,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg4_m16",
     ViT,
     config={
@@ -983,7 +983,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg4_m16_rms_avg",
     ViT,
     config={
@@ -998,7 +998,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg4_m14",
     ViT,
     config={
@@ -1011,7 +1011,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg4_b32",
     ViT,
     config={
@@ -1024,7 +1024,7 @@ registry.register_alias(
         "drop_path_rate": 0.0,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg4_b16",
     ViT,
     config={
@@ -1037,7 +1037,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg4_b16_avg",
     ViT,
     config={
@@ -1051,7 +1051,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg4_b14",
     ViT,
     config={
@@ -1064,7 +1064,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg8_b14_ap",
     ViT,
     config={
@@ -1079,7 +1079,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg4_l32",
     ViT,
     config={
@@ -1092,7 +1092,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg4_l16",
     ViT,
     config={
@@ -1105,7 +1105,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg4_l14",
     ViT,
     config={
@@ -1118,7 +1118,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg8_l14_ap",
     ViT,
     config={
@@ -1133,7 +1133,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg8_l14_rms_ap",
     ViT,
     config={
@@ -1149,7 +1149,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg4_h16",
     ViT,
     config={
@@ -1162,7 +1162,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg4_h14",
     ViT,
     config={
@@ -1175,7 +1175,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(  # From "Scaling Vision Transformers"
+registry.register_model_config(  # From "Scaling Vision Transformers"
     "vit_reg4_g14",
     ViT,
     config={
@@ -1190,7 +1190,7 @@ registry.register_alias(  # From "Scaling Vision Transformers"
 )
 
 # Shape-optimized vision transformer (SoViT)
-registry.register_alias(
+registry.register_model_config(
     "vit_so150m_p14_ap",
     ViT,
     config={
@@ -1204,7 +1204,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_so400m_p14_ap",
     ViT,
     config={
@@ -1218,7 +1218,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg4_so150m_p14_ap",
     ViT,
     config={
@@ -1233,7 +1233,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg8_so150m_p14_avg",
     ViT,
     config={
@@ -1247,7 +1247,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg8_so150m_p14_swiglu_avg",
     ViT,
     config={
@@ -1262,7 +1262,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg8_so150m_p14_ap",
     ViT,
     config={
@@ -1277,7 +1277,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg4_so400m_p14_ap",
     ViT,
     config={
@@ -1292,7 +1292,7 @@ registry.register_alias(
         "drop_path_rate": 0.1,
     },
 )
-registry.register_alias(
+registry.register_model_config(
     "vit_reg8_so400m_p14_ap",
     ViT,
     config={
