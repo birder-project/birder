@@ -5,9 +5,7 @@ import math
 import os
 import sys
 import time
-import typing
 from typing import Any
-from typing import get_args
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,13 +20,13 @@ from tqdm import tqdm
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
+from birder.common import training_cli
 from birder.common import training_utils
+from birder.common.lib import set_random_seeds
 from birder.conf import settings
 from birder.data.collators.detection import training_collate_fn
 from birder.data.datasets.coco import CocoTraining
-from birder.data.transforms.classification import RGBMode
 from birder.data.transforms.classification import get_rgb_stats
-from birder.data.transforms.detection import AugType
 from birder.data.transforms.detection import InferenceTransform
 from birder.data.transforms.detection import training_preset
 from birder.model_registry import Task
@@ -77,13 +75,18 @@ def train(args: argparse.Namespace) -> None:
     elif dynamic_size is False:
         torch.backends.cudnn.benchmark = True
 
+    if args.seed is not None:
+        set_random_seeds(args.seed)
+
     # Enable or disable the autograd anomaly detection
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
 
     #
     # Data
     #
-    rgb_stats = get_rgb_stats(args.rgb_mode)
+    rgb_stats = get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std)
+    logger.debug(f"Using RGB stats: {rgb_stats}")
+
     training_dataset = CocoTraining(
         args.data_path,
         args.coco_json_path,
@@ -136,6 +139,7 @@ def train(args: argparse.Namespace) -> None:
         prefetch_factor=args.prefetch_factor,
         collate_fn=training_collate_fn,
         pin_memory=True,
+        drop_last=args.drop_last,
     )
     validation_loader = DataLoader(
         validation_dataset,
@@ -145,6 +149,7 @@ def train(args: argparse.Namespace) -> None:
         prefetch_factor=args.prefetch_factor,
         collate_fn=training_collate_fn,
         pin_memory=True,
+        drop_last=args.drop_last,
     )
 
     last_batch_idx = len(training_loader) - 1
@@ -158,6 +163,7 @@ def train(args: argparse.Namespace) -> None:
     #
     # Initialize network
     #
+    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
     network_name = lib.get_detection_network_name(
         args.network,
@@ -185,7 +191,6 @@ def train(args: argparse.Namespace) -> None:
         )
         if args.reset_head is True:
             net.reset_classifier(len(class_to_idx))
-            net.to(device)
         else:
             assert class_to_idx == class_to_idx_saved
 
@@ -205,7 +210,6 @@ def train(args: argparse.Namespace) -> None:
         )
         if args.reset_head is True:
             net.reset_classifier(len(class_to_idx))
-            net.to(device)
         else:
             assert class_to_idx == class_to_idx_saved
 
@@ -250,9 +254,10 @@ def train(args: argparse.Namespace) -> None:
             net_param=args.net_param,
             config=args.model_config,
             size=args.size,
-        ).to(device)
+        )
         training_states = fs_ops.TrainingStates.empty()
 
+    net.to(device, dtype=model_dtype)
     if dynamic_size is True:
         net.set_dynamic_size()
 
@@ -264,7 +269,9 @@ def train(args: argparse.Namespace) -> None:
     elif args.freeze_backbone_stages is not None:
         net.backbone.freeze_stages(up_to_stage=args.freeze_backbone_stages)
 
-    if args.freeze_backbone_bn is True:
+    if args.freeze_bn is True:
+        net = training_utils.freeze_batchnorm2d(net)
+    elif args.freeze_backbone_bn is True:
         net.backbone = training_utils.freeze_batchnorm2d(net.backbone)
 
     if args.sync_bn is True and args.distributed is True:
@@ -274,16 +281,10 @@ def train(args: argparse.Namespace) -> None:
         torch.set_float32_matmul_precision("high")
 
     # Compile network
-    dynamic_compile = None
-    if args.compile_dynamic is True:
-        dynamic_compile = True
-
     if args.compile is True:
-        net = torch.compile(net, dynamic=dynamic_compile)
+        net = torch.compile(net)
     elif args.compile_backbone is True:
-        net.backbone.detection_features = torch.compile(  # type: ignore[method-assign]
-            net.backbone.detection_features, dynamic=dynamic_compile
-        )
+        net.backbone.detection_features = torch.compile(net.backbone.detection_features)  # type: ignore[method-assign]
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
@@ -357,7 +358,9 @@ def train(args: argparse.Namespace) -> None:
     #
     net_without_ddp = net
     if args.distributed is True:
-        net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[args.local_rank])
+        net = torch.nn.parallel.DistributedDataParallel(
+            net, device_ids=[args.local_rank], find_unused_parameters=args.find_unused_parameters
+        )
         net_without_ddp = net.module
 
     if args.model_ema is True:
@@ -405,7 +408,7 @@ def train(args: argparse.Namespace) -> None:
             net_for_info,
             device=device,
             input_size=sample_shape,
-            dtypes=[torch.float32],
+            dtypes=[model_dtype],
             col_names=["input_size", "output_size", "kernel_size", "num_params"],
             depth=4,
             verbose=1 if args.rank == 0 else 0,
@@ -462,7 +465,7 @@ def train(args: argparse.Namespace) -> None:
         optimizer.zero_grad()
 
         for i, (inputs, targets, masks, image_sizes) in enumerate(training_loader):
-            inputs = inputs.to(device, non_blocking=True)
+            inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
             targets = [
                 {k: v.to(device, non_blocking=True) if isinstance(v, torch.Tensor) else v for k, v in t.items()}
                 for t in targets
@@ -710,6 +713,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
+    parser.add_argument("-t", "--tag", type=str, help="add model tag")
     parser.add_argument("--backbone", type=str, help="the neural network to used as backbone")
     parser.add_argument(
         "--backbone-param",
@@ -744,186 +748,32 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--freeze-backbone", default=False, action="store_true", help="freeze backbone")
     parser.add_argument("--freeze-backbone-stages", type=int, help="number of backbone stages to freeze")
-    parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
-    parser.add_argument(
-        "--compile-backbone", default=False, action="store_true", help="enable backbone only compilation"
-    )
-    parser.add_argument("--compile-dynamic", default=False, action="store_true", help="use dynamic shape tracing")
-    parser.add_argument(
-        "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
-    )
-    training_utils.add_optimizer_args(parser)
-    training_utils.add_lr_wd_args(parser, backbone_lr=True)
-    training_utils.add_scheduler_args(parser)
-    parser.add_argument(
-        "--grad-accum-steps", type=int, default=1, metavar="N", help="number of steps to accumulate gradients"
-    )
-    parser.add_argument("--channels", type=int, default=3, metavar="N", help="no. of image channels")
-    parser.add_argument(
-        "--size",
-        type=int,
-        nargs="+",
-        metavar=("H", "W"),
-        help=(
-            "target image size as [height, width], if --dynamic-size is enabled, "
-            "uses the smaller dimension as target size while preserving aspect ratio (defaults to model's signature)"
-        ),
-    )
-    parser.add_argument(
-        "--max-size",
-        type=int,
-        help="maximum size for the longer edge of resized images, when specified, enables dynamic sizing",
-    )
-    parser.add_argument(
-        "--dynamic-size",
-        default=False,
-        action="store_true",
-        help="allow variable image sizes while preserving aspect ratios",
-    )
-    parser.add_argument("--multiscale", default=False, action="store_true", help="enable random scale per image")
-    parser.add_argument(
-        "--freeze-backbone-bn",
-        default=False,
-        action="store_true",
-        help="freeze all batch statistics and affine parameters of batchnorm2d layers (backbone only)",
-    )
-    parser.add_argument("--sync-bn", default=False, action="store_true", help="use synchronized BatchNorm")
-    parser.add_argument("--batch-size", type=int, default=16, metavar="N", help="the batch size")
-    parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
-    parser.add_argument(
-        "--aug-type",
-        type=str,
-        choices=list(get_args(AugType)),
-        default="birder",
-        help="augmentation type",
-    )
-    parser.add_argument(
-        "--aug-level",
-        type=int,
-        choices=list(range(10 + 1)),
-        default=4,
-        help="magnitude of birder augmentations (0 off -> 10 highest)",
-    )
-    parser.add_argument(
-        "--rgb-mode",
-        type=str,
-        choices=list(typing.get_args(RGBMode)),
-        default="birder",
-        help="rgb mean and std to use for normalization",
-    )
-    parser.add_argument("--epochs", type=int, default=50, metavar="N", help="number of training epochs")
-    parser.add_argument(
-        "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi step training)"
-    )
-    parser.add_argument("--save-frequency", type=int, default=5, metavar="N", help="frequency of model saving")
-    parser.add_argument("--keep-last", type=int, metavar="N", help="number of checkpoints to keep")
-    parser.add_argument("--resume-epoch", type=int, metavar="N", help="epoch to resume training from")
-    parser.add_argument(
-        "--load-states",
-        default=False,
-        action="store_true",
-        help="load optimizer, scheduler and scaler states when resuming",
-    )
-    parser.add_argument("--load-scheduler", default=False, action="store_true", help="load scheduler only resuming")
-    parser.add_argument(
-        "--model-ema",
-        default=False,
-        action="store_true",
-        help="enable tracking exponential moving average of model parameters",
-    )
-    parser.add_argument(
-        "--model-ema-steps",
-        type=int,
-        default=1,
-        help="the number of iterations that controls how often to update the EMA model",
-    )
-    parser.add_argument(
-        "--model-ema-decay",
-        type=float,
-        default=0.9998,
-        help="decay factor for exponential moving average of model parameters",
-    )
-    parser.add_argument(
-        "--ra-sampler",
-        default=False,
-        action="store_true",
-        help="whether to use Repeated Augmentation in training",
-    )
-    parser.add_argument("--ra-reps", type=int, default=3, help="number of repetitions for Repeated Augmentation")
-    parser.add_argument("-t", "--tag", type=str, help="add training logs tag")
-    parser.add_argument(
-        "--log-interval", type=int, default=20, metavar="N", help="how many steps between summary writes"
-    )
-    parser.add_argument(
-        "-j",
-        "--num-workers",
-        type=int,
-        default=min(8, max(os.cpu_count() // 8, 2)),  # type: ignore[operator]
-        metavar="N",
-        help="number of preprocessing workers",
-    )
-    parser.add_argument(
-        "--prefetch-factor", type=int, metavar="N", help="number of batches loaded in advance by each worker"
-    )
-    parser.add_argument(
-        "--amp", default=False, action="store_true", help="use torch.cuda.amp for mixed precision training"
-    )
-    parser.add_argument(
-        "--amp-dtype",
-        type=str,
-        choices=["float16", "bfloat16"],
-        default="float16",
-        help="whether to use float16 or bfloat16 for mixed precision",
-    )
-    parser.add_argument(
-        "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
-    )
-    parser.add_argument(
-        "--grad-anomaly-detection",
-        default=False,
-        action="store_true",
-        help="enable the autograd anomaly detection (for debugging)",
-    )
-    parser.add_argument("--world-size", type=int, default=1, metavar="N", help="number of distributed processes")
-    parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
-    parser.add_argument("--clip-grad-norm", type=float, help="the maximum gradient norm")
-    parser.add_argument("--local-rank", type=int, help="local rank")
-    parser.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")
-    parser.add_argument(
-        "--use-deterministic-algorithms", default=False, action="store_true", help="use only deterministic algorithms"
-    )
     parser.add_argument(
         "--binary-mode",
         default=False,
         action="store_true",
         help="treat all objects as a single class (binary detection: object vs background)",
     )
-    parser.add_argument(
-        "--plot-lr", default=False, action="store_true", help="plot learning rate and exit (skip training)"
+    training_cli.add_optimization_args(parser, default_batch_size=16)
+    training_cli.add_lr_wd_args(parser, backbone_lr=True)
+    training_cli.add_lr_scheduler_args(parser)
+    training_cli.add_training_schedule_args(parser)
+    training_cli.add_detection_input_args(parser)
+    training_cli.add_detection_data_aug_args(parser)
+    training_cli.add_ema_args(parser, default_ema_steps=1, default_ema_decay=0.9998)
+    training_cli.add_dataloader_args(
+        parser,
+        no_img_loader=True,
+        default_num_workers=min(8, max(os.cpu_count() // 8, 2)),  # type: ignore[operator]
+        ra_sampler=True,
     )
-    parser.add_argument("--no-summary", default=False, action="store_true", help="don't print model summary")
-    parser.add_argument(
-        "--val-path", type=str, default=str(settings.DETECTION_DATA_PATH), help="validation base directory path"
-    )
-    parser.add_argument(
-        "--data-path", type=str, default=str(settings.DETECTION_DATA_PATH), help="training base directory path"
-    )
-    parser.add_argument(
-        "--coco-val-json-path",
-        type=str,
-        default=f"{settings.VALIDATION_DETECTION_ANNOTATIONS_PATH}_coco.json",
-        help="validation COCO json path",
-    )
-    parser.add_argument(
-        "--coco-json-path",
-        type=str,
-        default=f"{settings.TRAINING_DETECTION_ANNOTATIONS_PATH}_coco.json",
-        help="training COCO json path",
-    )
-    parser.add_argument("--class-file", type=str, metavar="FILE", help="class list file, overrides json categories")
-    parser.add_argument(
-        "--ignore-file", type=str, metavar="FILE", help="ignore list file, list of samples to ignore in training"
-    )
+    training_cli.add_batch_norm_args(parser, backbone_freeze=True)
+    training_cli.add_precision_args(parser)
+    training_cli.add_compile_args(parser, backbone=True)
+    training_cli.add_checkpoint_args(parser)
+    training_cli.add_distributed_args(parser)
+    training_cli.add_logging_and_debug_args(parser, default_log_interval=20, fake_data=False)
+    training_cli.add_detection_training_data_args(parser)
 
     return parser
 
@@ -931,36 +781,44 @@ def get_args_parser() -> argparse.ArgumentParser:
 def validate_args(args: argparse.Namespace) -> None:
     args.data_path = str(args.data_path)
     args.val_path = str(args.val_path)
-    assert args.network is not None
-    assert args.backbone is not None
-    assert (
-        args.backbone_pretrained is False or args.backbone_epoch is None
-    ), "Cannot set backbone epoch while starting from a pretrained backbone"
-    assert (
-        args.pretrained is False or args.resume_epoch is None
-    ), "Cannot set resume epoch while starting from a pretrained network"
-    assert args.load_states is False or (
-        args.load_states is True and args.resume_epoch is not None
-    ), "Load states must be from resumed training (--resume-epoch)"
-    assert (
-        args.load_scheduler is False or args.resume_epoch is not None
-    ), "Load scheduler must be from resumed training (--resume-epoch)"
-    assert args.freeze_backbone is False or args.freeze_backbone_stages is None or args.freeze_body is False
-    assert (
-        registry.exists(args.network, task=Task.OBJECT_DETECTION) is True
-    ), "Unknown network, see list-models tool for available options"
-    assert (
-        registry.exists(args.backbone, net_type=DetectorBackbone) is True
-    ), "Unknown backbone, see list-models tool for available options"
-    assert args.compile is False or args.compile_backbone is False
-    assert args.aug_type == "birder" or args.multiscale is False, "multiscale only supported for birder augmentations"
     args.size = cli.parse_size(args.size)
+
+    # This will capture the common argument mistakes
+    training_cli.common_args_validation(args)
+
+    # Script specific checks
+    if args.backbone is None:
+        raise cli.ValidationError("must pass --backbone")
+    if registry.exists(args.network, task=Task.OBJECT_DETECTION) is False:
+        raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
+    if registry.exists(args.backbone, net_type=DetectorBackbone) is False:
+        raise cli.ValidationError(
+            f"--backbone {args.network} not supported, see list-models tool for available options"
+        )
+
+    if args.freeze_backbone is True and args.freeze_backbone_stages is not None:
+        raise cli.ValidationError("--freeze-backbone cannot be used with --freeze-backbone-stages")
+    if args.freeze_backbone is True and args.freeze_body is True:
+        raise cli.ValidationError("--freeze-backbone cannot be used with --freeze-body")
+    if args.freeze_body is True and args.freeze_backbone_stages is not None:
+        raise cli.ValidationError("--freeze-body cannot be used with --freeze-backbone-stages")
+
+    if args.multiscale is True and args.aug_type != "birder":
+        raise cli.ValidationError(f"--multiscale only supported with --aug-type birder, got {args.aug_type}")
+
+    if args.model_dtype != "float32":  # NOTE: only float32 supported at this time
+        raise cli.ValidationError(f"Only float32 supported for --model-dtype at this time, got {args.model_dtype}")
+
+    if args.pretrained is True and args.resume_epoch is not None:  # What to do with "pretrained"
+        raise cli.ValidationError("--pretrained cannot be used with --resume-epoch")
+    if args.backbone_pretrained is True and args.backbone_epoch is not None:  # What to do with "pretrained"
+        raise cli.ValidationError("--backbone-pretrained cannot be used with --backbone-epoch")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:
     parser = get_args_parser()
-    args = argparse.Namespace(**kwargs)
-    args = parser.parse_args([], args)
+    parser.set_defaults(**kwargs)
+    args = parser.parse_args([])
     validate_args(args)
 
     return args

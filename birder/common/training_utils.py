@@ -12,7 +12,6 @@ from typing import Any
 from typing import Literal
 from typing import Optional
 from typing import Sized
-from typing import get_args
 
 import numpy as np
 import torch
@@ -21,11 +20,11 @@ import torch.distributed as dist
 import torch.utils.data.distributed
 from torchvision.ops import FrozenBatchNorm2d
 
-from birder.data.transforms.classification import AugType
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.classification import training_preset
 from birder.optim import Lamb
 from birder.optim import Lars
+from birder.scheduler import CooldownLR
 
 logger = logging.getLogger(__name__)
 
@@ -449,7 +448,23 @@ def get_scheduler(
         begin_epoch = args.resume_epoch
 
     # Warmup epochs is given in absolute number from 0
-    remaining_warmup = max(0, args.warmup_epochs - begin_epoch - 1)
+    remaining_warmup = max(0, args.warmup_epochs - begin_epoch)
+
+    # Cooldown epochs is given in absolute number from the end (args.epochs)
+    remaining_cooldown = min(args.cooldown_epochs, args.epochs - begin_epoch)
+
+    main_steps = (args.epochs - begin_epoch - remaining_warmup - remaining_cooldown) * iters_per_epoch - 1
+
+    logger.debug(
+        f"Scheduler {args.lr_scheduler} set for {args.epochs} epochs of which {args.warmup_epochs} "
+        f"are warmup and {args.cooldown_epochs} cooldown"
+    )
+    logger.debug(
+        f"Currently starting from epoch {begin_epoch} with {remaining_warmup} remaining warmup epochs "
+        f"and {remaining_cooldown} remaining cooldown epochs"
+    )
+    logger.debug(f"Main scheduler has {main_steps} steps")
+
     if args.lr_scheduler == "constant":
         main_scheduler = torch.optim.lr_scheduler.ConstantLR(optimizer, factor=1.0, total_iters=1)
     elif args.lr_scheduler == "step":
@@ -462,29 +477,37 @@ def get_scheduler(
         )
     elif args.lr_scheduler == "cosine":
         main_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer,
-            T_max=(args.epochs - begin_epoch - remaining_warmup) * iters_per_epoch,
-            eta_min=args.lr_cosine_min,
+            optimizer, T_max=main_steps, eta_min=args.lr_cosine_min
         )
     elif args.lr_scheduler == "polynomial":
-        main_scheduler = torch.optim.lr_scheduler.PolynomialLR(
-            optimizer,
-            total_iters=(args.epochs - begin_epoch - remaining_warmup) * iters_per_epoch,
-            power=args.lr_power,
-        )
+        main_scheduler = torch.optim.lr_scheduler.PolynomialLR(optimizer, total_iters=main_steps, power=args.lr_power)
     else:
         raise ValueError("Unknown learning rate scheduler")
 
-    # Handle warmup
-    if args.warmup_epochs > 0:
-        warmup_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
-            optimizer, start_factor=0.01, total_iters=(remaining_warmup + 1) * iters_per_epoch
-        )
+    # Handle warmup and cooldown
+    if args.warmup_epochs > 0 or args.cooldown_epochs > 0:
+        schedulers = []
+        milestones = []
+        if args.warmup_epochs > 0:
+            warmup_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
+                optimizer,
+                start_factor=0.01 if remaining_warmup > 0 else 1.0,
+                total_iters=remaining_warmup * iters_per_epoch,
+            )
+            schedulers.append(warmup_lr_scheduler)
+            milestones.append(remaining_warmup * iters_per_epoch)
+
+        schedulers.append(main_scheduler)
+
+        if args.cooldown_epochs > 0:
+            cooldown_lr_scheduler = CooldownLR(optimizer, total_steps=remaining_cooldown * iters_per_epoch)
+            schedulers.append(cooldown_lr_scheduler)
+            milestones.append(remaining_warmup * iters_per_epoch + main_steps + 1)
 
         scheduler = torch.optim.lr_scheduler.SequentialLR(
             optimizer,
-            schedulers=[warmup_lr_scheduler, main_scheduler],
-            milestones=[(remaining_warmup + 1) * iters_per_epoch],
+            schedulers=schedulers,
+            milestones=milestones,
         )
 
     else:
@@ -808,158 +831,3 @@ def freeze_batchnorm2d(module: torch.nn.Module) -> torch.nn.Module:
                 res.add_module(name, new_child)
 
     return res
-
-
-###############################################################################
-# Command Line Args
-###############################################################################
-
-
-def add_optimizer_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--opt",
-        type=str,
-        choices=list(get_args(OptimizerType)),
-        default="sgd",
-        help="optimizer to use",
-    )
-    parser.add_argument("--momentum", type=float, default=0.9, help="optimizer momentum")
-    parser.add_argument("--nesterov", default=False, action="store_true", help="use nesterov momentum")
-    parser.add_argument("--opt-eps", type=float, help="optimizer epsilon (None to use the optimizer default)")
-    parser.add_argument(
-        "--opt-betas", type=float, nargs="+", help="optimizer betas (None to use the optimizer default)"
-    )
-    parser.add_argument("--opt-alpha", type=float, help="optimizer alpha (None to use the optimizer default)")
-
-
-def add_lr_wd_args(parser: argparse.ArgumentParser, backbone_lr: bool = False, wd_end: bool = False) -> None:
-    parser.add_argument("--lr", type=float, default=0.1, help="base learning rate")
-    parser.add_argument("--bias-lr", type=float, help="learning rate of biases")
-    if backbone_lr is True:
-        parser.add_argument("--backbone-lr", type=float, help="backbone learning rate")
-
-    parser.add_argument(
-        "--lr-scale", type=int, help="reference batch size for LR scaling, if provided, LR will be scaled accordingly"
-    )
-    parser.add_argument(
-        "--lr-scale-type", type=str, choices=["linear", "sqrt"], default="linear", help="learning rate scaling type"
-    )
-    parser.add_argument("--wd", type=float, default=0.0001, help="weight decay")
-    if wd_end is True:
-        parser.add_argument("--wd-end", type=float, help="final value of the weight decay (None for constant wd)")
-
-    parser.add_argument("--norm-wd", type=float, help="weight decay for Normalization layers")
-    parser.add_argument("--bias-weight-decay", type=float, help="weight decay for bias parameters of all layers")
-    parser.add_argument(
-        "--transformer-embedding-decay",
-        type=float,
-        help="weight decay for embedding parameters for vision transformer models",
-    )
-    parser.add_argument("--layer-decay", type=float, help="layer-wise learning rate decay (LLRD)")
-    parser.add_argument("--layer-decay-min-scale", type=float, help="minimum layer scale factor clamp value")
-    parser.add_argument(
-        "--layer-decay-no-opt-scale", type=float, help="layer scale threshold below which parameters are frozen"
-    )
-
-
-def add_scheduler_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--lr-scheduler-update",
-        type=str,
-        choices=["epoch", "iter"],
-        default="epoch",
-        help="when to apply learning rate scheduler update",
-    )
-    parser.add_argument(
-        "--lr-scheduler",
-        type=str,
-        choices=list(get_args(SchedulerType)),
-        default="constant",
-        help="learning rate scheduler",
-    )
-    parser.add_argument(
-        "--lr-step-size",
-        type=int,
-        default=40,
-        metavar="N",
-        help="decrease lr every step-size epochs (for step scheduler only)",
-    )
-    parser.add_argument(
-        "--lr-steps",
-        type=int,
-        nargs="+",
-        help="decrease lr every step-size epochs (multistep scheduler only)",
-    )
-    parser.add_argument(
-        "--lr-step-gamma",
-        type=float,
-        default=0.75,
-        help="multiplicative factor of learning rate decay (for step scheduler only)",
-    )
-    parser.add_argument(
-        "--lr-cosine-min",
-        type=float,
-        default=0.000001,
-        help="minimum learning rate (for cosine annealing scheduler only)",
-    )
-    parser.add_argument(
-        "--lr-power",
-        type=float,
-        default=1.0,
-        help="power of the polynomial (for polynomial scheduler only)",
-    )
-
-
-def add_aug_args(
-    parser: argparse.ArgumentParser, default_level: int = 4, default_min_scale: Optional[float] = None
-) -> None:
-    parser.add_argument(
-        "--aug-type",
-        type=str,
-        choices=list(get_args(AugType)),
-        default="birder",
-        help="augmentation type",
-    )
-    parser.add_argument(
-        "--aug-level",
-        type=int,
-        choices=list(range(10 + 1)),
-        default=default_level,
-        help="magnitude of birder augmentations (0 off -> 10 highest)",
-    )
-    parser.add_argument(
-        "--use-grayscale", default=False, action="store_true", help="use grayscale augmentation (birder aug only)"
-    )
-    parser.add_argument(
-        "--ra-num-ops", type=int, default=2, help="number of augmentation transformations to apply sequentially"
-    )
-    parser.add_argument("--ra-magnitude", type=int, default=9, help="magnitude for all the RandAugment transformations")
-    parser.add_argument("--augmix-severity", type=int, default=3, help="severity of AugMix policy")
-    parser.add_argument("--resize-min-scale", type=float, default=default_min_scale, help="random resize min scale")
-    parser.add_argument("--re-prob", type=float, help="random erase probability (default according to aug-level)")
-    parser.add_argument(
-        "--simple-crop", default=False, action="store_true", help="use simple random crop (SRC) instead of RRC"
-    )
-
-
-def add_wds_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
-    parser.add_argument("--wds-info", type=str, metavar="FILE", help="wds info file path")
-    parser.add_argument("--wds-class-file", type=str, metavar="FILE", help="class list file")
-    parser.add_argument("--wds-cache-dir", type=str, help="webdataset cache directory")
-    parser.add_argument("--wds-train-size", type=int, metavar="N", help="size of the wds training set")
-    parser.add_argument("--wds-val-size", type=int, metavar="N", help="size of the wds validation set")
-    parser.add_argument(
-        "--wds-training-split", type=str, default="training", metavar="NAME", help="wds dataset train split"
-    )
-    parser.add_argument(
-        "--wds-val-split", type=str, default="validation", metavar="NAME", help="wds dataset validation split"
-    )
-
-
-def add_unsupervised_wds_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
-    parser.add_argument("--wds-info", type=str, metavar="FILE", help="wds info file path")
-    parser.add_argument("--wds-cache-dir", type=str, help="webdataset cache directory")
-    parser.add_argument("--wds-train-size", type=int, metavar="N", help="size of the wds training set")
-    parser.add_argument("--wds-split", type=str, default="training", metavar="NAME", help="wds dataset split to load")

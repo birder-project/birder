@@ -3,6 +3,8 @@ import logging
 from functools import partial
 from typing import Optional
 
+import matplotlib.axes
+import matplotlib.figure
 import matplotlib.gridspec
 import matplotlib.pyplot as plt
 import numpy as np
@@ -30,7 +32,8 @@ def show_detections(
     class_to_idx: dict[str, int],
     score_threshold: float = 0.5,
     color_list: Optional[list[tuple[int, ...]]] = None,
-) -> None:
+    show: bool = True,
+) -> tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
     img = decode_image(image_path)
     idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
 
@@ -63,13 +66,20 @@ def show_detections(
     ax.imshow(np.transpose(result_with_boxes, [1, 2, 0]))
     ax.axis("off")
 
-    plt.tight_layout()
-    plt.show()
+    if show is True:
+        plt.tight_layout()
+        plt.show()
+
+    return (fig, ax)
 
 
 def show_top_k(
-    image_path: str, out: npt.NDArray[np.float32], class_to_idx: dict[str, int], label: Optional[int | str] = None
-) -> None:
+    image_path: str,
+    out: npt.NDArray[np.float32],
+    class_to_idx: dict[str, int],
+    label: Optional[int | str] = None,
+    show: bool = True,
+) -> tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
     img = pil_loader(image_path)
 
     idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
@@ -108,8 +118,11 @@ def show_top_k(
             if label == class_name:
                 bars[idx].set_color("green")
 
-    plt.tight_layout()
-    plt.show()
+    if show is True:
+        plt.tight_layout()
+        plt.show()
+
+    return (fig, ax)
 
 
 class ConfusionMatrix:

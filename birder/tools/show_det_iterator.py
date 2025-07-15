@@ -247,6 +247,9 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
-    assert args.aug_type == "birder" or args.multiscale is False, "multiscale only supported for birder augmentations"
     args.size = cli.parse_size(args.size)
+
+    if args.multiscale is True and args.aug_type != "birder":
+        raise cli.ValidationError(f"--multiscale only supported with --aug-type birder, got {args.aug_type}")
+
     show_det_iterator(args)

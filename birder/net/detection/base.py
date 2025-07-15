@@ -111,21 +111,18 @@ class DetectionBaseNet(nn.Module):
             if targets is None:
                 torch._assert(False, "targets should not be None when in training mode")
 
-            else:
-                for target in targets:
-                    boxes = target["boxes"]
-                    if isinstance(boxes, torch.Tensor):
-                        torch._assert(
-                            len(boxes.shape) == 2 and boxes.shape[-1] == 4,
-                            f"Expected target boxes to be a tensor of shape [N, 4], got {boxes.shape}.",
-                        )
-
-                    else:
-                        torch._assert(False, f"Expected target boxes to be of type Tensor, got {type(boxes)}.")
-
         if targets is not None:
             for target_idx, target in enumerate(targets):
                 boxes = target["boxes"]
+                if isinstance(boxes, torch.Tensor):
+                    torch._assert(
+                        len(boxes.shape) == 2 and boxes.shape[-1] == 4,
+                        f"Expected target boxes to be a tensor of shape [N, 4], got {boxes.shape}.",
+                    )
+
+                else:
+                    torch._assert(False, f"Expected target boxes to be of type Tensor, got {type(boxes)}.")
+
                 degenerate_boxes = boxes[:, 2:] <= boxes[:, :2]
                 if degenerate_boxes.any():
                     # Print the first degenerate box

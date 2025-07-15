@@ -17,6 +17,10 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 
+class ValidationError(Exception):
+    pass
+
+
 class ArgumentHelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawTextHelpFormatter):
     pass
 

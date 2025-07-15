@@ -307,6 +307,7 @@ def _load_states(states_path: Path, device: torch.device) -> TrainingStates:
             extra_states=extra_states,
         )
 
+    logger.debug("Checkpoint training states not found, returning empty states")
     return TrainingStates.empty()
 
 
@@ -371,6 +372,12 @@ def load_checkpoint(
     input_channels = lib.get_channels_from_signature(signature)
     num_classes = lib.get_num_labels_from_signature(signature)
     size = lib.get_size_from_signature(signature)
+
+    # Debug logs
+    logger.debug(f"Loaded model with RGB stats: {model_dict['rgb_stats']}")
+    logger.debug(
+        f"Loaded model with {num_classes} classes and {input_channels} input channels. Model input size is {size}"
+    )
 
     # Initialize network and restore checkpoint state
     net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, config=config, size=size)

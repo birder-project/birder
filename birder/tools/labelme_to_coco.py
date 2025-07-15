@@ -8,6 +8,7 @@ from typing import Any
 
 from tqdm import tqdm
 
+import birder
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
@@ -111,6 +112,7 @@ def labelme_to_coco(args: argparse.Namespace) -> None:
     coco: dict[str, Any] = {}
     coco["info"] = {
         "version": "1.0",
+        "birder_version": birder.__version__,
         "year": date.today().year,
         "date_created": date.today().isoformat(),
     }

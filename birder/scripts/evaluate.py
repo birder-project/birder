@@ -127,8 +127,8 @@ def validate_args(args: argparse.Namespace) -> None:
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:
     parser = get_args_parser()
-    args = argparse.Namespace(**kwargs)
-    args = parser.parse_args([], args)
+    parser.set_defaults(**kwargs)
+    args = parser.parse_args([])
     validate_args(args)
 
     return args

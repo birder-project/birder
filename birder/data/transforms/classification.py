@@ -11,35 +11,34 @@ from torchvision.transforms import v2
 from torchvision.transforms.v2 import functional as F
 
 RGBType = TypedDict("RGBType", {"mean": tuple[float, float, float], "std": tuple[float, float, float]})
-RGBMode = Literal["birder", "imagenet", "neutral", "none"]
+RGBMode = Literal["birder", "imagenet", "clip", "neutral", "none"]
 
 
-def get_rgb_stats(mode: RGBMode) -> RGBType:
+def get_rgb_stats(
+    mode: RGBMode, mean: Optional[tuple[float, float, float]] = None, std: Optional[tuple[float, float, float]] = None
+) -> RGBType:
     if mode == "birder":
-        return {
-            "mean": (0.5191, 0.5306, 0.4877),
-            "std": (0.2316, 0.2304, 0.2588),
-        }
+        default_mean = (0.5191, 0.5306, 0.4877)
+        default_std = (0.2316, 0.2304, 0.2588)
+    elif mode == "imagenet":
+        default_mean = (0.485, 0.456, 0.406)
+        default_std = (0.229, 0.224, 0.225)
+    elif mode == "clip":  # OpenAI CLIP - https://github.com/openai/CLIP/blob/main/clip/clip.py#L85
+        default_mean = (0.48145466, 0.4578275, 0.40821073)
+        default_std = (0.26862954, 0.26130258, 0.27577711)
+    elif mode == "neutral":
+        default_mean = (0.0, 0.0, 0.0)
+        default_std = (1.0, 1.0, 1.0)
+    elif mode == "none":
+        default_mean = (0.5, 0.5, 0.5)
+        default_std = (0.5, 0.5, 0.5)
+    else:
+        raise ValueError(f"unknown mode={mode}")
 
-    if mode == "imagenet":
-        return {
-            "mean": (0.485, 0.456, 0.406),
-            "std": (0.229, 0.224, 0.225),
-        }
-
-    if mode == "neutral":
-        return {
-            "mean": (0.0, 0.0, 0.0),
-            "std": (1.0, 1.0, 1.0),
-        }
-
-    if mode == "none":
-        return {
-            "mean": (0.5, 0.5, 0.5),
-            "std": (0.5, 0.5, 0.5),
-        }
-
-    raise ValueError(f"unknown mode={mode}")
+    return {
+        "mean": mean if mean is not None else default_mean,
+        "std": std if std is not None else default_std,
+    }
 
 
 def get_mixup_cutmix(alpha: Optional[float], num_outputs: int, cutmix: bool) -> Callable[..., torch.Tensor]:

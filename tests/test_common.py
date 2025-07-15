@@ -14,6 +14,7 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.common import masking
+from birder.common import training_cli
 from birder.common import training_utils
 from birder.conf import settings
 from birder.net.base import SignatureType
@@ -120,6 +121,11 @@ class TestFSOps(unittest.TestCase):
 
 
 class TestTrainingUtils(unittest.TestCase):
+    def test_misc(self) -> None:
+        # Misc
+        self.assertFalse(training_utils.is_dist_available_and_initialized())
+        self.assertRegex(training_utils.training_log_name("something", torch.device("cpu")), "something__")
+
     def test_ra_sampler(self) -> None:
         dataset = list(range(512))
         sampler = training_utils.RASampler(dataset, num_replicas=2, rank=0, shuffle=False, repetitions=1)
@@ -308,8 +314,11 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertEqual(params[3]["lr"], 0.01)
 
     def test_get_optimizer(self) -> None:
+        parser = argparse.ArgumentParser()
+        training_cli.add_optimization_args(parser)
+        training_cli.add_lr_wd_args(parser)
         for opt_type in typing.get_args(training_utils.OptimizerType):
-            args = argparse.Namespace(opt=opt_type, lr=0.1, momentum=0.9, wd=0, nesterov=False)
+            args = parser.parse_args(["--opt", opt_type])
             opt = training_utils.get_optimizer([{"params": []}], args.lr, args)
             self.assertIsInstance(opt, torch.optim.Optimizer)
 
@@ -327,18 +336,12 @@ class TestTrainingUtils(unittest.TestCase):
         args = argparse.Namespace(opt="sgd", lr=0.1, momentum=0.9, wd=0, nesterov=False)
         opt = training_utils.get_optimizer([{"params": []}], args.lr, args)
 
+        parser = argparse.ArgumentParser()
+        training_cli.add_training_schedule_args(parser)
+        training_cli.add_lr_scheduler_args(parser)
+        training_cli.add_checkpoint_args(parser)
         for scheduler_type in typing.get_args(training_utils.SchedulerType):
-            args = argparse.Namespace(
-                lr_scheduler=scheduler_type,
-                warmup_epochs=0,
-                resume_epoch=0,
-                epochs=10,
-                lr_cosine_min=0.0,
-                lr_step_size=1,
-                lr_steps=[],
-                lr_step_gamma=0.0,
-                lr_power=1.0,
-            )
+            args = parser.parse_args(["--lr-scheduler", scheduler_type])
             scheduler = training_utils.get_scheduler(opt, 1, args)
             self.assertIsInstance(scheduler, torch.optim.lr_scheduler.LRScheduler)
 
@@ -346,6 +349,7 @@ class TestTrainingUtils(unittest.TestCase):
         args = argparse.Namespace(
             lr_scheduler="step",
             warmup_epochs=5,
+            cooldown_epochs=0,
             resume_epoch=0,
             epochs=10,
             lr_cosine_min=0.0,
@@ -357,9 +361,27 @@ class TestTrainingUtils(unittest.TestCase):
         scheduler = training_utils.get_scheduler(opt, 1, args)
         self.assertIsInstance(scheduler, torch.optim.lr_scheduler.SequentialLR)
 
+        # Check cooldown
+        args = argparse.Namespace(
+            lr_scheduler="step",
+            warmup_epochs=5,
+            cooldown_epochs=5,
+            resume_epoch=0,
+            epochs=20,
+            lr_cosine_min=0.0,
+            lr_step_size=1,
+            lr_steps=[],
+            lr_step_gamma=0.0,
+            lr_power=1.0,
+        )
+        scheduler = training_utils.get_scheduler(opt, 1, args)
+        self.assertIsInstance(scheduler, torch.optim.lr_scheduler.SequentialLR)
+
+        # Unknown scheduler
         args = argparse.Namespace(
             lr_scheduler="unknown",
             warmup_epochs=5,
+            cooldown_epochs=0,
             resume_epoch=0,
             epochs=10,
             lr_cosine_min=0.0,
@@ -370,10 +392,6 @@ class TestTrainingUtils(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             training_utils.get_scheduler(opt, 1, args)
-
-        # Misc
-        self.assertFalse(training_utils.is_dist_available_and_initialized())
-        self.assertRegex(training_utils.training_log_name("something", torch.device("cpu")), "something__")
 
     def test_lr_scaling(self) -> None:
         args = argparse.Namespace(

@@ -10,7 +10,6 @@ import argparse
 import json
 import logging
 import math
-import os
 import sys
 import time
 import typing
@@ -28,17 +27,21 @@ import torchmetrics
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
 from torch.utils.tensorboard import SummaryWriter
+from torchvision.datasets import FakeData
 from torchvision.datasets import ImageFolder
-from torchvision.io import decode_image
+from torchvision.datasets.folder import pil_loader  # Slower but Handles external dataset quirks better
 from tqdm import tqdm
 
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
+from birder.common import training_cli
 from birder.common import training_utils
 from birder.common.lib import get_network_name
+from birder.common.lib import set_random_seeds
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
+from birder.data.datasets.directory import tv_loader
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
@@ -77,6 +80,9 @@ def train(args: argparse.Namespace) -> None:
     else:
         torch.backends.cudnn.benchmark = True
 
+    if args.seed is not None:
+        set_random_seeds(args.seed)
+
     # Enable or disable the autograd anomaly detection
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
 
@@ -102,7 +108,13 @@ def train(args: argparse.Namespace) -> None:
     #
     training_transform = training_utils.get_training_transform(args)
     val_transform = inference_preset(args.size, rgb_stats, 1.0)
-    if args.wds is True:
+    if args.use_fake_data is True:
+        logger.warning("Using fake data")
+        training_dataset = FakeData(10000, (args.channels, *args.size), num_classes=10, transform=training_transform)
+        validation_dataset = FakeData(1000, (args.channels, *args.size), num_classes=10, transform=val_transform)
+        class_to_idx = {str(i): i for i in range(10)}
+
+    elif args.wds is True:
         training_wds_path: str | list[str]
         val_wds_path: str | list[str]
         if args.wds_info is not None:
@@ -122,6 +134,7 @@ def train(args: argparse.Namespace) -> None:
             shuffle=True,
             samples_names=False,
             transform=training_transform,
+            img_loader=args.img_loader,
             cache_dir=args.wds_cache_dir,
         )
         validation_dataset = make_wds_dataset(
@@ -130,6 +143,7 @@ def train(args: argparse.Namespace) -> None:
             shuffle=False,
             samples_names=False,
             transform=val_transform,
+            img_loader=args.img_loader,
             cache_dir=args.wds_cache_dir,
         )
 
@@ -137,8 +151,15 @@ def train(args: argparse.Namespace) -> None:
         assert class_to_idx == ds_class_to_idx
 
     else:
-        training_dataset = ImageFolder(args.data_path, transform=training_transform, loader=decode_image)
-        validation_dataset = ImageFolder(args.val_path, transform=val_transform, loader=decode_image, allow_empty=True)
+        training_dataset = ImageFolder(
+            args.data_path, transform=training_transform, loader=pil_loader if args.img_loader == "pil" else tv_loader
+        )
+        validation_dataset = ImageFolder(
+            args.val_path,
+            transform=val_transform,
+            loader=pil_loader if args.img_loader == "pil" else tv_loader,
+            allow_empty=True,
+        )
         assert training_dataset.class_to_idx == validation_dataset.class_to_idx
         ds_class_to_idx = training_dataset.class_to_idx
         assert class_to_idx == ds_class_to_idx
@@ -261,6 +282,8 @@ def train(args: argparse.Namespace) -> None:
     if args.compile is True:
         teacher = torch.compile(teacher)
         student = torch.compile(student)
+    elif args.compile_teacher is True:
+        teacher = torch.compile(teacher)
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
@@ -346,7 +369,9 @@ def train(args: argparse.Namespace) -> None:
     #
     net_without_ddp = student
     if args.distributed is True:
-        student = torch.nn.parallel.DistributedDataParallel(student, device_ids=[args.local_rank])
+        student = torch.nn.parallel.DistributedDataParallel(
+            student, device_ids=[args.local_rank], find_unused_parameters=args.find_unused_parameters
+        )
         net_without_ddp = student.module
 
     if args.model_ema is True:
@@ -761,37 +786,8 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
-    parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
-    parser.add_argument(
-        "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
-    )
-    training_utils.add_optimizer_args(parser)
-    training_utils.add_lr_wd_args(parser)
-    training_utils.add_scheduler_args(parser)
-    parser.add_argument(
-        "--grad-accum-steps", type=int, default=1, metavar="N", help="number of steps to accumulate gradients"
-    )
-    parser.add_argument("--channels", type=int, default=3, metavar="N", help="no. of image channels")
-    parser.add_argument(
-        "--size",
-        type=int,
-        nargs="+",
-        metavar=("H", "W"),
-        help="image size (defaults to teacher network size) shared by both networks",
-    )
-    parser.add_argument(
-        "--freeze-bn",
-        default=False,
-        action="store_true",
-        help="freeze all batch statistics and affine parameters of batchnorm2d layers",
-    )
-    parser.add_argument("--sync-bn", default=False, action="store_true", help="use synchronized BatchNorm")
-    parser.add_argument("--batch-size", type=int, default=128, metavar="N", help="the batch size")
-    parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
+    parser.add_argument("--student-tag", type=str, help="add student training logs tag")
     parser.add_argument("--smoothing-alpha", type=float, default=0.0, help="label smoothing alpha")
-    parser.add_argument("--mixup-alpha", type=float, help="mixup alpha")
-    parser.add_argument("--cutmix", default=False, action="store_true", help="enable cutmix")
-    training_utils.add_aug_args(parser)
     parser.add_argument(
         "--temperature",
         type=float,
@@ -799,106 +795,23 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="controls the smoothness of the output distributions (only used in 'soft')",
     )
     parser.add_argument("--lambda-param", type=float, default=0.5, help="importance of the distillation loss")
-    parser.add_argument("--epochs", type=int, default=100, metavar="N", help="number of training epochs")
-    parser.add_argument(
-        "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi step training)"
+    training_cli.add_optimization_args(parser)
+    training_cli.add_lr_wd_args(parser)
+    training_cli.add_lr_scheduler_args(parser)
+    training_cli.add_training_schedule_args(parser)
+    training_cli.add_input_args(
+        parser, size_help="image size (defaults to teacher network size) shared by both networks"
     )
-    parser.add_argument("--save-frequency", type=int, default=5, metavar="N", help="frequency of model saving")
-    parser.add_argument("--keep-last", type=int, metavar="N", help="number of checkpoints to keep")
-    parser.add_argument("--resume-epoch", type=int, metavar="N", help="epoch to resume training from")
-    parser.add_argument(
-        "--load-states",
-        default=False,
-        action="store_true",
-        help="load optimizer, scheduler and scaler states when resuming",
-    )
-    parser.add_argument("--load-scheduler", default=False, action="store_true", help="load scheduler only resuming")
-    parser.add_argument(
-        "--model-ema",
-        default=False,
-        action="store_true",
-        help="enable tracking exponential moving average of model parameters",
-    )
-    parser.add_argument(
-        "--model-ema-steps",
-        type=int,
-        default=32,
-        help="the number of iterations that controls how often to update the EMA model",
-    )
-    parser.add_argument(
-        "--model-ema-decay",
-        type=float,
-        default=0.9999,
-        help="decay factor for exponential moving average of model parameters",
-    )
-    parser.add_argument(
-        "--ra-sampler",
-        default=False,
-        action="store_true",
-        help="whether to use Repeated Augmentation in training",
-    )
-    parser.add_argument(
-        "--ra-reps", type=int, default=3, metavar="N", help="number of repetitions for Repeated Augmentation"
-    )
-    parser.add_argument("--student-tag", type=str, help="add student training logs tag")
-    parser.add_argument(
-        "--log-interval", type=int, default=50, metavar="N", help="how many steps between summary writes"
-    )
-    parser.add_argument(
-        "-j",
-        "--num-workers",
-        type=int,
-        default=min(16, max(os.cpu_count() // 4, 4)),  # type: ignore[operator]
-        metavar="N",
-        help="number of preprocessing workers",
-    )
-    parser.add_argument(
-        "--prefetch-factor", type=int, metavar="N", help="number of batches loaded in advance by each worker"
-    )
-    parser.add_argument("--drop-last", default=False, action="store_true", help="drop the last incomplete batch")
-    parser.add_argument(
-        "--model-dtype",
-        type=str,
-        choices=["float32", "float16", "bfloat16"],
-        default="float32",
-        help="model dtype to use",
-    )
-    parser.add_argument("--amp", default=False, action="store_true", help="use torch.amp for mixed precision training")
-    parser.add_argument(
-        "--amp-dtype",
-        type=str,
-        choices=["float16", "bfloat16"],
-        default="float16",
-        help="whether to use float16 or bfloat16 for mixed precision",
-    )
-    parser.add_argument(
-        "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
-    )
-    parser.add_argument(
-        "--grad-anomaly-detection",
-        default=False,
-        action="store_true",
-        help="enable the autograd anomaly detection (for debugging)",
-    )
-    parser.add_argument("--world-size", type=int, default=1, metavar="N", help="number of distributed processes")
-    parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
-    parser.add_argument("--clip-grad-norm", type=float, help="the maximum gradient norm")
-    parser.add_argument("--local-rank", type=int, help="local rank")
-    parser.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")
-    parser.add_argument(
-        "--use-deterministic-algorithms", default=False, action="store_true", help="use only deterministic algorithms"
-    )
-    parser.add_argument(
-        "--plot-lr", default=False, action="store_true", help="plot learning rate and exit (skip training)"
-    )
-    parser.add_argument("--no-summary", default=False, action="store_true", help="don't print model summary")
-    parser.add_argument(
-        "--val-path", type=str, default=str(settings.VALIDATION_DATA_PATH), help="validation directory path"
-    )
-    parser.add_argument(
-        "--data-path", type=str, default=str(settings.TRAINING_DATA_PATH), help="training directory path"
-    )
-    training_utils.add_wds_args(parser)
+    training_cli.add_data_aug_args(parser, mixup_cutmix=True)
+    training_cli.add_ema_args(parser)
+    training_cli.add_dataloader_args(parser, ra_sampler=True)
+    training_cli.add_batch_norm_args(parser)
+    training_cli.add_precision_args(parser)
+    training_cli.add_compile_args(parser, teacher=True)
+    training_cli.add_checkpoint_args(parser, default_save_frequency=5)
+    training_cli.add_distributed_args(parser)
+    training_cli.add_logging_and_debug_args(parser)
+    training_cli.add_training_data_args(parser)
 
     return parser
 
@@ -906,33 +819,29 @@ def get_args_parser() -> argparse.ArgumentParser:
 def validate_args(args: argparse.Namespace) -> None:
     args.data_path = str(args.data_path)
     args.val_path = str(args.val_path)
-    assert args.teacher is not None
-    assert args.student is not None
-    assert 0.5 > args.smoothing_alpha >= 0, "Smoothing alpha must be in range of [0, 0.5)"
-    assert args.load_states is False or (
-        args.load_states is True and args.resume_epoch is not None
-    ), "Load states must be from resumed training (--resume-epoch)"
-    assert (
-        args.load_scheduler is False or args.resume_epoch is not None
-    ), "Load scheduler must be from resumed training (--resume-epoch)"
-    assert args.wds is False or args.ra_sampler is False, "Repeated Augmentation not currently supported with wds"
-    assert args.wds is False or args.wds_class_file is not None, "Must set a class file"
-    assert (
-        registry.exists(args.teacher, task=Task.IMAGE_CLASSIFICATION) is True
-    ), "Unknown teacher network, see list-models tool for available options"
-    assert (
-        registry.exists(args.student, task=Task.IMAGE_CLASSIFICATION) is True
-    ), "Unknown student network, see list-models tool for available options"
-    assert args.freeze_bn is False or args.sync_bn is False, "Cannot freeze-bn and sync-bn are mutually exclusive"
-    assert args.amp is False or args.model_dtype == "float32"
-    assert args.resize_min_scale is None or args.resize_min_scale < 1.0
     args.size = cli.parse_size(args.size)
+
+    # This will capture the common argument mistakes
+    training_cli.common_args_validation(args)
+
+    # Script specific checks
+    if args.teacher is None:
+        raise cli.ValidationError("must pass --teacher")
+    if args.student is None:
+        raise cli.ValidationError("must pass --student")
+    if registry.exists(args.teacher, task=Task.IMAGE_CLASSIFICATION) is False:
+        raise cli.ValidationError(f"--teacher {args.teacher} not supported, see list-models tool for available options")
+    if registry.exists(args.student, task=Task.IMAGE_CLASSIFICATION) is False:
+        raise cli.ValidationError(f"--student {args.student} not supported, see list-models tool for available options")
+
+    if args.smoothing_alpha < 0 or args.smoothing_alpha >= 0.5:
+        raise cli.ValidationError(f"--smoothing-alpha must be in range of [0, 0.5), got {args.smoothing_alpha}")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:
     parser = get_args_parser()
-    args = argparse.Namespace(**kwargs)
-    args = parser.parse_args([], args)
+    parser.set_defaults(**kwargs)
+    args = parser.parse_args([])
     validate_args(args)
 
     return args

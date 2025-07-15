@@ -16,7 +16,7 @@ from torchvision.datasets import ImageFolder
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import masking
-from birder.common import training_utils
+from birder.common import training_cli
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.webdataset import make_wds_dataset
@@ -198,7 +198,7 @@ def set_parser(subparsers: Any) -> None:
         "--mode", type=str, choices=["training", "inference"], default="training", help="iterator mode"
     )
     subparser.add_argument("--size", type=int, nargs="+", default=[224], metavar=("H", "W"), help="image size")
-    training_utils.add_aug_args(subparser)
+    training_cli.add_data_aug_args(subparser)
     subparser.add_argument("--center-crop", type=float, default=1.0, help="center crop ratio during inference")
     subparser.add_argument(
         "--batch", default=False, action="store_true", help="show a batch instead of a single sample"
@@ -224,7 +224,8 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
-    assert args.wds is False or args.batch is True, "WDS only works in batch mode"
+    if args.wds is True and args.batch is False:
+        raise cli.ValidationError("--wds requires --batch to be set")
 
     args.size = cli.parse_size(args.size)
     show_iterator(args)

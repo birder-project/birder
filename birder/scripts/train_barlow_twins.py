@@ -11,10 +11,8 @@ import argparse
 import json
 import logging
 import math
-import os
 import sys
 import time
-import typing
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -31,17 +29,19 @@ from tqdm import tqdm
 
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common import training_cli
 from birder.common import training_utils
 from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
+from birder.common.lib import set_random_seeds
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import make_image_dataset
 from birder.data.datasets.directory import tv_loader
+from birder.data.datasets.fake import FakeDataWithPaths
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
-from birder.data.transforms.classification import RGBMode
 from birder.data.transforms.classification import get_rgb_stats
 from birder.model_registry import Task
 from birder.model_registry import registry
@@ -86,15 +86,26 @@ def train(args: argparse.Namespace) -> None:
     else:
         torch.backends.cudnn.benchmark = True
 
+    if args.seed is not None:
+        set_random_seeds(args.seed)
+
     # Enable or disable the autograd anomaly detection
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
 
     #
     # Data
     #
-    rgb_stats = get_rgb_stats(args.rgb_mode)
+    rgb_stats = get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std)
+    logger.debug(f"Using RGB stats: {rgb_stats}")
+
     training_transform = TrainTransform(training_utils.get_training_transform(args))
-    if args.wds is True:
+    if args.use_fake_data is True:
+        logger.warning("Using fake data")
+        training_dataset = FakeDataWithPaths(
+            10000, (args.channels, *args.size), num_classes=10, transform=training_transform
+        )
+
+    elif args.wds is True:
         wds_path: str | list[str]
         if args.wds_info is not None:
             (wds_path, dataset_size) = wds_args_from_info(args.wds_info, args.wds_split)
@@ -141,7 +152,7 @@ def train(args: argparse.Namespace) -> None:
             collate_fn=None,
             world_size=args.world_size,
             pin_memory=True,
-            drop_last=True,
+            drop_last=args.drop_last,
         )
 
     else:
@@ -152,7 +163,7 @@ def train(args: argparse.Namespace) -> None:
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
             pin_memory=True,
-            drop_last=True,
+            drop_last=args.drop_last,
         )
 
     last_batch_idx = len(training_loader) - 1
@@ -195,7 +206,9 @@ def train(args: argparse.Namespace) -> None:
         training_states = fs_ops.TrainingStates.empty()
 
     net.to(device, dtype=model_dtype)
-    if args.sync_bn is True and args.distributed is True:
+    if args.freeze_bn is True:
+        net = training_utils.freeze_batchnorm2d(net)
+    elif args.sync_bn is True and args.distributed is True:
         net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)
 
     if args.fast_matmul is True or args.amp is True:
@@ -276,7 +289,9 @@ def train(args: argparse.Namespace) -> None:
     #
     net_without_ddp = net
     if args.distributed is True:
-        net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[args.local_rank])
+        net = torch.nn.parallel.DistributedDataParallel(
+            net, device_ids=[args.local_rank], find_unused_parameters=args.find_unused_parameters
+        )
         net_without_ddp = net.module
 
     model_to_save = net_without_ddp
@@ -525,128 +540,41 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="projector mlp dimensions",
     )
     parser.add_argument("--off-lambda", type=float, default=0.0051, help="weight on off-diagonal terms")
-    parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
-    parser.add_argument(
-        "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
-    )
-    training_utils.add_optimizer_args(parser)
-    training_utils.add_lr_wd_args(parser)
-    training_utils.add_scheduler_args(parser)
-    parser.add_argument(
-        "--grad-accum-steps", type=int, default=1, metavar="N", help="number of steps to accumulate gradients"
-    )
-    parser.add_argument("--channels", type=int, default=3, metavar="N", help="no. of image channels")
-    parser.add_argument(
-        "--size", type=int, nargs="+", metavar=("H", "W"), help="image size (defaults to network recommendation)"
-    )
-    parser.add_argument("--sync-bn", default=False, action="store_true", help="use synchronized BatchNorm")
-    parser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
-    parser.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
-    training_utils.add_aug_args(parser, default_min_scale=0.3)
-    parser.add_argument(
-        "--rgb-mode",
-        type=str,
-        choices=list(typing.get_args(RGBMode)),
-        default="birder",
-        help="rgb mean and std to use for normalization",
-    )
-    parser.add_argument("--epochs", type=int, default=400, metavar="N", help="number of training epochs")
-    parser.add_argument(
-        "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi step training)"
-    )
-    parser.add_argument("--save-frequency", type=int, default=1, metavar="N", help="frequency of model saving")
-    parser.add_argument("--keep-last", type=int, metavar="N", help="number of checkpoints to keep")
-    parser.add_argument("--resume-epoch", type=int, metavar="N", help="epoch to resume training from")
-    parser.add_argument(
-        "--load-states",
-        default=False,
-        action="store_true",
-        help="load optimizer, scheduler and scaler states when resuming",
-    )
-    parser.add_argument("--load-scheduler", default=False, action="store_true", help="load scheduler only resuming")
-    parser.add_argument("-t", "--tag", type=str, help="add training logs tag")
-    parser.add_argument(
-        "--log-interval", type=int, default=100, metavar="N", help="how many steps between summary writes"
-    )
-    parser.add_argument(
-        "-j",
-        "--num-workers",
-        type=int,
-        default=min(16, max(os.cpu_count() // 4, 4)),  # type: ignore[operator]
-        metavar="N",
-        help="number of preprocessing workers",
-    )
-    parser.add_argument(
-        "--img-loader", type=str, choices=["tv", "pil"], default="tv", help="backend to load and decode images"
-    )
-    parser.add_argument(
-        "--prefetch-factor", type=int, metavar="N", help="number of batches loaded in advance by each worker"
-    )
-    parser.add_argument(
-        "--model-dtype",
-        type=str,
-        choices=["float32", "float16", "bfloat16"],
-        default="float32",
-        help="model dtype to use",
-    )
-    parser.add_argument("--amp", default=False, action="store_true", help="use torch.amp for mixed precision training")
-    parser.add_argument(
-        "--amp-dtype",
-        type=str,
-        choices=["float16", "bfloat16"],
-        default="float16",
-        help="whether to use float16 or bfloat16 for mixed precision",
-    )
-    parser.add_argument(
-        "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
-    )
-    parser.add_argument(
-        "--grad-anomaly-detection",
-        default=False,
-        action="store_true",
-        help="enable the autograd anomaly detection (for debugging)",
-    )
-    parser.add_argument("--world-size", type=int, default=1, metavar="N", help="number of distributed processes")
-    parser.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
-    parser.add_argument("--clip-grad-norm", type=float, help="the maximum gradient norm")
-    parser.add_argument("--local-rank", type=int, help="local rank")
-    parser.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")
-    parser.add_argument(
-        "--use-deterministic-algorithms", default=False, action="store_true", help="use only deterministic algorithms"
-    )
-    parser.add_argument(
-        "--plot-lr", default=False, action="store_true", help="plot learning rate and exit (skip training)"
-    )
-    parser.add_argument("--no-summary", default=False, action="store_true", help="don't print model summary")
-    parser.add_argument("--data-path", nargs="*", default=[], help="training directories paths (directories and files)")
-    training_utils.add_unsupervised_wds_args(parser)
+    parser.add_argument("-t", "--tag", type=str, help="add model tag")
+    training_cli.add_optimization_args(parser)
+    training_cli.add_lr_wd_args(parser)
+    training_cli.add_lr_scheduler_args(parser)
+    training_cli.add_training_schedule_args(parser, default_epochs=400)
+    training_cli.add_input_args(parser)
+    training_cli.add_data_aug_args(parser, default_min_scale=0.3)
+    training_cli.add_dataloader_args(parser, default_drop_last=True)
+    training_cli.add_batch_norm_args(parser)
+    training_cli.add_precision_args(parser)
+    training_cli.add_compile_args(parser)
+    training_cli.add_checkpoint_args(parser)
+    training_cli.add_distributed_args(parser)
+    training_cli.add_logging_and_debug_args(parser, default_log_interval=100)
+    training_cli.add_training_data_args(parser, unsupervised=True)
 
     return parser
 
 
 def validate_args(args: argparse.Namespace) -> None:
     args.data_path = [str(p) for p in args.data_path]
-    assert args.network is not None
-    assert args.load_states is False or (
-        args.load_states is True and args.resume_epoch is not None
-    ), "Load states must be from resumed training (--resume-epoch)"
-    assert (
-        args.load_scheduler is False or args.resume_epoch is not None
-    ), "Load scheduler must be from resumed training (--resume-epoch)"
-    assert args.wds is True or len(args.data_path) >= 1
-    assert args.wds is False or len(args.data_path) <= 1
-    assert (
-        registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION) is True
-    ), "Unknown network, see list-models tool for available options"
-    assert args.amp is False or args.model_dtype == "float32"
-    assert args.resize_min_scale is None or args.resize_min_scale < 1.0
     args.size = cli.parse_size(args.size)
+
+    # This will capture the common argument mistakes
+    training_cli.common_args_validation(args)
+
+    # Script specific checks
+    if registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION) is False:
+        raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:
     parser = get_args_parser()
-    args = argparse.Namespace(**kwargs)
-    args = parser.parse_args([], args)
+    parser.set_defaults(**kwargs)
+    args = parser.parse_args([])
     validate_args(args)
 
     return args

@@ -54,6 +54,7 @@
     "convmixer",
     "convnext",
     "convolutional",
+    "cooldown",
     "crossformer",
     "crossmae",
     "crossvit",

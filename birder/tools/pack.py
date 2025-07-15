@@ -415,10 +415,15 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
-    assert args.append is False or args.type == "wds"
-    assert args.no_cls is False or args.type == "wds"
-    assert args.sampling_file is None or len(args.data_path) == 0
-    assert args.sampling_file is None or args.target_path is not None
+    if args.append is True and args.type != "wds":
+        raise cli.ValidationError("--append requires --type wds to be set")
+    if args.no_cls is True and args.type != "wds":
+        raise cli.ValidationError("--no-cls requires --type wds to be set")
+
+    if args.sampling_file is not None and len(args.data_path) > 0:
+        raise cli.ValidationError("--sampling-file cannot be used with --data-path")
+    if args.sampling_file is not None and args.target_path is None:
+        raise cli.ValidationError("--sampling-file requires --target-path to be set")
 
     args.max_size = args.max_size * 1e6
     if args.target_path is None:
