@@ -6,7 +6,6 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from defusedxml.ElementTree import parse
 from tqdm import tqdm
 
 import birder
@@ -14,6 +13,13 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
+
+try:
+    from defusedxml.ElementTree import parse
+
+    _HAS_DEFUSEDXML = True
+except ImportError:
+    _HAS_DEFUSEDXML = False
 
 logger = logging.getLogger(__name__)
 
@@ -151,4 +157,5 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
+    assert _HAS_DEFUSEDXML, "'pip install defusedxml' to use voc-to-coco"
     voc_to_coco(args)

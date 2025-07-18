@@ -7,6 +7,9 @@
 # Project generated documentation
 /public/
 
+# Clustering related logs (Slurm, etc.)
+/logs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
