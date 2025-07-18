@@ -109,7 +109,7 @@ def show_top_k(
     ax.invert_yaxis()
     ax.set_xlim(0, 1)
 
-    if label is not None and label != -1:
+    if label is not None and label != settings.NO_LABEL:
         # 'label' could be any int-like object like NumPy, Torch, etc.
         if not isinstance(label, str):
             label = idx_to_class[label]

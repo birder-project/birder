@@ -120,6 +120,12 @@ def add_lr_scheduler_args(parser: argparse.ArgumentParser) -> None:
     group.add_argument(
         "--lr-power", type=float, default=1.0, help="power of the polynomial (for polynomial scheduler only)"
     )
+    group.add_argument(
+        "--lr-warmup-decay",
+        type=float,
+        default=0.01,
+        help="multiplicative factor for learning rate at the start of warmup",
+    )
 
 
 def add_input_args(parser: argparse.ArgumentParser, size_help: Optional[str] = None) -> None:
@@ -228,17 +234,21 @@ def add_data_aug_args(
         type=str,
         choices=list(typing.get_args(RGBMode)),
         default="birder",
-        help="rgb mean and std to use for normalization",
+        help="RGB mean and std to use for normalization",
     )
     group.add_argument(
         "--rgb-mean",
         type=float,
         nargs=3,
         metavar=("R", "G", "B"),
-        help="set custom rgb mean values (overrides rgb mode)",
+        help="set custom RGB mean values (overrides values from selected RGB mode)",
     )
     group.add_argument(
-        "--rgb-std", type=float, nargs=3, metavar=("R", "G", "B"), help="set custom rgb std values (overrides rgb mode)"
+        "--rgb-std",
+        type=float,
+        nargs=3,
+        metavar=("R", "G", "B"),
+        help="set custom RGB std values (overrides values from selected RGB mode)",
     )
 
 
@@ -259,34 +269,50 @@ def add_detection_data_aug_args(parser: argparse.ArgumentParser, default_level: 
         type=str,
         choices=list(typing.get_args(RGBMode)),
         default="birder",
-        help="rgb mean and std to use for normalization",
+        help="RGB mean and std to use for normalization",
     )
     group.add_argument(
         "--rgb-mean",
         type=float,
         nargs=3,
         metavar=("R", "G", "B"),
-        help="set custom rgb mean values (overrides rgb mode)",
+        help="set custom RGB mean values (overrides values from selected RGB mode)",
     )
     group.add_argument(
-        "--rgb-std", type=float, nargs=3, metavar=("R", "G", "B"), help="set custom rgb std values (overrides rgb mode)"
+        "--rgb-std",
+        type=float,
+        nargs=3,
+        metavar=("R", "G", "B"),
+        help="set custom RGB std values (overrides values from selected RGB mode)",
     )
 
 
-def add_checkpoint_args(parser: argparse.ArgumentParser, default_save_frequency: int = 1) -> None:
+def add_checkpoint_args(
+    parser: argparse.ArgumentParser, default_save_frequency: int = 1, pretrained: bool = False
+) -> None:
     group = parser.add_argument_group("Checkpoint parameters")
     group.add_argument(
         "--save-frequency", type=int, default=default_save_frequency, metavar="N", help="frequency of model saving"
     )
-    group.add_argument("--keep-last", type=int, metavar="N", help="number of checkpoints to keep")
-    group.add_argument("--resume-epoch", type=int, metavar="N", help="epoch to resume training from")
+    group.add_argument(
+        "--keep-last", type=int, metavar="N", help="number of recent checkpoints to keep (older ones are deleted)"
+    )
+    if pretrained is True:
+        group.add_argument(
+            "--pretrained",
+            default=False,
+            action="store_true",
+            help="start with pretrained version of specified network (will download if not found locally)",
+        )
+
+    group.add_argument("--resume-epoch", type=int, metavar="N", help="epoch number to resume training from")
     group.add_argument(
         "--load-states",
         default=False,
         action="store_true",
         help="load optimizer, scheduler and scaler states when resuming",
     )
-    group.add_argument("--load-scheduler", default=False, action="store_true", help="load scheduler only resuming")
+    group.add_argument("--load-scheduler", default=False, action="store_true", help="load only scheduler when resuming")
 
 
 def add_ema_args(
@@ -369,7 +395,12 @@ def add_precision_args(parser: argparse.ArgumentParser) -> None:
         default="float32",
         help="model dtype to use",
     )
-    group.add_argument("--amp", default=False, action="store_true", help="use torch.amp for mixed precision training")
+    group.add_argument(
+        "--amp",
+        default=False,
+        action="store_true",
+        help="enable automatic mixed precision (AMP) training via torch.amp",
+    )
     group.add_argument(
         "--amp-dtype",
         type=str,
@@ -385,8 +416,9 @@ def add_precision_args(parser: argparse.ArgumentParser) -> None:
 def add_distributed_args(parser: argparse.ArgumentParser) -> None:
     group = parser.add_argument_group("Distributed training parameters")
     group.add_argument("--world-size", type=int, default=1, metavar="N", help="number of distributed processes")
-    group.add_argument("--dist-url", type=str, default="env://", help="url used to set up distributed training")
     group.add_argument("--local-rank", type=int, help="local rank")
+    group.add_argument("--dist-url", type=str, default="env://", help="URL used to initialize distributed training")
+    group.add_argument("--dist-backend", type=str, default="nccl", help="distributed backend")
     group.add_argument(
         "--find-unused-parameters",
         default=False,
@@ -455,6 +487,12 @@ def add_training_data_args(parser: argparse.ArgumentParser, unsupervised: bool =
     group = parser.add_argument_group(description="Directory")
     if unsupervised is False:
         group.add_argument(
+            "--hierarchical",
+            default=False,
+            action="store_true",
+            help="use hierarchical directory structure for labels (e.g., 'dir1/subdir2' -> 'dir1_subdir2' label)",
+        )
+        group.add_argument(
             "--data-path", type=str, default=str(settings.TRAINING_DATA_PATH), help="training directory path"
         )
         group.add_argument(
@@ -497,7 +535,7 @@ def common_args_validation(args: argparse.Namespace) -> None:
     # Some scripts like train_kd do not have a network argument,
     # but if it exists, it's mandatory all around
     if hasattr(args, "network") is True and args.network is None:
-        raise ValidationError("must pass --network")
+        raise ValidationError("--network is required")
 
     # Training schedule args, shared by all scripts
     if args.stop_epoch is not None and args.stop_epoch > args.epochs:
@@ -518,6 +556,8 @@ def common_args_validation(args: argparse.Namespace) -> None:
         raise ValidationError("--load-states requires --resume-epoch to be set")
     if args.load_scheduler is True and args.resume_epoch is None:
         raise ValidationError("--load-scheduler requires --resume-epoch to be set")
+    if hasattr(args, "pretrained") is True and args.pretrained is True and args.resume_epoch is not None:
+        raise ValidationError("--pretrained cannot be used with --resume-epoch")
 
     # Data augmentation args have standard and detection version. Apply only to standard
     if hasattr(args, "resize_min_scale") is True:
@@ -530,6 +570,9 @@ def common_args_validation(args: argparse.Namespace) -> None:
         if hasattr(args, "wds_class_file") is True and args.wds is True and args.wds_class_file is None:
             raise ValidationError("--wds requires --wds-class-file to be set")
 
+        if hasattr(args, "hierarchical") is True and args.wds is True and args.hierarchical is True:
+            raise ValidationError("--wds cannot be used with --hierarchical")
+
         # WDS with debug args
         if hasattr(args, "use_fake_data") is True and args.use_fake_data is True and args.wds is True:
             raise ValidationError("--use-fake-data cannot be used with --wds")
@@ -541,7 +584,7 @@ def common_args_validation(args: argparse.Namespace) -> None:
         # Unsupervised training data
         if isinstance(args.data_path, list):
             if args.wds is False and len(args.data_path) == 0 and args.use_fake_data is False:
-                raise ValidationError("Must pass at least one data source, --data-path or --wds")
+                raise ValidationError("Must provide at least one data source, --data-path or --wds")
             if args.wds is True and len(args.data_path) > 1:
                 raise ValidationError(f"--wds can have at most 1 --data-path, got {len(args.data_path)}")
 

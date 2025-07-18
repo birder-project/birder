@@ -22,7 +22,6 @@ from birder.common import fs_ops
 from birder.common import lib
 from birder.common import training_cli
 from birder.common import training_utils
-from birder.common.lib import set_random_seeds
 from birder.conf import settings
 from birder.data.collators.detection import training_collate_fn
 from birder.data.datasets.coco import CocoTraining
@@ -76,7 +75,7 @@ def train(args: argparse.Namespace) -> None:
         torch.backends.cudnn.benchmark = True
 
     if args.seed is not None:
-        set_random_seeds(args.seed)
+        lib.set_random_seeds(args.seed)
 
     # Enable or disable the autograd anomaly detection
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
@@ -195,6 +194,7 @@ def train(args: argparse.Namespace) -> None:
             assert class_to_idx == class_to_idx_saved
 
     elif args.pretrained is True:
+        fs_ops.download_model_by_weights(network_name, progress_bar=training_utils.is_local_primary(args))
         (net, class_to_idx_saved, training_states) = fs_ops.load_detection_checkpoint(
             device,
             args.network,
@@ -227,6 +227,10 @@ def train(args: argparse.Namespace) -> None:
             )
 
         elif args.backbone_pretrained is True:
+            fs_ops.download_model_by_weights(
+                lib.get_network_name(args.backbone, net_param=args.backbone_param, tag=args.backbone_tag),
+                progress_bar=training_utils.is_local_primary(args),
+            )
             (backbone, class_to_idx_saved, _) = fs_ops.load_checkpoint(
                 device,
                 args.backbone,
@@ -734,10 +738,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--backbone-pretrained",
         default=False,
         action="store_true",
-        help="start with pretrained version of specified backbone",
-    )
-    parser.add_argument(
-        "--pretrained", default=False, action="store_true", help="start with pretrained version of specified network"
+        help="start with pretrained version of specified backbone (will download if not found locally)",
     )
     parser.add_argument("--reset-head", default=False, action="store_true", help="reset the classification head")
     parser.add_argument(
@@ -770,7 +771,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_batch_norm_args(parser, backbone_freeze=True)
     training_cli.add_precision_args(parser)
     training_cli.add_compile_args(parser, backbone=True)
-    training_cli.add_checkpoint_args(parser)
+    training_cli.add_checkpoint_args(parser, pretrained=True)
     training_cli.add_distributed_args(parser)
     training_cli.add_logging_and_debug_args(parser, default_log_interval=20, fake_data=False)
     training_cli.add_detection_training_data_args(parser)
@@ -788,7 +789,7 @@ def validate_args(args: argparse.Namespace) -> None:
 
     # Script specific checks
     if args.backbone is None:
-        raise cli.ValidationError("must pass --backbone")
+        raise cli.ValidationError("--backbone is required")
     if registry.exists(args.network, task=Task.OBJECT_DETECTION) is False:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
     if registry.exists(args.backbone, net_type=DetectorBackbone) is False:
@@ -802,17 +803,13 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--freeze-backbone cannot be used with --freeze-body")
     if args.freeze_body is True and args.freeze_backbone_stages is not None:
         raise cli.ValidationError("--freeze-body cannot be used with --freeze-backbone-stages")
-
     if args.multiscale is True and args.aug_type != "birder":
         raise cli.ValidationError(f"--multiscale only supported with --aug-type birder, got {args.aug_type}")
+    if args.backbone_pretrained is True and args.backbone_epoch is not None:
+        raise cli.ValidationError("--backbone-pretrained cannot be used with --backbone-epoch")
 
     if args.model_dtype != "float32":  # NOTE: only float32 supported at this time
         raise cli.ValidationError(f"Only float32 supported for --model-dtype at this time, got {args.model_dtype}")
-
-    if args.pretrained is True and args.resume_epoch is not None:  # What to do with "pretrained"
-        raise cli.ValidationError("--pretrained cannot be used with --resume-epoch")
-    if args.backbone_pretrained is True and args.backbone_epoch is not None:  # What to do with "pretrained"
-        raise cli.ValidationError("--backbone-pretrained cannot be used with --backbone-epoch")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

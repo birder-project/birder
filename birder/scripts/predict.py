@@ -80,7 +80,7 @@ def handle_show_flags(
         show_top_k(img_path, prob, class_to_idx, label)
 
     # Show mistake (if label exists)
-    if label != -1:
+    if label != settings.NO_LABEL:
         if args.show_target_below is not None and args.show_target_below > prob[label]:
             show_top_k(img_path, prob, class_to_idx, label)
 
@@ -141,7 +141,7 @@ def predict(args: argparse.Namespace) -> None:
 
     if args.ignore_dir_names is True:
         num_classes = len(class_to_idx)
-        class_to_idx = fs_ops.class_to_idx_from_paths(args.data_path)
+        class_to_idx = fs_ops.class_to_idx_from_paths(args.data_path, hierarchical=args.hierarchical)
         assert len(class_to_idx) == num_classes
 
     if args.class_mapping is not None:
@@ -154,7 +154,7 @@ def predict(args: argparse.Namespace) -> None:
 
     if args.show_class is not None:
         if args.show_class not in class_to_idx:
-            logger.warning("Select show class is not part of the model classes")
+            logger.warning("Selected 'show class' is not part of the model classes")
 
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
@@ -193,21 +193,24 @@ def predict(args: argparse.Namespace) -> None:
         inference_loader = make_wds_loader(
             dataset,
             batch_size,
-            num_workers=8,
-            prefetch_factor=2,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
             collate_fn=None,
             world_size=1,
             pin_memory=False,
         )
 
     else:
-        dataset = make_image_dataset(args.data_path, class_to_idx, transforms=inference_transform)
+        dataset = make_image_dataset(
+            args.data_path, class_to_idx, transforms=inference_transform, hierarchical=args.hierarchical
+        )
         num_samples = len(dataset)
         inference_loader = DataLoader(
             dataset,
             batch_size=batch_size,
             shuffle=args.shuffle,
-            num_workers=8,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
         )
 
     show_flag = (
@@ -260,7 +263,7 @@ def predict(args: argparse.Namespace) -> None:
         chunk_size=args.chunk_size,
         **args.forward_kwargs,
     )
-    append = False
+    append = False  # Append mode for outputs, only False for the first batch
     summary_list = []
     with torch.inference_mode():
         for sample_paths, outs, labels, embedding_list in infer_iter:
@@ -268,24 +271,25 @@ def predict(args: argparse.Namespace) -> None:
             if args.save_embedding is True:
                 save_embeddings(embeddings_path, sample_paths, embedding_list, append=append)
 
-            # Save output
-            if args.save_output is True:
-                save_output(output_path, sample_paths, label_names, outs, append=append)
+            if len(class_to_idx) > 0:
+                # Save output
+                if args.save_output is True:
+                    save_output(output_path, sample_paths, label_names, outs, append=append)
 
-            # Handle results
-            results = Results(sample_paths, labels, label_names, output=outs)
-            if results.missing_all_labels is False:
-                if args.save_results is True:
-                    results.save(f"{base_output_path}.csv", append=append)
-                if args.chunk_size is None:
-                    results.log_short_report()
+                # Handle results
+                results = Results(sample_paths, labels, label_names, output=outs)
+                if results.missing_all_labels is False:
+                    if args.save_results is True:
+                        results.save(f"{base_output_path}.csv", append=append)
+                    if args.chunk_size is None:
+                        results.log_short_report()
 
-            else:
-                logger.warning("No labeled samples found")
+                else:
+                    logger.warning("No labeled samples found")
 
-            # Summary
-            if args.summary is True:
-                summary_list.append(results.prediction_names.value_counts())
+                # Summary
+                if args.summary is True:
+                    summary_list.append(results.prediction_names.value_counts())
 
             append = True
 
@@ -346,7 +350,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")
     parser.add_argument("--quantized", default=False, action="store_true", help="load quantized model")
-    parser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
+    parser.add_argument("-t", "--tag", type=str, help="model tag (from the training phase)")
     parser.add_argument(
         "-r", "--reparameterized", default=False, action="store_true", help="load reparameterized model"
     )
@@ -378,6 +382,10 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--size", type=int, nargs="+", metavar=("H", "W"), help="image size for inference (defaults to model signature)"
     )
     parser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
+    parser.add_argument("-j", "--num-workers", type=int, default=8, metavar="N", help="number of preprocessing workers")
+    parser.add_argument(
+        "--prefetch-factor", type=int, metavar="N", help="number of batches loaded in advance by each worker"
+    )
     parser.add_argument(
         "--chunk-size", type=int, metavar="N", help="process in chunks of N samples to reduce memory usage"
     )
@@ -392,12 +400,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--summary", default=False, action="store_true", help="log prediction summary")
     parser.add_argument("--save-results", default=False, action="store_true", help="save results object")
     parser.add_argument("--save-output", default=False, action="store_true", help="save raw output as CSV")
-    parser.add_argument("--save-embedding", default=False, action="store_true", help="save features layer output")
+    parser.add_argument("--save-embedding", default=False, action="store_true", help="save embedding layer outputs")
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
     parser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use (ignored in parallel mode)")
     parser.add_argument("--mps", default=False, action="store_true", help="use mps (Metal Performance Shaders) device")
-    parser.add_argument("--parallel", default=False, action="store_true", help="use multiple gpu's")
+    parser.add_argument("--parallel", default=False, action="store_true", help="use multiple gpus")
     parser.add_argument("--wds", default=False, action="store_true", help="predict a webdataset directory")
     parser.add_argument("--wds-size", type=int, metavar="N", help="size of the wds dataset")
     parser.add_argument("--wds-info", type=str, metavar="FILE", help="wds info file path")
@@ -411,28 +419,54 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--class-mapping", type=str, help="json file with alternative class names (can be partial mapping)"
     )
+    parser.add_argument(
+        "--hierarchical",
+        default=False,
+        action="store_true",
+        help="use hierarchical directory structure for labels (e.g., 'dir1/subdir2' -> 'dir1_subdir2' label)",
+    )
     parser.add_argument("data_path", nargs="*", help="data files path (directories and files)")
 
     return parser
 
 
 def validate_args(args: argparse.Namespace) -> None:
-    assert args.network is not None
-    assert args.center_crop <= 1 and args.center_crop > 0, "Center crop ratio must be between 0 and 1"
-    assert args.parallel is False or args.gpu is True
-    assert args.save_embedding is False or args.parallel is False
-    assert args.save_embedding is False or args.tta is False
-    assert args.parallel is False or args.compile is False
-    assert args.amp is False or args.model_dtype == "float32"
-    assert args.wds is True or len(args.data_path) >= 1
-    assert args.wds is False or len(args.data_path) <= 1
-    assert args.wds is False or (
-        args.show is False and args.show_mistakes is False and args.show_out_of_k is False and args.show_class is None
-    )
-    assert args.wds is False or args.ignore_dir_names is False
     args.size = cli.parse_size(args.size)
     if args.forward_kwargs is None:
         args.forward_kwargs = {}
+
+    if args.network is None:
+        raise cli.ValidationError("--network is required")
+    if args.center_crop > 1 or args.center_crop <= 0.0:
+        raise cli.ValidationError(f"--center-crop must be in range of (0, 1.0], got {args.center_crop}")
+    if args.parallel is True and args.gpu is False:
+        raise cli.ValidationError("--parallel requires --gpu to be set")
+    if args.parallel is True and args.compile is True:
+        raise cli.ValidationError("--parallel cannot be used with --compile")
+    if args.save_embedding is True and args.parallel is True:
+        raise cli.ValidationError("--save-embedding cannot be used with --parallel")
+    if args.save_embedding is True and args.tta is True:
+        raise cli.ValidationError("--save-embedding cannot be used with --tta")
+    if args.amp is True and args.model_dtype != "float32":
+        raise cli.ValidationError("--amp can only be used with --model-dtype float32")
+
+    if args.wds is False and len(args.data_path) == 0:
+        raise cli.ValidationError("Must provide at least one data source, --data-path or --wds")
+    if args.wds is True and len(args.data_path) > 1:
+        raise cli.ValidationError(f"--wds can have at most 1 --data-path, got {len(args.data_path)}")
+    if args.wds is True and args.hierarchical is True:
+        raise cli.ValidationError("--wds cannot be used with --hierarchical")
+    if args.wds is True and args.ignore_dir_names is True:
+        raise cli.ValidationError("--wds cannot be used with --ignore-dir-names")
+    if args.wds is True and (  # pylint: disable=too-many-boolean-expressions
+        args.show is True
+        or args.show_top_below is not None
+        or args.show_target_below is not None
+        or args.show_mistakes is True
+        or args.show_out_of_k is True
+        or args.show_class is not None
+    ):
+        raise cli.ValidationError("--wds cannot be used with any of the 'show' flags")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

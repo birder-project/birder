@@ -9,6 +9,7 @@ import uuid
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlsplit
 from urllib.request import Request
 from urllib.request import urlopen
 
@@ -110,12 +111,16 @@ def download_file(
     # If file by the same name exists, check sha256 before overriding
     if dst.exists() is True:
         if expected_sha256 is None or calc_sha256(dst) == expected_sha256:
+            logger.debug("Found existing file with the same hash, skipping download")
             return
 
         if override is False:
             logger.warning("Found existing file with different SHA256, aborting...")
 
         logger.warning("Overriding existing file with different SHA256")
+
+    fname = urlsplit(url)[2].split("/")[-1]
+    logger.info(f"Downloading {fname} to {dst}...")
 
     file_size = None
     req = Request(url, headers={"User-Agent": "birder.datahub"})

@@ -41,6 +41,7 @@ from birder.common.lib import get_network_name
 from birder.common.lib import set_random_seeds
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
+from birder.data.datasets.directory import HierarchicalImageFolder
 from birder.data.datasets.directory import tv_loader
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
@@ -151,10 +152,15 @@ def train(args: argparse.Namespace) -> None:
         assert class_to_idx == ds_class_to_idx
 
     else:
-        training_dataset = ImageFolder(
+        if args.hierarchical is True:
+            dataset_cls = HierarchicalImageFolder
+        else:
+            dataset_cls = ImageFolder
+
+        training_dataset = dataset_cls(
             args.data_path, transform=training_transform, loader=pil_loader if args.img_loader == "pil" else tv_loader
         )
-        validation_dataset = ImageFolder(
+        validation_dataset = dataset_cls(
             args.val_path,
             transform=val_transform,
             loader=pil_loader if args.img_loader == "pil" else tv_loader,
@@ -826,9 +832,9 @@ def validate_args(args: argparse.Namespace) -> None:
 
     # Script specific checks
     if args.teacher is None:
-        raise cli.ValidationError("must pass --teacher")
+        raise cli.ValidationError("--teacher is required")
     if args.student is None:
-        raise cli.ValidationError("must pass --student")
+        raise cli.ValidationError("--student is required")
     if registry.exists(args.teacher, task=Task.IMAGE_CLASSIFICATION) is False:
         raise cli.ValidationError(f"--teacher {args.teacher} not supported, see list-models tool for available options")
     if registry.exists(args.student, task=Task.IMAGE_CLASSIFICATION) is False:

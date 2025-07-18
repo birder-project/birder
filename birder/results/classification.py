@@ -84,7 +84,7 @@ class Results:
         if predictions is None:
             predictions = output.argmax(axis=1)
 
-        names = [label_names[label] if label != -1 else "" for label in labels]
+        names = [label_names[label] if label != settings.NO_LABEL else "" for label in labels]
         self._label_names = label_names
 
         output_df = pl.DataFrame(
@@ -99,14 +99,14 @@ class Results:
         self._results_df = pl.concat([self._results_df, output_df], how="horizontal")
         self._results_df = self._results_df.sort("sample", descending=False)
 
-        if np.all(self.labels == -1) is np.True_:
+        if np.all(self.labels == settings.NO_LABEL) is np.True_:
             self.missing_all_labels = True
         else:
             self.missing_all_labels = False
 
         # Calculate metrics
         if self.missing_all_labels is False:
-            self.valid_idx = self.labels != -1
+            self.valid_idx = self.labels != settings.NO_LABEL
             self._valid_length: int = np.sum(self.valid_idx).item()
             accuracy: int = int(
                 accuracy_score(self.labels[self.valid_idx], self.predictions[self.valid_idx], normalize=False)
@@ -153,7 +153,7 @@ class Results:
 
     @property
     def missing_labels(self) -> bool:
-        if -1 in self.labels:
+        if settings.NO_LABEL in self.labels:
             return True
 
         return False
@@ -521,7 +521,7 @@ class SparseResults(Results):
         if predictions is None:
             predictions = output.argmax(axis=1)
 
-        names = [label_names[label] if label != -1 else "" for label in labels]
+        names = [label_names[label] if label != settings.NO_LABEL else "" for label in labels]
         self._label_names = label_names
 
         # Extract and store only top-k probabilities and their indices
@@ -533,14 +533,14 @@ class SparseResults(Results):
         # self._results_df = pl.concat([self._results_df, output_df], how="horizontal")
         self._results_df = self._results_df.sort("sample", descending=False)
 
-        if np.all(self.labels == -1) is np.True_:
+        if np.all(self.labels == settings.NO_LABEL) is np.True_:
             self.missing_all_labels = True
         else:
             self.missing_all_labels = False
 
         # Calculate metrics
         if self.missing_all_labels is False:
-            self.valid_idx = self.labels != -1
+            self.valid_idx = self.labels != settings.NO_LABEL
             self._valid_length: int = np.sum(self.valid_idx).item()
             accuracy: int = int(
                 accuracy_score(self.labels[self.valid_idx], self.predictions[self.valid_idx], normalize=False)

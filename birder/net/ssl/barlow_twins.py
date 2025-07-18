@@ -54,10 +54,7 @@ class BarlowTwins(SSLBaseNet):
 
     # pylint: disable=arguments-differ
     def forward(self, x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
-        if training_utils.is_dist_available_and_initialized() is True:
-            world_size = dist.get_world_size()
-        else:
-            world_size = 1
+        world_size = training_utils.get_world_size()
 
         z1 = self.projector(self.backbone.embedding(x1))
         z2 = self.projector(self.backbone.embedding(x2))

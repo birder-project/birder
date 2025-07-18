@@ -36,8 +36,6 @@ Whether you're a researcher in ornithology, a conservation scientist, or a wildl
 1. [API Reference](api/index.md)
     - [Model Registry](api/model_registry.md)
 
-1. [TorchServe Integration](torchserve.md)
-
 1. [Public Datasets](public_datasets.md)
 
 1. [About](about.md)

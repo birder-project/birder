@@ -122,6 +122,7 @@ def train(args: argparse.Namespace) -> None:
             samples_names=True,
             transform=training_transform,
             img_loader=args.img_loader,
+            cls_key=None,
             cache_dir=args.wds_cache_dir,
         )
 

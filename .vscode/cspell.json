@@ -275,7 +275,6 @@
     "torchprofile",
     "torchrun",
     "torchscript",
-    "torchserve",
     "torchvision",
     "tqdm",
     "transnext",

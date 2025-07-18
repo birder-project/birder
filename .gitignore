@@ -72,10 +72,5 @@ Sessionx.vim
 *.ipynb
 .ipynb_checkpoints
 
-# TorchServe
-/ts/*
-!/ts/config.properties
-!/ts/*.yaml
-
 # Vagrant
 .vagrant

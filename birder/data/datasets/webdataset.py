@@ -13,11 +13,16 @@ from torchvision.io import decode_image
 
 from birder.common import fs_ops
 from birder.common.training_utils import reduce_across_processes
+from birder.conf import settings
 
 
 def decode_sample_name(item: tuple[str, str, Any, int]) -> tuple[str, Any, int]:
     sample_name = item[0] + "/" + item[1]
     return (sample_name, item[2], item[3])
+
+
+def decode_fake_cls(item: tuple[Any, ...]) -> tuple[Any, ...]:
+    return (*item, settings.NO_LABEL)
 
 
 def wds_image_decoder(key: str, data: bytes) -> torch.Tensor:
@@ -40,6 +45,7 @@ def make_wds_dataset(
     transform: Callable[..., torch.Tensor],
     img_loader: Literal["tv", "pil"] = "tv",
     *,
+    cls_key: Optional[str] = "cls",
     cache_dir: Optional[str] = None,
 ) -> torch.utils.data.IterableDataset:
     if shuffle is True:
@@ -53,7 +59,9 @@ def make_wds_dataset(
     if shuffle is True:
         dataset = dataset.shuffle(1000, initial=100)
 
-    return_keys = ["jpeg;jpg;png;webp", "cls"]
+    return_keys = ["jpeg;jpg;png;webp"]
+    if cls_key is not None:
+        return_keys = return_keys + [cls_key]
     if samples_names is True:
         return_keys = ["__url__", "__key__"] + return_keys
 
@@ -61,6 +69,9 @@ def make_wds_dataset(
         dataset = dataset.with_length(dataset_size, silent=True).decode("pil").to_tuple(*return_keys)
     else:
         dataset = dataset.with_length(dataset_size, silent=True).decode(wds_image_decoder).to_tuple(*return_keys)
+
+    if cls_key is None:
+        dataset = dataset.map(decode_fake_cls)
 
     if samples_names is True:
         dataset = dataset.map(decode_sample_name)

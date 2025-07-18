@@ -30,6 +30,7 @@ from birder.common.lib import get_network_name
 from birder.common.lib import set_random_seeds
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
+from birder.data.datasets.directory import HierarchicalImageFolder
 from birder.data.datasets.directory import tv_loader
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
@@ -125,10 +126,15 @@ def train(args: argparse.Namespace) -> None:
         class_to_idx = fs_ops.read_class_file(args.wds_class_file)
 
     else:
-        training_dataset = ImageFolder(
+        if args.hierarchical is True:
+            dataset_cls = HierarchicalImageFolder
+        else:
+            dataset_cls = ImageFolder
+
+        training_dataset = dataset_cls(
             args.data_path, transform=training_transform, loader=pil_loader if args.img_loader == "pil" else tv_loader
         )
-        validation_dataset = ImageFolder(
+        validation_dataset = dataset_cls(
             args.val_path,
             transform=val_transform,
             loader=pil_loader if args.img_loader == "pil" else tv_loader,
@@ -234,6 +240,7 @@ def train(args: argparse.Namespace) -> None:
             assert class_to_idx == class_to_idx_saved
 
     elif args.pretrained is True:
+        fs_ops.download_model_by_weights(network_name, progress_bar=training_utils.is_local_primary(args))
         (net, class_to_idx_saved, training_states) = fs_ops.load_checkpoint(
             device,
             args.network,
@@ -697,7 +704,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "Training on image directory in the default location can be as simple as:\n"
             "python train.py --network densenet_161 --lr-scheduler cosine --batch-size 64 --smoothing-alpha 0.1\n"
             "\n"
-            "A more complicated ImageNet example on 2 GPU's, using a remote webdataset:\n"
+            "A more complicated ImageNet example on 2 GPUs, using a remote webdataset:\n"
             "torchrun --nproc_per_node=2 train.py \\\n"
             "    --network resnet_v2_50 \\\n"
             "    --tag imagenet1k \\\n"
@@ -749,9 +756,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("-t", "--tag", type=str, help="add model tag")
-    parser.add_argument(
-        "--pretrained", default=False, action="store_true", help="start with pretrained version of specified network"
-    )
     parser.add_argument("--reset-head", default=False, action="store_true", help="reset the classification head")
     parser.add_argument(
         "--freeze-body",
@@ -782,7 +786,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_batch_norm_args(parser)
     training_cli.add_precision_args(parser)
     training_cli.add_compile_args(parser)
-    training_cli.add_checkpoint_args(parser, default_save_frequency=5)
+    training_cli.add_checkpoint_args(parser, default_save_frequency=5, pretrained=True)
     training_cli.add_distributed_args(parser)
     training_cli.add_logging_and_debug_args(parser)
     training_cli.add_training_data_args(parser)
@@ -814,9 +818,6 @@ def validate_args(args: argparse.Namespace) -> None:
             "--freeze-stages only supported on detector backbone type networks, "
             "see list-models tool for available options"
         )
-
-    if args.pretrained is True and args.resume_epoch is not None:  # What to do with "pretrained"
-        raise cli.ValidationError("--pretrained cannot be used with --resume-epoch")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

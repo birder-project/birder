@@ -135,7 +135,7 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--cosine", default=False, action="store_true", help="use cosine distance")
     subparser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")
-    subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
+    subparser.add_argument("-t", "--tag", type=str, help="model tag (from the training phase)")
     subparser.add_argument(
         "-r", "--reparameterized", default=False, action="store_true", help="load reparameterized model"
     )

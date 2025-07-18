@@ -3,6 +3,7 @@ import unittest
 
 import numpy as np
 
+from birder.conf import settings
 from birder.results.classification import Results
 from birder.results.classification import SparseResults
 from birder.results.classification import top_k_accuracy_score
@@ -57,7 +58,7 @@ class TestClassification(unittest.TestCase):
 
     def test_partial_results(self) -> None:
         sample_list = ["file1.jpeg", "file2.jpg", "file3.jpeg", "file4.jpeg", "file5.png", "file6.webp"]
-        labels = [0, -1, 2, -1, 1, 3]
+        labels = [0, settings.NO_LABEL, 2, settings.NO_LABEL, 1, 3]
         label_names = ["l0", "l1", "l2", "l3"]
         output = np.array(
             [
@@ -115,7 +116,7 @@ class TestClassification(unittest.TestCase):
 
     def test_partial_sparse_results(self) -> None:
         sample_list = ["file1.jpeg", "file2.jpg", "file3.jpeg", "file4.jpeg", "file5.png", "file6.webp"]
-        labels = [0, -1, 2, -1, 1, 3]
+        labels = [0, settings.NO_LABEL, 2, settings.NO_LABEL, 1, 3]
         label_names = ["l0", "l1", "l2", "l3"]
         output = np.array(
             [

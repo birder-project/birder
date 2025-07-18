@@ -8,6 +8,7 @@ from PIL import Image
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from birder.conf import settings
 from birder.data.transforms.detection import InferenceTransform
 
 
@@ -144,7 +145,7 @@ def infer_dataloader(
                 detections = infer_batch(net, inputs, masks, image_sizes)
 
             detections = InferenceTransform.postprocess(detections, image_sizes, orig_sizes)
-            if targets[0] != -1:
+            if targets[0] != settings.NO_LABEL:
                 targets = InferenceTransform.postprocess(targets, image_sizes, orig_sizes)
 
             detections_list.extend(detections)

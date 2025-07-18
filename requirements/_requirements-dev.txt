@@ -5,6 +5,7 @@ build~=1.2.2
 bumpver~=2025.1131
 captum~=0.7.0
 coverage~=7.9.2
+debugpy
 flake8-pep585~=0.1.7
 flake8~=7.3.0
 invoke~=2.2.0
@@ -16,7 +17,7 @@ mkdocs-exclude~=1.0.2
 MonkeyType~=23.3.0
 mypy~=1.17.0
 parameterized~=0.9.0
-pyarrow~=20.0.0
+pyarrow~=21.0.0
 pylint~=3.3.7
 requests~=2.32.4
 safetensors~=0.5.3
@@ -24,4 +25,5 @@ setuptools
 torchprofile==0.0.4
 twine~=6.1.0
 types-requests~=2.32.0
+urllib3~=2.5.0
 wheel

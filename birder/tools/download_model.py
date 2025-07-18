@@ -37,9 +37,8 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
-    assert (
-        args.model_name in registry.list_pretrained_models()
-    ), "Unknown model, see list-models tool for available options"
+    if args.model_name not in registry.list_pretrained_models():
+        raise cli.ValidationError(f"{args.model_name} not found, see list-models tool for available options")
 
     if settings.MODELS_DIR.exists() is False:
         logger.info(f"Creating {settings.MODELS_DIR} directory...")

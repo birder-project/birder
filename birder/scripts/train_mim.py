@@ -102,6 +102,7 @@ def train(args: argparse.Namespace) -> None:
             samples_names=True,
             transform=training_transform,
             img_loader=args.img_loader,
+            cls_key=None,
             cache_dir=args.wds_cache_dir,
         )
 
@@ -184,6 +185,7 @@ def train(args: argparse.Namespace) -> None:
         )
 
     elif args.pretrained is True:
+        fs_ops.download_model_by_weights(network_name, progress_bar=training_utils.is_local_primary(args))
         (net, training_states) = fs_ops.load_mim_checkpoint(
             device,
             args.network,
@@ -548,9 +550,6 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
-    parser.add_argument(
-        "--pretrained", default=False, action="store_true", help="start with pretrained version of specified network"
-    )
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser)
     training_cli.add_lr_scheduler_args(parser)
@@ -560,7 +559,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_dataloader_args(parser, default_drop_last=True)
     training_cli.add_precision_args(parser)
     training_cli.add_compile_args(parser)
-    training_cli.add_checkpoint_args(parser)
+    training_cli.add_checkpoint_args(parser, pretrained=True)
     training_cli.add_distributed_args(parser)
     training_cli.add_logging_and_debug_args(parser, default_log_interval=100)
     training_cli.add_training_data_args(parser, unsupervised=True)
@@ -580,9 +579,6 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
     if registry.exists(args.encoder, net_type=PreTrainEncoder) is False:
         raise cli.ValidationError(f"--encoder {args.network} not supported, see list-models tool for available options")
-
-    if args.pretrained is True and args.resume_epoch is not None:  # What to do with "pretrained"
-        raise cli.ValidationError("--pretrained cannot be used with --resume-epoch")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

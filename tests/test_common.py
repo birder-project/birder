@@ -72,6 +72,11 @@ class TestLib(unittest.TestCase):
         label = lib.get_label_from_path("data/validation/Barn owl/000001.jpeg")
         self.assertEqual(label, "Barn owl")
 
+        label = lib.get_label_from_path(
+            "data/validation/Aves/Barn owl/000001.jpeg", hierarchical=True, root="data/validation"
+        )
+        self.assertEqual(label, "Aves_Barn owl")
+
         # Detection class to index (background index)
         detection_class_to_index = lib.detection_class_to_idx({"first": 0, "second": 1})
         self.assertEqual(detection_class_to_index["first"], 1)
@@ -357,6 +362,7 @@ class TestTrainingUtils(unittest.TestCase):
             lr_steps=[],
             lr_step_gamma=0.0,
             lr_power=1.0,
+            lr_warmup_decay=0.1,
         )
         scheduler = training_utils.get_scheduler(opt, 1, args)
         self.assertIsInstance(scheduler, torch.optim.lr_scheduler.SequentialLR)
@@ -373,6 +379,7 @@ class TestTrainingUtils(unittest.TestCase):
             lr_steps=[],
             lr_step_gamma=0.0,
             lr_power=1.0,
+            lr_warmup_decay=0.1,
         )
         scheduler = training_utils.get_scheduler(opt, 1, args)
         self.assertIsInstance(scheduler, torch.optim.lr_scheduler.SequentialLR)

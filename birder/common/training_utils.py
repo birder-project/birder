@@ -491,7 +491,7 @@ def get_scheduler(
         if args.warmup_epochs > 0:
             warmup_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
                 optimizer,
-                start_factor=0.01 if remaining_warmup > 0 else 1.0,
+                start_factor=args.lr_warmup_decay if remaining_warmup > 0 else 1.0,
                 total_iters=remaining_warmup * iters_per_epoch,
             )
             schedulers.append(warmup_lr_scheduler)
@@ -642,17 +642,27 @@ class SmoothedValue:
 def init_distributed_mode(args: argparse.Namespace) -> None:
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
         # torch.distributed.run, torchrun
+        logger.debug("Detected PyTorch distributed environment (torchrun / torch.distributed.launch)")
         args.rank = int(os.environ["RANK"])
         args.world_size = int(os.environ["WORLD_SIZE"])
         args.local_rank = int(os.environ["LOCAL_RANK"])
-
     elif "SLURM_PROCID" in os.environ:
+        # Slurm
+        logger.debug("Detected Slurm distributed environment")
         args.rank = int(os.environ["SLURM_PROCID"])
         args.world_size = int(os.environ["SLURM_NTASKS"])
         args.local_rank = int(os.environ["SLURM_LOCALID"])
-
+    elif "OMPI_COMM_WORLD_RANK" in os.environ:
+        # Open MPI
+        logger.debug("Detected Open MPI distributed environment")
+        args.rank = int(os.environ["OMPI_COMM_WORLD_RANK"])
+        args.world_size = int(os.environ["OMPI_COMM_WORLD_SIZE"])
+        args.local_rank = int(os.environ["OMPI_COMM_WORLD_LOCAL_RANK"])
+    elif args.world_size > 1:
+        # Other, by CLI
+        logger.debug("Using distributed mode with CLI-provided parameters")
     else:
-        logger.info("Not using distributed mode")
+        logger.info("No distributed environment detected, running in single-process mode")
         args.rank = 0
         args.distributed = False
         if args.local_rank is None:
@@ -661,18 +671,27 @@ def init_distributed_mode(args: argparse.Namespace) -> None:
         torch.cuda.set_device(args.local_rank)
         return
 
-    args.distributed = True
-
     torch.cuda.set_device(args.local_rank)
-    args.dist_backend = "nccl"
+
+    args.distributed = args.world_size > 1
+    if args.distributed is False:
+        logger.info("World size is 1, not using distributed mode")
+        return
+
+    # Initialize process group
+    logger.debug(f"Using {args.dist_backend} backend for distributed training")
     logger.info(f"Distributed init (rank {args.rank}), total {args.world_size}: {args.dist_url}")
     dist.init_process_group(
         backend=args.dist_backend, init_method=args.dist_url, world_size=args.world_size, rank=args.rank
     )
+
+    # Synchronize all processes
+    logger.debug("Synchronizing all processes...")
     dist.barrier(device_ids=[args.rank])
     if is_local_primary(args) is False:
+        logger.debug(f"Non-primary process (rank {args.rank}), disabling logging")
         disable_print()
-        logging.disable(logging.CRITICAL)
+        logging.disable(logging.WARNING)
 
 
 def shutdown_distributed_mode(args: argparse.Namespace) -> None:

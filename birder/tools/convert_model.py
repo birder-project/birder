@@ -163,12 +163,7 @@ def set_parser(subparsers: Any) -> None:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
-    subparser.add_argument(
-        "--backbone",
-        type=str,
-        choices=registry.list_models(net_type=DetectorBackbone),
-        help="the neural network to used as backbone",
-    )
+    subparser.add_argument("--backbone", type=str, help="the neural network to used as backbone")
     subparser.add_argument(
         "--backbone-param",
         type=float,
@@ -184,7 +179,7 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--backbone-tag", type=str, help="backbone training log tag (loading only)")
     subparser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")
-    subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
+    subparser.add_argument("-t", "--tag", type=str, help="model tag (from the training phase)")
     subparser.add_argument(
         "-r", "--reparameterized", default=False, action="store_true", help="load reparameterized model"
     )
@@ -229,8 +224,14 @@ def set_parser(subparsers: Any) -> None:
 
 # pylint: disable=too-many-branches
 def main(args: argparse.Namespace) -> None:
-    assert args.trace is False or (args.trace is True and (args.pts is True or args.lite is True or args.onnx is True))
     args.resize = cli.parse_size(args.resize)
+
+    if registry.exists(args.backbone, net_type=DetectorBackbone) is False:
+        raise cli.ValidationError(
+            f"--backbone {args.network} not supported, see list-models tool for available options"
+        )
+    if args.trace is True or (args.pts is False and args.lite is False and args.onnx is False):
+        raise cli.ValidationError("--trace requires one of --pts, --lite --onnx to be set")
 
     # Load model
     device = torch.device("cpu")

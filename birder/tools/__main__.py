@@ -20,6 +20,7 @@ from birder.tools import similarity
 from birder.tools import stats
 from birder.tools import verify_coco
 from birder.tools import verify_directory
+from birder.tools import voc_to_coco
 
 
 def main() -> None:
@@ -52,6 +53,8 @@ def main() -> None:
             "python -m birder.tools verify-coco --coco-json-path "
             "~/Datasets/Objects365-2020/train/zhiyuan_objv2_train.json --data-path ~/Datasets/Objects365-2020/train\n"
             "python -m birder.tools verify-directory data/testing\n"
+            "python -m birder.tools voc-to-coco --class-file public_datasets_metadata/voc-classes.txt "
+            "--ann-dir ~/Datasets/VOC2012/Annotations ~/Datasets/VOC2012/JPEGImages\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -75,6 +78,7 @@ def main() -> None:
     stats.set_parser(subparsers)
     verify_coco.set_parser(subparsers)
     verify_directory.set_parser(subparsers)
+    voc_to_coco.set_parser(subparsers)
 
     args = parser.parse_args()
     args.func(args)

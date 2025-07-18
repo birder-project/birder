@@ -49,12 +49,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "-p", "--net-param", type=float, help="network specific parameter, required by some networks"
     )
-    subparser.add_argument(
-        "--backbone",
-        type=str,
-        choices=registry.list_models(net_type=DetectorBackbone),
-        help="the neural network to used as backbone",
-    )
+    subparser.add_argument("--backbone", type=str, help="the neural network to used as backbone")
     subparser.add_argument(
         "--backbone-param",
         type=float,
@@ -62,7 +57,7 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--backbone-tag", type=str, help="backbone training log tag (loading only)")
     subparser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")
-    subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
+    subparser.add_argument("-t", "--tag", type=str, help="model tag (from the training phase)")
     subparser.add_argument(
         "-r", "--reparameterized", default=False, action="store_true", help="load reparameterized model"
     )
@@ -74,6 +69,11 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
+    if registry.exists(args.backbone, net_type=DetectorBackbone) is False:
+        raise cli.ValidationError(
+            f"--backbone {args.network} not supported, see list-models tool for available options"
+        )
+
     # Load model
     device = torch.device("cpu")
     signature: SignatureType | DetectionSignatureType

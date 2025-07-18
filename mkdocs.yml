@@ -16,8 +16,8 @@ nav:
   - API:
       - Overview: api/index.md
       - Model Registry: api/model_registry.md
-  - Deployment:
-      - TorchServe: torchserve.md
+  # - Deployment:
+  #     - TorchServe: torchserve.md
   - Other:
       - Public Datasets: public_datasets.md
       - About: about.md

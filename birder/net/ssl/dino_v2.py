@@ -102,10 +102,7 @@ class DINOLoss(nn.Module):
     def sinkhorn_knopp_teacher(
         self, teacher_output: torch.Tensor, teacher_temp: float, n_iterations: int = 3
     ) -> torch.Tensor:
-        if training_utils.is_dist_available_and_initialized() is True:
-            world_size = dist.get_world_size()
-        else:
-            world_size = 1
+        world_size = training_utils.get_world_size()
 
         teacher_output = teacher_output.float()
         q = torch.exp(teacher_output / teacher_temp).t()  # Q is K-by-B for consistency with notations from the paper
@@ -150,15 +147,11 @@ class DINOLoss(nn.Module):
     @torch.no_grad()  # type: ignore[misc]
     def apply_center_update(self) -> None:
         if self.updated is False:
-            if training_utils.is_dist_available_and_initialized() is True:
-                world_size = dist.get_world_size()
-            else:
-                world_size = 1
-
+            world_size = training_utils.get_world_size()
             if self.reduce_handle is not None:
                 self.reduce_handle.wait()
 
-            _t = self.async_batch_center / (self.len_teacher_output * world_size)
+            _t = self.async_batch_center / (self.len_teacher_output * world_size)  # type: ignore[operator]
             self.center = self.center * self.center_momentum + _t * (1 - self.center_momentum)
             self.updated = True
 
@@ -260,15 +253,11 @@ class iBOTPatchLoss(nn.Module):
     @torch.no_grad()  # type: ignore[misc]
     def apply_center_update(self) -> None:
         if self.updated is False:
-            if training_utils.is_dist_available_and_initialized() is True:
-                world_size = dist.get_world_size()
-            else:
-                world_size = 1
-
+            world_size = training_utils.get_world_size()
             if self.reduce_handle is not None:
                 self.reduce_handle.wait()
 
-            _t = self.async_batch_center / (self.len_teacher_patch_tokens * world_size)
+            _t = self.async_batch_center / (self.len_teacher_patch_tokens * world_size)  # type: ignore[operator]
             self.center = self.center * self.center_momentum + _t * (1 - self.center_momentum)
             self.updated = True
 

@@ -24,6 +24,9 @@ MODELS_DIR = BASE_DIR.joinpath("models")
 TRAINING_RUNS_PATH = BASE_DIR.joinpath("runs")
 RESULTS_DIR = BASE_DIR.joinpath("results")
 
+# Labels
+NO_LABEL = -1
+
 # Results
 TOP_K = 3
 

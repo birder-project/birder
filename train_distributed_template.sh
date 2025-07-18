@@ -72,13 +72,8 @@ echo ""
 module load python/3.11
 module load cuda/12.8
 
-# Activate your virtual environment
-echo "=== ACTIVATING ENVIRONMENT ==="
-source .venv/bin/activate
-echo "Virtual environment activated"
-echo "Python version: $(python --version)"
-echo "Python path: $(which python)"
-echo "========================"
+# Set application-specific environment variables
+# export LOG_LEVEL=DEBUG
 
 # Set distributed training environment variables
 export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
@@ -87,8 +82,17 @@ export WORLD_SIZE=$SLURM_NTASKS
 export NCCL_DEBUG=INFO
 # export NCCL_SOCKET_IFNAME=ib0  # Adjust based on your network interface
 
-# Optional: Set CUDA visible devices and other optimizations
+# CUDA & performance environment variables
 # export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+# export CUDA_VISIBLE_DEVICES=0,3
+
+# Activate your virtual environment
+echo "=== ACTIVATING ENVIRONMENT ==="
+source .venv/bin/activate
+echo "Virtual environment activated"
+echo "Python version: $(python --version)"
+echo "Python path: $(which python)"
+echo "========================"
 
 # ==============================================================================
 # DISTRIBUTED TRAINING COMMAND

@@ -141,7 +141,8 @@ def predict(args: argparse.Namespace) -> None:
         dataset,
         batch_size=batch_size,
         shuffle=args.shuffle,
-        num_workers=4,
+        num_workers=args.num_workers,
+        prefetch_factor=args.prefetch_factor,
         collate_fn=inference_collate_fn,
     )
 
@@ -267,7 +268,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")
     parser.add_argument("--quantized", default=False, action="store_true", help="load quantized model")
-    parser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
+    parser.add_argument("-t", "--tag", type=str, help="model tag (from the training phase)")
     parser.add_argument(
         "-r", "--reparameterized", default=False, action="store_true", help="load reparameterized model"
     )
@@ -324,6 +325,10 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--no-resize", default=False, action="store_true", help="process images at original size without resizing"
     )
     parser.add_argument("--batch-size", type=int, default=8, metavar="N", help="the batch size")
+    parser.add_argument("-j", "--num-workers", type=int, default=4, metavar="N", help="number of preprocessing workers")
+    parser.add_argument(
+        "--prefetch-factor", type=int, metavar="N", help="number of batches loaded in advance by each worker"
+    )
     parser.add_argument("--show", default=False, action="store_true", help="show image predictions")
     parser.add_argument("--shuffle", default=False, action="store_true", help="predict samples in random order")
     parser.add_argument("--save-results", default=False, action="store_true", help="save results object")
@@ -332,7 +337,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
     parser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use (ignored in parallel mode)")
     parser.add_argument("--mps", default=False, action="store_true", help="use mps (Metal Performance Shaders) device")
-    parser.add_argument("--parallel", default=False, action="store_true", help="use multiple gpu's")
+    parser.add_argument("--parallel", default=False, action="store_true", help="use multiple gpus")
     parser.add_argument("--coco-json-path", type=str, help="COCO json path")
     parser.add_argument("data_path", nargs="+", help="data files path (directories and files)")
 
@@ -340,14 +345,24 @@ def get_args_parser() -> argparse.ArgumentParser:
 
 
 def validate_args(args: argparse.Namespace) -> None:
-    assert args.network is not None
-    assert args.backbone is not None
-    assert args.parallel is False or (args.parallel is True and args.gpu is True)
-    assert args.parallel is False or args.compile is False
-    assert args.compile is False or args.compile_backbone is False
-    assert args.amp is False or args.model_dtype == "float32"
-    assert args.coco_json_path is None or len(args.data_path) == 1
     args.size = cli.parse_size(args.size)
+
+    if args.network is None:
+        raise cli.ValidationError("--network is required")
+    if args.backbone is None:
+        raise cli.ValidationError("--backbone is required")
+    if args.min_score >= 1 or args.min_score <= 0.0:
+        raise cli.ValidationError(f"--min-score must be in range of (0, 1.0), got {args.min_score}")
+    if args.parallel is True and args.gpu is False:
+        raise cli.ValidationError("--parallel requires --gpu to be set")
+    if args.parallel is True and args.compile is True:
+        raise cli.ValidationError("--parallel cannot be used with --compile")
+    if args.compile is True and args.compile_backbone is True:
+        raise cli.ValidationError("--compile cannot be used with --compile-backbone")
+    if args.amp is True and args.model_dtype != "float32":
+        raise cli.ValidationError("--amp can only be used with --model-dtype float32")
+    if args.coco_json_path is not None and len(args.data_path) > 1:
+        raise cli.ValidationError(f"--coco-json-path can have at most 1 --data-path, got {len(args.data_path)}")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

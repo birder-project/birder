@@ -1,24 +1,18 @@
-matplotlib~=3.10.3
-numpy~=2.3.1
-onnx~=1.18.0
+matplotlib>=3.9.0
+numpy>=2.2.0
+onnx>=1.18.0
 onnxscript~=0.3.2
 Pillow~=11.3.0
 polars~=1.31.0
 pycocotools~=2.0.10
-rich~=14.0.0
-scikit-learn~=1.7.0
-scipy~=1.16.0
-tensorboard~=2.19.0
+rich>=14.0.0
+scikit-learn>=1.6.0
+scipy>=1.16.0
+tensorboard>=2.19.0
 torchinfo~=1.8.0
 torchmetrics~=1.7.4
-tqdm~=4.67.1
-urllib3~=2.5.0
+tqdm>=4.67.0
 webdataset~=0.2.111
-
-# TorchServe
-torchserve~=0.12.0
-torch-model-archiver~=0.12.0
-torch-workflow-archiver~=0.2.15
 
 # PyTorch, you should install a version suitable for your hardware and drivers
 torch>=2.7.0

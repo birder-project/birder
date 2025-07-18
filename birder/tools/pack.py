@@ -171,15 +171,20 @@ def wds_write_worker(
             else:
                 more = False
 
+            if args.no_cls is True:
+                cls = {}
+            else:
+                cls = {"cls": target}
+
             # Ensures ordered write
             while count in buf:
                 (sample, suffix, target) = buf[count]
                 del buf[count]
                 sink.write(
                     {
-                        "__key__": f"sample{count:08d}",
+                        "__key__": f"sample{count:09d}",
                         suffix: sample,
-                        "cls": target,
+                        **cls,
                     }
                 )
 

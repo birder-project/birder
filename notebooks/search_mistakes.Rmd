@@ -37,6 +37,7 @@ import numpy as np
 import numpy.typing as npt
 import torch
 from birder.common import fs_ops
+from birder.conf import settings
 from birder.datasets.directory import make_image_dataset
 from birder.inference.classification import infer_dataloader
 from birder.transforms.classification import inference_preset
@@ -85,7 +86,7 @@ suspected_mistakes = []
 
 def batch_callback(file_paths: list[str], out: npt.NDArray[np.float32], batch_labels: list[int]) -> None:
     for img_path, prob, label in zip(file_paths, out, batch_labels):
-        if label != -1 and TOP_PROB > prob.max():
+        if label != settings.NO_LABEL and TOP_PROB > prob.max():
             suspected_mistakes.append(img_path)
         elif label != np.argmax(prob) and "Unknown" == idx_to_class[np.argmax(prob)]:
             suspected_mistakes.append(img_path)

@@ -22,6 +22,8 @@ from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
 from birder.common.lib import get_pretrained_model_url
 from birder.conf import settings
+from birder.data.datasets.directory import default_is_valid_file
+from birder.data.datasets.directory import find_hierarchical_classes
 from birder.data.transforms.classification import RGBType
 from birder.model_registry import Task
 from birder.model_registry import registry
@@ -884,23 +886,8 @@ def load_pretrained_model(
     ...     "rdnet_s_arabian-peninsula", inference=True, device=torch.device("cuda"))
     """
 
-    if settings.MODELS_DIR.exists() is False:
-        logger.info(f"Creating {settings.MODELS_DIR} directory...")
-        settings.MODELS_DIR.mkdir(parents=True)
-
+    download_model_by_weights(weights, dst=dst, file_format=file_format, progress_bar=progress_bar)
     model_metadata = registry.get_pretrained_metadata(weights)
-    if file_format == "ptl":
-        raise ValueError("ptl format not supported")
-    if file_format not in model_metadata["formats"]:
-        available_formats = ", ".join(model_metadata["formats"].keys())
-        raise ValueError(f"{file_format} not available for {weights}, available formats: {available_formats}")
-
-    (model_file, url) = get_pretrained_model_url(weights, file_format)
-    if dst is None:
-        dst = settings.MODELS_DIR.joinpath(model_file)
-
-    cli.download_file(url, dst, model_metadata["formats"][file_format]["sha256"], progress_bar=progress_bar)
-
     format_args: dict[str, Any] = {
         "pts": file_format == "pts",
         "pt2": file_format == "pt2",
@@ -1041,6 +1028,27 @@ def load_model_with_cfg(
     return (net, cfg)
 
 
+def download_model_by_weights(
+    weights: str, *, dst: Optional[str | Path] = None, file_format: FileFormatType = "pt", progress_bar: bool = True
+) -> None:
+    if settings.MODELS_DIR.exists() is False:
+        logger.info(f"Creating {settings.MODELS_DIR} directory...")
+        settings.MODELS_DIR.mkdir(parents=True)
+
+    model_metadata = registry.get_pretrained_metadata(weights)
+    if file_format == "ptl":
+        raise ValueError("ptl format not supported")
+    if file_format not in model_metadata["formats"]:
+        available_formats = ", ".join(model_metadata["formats"].keys())
+        raise ValueError(f"{file_format} not available for {weights}, available formats: {available_formats}")
+
+    (model_file, url) = get_pretrained_model_url(weights, file_format)
+    if dst is None:
+        dst = settings.MODELS_DIR.joinpath(model_file)
+
+    cli.download_file(url, dst, model_metadata["formats"][file_format]["sha256"], progress_bar=progress_bar)
+
+
 def save_pts(
     scripted_module: torch.ScriptModule,
     dst: str | Path,
@@ -1125,7 +1133,7 @@ def file_iter(data_path: str, extensions: list[str]) -> Iterator[str]:
                 yield file_path
 
 
-def sample_iter(data_path: str, class_to_idx: dict[str, int]) -> Iterator[tuple[str, int]]:
+def sample_iter(data_path: str, class_to_idx: dict[str, int], hierarchical: bool = False) -> Iterator[tuple[str, int]]:
     """
     Generate file paths of specified path (file path, label)
 
@@ -1135,11 +1143,11 @@ def sample_iter(data_path: str, class_to_idx: dict[str, int]) -> Iterator[tuple[
 
     if os.path.isdir(data_path) is True:
         for file_path in file_iter(data_path, extensions=IMG_EXTENSIONS):
-            label = lib.get_label_from_path(file_path)
+            label = lib.get_label_from_path(file_path, hierarchical=hierarchical, root=data_path)
             if label in class_to_idx:
                 yield (file_path, class_to_idx[label])
             else:
-                yield (file_path, -1)
+                yield (file_path, settings.NO_LABEL)
 
     else:
         suffix = os.path.splitext(data_path)[1].lower()
@@ -1148,13 +1156,15 @@ def sample_iter(data_path: str, class_to_idx: dict[str, int]) -> Iterator[tuple[
             if label in class_to_idx:
                 yield (data_path, class_to_idx[label])
             else:
-                yield (data_path, -1)
+                yield (data_path, settings.NO_LABEL)
 
 
-def samples_from_paths(data_paths: list[str], class_to_idx: dict[str, int]) -> list[tuple[str, int]]:
+def samples_from_paths(
+    data_paths: list[str], class_to_idx: dict[str, int], hierarchical: bool = False
+) -> list[tuple[str, int]]:
     samples: list[tuple[str, int]] = []
     for data_path in data_paths:
-        samples.extend(sample_iter(data_path, class_to_idx=class_to_idx))
+        samples.extend(sample_iter(data_path, class_to_idx=class_to_idx, hierarchical=hierarchical))
 
     return sorted(samples)
 
@@ -1178,11 +1188,15 @@ def wds_braces_from_path(wds_directory: Path, prefix: str = "") -> tuple[str, in
     return (wds_path, num_shards)
 
 
-def class_to_idx_from_paths(data_paths: list[str]) -> dict[str, int]:
+def class_to_idx_from_paths(data_paths: list[str], hierarchical: bool = False) -> dict[str, int]:
     class_to_idx = {}
     base = 0
     for data_path in data_paths:
-        classes = sorted(entry.name for entry in os.scandir(data_path) if entry.is_dir())
+        if hierarchical is True:
+            classes = find_hierarchical_classes(data_path, separator="_", is_valid_file=default_is_valid_file)[0]
+        else:
+            classes = sorted(entry.name for entry in os.scandir(data_path) if entry.is_dir())
+
         class_to_idx.update({cls_name: i + base for i, cls_name in enumerate(classes)})
         base += len(classes)
 

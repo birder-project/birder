@@ -149,7 +149,7 @@ def set_parser(subparsers: Any) -> None:
         "-p", "--net-param", type=float, help="network specific parameter, required by some networks"
     )
     subparser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")
-    subparser.add_argument("-t", "--tag", type=str, help="model tag (from training phase)")
+    subparser.add_argument("-t", "--tag", type=str, help="model tag (from the training phase)")
     subparser.add_argument(
         "-r", "--reparameterized", default=False, action="store_true", help="load reparameterized model"
     )

@@ -12,7 +12,7 @@ def make_wds_loader(
     dataset: IterableDataset,
     batch_size: int,
     num_workers: int,
-    prefetch_factor: int,
+    prefetch_factor: Optional[int],
     collate_fn: Optional[Callable[..., Any]],
     world_size: int,
     pin_memory: bool,

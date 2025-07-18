@@ -41,14 +41,25 @@ def get_num_labels_from_signature(signature: SignatureType | DetectionSignatureT
     return signature["outputs"][0]["data_shape"][1]
 
 
-def get_label_from_path(path: str) -> str:
+def get_label_from_path(path: str, hierarchical: bool = False, root: str = "", separator: str = "_") -> str:
     """
     Returns the last directory from the path.
 
-    For data/validation/Alpine swift/000001.npy return value will be 'Alpine swift'.
+    Standard mode (hierarchical=False):
+        data/validation/Alpine swift/000001.jpeg -> 'Alpine swift'
+        data/train/cats/img1.jpg -> 'cats'
+
+    Hierarchical mode (hierarchical=True):
+        data/validation/Aves/Alpine swift/000001.jpeg -> 'Aves_Alpine swift'
+        data/train/animals/cats/img1.jpg -> 'animals_cats'
     """
 
-    return os.path.basename(os.path.dirname(path))
+    if hierarchical is False:
+        return os.path.basename(os.path.dirname(path))
+
+    directory = os.path.dirname(path)
+    rel_path = os.path.relpath(directory, root)
+    return rel_path.replace(os.sep, separator)
 
 
 def get_network_name(network: str, net_param: Optional[float], tag: Optional[str] = None) -> str:
