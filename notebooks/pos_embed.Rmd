@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.16.7
+      jupytext_version: 1.17.2
   kernelspec:
     display_name: birder
     language: python
@@ -31,6 +31,7 @@ from birder.common import lib
 from birder.net.base import pos_embedding_sin_cos_2d
 from birder.net.rope_vit import RoPE
 from birder.net.rope_vit import rotate_half
+from birder.net.rope_vit import rotate_half_interleaved
 ```
 
 ```{python}
@@ -62,7 +63,7 @@ plt.matshow(similarity.numpy())
 ```
 
 ```{python}
-num_prefix_tokens = 1 + net.num_reg_tokens
+num_prefix_tokens = net.num_special_tokens
 pos_embedding = net.pos_embedding[:, num_prefix_tokens:]
 pos_embedding.size()
 ```
@@ -90,7 +91,7 @@ plt.matshow(similarity.detach().numpy())
 
 ```{python}
 (net, model_info) = fs_ops.load_model(
-    device, "hiera_abswin_base", path="models/hiera_abswin_base_mim_303.pt", inference=True
+    device, "hiera_abswin_base", path="models/hiera_abswin_base_mim.pt", inference=True
 )
 ```
 
@@ -152,7 +153,10 @@ plt.matshow(similarity.detach().numpy())
 
 ```{python}
 (net, model_info) = fs_ops.load_model(
-    device, "swin_transformer_v2_s", path="models/swin_transformer_v2_s_intermediate-arabian-peninsula.pt", inference=True
+    device,
+    "swin_transformer_v2_s",
+    path="models/swin_transformer_v2_s_intermediate-arabian-peninsula.pt",
+    inference=True,
 )
 ```
 
@@ -237,7 +241,7 @@ plt.matshow(similarity.detach().numpy())
 ## RoPE
 
 ```{python}
-rope = RoPE(192, temperature=100.0, grid_size=(16, 16))
+rope = RoPE(192, temperature=100.0, grid_size=(16, 16), grid_indexing="ij")
 ```
 
 ```{python}
@@ -264,5 +268,14 @@ plt.matshow(similarity.detach().numpy())
 
 ```{python}
 similarity = cos_emb.squeeze() @ cos_emb.squeeze().T
+plt.matshow(similarity.detach().numpy())
+```
+
+```{python}
+plt.matshow(rotate_half_interleaved(sin_emb).detach().numpy())
+```
+
+```{python}
+similarity = rotate_half_interleaved(sin_emb).squeeze() @ rotate_half_interleaved(sin_emb).squeeze().T
 plt.matshow(similarity.detach().numpy())
 ```

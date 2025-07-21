@@ -47,7 +47,7 @@ def _class_list() -> list[str]:
 
 
 @task
-def ci(ctx, coverage=False):
+def ci(ctx, coverage=False, failfast=False):
     """
     Run all linters and tests, set return code 0 only if everything succeeded.
     """
@@ -58,12 +58,21 @@ def ci(ctx, coverage=False):
 
     if pylint(ctx) != 0:
         return_code = 1
+        if failfast is True:
+            echo("CI Failed", color=COLOR_RED)
+            raise Exit(code=return_code)
 
     if sec(ctx) != 0:
         return_code = 1
+        if failfast is True:
+            echo("CI Failed", color=COLOR_RED)
+            raise Exit(code=return_code)
 
-    if pytest(ctx, coverage) != 0:
+    if pytest(ctx, coverage, failfast) != 0:
         return_code = 1
+        if failfast is True:
+            echo("CI Failed", color=COLOR_RED)
+            raise Exit(code=return_code)
 
     echo("")
     toc = time.time()
@@ -159,7 +168,7 @@ def sec(ctx):
 
 
 @task
-def pytest(ctx, coverage=False):
+def pytest(ctx, coverage=False, failfast=False):
     """
     Run Python tests
     """
@@ -175,7 +184,8 @@ def pytest(ctx, coverage=False):
         )
         ctx.run("python -m coverage report", echo=True, pty=True, warn=True)
     else:
-        result = ctx.run("python -m unittest discover -s tests -v", echo=True, pty=True, warn=True)
+        failfast_str = " --failfast" if failfast is True else ""
+        result = ctx.run(f"python -m unittest discover -s tests -v{failfast_str}", echo=True, pty=True, warn=True)
 
     if result.exited != 0:
         return_code = 1

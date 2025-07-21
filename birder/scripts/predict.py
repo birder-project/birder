@@ -161,7 +161,7 @@ def predict(args: argparse.Namespace) -> None:
 
     if args.compile is True:
         net = torch.compile(net)
-        if args.save_embedding is True:
+        if args.save_embeddings is True:
             net.embedding = torch.compile(net.embedding)
 
     if args.parallel is True and torch.cuda.device_count() > 1:
@@ -253,7 +253,7 @@ def predict(args: argparse.Namespace) -> None:
         device,
         net,
         inference_loader,
-        args.save_embedding,
+        args.save_embeddings,
         args.tta,
         model_dtype,
         args.amp,
@@ -268,7 +268,7 @@ def predict(args: argparse.Namespace) -> None:
     with torch.inference_mode():
         for sample_paths, outs, labels, embedding_list in infer_iter:
             # Save embeddings
-            if args.save_embedding is True:
+            if args.save_embeddings is True:
                 save_embeddings(embeddings_path, sample_paths, embedding_list, append=append)
 
             if len(class_to_idx) > 0:
@@ -318,8 +318,8 @@ def get_args_parser() -> argparse.ArgumentParser:
             "--gpu --save-results data/validation_il-common_packed\n"
             "python predict.py --network inception_resnet_v2 -e 100 --gpu --show-out-of-k data/validation\n"
             "python predict.py --network inception_v3 --gpu --batch-size 256 --save-results data/validation/*crane\n"
-            "python predict.py -n efficientnet_v2_m -e 0 --gpu --save-embedding data/testing\n"
-            "python predict.py -n efficientnet_v1_b4 -e 300 --gpu --save-embedding "
+            "python predict.py -n efficientnet_v2_m -e 0 --gpu --save-embeddings data/testing\n"
+            "python predict.py -n efficientnet_v1_b4 -e 300 --gpu --save-embeddings "
             "data/*/Alpine\\ swift --suffix alpine_swift\n"
             "python predict.py -n mobilevit_v2 -p 1.5 -t intermediate -e 80 --gpu --save-results "
             "--wds data/validation_packed\n"
@@ -400,7 +400,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--summary", default=False, action="store_true", help="log prediction summary")
     parser.add_argument("--save-results", default=False, action="store_true", help="save results object")
     parser.add_argument("--save-output", default=False, action="store_true", help="save raw output as CSV")
-    parser.add_argument("--save-embedding", default=False, action="store_true", help="save embedding layer outputs")
+    parser.add_argument("--save-embeddings", default=False, action="store_true", help="save embedding layer outputs")
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
     parser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use (ignored in parallel mode)")
@@ -443,10 +443,10 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--parallel requires --gpu to be set")
     if args.parallel is True and args.compile is True:
         raise cli.ValidationError("--parallel cannot be used with --compile")
-    if args.save_embedding is True and args.parallel is True:
-        raise cli.ValidationError("--save-embedding cannot be used with --parallel")
-    if args.save_embedding is True and args.tta is True:
-        raise cli.ValidationError("--save-embedding cannot be used with --tta")
+    if args.save_embeddings is True and args.parallel is True:
+        raise cli.ValidationError("--save-embeddings cannot be used with --parallel")
+    if args.save_embeddings is True and args.tta is True:
+        raise cli.ValidationError("--save-embeddings cannot be used with --tta")
     if args.amp is True and args.model_dtype != "float32":
         raise cli.ValidationError("--amp can only be used with --model-dtype float32")
 

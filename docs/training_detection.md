@@ -230,7 +230,7 @@ torchrun --nproc_per_node=2 train_detection.py --network deformable_detr_boxref 
 Step 2: Reset to binary head
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network deformable_detr_boxref --tag coco --backbone convnext_v2_tiny --backbone-tag imagenet21k --opt adamw --lr 0.0001 --batch-size 2 --epochs 10 --wd 0.0001 --grad-accum-steps 16 --multiscale --clip-grad-norm 0.1 --amp --amp-dtype bfloat16 --compile-backbone --compile-opt --resume-epoch 0 --reset-head --freeze-body --binary-mode
+torchrun --nproc_per_node=2 train_detection.py --network deformable_detr_boxref --tag binary --backbone convnext_v2_tiny --backbone-tag imagenet21k --opt adamw --lr 0.0001 --batch-size 2 --epochs 10 --wd 0.0001 --grad-accum-steps 16 --multiscale --clip-grad-norm 0.1 --amp --amp-dtype bfloat16 --compile-backbone --compile-opt --resume-epoch 0 --reset-head --freeze-body --binary-mode
 ```
 
 Step 3: Fine-tuning

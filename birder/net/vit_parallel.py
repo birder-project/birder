@@ -216,6 +216,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
+        self.layer_scale_init_value = layer_scale_init_value
         self.num_reg_tokens = num_reg_tokens
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
@@ -283,6 +284,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
             attention_dropout=0,
             drop_path=0,
             activation_layer=nn.GELU,
+            layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
         )
 

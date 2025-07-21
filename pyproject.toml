@@ -61,3 +61,10 @@ optional-dependencies.hf = { file = ["requirements/requirements-hf.txt"] }
 [tool.black]
 line-length = 120
 exclude = '/(\.git|\.mypy_cache|\.venv|node_modules|data)/'
+
+[tool.coverage.run]
+omit = [
+    # Omit command line scripts and tools
+    "birder/scripts/*",
+    "birder/tools/*",
+]

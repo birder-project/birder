@@ -8,7 +8,6 @@ Paper "Rotary Position Embedding for Vision Transformer", https://arxiv.org/abs/
 
 Changes from original:
 * Implemented only axial RoPE (EVA style RoPE)
-* Modified rotate_half (original implementation seems off)
 """
 
 # Reference license: Apache-2.0 and Apache-2.0
@@ -42,7 +41,11 @@ from birder.net.vit import adjust_position_embedding
 
 
 def build_rotary_pos_embed(
-    dim: int, temperature: float, grid_size: tuple[int, int], pt_grid_size: Optional[tuple[int, int]]
+    dim: int,
+    temperature: float,
+    grid_size: tuple[int, int],
+    grid_indexing: str,
+    pt_grid_size: Optional[tuple[int, int]],
 ) -> tuple[torch.Tensor, torch.Tensor]:
     assert dim % 4 == 0
     num_bands = dim // 4
@@ -53,7 +56,7 @@ def build_rotary_pos_embed(
         pt_grid_size = grid_size
 
     t = [torch.arange(s) / s * p for s, p in zip(grid_size, pt_grid_size)]
-    grid = torch.stack(torch.meshgrid(t, indexing="ij"), dim=-1)
+    grid = torch.stack(torch.meshgrid(t, indexing=grid_indexing), dim=-1)
     grid = grid.unsqueeze(-1)
     pos = grid * bands
     sin_emb = pos.sin()
@@ -73,12 +76,24 @@ def rotate_half(x: torch.Tensor) -> torch.Tensor:
     return torch.concat((-x2, x1), dim=-1)
 
 
+def rotate_half_interleaved(x: torch.Tensor) -> torch.Tensor:
+    return torch.stack([-x[..., 1::2], x[..., ::2]], dim=-1).reshape(x.size())
+
+
 def apply_rotary_pos_embed(x: torch.Tensor, embed: torch.Tensor) -> torch.Tensor:
     (sin_emb, cos_emb) = embed.tensor_split(2, dim=-1)
     if cos_emb.ndim == 3:
         return x * cos_emb.unsqueeze(1).expand_as(x) + rotate_half(x) * sin_emb.unsqueeze(1).expand_as(x)
 
     return x * cos_emb + rotate_half(x) * sin_emb
+
+
+def apply_interleaved_rotary_pos_embed(x: torch.Tensor, embed: torch.Tensor) -> torch.Tensor:
+    (sin_emb, cos_emb) = embed.tensor_split(2, dim=-1)
+    if cos_emb.ndim == 3:
+        return x * cos_emb.unsqueeze(1).expand_as(x) + rotate_half_interleaved(x) * sin_emb.unsqueeze(1).expand_as(x)
+
+    return x * cos_emb + rotate_half_interleaved(x) * sin_emb
 
 
 class SequentialWithRope(nn.Sequential):
@@ -95,24 +110,49 @@ class RoPE(nn.Module):
         dim: int,
         temperature: float,
         grid_size: tuple[int, int],
+        grid_indexing: Literal["ij", "xy"],
         pt_grid_size: Optional[tuple[int, int]] = None,
+        rope_rot_type: str = "standard",
     ) -> None:
         super().__init__()
-        (sin_emb, cos_emb) = build_rotary_pos_embed(dim, temperature, grid_size=grid_size, pt_grid_size=pt_grid_size)
+        if rope_rot_type == "standard":
+            self.apply_fn = apply_rotary_pos_embed
+        elif rope_rot_type == "interleaved":
+            self.apply_fn = apply_interleaved_rotary_pos_embed
+        else:
+            raise ValueError(f"Unknown rope_rot_type, got '{rope_rot_type}'")
+
+        (sin_emb, cos_emb) = build_rotary_pos_embed(
+            dim, temperature, grid_size=grid_size, grid_indexing=grid_indexing, pt_grid_size=pt_grid_size
+        )
         self.pos_embed = nn.Buffer(torch.concat((sin_emb, cos_emb), dim=-1), persistent=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return apply_rotary_pos_embed(x, self.pos_embed)
+        return self.apply_fn(x, self.pos_embed)
 
 
 class RoPEAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int, attn_drop: float, proj_drop: float, num_special_tokens: int) -> None:
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        attn_drop: float,
+        proj_drop: float,
+        num_special_tokens: int,
+        rope_rot_type: str = "standard",
+    ) -> None:
         super().__init__()
         assert dim % num_heads == 0, "dim should be divisible by num_heads"
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
         self.scale = self.head_dim**-0.5
         self.num_special_tokens = num_special_tokens
+        if rope_rot_type == "standard":
+            self.apply_rot_fn = apply_rotary_pos_embed
+        elif rope_rot_type == "interleaved":
+            self.apply_rot_fn = apply_interleaved_rotary_pos_embed
+        else:
+            raise ValueError(f"Unknown rope_rot_type, got '{rope_rot_type}'")
 
         self.qkv = nn.Linear(dim, dim * 3)
         self.attn_drop = nn.Dropout(attn_drop)
@@ -125,8 +165,8 @@ class RoPEAttention(nn.Module):
         (q, k, v) = qkv.unbind(0)
 
         n = self.num_special_tokens
-        q = torch.concat([q[:, :, :n, :], apply_rotary_pos_embed(q[:, :, n:, :], rope)], dim=2)
-        k = torch.concat([k[:, :, :n, :], apply_rotary_pos_embed(k[:, :, n:, :], rope)], dim=2)
+        q = torch.concat([q[:, :, :n, :], self.apply_rot_fn(q[:, :, n:, :], rope)], dim=2)
+        k = torch.concat([k[:, :, :n, :], self.apply_rot_fn(k[:, :, n:, :], rope)], dim=2)
 
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
@@ -152,7 +192,9 @@ class EncoderBlock(nn.Module):
         activation_layer: Callable[..., nn.Module],
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
+        norm_layer_eps: float = 1e-6,
         mlp_layer: Callable[..., nn.Module] = FFN,
+        rope_rot_type: str = "standard",
     ) -> None:
         super().__init__()
 
@@ -160,9 +202,14 @@ class EncoderBlock(nn.Module):
             mlp_dim = hidden_dim * 4
 
         # Attention block
-        self.norm1 = norm_layer(hidden_dim, eps=1e-6)
+        self.norm1 = norm_layer(hidden_dim, eps=norm_layer_eps)
         self.attn = RoPEAttention(
-            hidden_dim, num_heads, attn_drop=attention_dropout, proj_drop=dropout, num_special_tokens=num_special_tokens
+            hidden_dim,
+            num_heads,
+            attn_drop=attention_dropout,
+            proj_drop=dropout,
+            num_special_tokens=num_special_tokens,
+            rope_rot_type=rope_rot_type,
         )
         if layer_scale_init_value is not None:
             self.layer_scale_1 = LayerScale(hidden_dim, layer_scale_init_value)
@@ -170,7 +217,7 @@ class EncoderBlock(nn.Module):
             self.layer_scale_1 = nn.Identity()
 
         # MLP block
-        self.norm2 = norm_layer(hidden_dim, eps=1e-6)
+        self.norm2 = norm_layer(hidden_dim, eps=norm_layer_eps)
         self.mlp = mlp_layer(hidden_dim, mlp_dim, act_layer=activation_layer, dropout=dropout)
         self.drop_path = StochasticDepth(drop_path, mode="row")
         if layer_scale_init_value is not None:
@@ -186,6 +233,7 @@ class EncoderBlock(nn.Module):
 
 
 class Encoder(nn.Module):
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         num_layers: int,
@@ -196,16 +244,24 @@ class Encoder(nn.Module):
         dropout: float,
         attention_dropout: float,
         dpr: list[float],
+        pre_norm: bool = False,
         activation_layer: Callable[..., nn.Module] = nn.GELU,
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
+        norm_layer_eps: float = 1e-6,
         mlp_layer: Callable[..., nn.Module] = FFN,
+        rope_rot_type: str = "standard",
     ) -> None:
         super().__init__()
-        layers = []
+        pre_layers = []
         if dropout > 0.0:
-            layers.append(nn.Dropout(dropout))
+            pre_layers.append(nn.Dropout(dropout))
+        if pre_norm is True:
+            pre_layers.append(norm_layer(hidden_dim, eps=norm_layer_eps))
 
+        self.pre_block = nn.Sequential(*pre_layers)
+
+        layers = []
         for i in range(num_layers):
             layers.append(
                 EncoderBlock(
@@ -219,16 +275,21 @@ class Encoder(nn.Module):
                     activation_layer=activation_layer,
                     layer_scale_init_value=layer_scale_init_value,
                     norm_layer=norm_layer,
+                    norm_layer_eps=norm_layer_eps,
                     mlp_layer=mlp_layer,
+                    rope_rot_type=rope_rot_type,
                 )
             )
 
         self.block = SequentialWithRope(*layers)
 
     def forward(self, x: torch.Tensor, rope: torch.Tensor) -> torch.Tensor:
+        x = self.pre_block(x)
         return self.block(x, rope)
 
     def forward_features(self, x: torch.Tensor, rope: torch.Tensor) -> list[torch.Tensor]:
+        x = self.pre_block(x)
+
         xs = []
         for blk in self.block:
             x = blk(x, rope)
@@ -245,18 +306,32 @@ class MAEDecoderBlock(nn.Module):
         num_special_tokens: int,
         activation_layer: Callable[..., nn.Module],
         grid_size: tuple[int, int],
+        rope_grid_indexing: Literal["ij", "xy"],
+        rope_temperature: float,
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
         mlp_layer: Callable[..., nn.Module] = FFN,
+        rope_rot_type: str = "standard",
     ) -> None:
         super().__init__()
         mlp_dim = hidden_dim * 4
-        self.rope = RoPE(hidden_dim // num_heads, temperature=100.0, grid_size=grid_size)
+        self.rope = RoPE(
+            hidden_dim // num_heads,
+            temperature=rope_temperature,
+            grid_size=grid_size,
+            grid_indexing=rope_grid_indexing,
+            rope_rot_type=rope_rot_type,
+        )
 
         # Attention block
         self.norm1 = norm_layer(hidden_dim, eps=1e-6)
         self.attn = RoPEAttention(
-            hidden_dim, num_heads, attn_drop=0.0, proj_drop=0.0, num_special_tokens=num_special_tokens
+            hidden_dim,
+            num_heads,
+            attn_drop=0.0,
+            proj_drop=0.0,
+            num_special_tokens=num_special_tokens,
+            rope_rot_type=rope_rot_type,
         )
         if layer_scale_init_value is not None:
             self.layer_scale_1 = LayerScale(hidden_dim, layer_scale_init_value)
@@ -282,7 +357,7 @@ class MAEDecoderBlock(nn.Module):
 class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
-    # pylint: disable=too-many-locals,too-many-branches
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def __init__(
         self,
         input_channels: int,
@@ -306,11 +381,17 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
         layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", None)
+        pre_norm: bool = self.config.get("pre_norm", False)
+        post_norm: bool = self.config.get("post_norm", True)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
+        norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
+        rope_rot_type: Literal["standard", "interleaved"] = self.config.get("rope_rot_type", "standard")
+        rope_grid_indexing: Literal["ij", "xy"] = self.config.get("rope_grid_indexing", "ij")
+        rope_temperature: float = self.config.get("rope_temperature", 100.0)
         pt_grid_size: Optional[tuple[int, int]] = self.config.get("pt_grid_size", None)
         drop_path_rate: float = self.config["drop_path_rate"]
 
@@ -338,9 +419,14 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         self.num_layers = num_layers
         self.num_heads = num_heads
         self.hidden_dim = hidden_dim
+        self.layer_scale_init_value = layer_scale_init_value
         self.num_reg_tokens = num_reg_tokens
         self.norm_layer = norm_layer
-        self.rope_temperature = 100.0
+        self.mlp_layer = mlp_layer
+        self.act_layer = act_layer
+        self.rope_rot_type = rope_rot_type
+        self.rope_grid_indexing = rope_grid_indexing
+        self.rope_temperature = rope_temperature
 
         # Cast in case config was loaded from a json (no tuples),
         # TorchScript does not accept a list when tuple expected
@@ -356,7 +442,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             kernel_size=(patch_size, patch_size),
             stride=(patch_size, patch_size),
             padding=(0, 0),
-            bias=True,
+            bias=not pre_norm,
         )
         self.patch_embed = PatchEmbed()
 
@@ -389,7 +475,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             hidden_dim // num_heads,
             temperature=self.rope_temperature,
             grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
+            grid_indexing=rope_grid_indexing,
             pt_grid_size=self.pt_grid_size,
+            rope_rot_type=rope_rot_type,
         )
 
         # Encoder
@@ -402,12 +490,19 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             dropout,
             attention_dropout,
             dpr,
+            pre_norm=pre_norm,
             activation_layer=act_layer,
             layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
+            norm_layer_eps=norm_layer_eps,
             mlp_layer=mlp_layer,
+            rope_rot_type=rope_rot_type,
         )
-        self.norm = norm_layer(hidden_dim, eps=1e-6)
+
+        if post_norm is True:
+            self.norm = norm_layer(hidden_dim, eps=norm_layer_eps)
+        else:
+            self.norm = nn.Identity()
 
         if attn_pool_head is False:
             self.attn_pool = None
@@ -429,9 +524,12 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             num_special_tokens=self.num_special_tokens,
             activation_layer=act_layer,
             grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
+            rope_grid_indexing=rope_grid_indexing,
+            rope_temperature=rope_temperature,
             layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
             mlp_layer=mlp_layer,
+            rope_rot_type=rope_rot_type,
         )
 
         # Weight initialization
@@ -473,6 +571,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
                 self.hidden_dim // self.num_heads,
                 self.rope_temperature,
                 grid_size=(H // self.patch_size, W // self.patch_size),
+                grid_indexing=self.rope_grid_indexing,
                 pt_grid_size=self.pt_grid_size,
             ),
             dim=-1,
@@ -738,7 +837,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             self.hidden_dim // self.num_heads,
             temperature=self.rope_temperature,
             grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
+            grid_indexing=self.rope_grid_indexing,
             pt_grid_size=self.pt_grid_size,
+            rope_rot_type=self.rope_rot_type,
         )
 
         # Define adjusted decoder block
@@ -746,11 +847,49 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             MAEDecoderBlock,
             16,
             num_special_tokens=self.num_special_tokens,
-            activation_layer=nn.GELU,
+            activation_layer=self.act_layer,
             grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
+            rope_grid_indexing=self.rope_grid_indexing,
+            rope_temperature=self.rope_temperature,
+            layer_scale_init_value=self.layer_scale_init_value,
             norm_layer=self.norm_layer,
+            mlp_layer=self.mlp_layer,
+            rope_rot_type=self.rope_rot_type,
         )
 
+
+# Vision Transformer Model Naming Convention
+# ==========================================
+#
+# Model names follow a structured pattern to encode architectural choices:
+# [rope_]vit_[reg{N}_][size]_p[patch_size][_components][_pooling]
+#
+# Core Components:
+# - rope_       : Rotary Position Embedding (RoPE) enabled
+# - rope_i_     : Rotary Position Embedding (RoPE) enabled with interleaved rotation - implies different temp, indexing
+# - vit_        : Vision Transformer base architecture
+# - reg{N}_     : Register tokens (N = number of register tokens, e.g., reg4, reg8)
+# - size        : Model size (s=small, b=base, l=large, or specific like so150m)
+# - patch_size  : Patch size (e.g., 14, 16, 32 for 14x14, 16x16, 32x32 patches)
+#
+# Optional Components:
+#     Position Embeddings:
+#     - nps         : No Position embedding on Special tokens
+#
+#     Normalization:
+#     - rms         : RMSNorm (instead of LayerNorm)
+#     - pn          : Pre-Norm (layer norm before the encoder) - implies different norm eps
+#     - npn         : No Post Norm (disables post-normalization layer)
+#
+#     Feed-Forward Network:
+#     - swiglu      : SwiGLU FFN layer type (instead of standard FFN)
+#
+#     Regularization:
+#     - ls          : Layer Scaling applied
+#
+#     Pooling/Reduction:
+#     - avg         : Average pooling for sequence reduction
+#     - ap          : Attention Pooling for sequence reduction
 
 registry.register_model_config(
     "rope_vit_s32",
@@ -773,6 +912,23 @@ registry.register_model_config(
         "num_heads": 6,
         "hidden_dim": 384,
         "mlp_dim": 1536,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_model_config(
+    "rope_i_vit_s16_pn",
+    RoPE_ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "pre_norm": True,
+        "norm_layer_eps": 1e-5,
+        "rope_rot_type": "interleaved",
+        "rope_grid_indexing": "xy",
+        "rope_temperature": 10000.0,
         "drop_path_rate": 0.0,
     },
 )

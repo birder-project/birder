@@ -151,6 +151,7 @@ class EncoderBlock(nn.Module):
         activation_layer: Callable[..., nn.Module],
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
+        norm_layer_eps: float = 1e-6,
         mlp_layer: Callable[..., nn.Module] = FFN,
     ) -> None:
         super().__init__()
@@ -160,7 +161,7 @@ class EncoderBlock(nn.Module):
             mlp_dim = hidden_dim * 4
 
         # Attention block
-        self.ln1 = norm_layer(hidden_dim, eps=1e-6)
+        self.ln1 = norm_layer(hidden_dim, eps=norm_layer_eps)
         self.self_attention = nn.MultiheadAttention(hidden_dim, num_heads, dropout=attention_dropout, batch_first=True)
         self.drop_path1 = StochasticDepth(drop_path, mode="row")
         if layer_scale_init_value is not None:
@@ -169,7 +170,7 @@ class EncoderBlock(nn.Module):
             self.layer_scale_1 = nn.Identity()
 
         # MLP block
-        self.ln2 = norm_layer(hidden_dim, eps=1e-6)
+        self.ln2 = norm_layer(hidden_dim, eps=norm_layer_eps)
         self.mlp = mlp_layer(hidden_dim, mlp_dim, act_layer=activation_layer, dropout=dropout)
         self.drop_path2 = StochasticDepth(drop_path, mode="row")
         if layer_scale_init_value is not None:
@@ -208,16 +209,23 @@ class Encoder(nn.Module):
         dropout: float,
         attention_dropout: float,
         dpr: list[float],
+        pre_norm: bool = False,
         activation_layer: Callable[..., nn.Module] = nn.GELU,
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
+        norm_layer_eps: float = 1e-6,
         mlp_layer: Callable[..., nn.Module] = FFN,
     ) -> None:
         super().__init__()
-        layers = []
+        pre_layers = []
         if dropout > 0.0:
-            layers.append(nn.Dropout(dropout))
+            pre_layers.append(nn.Dropout(dropout))
+        if pre_norm is True:
+            pre_layers.append(norm_layer(hidden_dim, eps=norm_layer_eps))
 
+        self.pre_block = nn.Sequential(*pre_layers)
+
+        layers = []
         for i in range(num_layers):
             layers.append(
                 EncoderBlock(
@@ -230,6 +238,7 @@ class Encoder(nn.Module):
                     activation_layer=activation_layer,
                     layer_scale_init_value=layer_scale_init_value,
                     norm_layer=norm_layer,
+                    norm_layer_eps=norm_layer_eps,
                     mlp_layer=mlp_layer,
                 )
             )
@@ -237,12 +246,12 @@ class Encoder(nn.Module):
         self.block = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # torch._assert(x.dim() == 3, f"Expected (batch_size, seq_length, hidden_dim) got {x.size()}")
-        x = self.block(x)
-
-        return x
+        x = self.pre_block(x)
+        return self.block(x)
 
     def forward_features(self, x: torch.Tensor) -> list[torch.Tensor]:
+        x = self.pre_block(x)
+
         xs = []
         for blk in self.block:
             x = blk(x)
@@ -283,10 +292,13 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
         layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", None)
+        pre_norm: bool = self.config.get("pre_norm", False)
+        post_norm: bool = self.config.get("post_norm", True)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
+        norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
         drop_path_rate: float = self.config["drop_path_rate"]
 
@@ -322,7 +334,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             kernel_size=(patch_size, patch_size),
             stride=(patch_size, patch_size),
             padding=(0, 0),
-            bias=True,
+            bias=not pre_norm,
         )
         self.patch_embed = PatchEmbed()
 
@@ -358,12 +370,18 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             dropout,
             attention_dropout,
             dpr,
+            pre_norm=pre_norm,
             activation_layer=act_layer,
             layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
+            norm_layer_eps=norm_layer_eps,
             mlp_layer=mlp_layer,
         )
-        self.norm = norm_layer(hidden_dim, eps=1e-6)
+
+        if post_norm is True:
+            self.norm = norm_layer(hidden_dim, eps=norm_layer_eps)
+        else:
+            self.norm = nn.Identity()
 
         if attn_pool_head is False:
             self.attn_pool = None
@@ -670,6 +688,8 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         )
 
 
+# For the model naming convention see rope_vit.py
+
 registry.register_model_config(
     "vit_t32",
     ViT,
@@ -715,6 +735,20 @@ registry.register_model_config(
         "num_heads": 6,
         "hidden_dim": 384,
         "mlp_dim": 1536,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_model_config(
+    "vit_s16_pn",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "pre_norm": True,
+        "norm_layer_eps": 1e-5,
         "drop_path_rate": 0.0,
     },
 )
@@ -835,6 +869,20 @@ registry.register_model_config(
         "num_heads": 16,
         "hidden_dim": 1024,
         "mlp_dim": 4096,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
+    "vit_l14_pn",
+    ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 24,
+        "num_heads": 16,
+        "hidden_dim": 1024,
+        "mlp_dim": 4096,
+        "pre_norm": True,
+        "norm_layer_eps": 1e-5,
         "drop_path_rate": 0.1,
     },
 )
@@ -1357,6 +1405,24 @@ registry.register_weights(
             },
         },
         "net": {"network": "vit_l16", "tag": "mim-eu-common"},
+    },
+)
+registry.register_weights(  # BioCLIP v2: https://arxiv.org/abs/2505.23883
+    "vit_l14_pn_bioclip-v2",
+    {
+        "url": "https://huggingface.co/birder-project/vit_l14_pn_bioclip-v2/resolve/main",
+        "description": (
+            "ViT l14 image encoder pre-trained by Imageomics using CLIP on the TreeOfLife-200M dataset. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 1156.6,
+                "sha256": "cfb998d762cd2ba883964026ddfc8f2f84cf1e6ad6f7264ab33da52f57d25fab",
+            },
+        },
+        "net": {"network": "vit_l14_pn", "tag": "bioclip-v2"},
     },
 )
 

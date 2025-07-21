@@ -8,7 +8,6 @@ Paper "Rotary Position Embedding for Vision Transformer", https://arxiv.org/abs/
 
 Changes from original:
 * Implemented only axial RoPE (EVA style RoPE)
-* Modified rotate_half (original implementation seems off)
 """
 
 # Reference license: Apache-2.0 and Apache-2.0
@@ -66,6 +65,9 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
         mlp_dim: int = self.config["mlp_dim"]
         layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", 1e-5)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
+        rope_rot_type: Literal["standard", "interleaved"] = self.config.get("rope_rot_type", "standard")
+        rope_grid_indexing: Literal["ij", "xy"] = self.config.get("rope_grid_indexing", "ij")
+        rope_temperature: float = self.config.get("rope_temperature", 100.0)
         pt_grid_size: Optional[tuple[int, int]] = self.config.get("pt_grid_size", None)
         drop_path_rate: float = self.config["drop_path_rate"]
 
@@ -76,10 +78,13 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
         self.num_layers = num_layers
         self.num_heads = num_heads
         self.hidden_dim = hidden_dim
+        self.layer_scale_init_value = layer_scale_init_value
         self.num_reg_tokens = num_reg_tokens
         self.num_special_tokens = 1 + self.num_reg_tokens
         self.pos_embed_special_tokens = pos_embed_special_tokens
-        self.rope_temperature = 100.0
+        self.rope_rot_type = rope_rot_type
+        self.rope_grid_indexing = rope_grid_indexing
+        self.rope_temperature = rope_temperature
 
         # Cast in case config was loaded from a json (no tuples),
         # TorchScript does not accept a list when tuple expected
@@ -122,7 +127,9 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             hidden_dim // num_heads,
             temperature=self.rope_temperature,
             grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
+            grid_indexing=rope_grid_indexing,
             pt_grid_size=self.pt_grid_size,
+            rope_rot_type=rope_rot_type,
         )
 
         # Encoder
@@ -136,6 +143,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             attention_dropout,
             dpr,
             layer_scale_init_value=layer_scale_init_value,
+            rope_rot_type=rope_rot_type,
         )
         self.norm = nn.LayerNorm(hidden_dim, eps=1e-6)
 
@@ -154,7 +162,10 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             num_special_tokens=self.num_special_tokens,
             activation_layer=nn.GELU,
             grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
+            rope_grid_indexing=rope_grid_indexing,
+            rope_temperature=rope_temperature,
             layer_scale_init_value=layer_scale_init_value,
+            rope_rot_type=rope_rot_type,
         )
 
         # Weight initialization
@@ -196,6 +207,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
                 self.hidden_dim // self.num_heads,
                 self.rope_temperature,
                 grid_size=(H // self.patch_size, W // self.patch_size),
+                grid_indexing=self.rope_grid_indexing,
                 pt_grid_size=self.pt_grid_size,
             ),
             dim=-1,
@@ -418,7 +430,22 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             self.hidden_dim // self.num_heads,
             temperature=self.rope_temperature,
             grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
+            grid_indexing=self.rope_grid_indexing,
             pt_grid_size=self.pt_grid_size,
+            rope_rot_type=self.rope_rot_type,
+        )
+
+        # Define adjusted decoder block
+        self.decoder_block = partial(
+            MAEDecoderBlock,
+            16,
+            num_special_tokens=self.num_special_tokens,
+            activation_layer=nn.GELU,
+            grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
+            rope_grid_indexing=self.rope_grid_indexing,
+            rope_temperature=self.rope_temperature,
+            layer_scale_init_value=self.layer_scale_init_value,
+            rope_rot_type=self.rope_rot_type,
         )
 
 

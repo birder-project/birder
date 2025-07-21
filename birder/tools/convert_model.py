@@ -226,11 +226,11 @@ def set_parser(subparsers: Any) -> None:
 def main(args: argparse.Namespace) -> None:
     args.resize = cli.parse_size(args.resize)
 
-    if registry.exists(args.backbone, net_type=DetectorBackbone) is False:
+    if args.backbone is not None and registry.exists(args.backbone, net_type=DetectorBackbone) is False:
         raise cli.ValidationError(
             f"--backbone {args.network} not supported, see list-models tool for available options"
         )
-    if args.trace is True or (args.pts is False and args.lite is False and args.onnx is False):
+    if args.trace is True and args.pts is False and args.lite is False and args.onnx is False:
         raise cli.ValidationError("--trace requires one of --pts, --lite --onnx to be set")
 
     # Load model

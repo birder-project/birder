@@ -424,3 +424,19 @@ registry.register_model_config(
         "drop_path_rate": 0.4,
     },
 )
+
+registry.register_weights(
+    "hornet_tiny_7x7_danube-delta",
+    {
+        "url": "https://huggingface.co/birder-project/hornet_tiny_7x7_danube-delta/resolve/main",
+        "description": "HorNet tiny 7x7 model trained on the danube-delta dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 84.5,
+                "sha256": "d0555e97c5f353d5659fe518d43c3c7921e90987826b95dff024032ec06fb79a",
+            }
+        },
+        "net": {"network": "hornet_tiny_7x7", "tag": "danube-delta"},
+    },
+)

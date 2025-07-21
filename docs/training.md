@@ -1216,7 +1216,7 @@ Same as Hiera
 #### HorNet: Tiny 7x7
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network hornet_tiny_7x7 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 128 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 10 --amp
+torchrun --nproc_per_node=2 train.py --network hornet_tiny_7x7 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 128 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 10 --amp --compile
 ```
 
 #### HorNet: Tiny GF
@@ -1228,7 +1228,7 @@ torchrun --nproc_per_node=2 train.py --network hornet_tiny_gf --opt adamw --lr 0
 #### HorNet: Small 7x7
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network hornet_small_7x7 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 64 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp
+torchrun --nproc_per_node=2 train.py --network hornet_small_7x7 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 64 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 5 --amp --compile
 ```
 
 #### HorNet: Small GF
