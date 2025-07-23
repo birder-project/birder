@@ -312,7 +312,7 @@ class InceptionTransformerStage(nn.Module):
 
 # pylint: disable=invalid-name
 class iFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
-    block_group_regex = r"body\.stage\d+\.blocks\.(\d+)"
+    block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
 
     def __init__(
         self,

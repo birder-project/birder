@@ -188,7 +188,7 @@ class MultiScaleBlock(nn.Module):
 
 
 class HieraDet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
-    block_group_regex = r"body\.stage\d+\.(\d+)"
+    block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
     # pylint: disable=too-many-locals
     def __init__(

@@ -334,7 +334,7 @@ class TinyVitStage(nn.Module):
 
 # pylint: disable=invalid-name
 class Tiny_ViT(DetectorBackbone):
-    block_group_regex = r"body\.stage\d+\.blocks\.(\d+)"
+    block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
 
     def __init__(
         self,

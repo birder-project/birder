@@ -321,7 +321,7 @@ class HieraBlock(nn.Module):
 # pylint: disable=too-many-instance-attributes
 class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
     scriptable = False
-    block_group_regex = r"body\.stage\d+\.(\d+)"
+    block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
     # pylint: disable=too-many-locals
     def __init__(

@@ -279,7 +279,7 @@ class XCABlock(nn.Module):
 
 
 class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
-    block_group_regex = r"block1\.stage\d+\.(\d+)"  # ClassAttentionBlock combined with the head
+    block_group_regex = r"block1\.stage(\d+)\.(\d+)"  # ClassAttentionBlock combined with the head
 
     def __init__(
         self,

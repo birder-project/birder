@@ -245,7 +245,7 @@ class NTB(nn.Module):
 
 
 class NextViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
-    block_group_regex = r"body\.stage\d+\.(\d+)"
+    block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
     # pylint: disable=too-many-locals
     def __init__(

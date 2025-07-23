@@ -444,7 +444,7 @@ class MaxVitBlock(nn.Module):
 
 
 class MaxViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
-    block_group_regex = r"body\.stage\d+\.block\.(\d+)"
+    block_group_regex = r"body\.stage(\d+)\.block\.(\d+)\.layers\.(\d+)"
 
     # pylint: disable=too-many-locals
     def __init__(

@@ -134,7 +134,7 @@ class Conv2FormerStage(nn.Module):
 
 
 class Conv2Former(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
-    block_group_regex = r"body\.stage\d+\.blocks.(\d+)"
+    block_group_regex = r"body\.stage(\d+)\.blocks.(\d+)"
 
     def __init__(
         self,

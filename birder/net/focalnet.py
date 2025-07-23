@@ -307,7 +307,7 @@ class FocalNetStage(nn.Module):
 
 
 class FocalNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
-    block_group_regex = r"body\.stage\d+\.blocks\.(\d+)"
+    block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
 
     # pylint: disable=too-many-locals
     def __init__(

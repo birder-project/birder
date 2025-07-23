@@ -36,6 +36,7 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import training_cli
 from birder.common import training_utils
+from birder.common.lib import format_duration
 from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
 from birder.common.lib import set_random_seeds
@@ -127,6 +128,11 @@ def train(args: argparse.Namespace) -> None:
 
     if args.seed is not None:
         set_random_seeds(args.seed)
+
+    if args.non_interactive is True or training_utils.is_local_primary(args) is False:
+        disable_tqdm = True
+    else:
+        disable_tqdm = None  # Let tqdm auto-detect (None = auto)
 
     # Enable or disable the autograd anomaly detection
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
@@ -459,15 +465,18 @@ def train(args: argparse.Namespace) -> None:
         net_for_info = teacher._orig_mod  # pylint: disable=protected-access
 
     if args.no_summary is False:
-        torchinfo.summary(
+        summary = torchinfo.summary(
             net_for_info,
             device=device,
             input_data={"x": torch.rand(sample_shape), "masks": mask_generator(batch_size)},
             dtypes=[model_dtype],
             col_names=["input_size", "output_size", "kernel_size", "num_params"],
             depth=4,
-            verbose=1 if args.rank == 0 else 0,
+            verbose=0,
         )
+        if training_utils.is_global_primary(args) is True:
+            # Write to stderr, same as all the logs
+            print(summary, file=sys.stderr)
 
     # Training logs
     training_log_name = training_utils.training_log_name(network_name, device)
@@ -477,10 +486,11 @@ def train(args: argparse.Namespace) -> None:
 
     signature = get_ssl_signature(input_shape=sample_shape)
     backbone_signature = get_signature(input_shape=sample_shape, num_outputs=0)
+    file_handler: logging.Handler = logging.NullHandler()
     if training_utils.is_local_primary(args) is True:
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
-        training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
+        file_handler = training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
         with open(training_log_path.joinpath("training_args.json"), "w", encoding="utf-8") as handle:
             json.dump({"cmdline": " ".join(sys.argv), **vars(args)}, handle, indent=2)
 
@@ -512,18 +522,21 @@ def train(args: argparse.Namespace) -> None:
 
             logger.info(f"Updated wd to: {wd}")
 
-        if training_utils.is_local_primary(args) is True:
-            progress = tqdm(
-                desc=f"Epoch {epoch}/{epochs-1}",
-                total=len(training_dataset),
-                initial=0,
-                unit="samples",
-                leave=False,
-            )
+        progress = tqdm(
+            desc=f"Epoch {epoch}/{epochs-1}",
+            total=len(training_dataset),
+            leave=False,
+            disable=disable_tqdm,
+            unit="samples",
+            initial=0,
+        )
 
         # Zero the parameter gradients
         optimizer.zero_grad()
 
+        epoch_start = time.time()
+        start_time = epoch_start
+        last_idx = 0
         for i, (_, (images, masks), _) in enumerate(training_loader):
             global_step = ((epoch - 1) * (last_batch_idx + 1)) + i
             images = [img.to(device, dtype=model_dtype, non_blocking=True) for img in images]
@@ -597,8 +610,25 @@ def train(args: argparse.Namespace) -> None:
 
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
+                time_now = time.time()
+                time_cost = time_now - start_time
+                rate = (i - last_idx) * (batch_size * args.world_size) / time_cost
+                start_time = time_now
+                last_idx = i
+                cur_lr = max(scheduler.get_last_lr())
+
                 running_loss.synchronize_between_processes(device)
                 interval_accuracy = training_accuracy.compute()
+                with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
+                    log.info(
+                        f"[Training] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx}  "
+                        f"Loss: {running_loss.avg:.4f}  "
+                        f"Elapsed: {format_duration(time_now-epoch_start)}  "
+                        f"Time: {time_cost:.1f}s  "
+                        f"Rate: {rate:.1f} samples/s  "
+                        f"LR: {cur_lr:.4e}"
+                    )
+
                 if training_utils.is_local_primary(args) is True:
                     summary_writer.add_scalars(
                         "loss",
@@ -612,18 +642,16 @@ def train(args: argparse.Namespace) -> None:
                     )
 
             # Update progress bar
-            if training_utils.is_local_primary(args) is True:
-                progress.update(n=batch_size * args.world_size)
+            progress.update(n=batch_size * args.world_size)
 
-        if training_utils.is_local_primary(args) is True:
-            progress.close()
+        progress.close()
 
         # Epoch training metrics
         epoch_loss = running_loss.global_avg
-        logger.info(f"Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
+        logger.info(f"[Training] Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
 
         accuracy = training_accuracy.compute()
-        logger.info(f"Epoch {epoch}/{epochs-1} accuracy: {accuracy:.4f}")
+        logger.info(f"[Training] Epoch {epoch}/{epochs-1} accuracy: {accuracy:.4f}")
 
         # Learning rate scheduler update
         if iter_update is False:
@@ -665,9 +693,13 @@ def train(args: argparse.Namespace) -> None:
 
         # Epoch timing
         toc = time.time()
-        (minutes, seconds) = divmod(toc - tic, 60)
-        logger.info(f"Time cost: {int(minutes):0>2}m{seconds:04.1f}s")
+        logger.info(f"Total time: {format_duration(toc - tic)}")
         logger.info("---")
+
+        # Reset counters
+        epoch_start = time.time()
+        start_time = epoch_start
+        last_idx = 0
 
     summary_writer.close()
 

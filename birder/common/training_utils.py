@@ -1,10 +1,12 @@
 import argparse
+import contextlib
 import logging
 import math
 import os
 import re
 from collections import deque
 from collections.abc import Callable
+from collections.abc import Generator
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +22,7 @@ import torch.distributed as dist
 import torch.utils.data.distributed
 from torchvision.ops import FrozenBatchNorm2d
 
+from birder.conf import settings
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.classification import training_preset
 from birder.optim import Lamb
@@ -144,18 +147,18 @@ def ema_model(args: argparse.Namespace, net: torch.nn.Module, device: torch.devi
 def group_by_regex(strings: list[str], pattern: str) -> list[list[str]]:
     groups: list[list[str]] = []
     current_group: list[str] = []
-    current_block: Optional[str] = None
+    current_block: Optional[tuple[str, ...]] = None
 
     for s in strings:
         match = re.search(pattern, s)
         if match is not None:
-            block_num = match.group(1)
-            if block_num != current_block:
+            block_key = match.groups()
+            if block_key != current_block:
                 if len(current_group) > 0:
                     groups.append(current_group)
 
                 current_group = []
-                current_block = block_num
+                current_block = block_key
 
         elif current_block is not None:
             if len(current_group) > 0:
@@ -287,9 +290,7 @@ def optimizer_parameter_groups(
     if layer_decay is not None:
         layer_max = num_layers - 1
         layer_scales = [max(layer_decay_min_scale, layer_decay ** (layer_max - i)) for i in range(num_layers)]
-        logger.info(
-            f"Layer scaling in range of {min(layer_scales)} - {max(layer_scales)} on {len(layer_scales)} layers"
-        )
+        logger.info(f"Layer scaling in range of {min(layer_scales)} - {max(layer_scales)} on {num_layers} layers")
 
     # Set weight decay and layer decay
     user_warned = False
@@ -800,17 +801,74 @@ def training_log_name(network: str, device: torch.device) -> str:
     return f"{network}__{iso_timestamp}"
 
 
-def setup_file_logging(log_file_path: str | Path) -> None:
+def setup_file_logging(log_file_path: str | Path) -> logging.Handler:
     file_handler = logging.FileHandler(log_file_path)
     formatter = logging.Formatter(
         fmt="{message}",
         style="{",
     )
     file_handler.setFormatter(formatter)
-    file_handler.setLevel(logging.INFO)
+    file_handler.setLevel(settings.LOG_LEVEL)
 
     birder_logger = logging.getLogger("birder")
     birder_logger.addHandler(file_handler)
+
+    return file_handler
+
+
+@contextlib.contextmanager
+def single_handler_logging(
+    target_logger: logging.Logger, target_handler: logging.Handler, enabled: bool = True
+) -> Generator[logging.Logger, None, None]:
+    """
+    Context manager to temporarily use only a specific handler for logging.
+
+    Parameters
+    ----------
+    target_logger
+        The logger to modify.
+    target_handler
+        The handler to keep (all others will be temporarily removed).
+    enabled
+        If False, acts as a no-op and yields the original logger unchanged.
+
+    Yields
+    ------
+    The logger object, either modified to use only the target handler
+    (if enabled=True) or unchanged (if enabled=False).
+
+    Examples
+    --------
+    >>> with single_handler_logging(logger, file_handler, enabled=file_only_logging) as log:
+    ...     log.info("This only goes to the target handler")
+    """
+
+    if enabled is False:
+        yield target_logger
+        return
+
+    # Store original state
+    original_handlers = list(target_logger.handlers)
+    original_propagate = target_logger.propagate
+
+    # Remove all handlers
+    for handler in original_handlers:
+        target_logger.removeHandler(handler)
+
+    target_logger.addHandler(target_handler)
+
+    # Disable propagation to parent loggers
+    target_logger.propagate = False
+
+    try:
+        yield target_logger
+    finally:
+        # Restore all handlers in the original order
+        target_logger.removeHandler(target_handler)
+        for handler in original_handlers:
+            target_logger.addHandler(handler)
+
+        target_logger.propagate = original_propagate
 
 
 def get_grad_norm(parameters: Iterator[torch.Tensor], norm_type: float = 2.0) -> float:

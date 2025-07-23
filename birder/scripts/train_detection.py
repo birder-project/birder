@@ -77,6 +77,11 @@ def train(args: argparse.Namespace) -> None:
     if args.seed is not None:
         lib.set_random_seeds(args.seed)
 
+    if args.non_interactive is True or training_utils.is_local_primary(args) is False:
+        disable_tqdm = True
+    else:
+        disable_tqdm = None  # Let tqdm auto-detect (None = auto)
+
     # Enable or disable the autograd anomaly detection
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
 
@@ -408,15 +413,18 @@ def train(args: argparse.Namespace) -> None:
         net_for_info = net_without_ddp._orig_mod  # pylint: disable=protected-access
 
     if args.no_summary is False:
-        torchinfo.summary(
+        summary = torchinfo.summary(
             net_for_info,
             device=device,
             input_size=sample_shape,
             dtypes=[model_dtype],
             col_names=["input_size", "output_size", "kernel_size", "num_params"],
             depth=4,
-            verbose=1 if args.rank == 0 else 0,
+            verbose=0,
         )
+        if training_utils.is_global_primary(args) is True:
+            # Write to stderr, same as all the logs
+            print(summary, file=sys.stderr)
 
     # Training logs
     training_log_name = training_utils.training_log_name(network_name, device)
@@ -425,10 +433,11 @@ def train(args: argparse.Namespace) -> None:
     summary_writer = SummaryWriter(training_log_path)
 
     signature = get_detection_signature(input_shape=sample_shape, num_outputs=num_outputs, dynamic=dynamic_size)
+    file_handler: logging.Handler = logging.NullHandler()
     if training_utils.is_local_primary(args) is True:
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
-        training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
+        file_handler = training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
         with open(training_log_path.joinpath("training_args.json"), "w", encoding="utf-8") as handle:
             json.dump({"cmdline": " ".join(sys.argv), **vars(args)}, handle, indent=2)
 
@@ -456,18 +465,21 @@ def train(args: argparse.Namespace) -> None:
         if args.distributed is True:
             train_sampler.set_epoch(epoch)
 
-        if training_utils.is_local_primary(args) is True:
-            progress = tqdm(
-                desc=f"Epoch {epoch}/{epochs-1}",
-                total=len(training_dataset),
-                initial=0,
-                unit="samples",
-                leave=False,
-            )
+        progress = tqdm(
+            desc=f"Epoch {epoch}/{epochs-1}",
+            total=len(training_dataset),
+            leave=False,
+            disable=disable_tqdm,
+            unit="samples",
+            initial=0,
+        )
 
         # Zero the parameter gradients
         optimizer.zero_grad()
 
+        epoch_start = time.time()
+        start_time = epoch_start
+        last_idx = 0
         for i, (inputs, targets, masks, image_sizes) in enumerate(training_loader):
             inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
             targets = [
@@ -519,7 +531,24 @@ def train(args: argparse.Namespace) -> None:
 
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
+                time_now = time.time()
+                time_cost = time_now - start_time
+                rate = (i - last_idx) * (batch_size * args.world_size) / time_cost
+                start_time = time_now
+                last_idx = i
+                cur_lr = max(scheduler.get_last_lr())
+
                 running_loss.synchronize_between_processes(device)
+                with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
+                    log.info(
+                        f"[Training] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx}  "
+                        f"Loss: {running_loss.avg:.4f}  "
+                        f"Elapsed: {lib.format_duration(time_now-epoch_start)}  "
+                        f"Time: {time_cost:.1f}s  "
+                        f"Rate: {rate:.1f} samples/s  "
+                        f"LR: {cur_lr:.4e}"
+                    )
+
                 if training_utils.is_local_primary(args) is True:
                     summary_writer.add_scalars(
                         "loss",
@@ -528,27 +557,28 @@ def train(args: argparse.Namespace) -> None:
                     )
 
             # Update progress bar
-            if training_utils.is_local_primary(args) is True:
-                progress.update(n=batch_size * args.world_size)
+            progress.update(n=batch_size * args.world_size)
 
-        if training_utils.is_local_primary(args) is True:
-            progress.close()
+        progress.close()
 
         # Epoch training metrics
         epoch_loss = running_loss.global_avg
-        logger.info(f"Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
+        logger.info(f"[Training] Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
 
         # Validation
         eval_model.eval()
-        if training_utils.is_local_primary(args) is True:
-            progress = tqdm(
-                desc=f"Epoch {epoch}/{epochs-1}",
-                total=len(validation_dataset),
-                initial=0,
-                unit="samples",
-                leave=False,
-            )
+        progress = tqdm(
+            desc=f"Epoch {epoch}/{epochs-1}",
+            total=len(validation_dataset),
+            leave=False,
+            disable=disable_tqdm,
+            unit="samples",
+            initial=0,
+        )
+        with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
+            log.info(f"[Validation] Starting validation for epoch {epoch}/{epochs-1}...")
 
+        epoch_start = time.time()
         with torch.inference_mode():
             for inputs, targets, masks, image_sizes in validation_loader:
                 inputs = inputs.to(device, non_blocking=True)
@@ -574,10 +604,29 @@ def train(args: argparse.Namespace) -> None:
                 if training_utils.is_local_primary(args) is True:
                     progress.update(n=batch_size * args.world_size)
 
-        if training_utils.is_local_primary(args) is True:
-            progress.close()
+        time_now = time.time()
+        rate = len(validation_dataset) / (time_now - epoch_start)
+        with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
+            log.info(
+                f"[Validation] Epoch {epoch}/{epochs-1}  "
+                f"Elapsed: {lib.format_duration(time_now-epoch_start)}  "
+                f"Rate: {rate:.1f} samples/s"
+            )
+
+        progress.close()
 
         validation_metrics_dict = validation_metrics.compute()
+
+        # Write statistics
+        if training_utils.is_local_primary(args) is True:
+            for metric in metric_list:
+                summary_writer.add_scalars(
+                    "performance", {metric: validation_metrics_dict[metric]}, epoch * len(training_dataset)
+                )
+
+        # Epoch validation metrics
+        for metric in metric_list:
+            logger.info(f"[Validation] Epoch {epoch}/{epochs-1} {metric}: {validation_metrics_dict[metric]:.4f}")
 
         # Learning rate scheduler update
         if iter_update is False:
@@ -587,15 +636,6 @@ def train(args: argparse.Namespace) -> None:
             logger.info(f"Updated learning rate to: {last_lr}")
 
         if training_utils.is_local_primary(args) is True:
-            for metric in metric_list:
-                summary_writer.add_scalars(
-                    "performance", {metric: validation_metrics_dict[metric]}, epoch * len(training_dataset)
-                )
-
-            # Epoch validation metrics
-            for metric in metric_list:
-                logger.info(f"Epoch {epoch}/{epochs-1} {metric}: {validation_metrics_dict[metric]:.4f}")
-
             # Checkpoint model
             if epoch % args.save_frequency == 0:
                 fs_ops.checkpoint_model(
@@ -615,9 +655,13 @@ def train(args: argparse.Namespace) -> None:
 
         # Epoch timing
         toc = time.time()
-        (minutes, seconds) = divmod(toc - tic, 60)
-        logger.info(f"Time cost: {int(minutes):0>2}m{seconds:04.1f}s")
+        logger.info(f"Total time: {lib.format_duration(toc - tic)}")
         logger.info("---")
+
+        # Reset counters
+        epoch_start = time.time()
+        start_time = epoch_start
+        last_idx = 0
 
     # Save model hyperparameters with metrics
     if training_utils.is_local_primary(args) is True:

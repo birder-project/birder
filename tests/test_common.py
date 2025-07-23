@@ -127,9 +127,90 @@ class TestFSOps(unittest.TestCase):
 
 class TestTrainingUtils(unittest.TestCase):
     def test_misc(self) -> None:
-        # Misc
         self.assertFalse(training_utils.is_dist_available_and_initialized())
         self.assertRegex(training_utils.training_log_name("something", torch.device("cpu")), "something__")
+
+        # Logging context manager
+        logger = logging.getLogger("birder")
+        new_handler = logging.NullHandler()
+        logger.addHandler(new_handler)
+        last_handler = logging.NullHandler()
+        logger.addHandler(last_handler)
+        num_handlers = len(logger.handlers)
+        original_handlers = list(logger.handlers)
+
+        # Known handler
+        with training_utils.single_handler_logging(logger, new_handler) as log:
+            self.assertEqual(len(log.handlers), 1)
+            log.debug("Sanity check, will not be shown")
+
+        self.assertEqual(len(logger.handlers), num_handlers)
+        self.assertEqual(original_handlers, logger.handlers)  # Verify handler order
+
+        # Unknown handler
+        unknown_handler = logging.NullHandler()
+        with training_utils.single_handler_logging(logger, unknown_handler) as log:
+            self.assertEqual(len(log.handlers), 1)
+            log.debug("Sanity check, will not be shown")
+
+        self.assertEqual(len(logger.handlers), num_handlers)
+        self.assertEqual(original_handlers, logger.handlers)  # Verify handler order
+
+        # Disabled
+        with training_utils.single_handler_logging(logger, new_handler, enabled=False) as log:
+            self.assertEqual(len(log.handlers), num_handlers)
+            log.debug("Sanity check, will not be shown")
+
+        self.assertEqual(len(logger.handlers), num_handlers)
+        self.assertEqual(original_handlers, logger.handlers)  # Verify handler order
+
+    def test_group_by_regex(self) -> None:
+        layer_names = [
+            "pos_embed",
+            "pos_embed_win",
+            "stem.proj.weight",
+            "stem.proj.bias",
+            "body.stage1.0.norm1.weight",
+            "body.stage1.0.norm1.bias",
+            "body.stage1.0.attn.qkv.weight",
+            "body.stage1.0.attn.qkv.bias",
+            "body.stage1.0.mlp.3.weight",
+            "body.stage1.0.mlp.3.bias",
+            "body.stage2.0.norm1.weight",
+            "body.stage2.0.mlp.3.weight",
+            "body.stage2.0.mlp.3.bias",
+            "body.stage2.1.norm1.weight",
+            "body.stage2.1.norm1.bias",
+            "body.stage2.1.attn.qkv.weight",
+            "body.stage2.1.attn.qkv.bias",
+            "body.stage2.1.attn.proj.weight",
+            "anything",
+        ]
+        pattern = r"body\.stage(\d+)\.(\d+)"
+        groups = training_utils.group_by_regex(layer_names, pattern)
+
+        # First group should be the stem
+        self.assertEqual(len(groups[0]), 4)
+        self.assertEqual(groups[0][-1], "stem.proj.bias")
+
+        # Second should only include the stage1 blocks
+        self.assertEqual(len(groups[1]), 6)
+        self.assertEqual(groups[1][0], "body.stage1.0.norm1.weight")
+        self.assertEqual(groups[1][-1], "body.stage1.0.mlp.3.bias")
+
+        # 3rd is stage2 seq 0
+        self.assertEqual(len(groups[2]), 3)
+        self.assertEqual(groups[2][0], "body.stage2.0.norm1.weight")
+        self.assertEqual(groups[2][-1], "body.stage2.0.mlp.3.bias")
+
+        # 4th is stage2 seq 1
+        self.assertEqual(len(groups[3]), 5)
+        self.assertEqual(groups[3][0], "body.stage2.1.norm1.weight")
+        self.assertEqual(groups[3][-1], "body.stage2.1.attn.proj.weight")
+
+        # Last group, catch all of the rest
+        self.assertEqual(len(groups[-1]), 1)
+        self.assertEqual(groups[-1][0], "anything")
 
     def test_ra_sampler(self) -> None:
         dataset = list(range(512))

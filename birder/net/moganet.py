@@ -213,7 +213,7 @@ class MogaBlock(nn.Module):
 
 
 class MogaNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
-    block_group_regex = r"body\.stage\d+\.(\d+)"
+    block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
     def __init__(
         self,

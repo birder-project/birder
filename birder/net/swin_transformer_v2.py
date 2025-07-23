@@ -191,7 +191,7 @@ class SwinTransformerBlock(nn.Module):
 # pylint: disable=invalid-name
 class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     default_size = (256, 256)
-    block_group_regex = r"body\.stage\d+\.(\d+)"
+    block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
     # pylint: disable=too-many-locals
     def __init__(

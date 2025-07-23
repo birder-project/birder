@@ -9,7 +9,11 @@ license: apache-2.0
 
 # Model Card for hornet_tiny_7x7_danube-delta
 
-<SHORT_DESCRIPTION>
+A HorNet image classification model. This model was trained on the `danube-delta` dataset (all the relevant bird species found int the Danube Delta region).
+
+The species list is derived from data available at <https://www.discoverdanubedelta.com/wp-content/uploads/2023/01/BirdsList-ian-2023.pdf>.
+
+Note: this is a subset of the `eu-common` dataset.
 
 ## Model Details
 
@@ -17,10 +21,10 @@ license: apache-2.0
 - **Model Stats:**
     - Params (M): 22.1
     - Input image size: 256 x 256
-- **Dataset:** <DATASET_NAME> (368 classes)
+- **Dataset:** danube-delta (368 classes)
 
 - **Papers:**
-    - <PAPER_TITLE>: <PAPER_LINK>
+    - HorNet: Efficient High-Order Spatial Interactions with Recursive Gated Convolutions: <https://arxiv.org/abs/2207.14284>
 
 ## Model Usage
 
@@ -90,5 +94,13 @@ print([(k, v.size()) for k, v in features.items()])
 ## Citation
 
 ```bibtex
-<BibTeX>
+@misc{rao2022hornetefficienthighorderspatial,
+      title={HorNet: Efficient High-Order Spatial Interactions with Recursive Gated Convolutions},
+      author={Yongming Rao and Wenliang Zhao and Yansong Tang and Jie Zhou and Ser-Nam Lim and Jiwen Lu},
+      year={2022},
+      eprint={2207.14284},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2207.14284},
+}
 ```

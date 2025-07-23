@@ -121,7 +121,7 @@ class FasterNetBlock(nn.Module):
 
 
 class FasterNet(DetectorBackbone):
-    block_group_regex = r"body\.stage\d+\.(\d+)"
+    block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
     def __init__(
         self,

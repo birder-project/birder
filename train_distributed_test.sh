@@ -23,7 +23,8 @@ echo "Total tasks: $SLURM_NTASKS"
 echo "Node list: $SLURM_JOB_NODELIST"
 echo "Partition: $SLURM_JOB_PARTITION"
 echo "Start time: $(date)"
-echo "========================"
+echo "======================="
+echo ""
 
 # System information
 echo "--- System Info ---"
@@ -67,7 +68,8 @@ source .venv/bin/activate
 echo "Virtual environment activated"
 echo "Python version: $(python --version)"
 echo "Python path: $(which python)"
-echo "========================"
+echo "=============================="
+echo ""
 
 # ==============================================================================
 # DISTRIBUTED TRAINING COMMAND
@@ -77,7 +79,8 @@ echo "=== STARTING DISTRIBUTED TRAINING ==="
 echo "Master node: $MASTER_ADDR:$MASTER_PORT"
 echo "World size: $WORLD_SIZE"
 echo "Training start time: $(date)"
-echo "========================================="
+echo "====================================="
+echo ""
 
 # Launch distributed training
 srun python -m birder.scripts.train \

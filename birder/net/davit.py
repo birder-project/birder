@@ -310,7 +310,7 @@ class DaViTStage(nn.Module):
 
 
 class DaViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
-    block_group_regex = r"body\.stage\d+\.blocks.(\d+)"
+    block_group_regex = r"body\.stage(\d+)\.blocks.(\d+)"
 
     def __init__(
         self,

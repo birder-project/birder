@@ -280,7 +280,7 @@ class SwinTransformerBlock(nn.Module):
 
 # pylint: disable=invalid-name
 class Swin_Transformer_v1(DetectorBackbone):
-    block_group_regex = r"body\.stage\d+\.(\d+)"
+    block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
     def __init__(
         self,

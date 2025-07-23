@@ -269,7 +269,7 @@ class AnyStage(nn.Module):
 
 
 class RegNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
-    block_group_regex = r"body\.stage\d+\.block\.(\d+)"
+    block_group_regex = r"body\.stage(\d+)\.block\.(\d+)"
 
     def __init__(
         self,

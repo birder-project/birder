@@ -676,7 +676,7 @@ class FastVitStage(nn.Module):
 
 class FastViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     default_size = (256, 256)
-    block_group_regex = r"body\.stage\d+\.blocks\.(\d+)"
+    block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
 
     def __init__(
         self,

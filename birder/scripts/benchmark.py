@@ -59,10 +59,16 @@ def throughput_benchmark(
     logger.info(f"Starting benchmark for {model_name}")
     with torch.inference_mode():
         with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
+            if device.type == "cuda":
+                torch.cuda.synchronize(device=device)
+
             t_start = time.perf_counter()
             for _ in range(args.repeats):
                 for _ in range(args.bench_iter):
                     output = net(torch.rand(sample_shape, device=device))
+
+            if device.type == "cuda":
+                torch.cuda.synchronize(device=device)
 
             t_end = time.perf_counter()
             t_elapsed = t_end - t_start

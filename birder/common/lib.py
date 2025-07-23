@@ -189,3 +189,10 @@ def get_pretrained_model_url(weights: str, file_format: str) -> tuple[str, str]:
     url = f"{base_url}/{model_file}"
 
     return (model_file, url)
+
+
+def format_duration(seconds: float) -> str:
+    s = int(seconds)
+    (mm, ss) = divmod(s, 60)
+    (hh, mm) = divmod(mm, 60)
+    return f"{hh:d}:{mm:02d}:{ss:02d}"

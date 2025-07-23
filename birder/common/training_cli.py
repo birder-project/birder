@@ -452,6 +452,12 @@ def add_logging_and_debug_args(
     )
     group.add_argument("--no-summary", default=False, action="store_true", help="don't print model summary")
     group.add_argument(
+        "--non-interactive",
+        default=False,
+        action="store_true",
+        help="force non-interactive mode (disables progress bars)",
+    )
+    group.add_argument(
         "--seed", type=int, help="set random seed for better reproducibility (affects torch, numpy and random)"
     )
     group.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")
