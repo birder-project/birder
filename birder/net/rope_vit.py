@@ -28,6 +28,7 @@ from birder.common.masking import mask_tensor
 from birder.layers import FFN
 from birder.layers import LayerScale
 from birder.layers import SwiGLU_FFN
+from birder.layers.activations import get_activation_module
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
@@ -45,6 +46,7 @@ def build_rotary_pos_embed(
     temperature: float,
     grid_size: tuple[int, int],
     grid_indexing: str,
+    grid_offset: int,
     pt_grid_size: Optional[tuple[int, int]],
 ) -> tuple[torch.Tensor, torch.Tensor]:
     assert dim % 4 == 0
@@ -55,7 +57,7 @@ def build_rotary_pos_embed(
     if pt_grid_size is None:
         pt_grid_size = grid_size
 
-    t = [torch.arange(s) / s * p for s, p in zip(grid_size, pt_grid_size)]
+    t = [(torch.arange(s) + grid_offset) / s * p for s, p in zip(grid_size, pt_grid_size)]
     grid = torch.stack(torch.meshgrid(t, indexing=grid_indexing), dim=-1)
     grid = grid.unsqueeze(-1)
     pos = grid * bands
@@ -111,6 +113,7 @@ class RoPE(nn.Module):
         temperature: float,
         grid_size: tuple[int, int],
         grid_indexing: Literal["ij", "xy"],
+        grid_offset: int,
         pt_grid_size: Optional[tuple[int, int]] = None,
         rope_rot_type: str = "standard",
     ) -> None:
@@ -123,7 +126,12 @@ class RoPE(nn.Module):
             raise ValueError(f"Unknown rope_rot_type, got '{rope_rot_type}'")
 
         (sin_emb, cos_emb) = build_rotary_pos_embed(
-            dim, temperature, grid_size=grid_size, grid_indexing=grid_indexing, pt_grid_size=pt_grid_size
+            dim,
+            temperature,
+            grid_size=grid_size,
+            grid_indexing=grid_indexing,
+            grid_offset=grid_offset,
+            pt_grid_size=pt_grid_size,
         )
         self.pos_embed = nn.Buffer(torch.concat((sin_emb, cos_emb), dim=-1), persistent=False)
 
@@ -307,6 +315,7 @@ class MAEDecoderBlock(nn.Module):
         activation_layer: Callable[..., nn.Module],
         grid_size: tuple[int, int],
         rope_grid_indexing: Literal["ij", "xy"],
+        rope_grid_offset: int,
         rope_temperature: float,
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
@@ -320,6 +329,7 @@ class MAEDecoderBlock(nn.Module):
             temperature=rope_temperature,
             grid_size=grid_size,
             grid_indexing=rope_grid_indexing,
+            grid_offset=rope_grid_offset,
             rope_rot_type=rope_rot_type,
         )
 
@@ -386,11 +396,15 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
+        attn_pool_num_heads: Optional[int] = self.config.get("attn_pool_num_heads", None)
+        attn_pool_special_tokens: bool = self.config.get("attn_pool_special_tokens", False)
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
         norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
+        act_layer_type: Optional[str] = self.config.get("act_layer_type", None)  # Default according to mlp type
         rope_rot_type: Literal["standard", "interleaved"] = self.config.get("rope_rot_type", "standard")
         rope_grid_indexing: Literal["ij", "xy"] = self.config.get("rope_grid_indexing", "ij")
+        rope_grid_offset: int = self.config.get("rope_grid_offset", 0)
         rope_temperature: float = self.config.get("rope_temperature", 100.0)
         pt_grid_size: Optional[tuple[int, int]] = self.config.get("pt_grid_size", None)
         drop_path_rate: float = self.config["drop_path_rate"]
@@ -411,6 +425,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         else:
             raise ValueError(f"Unknown mlp_layer_type '{mlp_layer_type}'")
 
+        if act_layer_type is not None:
+            act_layer = get_activation_module(act_layer_type)
+
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
@@ -421,11 +438,13 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         self.hidden_dim = hidden_dim
         self.layer_scale_init_value = layer_scale_init_value
         self.num_reg_tokens = num_reg_tokens
+        self.attn_pool_special_tokens = attn_pool_special_tokens
         self.norm_layer = norm_layer
         self.mlp_layer = mlp_layer
         self.act_layer = act_layer
         self.rope_rot_type = rope_rot_type
         self.rope_grid_indexing = rope_grid_indexing
+        self.rope_grid_offset = rope_grid_offset
         self.rope_temperature = rope_temperature
 
         # Cast in case config was loaded from a json (no tuples),
@@ -476,6 +495,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             temperature=self.rope_temperature,
             grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
             grid_indexing=rope_grid_indexing,
+            grid_offset=rope_grid_offset,
             pt_grid_size=self.pt_grid_size,
             rope_rot_type=rope_rot_type,
         )
@@ -507,7 +527,10 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         if attn_pool_head is False:
             self.attn_pool = None
         else:
-            self.attn_pool = MultiHeadAttentionPool(hidden_dim, num_heads, mlp_dim, qkv_bias=True, latent_len=1)
+            if attn_pool_num_heads is None:
+                attn_pool_num_heads = num_heads
+
+            self.attn_pool = MultiHeadAttentionPool(hidden_dim, attn_pool_num_heads, mlp_dim, qkv_bias=True)
 
         self.return_stages = ["neck"]  # Actually meaningless, just for completeness
         self.return_channels = [hidden_dim]
@@ -525,6 +548,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             activation_layer=act_layer,
             grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
             rope_grid_indexing=rope_grid_indexing,
+            rope_grid_offset=rope_grid_offset,
             rope_temperature=rope_temperature,
             layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
@@ -572,6 +596,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
                 self.rope_temperature,
                 grid_size=(H // self.patch_size, W // self.patch_size),
                 grid_indexing=self.rope_grid_indexing,
+                grid_offset=self.rope_grid_offset,
                 pt_grid_size=self.pt_grid_size,
             ),
             dim=-1,
@@ -701,6 +726,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
                 x = x[..., -1]
 
             if self.attn_pool is not None:
+                if self.attn_pool_special_tokens is False:
+                    x = x[:, self.num_special_tokens :]
+
                 x = self.attn_pool(x)
                 result["embedding"] = x[:, 0]
             elif self.class_token is None:
@@ -755,6 +783,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
         if return_keys in ("all", "embedding"):
             if self.attn_pool is not None:
+                if self.attn_pool_special_tokens is False:
+                    x = x[:, self.num_special_tokens :]
+
                 x = self.attn_pool(x)
                 result["embedding"] = x[:, 0]
             elif self.class_token is None:
@@ -797,6 +828,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         x = self.forward_features(x)
 
         if self.attn_pool is not None:
+            if self.attn_pool_special_tokens is False:
+                x = x[:, self.num_special_tokens :]
+
             x = self.attn_pool(x)
             return x[:, 0]
 
@@ -838,6 +872,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             temperature=self.rope_temperature,
             grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
             grid_indexing=self.rope_grid_indexing,
+            grid_offset=self.rope_grid_offset,
             pt_grid_size=self.pt_grid_size,
             rope_rot_type=self.rope_rot_type,
         )
@@ -850,6 +885,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             activation_layer=self.act_layer,
             grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
             rope_grid_indexing=self.rope_grid_indexing,
+            rope_grid_offset=self.rope_grid_offset,
             rope_temperature=self.rope_temperature,
             layer_scale_init_value=self.layer_scale_init_value,
             norm_layer=self.norm_layer,
@@ -862,7 +898,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 # ==========================================
 #
 # Model names follow a structured pattern to encode architectural choices:
-# [rope_]vit_[reg{N}_][size]_p[patch_size][_components][_pooling]
+# [rope_]vit_[reg{N}_][size][patch_size][_components][_pooling][_c{N}]
 #
 # Core Components:
 # - rope_       : Rotary Position Embedding (RoPE) enabled
@@ -884,12 +920,20 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 #     Feed-Forward Network:
 #     - swiglu      : SwiGLU FFN layer type (instead of standard FFN)
 #
+#     Activation:
+#     - quick_gelu  : QuickGELU activation type
+#     - ...
+#
 #     Regularization:
 #     - ls          : Layer Scaling applied
 #
 #     Pooling/Reduction:
 #     - avg         : Average pooling for sequence reduction
 #     - ap          : Attention Pooling for sequence reduction
+#
+#     Custom Variants:
+#     - c{N}        : Custom variant (N = version number) for models with fine-grained or non-standard
+#                     modifications not fully reflected in the name
 
 registry.register_model_config(
     "rope_vit_s32",
@@ -916,7 +960,7 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
-    "rope_i_vit_s16_pn",
+    "rope_i_vit_s16_pn_ap_c1",  # For PE Core - https://arxiv.org/abs/2504.13181
     RoPE_ViT,
     config={
         "patch_size": 16,
@@ -925,9 +969,13 @@ registry.register_model_config(
         "hidden_dim": 384,
         "mlp_dim": 1536,
         "pre_norm": True,
+        "attn_pool_head": True,
+        "attn_pool_num_heads": 8,
+        "attn_pool_special_tokens": True,
         "norm_layer_eps": 1e-5,
         "rope_rot_type": "interleaved",
         "rope_grid_indexing": "xy",
+        "rope_grid_offset": 1,
         "rope_temperature": 10000.0,
         "drop_path_rate": 0.0,
     },
@@ -1005,6 +1053,27 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
+    "rope_i_vit_b16_pn_ap_c1",  # For PE Core - https://arxiv.org/abs/2504.13181
+    RoPE_ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 12,
+        "hidden_dim": 768,
+        "mlp_dim": 3072,
+        "pre_norm": True,
+        "attn_pool_head": True,
+        "attn_pool_num_heads": 8,
+        "attn_pool_special_tokens": True,
+        "norm_layer_eps": 1e-5,
+        "rope_rot_type": "interleaved",
+        "rope_grid_indexing": "xy",
+        "rope_grid_offset": 1,
+        "rope_temperature": 10000.0,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
     "rope_vit_b14",
     RoPE_ViT,
     config={
@@ -1049,6 +1118,27 @@ registry.register_model_config(
         "num_heads": 16,
         "hidden_dim": 1024,
         "mlp_dim": 4096,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
+    "rope_i_vit_l14_pn_ap_c1",  # For PE Core - https://arxiv.org/abs/2504.13181
+    RoPE_ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 24,
+        "num_heads": 16,
+        "hidden_dim": 1024,
+        "mlp_dim": 4096,
+        "pre_norm": True,
+        "attn_pool_head": True,
+        "attn_pool_num_heads": 8,
+        "attn_pool_special_tokens": True,
+        "norm_layer_eps": 1e-5,
+        "rope_rot_type": "interleaved",
+        "rope_grid_indexing": "xy",
+        "rope_grid_offset": 1,
+        "rope_temperature": 10000.0,
         "drop_path_rate": 0.1,
     },
 )
@@ -1113,6 +1203,27 @@ registry.register_model_config(
         "hidden_dim": 384,
         "mlp_dim": 1536,
         "num_reg_tokens": 1,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_model_config(
+    "rope_i_vit_reg1_s16_pn_npn_avg_c1",  # For PE Spatial - https://arxiv.org/abs/2504.13181
+    RoPE_ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "num_reg_tokens": 1,
+        "class_token": False,
+        "pre_norm": True,
+        "post_norm": False,
+        "norm_layer_eps": 1e-5,
+        "rope_rot_type": "interleaved",
+        "rope_grid_indexing": "xy",
+        "rope_grid_offset": 1,
+        "rope_temperature": 10000.0,
         "drop_path_rate": 0.0,
     },
 )
@@ -1530,5 +1641,80 @@ registry.register_weights(
             }
         },
         "net": {"network": "rope_vit_reg4_b14", "tag": "capi-imagenet21k"},
+    },
+)
+
+# Perception Encoder: The best visual embeddings are not at the output of the network, by Meta FAIR
+# https://arxiv.org/abs/2504.13181
+registry.register_weights(
+    "rope_i_vit_s16_pn_ap_c1_pe-core",
+    {
+        "url": "https://huggingface.co/birder-project/rope_i_vit_s16_pn_ap_c1_pe-core/resolve/main",
+        "description": (
+            "ViT s16 image encoder pre-trained by Meta FAIR using CLIP. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 90.0,
+                "sha256": "e4429b0bafb9f827698dde73c882c70deb994329ea0dd169f68e76ad256bbb74",
+            },
+        },
+        "net": {"network": "rope_i_vit_s16_pn_ap_c1", "tag": "pe-core"},
+    },
+)
+registry.register_weights(
+    "rope_i_vit_reg1_s16_pn_npn_avg_c1_pe-spatial",
+    {
+        "url": "https://huggingface.co/birder-project/rope_i_vit_reg1_s16_pn_npn_avg_c1_pe-spatial/resolve/main",
+        "description": (
+            "ViT s16 image encoder pre-trained by Meta FAIR using CLIP. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (512, 512),
+        "formats": {
+            "pt": {
+                "file_size": 83.9,
+                "sha256": "4e65e500f2a7d2b11fc28aaa0b1ad4921692780507de014ebc5659e757327fde",
+            },
+        },
+        "net": {"network": "rope_i_vit_reg1_s16_pn_npn_avg_c1", "tag": "pe-spatial"},
+    },
+)
+registry.register_weights(
+    "rope_i_vit_b16_pn_ap_c1_pe-core",
+    {
+        "url": "https://huggingface.co/birder-project/rope_i_vit_b16_pn_ap_c1_pe-core/resolve/main",
+        "description": (
+            "ViT b16 image encoder pre-trained by Meta FAIR using CLIP. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 354.4,
+                "sha256": "d1c1ba1e8c841f495ff3c0e5e6963a39c8d1ae07dea30d3b82422017a4062d97",
+            },
+        },
+        "net": {"network": "rope_i_vit_b16_pn_ap_c1", "tag": "pe-core"},
+    },
+)
+registry.register_weights(
+    "rope_i_vit_l14_pn_ap_c1_pe-core",
+    {
+        "url": "https://huggingface.co/birder-project/rope_i_vit_l14_pn_ap_c1_pe-core/resolve/main",
+        "description": (
+            "ViT l14 image encoder pre-trained by Meta FAIR using CLIP. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (336, 336),
+        "formats": {
+            "pt": {
+                "file_size": 1206.0,
+                "sha256": "26c2188116cb254d2870c23cc3ab7d60d9ee0606c803b8dbe359e5716498b5c4",
+            },
+        },
+        "net": {"network": "rope_i_vit_l14_pn_ap_c1", "tag": "pe-core"},
     },
 )

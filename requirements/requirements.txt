@@ -10,7 +10,7 @@ scikit-learn>=1.6.0
 scipy>=1.16.0
 tensorboard>=2.19.0
 torchinfo~=1.8.0
-torchmetrics~=1.7.4
+torchmetrics~=1.8.0
 tqdm>=4.67.0
 webdataset~=0.2.111
 

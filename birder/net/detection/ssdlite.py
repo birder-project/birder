@@ -6,6 +6,7 @@ Paper "MobileNetV2: Inverted Residuals and Linear Bottlenecks", https://arxiv.or
 
 Changes from original:
 * Different backbone feature strides
+* The implementation is not an exact replication of the original paper
 """
 
 # Reference license: BSD 3-Clause
@@ -153,9 +154,9 @@ class SSDLite(SSD):
         assert self.config is None, "config not supported"
 
         iou_thresh = 0.5
-        score_thresh = 0.01
-        nms_thresh = 0.45
-        detections_per_img = 200
+        score_thresh = 0.001
+        nms_thresh = 0.55
+        detections_per_img = 300
         topk_candidates = 300
         positive_fraction = 0.25
 
@@ -165,7 +166,8 @@ class SSDLite(SSD):
             [
                 ExtraBlock(self.backbone.return_channels[-1], 512, stride=(2, 2)),
                 ExtraBlock(512, 256, stride=(2, 2)),
-                ExtraBlock(256, 256, stride=(1, 1)),
+                ExtraBlock(256, 256, stride=(2, 2)),
+                ExtraBlock(256, 128, stride=(1, 1)),
             ]
         )
 
@@ -177,7 +179,7 @@ class SSDLite(SSD):
         self.box_coder = BoxCoder(weights=(10.0, 10.0, 5.0, 5.0))
 
         num_anchors = self.anchor_generator.num_anchors_per_location()
-        self.head = SSDLiteHead(self.backbone.return_channels + [512, 256, 256], num_anchors, self.num_classes)
+        self.head = SSDLiteHead(self.backbone.return_channels + [512, 256, 256, 128], num_anchors, self.num_classes)
         self.proposal_matcher = SSDMatcher(iou_thresh)
 
         self.score_thresh = score_thresh
@@ -189,7 +191,7 @@ class SSDLite(SSD):
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes + 1
         self.head.classification_head = SSDLiteClassificationHead(
-            self.backbone.return_channels + [512, 256, 256],
+            self.backbone.return_channels + [512, 256, 256, 128],
             self.anchor_generator.num_anchors_per_location(),
             self.num_classes,
         )

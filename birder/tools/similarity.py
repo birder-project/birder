@@ -81,7 +81,7 @@ def similarity(args: argparse.Namespace) -> None:
     else:
         # Dimensionality reduction
         tsne_embeddings_arr = TSNE(
-            n_components=4, method="exact", learning_rate="auto", init="random", perplexity=5
+            n_components=4, method="exact", learning_rate="auto", init="random", perplexity=20
         ).fit_transform(embeddings)
 
         # Build distance data frame
@@ -118,8 +118,8 @@ def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "similarity",
         allow_abbrev=False,
-        help="show most similar images",
-        description="show most similar images",
+        help="show images sorted by similarity",
+        description="show images sorted by similarity",
         epilog=(
             "Usage examples:\n"
             "python -m birder.tools similarity -n efficientnet_v1_b4 -e 300 data/*/Alpine\\ swift\n"

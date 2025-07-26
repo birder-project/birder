@@ -38,13 +38,20 @@ class TestNetDetection(unittest.TestCase):
             ("retinanet", None, ("efficientvit_msft_m0", None)),  # 3 stage network
             ("retinanet_sfp", None, ("vit_det_m16_rms", None)),
             ("ssd", None, ("efficientnet_v2_s", None)),
-            ("ssdlite", None, ("mobilenet_v2", 1)),
+            ("ssd", None, ("vit_s16", None)),  # 1 stage network
+            ("ssdlite", None, ("mobilenet_v2", 1), (512, 512)),
+            ("ssdlite", None, ("vit_t16", None)),  # 1 stage network
             ("vitdet", None, ("vit_sam_b16", None)),
         ]
     )
-    def test_net_detection(self, network_name: str, net_param: Optional[float], encoder: tuple[str, float]) -> None:
+    def test_net_detection(
+        self,
+        network_name: str,
+        net_param: Optional[float],
+        encoder: tuple[str, float],
+        size: tuple[int, int] = (256, 256),
+    ) -> None:
         backbone = registry.net_factory(encoder[0], 3, 10, net_param=encoder[1])
-        size = (256, 256)  # Just for faster tests
         n = registry.detection_net_factory(network_name, 10, backbone, net_param=net_param, size=size)
         backbone.adjust_size(size)
 

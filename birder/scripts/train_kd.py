@@ -184,6 +184,7 @@ def train(args: argparse.Namespace) -> None:
 
     num_outputs = len(class_to_idx)
     batch_size: int = args.batch_size
+    logger.debug(f"Effective batch size = {args.batch_size * args.grad_accum_steps * args.world_size}")
 
     # Set data iterators
     if args.mixup_alpha is not None or args.cutmix is True:
@@ -659,7 +660,7 @@ def train(args: argparse.Namespace) -> None:
         rate = len(validation_dataset) / (time_now - epoch_start)
         with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
             log.info(
-                f"[Validation] Epoch {epoch}/{epochs-1}  "
+                f"[Validation] Epoch {epoch}/{epochs-1} "
                 f"Elapsed: {format_duration(time_now-epoch_start)}  "
                 f"Rate: {rate:.1f} samples/s"
             )

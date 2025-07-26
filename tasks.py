@@ -561,16 +561,19 @@ def model_pre_publish(  # pylint: disable=too-many-locals
     num_outputs = lib.get_num_labels_from_signature(model_info.signature)
 
     # Check if model already in manifest
-    if registry.pretrained_exists(network_name) is False:
+    if registry.pretrained_exists(network_name) is True:
+        echo("NOTICE: Model already in manifest")
+    else:
         echo("Model not in manifest, generating ModelMetadata information")
-        path = fs_ops.model_path(network_name, epoch=epoch)
-        file_size = pathlib.Path(path).stat().st_size
-        file_size = round(file_size / 1024 / 1024, 1)
-        sha256 = cli.calc_sha256(path)
 
-        print(f'"resolution": {size}')
-        print(f'"file_size": {file_size}')
-        print(f'"sha256": "{sha256}"')
+    path = fs_ops.model_path(network_name, epoch=epoch)
+    file_size = pathlib.Path(path).stat().st_size
+    file_size = round(file_size / 1024 / 1024, 1)
+    sha256 = cli.calc_sha256(path)
+
+    print(f'"resolution": {size}')
+    print(f'"file_size": {file_size}')
+    print(f'"sha256": "{sha256}"')
 
     # Generate HF model card
     if hf is True:

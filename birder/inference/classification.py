@@ -1,3 +1,4 @@
+import sys
 from collections.abc import Callable
 from collections.abc import Iterator
 from typing import Any
@@ -145,7 +146,8 @@ def infer_dataloader_iter(
             # Yield results when we reach chunk_size
             sample_count += batch_size
             if sample_count >= chunk_size:
-                yield (sample_paths, np.concatenate(out_list, axis=0), labels, embedding_list)
+                with tqdm.external_write_mode(file=sys.stderr):
+                    yield (sample_paths, np.concatenate(out_list, axis=0), labels, embedding_list)
 
                 # Reset for next chunk
                 embedding_list = []

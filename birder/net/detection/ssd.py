@@ -7,7 +7,10 @@ https://github.com/dmlc/gluon-cv/blob/master/gluoncv/model_zoo/ssd/ssd.py
 Paper "SSD: Single Shot MultiBox Detector", https://arxiv.org/abs/1512.02325
 
 Changes from original:
-* Changed extra block to be backbone agnostic
+* Made the extra block backbone-agnostic
+* Added BatchNorm to the extra blocks
+* Removed weight scaling
+* The implementation is not an exact replication of the original paper
 """
 
 # Reference license: BSD 3-Clause
@@ -201,7 +204,7 @@ class SSDScoringHead(nn.Module):
             results = self._get_result_from_module_list(features, i)
 
             # Permute output from (N, A * K, H, W) to (N, HWA, K).
-            (N, _, H, W) = results.shape
+            (N, _, H, W) = results.size()
             results = results.view(N, -1, self.num_columns, H, W)
             results = results.permute(0, 3, 4, 1, 2)
             results = results.reshape(N, -1, self.num_columns)  # Size=(N, HWA, K)
@@ -224,7 +227,7 @@ class SSDClassificationHead(SSDScoringHead):
             if isinstance(layer, nn.Conv2d):
                 nn.init.xavier_uniform_(layer.weight)
                 if layer.bias is not None:
-                    nn.init.constant_(layer.bias, 0.0)
+                    nn.init.zeros_(layer.bias)
 
         super().__init__(cls_logits, num_classes)
 
@@ -240,7 +243,7 @@ class SSDRegressionHead(SSDScoringHead):
             if isinstance(layer, nn.Conv2d):
                 nn.init.xavier_uniform_(layer.weight)
                 if layer.bias is not None:
-                    nn.init.constant_(layer.bias, 0.0)
+                    nn.init.zeros_(layer.bias)
 
         super().__init__(bbox_reg, 4)
 
@@ -298,7 +301,7 @@ class SSD(DetectionBaseNet):
         score_thresh = 0.01
         nms_thresh = 0.45
         detections_per_img = 200
-        topk_candidates = 300
+        topk_candidates = 400
         positive_fraction = 0.25
 
         self.backbone.return_channels = self.backbone.return_channels[-2:]
@@ -307,6 +310,7 @@ class SSD(DetectionBaseNet):
             [
                 ExtraBlock(self.backbone.return_channels[-1], 512, stride=(2, 2)),
                 ExtraBlock(512, 256, stride=(2, 2)),
+                ExtraBlock(256, 256, stride=(1, 1)),
                 ExtraBlock(256, 256, stride=(1, 1)),
             ]
         )
@@ -319,7 +323,7 @@ class SSD(DetectionBaseNet):
         self.box_coder = BoxCoder(weights=(10.0, 10.0, 5.0, 5.0))
 
         num_anchors = self.anchor_generator.num_anchors_per_location()
-        self.head = SSDHead(self.backbone.return_channels + [512, 256, 256], num_anchors, self.num_classes)
+        self.head = SSDHead(self.backbone.return_channels + [512, 256, 256, 256], num_anchors, self.num_classes)
         self.proposal_matcher = SSDMatcher(iou_thresh)
 
         self.score_thresh = score_thresh
@@ -331,7 +335,7 @@ class SSD(DetectionBaseNet):
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes + 1
         self.head.classification_head = SSDClassificationHead(
-            self.backbone.return_channels + [512, 256, 256],
+            self.backbone.return_channels + [512, 256, 256, 256],
             self.anchor_generator.num_anchors_per_location(),
             self.num_classes,
         )

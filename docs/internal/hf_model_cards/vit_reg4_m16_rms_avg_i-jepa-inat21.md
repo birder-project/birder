@@ -102,23 +102,23 @@ print([(k, v.size()) for k, v in features.items()])
 
 ```bibtex
 @misc{dosovitskiy2021imageworth16x16words,
-      title={An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale}, 
+      title={An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale},
       author={Alexey Dosovitskiy and Lucas Beyer and Alexander Kolesnikov and Dirk Weissenborn and Xiaohua Zhai and Thomas Unterthiner and Mostafa Dehghani and Matthias Minderer and Georg Heigold and Sylvain Gelly and Jakob Uszkoreit and Neil Houlsby},
       year={2021},
       eprint={2010.11929},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2010.11929}, 
+      url={https://arxiv.org/abs/2010.11929},
 }
 
 @misc{darcet2024visiontransformersneedregisters,
-      title={Vision Transformers Need Registers}, 
+      title={Vision Transformers Need Registers},
       author={Timothée Darcet and Maxime Oquab and Julien Mairal and Piotr Bojanowski},
       year={2024},
       eprint={2309.16588},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2309.16588}, 
+      url={https://arxiv.org/abs/2309.16588},
 }
 
 @misc{assran2023selfsupervisedlearningimagesjointembedding,

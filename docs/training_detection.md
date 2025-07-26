@@ -169,6 +169,14 @@ torchrun --nproc_per_node=2 train_detection.py --network ssdlite --backbone mobi
 torchrun --nproc_per_node=2 train_detection.py --network ssdlite --backbone mobilenet_v4_hybrid_m --backbone-epoch 0 --opt adamw --lr 0.002 --backbone-lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-8 --batch-size 32 --warmup-epochs 20 --epochs 600 --wd 0.0001 --aug-type ssdlite --fast-matmul --compile-opt
 ```
 
+Optional intermediate training (COCO)
+
+#### SSDLite: RoPEi ViT reg1 s16 pn c1
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network ssdlite --tag coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-pretrained --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 20 --epochs 600 --wd 0.0001 --rgb-mode none --freeze-backbone --fast-matmul --compile-backbone --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+```
+
 ### ViTDet
 
 #### ViTDet: ViT Det m16 rms

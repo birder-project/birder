@@ -212,6 +212,8 @@ def train(args: argparse.Namespace) -> None:
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
 
     batch_size: int = args.batch_size
+    logger.debug(f"Effective batch size = {args.batch_size * args.grad_accum_steps * args.world_size}")
+
     begin_epoch = 1
     epochs = args.epochs + 1
     if args.stop_epoch is None:
@@ -738,11 +740,12 @@ def train(args: argparse.Namespace) -> None:
                     if iter_update is True:
                         scheduler.step()
 
-            # EMA update for the teacher
-            with torch.no_grad():
-                m = momentum_schedule[global_step]
-                for param_q, param_k in zip(student.parameters(), teacher.parameters()):
-                    param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
+            if optimizer_update is True:
+                # EMA update for the teacher
+                with torch.no_grad():
+                    m = momentum_schedule[global_step]
+                    for param_q, param_k in zip(student.parameters(), teacher.parameters()):
+                        param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
 
             # Statistics
             running_loss.update(loss.detach())

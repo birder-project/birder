@@ -600,7 +600,7 @@ class SmoothedValue:
         if is_dist_available_and_initialized() is False:
             return
 
-        logger.debug("Synchronizing values")
+        # logger.debug("Synchronizing values")
         count = to_tensor(self.count, device=device).to(dtype=torch.float64).reshape(1)
         total = to_tensor(self.total, device=device).to(dtype=torch.float64).reshape(1)
         tensor_deque = torch.tensor(list(self.deque), dtype=torch.float64, device=device)

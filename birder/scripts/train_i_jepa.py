@@ -114,6 +114,8 @@ def train(args: argparse.Namespace) -> None:
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
 
     batch_size: int = args.batch_size
+    logger.debug(f"Effective batch size = {args.batch_size * args.grad_accum_steps * args.world_size}")
+
     begin_epoch = 1
     epochs = args.epochs + 1
     if args.stop_epoch is None:

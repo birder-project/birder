@@ -33,7 +33,13 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network crossmae --enc
 Optional intermediate training: first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg4_so150m_p14_ap --tag mim-intermediate --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --rgb-mode none --resume-epoch 0 --reset-head --freeze-body --unfreeze-features --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
+torchrun --nproc_per_node=2 train.py --network vit_reg4_so150m_p14_ap --tag mim-intermediate --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 224 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --rgb-mode none --resume-epoch 0 --reset-head --freeze-body --unfreeze-features --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
+```
+
+Fine-tuning, first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_reg4_so150m_p14_ap --tag mim --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 224 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --rgb-mode none --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
 ```
 
 ### FCMAE

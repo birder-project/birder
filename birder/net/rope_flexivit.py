@@ -18,6 +18,7 @@ from torch import nn
 from birder.common.masking import mask_tensor
 from birder.layers import FFN
 from birder.layers import SwiGLU_FFN
+from birder.layers.activations import get_activation_module
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
@@ -73,11 +74,15 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
+        attn_pool_num_heads: Optional[int] = self.config.get("attn_pool_num_heads", None)
+        attn_pool_special_tokens: bool = self.config.get("attn_pool_special_tokens", False)
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
         norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
+        act_layer_type: Optional[str] = self.config.get("act_layer_type", None)  # Default according to mlp type
         rope_rot_type: Literal["standard", "interleaved"] = self.config.get("rope_rot_type", "standard")
         rope_grid_indexing: Literal["ij", "xy"] = self.config.get("rope_grid_indexing", "ij")
+        rope_grid_offset: int = self.config.get("rope_grid_offset", 0)
         rope_temperature: float = self.config.get("rope_temperature", 100.0)
         pt_grid_size: Optional[tuple[int, int]] = self.config.get("pt_grid_size", None)
         min_patch_size: int = self.config.get("min_patch_size", 8)
@@ -100,6 +105,9 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         else:
             raise ValueError(f"Unknown mlp_layer_type '{mlp_layer_type}'")
 
+        if act_layer_type is not None:
+            act_layer = get_activation_module(act_layer_type)
+
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
@@ -110,11 +118,13 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         self.hidden_dim = hidden_dim
         self.layer_scale_init_value = layer_scale_init_value
         self.num_reg_tokens = num_reg_tokens
+        self.attn_pool_special_tokens = attn_pool_special_tokens
         self.norm_layer = norm_layer
         self.mlp_layer = mlp_layer
         self.act_layer = act_layer
         self.rope_rot_type = rope_rot_type
         self.rope_grid_indexing = rope_grid_indexing
+        self.rope_grid_offset = rope_grid_offset
         self.rope_temperature = rope_temperature
         self.patch_size_list = get_patch_sizes(min_patch_size, max_patch_size, self.size)
 
@@ -166,6 +176,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             temperature=self.rope_temperature,
             grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
             grid_indexing=rope_grid_indexing,
+            grid_offset=rope_grid_offset,
             pt_grid_size=self.pt_grid_size,
             rope_rot_type=rope_rot_type,
         )
@@ -197,7 +208,10 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         if attn_pool_head is False:
             self.attn_pool = None
         else:
-            self.attn_pool = MultiHeadAttentionPool(hidden_dim, num_heads, mlp_dim, qkv_bias=True, latent_len=1)
+            if attn_pool_num_heads is None:
+                attn_pool_num_heads = num_heads
+
+            self.attn_pool = MultiHeadAttentionPool(hidden_dim, attn_pool_num_heads, mlp_dim, qkv_bias=True)
 
         self.return_stages = ["neck"]  # Actually meaningless, just for completeness
         self.return_channels = [hidden_dim]
@@ -215,6 +229,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             activation_layer=act_layer,
             grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
             rope_grid_indexing=rope_grid_indexing,
+            rope_grid_offset=rope_grid_offset,
             rope_temperature=rope_temperature,
             layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
@@ -264,6 +279,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
                 self.rope_temperature,
                 grid_size=(H // patch_size, W // patch_size),
                 grid_indexing=self.rope_grid_indexing,
+                grid_offset=self.rope_grid_offset,
                 pt_grid_size=self.pt_grid_size,
             ),
             dim=-1,
@@ -394,6 +410,9 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
                 x = x[..., -1]
 
             if self.attn_pool is not None:
+                if self.attn_pool_special_tokens is False:
+                    x = x[:, self.num_special_tokens :]
+
                 x = self.attn_pool(x)
                 result["embedding"] = x[:, 0]
             elif self.class_token is None:
@@ -448,6 +467,9 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
 
         if return_keys in ("all", "embedding"):
             if self.attn_pool is not None:
+                if self.attn_pool_special_tokens is False:
+                    x = x[:, self.num_special_tokens :]
+
                 x = self.attn_pool(x)
                 result["embedding"] = x[:, 0]
             elif self.class_token is None:
@@ -490,6 +512,9 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         x = self.forward_features(x, patch_size)
 
         if self.attn_pool is not None:
+            if self.attn_pool_special_tokens is False:
+                x = x[:, self.num_special_tokens :]
+
             x = self.attn_pool(x)
             return x[:, 0]
 
@@ -543,6 +568,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             temperature=self.rope_temperature,
             grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
             grid_indexing=self.rope_grid_indexing,
+            grid_offset=self.rope_grid_offset,
             pt_grid_size=self.pt_grid_size,
             rope_rot_type=self.rope_rot_type,
         )
@@ -555,6 +581,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             activation_layer=self.act_layer,
             grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
             rope_grid_indexing=self.rope_grid_indexing,
+            rope_grid_offset=self.rope_grid_offset,
             rope_temperature=self.rope_temperature,
             layer_scale_init_value=self.layer_scale_init_value,
             norm_layer=self.norm_layer,
@@ -590,6 +617,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             temperature=self.rope_temperature,
             grid_size=(self.size[0] // patch_size, self.size[1] // patch_size),
             grid_indexing=self.rope_grid_indexing,
+            grid_offset=self.rope_grid_offset,
             pt_grid_size=self.pt_grid_size,
             rope_rot_type=self.rope_rot_type,
         )

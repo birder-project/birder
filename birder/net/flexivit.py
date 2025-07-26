@@ -19,6 +19,7 @@ from torch import nn
 from birder.common.masking import mask_tensor
 from birder.layers import FFN
 from birder.layers import SwiGLU_FFN
+from birder.layers.activations import get_activation_module
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
@@ -73,7 +74,7 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
     default_size = (240, 240)
     block_group_regex = r"encoder\.block\.(\d+)"
 
-    # pylint: disable=too-many-locals,too-many-branches
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def __init__(
         self,
         input_channels: int,
@@ -102,9 +103,12 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
+        attn_pool_num_heads: Optional[int] = self.config.get("attn_pool_num_heads", None)
+        attn_pool_special_tokens: bool = self.config.get("attn_pool_special_tokens", False)
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
         norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
+        act_layer_type: Optional[str] = self.config.get("act_layer_type", None)  # Default according to mlp type
         min_patch_size: int = self.config.get("min_patch_size", 8)
         max_patch_size: int = self.config.get("max_patch_size", 48)
         drop_path_rate: float = self.config["drop_path_rate"]
@@ -125,6 +129,9 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         else:
             raise ValueError(f"Unknown mlp_layer_type '{mlp_layer_type}'")
 
+        if act_layer_type is not None:
+            act_layer = get_activation_module(act_layer_type)
+
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
@@ -133,6 +140,7 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
         self.num_reg_tokens = num_reg_tokens
+        self.attn_pool_special_tokens = attn_pool_special_tokens
         self.patch_size_list = get_patch_sizes(min_patch_size, max_patch_size, self.size)
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
@@ -195,7 +203,10 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         if attn_pool_head is False:
             self.attn_pool = None
         else:
-            self.attn_pool = MultiHeadAttentionPool(hidden_dim, num_heads, mlp_dim, qkv_bias=True, latent_len=1)
+            if attn_pool_num_heads is None:
+                attn_pool_num_heads = num_heads
+
+            self.attn_pool = MultiHeadAttentionPool(hidden_dim, attn_pool_num_heads, mlp_dim, qkv_bias=True)
 
         self.return_stages = ["neck"]  # Actually meaningless, just for completeness
         self.return_channels = [hidden_dim]
@@ -366,6 +377,9 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
                 x = x[..., -1]
 
             if self.attn_pool is not None:
+                if self.attn_pool_special_tokens is False:
+                    x = x[:, self.num_special_tokens :]
+
                 x = self.attn_pool(x)
                 result["embedding"] = x[:, 0]
             elif self.class_token is None:
@@ -420,6 +434,9 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
         if return_keys in ("all", "embedding"):
             if self.attn_pool is not None:
+                if self.attn_pool_special_tokens is False:
+                    x = x[:, self.num_special_tokens :]
+
                 x = self.attn_pool(x)
                 result["embedding"] = x[:, 0]
             elif self.class_token is None:
@@ -462,6 +479,9 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         x = self.forward_features(x, patch_size)
 
         if self.attn_pool is not None:
+            if self.attn_pool_special_tokens is False:
+                x = x[:, self.num_special_tokens :]
+
             x = self.attn_pool(x)
             return x[:, 0]
 

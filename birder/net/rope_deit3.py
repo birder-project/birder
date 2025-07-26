@@ -41,6 +41,7 @@ from birder.net.vit import adjust_position_embedding
 class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
+    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,
@@ -67,6 +68,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         rope_rot_type: Literal["standard", "interleaved"] = self.config.get("rope_rot_type", "standard")
         rope_grid_indexing: Literal["ij", "xy"] = self.config.get("rope_grid_indexing", "ij")
+        rope_grid_offset: int = self.config.get("rope_grid_offset", 0)
         rope_temperature: float = self.config.get("rope_temperature", 100.0)
         pt_grid_size: Optional[tuple[int, int]] = self.config.get("pt_grid_size", None)
         drop_path_rate: float = self.config["drop_path_rate"]
@@ -84,6 +86,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
         self.pos_embed_special_tokens = pos_embed_special_tokens
         self.rope_rot_type = rope_rot_type
         self.rope_grid_indexing = rope_grid_indexing
+        self.rope_grid_offset = rope_grid_offset
         self.rope_temperature = rope_temperature
 
         # Cast in case config was loaded from a json (no tuples),
@@ -128,6 +131,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             temperature=self.rope_temperature,
             grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
             grid_indexing=rope_grid_indexing,
+            grid_offset=rope_grid_offset,
             pt_grid_size=self.pt_grid_size,
             rope_rot_type=rope_rot_type,
         )
@@ -163,6 +167,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             activation_layer=nn.GELU,
             grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
             rope_grid_indexing=rope_grid_indexing,
+            rope_grid_offset=rope_grid_offset,
             rope_temperature=rope_temperature,
             layer_scale_init_value=layer_scale_init_value,
             rope_rot_type=rope_rot_type,
@@ -208,6 +213,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
                 self.rope_temperature,
                 grid_size=(H // self.patch_size, W // self.patch_size),
                 grid_indexing=self.rope_grid_indexing,
+                grid_offset=self.rope_grid_offset,
                 pt_grid_size=self.pt_grid_size,
             ),
             dim=-1,
@@ -431,6 +437,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             temperature=self.rope_temperature,
             grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
             grid_indexing=self.rope_grid_indexing,
+            grid_offset=self.rope_grid_offset,
             pt_grid_size=self.pt_grid_size,
             rope_rot_type=self.rope_rot_type,
         )
@@ -443,6 +450,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             activation_layer=nn.GELU,
             grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
             rope_grid_indexing=self.rope_grid_indexing,
+            rope_grid_offset=self.rope_grid_offset,
             rope_temperature=self.rope_temperature,
             layer_scale_init_value=self.layer_scale_init_value,
             rope_rot_type=self.rope_rot_type,

@@ -313,3 +313,18 @@ registry.register_weights(
         "net": {"network": "hgnet_v2_b0", "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "hgnet_v2_b2_danube-delta",
+    {
+        "url": "https://huggingface.co/birder-project/hgnet_v2_b2_danube-delta/resolve/main",
+        "description": "HGNet v2 B2 model trained on the danube-delta dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 38.1,
+                "sha256": "9dc96728eb3085c21be34bbbb1b167eb836015e920b590e6dee40040ed2c887a",
+            }
+        },
+        "net": {"network": "hgnet_v2_b2", "tag": "danube-delta"},
+    },
+)

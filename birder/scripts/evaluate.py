@@ -3,7 +3,6 @@ import logging
 from typing import Any
 
 import torch
-import torch.amp
 from torch.utils.data import DataLoader
 
 import birder

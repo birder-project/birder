@@ -180,6 +180,7 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Training on {len(training_dataset):,} samples")
 
     batch_size: int = args.batch_size
+    logger.debug(f"Effective batch size = {args.batch_size * args.grad_accum_steps * args.world_size}")
 
     # Data loaders and samplers
     if args.distributed is True:
@@ -543,11 +544,12 @@ def train(args: argparse.Namespace) -> None:
                     if iter_update is True:
                         scheduler.step()
 
-            # EMA update for the teacher
-            with torch.no_grad():
-                m = momentum_schedule[global_step]
-                for param_q, param_k in zip(student.parameters(), teacher.parameters()):
-                    param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
+            if optimizer_update is True:
+                # EMA update for the teacher
+                with torch.no_grad():
+                    m = momentum_schedule[global_step]
+                    for param_q, param_k in zip(student.parameters(), teacher.parameters()):
+                        param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
 
             # Statistics
             running_loss.update(loss.detach())

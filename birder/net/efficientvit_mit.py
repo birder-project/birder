@@ -19,9 +19,9 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
+from birder.layers.activations import get_activation_module
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.base import get_activation_module
 
 
 class ResidualBlock(nn.Module):

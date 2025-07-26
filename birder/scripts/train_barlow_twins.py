@@ -143,6 +143,7 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Training on {len(training_dataset):,} samples")
 
     batch_size: int = args.batch_size
+    logger.debug(f"Effective batch size = {args.batch_size * args.grad_accum_steps * args.world_size}")
 
     # Data loaders and samplers
     if args.distributed is True:

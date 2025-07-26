@@ -165,6 +165,13 @@ class CrossMAE(MIMBaseNet):
 
         return imgs
 
+    def fill_pred(self, mask: torch.Tensor, pred: torch.Tensor) -> torch.Tensor:
+        (N, L) = mask.shape[0:2]
+        combined = torch.zeros(N, L, pred.shape[2], device=pred.device, dtype=pred.dtype)
+        combined[mask.bool()] = pred.view(-1, pred.shape[2])
+
+        return combined
+
     def mask_tokens_grid(self, mask: torch.Tensor) -> torch.Tensor:
         N = mask.size(0)
         x = self.decoder_pos_embed.masked_select(mask.bool().unsqueeze(-1)).reshape(N, -1, self.mask_token.size(-1))

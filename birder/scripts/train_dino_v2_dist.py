@@ -209,6 +209,8 @@ def train(args: argparse.Namespace) -> None:
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
 
     batch_size: int = args.batch_size
+    logger.debug(f"Effective batch size = {args.batch_size * args.grad_accum_steps * args.world_size}")
+
     begin_epoch = 1
     epochs = args.epochs + 1
     if args.stop_epoch is None:
@@ -238,6 +240,15 @@ def train(args: argparse.Namespace) -> None:
         config=args.model_config,
         size=args.size,
     )
+    student_backbone_ema = registry.net_factory(
+        args.network,
+        sample_shape[1],
+        0,
+        net_param=args.net_param,
+        config=args.model_config,
+        size=args.size,
+    )
+    student_backbone_ema.load_state_dict(student_backbone.state_dict())
 
     teacher_backbone = registry.net_factory(
         args.teacher,
@@ -284,6 +295,7 @@ def train(args: argparse.Namespace) -> None:
     net = torch.nn.ModuleDict(
         {
             "student": student,
+            "student_backbone_ema": student_backbone_ema,
             "teacher": teacher,
             "dino_loss": dino_loss,
             "koleo_loss": koleo_loss,
@@ -296,6 +308,7 @@ def train(args: argparse.Namespace) -> None:
         begin_epoch = args.resume_epoch + 1
         (net, training_states) = fs_ops.load_simple_checkpoint(device, net, network_name, epoch=args.resume_epoch)
         student = net["student"]
+        student_backbone_ema = net["student_backbone_ema"]
         teacher = net["teacher"]
         dino_loss = net["dino_loss"]
         koleo_loss = net["koleo_loss"]
@@ -745,6 +758,13 @@ def train(args: argparse.Namespace) -> None:
                     if iter_update is True:
                         scheduler.step()
 
+            if optimizer_update is True:
+                # EMA update for the student backbone
+                with torch.no_grad():
+                    m = 0.999
+                    for param_q, param_k in zip(student.backbone.parameters(), student_backbone_ema.parameters()):
+                        param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
+
             # Statistics
             running_loss.update(loss.detach())
             running_loss_dino_local.update(loss_dino_local_crops.detach())
@@ -835,7 +855,7 @@ def train(args: argparse.Namespace) -> None:
                 fs_ops.checkpoint_model(
                     backbone_name,
                     epoch,
-                    model_to_save["student"].backbone,
+                    student_backbone_ema,
                     backbone_signature,
                     {},
                     rgb_stats,
@@ -877,7 +897,7 @@ def train(args: argparse.Namespace) -> None:
         fs_ops.checkpoint_model(
             backbone_name,
             epoch,
-            model_to_save["student"].backbone,
+            student_backbone_ema,
             backbone_signature,
             {},
             rgb_stats,

@@ -108,30 +108,27 @@ echo "====================================="
 echo ""
 
 # Launch distributed training
-srun python -m birder.scripts.train_dino_v2 \
-    --network rope_vit_reg8_so150m_p14_ap \
-    --ibot-separate-head \
-    --dino-out-dim 131072 \
-    --ibot-out-dim 131072 \
-    --head-bottleneck-dim 384 \
-    --centering sinkhorn_knopp \
-    --local-crop-size 98 \
-    --opt adamw \
-    --lr 0.0002 \
-    --lr-scheduler-update iter \
+srun python -m birder.scripts.train \
+    --network resnet_v1_101 \
+    --tag test \
+    --opt lamb \
+    --lr 0.005 \
     --lr-scheduler cosine \
-    --lr-cosine-min 1e-6 \
-    --epochs 400 \
-    --warmup-epochs 40 \
-    --batch-size 64 \
-    --wd 0.04 \
-    --wd-end 0.2 \
-    --clip-grad-norm 3 \
-    --model-config drop_path_rate=0.3 \
+    --lr-cosine-min 1e-7 \
+    --warmup-epochs 5 \
+    --epochs 300 \
+    --wd 0.02 \
+    --grad-accum-steps 4 \
+    --mixup-alpha 0.1 \
+    --cutmix \
+    --aug-type ra \
+    --re-prob 0.25 \
+    --rgb-mode imagenet \
     --amp --amp-dtype bfloat16 \
     --compile \
-    --rgb-mode none \
-    --wds --wds-info /mnt/data/ssl_packed/_info.json
+    --wds \
+    --wds-class-file https://huggingface.co/datasets/birder-project/CUB_200_2011-WDS/resolve/main/classes.txt \
+    --wds-info https://huggingface.co/datasets/birder-project/CUB_200_2011-WDS/resolve/main/_info.json
 
 # ==============================================================================
 # POST-TRAINING CLEANUP AND REPORTING

@@ -1,0 +1,137 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.17.2
+  kernelspec:
+    display_name: birder
+    language: python
+    name: birder
+---
+
+```{python}
+import logging
+
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+import torch.nn.functional as F
+from PIL import Image
+```
+
+```{python}
+# %cd ..
+```
+
+```{python}
+from birder.common import fs_ops
+from birder.common.lib import get_label_from_path
+from birder.conf import settings
+from birder.data.transforms.classification import get_rgb_stats
+from birder.data.transforms.classification import inference_preset
+from birder.model_registry import registry
+```
+
+```{python}
+plt.rcParams["figure.figsize"] = [24, 24]
+```
+
+```{python}
+def show_image(image, title=""):
+    mean = torch.tensor(get_rgb_stats("none")["mean"])
+    std = torch.tensor(get_rgb_stats("none")["std"])
+    # image is [H, W, 3]
+    assert image.shape[2] == 3
+    plt.imshow(torch.clip((image * std + mean) * 255, 0, 255).int())
+    plt.title(title, fontsize=16)
+    plt.axis("off")
+```
+
+```{python}
+network = "crossmae"
+encoder = "vit_reg4_so150m_p14_ap"
+encoder_param = None
+size = 224
+epoch = 5
+
+image = "data/validation/Bluethroat/000013.jpeg"
+# image = "data/training/African crake/000005.jpeg"
+# image = "data/training/African swamphen/000001.jpeg"
+# image = "data/validation/Barn owl/000013.jpeg"
+# image = "data/validation/Zitting cisticola/000025.jpeg"
+# image = "data/validation/Great egret/000031.jpeg"
+img = Image.open(image)
+```
+
+```{python}
+device = torch.device("cpu")
+(net, _) = fs_ops.load_mim_checkpoint(
+    device,
+    network,
+    net_param=None,
+    encoder=encoder,
+    encoder_param=encoder_param,
+    epoch=epoch,
+)
+net.kept_mask_ratio = net.mask_ratio
+```
+
+```{python}
+transform = inference_preset((size, size), get_rgb_stats("none"), 1.0)
+input_tensor = transform(img).unsqueeze(dim=0).to(device)
+
+torch.manual_seed(0)
+output = net(input_tensor)
+
+loss = output["loss"]
+pred = output["pred"]
+mask = output["mask"]
+```
+
+```{python}
+target = net.patchify(input_tensor)
+mean = target.mean(dim=-1, keepdim=True)
+var = target.var(dim=-1, keepdim=True)
+```
+
+```{python}
+pred_combined = net.fill_pred(mask, pred)
+pred_combined = pred_combined * (var + 1.0e-6) ** 0.5 + mean
+y = net.unpatchify(pred_combined)
+```
+
+```{python}
+y = torch.einsum("nchw->nhwc", y).detach().cpu()
+
+# visualize the mask
+mask = mask.detach().float()
+mask = mask.unsqueeze(-1).repeat(1, 1, net.patch_size**2 * 3)
+mask = net.unpatchify(mask)  # 1 is removing, 0 is keeping
+mask = torch.einsum("nchw->nhwc", mask).detach().cpu()
+
+x = torch.einsum("nchw->nhwc", input_tensor).squeeze(0)
+
+# Masked image
+im_masked = x * (1 - mask)
+
+# MAE reconstruction pasted with visible patches
+im_paste = x * (1 - mask) + y * mask
+
+plt.subplot(1, 4, 1)
+show_image(x, "Original")
+
+plt.subplot(1, 4, 2)
+show_image(im_masked[0], "Masked")
+
+plt.subplot(1, 4, 3)
+show_image(y[0], "Reconstruction")
+
+plt.subplot(1, 4, 4)
+show_image(im_paste[0], "Reconstruction + Visible")
+
+plt.show()
+```
