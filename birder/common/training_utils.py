@@ -293,7 +293,6 @@ def optimizer_parameter_groups(
         logger.info(f"Layer scaling in range of {min(layer_scales)} - {max(layer_scales)} on {num_layers} layers")
 
     # Set weight decay and layer decay
-    user_warned = False
     idx = 0
     params = []
     module_stack_with_prefix = [(model, "")]
@@ -302,10 +301,6 @@ def optimizer_parameter_groups(
         skip_module = False
         (module, prefix) = module_stack_with_prefix.pop()
         if id(module) in visited_modules:
-            if user_warned is False:
-                logger.info("Found duplicated parameters (probably a module alias)")
-                user_warned = True
-
             skip_module = True
 
         visited_modules.append(id(module))
@@ -904,6 +899,23 @@ def freeze_batchnorm2d(module: torch.nn.Module) -> torch.nn.Module:
     else:
         for name, child in module.named_children():
             new_child = freeze_batchnorm2d(child)
+            if new_child is not child:
+                res.add_module(name, new_child)
+
+    return res
+
+
+def replace_module(
+    module: torch.nn.Module,
+    from_module: type[torch.nn.Module] | tuple[type[torch.nn.Module], ...],
+    to_module: type[torch.nn.Module],
+) -> torch.nn.Module:
+    res = module
+    if isinstance(module, from_module):
+        res = to_module()
+    else:
+        for name, child in module.named_children():
+            new_child = replace_module(child, from_module, to_module)
             if new_child is not child:
                 res.add_module(name, new_child)
 

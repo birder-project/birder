@@ -69,7 +69,7 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
-    if registry.exists(args.backbone, net_type=DetectorBackbone) is False:
+    if args.backbone is not None and registry.exists(args.backbone, net_type=DetectorBackbone) is False:
         raise cli.ValidationError(
             f"--backbone {args.network} not supported, see list-models tool for available options"
         )

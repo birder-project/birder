@@ -329,7 +329,7 @@ def add_ema_args(
         "--model-ema-steps",
         type=int,
         default=default_ema_steps,
-        help="the number of iterations that controls how often to update the EMA model",
+        help="the number of iterations that controls how often to update the EMA model (adjusted to grad-accum-steps)",
     )
     group.add_argument(
         "--model-ema-decay",

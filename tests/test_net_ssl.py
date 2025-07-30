@@ -17,6 +17,7 @@ from birder.net.ssl import i_jepa
 from birder.net.ssl import ibot
 from birder.net.ssl import mmcr
 from birder.net.ssl import simclr
+from birder.net.ssl import sscd
 from birder.net.ssl import vicreg
 
 logging.disable(logging.CRITICAL)
@@ -578,6 +579,14 @@ class TestNetSSL(unittest.TestCase):
         out = net(torch.rand((batch_size, 3, 128, 128)), torch.rand((batch_size, 3, 128, 128)))
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 0)
+
+    def test_sscd(self) -> None:
+        batch_size = 4
+        backbone = registry.net_factory("resnet_v2_18", 3, 512)
+        net = sscd.SSCD(backbone)
+        out = net(torch.rand(batch_size, 3, 128, 128))
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.ndim, 2)
 
     def test_vicreg(self) -> None:
         batch_size = 4

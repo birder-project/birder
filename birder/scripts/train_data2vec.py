@@ -465,7 +465,7 @@ def train(args: argparse.Namespace) -> None:
                 running_loss.synchronize_between_processes(device)
                 with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
                     log.info(
-                        f"[Training] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx}  "
+                        f"[Training] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx+1}  "
                         f"Loss: {running_loss.avg:.4f}  "
                         f"Elapsed: {format_duration(time_now-epoch_start)}  "
                         f"Time: {time_cost:.1f}s  "

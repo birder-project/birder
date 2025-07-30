@@ -157,6 +157,7 @@ def train(args: argparse.Namespace) -> None:
 
     num_outputs = len(class_to_idx)
     batch_size: int = args.batch_size
+    model_ema_steps: int = args.model_ema_steps * args.grad_accum_steps
     logger.debug(f"Effective batch size = {args.batch_size * args.grad_accum_steps * args.world_size}")
 
     # Set data iterators
@@ -537,7 +538,7 @@ def train(args: argparse.Namespace) -> None:
                         scheduler.step()
 
             # Exponential moving average
-            if args.model_ema is True and i % args.model_ema_steps == 0:
+            if args.model_ema is True and i % model_ema_steps == 0:
                 model_ema.update_parameters(net)
                 if epoch <= args.warmup_epochs:
                     # Reset ema buffer to keep copying weights during warmup period
@@ -563,14 +564,14 @@ def train(args: argparse.Namespace) -> None:
                 training_metrics_dict = training_metrics.compute()
                 with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
                     log.info(
-                        f"[Training] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx}  "
+                        f"[Training] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx+1}  "
                         f"Loss: {running_loss.avg:.4f}  "
                         f"Elapsed: {format_duration(time_now-epoch_start)}  "
                         f"Time: {time_cost:.1f}s  "
                         f"Rate: {rate:.1f} samples/s  "
                         f"LR: {cur_lr:.4e}"
                     )
-                    log_msg = f"[Training] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx}  Metrics: "
+                    log_msg = f"[Training] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx+1}  Metrics: "
                     for metric, value in training_metrics_dict.items():
                         log_msg += f"{metric}: {value:.4f} "
 

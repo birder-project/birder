@@ -28,6 +28,17 @@ class TestLayers(unittest.TestCase):
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.size(), (2, 8))
 
+    def test_gem(self) -> None:
+        fixed_gem = layers.FixedGeMPool2d(3)
+        out = fixed_gem(torch.rand(2, 8, 16, 16))
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.size(), (2, 8))
+
+        gem = layers.GeMPool2d(3)
+        out = gem(torch.rand(2, 8, 16, 16))
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.size(), (2, 8))
+
     def test_layer_norm(self) -> None:
         ln = layers.LayerNorm2d(16)
         out = ln(torch.rand(1, 16, 64, 64))

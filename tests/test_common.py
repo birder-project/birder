@@ -558,6 +558,25 @@ class TestTrainingUtils(unittest.TestCase):
         for m in model.modules():
             self.assertNotIsInstance(m, torch.nn.BatchNorm2d)
 
+    def test_replace_module(self) -> None:
+        model = torch.nn.Sequential(
+            torch.nn.Linear(1, 2, bias=True),
+            torch.nn.BatchNorm1d(2),
+            torch.nn.Sequential(
+                torch.nn.Linear(1, 2, bias=True),
+                torch.nn.ReLU(),
+            ),
+            torch.nn.Linear(2, 1, bias=False),
+        )
+        model = training_utils.replace_module(model, torch.nn.Linear, torch.nn.GELU)
+        gelu_count = 0
+        for m in model.modules():
+            self.assertNotIsInstance(m, torch.nn.Linear)
+            if isinstance(m, torch.nn.GELU):
+                gelu_count += 1
+
+        self.assertEqual(gelu_count, 3)
+
 
 class TestMasking(unittest.TestCase):
     def test_mask_token_omission(self) -> None:

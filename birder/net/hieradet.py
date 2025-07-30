@@ -6,10 +6,12 @@ Paper "SAM 2: Segment Anything in Images and Videos", https://arxiv.org/abs/2408
 
 Changes from original:
 * Support only 2d
+* Allow dynamic window_spec (by defining divisor as a negative number)
 """
 
 # Reference license: Apache-2.0
 
+import copy
 from collections import OrderedDict
 from typing import Any
 from typing import Literal
@@ -140,7 +142,7 @@ class MultiScaleBlock(nn.Module):
             dim,
             dim_out,
             num_heads=num_heads,
-            q_pool=self.pool,
+            q_pool=copy.deepcopy(self.pool),
         )
         self.norm2 = nn.LayerNorm(dim_out)
         self.mlp = MLP(dim_out, [int(dim_out * mlp_ratio), dim_out], activation_layer=nn.GELU)
@@ -238,10 +240,12 @@ class HieraDet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         return_channels: list[int] = []
         for i in range(depth):
             dim_out = embed_dim
-            window_size = window_spec[cur_stage - 1]
+            window_size = window_spec[cur_stage - 1]  # Lags by a block
 
-            if global_att_blocks is not None:
-                window_size = 0 if i in global_att_blocks else window_size
+            if i in global_att_blocks:
+                window_size = 0
+            elif window_size < 0:
+                window_size = min(self.size) // -window_size
 
             if i - 1 in self.stage_ends:
                 dim_out = int(embed_dim * dim_mul)
@@ -354,6 +358,33 @@ class HieraDet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         return x
 
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
+        if new_size == self.size:
+            return
+
+        super().adjust_size(new_size)
+
+        assert self.config is not None, "must set config"
+        global_att_blocks: list[int] = self.config["global_att_blocks"]
+        window_spec: list[int] = self.config["window_spec"]
+
+        cur_stage = 1
+        i = 0
+        for m in self.body.modules():
+            if isinstance(m, MultiScaleBlock):
+                window_size = window_spec[cur_stage - 1]
+                if i in global_att_blocks:
+                    window_size = 0
+                elif window_size < 0:
+                    window_size = min(new_size) // -window_size
+
+                if i - 1 in self.stage_ends:
+                    cur_stage += 1
+
+                m.window_size = window_size
+
+                i += 1
+
     def load_hiera_weights(self, state_dict: dict[str, Any]) -> None:
         # NOTE: Only abswin variant supported
 
@@ -382,7 +413,7 @@ registry.register_model_config(
         "num_heads": 1,
         "global_pos_size": (7, 7),
         "global_att_blocks": [5, 7, 9],
-        "window_spec": [8, 4, 14, 7],
+        "window_spec": [8, 4, -16, -32],
         "drop_path_rate": 0.1,
     },
 )
@@ -395,7 +426,7 @@ registry.register_model_config(
         "num_heads": 1,
         "global_pos_size": (7, 7),
         "global_att_blocks": [7, 10, 13],
-        "window_spec": [8, 4, 14, 7],
+        "window_spec": [8, 4, -16, -32],
         "drop_path_rate": 0.1,
     },
 )
@@ -408,7 +439,7 @@ registry.register_model_config(
         "num_heads": 1,
         "global_pos_size": (14, 14),
         "global_att_blocks": [12, 16, 20],
-        "window_spec": [8, 4, 14, 7],
+        "window_spec": [8, 4, -16, -32],
         "drop_path_rate": 0.1,
     },
 )
@@ -421,7 +452,7 @@ registry.register_model_config(
         "num_heads": 2,
         "global_pos_size": (14, 14),
         "global_att_blocks": [12, 16, 20],
-        "window_spec": [8, 4, 14, 7],
+        "window_spec": [8, 4, -16, -32],
         "drop_path_rate": 0.1,
     },
 )
@@ -434,7 +465,7 @@ registry.register_model_config(
         "num_heads": 2,
         "global_pos_size": (7, 7),
         "global_att_blocks": [23, 33, 43],
-        "window_spec": [8, 4, 16, 8],
+        "window_spec": [8, 4, -16, -32],
         "drop_path_rate": 0.2,
     },
 )
