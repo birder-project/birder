@@ -554,6 +554,8 @@ def load_model(
         class_to_idx: dict[str, int] = json.loads(extra_files["class_to_idx"])
         signature: SignatureType = json.loads(extra_files["signature"])
         rgb_stats: RGBType = json.loads(extra_files["rgb_stats"])
+        net.input_channels = lib.get_channels_from_signature(signature)
+        net.size = lib.get_size_from_signature(signature)
 
     elif pt2 is True:
         extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_stats": ""}
@@ -563,6 +565,8 @@ def load_model(
         class_to_idx = json.loads(extra_files["class_to_idx"])
         signature = json.loads(extra_files["signature"])
         rgb_stats = json.loads(extra_files["rgb_stats"])
+        net.input_channels = lib.get_channels_from_signature(signature)
+        net.size = lib.get_size_from_signature(signature)
 
     elif st is True:
         assert _HAS_SAFETENSORS, "'pip install safetensors' to use .safetensors"
@@ -702,6 +706,8 @@ def load_detection_model(
         class_to_idx: dict[str, int] = json.loads(extra_files["class_to_idx"])
         signature: DetectionSignatureType = json.loads(extra_files["signature"])
         rgb_stats: RGBType = json.loads(extra_files["rgb_stats"])
+        net.input_channels = lib.get_channels_from_signature(signature)
+        net.size = lib.get_size_from_signature(signature)
 
     elif pt2 is True:
         extra_files = {"task": "", "class_to_idx": "", "signature": "", "rgb_stats": ""}
@@ -711,6 +717,8 @@ def load_detection_model(
         class_to_idx = json.loads(extra_files["class_to_idx"])
         signature = json.loads(extra_files["signature"])
         rgb_stats = json.loads(extra_files["rgb_stats"])
+        net.input_channels = lib.get_channels_from_signature(signature)
+        net.size = lib.get_size_from_signature(signature)
 
     elif st is True:
         assert _HAS_SAFETENSORS, "'pip install safetensors' to use .safetensors"

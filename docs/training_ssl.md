@@ -258,6 +258,12 @@ torchrun --nproc_per_node=2 train.py --network vit_reg4_m16 --tag data2vec2 --op
 torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_b16 --opt adamw --lr 0.0005 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 96 --epochs 200 --wd 0.05 --clip-grad-norm 4 --amp --amp-dtype bfloat16 --compile --compile-opt --rgb-mode none --data-path data/training data/raw_data data/detection_data/training
 ```
 
+Fine-tuning, first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_b16 --tag data2vec2 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 224 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --rgb-mode none --resume-epoch 0 --reset-head --freeze-body
+```
+
 #### Data2Vec2: SoViT reg8 150m p14 swiglu
 
 ```sh
@@ -355,7 +361,7 @@ torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-imag
 ImageNet 12K next, full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-imagenet12k --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 100 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --amp --amp-dtype bfloat16 --compile --compile-opt --layer-decay 0.65 --resume-epoch 0 --save-frequency 1 --wds --wds-class-file public_datasets_metadata/imagenet-12k-classes.txt --wds-info ~/Datasets/imagenet-12k-wds/_info.json --wds-training-split train
+torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-imagenet12k --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 5 --epochs 100 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --amp --amp-dtype bfloat16 --compile --compile-opt --layer-decay 0.65 --resume-epoch 0 --save-frequency 1 --wds --wds-class-file public_datasets_metadata/imagenet-12k-classes.txt --wds-info ~/Datasets/imagenet-12k-wds/_info.json --wds-training-split train
 ```
 
 iNaturalist 2021 fine-tuning, first stage - linear probing

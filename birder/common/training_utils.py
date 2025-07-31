@@ -796,6 +796,17 @@ def training_log_name(network: str, device: torch.device) -> str:
     return f"{network}__{iso_timestamp}"
 
 
+def training_log_path(network_name: str, device: torch.device, experiment: Optional[str]) -> Path:
+    log_name = training_log_name(network_name, device)
+    if experiment is not None:
+        log_dir = settings.TRAINING_RUNS_PATH.joinpath(experiment)
+        log_dir.mkdir(exist_ok=True)
+    else:
+        log_dir = settings.TRAINING_RUNS_PATH
+
+    return log_dir.joinpath(log_name)
+
+
 def setup_file_logging(log_file_path: str | Path) -> logging.Handler:
     file_handler = logging.FileHandler(log_file_path)
     formatter = logging.Formatter(

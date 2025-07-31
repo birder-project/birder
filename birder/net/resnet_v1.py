@@ -247,3 +247,21 @@ registry.register_weights(
         "net": {"network": "resnet_v1_50", "tag": "arabian-peninsula"},
     },
 )
+registry.register_weights(  # A Self-Supervised Descriptor for Image Copy Detection: https://arxiv.org/abs/2202.10261
+    "resnet_v1_50_sscd",
+    {
+        "url": "https://huggingface.co/birder-project/resnet_v1_50_sscd/resolve/main",
+        "description": (
+            "ResNet v1 50 model trained DISC for image copy detection. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (320, 320),
+        "formats": {
+            "pt": {
+                "file_size": 94.0,
+                "sha256": "974c71a7ee4645b50b7626b81c3d2d1037ab90345e8b859d8a89aa69a6c64502",
+            }
+        },
+        "net": {"network": "resnet_v1_50", "tag": "sscd"},
+    },
+)

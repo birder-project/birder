@@ -37,7 +37,7 @@ def add_optimization_args(parser: argparse.ArgumentParser, default_batch_size: i
     group = parser.add_argument_group("Optimization parameters")
     group.add_argument("--batch-size", type=int, default=default_batch_size, metavar="N", help="the batch size")
     group.add_argument("--opt", type=str, choices=list(get_args(OptimizerType)), default="sgd", help="optimizer to use")
-    group.add_argument("--momentum", type=float, default=0.9, help="optimizer momentum")
+    group.add_argument("--momentum", type=float, default=0.9, metavar="M", help="optimizer momentum")
     group.add_argument("--nesterov", default=False, action="store_true", help="use nesterov momentum")
     group.add_argument("--opt-eps", type=float, help="optimizer epsilon (None to use the optimizer default)")
     group.add_argument("--opt-betas", type=float, nargs="+", help="optimizer betas (None to use the optimizer default)")
@@ -50,10 +50,10 @@ def add_optimization_args(parser: argparse.ArgumentParser, default_batch_size: i
 
 def add_lr_wd_args(parser: argparse.ArgumentParser, backbone_lr: bool = False, wd_end: bool = False) -> None:
     group = parser.add_argument_group("Learning rate and regularization parameters")
-    group.add_argument("--lr", type=float, default=0.1, help="base learning rate")
-    group.add_argument("--bias-lr", type=float, help="learning rate of biases")
+    group.add_argument("--lr", type=float, default=0.1, metavar="LR", help="base learning rate")
+    group.add_argument("--bias-lr", type=float, metavar="LR", help="learning rate of biases")
     if backbone_lr is True:
-        group.add_argument("--backbone-lr", type=float, help="backbone learning rate")
+        group.add_argument("--backbone-lr", type=float, metavar="LR", help="backbone learning rate")
 
     group.add_argument(
         "--lr-scale", type=int, help="reference batch size for LR scaling, if provided, LR will be scaled accordingly"
@@ -61,15 +61,20 @@ def add_lr_wd_args(parser: argparse.ArgumentParser, backbone_lr: bool = False, w
     group.add_argument(
         "--lr-scale-type", type=str, choices=["linear", "sqrt"], default="linear", help="learning rate scaling type"
     )
-    group.add_argument("--wd", type=float, default=0.0001, help="weight decay")
+    group.add_argument("--wd", type=float, default=0.0001, metavar="WD", help="weight decay")
     if wd_end is True:
-        group.add_argument("--wd-end", type=float, help="final value of the weight decay (None for constant wd)")
+        group.add_argument(
+            "--wd-end", type=float, metavar="WD", help="final value of the weight decay (None for constant wd)"
+        )
 
-    group.add_argument("--norm-wd", type=float, help="weight decay for Normalization layers")
-    group.add_argument("--bias-weight-decay", type=float, help="weight decay for bias parameters of all layers")
+    group.add_argument("--norm-wd", type=float, metavar="WD", help="weight decay for Normalization layers")
+    group.add_argument(
+        "--bias-weight-decay", type=float, metavar="WD", help="weight decay for bias parameters of all layers"
+    )
     group.add_argument(
         "--transformer-embedding-decay",
         type=float,
+        metavar="WD",
         help="weight decay for embedding parameters for vision transformer models",
     )
     group.add_argument("--layer-decay", type=float, help="layer-wise learning rate decay (LLRD)")
@@ -216,7 +221,11 @@ def add_data_aug_args(
         "--use-grayscale", default=False, action="store_true", help="use grayscale augmentation (birder aug only)"
     )
     group.add_argument(
-        "--ra-num-ops", type=int, default=2, help="number of augmentation transformations to apply sequentially"
+        "--ra-num-ops",
+        type=int,
+        default=2,
+        metavar="N",
+        help="number of augmentation transformations to apply sequentially",
     )
     group.add_argument("--ra-magnitude", type=int, default=9, help="magnitude for all the RandAugment transformations")
     group.add_argument("--augmix-severity", type=int, default=3, help="severity of AugMix policy")
@@ -329,6 +338,7 @@ def add_ema_args(
         "--model-ema-steps",
         type=int,
         default=default_ema_steps,
+        metavar="N",
         help="the number of iterations that controls how often to update the EMA model (adjusted to grad-accum-steps)",
     )
     group.add_argument(
@@ -416,7 +426,7 @@ def add_precision_args(parser: argparse.ArgumentParser) -> None:
 def add_distributed_args(parser: argparse.ArgumentParser) -> None:
     group = parser.add_argument_group("Distributed training parameters")
     group.add_argument("--world-size", type=int, default=1, metavar="N", help="number of distributed processes")
-    group.add_argument("--local-rank", type=int, help="local rank")
+    group.add_argument("--local-rank", type=int, metavar="N", help="local rank")
     group.add_argument("--dist-url", type=str, default="env://", help="URL used to initialize distributed training")
     group.add_argument("--dist-backend", type=str, default="nccl", help="distributed backend")
     group.add_argument(
@@ -431,6 +441,13 @@ def add_logging_and_debug_args(
     parser: argparse.ArgumentParser, default_log_interval: int = 50, fake_data: bool = True
 ) -> None:
     group = parser.add_argument_group("Logging and debugging parameters")
+    group.add_argument(
+        "--experiment",
+        "--exp",
+        type=str,
+        metavar="NAME",
+        help="experiment name for logging (creates dedicated directory for the run)",
+    )
     group.add_argument(
         "--log-interval",
         type=int,
@@ -474,7 +491,7 @@ def add_training_data_args(parser: argparse.ArgumentParser, unsupervised: bool =
     group = parser.add_argument_group("Training data parameters", description="WebDataset")
     group.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
     group.add_argument("--wds-info", type=str, metavar="FILE", help="wds info file path")
-    group.add_argument("--wds-cache-dir", type=str, help="webdataset cache directory")
+    group.add_argument("--wds-cache-dir", type=str, metavar="DIR", help="webdataset cache directory")
     group.add_argument("--wds-train-size", type=int, metavar="N", help="size of the wds training set")
     if unsupervised is False:
         group.add_argument("--wds-class-file", type=str, metavar="FILE", help="class list file")
@@ -499,10 +516,18 @@ def add_training_data_args(parser: argparse.ArgumentParser, unsupervised: bool =
             help="use hierarchical directory structure for labels (e.g., 'dir1/subdir2' -> 'dir1_subdir2' label)",
         )
         group.add_argument(
-            "--data-path", type=str, default=str(settings.TRAINING_DATA_PATH), help="training directory path"
+            "--data-path",
+            type=str,
+            default=str(settings.TRAINING_DATA_PATH),
+            metavar="DIR",
+            help="training directory path",
         )
         group.add_argument(
-            "--val-path", type=str, default=str(settings.VALIDATION_DATA_PATH), help="validation directory path"
+            "--val-path",
+            type=str,
+            default=str(settings.VALIDATION_DATA_PATH),
+            metavar="DIR",
+            help="validation directory path",
         )
     else:
         group.add_argument(
@@ -513,21 +538,31 @@ def add_training_data_args(parser: argparse.ArgumentParser, unsupervised: bool =
 def add_detection_training_data_args(parser: argparse.ArgumentParser) -> None:
     group = parser.add_argument_group("Training data parameters")
     group.add_argument(
-        "--data-path", type=str, default=str(settings.DETECTION_DATA_PATH), help="training base directory path"
+        "--data-path",
+        type=str,
+        default=str(settings.DETECTION_DATA_PATH),
+        metavar="DIR",
+        help="training base directory path",
     )
     group.add_argument(
-        "--val-path", type=str, default=str(settings.DETECTION_DATA_PATH), help="validation base directory path"
+        "--val-path",
+        type=str,
+        default=str(settings.DETECTION_DATA_PATH),
+        metavar="DIR",
+        help="validation base directory path",
     )
     group.add_argument(
         "--coco-json-path",
         type=str,
         default=f"{settings.TRAINING_DETECTION_ANNOTATIONS_PATH}_coco.json",
+        metavar="FILE",
         help="training COCO json path",
     )
     group.add_argument(
         "--coco-val-json-path",
         type=str,
         default=f"{settings.VALIDATION_DETECTION_ANNOTATIONS_PATH}_coco.json",
+        metavar="FILE",
         help="validation COCO json path",
     )
     group.add_argument("--class-file", type=str, metavar="FILE", help="class list file, overrides json categories")

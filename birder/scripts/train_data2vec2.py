@@ -366,8 +366,7 @@ def train(args: argparse.Namespace) -> None:
             print(summary, file=sys.stderr)
 
     # Training logs
-    training_log_name = training_utils.training_log_name(network_name, device)
-    training_log_path = settings.TRAINING_RUNS_PATH.joinpath(training_log_name)
+    training_log_path = training_utils.training_log_path(network_name, device, args.experiment)
     logger.info(f"Logging training run at {training_log_path}")
     summary_writer = SummaryWriter(training_log_path)
 
