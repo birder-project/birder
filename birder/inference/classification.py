@@ -25,6 +25,7 @@ def infer_image(
     transform: Callable[..., torch.Tensor],
     return_embedding: bool = False,
     tta: bool = False,
+    return_logits: bool = False,
     device: Optional[torch.device] = None,
     **kwargs: Any,
 ) -> tuple[npt.NDArray[np.float32], Optional[npt.NDArray[np.float32]]]:
@@ -51,7 +52,9 @@ def infer_image(
         device = torch.device("cpu")
 
     input_tensor = transform(image).unsqueeze(dim=0).to(device)
-    return infer_batch(net, input_tensor, return_embedding=return_embedding, tta=tta, **kwargs)
+    return infer_batch(
+        net, input_tensor, return_embedding=return_embedding, tta=tta, return_logits=return_logits, **kwargs
+    )
 
 
 def infer_batch(
@@ -59,15 +62,17 @@ def infer_batch(
     inputs: torch.Tensor,
     return_embedding: bool = False,
     tta: bool = False,
+    return_logits: bool = False,
     **kwargs: Any,
 ) -> tuple[npt.NDArray[np.float32], Optional[npt.NDArray[np.float32]]]:
+    embedding: Optional[npt.NDArray[np.float32]] = None
     if return_embedding is True:
         embedding_tensor: torch.Tensor = net.embedding(inputs, **kwargs)
-        out = F.softmax(net.classify(embedding_tensor), dim=1)
-        embedding: Optional[npt.NDArray[np.float32]] = embedding_tensor.cpu().float().numpy()
+        logits = net.classify(embedding_tensor)
+        out = logits if return_logits is True else F.softmax(logits, dim=1)
+        embedding = embedding_tensor.cpu().float().numpy()
 
     elif tta is True:
-        embedding = None
         (_, _, H, W) = inputs.size()
         crop_h = int(H * 0.8)
         crop_w = int(W * 0.8)
@@ -75,13 +80,14 @@ def infer_batch(
         t = v2.Resize((H, W), interpolation=v2.InterpolationMode.BICUBIC, antialias=True)
         outs = []
         for tta_input in tta_inputs:
-            outs.append(F.softmax(net(t(tta_input), **kwargs), dim=1))
+            logits = net(t(tta_input), **kwargs)
+            outs.append(logits if return_logits is True else F.softmax(logits, dim=1))
 
         out = torch.stack(outs).mean(axis=0)
 
     else:
-        embedding = None
-        out = F.softmax(net(inputs, **kwargs), dim=1)
+        logits = net(inputs, **kwargs)
+        out = logits if return_logits is True else F.softmax(logits, dim=1)
 
     return (out.cpu().float().numpy(), embedding)
 
@@ -89,12 +95,14 @@ def infer_batch(
 DataloaderInferenceResult = tuple[list[str], npt.NDArray[np.float32], list[int], list[npt.NDArray[np.float32]]]
 
 
+# pylint: disable=too-many-locals
 def infer_dataloader_iter(
     device: torch.device,
     net: torch.nn.Module | torch.ScriptModule,
     dataloader: DataLoader,
     return_embedding: bool = False,
     tta: bool = False,
+    return_logits: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
@@ -126,7 +134,9 @@ def infer_dataloader_iter(
             inputs = inputs.to(device, dtype=model_dtype)
 
             with torch.amp.autocast(device.type, enabled=amp, dtype=amp_dtype):
-                (out, embedding) = infer_batch(net, inputs, return_embedding=return_embedding, tta=tta, **kwargs)
+                (out, embedding) = infer_batch(
+                    net, inputs, return_embedding=return_embedding, tta=tta, return_logits=return_logits, **kwargs
+                )
 
             out_list.append(out)
             if embedding is not None:
@@ -167,6 +177,7 @@ def infer_dataloader(
     dataloader: DataLoader,
     return_embedding: bool = False,
     tta: bool = False,
+    return_logits: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
@@ -184,6 +195,7 @@ def infer_dataloader(
     dataloader: DataLoader,
     return_embedding: bool = False,
     tta: bool = False,
+    return_logits: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
@@ -200,6 +212,7 @@ def infer_dataloader(
     dataloader: DataLoader,
     return_embedding: bool = False,
     tta: bool = False,
+    return_logits: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
@@ -230,6 +243,9 @@ def infer_dataloader(
         Whether to return embeddings along with the outputs.
     tta
         Run inference with oversampling.
+    return_logits
+        If True, the raw logits from the model's final layer will be returned
+        instead of probabilities after a softmax operation.
     model_dtype
         The base dtype to use.
     amp
@@ -318,6 +334,7 @@ def infer_dataloader(
         dataloader,
         return_embedding,
         tta,
+        return_logits,
         model_dtype,
         amp,
         amp_dtype,

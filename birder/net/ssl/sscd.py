@@ -44,6 +44,7 @@ class SSCD(SSLBaseNet):
         return x
 
 
+# Registered as classification model instead of SSL for cleaner API - functionally equivalent
 registry.register_weights(
     "sscd_resnext_101_c1",
     {

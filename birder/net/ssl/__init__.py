@@ -11,6 +11,7 @@ from birder.net.ssl.i_jepa import I_JEPA
 from birder.net.ssl.ibot import iBOT
 from birder.net.ssl.mmcr import MMCR
 from birder.net.ssl.simclr import SimCLR
+from birder.net.ssl.sscd import SSCD
 from birder.net.ssl.vicreg import VICReg
 
 __all__ = [
@@ -27,5 +28,6 @@ __all__ = [
     "iBOT",
     "MMCR",
     "SimCLR",
+    "SSCD",
     "VICReg",
 ]

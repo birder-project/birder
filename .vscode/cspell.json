@@ -153,6 +153,7 @@
     "linspace",
     "LLRD",
     "logit",
+    "logits",
     "majorticklabels",
     "matmul",
     "matplotlib",

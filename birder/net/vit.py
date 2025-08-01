@@ -922,6 +922,21 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
+    "vit_l14_pn_quick_gelu",
+    ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 24,
+        "num_heads": 16,
+        "hidden_dim": 1024,
+        "mlp_dim": 4096,
+        "pre_norm": True,
+        "norm_layer_eps": 1e-5,
+        "act_layer_type": "quick_gelu",
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
     "vit_h16",
     ViT,
     config={
@@ -1201,6 +1216,21 @@ registry.register_model_config(
         "drop_path_rate": 0.1,
     },
 )
+registry.register_model_config(  # DeiT III style
+    "vit_reg4_l14_nps_ls",
+    ViT,
+    config={
+        "pos_embed_special_tokens": False,
+        "patch_size": 14,
+        "num_layers": 24,
+        "num_heads": 16,
+        "hidden_dim": 1024,
+        "mlp_dim": 4096,
+        "layer_scale_init_value": 1e-5,
+        "num_reg_tokens": 4,
+        "drop_path_rate": 0.1,
+    },
+)
 registry.register_model_config(
     "vit_reg8_l14_ap",
     ViT,
@@ -1474,6 +1504,24 @@ registry.register_weights(  # BioCLIP v2: https://arxiv.org/abs/2505.23883
         "net": {"network": "vit_l14_pn", "tag": "bioclip-v2"},
     },
 )
+registry.register_weights(  # OpenAI CLIP: https://arxiv.org/abs/2103.00020
+    "vit_l14_pn_quick_gelu_openai-clip",
+    {
+        "url": "https://huggingface.co/birder-project/vit_l14_pn_quick_gelu_openai-clip/resolve/main",
+        "description": (
+            "ViT l14 image encoder pre-trained by OpenAI using CLIP. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 1159.7,
+                "sha256": "e4c6ff7467608c412d35f9a4e2df18f3b8f05fc9eca3803c8fcc01558921378d",
+            },
+        },
+        "net": {"network": "vit_l14_pn_quick_gelu", "tag": "openai-clip"},
+    },
+)
 
 # With registers
 registry.register_weights(
@@ -1617,5 +1665,23 @@ registry.register_weights(
             },
         },
         "net": {"network": "vit_reg4_b16", "tag": "mim-intermediate-arabian-peninsula"},
+    },
+)
+registry.register_weights(  # DINO v2: https://arxiv.org/abs/2304.07193
+    "vit_reg4_l14_nps_ls_dino-v2-lvd142m",
+    {
+        "url": "https://huggingface.co/birder-project/vit_reg4_l14_nps_ls_dino-v2-lvd142m/resolve/main",
+        "description": (
+            "ViT reg4 l14 image encoder pre-trained by Facebook AI using DINOv2. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (518, 518),
+        "formats": {
+            "pt": {
+                "file_size": 1161.2,
+                "sha256": "56d39cbaed8b7da72175b7b3a0c9419e71aabc1e9516567703a39ba05244a44f",
+            },
+        },
+        "net": {"network": "vit_reg4_l14_nps_ls", "tag": "dino-v2-lvd142m"},
     },
 )
