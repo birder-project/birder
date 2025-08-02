@@ -202,8 +202,10 @@ def train(args: argparse.Namespace) -> None:
 
     if args.non_interactive is True or training_utils.is_local_primary(args) is False:
         disable_tqdm = True
+    elif sys.stderr.isatty() is False:
+        disable_tqdm = True
     else:
-        disable_tqdm = None  # Let tqdm auto-detect (None = auto)
+        disable_tqdm = False
 
     # Enable or disable the autograd anomaly detection
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
@@ -517,10 +519,10 @@ def train(args: argparse.Namespace) -> None:
     last_lr = max(scheduler.get_last_lr())
     if args.plot_lr is True:
         logger.info("Fast forwarding scheduler...")
+        optimizer.step()
         lrs = []
         for _ in range(begin_epoch, epochs):
             for _ in range(iters_per_epoch):
-                optimizer.step()
                 lrs.append(max(scheduler.get_last_lr()))
                 scheduler.step()
 
@@ -775,7 +777,13 @@ def train(args: argparse.Namespace) -> None:
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
                 time_now = time.time()
                 time_cost = time_now - start_time
-                rate = (i - last_idx) * (batch_size * args.world_size) / time_cost
+                steps_processed_in_interval = i - last_idx
+                rate = steps_processed_in_interval * (batch_size * args.world_size) / time_cost
+
+                avg_time_per_step = time_cost / steps_processed_in_interval
+                remaining_steps_in_epoch = last_batch_idx - i
+                estimated_time_to_finish_epoch = remaining_steps_in_epoch * avg_time_per_step
+
                 start_time = time_now
                 last_idx = i
                 cur_lr = max(scheduler.get_last_lr())
@@ -787,11 +795,12 @@ def train(args: argparse.Namespace) -> None:
                 running_loss_ibot_patch.synchronize_between_processes(device)
                 with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
                     log.info(
-                        f"[Training] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx+1}  "
+                        f"[Trn] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx+1}  "
                         f"Loss: {running_loss.avg:.4f}  "
                         f"Elapsed: {format_duration(time_now-epoch_start)}  "
-                        f"Time: {time_cost:.1f}s  "
-                        f"Rate: {rate:.1f} samples/s  "
+                        f"ETA: {format_duration(estimated_time_to_finish_epoch)}  "
+                        f"T: {time_cost:.1f}s  "
+                        f"R: {rate:.1f} samples/s  "
                         f"LR: {cur_lr:.4e}"
                     )
 
@@ -815,19 +824,19 @@ def train(args: argparse.Namespace) -> None:
 
         # Epoch training metrics
         epoch_loss = running_loss.global_avg
-        logger.info(f"[Training] Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
 
         epoch_loss_dino_local = running_loss_dino_local.global_avg
-        logger.info(f"[Training] Epoch {epoch}/{epochs-1} dino_local_loss: {epoch_loss_dino_local:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} dino_local_loss: {epoch_loss_dino_local:.4f}")
 
         epoch_loss_dino_global = running_loss_dino_global.global_avg
-        logger.info(f"[Training] Epoch {epoch}/{epochs-1} dino_global_loss: {epoch_loss_dino_global:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} dino_global_loss: {epoch_loss_dino_global:.4f}")
 
         epoch_loss_koleo = running_loss_koleo.global_avg
-        logger.info(f"[Training] Epoch {epoch}/{epochs-1} koleo_loss: {epoch_loss_koleo:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} koleo_loss: {epoch_loss_koleo:.4f}")
 
         epoch_loss_ibot_patch = running_loss_ibot_patch.global_avg
-        logger.info(f"[Training] Epoch {epoch}/{epochs-1} ibot_patch_loss: {epoch_loss_ibot_patch:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} ibot_patch_loss: {epoch_loss_ibot_patch:.4f}")
 
         # Learning rate scheduler update
         if iter_update is False:

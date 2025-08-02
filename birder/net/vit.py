@@ -972,6 +972,18 @@ registry.register_model_config(  # From "Scaling Vision Transformers"
         "drop_path_rate": 0.1,
     },
 )
+registry.register_model_config(  # From "Scaling Vision Transformers"
+    "vit_gigantic14",
+    ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 48,
+        "num_heads": 16,
+        "hidden_dim": 1664,
+        "mlp_dim": 8192,
+        "drop_path_rate": 0.1,
+    },
+)
 
 # With registers
 registry.register_model_config(
@@ -1520,6 +1532,24 @@ registry.register_weights(  # OpenAI CLIP: https://arxiv.org/abs/2103.00020
             },
         },
         "net": {"network": "vit_l14_pn_quick_gelu", "tag": "openai-clip"},
+    },
+)
+registry.register_weights(  # SigLIP 2: https://arxiv.org/abs/2502.14786
+    "vit_so400m_p14_ap_siglip-v2-webli",
+    {
+        "url": "https://huggingface.co/birder-project/vit_so400m_p14_ap_siglip-v2-webli/resolve/main",
+        "description": (
+            "ViT SO400m image encoder pre-trained by Google using SigLIP. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 1631.6,
+                "sha256": "1f9f659a7b1bdf8a6a2977140be9bb3f876f7f756bf6e13d54bf00f3b6db0b0f",
+            },
+        },
+        "net": {"network": "vit_so400m_p14_ap", "tag": "siglip-v2-webli"},
     },
 )
 

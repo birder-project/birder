@@ -196,6 +196,26 @@ def pytest(ctx, coverage=False, failfast=False):
     return return_code
 
 
+@task
+def test_flow(ctx, failfast=False):
+    """
+    Run Birder flow tests
+    """
+
+    return_code = 0
+
+    failfast_str = " --failfast" if failfast is True else ""
+    result = ctx.run(f"python -m unittest discover -s tests_flow -v{failfast_str}", echo=True, pty=True, warn=True)
+
+    if result.exited != 0:
+        return_code = 1
+        echo("Failed", color=COLOR_RED)
+    else:
+        echo("Passed", color=COLOR_GREEN)
+
+    return return_code
+
+
 ###############
 # Data handling
 ###############

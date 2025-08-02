@@ -247,6 +247,7 @@
     "rmsprop",
     "scipy",
     "shufflenet",
+    "siglip",
     "silu",
     "simclr",
     "simmim",

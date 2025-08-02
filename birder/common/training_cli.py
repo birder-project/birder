@@ -175,10 +175,10 @@ def add_training_schedule_args(parser: argparse.ArgumentParser, default_epochs: 
     group.add_argument(
         "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi stage training)"
     )
-    group.add_argument("--warmup-epochs", type=int, default=0, metavar="N", help="number of warmup epochs")
-    group.add_argument(
-        "--cooldown-epochs", type=int, default=0, metavar="N", help="number of cooldown epochs (linear to zero)"
-    )
+    group.add_argument("--warmup-epochs", type=int, metavar="N", help="number of warmup epochs")
+    group.add_argument("--warmup-iters", type=int, metavar="N", help="number of warmup iterations")
+    group.add_argument("--cooldown-epochs", type=int, metavar="N", help="number of cooldown epochs (linear to zero)")
+    group.add_argument("--cooldown-iters", type=int, metavar="N", help="number of cooldown iterations (linear to zero)")
 
 
 def add_batch_norm_args(parser: argparse.ArgumentParser, backbone_freeze: bool = False) -> None:
@@ -583,6 +583,10 @@ def common_args_validation(args: argparse.Namespace) -> None:
         raise ValidationError(
             f"--stop-epoch must be smaller than the total number of epochs ({args.epochs}), got {args.stop_epoch}"
         )
+    if args.warmup_epochs is not None and args.warmup_iters is not None:
+        raise ValidationError("--warmup-epochs cannot be used with --warmup-iters")
+    if args.cooldown_epochs is not None and args.cooldown_iters is not None:
+        raise ValidationError("--cooldown-epochs cannot be used with --cooldown-iters")
 
     # Compile args, argument dependant
     if hasattr(args, "compile_teacher") is True:

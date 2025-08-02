@@ -439,25 +439,43 @@ def get_optimizer(parameters: list[dict[str, Any]], lr: float, args: argparse.Na
 def get_scheduler(
     optimizer: torch.optim.Optimizer, iters_per_epoch: int, args: argparse.Namespace
 ) -> torch.optim.lr_scheduler.LRScheduler:
-    begin_epoch = 0
+    # At first, we translate everything into "steps"
+    begin_step = 0
     if args.resume_epoch is not None:
-        begin_epoch = args.resume_epoch
+        begin_step = args.resume_epoch * iters_per_epoch
 
-    # Warmup epochs is given in absolute number from 0
-    remaining_warmup = max(0, args.warmup_epochs - begin_epoch)
+    steps = args.epochs * iters_per_epoch
 
-    # Cooldown epochs is given in absolute number from the end (args.epochs)
-    remaining_cooldown = min(args.cooldown_epochs, args.epochs - begin_epoch)
+    if args.warmup_epochs is not None:
+        warmup_steps = args.warmup_epochs * iters_per_epoch
+    elif args.warmup_iters is not None:
+        warmup_steps = args.warmup_iters
+    else:
+        warmup_steps = 0
 
-    main_steps = (args.epochs - begin_epoch - remaining_warmup - remaining_cooldown) * iters_per_epoch - 1
+    if args.cooldown_epochs is not None:
+        cooldown_steps = args.cooldown_epochs * iters_per_epoch
+    elif args.cooldown_iters is not None:
+        cooldown_steps = args.cooldown_iters
+    else:
+        cooldown_steps = 0
 
+    # Warmup steps is given in absolute number from 0
+    remaining_warmup = max(0, warmup_steps - begin_step)
+
+    # Cooldown steps is given in absolute number from the end
+    remaining_cooldown = min(cooldown_steps, steps - begin_step)
+
+    main_steps = steps - begin_step - remaining_warmup - remaining_cooldown - 1
+
+    logger.debug(f"Using {iters_per_epoch} steps per epoch")
     logger.debug(
-        f"Scheduler {args.lr_scheduler} set for {args.epochs} epochs of which {args.warmup_epochs} "
-        f"are warmup and {args.cooldown_epochs} cooldown"
+        f"Scheduler {args.lr_scheduler} set for {steps} steps of which {warmup_steps} "
+        f"are warmup and {cooldown_steps} cooldown"
     )
     logger.debug(
-        f"Currently starting from epoch {begin_epoch} with {remaining_warmup} remaining warmup epochs "
-        f"and {remaining_cooldown} remaining cooldown epochs"
+        f"Currently starting from step {begin_step} with {remaining_warmup} remaining warmup steps "
+        f"and {remaining_cooldown} remaining cooldown steps"
     )
     logger.debug(f"Main scheduler has {main_steps} steps")
 
@@ -481,24 +499,24 @@ def get_scheduler(
         raise ValueError("Unknown learning rate scheduler")
 
     # Handle warmup and cooldown
-    if args.warmup_epochs > 0 or args.cooldown_epochs > 0:
+    if warmup_steps > 0 or cooldown_steps > 0:
         schedulers = []
         milestones = []
-        if args.warmup_epochs > 0:
+        if warmup_steps > 0:
             warmup_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
                 optimizer,
                 start_factor=args.lr_warmup_decay if remaining_warmup > 0 else 1.0,
-                total_iters=remaining_warmup * iters_per_epoch,
+                total_iters=remaining_warmup,
             )
             schedulers.append(warmup_lr_scheduler)
-            milestones.append(remaining_warmup * iters_per_epoch)
+            milestones.append(remaining_warmup)
 
         schedulers.append(main_scheduler)
 
-        if args.cooldown_epochs > 0:
-            cooldown_lr_scheduler = CooldownLR(optimizer, total_steps=remaining_cooldown * iters_per_epoch)
+        if cooldown_steps > 0:
+            cooldown_lr_scheduler = CooldownLR(optimizer, total_steps=remaining_cooldown)
             schedulers.append(cooldown_lr_scheduler)
-            milestones.append(remaining_warmup * iters_per_epoch + main_steps + 1)
+            milestones.append(remaining_warmup + main_steps + 1)
 
         scheduler = torch.optim.lr_scheduler.SequentialLR(
             optimizer,
@@ -755,17 +773,54 @@ def cosine_scheduler(
     base_value: float,
     final_value: float,
     epochs: int,
-    warmup_epochs: int,
+    warmup_epochs: float,
     iter_per_epoch: int,
     start_warmup_value: float = 0.0,
 ) -> list[float]:
-    warmup_schedule = np.linspace(start_warmup_value, base_value, warmup_epochs * iter_per_epoch, endpoint=False)
+    """
+    Create a learning rate schedule with linear warmup followed by cosine annealing
 
-    iters = np.arange((epochs - warmup_epochs) * iter_per_epoch)
-    schedule = final_value + 0.5 * (base_value - final_value) * (1 + np.cos(np.pi * iters / len(iters)))
+    The schedule consists of two phases:
+    1. Linear warmup: linearly increases from start_warmup_value to base_value
+    2. Cosine annealing: follows cosine decay from base_value to final_value
 
-    schedule = np.concatenate((warmup_schedule, schedule))
-    assert len(schedule) == epochs * iter_per_epoch
+    Parameters
+    ----------
+    base_value
+        Peak value after warmup phase (start of cosine decay).
+    final_value
+        Final value at the end of training.
+    epochs
+        Total number of training epochs.
+    warmup_epochs
+        Number of epochs for warmup phase. Can be fractional (e.g., 0.5 for half epoch).
+    iter_per_epoch
+        Number of iterations per epoch.
+    start_warmup_value
+        Starting value for warmup phase.
+
+    Returns
+    -------
+    List of scheduler values for each iteration. Length equals epochs * iter_per_epoch.
+    """
+
+    if warmup_epochs >= epochs:
+        raise ValueError(f"warmup_epochs ({warmup_epochs}) must be less than epochs ({epochs})")
+    if epochs <= 0 or iter_per_epoch <= 0:
+        raise ValueError("epochs and iter_per_epoch must be positive")
+    if warmup_epochs < 0:
+        raise ValueError("warmup_epochs must be non-negative")
+
+    total_iterations = epochs * iter_per_epoch
+    warmup_iterations = int(warmup_epochs * iter_per_epoch)
+    cosine_iterations = total_iterations - warmup_iterations
+
+    warmup_schedule = np.linspace(start_warmup_value, base_value, warmup_iterations, endpoint=False)
+    iters = np.arange(cosine_iterations)
+    cosine_schedule = final_value + 0.5 * (base_value - final_value) * (1 + np.cos(np.pi * iters / len(iters)))
+
+    schedule = np.concatenate((warmup_schedule, cosine_schedule))
+    assert len(schedule) == total_iterations
 
     return schedule.tolist()  # type: ignore[no-any-return]
 

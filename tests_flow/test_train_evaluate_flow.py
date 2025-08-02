@@ -37,6 +37,7 @@ class TestTrainEvaluateFlow(unittest.TestCase):
             net_param=net_param,
             tag=tag,
             pretrained=True,
+            reset_head=True,
             freeze_body=True,
             num_workers=1,
             batch_size=2,

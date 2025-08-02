@@ -1,3 +1,5 @@
+# pylint: disable=protected-access
+
 import argparse
 import logging
 import os
@@ -21,6 +23,7 @@ from birder.net.base import SignatureType
 from birder.net.detection.base import DetectionSignatureType
 from birder.net.resnext import ResNeXt
 from birder.net.vit import ViT
+from birder.scheduler.cooldown import CooldownLR
 
 logging.disable(logging.CRITICAL)
 
@@ -431,40 +434,6 @@ class TestTrainingUtils(unittest.TestCase):
             scheduler = training_utils.get_scheduler(opt, 1, args)
             self.assertIsInstance(scheduler, torch.optim.lr_scheduler.LRScheduler)
 
-        # Check warmup
-        args = argparse.Namespace(
-            lr_scheduler="step",
-            warmup_epochs=5,
-            cooldown_epochs=0,
-            resume_epoch=0,
-            epochs=10,
-            lr_cosine_min=0.0,
-            lr_step_size=1,
-            lr_steps=[],
-            lr_step_gamma=0.0,
-            lr_power=1.0,
-            lr_warmup_decay=0.1,
-        )
-        scheduler = training_utils.get_scheduler(opt, 1, args)
-        self.assertIsInstance(scheduler, torch.optim.lr_scheduler.SequentialLR)
-
-        # Check cooldown
-        args = argparse.Namespace(
-            lr_scheduler="step",
-            warmup_epochs=5,
-            cooldown_epochs=5,
-            resume_epoch=0,
-            epochs=20,
-            lr_cosine_min=0.0,
-            lr_step_size=1,
-            lr_steps=[],
-            lr_step_gamma=0.0,
-            lr_power=1.0,
-            lr_warmup_decay=0.1,
-        )
-        scheduler = training_utils.get_scheduler(opt, 1, args)
-        self.assertIsInstance(scheduler, torch.optim.lr_scheduler.SequentialLR)
-
         # Unknown scheduler
         args = argparse.Namespace(
             lr_scheduler="unknown",
@@ -480,6 +449,135 @@ class TestTrainingUtils(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             training_utils.get_scheduler(opt, 1, args)
+
+        # Resume during warmup with all phases
+        # iters_per_epoch = 10 (iter mode)
+        # epochs = 20 => total_steps = 200
+        # warmup_epochs = 5 => warmup_steps = 50
+        # cooldown_epochs = 5 => cooldown_steps = 50
+        # resume_epoch = 3 => begin_step = 3 * 10 = 30
+        # remaining_warmup = warmup_steps - begin_step = 20
+        # remaining_cooldown = 50
+        # main_steps = 200 - 30 - 20 - 50 - 1 = 99
+        # milestones:
+        #   [remaining_warmup, remaining_warmup + main_steps + 1]
+        #   [20, 20 + 99 + 1] = [20, 120]
+        args_resume_warmup = argparse.Namespace(
+            lr_scheduler="cosine",
+            warmup_epochs=5,
+            cooldown_epochs=5,
+            resume_epoch=3,
+            epochs=20,
+            lr_cosine_min=1e-6,
+            lr_step_size=1,
+            lr_steps=[],
+            lr_step_gamma=0.0,
+            lr_power=1.0,
+            lr_warmup_decay=0.1,
+        )
+        scheduler = training_utils.get_scheduler(opt, iters_per_epoch=10, args=args_resume_warmup)
+
+        self.assertIsInstance(scheduler, torch.optim.lr_scheduler.SequentialLR)
+        self.assertEqual(len(scheduler._schedulers), 3)  # Expect Warmup, Main, Cooldown
+
+        # Verify types of sub-schedulers
+        self.assertIsInstance(scheduler._schedulers[0], torch.optim.lr_scheduler.LinearLR)
+        self.assertIsInstance(scheduler._schedulers[1], torch.optim.lr_scheduler.CosineAnnealingLR)
+        self.assertIsInstance(scheduler._schedulers[2], CooldownLR)
+
+        # Verify lengths/parameters of sub-schedulers
+        self.assertEqual(scheduler._schedulers[0].total_iters, 20)
+        self.assertEqual(scheduler._schedulers[1].T_max, 99)
+        self.assertEqual(scheduler._schedulers[2].total_steps, 50)
+
+        # Verify milestones
+        self.assertEqual(scheduler._milestones, [20, 120])
+
+        # Resume after warmup with all phases
+        # iters_per_epoch = 1 (epoch mode)
+        # epochs = 20
+        # warmup_epochs = 5
+        # cooldown_epochs = 5
+        # resume_epoch = 7
+        # remaining_warmup = 0
+        # remaining_cooldown = 5
+        # main_steps = 20 - 7 - 0 - 5 - 1 = 7
+        # milestones:
+        #   [remaining_warmup, remaining_warmup + main_steps + 1]
+        #   [0, 0 + 7 + 1] = [0, 8]
+        args_resume_warmup = argparse.Namespace(
+            lr_scheduler="cosine",
+            warmup_epochs=5,
+            cooldown_epochs=5,
+            resume_epoch=7,
+            epochs=20,
+            lr_cosine_min=1e-6,
+            lr_step_size=1,
+            lr_steps=[],
+            lr_step_gamma=0.0,
+            lr_power=1.0,
+            lr_warmup_decay=0.1,
+        )
+        scheduler = training_utils.get_scheduler(opt, iters_per_epoch=1, args=args_resume_warmup)
+
+        self.assertIsInstance(scheduler, torch.optim.lr_scheduler.SequentialLR)
+        self.assertEqual(len(scheduler._schedulers), 3)  # Expect Warmup, Main, Cooldown
+
+        # Verify types of sub-schedulers
+        self.assertIsInstance(scheduler._schedulers[0], torch.optim.lr_scheduler.LinearLR)
+        self.assertIsInstance(scheduler._schedulers[1], torch.optim.lr_scheduler.CosineAnnealingLR)
+        self.assertIsInstance(scheduler._schedulers[2], CooldownLR)
+
+        # Verify lengths/parameters of sub-schedulers
+        self.assertEqual(scheduler._schedulers[0].total_iters, 0)
+        self.assertEqual(scheduler._schedulers[1].T_max, 7)
+        self.assertEqual(scheduler._schedulers[2].total_steps, 5)
+
+        # Verify milestones
+        self.assertEqual(scheduler._milestones, [0, 8])
+
+        # Resume during cooldown with all phases
+        # iters_per_epoch = 10 (iter mode)
+        # epochs = 20 => total_steps = 200
+        # warmup_epochs = 5 => warmup_steps = 50
+        # cooldown_epochs = 5 => cooldown_steps = 50
+        # resume_epoch = 18 => begin_step = 18 * 10 = 180
+        # remaining_warmup = warmup_steps - begin_step = 0
+        # remaining_cooldown = 20
+        # main_steps = -1
+        # milestones:
+        #   [remaining_warmup, remaining_warmup + main_steps + 1]
+        #   [0, 0 + -1 + 1] = [0, 0]
+        args_resume_warmup = argparse.Namespace(
+            lr_scheduler="cosine",
+            warmup_epochs=5,
+            cooldown_epochs=5,
+            resume_epoch=18,
+            epochs=20,
+            lr_cosine_min=1e-6,
+            lr_step_size=1,
+            lr_steps=[],
+            lr_step_gamma=0.0,
+            lr_power=1.0,
+            lr_warmup_decay=0.1,
+        )
+        scheduler = training_utils.get_scheduler(opt, iters_per_epoch=10, args=args_resume_warmup)
+
+        self.assertIsInstance(scheduler, torch.optim.lr_scheduler.SequentialLR)
+        self.assertEqual(len(scheduler._schedulers), 3)  # Expect Warmup, Main, Cooldown
+
+        # Verify types of sub-schedulers
+        self.assertIsInstance(scheduler._schedulers[0], torch.optim.lr_scheduler.LinearLR)
+        self.assertIsInstance(scheduler._schedulers[1], torch.optim.lr_scheduler.CosineAnnealingLR)
+        self.assertIsInstance(scheduler._schedulers[2], CooldownLR)
+
+        # Verify lengths/parameters of sub-schedulers
+        self.assertEqual(scheduler._schedulers[0].total_iters, 0)
+        self.assertEqual(scheduler._schedulers[1].T_max, -1)
+        self.assertEqual(scheduler._schedulers[2].total_steps, 20)
+
+        # Verify milestones
+        self.assertEqual(scheduler._milestones, [0, 0])
 
     def test_lr_scaling(self) -> None:
         args = argparse.Namespace(
@@ -543,6 +641,38 @@ class TestTrainingUtils(unittest.TestCase):
         loss.backward()
         grad_norm = training_utils.get_grad_norm(model.parameters())
         self.assertGreater(grad_norm, 0.0)
+
+    def test_cosine_scheduler(self) -> None:
+        # Sanity check
+        schedule = training_utils.cosine_scheduler(
+            base_value=1.0, final_value=0.1, epochs=10, warmup_epochs=2.0, iter_per_epoch=5
+        )
+        self.assertEqual(len(schedule), 50)  # 10 epochs * 5 iter/epoch
+
+        warmup_values = schedule[:10]
+        self.assertAlmostEqual(warmup_values[0], 0.0)
+        self.assertAlmostEqual(warmup_values[-1], 0.9)
+
+        self.assertAlmostEqual(schedule[10], 1.0)
+        self.assertAlmostEqual(schedule[-1], 0.1, places=2)
+
+        # Test fractional warmup epochs
+        schedule = training_utils.cosine_scheduler(
+            base_value=1.0, final_value=0.0, epochs=2, warmup_epochs=0.5, iter_per_epoch=10
+        )
+        self.assertEqual(len(schedule), 20)
+
+        warmup_values = schedule[:5]
+        self.assertAlmostEqual(warmup_values[0], 0.0)
+        self.assertTrue(warmup_values[-1] < 1.0)
+
+        # Test schedule with zero warmup
+        schedule = training_utils.cosine_scheduler(
+            base_value=1.0, final_value=0.0, epochs=5, warmup_epochs=0.0, iter_per_epoch=10
+        )
+        self.assertEqual(len(schedule), 50)
+        self.assertAlmostEqual(schedule[0], 1.0)
+        self.assertAlmostEqual(schedule[-1], 0.0, places=2)
 
     def test_freeze_batchnorm2d(self) -> None:
         model = torch.nn.Sequential(

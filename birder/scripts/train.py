@@ -76,8 +76,10 @@ def train(args: argparse.Namespace) -> None:
 
     if args.non_interactive is True or training_utils.is_local_primary(args) is False:
         disable_tqdm = True
+    elif sys.stderr.isatty() is False:
+        disable_tqdm = True
     else:
-        disable_tqdm = None  # Let tqdm auto-detect (None = auto)
+        disable_tqdm = False
 
     # Enable or disable the autograd anomaly detection
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
@@ -353,10 +355,10 @@ def train(args: argparse.Namespace) -> None:
     last_lr = max(scheduler.get_last_lr())
     if args.plot_lr is True:
         logger.info("Fast forwarding scheduler...")
+        optimizer.step()
         lrs = []
         for _ in range(begin_epoch, epochs):
             for _ in range(iters_per_epoch):
-                optimizer.step()
                 lrs.append(max(scheduler.get_last_lr()))
                 scheduler.step()
 
@@ -367,6 +369,14 @@ def train(args: argparse.Namespace) -> None:
     #
     # Distributed (DDP) and Model EMA
     #
+    if args.warmup_epochs is not None:
+        ema_warmup_epochs = args.warmup_epochs
+    elif args.warmup_iters is not None:
+        ema_warmup_epochs = iters_per_epoch // args.warmup_iters
+    else:
+        ema_warmup_epochs = 0
+
+    logger.debug(f"EMA warmup epochs = {ema_warmup_epochs}")
     net_without_ddp = net
     if args.distributed is True:
         net = torch.nn.parallel.DistributedDataParallel(
@@ -539,7 +549,7 @@ def train(args: argparse.Namespace) -> None:
             # Exponential moving average
             if args.model_ema is True and i % model_ema_steps == 0:
                 model_ema.update_parameters(net)
-                if epoch <= args.warmup_epochs:
+                if epoch <= ema_warmup_epochs:
                     # Reset ema buffer to keep copying weights during warmup period
                     model_ema.n_averaged.fill_(0)  # pylint: disable=no-member
 
@@ -554,7 +564,13 @@ def train(args: argparse.Namespace) -> None:
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
                 time_now = time.time()
                 time_cost = time_now - start_time
-                rate = (i - last_idx) * (batch_size * args.world_size) / time_cost
+                steps_processed_in_interval = i - last_idx
+                rate = steps_processed_in_interval * (batch_size * args.world_size) / time_cost
+
+                avg_time_per_step = time_cost / steps_processed_in_interval
+                remaining_steps_in_epoch = last_batch_idx - i
+                estimated_time_to_finish_epoch = remaining_steps_in_epoch * avg_time_per_step
+
                 start_time = time_now
                 last_idx = i
                 cur_lr = max(scheduler.get_last_lr())
@@ -563,14 +579,15 @@ def train(args: argparse.Namespace) -> None:
                 training_metrics_dict = training_metrics.compute()
                 with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
                     log.info(
-                        f"[Training] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx+1}  "
+                        f"[Trn] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx+1}  "
                         f"Loss: {running_loss.avg:.4f}  "
                         f"Elapsed: {format_duration(time_now-epoch_start)}  "
-                        f"Time: {time_cost:.1f}s  "
-                        f"Rate: {rate:.1f} samples/s  "
+                        f"ETA: {format_duration(estimated_time_to_finish_epoch)}  "
+                        f"T: {time_cost:.1f}s  "
+                        f"R: {rate:.1f} samples/s  "
                         f"LR: {cur_lr:.4e}"
                     )
-                    log_msg = f"[Training] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx+1}  Metrics: "
+                    log_msg = f"[Trn] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx+1}  Metrics: "
                     for metric, value in training_metrics_dict.items():
                         log_msg += f"{metric}: {value:.4f} "
 
@@ -597,10 +614,10 @@ def train(args: argparse.Namespace) -> None:
 
         # Epoch training metrics
         epoch_loss = running_loss.global_avg
-        logger.info(f"[Training] Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
 
         for metric, value in training_metrics.compute().items():
-            logger.info(f"[Training] Epoch {epoch}/{epochs-1} {metric}: {value:.4f}")
+            logger.info(f"[Trn] Epoch {epoch}/{epochs-1} {metric}: {value:.4f}")
 
         # Validation
         eval_model.eval()
@@ -613,7 +630,7 @@ def train(args: argparse.Namespace) -> None:
             initial=0,
         )
         with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
-            log.info(f"[Validation] Starting validation for epoch {epoch}/{epochs-1}...")
+            log.info(f"[Val] Starting validation for epoch {epoch}/{epochs-1}...")
 
         epoch_start = time.time()
         with torch.inference_mode():
@@ -640,9 +657,9 @@ def train(args: argparse.Namespace) -> None:
         rate = len(validation_dataset) / (time_now - epoch_start)
         with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
             log.info(
-                f"[Validation] Epoch {epoch}/{epochs-1} "
+                f"[Val] Epoch {epoch}/{epochs-1} "
                 f"Elapsed: {format_duration(time_now-epoch_start)}  "
-                f"Rate: {rate:.1f} samples/s"
+                f"R: {rate:.1f} samples/s"
             )
 
         progress.close()
@@ -658,9 +675,9 @@ def train(args: argparse.Namespace) -> None:
                 summary_writer.add_scalars("performance", {metric: value}, epoch * len(training_dataset))
 
         # Epoch validation metrics
-        logger.info(f"[Validation] Epoch {epoch}/{epochs-1} validation_loss: {epoch_val_loss:.4f}")
+        logger.info(f"[Val] Epoch {epoch}/{epochs-1} validation_loss: {epoch_val_loss:.4f}")
         for metric, value in validation_metrics_dict.items():
-            logger.info(f"[Validation] Epoch {epoch}/{epochs-1} {metric}: {value:.4f}")
+            logger.info(f"[Val] Epoch {epoch}/{epochs-1} {metric}: {value:.4f}")
 
         # Learning rate scheduler update
         if iter_update is False:
