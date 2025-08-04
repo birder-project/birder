@@ -383,10 +383,12 @@ def train(args: argparse.Namespace) -> None:
     #
     # Distributed (DDP) and Model EMA
     #
-    if args.warmup_epochs is not None:
+    if args.model_ema_warmup is not None:
+        ema_warmup_epochs = args.model_ema_warmup
+    elif args.warmup_epochs is not None:
         ema_warmup_epochs = args.warmup_epochs
     elif args.warmup_iters is not None:
-        ema_warmup_epochs = iters_per_epoch // args.warmup_iters
+        ema_warmup_epochs = args.warmup_iters // iters_per_epoch
     else:
         ema_warmup_epochs = 0
 

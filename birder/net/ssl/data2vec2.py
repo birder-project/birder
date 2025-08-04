@@ -46,7 +46,7 @@ class Decoder2d(nn.Module):
                     padding=((kernel_size - 1) // 2, (kernel_size - 1) // 2),
                     groups=16,
                 ),
-                LayerNorm2d(embed_dim),
+                LayerNorm2d(embed_dim, elementwise_affine=False),
                 nn.GELU(),
             )
         )
@@ -61,7 +61,7 @@ class Decoder2d(nn.Module):
                         padding=((kernel_size - 1) // 2, (kernel_size - 1) // 2),
                         groups=16,
                     ),
-                    LayerNorm2d(embed_dim),
+                    LayerNorm2d(embed_dim, elementwise_affine=False),
                     nn.GELU(),
                 )
             )

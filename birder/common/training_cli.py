@@ -347,6 +347,12 @@ def add_ema_args(
         default=default_ema_decay,
         help="decay factor for exponential moving average of model parameters",
     )
+    group.add_argument(
+        "--model-ema-warmup",
+        type=int,
+        metavar="N",
+        help="number of steps before EMA is applied (defaults to schedule warmup steps, pass 0 to disable warmup)",
+    )
 
 
 def add_dataloader_args(

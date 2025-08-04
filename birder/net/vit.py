@@ -1344,6 +1344,22 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
+    "vit_reg8_so150m_p16_swiglu_ap",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 18,
+        "num_heads": 16,
+        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
+        "mlp_dim": 2320,
+        "num_reg_tokens": 8,
+        "class_token": False,
+        "attn_pool_head": True,
+        "mlp_layer_type": "SwiGLU_FFN",
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
     "vit_reg4_so150m_p14_ap",
     ViT,
     config={
