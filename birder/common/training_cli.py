@@ -369,7 +369,7 @@ def add_dataloader_args(
         )
 
     if default_num_workers is None:
-        default_num_workers = min(16, max(os.cpu_count() // 4, 4))  # type: ignore[operator]
+        default_num_workers = min(12, max(os.cpu_count() // 4, 4))  # type: ignore[operator]
 
     group.add_argument(
         "-j",
@@ -512,6 +512,16 @@ def add_training_data_args(parser: argparse.ArgumentParser, unsupervised: bool =
         group.add_argument(
             "--wds-split", type=str, default="training", metavar="NAME", help="wds dataset split to load"
         )
+
+    group.add_argument(
+        "--wds-extra-shuffle",
+        default=False,
+        action="store_true",
+        help=(
+            "enable cross-worker batch shuffling after batching. Provides maximum sample diversity but incurs a "
+            "notable performance penalty. Use with caution"
+        ),
+    )
 
     group = parser.add_argument_group(description="Directory")
     if unsupervised is False:

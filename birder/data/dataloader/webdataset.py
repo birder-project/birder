@@ -1,3 +1,4 @@
+import logging
 import math
 from collections.abc import Callable
 from typing import Any
@@ -6,6 +7,8 @@ from typing import Optional
 import webdataset as wds
 from torch.utils.data import DataLoader
 from torch.utils.data import IterableDataset
+
+logger = logging.getLogger(__name__)
 
 
 def make_wds_loader(
@@ -17,6 +20,7 @@ def make_wds_loader(
     world_size: int,
     pin_memory: bool,
     drop_last: bool = False,
+    shuffle: bool = False,
 ) -> DataLoader:
     """
     NOTE: Validation in WDS is a bit messy, practically either some samples be seen twice, or skipped.
@@ -31,6 +35,10 @@ def make_wds_loader(
         pin_memory=pin_memory,
         drop_last=drop_last,
     )
+    if shuffle is True:
+        logger.info("WDS extra shuffle enabled: applying global batch-level shuffling")
+        dataloader = dataloader.unbatched().shuffle(1000).batched(batch_size)
+
     dataloader.batch_size = batch_size
     if drop_last is True:
         # drop_last actually does nothing here as the BatchSampler will always see a full batch

@@ -1,3 +1,4 @@
+import logging
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -14,6 +15,11 @@ from torchvision.io import decode_image
 from birder.common import fs_ops
 from birder.common.training_utils import reduce_across_processes
 from birder.conf import settings
+
+logger = logging.getLogger(__name__)
+
+WDS_SHUFFLE_SIZE = int(os.environ.get("WDS_SHUFFLE_SIZE", 4000))
+WDS_INITIAL_SIZE = int(os.environ.get("WDS_INITIAL_SIZE", 1000))
 
 
 def decode_sample_name(item: tuple[str, str, Any, int]) -> tuple[str, Any, int]:
@@ -47,9 +53,11 @@ def make_wds_dataset(
     *,
     cls_key: Optional[str] = "cls",
     cache_dir: Optional[str] = None,
+    shuffle_buffer_size: Optional[int] = None,
+    shuffle_initial_size: Optional[int] = None,
 ) -> torch.utils.data.IterableDataset:
     if shuffle is True:
-        shardshuffle = 100
+        shardshuffle = 500
     else:
         shardshuffle = False
 
@@ -57,7 +65,13 @@ def make_wds_dataset(
         wds_path, shardshuffle=shardshuffle, nodesplitter=wds.split_by_node, cache_dir=cache_dir, empty_check=False
     )
     if shuffle is True:
-        dataset = dataset.shuffle(1000, initial=100)
+        if shuffle_buffer_size is None:
+            shuffle_buffer_size = WDS_SHUFFLE_SIZE
+        if shuffle_initial_size is None:
+            shuffle_initial_size = WDS_INITIAL_SIZE
+
+        logger.debug(f"Using buffer size of {shuffle_buffer_size} for shuffle with {shuffle_initial_size} initial size")
+        dataset = dataset.shuffle(shuffle_buffer_size, initial=shuffle_initial_size)
 
     return_keys = ["jpeg;jpg;png;webp"]
     if cls_key is not None:

@@ -75,6 +75,7 @@ module load cuda/12.8
 
 # Set application-specific environment variables
 # export LOG_LEVEL=DEBUG
+# export WDS_SHUFFLE_SIZE=12000
 
 # Set distributed training environment variables
 export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)

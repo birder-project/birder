@@ -186,6 +186,7 @@ def train(args: argparse.Namespace) -> None:
             world_size=args.world_size,
             pin_memory=True,
             drop_last=args.drop_last,
+            shuffle=args.wds_extra_shuffle,
         )
 
         validation_loader = make_wds_loader(

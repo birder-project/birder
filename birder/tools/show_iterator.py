@@ -125,6 +125,7 @@ def show_iterator(args: argparse.Namespace) -> None:
                 collate_fn=collate_fn,
                 world_size=1,
                 pin_memory=False,
+                shuffle=args.wds_extra_shuffle,
             )
 
         else:
@@ -205,9 +206,7 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--mixup-alpha", type=float, help="mixup alpha")
     subparser.add_argument("--cutmix", default=False, action="store_true", help="enable cutmix")
-    subparser.add_argument(
-        "--masking", type=str, choices=["none", "uniform", "block"], default="none", help="enable masking"
-    )
+    subparser.add_argument("--masking", type=str, choices=["uniform", "block"], help="enable masking")
     subparser.add_argument("--mask-ratio", type=float, default=0.5, help="mask ratio")
     subparser.add_argument("--patch-size", type=int, default=16, help="mask base patch size")
     subparser.add_argument(
@@ -220,11 +219,19 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--wds-split", type=str, default="training", metavar="NAME", help="wds dataset split to load"
     )
+    subparser.add_argument(
+        "--wds-extra-shuffle",
+        default=False,
+        action="store_true",
+        help="enable cross-worker batch shuffling after batching",
+    )
     subparser.set_defaults(func=main)
 
 
 def main(args: argparse.Namespace) -> None:
     if args.wds is True and args.batch is False:
+        raise cli.ValidationError("--wds requires --batch to be set")
+    if args.masking is not None and args.batch is False:
         raise cli.ValidationError("--wds requires --batch to be set")
 
     args.size = cli.parse_size(args.size)
