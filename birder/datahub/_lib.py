@@ -30,5 +30,5 @@ def extract_archive(from_path: str | Path, to_path: str | Path) -> None:
         if hasattr(tarfile, "data_filter") is True:
             tar.extractall(to_path, filter="data")
         else:
-            # Remove once minimum Python version is 3.12 or above
-            tar.extractall(to_path)  # nosec - tarfile_unsafe_members
+            # NOTE: Remove once minimum Python version is 3.12 or above
+            tar.extractall(to_path)  # nosec # tarfile_unsafe_members

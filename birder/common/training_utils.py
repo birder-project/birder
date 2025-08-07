@@ -844,7 +844,7 @@ def log_git_info() -> None:
 
     def _run(command: list[str]) -> str:
         try:
-            return subprocess.check_output(command, cwd=cwd).decode("ascii").strip()
+            return subprocess.check_output(command, cwd=cwd).decode("ascii").strip()  # nosec # only hard-coded args
         except Exception:  # pylint: disable=broad-exception-caught
             return "N/A"
 
