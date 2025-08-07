@@ -204,6 +204,7 @@ def add_data_aug_args(
     parser: argparse.ArgumentParser,
     default_level: int = 4,
     default_min_scale: Optional[float] = None,
+    default_re_prob: Optional[float] = None,
     mixup_cutmix: bool = False,
 ) -> None:
     group = parser.add_argument_group("Data augmentation parameters")
@@ -230,7 +231,12 @@ def add_data_aug_args(
     group.add_argument("--ra-magnitude", type=int, default=9, help="magnitude for all the RandAugment transformations")
     group.add_argument("--augmix-severity", type=int, default=3, help="severity of AugMix policy")
     group.add_argument("--resize-min-scale", type=float, default=default_min_scale, help="random resize min scale")
-    group.add_argument("--re-prob", type=float, help="random erase probability (default according to aug-level)")
+    group.add_argument(
+        "--re-prob",
+        type=float,
+        default=default_re_prob,
+        help="random erase probability (default according to aug-level)",
+    )
     group.add_argument(
         "--simple-crop", default=False, action="store_true", help="use simple random crop (SRC) instead of RRC"
     )

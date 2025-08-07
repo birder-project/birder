@@ -221,7 +221,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         description="Run detection prediction on directories and/or files",
         epilog=(
             "Usage example:\n"
-            "python predict_detection.py --network faster_rcnn --backbone resnext_101 "
+            "python -m birder.scripts.predict_detection --network faster_rcnn --backbone resnext_101 "
             "-e 0 data/detection_data/validation\n"
             "python predict_detection.py --network retinanet --backbone resnext_101 "
             "-e 0 --show --gpu --compile data/detection_data/training\n"
@@ -243,12 +243,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
-    parser.add_argument(
-        "--backbone",
-        type=str,
-        choices=registry.list_models(net_type=DetectorBackbone),
-        help="the neural network to used as backbone",
-    )
+    parser.add_argument("--backbone", type=str, help="the neural network to used as backbone")
     parser.add_argument(
         "--backbone-param",
         type=float,
@@ -351,6 +346,10 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--network is required")
     if args.backbone is None:
         raise cli.ValidationError("--backbone is required")
+    if registry.exists(args.backbone, net_type=DetectorBackbone) is False:
+        raise cli.ValidationError(
+            f"--backbone {args.network} not supported, see list-models tool for available options"
+        )
     if args.min_score >= 1 or args.min_score <= 0.0:
         raise cli.ValidationError(f"--min-score must be in range of (0, 1.0), got {args.min_score}")
     if args.parallel is True and args.gpu is False:

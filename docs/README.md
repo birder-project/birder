@@ -25,7 +25,7 @@ Whether you're a researcher in ornithology, a conservation scientist, or a wildl
 
 1. [Training](training_scripts.md)
 
-1. Inference
+1. [Inference](inference.md)
 
 1. [Tools and Utilities](tools/index.md)
     - [Convert Model](tools/convert-model.md)
@@ -37,5 +37,7 @@ Whether you're a researcher in ornithology, a conservation scientist, or a wildl
     - [Model Registry](api/model_registry.md)
 
 1. [Public Datasets](public_datasets.md)
+
+1. [Environment Variables](environment_variables.md)
 
 1. [About](about.md)

@@ -1,3 +1,4 @@
+import gzip
 import logging
 import os
 from functools import cached_property
@@ -451,9 +452,14 @@ class Results:
         """
 
         # Read label names
-        with open(path, "r", encoding="utf-8") as handle:
-            label_names = handle.readline().rstrip(os.linesep).split(",")
-            label_names = label_names[Results.num_desc_cols :]
+        if path.endswith(".gz") is True:
+            with gzip.open(path, "rt", encoding="utf-8") as handle:
+                label_names = handle.readline().rstrip(os.linesep).split(",")
+                label_names = label_names[Results.num_desc_cols :]
+        else:
+            with open(path, "r", encoding="utf-8") as handle:
+                label_names = handle.readline().rstrip(os.linesep).split(",")
+                label_names = label_names[Results.num_desc_cols :]
 
         # Read the data frame
         schema_overrides = {
@@ -598,9 +604,14 @@ class SparseResults(Results):
         """
 
         # Read label names
-        with open(path, "r", encoding="utf-8") as handle:
-            label_names = handle.readline().rstrip(os.linesep).split(",")
-            label_names = label_names[Results.num_desc_cols :]
+        if path.endswith(".gz") is True:
+            with gzip.open(path, "rt", encoding="utf-8") as handle:
+                label_names = handle.readline().rstrip(os.linesep).split(",")
+                label_names = label_names[Results.num_desc_cols :]
+        else:
+            with open(path, "r", encoding="utf-8") as handle:
+                label_names = handle.readline().rstrip(os.linesep).split(",")
+                label_names = label_names[Results.num_desc_cols :]
 
         # Read the data frame
         schema_overrides = {
@@ -622,18 +633,23 @@ class SparseResults(Results):
         )
 
 
-def compare_results(results_dict: dict[str, Results]) -> pl.DataFrame:
+def compare_results(results_dict: dict[str, Results | SparseResults], include_top_k: bool = True) -> pl.DataFrame:
     result_list = []
     for name, results in results_dict.items():
-        result_list.append(
+        result_entry = {
+            "File name": name,
+            "Accuracy": results.accuracy,
+        }
+        if include_top_k is True:
+            result_entry[f"Top-{settings.TOP_K} accuracy"] = results.top_k
+
+        result_entry.update(
             {
-                "File name": name,
-                "Accuracy": results.accuracy,
-                f"Top-{settings.TOP_K} accuracy": results.top_k,
                 "Macro F1-score": results.macro_f1_score,
                 "Samples": len(results),
                 "Mistakes": results._num_mistakes,  # pylint: disable=protected-access
             }
         )
+        result_list.append(result_entry)
 
     return pl.DataFrame(result_list)

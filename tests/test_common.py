@@ -97,7 +97,9 @@ class TestCLI(unittest.TestCase):
     @unittest.skipUnless(os.environ.get("NETWORK_TESTS", False), "Avoid tests that require network access")
     def test_download_file(self) -> None:
         with tempfile.NamedTemporaryFile() as f:
-            cli.download_file("https://f000.backblazeb2.com/file/birder/data/img_001.jpeg", f.name)
+            cli.download_file(
+                "wget https://huggingface.co/spaces/birder-project/README/resolve/main/img_001.jpeg", f.name
+            )
 
 
 class TestFSOps(unittest.TestCase):

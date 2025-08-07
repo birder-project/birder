@@ -17,6 +17,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 from tqdm import tqdm
 
+import birder
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
@@ -38,6 +39,9 @@ logger = logging.getLogger(__name__)
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
+    logger.info(f"Starting training, birder version: {birder.__version__}, pytorch version: {torch.__version__}")
+    training_utils.log_git_info()
+
     #
     # Initialize
     #
@@ -452,7 +456,16 @@ def train(args: argparse.Namespace) -> None:
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
         file_handler = training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
         with open(training_log_path.joinpath("training_args.json"), "w", encoding="utf-8") as handle:
-            json.dump({"cmdline": " ".join(sys.argv), **vars(args)}, handle, indent=2)
+            json.dump(
+                {
+                    "birder_version": birder.__version__,
+                    "pytorch_version": torch.__version__,
+                    "cmdline": " ".join(sys.argv),
+                    **vars(args),
+                },
+                handle,
+                indent=2,
+            )
 
         with open(training_log_path.joinpath("training_data.json"), "w", encoding="utf-8") as handle:
             json.dump(

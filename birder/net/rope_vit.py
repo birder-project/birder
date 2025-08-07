@@ -1520,6 +1520,23 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
+    "rope_vit_reg8_so150m_p14_swiglu_rms_ap",
+    RoPE_ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 18,
+        "num_heads": 16,
+        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
+        "mlp_dim": 2320,
+        "num_reg_tokens": 8,
+        "class_token": False,
+        "attn_pool_head": True,
+        "norm_layer_type": "RMSNorm",
+        "mlp_layer_type": "SwiGLU_FFN",
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
     "rope_vit_reg8_so150m_p14_ap",
     RoPE_ViT,
     config={

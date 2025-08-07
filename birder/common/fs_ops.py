@@ -319,7 +319,7 @@ class SimpleCheckpointStates(NamedTuple):
 
 
 def load_simple_checkpoint(
-    device: torch.device, net: torch.nn.Module, network_name: str, *, epoch: Optional[int] = None
+    device: torch.device, net: torch.nn.Module, network_name: str, *, epoch: Optional[int] = None, strict: bool = True
 ) -> SimpleCheckpointStates:
     path = model_path(network_name, epoch=epoch)
     states_path = model_path(network_name, epoch=epoch, states=True)
@@ -333,10 +333,10 @@ def load_simple_checkpoint(
     #   The primary weights in the checkpoint file are the EMA weights
     #   The base_state contain the non-EMA weights
     if training_states.model_base_state is not None:
-        net.load_state_dict(training_states.model_base_state)
+        net.load_state_dict(training_states.model_base_state, strict=strict)
         training_states = training_states._replace(ema_model_state=model_dict["state"])
     else:
-        net.load_state_dict(model_dict["state"])
+        net.load_state_dict(model_dict["state"], strict=strict)
 
     net.to(device)
 
@@ -358,6 +358,7 @@ def load_checkpoint(
     tag: Optional[str] = None,
     epoch: Optional[int] = None,
     new_size: Optional[tuple[int, int]] = None,
+    strict: bool = True,
 ) -> CheckpointStates:
     network_name = get_network_name(network, net_param, tag)
     path = model_path(network_name, epoch=epoch)
@@ -388,10 +389,10 @@ def load_checkpoint(
     #   The primary weights in the checkpoint file are the EMA weights
     #   The base_state contain the non-EMA weights
     if training_states.model_base_state is not None:
-        net.load_state_dict(training_states.model_base_state)
+        net.load_state_dict(training_states.model_base_state, strict=strict)
         training_states = training_states._replace(ema_model_state=model_dict["state"])
     else:
-        net.load_state_dict(model_dict["state"])
+        net.load_state_dict(model_dict["state"], strict=strict)
 
     if new_size is not None:
         net.adjust_size(new_size)
@@ -417,6 +418,7 @@ def load_mim_checkpoint(
     encoder_config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
     epoch: Optional[int] = None,
+    strict: bool = True,
 ) -> MIMCheckpointStates:
     network_name = get_mim_network_name(
         network, net_param=net_param, encoder=encoder, encoder_param=encoder_param, tag=tag
@@ -440,7 +442,7 @@ def load_mim_checkpoint(
         encoder, input_channels, num_classes, net_param=encoder_param, config=encoder_config, size=size
     )
     net = registry.mim_net_factory(network, net_encoder, net_param=net_param, config=config, size=size)
-    net.load_state_dict(model_dict["state"])
+    net.load_state_dict(model_dict["state"], strict=strict)
     net.to(device)
 
     return MIMCheckpointStates(net, training_states)
@@ -465,6 +467,7 @@ def load_detection_checkpoint(
     backbone_tag: Optional[str] = None,
     epoch: Optional[int] = None,
     new_size: Optional[tuple[int, int]] = None,
+    strict: bool = True,
 ) -> DetectionCheckpointStates:
     network_name = get_detection_network_name(
         network,
@@ -501,10 +504,10 @@ def load_detection_checkpoint(
     #   The primary weights in the checkpoint file are the EMA weights
     #   The base_state contain the non-EMA weights
     if training_states.model_base_state is not None:
-        net.load_state_dict(training_states.model_base_state)
+        net.load_state_dict(training_states.model_base_state, strict=strict)
         training_states = training_states._replace(ema_model_state=model_dict["state"])
     else:
-        net.load_state_dict(model_dict["state"])
+        net.load_state_dict(model_dict["state"], strict=strict)
 
     if new_size is not None:
         net.adjust_size(new_size)

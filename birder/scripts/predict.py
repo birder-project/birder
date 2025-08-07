@@ -314,7 +314,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         description="Run prediction on directories and/or files",
         epilog=(
             "Usage example:\n"
-            "python predict.py --network resnet_v2_50 --pts --gpu --save-output data/Unknown\n"
+            "python -m birder.scripts.predict --network resnet_v2_50 --pts --gpu --save-output data/Unknown\n"
             "python predict.py -n fastvit_t8 -t il-common_reparameterized -e 0 --batch-size 256 --reparameterized "
             "--gpu --save-results data/validation_il-common_packed\n"
             "python predict.py --network inception_resnet_v2 -e 100 --gpu --show-out-of-k data/validation\n"
@@ -327,7 +327,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "python predict.py -n efficientnet_v2_m -t intermediate --show-class Unknown data/raw_data\n"
             "python predict.py -n convnext_v2_tiny -t intermediate -e 70 --gpu --gpu-id 1 --compile --fast-matmul "
             "--show-class Unknown data/raw_data\n"
-            "python predict.py -n rope_vit_reg4_b14 --gpu --amp --ignore-dir-names data/imagenet-v2\n"
+            "python -m birder.scripts.predict -n rope_vit_reg4_b14 --gpu --amp --ignore-dir-names data/imagenet-v2\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

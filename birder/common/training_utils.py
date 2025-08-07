@@ -4,6 +4,7 @@ import logging
 import math
 import os
 import re
+import subprocess
 from collections import deque
 from collections.abc import Callable
 from collections.abc import Generator
@@ -836,6 +837,22 @@ def scale_lr(args: argparse.Namespace) -> float:
         logger.info(f"Adjusted learning rate to: {lr}")
 
     return lr
+
+
+def log_git_info() -> None:
+    cwd = os.path.dirname(os.path.abspath(__file__))
+
+    def _run(command: list[str]) -> str:
+        try:
+            return subprocess.check_output(command, cwd=cwd).decode("ascii").strip()
+        except Exception:  # pylint: disable=broad-exception-caught
+            return "N/A"
+
+    sha = _run(["git", "rev-parse", "HEAD"])
+    status = "unclean" if _run(["git", "diff-index", "HEAD"]) else "clean"
+    branch = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+
+    logger.info(f"[GIT] sha: {sha}, status: {status}, branch: {branch}")
 
 
 def training_log_name(network: str, device: torch.device) -> str:

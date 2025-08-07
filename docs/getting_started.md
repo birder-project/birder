@@ -76,7 +76,7 @@ Get started with Birder by classifying a single image, visualizing the results a
     Create a data directory and download an example image:
 
         mkdir data
-        wget https://f000.backblazeb2.com/file/birder/data/img_001.jpeg -O data/img_001.jpeg
+        wget https://huggingface.co/spaces/birder-project/README/resolve/main/img_001.jpeg -O data/img_001.jpeg
 
 1. **Classify the Image**
 

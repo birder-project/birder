@@ -32,6 +32,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets.folder import pil_loader  # Slower but Handles external dataset quirks better
 from tqdm import tqdm
 
+import birder
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import training_cli
@@ -80,6 +81,9 @@ class TrainCollator:
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
+    logger.info(f"Starting training, birder version: {birder.__version__}, pytorch version: {torch.__version__}")
+    training_utils.log_git_info()
+
     #
     # Initialize
     #
@@ -428,7 +432,16 @@ def train(args: argparse.Namespace) -> None:
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
         file_handler = training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
         with open(training_log_path.joinpath("training_args.json"), "w", encoding="utf-8") as handle:
-            json.dump({"cmdline": " ".join(sys.argv), **vars(args)}, handle, indent=2)
+            json.dump(
+                {
+                    "birder_version": birder.__version__,
+                    "pytorch_version": torch.__version__,
+                    "cmdline": " ".join(sys.argv),
+                    **vars(args),
+                },
+                handle,
+                indent=2,
+            )
 
         with open(training_log_path.joinpath("training_data.json"), "w", encoding="utf-8") as handle:
             json.dump(
@@ -700,7 +713,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_lr_scheduler_args(parser)
     training_cli.add_training_schedule_args(parser, default_epochs=300)
     training_cli.add_input_args(parser)
-    training_cli.add_data_aug_args(parser, default_level=1, default_min_scale=0.35)
+    training_cli.add_data_aug_args(parser, default_level=1, default_min_scale=0.35, default_re_prob=0.0)
     training_cli.add_dataloader_args(parser, default_drop_last=True)
     training_cli.add_precision_args(parser)
     training_cli.add_compile_args(parser)
