@@ -21,6 +21,7 @@ from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import inference_preset
 from birder.inference.classification import infer_dataloader_iter
+from birder.inference.data_parallel import InferenceDataParallel
 from birder.results.classification import Results
 from birder.results.gui import show_top_k
 
@@ -159,13 +160,15 @@ def predict(args: argparse.Namespace) -> None:
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
-    if args.compile is True:
+    if args.parallel is True and torch.cuda.device_count() > 1:
+        compile_methods = ["embedding"] if args.save_embeddings is True else None
+        net = InferenceDataParallel(
+            net, output_device="cpu", compile_replicas=args.compile, compile_methods=compile_methods
+        )
+    elif args.compile is True:
         net = torch.compile(net)
         if args.save_embeddings is True:
             net.embedding = torch.compile(net.embedding)
-
-    if args.parallel is True and torch.cuda.device_count() > 1:
-        net = torch.nn.DataParallel(net)
 
     if args.size is None:
         args.size = lib.get_size_from_signature(signature)
@@ -324,7 +327,8 @@ def get_args_parser() -> argparse.ArgumentParser:
             "data/*/Alpine\\ swift --suffix alpine_swift\n"
             "python predict.py -n mobilevit_v2 -p 1.5 -t intermediate -e 80 --gpu --save-results "
             "--wds data/validation_packed\n"
-            "python predict.py -n efficientnet_v2_m -t intermediate --show-class Unknown data/raw_data\n"
+            "python -m birder.scripts.predict -n rope_i_vit_l14_pn_ap_c1 -t pe-core --gpu --parallel --batch-size 256 "
+            "--chunk-size 50000 --amp --amp-dtype bfloat16 --compile --save-embeddings data/raw_data\n"
             "python predict.py -n convnext_v2_tiny -t intermediate -e 70 --gpu --gpu-id 1 --compile --fast-matmul "
             "--show-class Unknown data/raw_data\n"
             "python -m birder.scripts.predict -n rope_vit_reg4_b14 --gpu --amp --ignore-dir-names data/imagenet-v2\n"
@@ -442,10 +446,6 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError(f"--center-crop must be in range of (0, 1.0], got {args.center_crop}")
     if args.parallel is True and args.gpu is False:
         raise cli.ValidationError("--parallel requires --gpu to be set")
-    if args.parallel is True and args.compile is True:
-        raise cli.ValidationError("--parallel cannot be used with --compile")
-    if args.save_embeddings is True and args.parallel is True:
-        raise cli.ValidationError("--save-embeddings cannot be used with --parallel")
     if args.save_embeddings is True and args.tta is True:
         raise cli.ValidationError("--save-embeddings cannot be used with --tta")
     if args.amp is True and args.model_dtype != "float32":

@@ -39,13 +39,13 @@ logger = logging.getLogger(__name__)
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
-    logger.info(f"Starting training, birder version: {birder.__version__}, pytorch version: {torch.__version__}")
-    training_utils.log_git_info()
-
     #
     # Initialize
     #
     training_utils.init_distributed_mode(args)
+    logger.info(f"Starting training, birder version: {birder.__version__}, pytorch version: {torch.__version__}")
+    training_utils.log_git_info()
+
     if (
         args.multiscale is True
         or args.dynamic_size is True
@@ -595,8 +595,7 @@ def train(args: argparse.Namespace) -> None:
         progress.close()
 
         # Epoch training metrics
-        epoch_loss = running_loss.global_avg
-        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {running_loss.global_avg:.4f}")
 
         # Validation
         eval_model.eval()

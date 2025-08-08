@@ -2,7 +2,7 @@ matplotlib>=3.9.0
 numpy>=2.2.0
 onnx>=1.18.0
 onnxscript~=0.3.2
-Pillow~=11.3.0
+Pillow>=11.0.0
 polars>=1.31.0
 pycocotools~=2.0.10
 rich>=14.0.0
@@ -10,9 +10,9 @@ scikit-learn>=1.6.0
 scipy>=1.15.0
 tensorboard>=2.19.0
 torchinfo~=1.8.0
-torchmetrics~=1.8.0
+torchmetrics~=1.8.1
 tqdm>=4.67.0
-webdataset~=0.2.111
+webdataset>=0.2.111
 
 # PyTorch, you should install a version suitable for your hardware and drivers
 torch>=2.7.0

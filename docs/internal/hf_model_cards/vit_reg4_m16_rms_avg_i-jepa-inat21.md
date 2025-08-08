@@ -32,7 +32,7 @@ Note: A 256 x 256 variant of this model is available as `vit_reg4_m16_rms_avg_i-
     - Self-Supervised Learning from Images with a Joint-Embedding Predictive Architecture: <https://arxiv.org/abs/2301.08243>
 
 - **Metrics:**
-    - Top-1 accuracy of 256px model @ 224: 83.39%
+    - Top-1 accuracy of 256px model @ 256: 83.39%
     - Top-1 accuracy @ 384: 86.85%
 
 ## Model Usage

@@ -176,13 +176,13 @@ class TrainCollator:
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
-    logger.info(f"Starting training, birder version: {birder.__version__}, pytorch version: {torch.__version__}")
-    training_utils.log_git_info()
-
     #
     # Initialize
     #
     training_utils.init_distributed_mode(args)
+    logger.info(f"Starting training, birder version: {birder.__version__}, pytorch version: {torch.__version__}")
+    training_utils.log_git_info()
+
     if args.size is None:
         args.size = registry.get_default_size(args.network)
 
@@ -837,20 +837,11 @@ def train(args: argparse.Namespace) -> None:
         progress.close()
 
         # Epoch training metrics
-        epoch_loss = running_loss.global_avg
-        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
-
-        epoch_loss_dino_local = running_loss_dino_local.global_avg
-        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} dino_local_loss: {epoch_loss_dino_local:.4f}")
-
-        epoch_loss_dino_global = running_loss_dino_global.global_avg
-        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} dino_global_loss: {epoch_loss_dino_global:.4f}")
-
-        epoch_loss_koleo = running_loss_koleo.global_avg
-        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} koleo_loss: {epoch_loss_koleo:.4f}")
-
-        epoch_loss_ibot_patch = running_loss_ibot_patch.global_avg
-        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} ibot_patch_loss: {epoch_loss_ibot_patch:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {running_loss.global_avg:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} dino_local_loss: {running_loss_dino_local.global_avg:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} dino_global_loss: {running_loss_dino_global.global_avg:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} koleo_loss: {running_loss_koleo.global_avg:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} ibot_patch_loss: {running_loss_ibot_patch.global_avg:.4f}")
 
         # Learning rate scheduler update
         if iter_update is False:

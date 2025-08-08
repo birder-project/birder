@@ -76,13 +76,13 @@ class TrainCollator:
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
-    logger.info(f"Starting training, birder version: {birder.__version__}, pytorch version: {torch.__version__}")
-    training_utils.log_git_info()
-
     #
     # Initialize
     #
     training_utils.init_distributed_mode(args)
+    logger.info(f"Starting training, birder version: {birder.__version__}, pytorch version: {torch.__version__}")
+    training_utils.log_git_info()
+
     if args.size is None:
         args.size = registry.get_default_size(args.network)
 
@@ -616,14 +616,9 @@ def train(args: argparse.Namespace) -> None:
         progress.close()
 
         # Epoch training metrics
-        epoch_loss = running_loss.global_avg
-        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
-
-        epoch_clustering_loss = running_clustering_loss.global_avg
-        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} clustering_loss: {epoch_clustering_loss:.4f}")
-
-        epoch_target_entropy = running_target_entropy.global_avg
-        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} target_entropy: {epoch_target_entropy:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {running_loss.global_avg:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} clustering_loss: {running_clustering_loss.global_avg:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} target_entropy: {running_target_entropy.global_avg:.4f}")
 
         # Learning rate scheduler update
         if iter_update is False:

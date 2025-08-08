@@ -649,6 +649,16 @@ class SmoothedValue:
         return to_tensor(v, torch.device("cpu")).item()  # type: ignore[no-any-return]
 
 
+def accuracy(y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
+    if y_pred.dim() > 1 and y_pred.size(1) > 1:
+        y_pred = y_pred.argmax(dim=1)
+
+    y_true = y_true.flatten()
+    y_pred = y_pred.flatten()
+
+    return (y_true == y_pred).float().mean().item()  # type: ignore[no-any-return]
+
+
 ###############################################################################
 # Distributed Training Utilities
 ###############################################################################
@@ -677,7 +687,7 @@ def init_distributed_mode(args: argparse.Namespace) -> None:
         # Other, by CLI
         logger.debug("Using distributed mode with CLI-provided parameters")
     else:
-        logger.info("No distributed environment detected, running in single-process mode")
+        logger.debug("No distributed environment detected, running in single-process mode")
         args.rank = 0
         args.distributed = False
         if args.local_rank is None:
@@ -844,7 +854,11 @@ def log_git_info() -> None:
 
     def _run(command: list[str]) -> str:
         try:
-            return subprocess.check_output(command, cwd=cwd).decode("ascii").strip()  # nosec # only hard-coded args
+            return (
+                subprocess.check_output(command, cwd=cwd, stderr=subprocess.DEVNULL)  # nosec # only hard-coded args
+                .decode("ascii")
+                .strip()
+            )
         except Exception:  # pylint: disable=broad-exception-caught
             return "N/A"
 

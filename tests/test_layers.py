@@ -10,11 +10,16 @@ logging.disable(logging.CRITICAL)
 
 class TestLayers(unittest.TestCase):
     def test_activations(self) -> None:
-        # Quick GELU
         quick_gelu = layers.QuickGELU()
         out = quick_gelu(torch.rand(2, 8))
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.size(), (2, 8))
+
+    def test_attention_pool(self) -> None:
+        attention_pool = layers.MultiHeadAttentionPool(32, 2, 64, True)
+        out = attention_pool(torch.rand(2, 8, 32))
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.size(), (2, 1, 32))
 
     def test_ffn(self) -> None:
         swiglu_ffn = layers.FFN(8, 16)

@@ -628,6 +628,11 @@ class TestTrainingUtils(unittest.TestCase):
 
         smoothed_value.synchronize_between_processes(torch.device("cpu"))
 
+    def test_accuracy(self) -> None:
+        y_true = torch.tensor([0, 1, 2, 0])
+        y_pred = torch.tensor([[0.9, 0.1, 0.0], [0.8, 0.1, 0.1], [0.0, 0.1, 0.9], [0.1, 0.4, 0.5]])
+        self.assertAlmostEqual(training_utils.accuracy(y_true, y_pred), 2 / 4, places=6)
+
     def test_get_grad_norm(self) -> None:
         model = torch.nn.Sequential(
             torch.nn.Linear(1, 2, bias=True),

@@ -23,7 +23,6 @@ import torch
 import torch.amp
 import torch.nn.functional as F
 import torchinfo
-import torchmetrics
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
 from torch.utils.tensorboard import SummaryWriter
@@ -61,13 +60,13 @@ DistType = Literal["soft", "hard", "deit"]
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
-    logger.info(f"Starting training, birder version: {birder.__version__}, pytorch version: {torch.__version__}")
-    training_utils.log_git_info()
-
     #
     # Initialize
     #
     training_utils.init_distributed_mode(args)
+    logger.info(f"Starting training, birder version: {birder.__version__}, pytorch version: {torch.__version__}")
+    training_utils.log_git_info()
+
     if args.type != "soft":
         args.temperature = 1.0
 
@@ -436,19 +435,6 @@ def train(args: argparse.Namespace) -> None:
     # Misc
     #
 
-    # Define metrics
-    # top_k = settings.TOP_K
-    training_metrics = torchmetrics.MetricCollection(
-        {
-            "accuracy": torchmetrics.Accuracy("multiclass", num_classes=num_outputs),
-            # f"top_{top_k}": torchmetrics.Accuracy("multiclass", num_classes=num_outputs, top_k=top_k),
-            # "precision": torchmetrics.Precision("multiclass", num_classes=num_outputs, average="macro"),
-            # "f1_score": torchmetrics.F1Score("multiclass", num_classes=num_outputs, average="macro"),
-        },
-        prefix="training_",
-    ).to(device)
-    validation_metrics = training_metrics.clone(prefix="validation_")
-
     # Print network summary
     net_for_info = net_without_ddp
     if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
@@ -514,8 +500,8 @@ def train(args: argparse.Namespace) -> None:
         student.train()
         running_loss = training_utils.SmoothedValue(window_size=64)
         running_val_loss = training_utils.SmoothedValue()
-        training_metrics.reset()
-        validation_metrics.reset()
+        train_accuracy = training_utils.SmoothedValue(window_size=64)
+        val_accuracy = training_utils.SmoothedValue()
 
         if args.distributed is True:
             train_sampler.set_epoch(epoch)
@@ -548,18 +534,18 @@ def train(args: argparse.Namespace) -> None:
 
                 softmax_teacher = F.softmax(teacher_outputs / args.temperature, dim=-1)
                 if distillation_type == "soft":
-                    output = student(inputs)
-                    dist_output = F.log_softmax(output / args.temperature, dim=-1)
+                    outputs = student(inputs)
+                    dist_output = F.log_softmax(outputs / args.temperature, dim=-1)
                 elif distillation_type == "hard":
-                    output = student(inputs)
-                    dist_output = output
+                    outputs = student(inputs)
+                    dist_output = outputs
                 elif distillation_type == "deit":
-                    (output, dist_output) = torch.unbind(student(inputs), dim=1)
+                    (outputs, dist_output) = torch.unbind(student(inputs), dim=1)
                 else:
                     raise RuntimeError
 
                 dist_loss = distillation_criterion(dist_output, softmax_teacher) * (args.temperature**2)
-                target_loss = criterion(output, targets)
+                target_loss = criterion(outputs, targets)
                 loss = (1 - args.lambda_param) * target_loss + (args.lambda_param * dist_loss)
 
             if scaler is not None:
@@ -598,7 +584,7 @@ def train(args: argparse.Namespace) -> None:
             if targets.ndim == 2:
                 targets = targets.argmax(dim=1)
 
-            training_metrics(output, targets)
+            train_accuracy.update(training_utils.accuracy(targets, outputs))
 
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
@@ -616,7 +602,7 @@ def train(args: argparse.Namespace) -> None:
                 cur_lr = max(scheduler.get_last_lr())
 
                 running_loss.synchronize_between_processes(device)
-                training_metrics_dict = training_metrics.compute()
+                train_accuracy.synchronize_between_processes(device)
                 with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
                     log.info(
                         f"[Trn] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx+1}  "
@@ -627,11 +613,10 @@ def train(args: argparse.Namespace) -> None:
                         f"R: {rate:.1f} samples/s  "
                         f"LR: {cur_lr:.4e}"
                     )
-                    log_msg = f"[Trn] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx+1}  Metrics: "
-                    for metric, value in training_metrics_dict.items():
-                        log_msg += f"{metric}: {value:.4f} "
-
-                    log.info(log_msg.strip())
+                    log.info(
+                        f"[Trn] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx+1}  "
+                        f"Accuracy: {train_accuracy.avg:.4f}"
+                    )
 
                 if training_utils.is_local_primary(args) is True:
                     summary_writer.add_scalars(
@@ -639,13 +624,11 @@ def train(args: argparse.Namespace) -> None:
                         {"training": running_loss.avg},
                         ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
                     )
-
-                    for metric, value in training_metrics_dict.items():
-                        summary_writer.add_scalars(
-                            "performance",
-                            {metric: value},
-                            ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
-                        )
+                    summary_writer.add_scalars(
+                        "performance",
+                        {"training_accuracy": train_accuracy.avg},
+                        ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
+                    )
 
             # Update progress bar
             progress.update(n=batch_size * args.world_size)
@@ -653,11 +636,8 @@ def train(args: argparse.Namespace) -> None:
         progress.close()
 
         # Epoch training metrics
-        epoch_loss = running_loss.global_avg
-        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
-
-        for metric, value in training_metrics.compute().items():
-            logger.info(f"[Trn] Epoch {epoch}/{epochs-1} {metric}: {value:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {running_loss.global_avg:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_accuracy: {train_accuracy.global_avg:.4f}")
 
         # Validation
         eval_model.eval()
@@ -683,11 +663,10 @@ def train(args: argparse.Namespace) -> None:
 
                 # Statistics
                 running_val_loss.update(val_loss.detach())
-                validation_metrics(outputs, targets)
+                val_accuracy.update(training_utils.accuracy(targets, outputs))
 
                 # Update progress bar
-                if training_utils.is_local_primary(args) is True:
-                    progress.update(n=batch_size * args.world_size)
+                progress.update(n=batch_size * args.world_size)
 
         time_now = time.time()
         rate = len(validation_dataset) / (time_now - epoch_start)
@@ -701,19 +680,20 @@ def train(args: argparse.Namespace) -> None:
         progress.close()
 
         running_val_loss.synchronize_between_processes(device)
+        val_accuracy.synchronize_between_processes(device)
         epoch_val_loss = running_val_loss.global_avg
-        validation_metrics_dict = validation_metrics.compute()
+        epoch_val_accuracy = val_accuracy.global_avg
 
         # Write statistics
         if training_utils.is_local_primary(args) is True:
             summary_writer.add_scalars("loss", {"validation": epoch_val_loss}, epoch * len(training_dataset))
-            for metric, value in validation_metrics_dict.items():
-                summary_writer.add_scalars("performance", {metric: value}, epoch * len(training_dataset))
+            summary_writer.add_scalars(
+                "performance", {"validation_accuracy": epoch_val_accuracy}, epoch * len(training_dataset)
+            )
 
         # Epoch validation metrics
         logger.info(f"[Val] Epoch {epoch}/{epochs-1} validation_loss (target only): {epoch_val_loss:.4f}")
-        for metric, value in validation_metrics_dict.items():
-            logger.info(f"[Val] Epoch {epoch}/{epochs-1} {metric}: {value:.4f}")
+        logger.info(f"[Val] Epoch {epoch}/{epochs-1} validation_accuracy: {epoch_val_accuracy:.4f}")
 
         # Learning rate scheduler update
         if iter_update is False:
@@ -769,13 +749,11 @@ def train(args: argparse.Namespace) -> None:
             args.size = json.dumps(args.size)
 
         # Save all args
-        metrics = training_metrics.compute()
-        val_metrics = validation_metrics.compute()
         summary_writer.add_hparams(
             {**vars(args), "training_samples": len(training_dataset)},
             {
-                "hparam/acc": metrics["training_accuracy"],
-                "hparam/val_acc": val_metrics["validation_accuracy"],
+                "hparam/acc": train_accuracy.global_avg,
+                "hparam/val_acc": val_accuracy.global_avg,
             },
         )
 

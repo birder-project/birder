@@ -25,7 +25,6 @@ import numpy as np
 import torch
 import torch.amp
 import torchinfo
-import torchmetrics
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets.folder import pil_loader  # Slower but Handles external dataset quirks better
@@ -105,13 +104,13 @@ class TrainTransform:
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
-    logger.info(f"Starting training, birder version: {birder.__version__}, pytorch version: {torch.__version__}")
-    training_utils.log_git_info()
-
     #
     # Initialize
     #
     training_utils.init_distributed_mode(args)
+    logger.info(f"Starting training, birder version: {birder.__version__}, pytorch version: {torch.__version__}")
+    training_utils.log_git_info()
+
     if args.size is None:
         args.size = registry.get_default_size(args.network)
 
@@ -465,9 +464,6 @@ def train(args: argparse.Namespace) -> None:
     # Misc
     #
 
-    # Define metrics
-    training_accuracy = torchmetrics.Accuracy("multiclass", num_classes=args.out_dim).to(device)
-
     # Print network summary
     net_for_info = teacher
     if teacher_compile_flag is True and hasattr(teacher, "_orig_mod") is True:
@@ -526,7 +522,7 @@ def train(args: argparse.Namespace) -> None:
         tic = time.time()
         net.train()
         running_loss = training_utils.SmoothedValue()
-        training_accuracy.reset()
+        train_accuracy = training_utils.SmoothedValue()
 
         if args.distributed is True:
             train_sampler.set_epoch(epoch)
@@ -624,7 +620,7 @@ def train(args: argparse.Namespace) -> None:
             probs_student = student_embedding.chunk(2)
             pred_teacher = probs_teacher[0].argmax(dim=1)
             pred_student = probs_student[1].argmax(dim=1)
-            training_accuracy(pred_student, pred_teacher)
+            train_accuracy.update(training_utils.accuracy(pred_teacher, pred_student))
 
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
@@ -642,7 +638,7 @@ def train(args: argparse.Namespace) -> None:
                 cur_lr = max(scheduler.get_last_lr())
 
                 running_loss.synchronize_between_processes(device)
-                interval_accuracy = training_accuracy.compute()
+                train_accuracy.synchronize_between_processes(device)
                 with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
                     log.info(
                         f"[Trn] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx+1}  "
@@ -662,7 +658,7 @@ def train(args: argparse.Namespace) -> None:
                     )
                     summary_writer.add_scalars(
                         "performance",
-                        {"accuracy": interval_accuracy},
+                        {"accuracy": train_accuracy.avg},
                         ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
                     )
 
@@ -672,11 +668,8 @@ def train(args: argparse.Namespace) -> None:
         progress.close()
 
         # Epoch training metrics
-        epoch_loss = running_loss.global_avg
-        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {epoch_loss:.4f}")
-
-        accuracy = training_accuracy.compute()
-        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} accuracy: {accuracy:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {running_loss.global_avg:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} accuracy: {train_accuracy.global_avg:.4f}")
 
         # Learning rate scheduler update
         if iter_update is False:
