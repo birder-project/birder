@@ -297,8 +297,9 @@ class DETR(DetectionBaseNet):
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
+        export_mode: bool = False,
     ) -> None:
-        super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size)
+        super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size, export_mode=export_mode)
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
@@ -339,6 +340,9 @@ class DETR(DetectionBaseNet):
         empty_weight = torch.ones(self.num_classes)
         empty_weight[0] = 0.1
         self.empty_weight = nn.Buffer(empty_weight)
+
+        if self.export_mode is False:
+            self.forward = torch.compiler.disable(recursive=False)(self.forward)  # type: ignore[method-assign]
 
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes + 1
@@ -479,7 +483,6 @@ class DETR(DetectionBaseNet):
 
         return detections
 
-    @torch.compiler.disable(recursive=False)  # type: ignore[misc]
     def forward(
         self,
         x: torch.Tensor,

@@ -537,8 +537,9 @@ class EfficientDet(DetectionBaseNet):
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
+        export_mode: bool = False,
     ) -> None:
-        super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size)
+        super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size, export_mode=export_mode)
         assert self.net_param is None, "net-param not supported"
         assert self.config is not None, "must set config"
 
@@ -602,6 +603,9 @@ class EfficientDet(DetectionBaseNet):
         self.topk_candidates = topk_candidates
         self.detections_per_img = detections_per_img
         self.nms_thresh = nms_thresh
+
+        if self.export_mode is False:
+            self.forward = torch.compiler.disable(recursive=False)(self.forward)  # type: ignore[method-assign]
 
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes
@@ -727,7 +731,6 @@ class EfficientDet(DetectionBaseNet):
         return detections
 
     # pylint: disable=invalid-name
-    @torch.compiler.disable(recursive=False)  # type: ignore[misc]
     def forward(
         self,
         x: torch.Tensor,

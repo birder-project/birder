@@ -511,6 +511,8 @@ class RoIHeads(nn.Module):
         score_thresh: float,
         nms_thresh: float,
         detections_per_img: int,
+        # Other
+        export_mode: bool = False,
     ) -> None:
         super().__init__()
 
@@ -529,6 +531,9 @@ class RoIHeads(nn.Module):
         self.score_thresh = score_thresh
         self.nms_thresh = nms_thresh
         self.detections_per_img = detections_per_img
+
+        if export_mode is False:
+            self.forward = torch.compiler.disable(recursive=False)(self.forward)  # type: ignore[method-assign]
 
     def assign_targets_to_proposals(
         self, proposals: list[torch.Tensor], gt_boxes: list[torch.Tensor], gt_labels: list[torch.Tensor]
@@ -581,6 +586,7 @@ class RoIHeads(nn.Module):
 
         return proposals
 
+    @torch.jit.unused  # type: ignore[misc]
     @torch.compiler.disable()  # type: ignore[misc]
     def select_training_samples(
         self,
@@ -691,8 +697,7 @@ class RoIHeads(nn.Module):
 
         return (all_boxes, all_scores, all_labels)
 
-    @torch.compiler.disable(recursive=False)  # type: ignore[misc]
-    def forward(
+    def forward(  # pylint: disable=method-hidden
         self,
         features: dict[str, torch.Tensor],
         proposals: list[torch.Tensor],
@@ -758,8 +763,9 @@ class Faster_RCNN(DetectionBaseNet):
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
+        export_mode: bool = False,
     ) -> None:
-        super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size)
+        super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size, export_mode=export_mode)
         assert self.net_param is None, "net-param not supported"
         assert self.config is None, "config not supported"
 
@@ -826,7 +832,6 @@ class Faster_RCNN(DetectionBaseNet):
         box_predictor = FastRCNNPredictor(self.representation_size, self.num_classes)
 
         self.roi_heads = RoIHeads(
-            # Box
             box_roi_pool,
             box_head,
             box_predictor,
@@ -838,6 +843,7 @@ class Faster_RCNN(DetectionBaseNet):
             box_score_thresh,
             box_nms_thresh,
             box_detections_per_img,
+            export_mode=self.export_mode,
         )
 
     def reset_classifier(self, num_classes: int) -> None:

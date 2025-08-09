@@ -51,9 +51,8 @@ class TestNetDetection(unittest.TestCase):
         encoder: tuple[str, float],
         size: tuple[int, int] = (256, 256),
     ) -> None:
-        backbone = registry.net_factory(encoder[0], 3, 10, net_param=encoder[1])
-        n = registry.detection_net_factory(network_name, 10, backbone, net_param=net_param, size=size)
-        backbone.adjust_size(size)
+        backbone = registry.net_factory(encoder[0], 3, 10, net_param=encoder[1], size=size)
+        n = registry.detection_net_factory(network_name, 10, backbone, net_param=net_param, size=size, export_mode=True)
 
         # Ensure config is serializable
         _ = json.dumps(n.config)

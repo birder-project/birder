@@ -686,6 +686,7 @@ def load_detection_model(
     pt2: bool = False,
     st: bool = False,
     dtype: Optional[torch.dtype] = None,
+    export_mode: bool = False,
 ) -> tuple[torch.nn.Module | torch.ScriptModule, DetectionModelInfo]:
     if path is None:
         _network_name = get_detection_network_name(
@@ -761,7 +762,13 @@ def load_detection_model(
             net_backbone.reparameterize_model()
 
         net = registry.detection_net_factory(
-            network, num_classes, net_backbone, net_param=net_param, config=merged_config, size=size
+            network,
+            num_classes,
+            net_backbone,
+            net_param=net_param,
+            config=merged_config,
+            size=size,
+            export_mode=export_mode,
         )
         if reparameterized is True:
             net.reparameterize_model()
@@ -804,7 +811,13 @@ def load_detection_model(
             net_backbone.reparameterize_model()
 
         net = registry.detection_net_factory(
-            network, num_classes, net_backbone, net_param=net_param, config=merged_config, size=size
+            network,
+            num_classes,
+            net_backbone,
+            net_param=net_param,
+            config=merged_config,
+            size=size,
+            export_mode=export_mode,
         )
         if reparameterized is True:
             net.reparameterize_model()

@@ -61,6 +61,7 @@ class DetectionBaseNet(nn.Module):
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
+        export_mode: bool = False,
     ) -> None:
         super().__init__()
         self.input_channels = backbone.input_channels
@@ -84,6 +85,7 @@ class DetectionBaseNet(nn.Module):
         assert isinstance(self.size[0], int)
         assert isinstance(self.size[1], int)
 
+        self.export_mode = export_mode
         self.dynamic_size = False
 
     def reset_classifier(self, num_classes: int) -> None:

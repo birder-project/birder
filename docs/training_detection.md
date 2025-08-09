@@ -66,7 +66,15 @@ torchrun --nproc_per_node=2 train_detection.py --network detr --tag coco --backb
 #### DETR: ViT reg4 m16 rms AVG
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network detr --tag coco --backbone vit_reg4_m16_rms_avg --backbone-tag i-jepa-imagenet21k --backbone-pretrained --opt adamw --lr 0.0001 --backbone-lr 0.00001 --lr-scheduler step --lr-step-size 200 --lr-step-gamma 0.1 --batch-size 1 --grad-accum-steps 32 --epochs 300 --wd 0.0001 --aug-level 5 --multiscale --max-size 1152 --clip-grad-norm 0.1 --amp --amp-dtype bfloat16 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+torchrun --nproc_per_node=2 train_detection.py --network detr --tag coco --backbone vit_reg4_m16_rms_avg --backbone-tag i-jepa-imagenet21k --backbone-pretrained --opt adamw --lr 0.0001 --backbone-lr 0.00001 --lr-scheduler step --lr-step-size 200 --lr-step-gamma 0.1 --batch-size 1 --grad-accum-steps 32 --epochs 300 --wd 0.0001 --aug-level 5 --multiscale --max-size 1152 --clip-grad-norm 0.1 --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+```
+
+#### DETR: RoPEi ViT reg1 s16 pn c1
+
+Optional intermediate training (COCO), warmup
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network detr --tag coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-pretrained --opt adamw --lr 0.0001 --lr-scheduler step --lr-step-size 200 --lr-step-gamma 0.1 --batch-size 16 --grad-accum-steps 8 --epochs 300 --wd 0.0001 --rgb-mode none --freeze-backbone --aug-level 5 --size 640 --clip-grad-norm 0.1 --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 ### EfficientDet

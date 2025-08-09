@@ -266,6 +266,7 @@ def main(args: argparse.Namespace) -> None:
                 epoch=args.epoch,
                 new_size=args.resize,
                 inference=True,
+                export_mode=True,
             )
         )
         network_name = lib.get_detection_network_name(

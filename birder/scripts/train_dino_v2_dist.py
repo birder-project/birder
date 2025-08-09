@@ -312,7 +312,9 @@ def train(args: argparse.Namespace) -> None:
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
-        (net, training_states) = fs_ops.load_simple_checkpoint(device, net, network_name, epoch=args.resume_epoch)
+        (net, training_states) = fs_ops.load_simple_checkpoint(
+            device, net, network_name, epoch=args.resume_epoch, strict=not args.non_strict_weights
+        )
         student = net["student"]
         student_backbone_ema = net["student_backbone_ema"]
         teacher = net["teacher"]

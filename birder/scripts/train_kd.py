@@ -274,6 +274,7 @@ def train(args: argparse.Namespace) -> None:
             tag=args.student_tag,
             epoch=args.resume_epoch,
             new_size=args.size,
+            strict=not args.non_strict_weights,
         )
         assert class_to_idx == class_to_idx_saved
 

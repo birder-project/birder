@@ -196,6 +196,7 @@ def train(args: argparse.Namespace) -> None:
             encoder_config=args.encoder_model_config,
             tag=args.tag,
             epoch=args.resume_epoch,
+            strict=not args.non_strict_weights,
         )
 
     elif args.pretrained is True:
@@ -210,6 +211,7 @@ def train(args: argparse.Namespace) -> None:
             encoder_config=args.encoder_model_config,
             tag=args.tag,
             epoch=None,
+            strict=not args.non_strict_weights,
         )
 
     else:

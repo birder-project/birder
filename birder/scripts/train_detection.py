@@ -200,6 +200,7 @@ def train(args: argparse.Namespace) -> None:
             backbone_tag=args.backbone_tag,
             epoch=args.resume_epoch,
             new_size=args.size,
+            strict=not args.non_strict_weights,
         )
         if args.reset_head is True:
             net.reset_classifier(len(class_to_idx))
@@ -220,6 +221,7 @@ def train(args: argparse.Namespace) -> None:
             backbone_tag=args.backbone_tag,
             epoch=None,
             new_size=args.size,
+            strict=not args.non_strict_weights,
         )
         if args.reset_head is True:
             net.reset_classifier(len(class_to_idx))
@@ -237,6 +239,7 @@ def train(args: argparse.Namespace) -> None:
                 tag=args.backbone_tag,
                 epoch=args.backbone_epoch,
                 new_size=args.size,
+                strict=not args.non_strict_weights,
             )
 
         elif args.backbone_pretrained is True:
@@ -252,6 +255,7 @@ def train(args: argparse.Namespace) -> None:
                 tag=args.backbone_tag,
                 epoch=None,
                 new_size=args.size,
+                strict=not args.non_strict_weights,
             )
 
         else:

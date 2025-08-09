@@ -247,8 +247,11 @@ class ModelRegistry:
         net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
+        export_mode: bool = False,
     ) -> "DetectionBaseNet":
-        return self._detection_nets[name](num_classes, backbone, net_param=net_param, config=config, size=size)
+        return self._detection_nets[name](
+            num_classes, backbone, net_param=net_param, config=config, size=size, export_mode=export_mode
+        )
 
     def mim_net_factory(
         self,

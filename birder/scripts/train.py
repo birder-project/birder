@@ -247,6 +247,7 @@ def train(args: argparse.Namespace) -> None:
             tag=args.tag,
             epoch=args.resume_epoch,
             new_size=args.size,
+            strict=not args.non_strict_weights,
         )
         if args.reset_head is True:
             net.reset_classifier(len(class_to_idx))
@@ -263,6 +264,7 @@ def train(args: argparse.Namespace) -> None:
             tag=args.tag,
             epoch=None,
             new_size=args.size,
+            strict=not args.non_strict_weights,
         )
         if args.reset_head is True:
             net.reset_classifier(len(class_to_idx))

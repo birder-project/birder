@@ -322,6 +322,12 @@ def add_checkpoint_args(
 
     group.add_argument("--resume-epoch", type=int, metavar="N", help="epoch number to resume training from")
     group.add_argument(
+        "--non-strict-weights",
+        default=False,
+        action="store_true",
+        help="allow non-strict loading of model weights (missing or unexpected keys in state_dict)",
+    )
+    group.add_argument(
         "--load-states",
         default=False,
         action="store_true",
