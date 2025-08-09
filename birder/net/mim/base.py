@@ -38,15 +38,12 @@ class MIMBaseNet(nn.Module):
         self,
         encoder: PreTrainEncoder,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__()
         self.input_channels = encoder.input_channels
         self.encoder = encoder
-        if hasattr(self, "net_param") is False:  # Avoid overriding aliases
-            self.net_param = net_param
         if hasattr(self, "config") is False:  # Avoid overriding aliases
             self.config = config
         elif config is not None:

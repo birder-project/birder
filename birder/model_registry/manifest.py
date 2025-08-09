@@ -13,7 +13,6 @@ NetworkInfoType = TypedDict(
     "NetworkInfoType",
     {
         "network": str,
-        "net_param": NotRequired[float],
         "tag": NotRequired[str],
         "reparameterized": NotRequired[bool],
     },

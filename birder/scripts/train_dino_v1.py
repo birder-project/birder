@@ -231,23 +231,10 @@ def train(args: argparse.Namespace) -> None:
     #
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
-    backbone_name = get_network_name(args.network, net_param=args.net_param, tag="dino-v1")
-    network_name = get_mim_network_name(
-        "dino_v1",
-        net_param=None,
-        encoder=args.network,
-        encoder_param=args.net_param,
-        tag=args.tag,
-    )
+    backbone_name = get_network_name(args.network, tag="dino-v1")
+    network_name = get_mim_network_name("dino_v1", encoder=args.network, tag=args.tag)
 
-    student_backbone = registry.net_factory(
-        args.network,
-        sample_shape[1],
-        0,
-        net_param=args.net_param,
-        config=args.model_config,
-        size=args.size,
-    )
+    student_backbone = registry.net_factory(args.network, sample_shape[1], 0, config=args.model_config, size=args.size)
     if args.model_config is not None:
         teacher_model_config = args.model_config.copy()
         teacher_model_config.update({"drop_path_rate": 0.0})
@@ -255,12 +242,7 @@ def train(args: argparse.Namespace) -> None:
         teacher_model_config = {"drop_path_rate": 0.0}
 
     teacher_backbone = registry.net_factory(
-        args.network,
-        sample_shape[1],
-        0,
-        net_param=args.net_param,
-        config=teacher_model_config,
-        size=args.size,
+        args.network, sample_shape[1], 0, config=teacher_model_config, size=args.size
     )
     student_backbone.set_dynamic_size()
     teacher_backbone.set_dynamic_size()
@@ -722,7 +704,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("-n", "--network", type=str, help="the neural network to use")
-    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
     parser.add_argument(
         "--model-config",
         action=cli.FlexibleDictAction,

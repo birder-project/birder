@@ -229,30 +229,12 @@ def train(args: argparse.Namespace) -> None:
     #
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
-    backbone_name = get_network_name(args.network, net_param=args.net_param, tag="dino-v2-dist")
-    network_name = get_mim_network_name(
-        "dino_v2_dist",
-        net_param=None,
-        encoder=args.network,
-        encoder_param=args.net_param,
-        tag=args.tag,
-    )
+    backbone_name = get_network_name(args.network, tag="dino-v2-dist")
+    network_name = get_mim_network_name("dino_v2_dist", encoder=args.network, tag=args.tag)
 
-    student_backbone = registry.net_factory(
-        args.network,
-        sample_shape[1],
-        0,
-        net_param=args.net_param,
-        config=args.model_config,
-        size=args.size,
-    )
+    student_backbone = registry.net_factory(args.network, sample_shape[1], 0, config=args.model_config, size=args.size)
     student_backbone_ema = registry.net_factory(
-        args.network,
-        sample_shape[1],
-        0,
-        net_param=args.net_param,
-        config=args.model_config,
-        size=args.size,
+        args.network, sample_shape[1], 0, config=args.model_config, size=args.size
     )
     student_backbone_ema.load_state_dict(student_backbone.state_dict())
 
@@ -260,7 +242,6 @@ def train(args: argparse.Namespace) -> None:
         args.teacher,
         sample_shape[1],
         0,
-        net_param=args.teacher_net_param,
         config=args.teacher_model_config,
         size=args.size,
     )
@@ -325,13 +306,7 @@ def train(args: argparse.Namespace) -> None:
     else:
         state = fs_ops.load_state_dict(
             device,
-            get_mim_network_name(
-                "dino_v2",
-                net_param=None,
-                encoder=args.teacher,
-                encoder_param=args.teacher_net_param,
-                tag=args.teacher_tag,
-            ),
+            get_mim_network_name("dino_v2", encoder=args.teacher, tag=args.teacher_tag),
             epoch=args.teacher_epoch,
         )
         filtered_state = {}
@@ -956,7 +931,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("-n", "--network", type=str, help="the neural network to use")
-    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
     parser.add_argument(
         "--model-config",
         action=cli.FlexibleDictAction,
@@ -967,11 +941,6 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("-t", "--tag", type=str, help="add model tag")
     parser.add_argument("--teacher", type=str, help="the neural network to use as teacher")
-    parser.add_argument(
-        "--teacher-net-param",
-        type=float,
-        help="network specific parameter, required by some networks (for the teacher backbone)",
-    )
     parser.add_argument(
         "--teacher-model-config",
         action=cli.FlexibleDictAction,

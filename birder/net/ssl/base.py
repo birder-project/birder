@@ -49,7 +49,6 @@ class SSLBaseNet(nn.Module):
         super().__init__()
         self.input_channels = backbone.input_channels
         self.backbone = backbone
-        self.net_param = None  # For compatibility with other base nets
 
         if hasattr(self, "config") is False:  # Avoid overriding aliases
             self.config = config

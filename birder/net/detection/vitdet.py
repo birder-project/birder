@@ -37,13 +37,11 @@ class ViTDet(Faster_RCNN):
         num_classes: int,
         backbone: DetectorBackbone,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
         export_mode: bool = False,
     ) -> None:
-        super().__init__(num_classes, backbone, net_param=net_param, config=config, size=size, export_mode=export_mode)
-        assert self.net_param is None, "net-param not supported"
+        super().__init__(num_classes, backbone, config=config, size=size, export_mode=export_mode)
         assert self.config is None, "config not supported"
 
         fpn_width = 256

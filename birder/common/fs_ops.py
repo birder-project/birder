@@ -353,14 +353,13 @@ def load_checkpoint(
     device: torch.device,
     network: str,
     *,
-    net_param: Optional[float],
     config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
     epoch: Optional[int] = None,
     new_size: Optional[tuple[int, int]] = None,
     strict: bool = True,
 ) -> CheckpointStates:
-    network_name = get_network_name(network, net_param, tag)
+    network_name = get_network_name(network, tag)
     path = model_path(network_name, epoch=epoch)
     states_path = model_path(network_name, epoch=epoch, states=True)
 
@@ -383,7 +382,7 @@ def load_checkpoint(
     )
 
     # Initialize network and restore checkpoint state
-    net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, config=config, size=size)
+    net = registry.net_factory(network, input_channels, num_classes, config=config, size=size)
 
     # When a checkpoint was trained with EMA:
     #   The primary weights in the checkpoint file are the EMA weights
@@ -411,18 +410,14 @@ def load_mim_checkpoint(
     device: torch.device,
     network: str,
     *,
-    net_param: Optional[float] = None,
     config: Optional[dict[str, Any]] = None,
     encoder: str,
-    encoder_param: Optional[float] = None,
     encoder_config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
     epoch: Optional[int] = None,
     strict: bool = True,
 ) -> MIMCheckpointStates:
-    network_name = get_mim_network_name(
-        network, net_param=net_param, encoder=encoder, encoder_param=encoder_param, tag=tag
-    )
+    network_name = get_mim_network_name(network, encoder=encoder, tag=tag)
     path = model_path(network_name, epoch=epoch, pts=False)
     states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
 
@@ -438,10 +433,8 @@ def load_mim_checkpoint(
     size = lib.get_size_from_signature(signature)
 
     # Initialize network and restore checkpoint state
-    net_encoder = registry.net_factory(
-        encoder, input_channels, num_classes, net_param=encoder_param, config=encoder_config, size=size
-    )
-    net = registry.mim_net_factory(network, net_encoder, net_param=net_param, config=config, size=size)
+    net_encoder = registry.net_factory(encoder, input_channels, num_classes, config=encoder_config, size=size)
+    net = registry.mim_net_factory(network, net_encoder, config=config, size=size)
     net.load_state_dict(model_dict["state"], strict=strict)
     net.to(device)
 
@@ -458,11 +451,9 @@ def load_detection_checkpoint(
     device: torch.device,
     network: str,
     *,
-    net_param: Optional[float] = None,
     config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
     backbone: str,
-    backbone_param: Optional[float] = None,
     backbone_config: Optional[dict[str, Any]] = None,
     backbone_tag: Optional[str] = None,
     epoch: Optional[int] = None,
@@ -471,10 +462,8 @@ def load_detection_checkpoint(
 ) -> DetectionCheckpointStates:
     network_name = get_detection_network_name(
         network,
-        net_param=net_param,
         tag=tag,
         backbone=backbone,
-        backbone_param=backbone_param,
         backbone_tag=backbone_tag,
     )
     path = model_path(network_name, epoch=epoch, pts=False)
@@ -493,12 +482,8 @@ def load_detection_checkpoint(
     size = lib.get_size_from_signature(signature)
 
     # Initialize network and restore checkpoint state
-    net_backbone = registry.net_factory(
-        backbone, input_channels, num_classes, net_param=backbone_param, config=backbone_config, size=size
-    )
-    net = registry.detection_net_factory(
-        network, num_classes, net_backbone, net_param=net_param, config=config, size=size
-    )
+    net_backbone = registry.net_factory(backbone, input_channels, num_classes, config=backbone_config, size=size)
+    net = registry.detection_net_factory(network, num_classes, net_backbone, config=config, size=size)
 
     # When a checkpoint was trained with EMA:
     #   The primary weights in the checkpoint file are the EMA weights
@@ -530,7 +515,6 @@ def load_model(
     network: str,
     *,
     path: Optional[str | Path] = None,
-    net_param: Optional[float] = None,
     config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
     epoch: Optional[int] = None,
@@ -544,7 +528,7 @@ def load_model(
     dtype: Optional[torch.dtype] = None,
 ) -> tuple[torch.nn.Module | torch.ScriptModule, ModelInfo]:
     if path is None:
-        _network_name = get_network_name(network, net_param, tag)
+        _network_name = get_network_name(network, tag)
         path = model_path(_network_name, epoch=epoch, quantized=quantized, pts=pts, pt2=pt2, st=st)
 
     logger.info(f"Loading model from {path} on device {device}...")
@@ -594,9 +578,7 @@ def load_model(
             merged_config = None  # type: ignore[assignment]
 
         model_state: dict[str, Any] = safetensors.torch.load_file(path, device=device.type)
-        net = registry.net_factory(
-            network, input_channels, num_classes, net_param=net_param, config=merged_config, size=size
-        )
+        net = registry.net_factory(network, input_channels, num_classes, config=merged_config, size=size)
         if reparameterized is True:
             net.reparameterize_model()
 
@@ -623,9 +605,7 @@ def load_model(
         if len(merged_config) == 0:
             merged_config = None
 
-        net = registry.net_factory(
-            network, input_channels, num_classes, net_param=net_param, config=merged_config, size=size
-        )
+        net = registry.net_factory(network, input_channels, num_classes, config=merged_config, size=size)
         if reparameterized is True:
             net.reparameterize_model()
 
@@ -669,12 +649,10 @@ def load_detection_model(
     network: str,
     *,
     path: Optional[str | Path] = None,
-    net_param: Optional[float] = None,
     config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
     reparameterized: bool = False,
     backbone: str,
-    backbone_param: Optional[float] = None,
     backbone_config: Optional[dict[str, Any]] = None,
     backbone_tag: Optional[str] = None,
     backbone_reparameterized: bool = False,
@@ -689,14 +667,7 @@ def load_detection_model(
     export_mode: bool = False,
 ) -> tuple[torch.nn.Module | torch.ScriptModule, DetectionModelInfo]:
     if path is None:
-        _network_name = get_detection_network_name(
-            network,
-            net_param=net_param,
-            tag=tag,
-            backbone=backbone,
-            backbone_param=backbone_param,
-            backbone_tag=backbone_tag,
-        )
+        _network_name = get_detection_network_name(network, tag=tag, backbone=backbone, backbone_tag=backbone_tag)
         path = model_path(_network_name, epoch=epoch, quantized=quantized, pts=pts, pt2=pt2, st=st)
 
     logger.info(f"Loading model from {path} on device {device}...")
@@ -756,19 +727,13 @@ def load_detection_model(
 
         model_state: dict[str, Any] = safetensors.torch.load_file(path, device=device.type)
         net_backbone = registry.net_factory(
-            backbone, input_channels, num_classes, net_param=backbone_param, config=backbone_merged_config, size=size
+            backbone, input_channels, num_classes, config=backbone_merged_config, size=size
         )
         if backbone_reparameterized is True:
             net_backbone.reparameterize_model()
 
         net = registry.detection_net_factory(
-            network,
-            num_classes,
-            net_backbone,
-            net_param=net_param,
-            config=merged_config,
-            size=size,
-            export_mode=export_mode,
+            network, num_classes, net_backbone, config=merged_config, size=size, export_mode=export_mode
         )
         if reparameterized is True:
             net.reparameterize_model()
@@ -805,19 +770,13 @@ def load_detection_model(
             merged_config = None
 
         net_backbone = registry.net_factory(
-            backbone, input_channels, num_classes, net_param=backbone_param, config=backbone_merged_config, size=size
+            backbone, input_channels, num_classes, config=backbone_merged_config, size=size
         )
         if backbone_reparameterized is True:
             net_backbone.reparameterize_model()
 
         net = registry.detection_net_factory(
-            network,
-            num_classes,
-            net_backbone,
-            net_param=net_param,
-            config=merged_config,
-            size=size,
-            export_mode=export_mode,
+            network, num_classes, net_backbone, config=merged_config, size=size, export_mode=export_mode
         )
         if reparameterized is True:
             net.reparameterize_model()
@@ -926,7 +885,6 @@ def load_pretrained_model(
             device,
             model_metadata["net"]["network"],
             path=dst,
-            net_param=model_metadata["net"].get("net_param", None),
             config=custom_config,
             tag=model_metadata["net"].get("tag", None),
             reparameterized=model_metadata["net"].get("reparameterized", False),
@@ -940,12 +898,10 @@ def load_pretrained_model(
             device,
             model_metadata["net"]["network"],
             path=dst,
-            net_param=model_metadata["net"].get("net_param", None),
             config=custom_config,
             tag=model_metadata["net"].get("tag", None),
             reparameterized=model_metadata["net"].get("reparameterized", False),
             backbone=model_metadata["backbone"]["network"],
-            backbone_param=model_metadata["backbone"].get("net_param", None),
             backbone_tag=model_metadata["backbone"].get("tag", None),
             backbone_reparameterized=model_metadata["backbone"].get("reparameterized", False),
             inference=inference,
@@ -983,7 +939,6 @@ def load_model_with_cfg(
     else:
         name = cfg["name"]
 
-    net_param = cfg["net_param"]
     model_config = cfg["model_config"]
     signature = cfg["signature"]
 
@@ -997,12 +952,9 @@ def load_model_with_cfg(
         else:
             encoder_name = cfg["encoder"]
 
-        encoder_net_param = cfg.get("encoder_net_param", None)
         encoder_config = cfg.get("encoder_config", None)
-        encoder = registry.net_factory(
-            encoder_name, input_channels, num_classes=0, net_param=encoder_net_param, config=encoder_config, size=size
-        )
-        net = registry.mim_net_factory(name, encoder, net_param=net_param, config=model_config, size=size)
+        encoder = registry.net_factory(encoder_name, input_channels, num_classes=0, config=encoder_config, size=size)
+        net = registry.mim_net_factory(name, encoder, config=model_config, size=size)
 
     elif cfg["task"] == Task.OBJECT_DETECTION:
         if cfg["backbone_alias"] is not None:
@@ -1010,22 +962,15 @@ def load_model_with_cfg(
         else:
             backbone_name = cfg["backbone"]
 
-        backbone_net_param = cfg.get("backbone_net_param", None)
         backbone_config = cfg.get("backbone_config", None)
-        backbone = registry.net_factory(
-            backbone_name, input_channels, num_classes, net_param=backbone_net_param, config=backbone_config, size=size
-        )
+        backbone = registry.net_factory(backbone_name, input_channels, num_classes, config=backbone_config, size=size)
         if cfg.get("backbone_reparameterized", False) is True:
             backbone.reparameterize_model()
 
-        net = registry.detection_net_factory(
-            name, num_classes, backbone, net_param=net_param, config=model_config, size=size
-        )
+        net = registry.detection_net_factory(name, num_classes, backbone, config=model_config, size=size)
 
     elif cfg["task"] == Task.IMAGE_CLASSIFICATION:
-        net = registry.net_factory(
-            name, input_channels, num_classes, net_param=net_param, config=model_config, size=size
-        )
+        net = registry.net_factory(name, input_channels, num_classes, config=model_config, size=size)
 
     else:
         raise ValueError(f"Configuration not supported: {cfg['task']}")

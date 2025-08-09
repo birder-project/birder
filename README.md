@@ -115,11 +115,9 @@ Other tags:
 - quantized: Model that has been quantized to reduce the computational and memory costs of running inference
 - reparameterized: Model that has been restructured to simplify its architecture for optimized inference performance
 
-Net Param: The number following the model name (e.g., 50, 1.0, 0.5), called the `net_param`, represents a specific configuration choice for the network. It represents a specific configuration choice for the network, which can affect aspects such as model size or complexity.
-
 Epoch Number (optional): The last part of the model name may include an underscore followed by a number (e.g., `0`, `200`), which represents the epoch.
 
-For instance, *mnasnet_1_intermediate_300* represents a MnasNet model with a `net_param` (alpha value in this case) of 1 that underwent intermediate training and is from epoch 300.
+For instance, *mnasnet_1_0_intermediate_300* represents a MnasNet model with a alpha value of 1.0 that underwent intermediate training and is from epoch 300.
 
 ### Self-supervised Image Pre-training
 

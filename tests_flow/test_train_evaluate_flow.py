@@ -30,11 +30,9 @@ class TestTrainEvaluateFlow(unittest.TestCase):
         # Linear probing
         model_metadata = registry.get_pretrained_metadata(model_name)
         network = model_metadata["net"]["network"]
-        net_param = model_metadata["net"].get("net_param", None)
         tag = model_metadata["net"].get("tag", None)
         args = train.args_from_dict(
             network=network,
-            net_param=net_param,
             tag=tag,
             pretrained=True,
             reset_head=True,
@@ -54,26 +52,20 @@ class TestTrainEvaluateFlow(unittest.TestCase):
 
         # Check checkpoints are valid
         device = torch.device("cpu")
-        (net, (class_to_idx, signature, rgb_stats, *_)) = load_model(
-            device, network, net_param=net_param, tag=tag, epoch=1, inference=True
-        )
+        (net, (class_to_idx, signature, rgb_stats, *_)) = load_model(device, network, tag=tag, epoch=1, inference=True)
         self.assertEqual(len(class_to_idx), signature["outputs"][0]["data_shape"][1])
-        (net, (class_to_idx, signature, rgb_stats, *_)) = load_model(
-            device, network, net_param=net_param, tag=tag, epoch=2, inference=True
-        )
+        (net, (class_to_idx, signature, rgb_stats, *_)) = load_model(device, network, tag=tag, epoch=2, inference=True)
         self.assertEqual(len(class_to_idx), signature["outputs"][0]["data_shape"][1])
 
         # Average checkpoints
-        avg_models(network, net_param, tag, reparameterized=False, epochs=[1, 2], force=True)
+        avg_models(network, tag, reparameterized=False, epochs=[1, 2], force=True)
 
         # Check average checkpoint is valid
         device = torch.device("cpu")
-        (net, (class_to_idx, signature, rgb_stats, *_)) = load_model(
-            device, network, net_param=net_param, tag=tag, epoch=0, inference=True
-        )
+        (net, (class_to_idx, signature, rgb_stats, *_)) = load_model(device, network, tag=tag, epoch=0, inference=True)
 
         # Check valid config
-        network_name = get_network_name(network, net_param, tag)
+        network_name = get_network_name(network, tag)
         config = read_config(network_name)
         weights_path = model_path(network_name, epoch=0)
         _ = birder.load_model_with_cfg(config, weights_path)

@@ -16,13 +16,10 @@ class SE_ResNet_v1(ResNet_v1):
         input_channels: int,
         num_classes: int,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(
-            input_channels, num_classes, net_param=net_param, config=config, size=size, squeeze_excitation=True
-        )
+        super().__init__(input_channels, num_classes, config=config, size=size, squeeze_excitation=True)
 
 
 registry.register_model_config(

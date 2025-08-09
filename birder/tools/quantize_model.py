@@ -32,7 +32,7 @@ def set_parser(subparsers: Any) -> None:
         description="quantize model",
         epilog=(
             "Usage examples:\n"
-            "python -m birder.tools quantize-model --network shufflenet_v2 --net-param 2 --epoch 0\n"
+            "python -m birder.tools quantize-model --network shufflenet_v2_2_0 --epoch 0\n"
             "python -m birder.tools quantize-model -n convnext_v2_tiny -e 0 --qbackend x86 \n"
             "python -m birder.tools quantize-model --network densenet_121 -e 100 --num-calibration-batches 256\n"
             "python -m birder.tools quantize-model -n efficientnet_v2_s -e 200 --qbackend x86\n"
@@ -41,9 +41,6 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument(
         "-n", "--network", type=str, required=True, help="the neural network to load (i.e. resnet_v2_50)"
-    )
-    subparser.add_argument(
-        "-p", "--net-param", type=float, help="network specific parameter, required by some networks"
     )
     subparser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from the training phase)")
@@ -80,7 +77,7 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
-    network_name = get_network_name(args.network, net_param=args.net_param, tag=args.tag)
+    network_name = get_network_name(args.network, tag=args.tag)
     model_path = fs_ops.model_path(network_name, epoch=args.epoch, quantized=True, pts=True)
     if model_path.exists() is True and args.force is False:
         logger.warning("Quantized model already exists... aborting")
@@ -93,13 +90,7 @@ def main(args: argparse.Namespace) -> None:
 
     # Load model
     (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
-        device,
-        args.network,
-        net_param=args.net_param,
-        tag=args.tag,
-        epoch=args.epoch,
-        inference=True,
-        reparameterized=args.reparameterized,
+        device, args.network, tag=args.tag, epoch=args.epoch, inference=True, reparameterized=args.reparameterized
     )
     net.eval()
     task = net.task

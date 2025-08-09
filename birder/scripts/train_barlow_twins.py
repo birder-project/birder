@@ -194,23 +194,10 @@ def train(args: argparse.Namespace) -> None:
     #
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
-    backbone_name = get_network_name(args.network, net_param=args.net_param, tag="barlow-twins")
-    network_name = get_mim_network_name(
-        "barlow_twins",
-        net_param=None,
-        encoder=args.network,
-        encoder_param=args.net_param,
-        tag=args.tag,
-    )
+    backbone_name = get_network_name(args.network, tag="barlow-twins")
+    network_name = get_mim_network_name("barlow_twins", encoder=args.network, tag=args.tag)
 
-    backbone = registry.net_factory(
-        args.network,
-        sample_shape[1],
-        0,
-        net_param=args.net_param,
-        config=args.model_config,
-        size=args.size,
-    )
+    backbone = registry.net_factory(args.network, sample_shape[1], 0, config=args.model_config, size=args.size)
     net = BarlowTwins(backbone, config={"projector_sizes": args.projector_dims, "off_lambda": args.off_lambda})
 
     if args.resume_epoch is not None:
@@ -579,7 +566,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("-n", "--network", type=str, help="the neural network to train")
-    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
     parser.add_argument(
         "--model-config",
         action=cli.FlexibleDictAction,

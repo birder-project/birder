@@ -175,24 +175,16 @@ def train(args: argparse.Namespace) -> None:
     #
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
-    encoder_name = get_network_name(args.encoder, net_param=args.encoder_param, tag="mim")
-    network_name = get_mim_network_name(
-        args.network,
-        net_param=args.net_param,
-        encoder=args.encoder,
-        encoder_param=args.encoder_param,
-        tag=args.tag,
-    )
+    encoder_name = get_network_name(args.encoder, tag="mim")
+    network_name = get_mim_network_name(args.network, encoder=args.encoder, tag=args.tag)
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
         (net, training_states) = fs_ops.load_mim_checkpoint(
             device,
             args.network,
-            net_param=args.net_param,
             config=args.model_config,
             encoder=args.encoder,
-            encoder_param=args.encoder_param,
             encoder_config=args.encoder_model_config,
             tag=args.tag,
             epoch=args.resume_epoch,
@@ -204,10 +196,8 @@ def train(args: argparse.Namespace) -> None:
         (net, training_states) = fs_ops.load_mim_checkpoint(
             device,
             args.network,
-            net_param=args.net_param,
             config=args.model_config,
             encoder=args.encoder,
-            encoder_param=args.encoder_param,
             encoder_config=args.encoder_model_config,
             tag=args.tag,
             epoch=None,
@@ -216,16 +206,9 @@ def train(args: argparse.Namespace) -> None:
 
     else:
         encoder = registry.net_factory(
-            args.encoder,
-            sample_shape[1],
-            0,
-            net_param=args.encoder_param,
-            config=args.encoder_model_config,
-            size=args.size,
+            args.encoder, sample_shape[1], 0, config=args.encoder_model_config, size=args.size
         )
-        net = registry.mim_net_factory(
-            args.network, encoder, net_param=args.net_param, config=args.model_config, size=args.size
-        )
+        net = registry.mim_net_factory(args.network, encoder, config=args.model_config, size=args.size)
         training_states = fs_ops.TrainingStates.empty()
 
     net.to(device, dtype=model_dtype)
@@ -582,7 +565,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("-n", "--network", type=str, help="the neural network to use")
-    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
     parser.add_argument(
         "--model-config",
         action=cli.FlexibleDictAction,
@@ -593,11 +575,6 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("-t", "--tag", type=str, help="add model tag")
     parser.add_argument("--encoder", type=str, help="the neural network to used as encoder (network being pre-trained)")
-    parser.add_argument(
-        "--encoder-param",
-        type=float,
-        help="network specific parameter, required by some networks (for the encoder)",
-    )
     parser.add_argument(
         "--encoder-model-config",
         action=cli.FlexibleDictAction,

@@ -16,13 +16,10 @@ class SE_ResNeXt(ResNeXt):
         input_channels: int,
         num_classes: int,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(
-            input_channels, num_classes, net_param=net_param, config=config, size=size, squeeze_excitation=True
-        )
+        super().__init__(input_channels, num_classes, config=config, size=size, squeeze_excitation=True)
 
 
 registry.register_model_config("se_resnext_50", SE_ResNeXt, config={"units": [3, 4, 6, 3]})

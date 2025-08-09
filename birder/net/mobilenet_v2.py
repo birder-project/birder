@@ -77,23 +77,18 @@ class InvertedResidual(nn.Module):
 
 # pylint: disable=invalid-name
 class MobileNet_v2(DetectorBackbone):
-    auto_register = True
-
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
-        assert self.net_param is not None, "must set net-param"
-        assert self.config is None, "config not supported"
-        alpha = net_param
-        alpha_values = [0.25, 0.50, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
-        assert alpha in alpha_values, f"alpha = {alpha} not supported"
+        super().__init__(input_channels, num_classes, config=config, size=size)
+        assert self.config is not None, "must set config"
+
+        alpha: float = self.config["alpha"]
 
         # t - expansion factor
         # c - num_filters (channels)
@@ -227,8 +222,17 @@ class MobileNet_v2(DetectorBackbone):
         return self.features(x)
 
 
+registry.register_model_config("mobilenet_v2_0_25", MobileNet_v2, config={"alpha": 0.25})
+registry.register_model_config("mobilenet_v2_0_5", MobileNet_v2, config={"alpha": 0.5})
+registry.register_model_config("mobilenet_v2_0_75", MobileNet_v2, config={"alpha": 0.75})
+registry.register_model_config("mobilenet_v2_1_0", MobileNet_v2, config={"alpha": 1.0})
+registry.register_model_config("mobilenet_v2_1_25", MobileNet_v2, config={"alpha": 1.25})
+registry.register_model_config("mobilenet_v2_1_5", MobileNet_v2, config={"alpha": 1.5})
+registry.register_model_config("mobilenet_v2_1_75", MobileNet_v2, config={"alpha": 1.75})
+registry.register_model_config("mobilenet_v2_2_0", MobileNet_v2, config={"alpha": 2.0})
+
 registry.register_weights(
-    "mobilenet_v2_1_il-common",
+    "mobilenet_v2_1_0_il-common",
     {
         "description": "MobileNet v2 (1.0 multiplier) model trained on the il-common dataset",
         "resolution": (256, 256),
@@ -238,6 +242,6 @@ registry.register_weights(
                 "sha256": "d6182293e98c102026f7cdc0d446aaf0e511232173c4b98c1a882c9f147be6e7",
             }
         },
-        "net": {"network": "mobilenet_v2", "net_param": 1, "tag": "il-common"},
+        "net": {"network": "mobilenet_v2_1_0", "tag": "il-common"},
     },
 )

@@ -119,13 +119,7 @@ def get_model_name_and_num_parameters(
     num_classes_str = file_name[tag_end_idx + 1 :]
     num_classes = int(num_classes_str.split("_")[0])
     model_name = file_name[: file_name.find(tag) - 1]
-    if model_name in registry.all_nets:
-        net_param = None
-        model = registry.net_factory(model_name, 3, num_classes=num_classes)
-    else:
-        (model_name, net_param) = model_name.rsplit("_", 1)
-        model = registry.net_factory(model_name, 3, num_classes=num_classes, net_param=float(net_param))
-        model_name += f"_{net_param}"
+    model = registry.net_factory(model_name, 3, num_classes=num_classes)
 
     if reparameterize_available(model) is True and reparameterized is True:
         model.reparameterize_model()

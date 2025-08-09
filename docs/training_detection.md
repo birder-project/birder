@@ -168,7 +168,7 @@ torchrun --nproc_per_node=2 train_detection.py --network ssd --backbone mobilene
 #### SSDLite: MobileNet v2 1
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network ssdlite --backbone mobilenet_v2 --backbone-param 1 --backbone-epoch 0 --lr 0.15 --lr-scheduler cosine --batch-size 32 --epochs 600 --wd 0.00004 --aug-type ssdlite --fast-matmul
+torchrun --nproc_per_node=2 train_detection.py --network ssdlite --backbone mobilenet_v2_1_0 --backbone-epoch 0 --lr 0.15 --lr-scheduler cosine --batch-size 32 --epochs 600 --wd 0.00004 --aug-type ssdlite --fast-matmul
 ```
 
 #### SSDLite: MobileNet v4 Hybrid Medium

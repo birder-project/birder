@@ -96,39 +96,19 @@ class ShuffleUnit(nn.Module):
 
 # pylint: disable=invalid-name
 class ShuffleNet_v2(DetectorBackbone):
-    auto_register = True
-
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
-        assert self.net_param is not None, "must set net-param"
-        assert self.config is None, "config not supported"
-        multiplier = self.net_param
-        if multiplier == 0.5:
-            stage_repeats = [3, 7, 3]
-            out_channels = [24, 48, 96, 192, 1024]
+        super().__init__(input_channels, num_classes, config=config, size=size)
+        assert self.config is not None, "must set config"
 
-        elif multiplier == 1:
-            stage_repeats = [3, 7, 3]
-            out_channels = [24, 116, 232, 464, 1024]
-
-        elif multiplier == 1.5:
-            stage_repeats = [3, 7, 3]
-            out_channels = [24, 176, 352, 704, 1024]
-
-        elif multiplier == 2:
-            stage_repeats = [3, 7, 3]
-            out_channels = [24, 244, 488, 976, 2048]
-
-        else:
-            raise ValueError(f"multiplier = {multiplier} not supported")
+        stage_repeats = [3, 7, 3]
+        out_channels: list[int] = self.config["out_channels"]
 
         self.stem = Conv2dNormActivation(
             self.input_channels,
@@ -204,8 +184,13 @@ class ShuffleNet_v2(DetectorBackbone):
         return self.features(x)
 
 
+registry.register_model_config("shufflenet_v2_0_5", ShuffleNet_v2, config={"out_channels": [24, 48, 96, 192, 1024]})
+registry.register_model_config("shufflenet_v2_1_0", ShuffleNet_v2, config={"out_channels": [24, 116, 232, 464, 1024]})
+registry.register_model_config("shufflenet_v2_1_5", ShuffleNet_v2, config={"out_channels": [24, 176, 352, 704, 1024]})
+registry.register_model_config("shufflenet_v2_2_0", ShuffleNet_v2, config={"out_channels": [24, 244, 488, 976, 2048]})
+
 registry.register_weights(
-    "shufflenet_v2_1_il-common",
+    "shufflenet_v2_1_0_il-common",
     {
         "description": "ShuffleNet v2 1.0x output channels model trained on the il-common dataset",
         "resolution": (256, 256),
@@ -215,6 +200,6 @@ registry.register_weights(
                 "sha256": "62c435e9a1335aa84290a3c7c99058b0fccd6cc27a04782a8fc1a55e1115f45c",
             }
         },
-        "net": {"network": "shufflenet_v2", "net_param": 1, "tag": "il-common"},
+        "net": {"network": "shufflenet_v2_1_0", "tag": "il-common"},
     },
 )

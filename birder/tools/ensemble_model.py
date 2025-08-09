@@ -36,7 +36,7 @@ def set_parser(subparsers: Any) -> None:
             "Usage examples:\n"
             "python -m birder.tools ensemble-model --networks convnext_v2_4_0 focalnet_3_0 "
             "swin_transformer_v2_1_0 --pts\n"
-            "python -m birder.tools ensemble-model --networks mobilevit_v2_1.5_intermediate_80 "
+            "python -m birder.tools ensemble-model --networks mobilevit_v2_1_5_intermediate_80 "
             "edgevit_2_intermediate_100 --pt2"
         ),
         formatter_class=cli.ArgumentHelpFormatter,

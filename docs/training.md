@@ -1104,19 +1104,19 @@ torchrun --nproc_per_node=2 train.py --network focalnet_b_lrf --tag intermediate
 #### GhostNet v1: 0.5 (50)
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network ghostnet_v1 --net-param 0.5 --lr 0.4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --batch-size 512 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6
+torchrun --nproc_per_node=2 train.py --network ghostnet_v1_0_5 --lr 0.4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --batch-size 512 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6
 ```
 
 #### GhostNet v1: 1 (100)
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network ghostnet_v1 --net-param 1 --lr 0.4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --batch-size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6
+torchrun --nproc_per_node=2 train.py --network ghostnet_v1_1_0 --lr 0.4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --batch-size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6
 ```
 
 #### GhostNet v1: 1.3 (130)
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network ghostnet_v1 --net-param 1.3 --lr 0.4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --batch-size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6
+torchrun --nproc_per_node=2 train.py --network ghostnet_v1_1_3 --lr 0.4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --batch-size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6
 ```
 
 ### GhostNet v2
@@ -1124,19 +1124,19 @@ torchrun --nproc_per_node=2 train.py --network ghostnet_v1 --net-param 1.3 --lr 
 #### GhostNet v2: 1 (100)
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network ghostnet_v2 --net-param 1 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --warmup-epochs 3 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --ra-sampler --ra-reps 2 --fast-matmul --compile
+torchrun --nproc_per_node=2 train.py --network ghostnet_v2_1_0 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --warmup-epochs 3 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --ra-sampler --ra-reps 2 --fast-matmul --compile
 ```
 
 #### GhostNet v2: 1.3 (130)
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network ghostnet_v2 --net-param 1.3 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --warmup-epochs 3 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --ra-sampler --ra-reps 2 --amp --compile
+torchrun --nproc_per_node=2 train.py --network ghostnet_v2_1_3 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --warmup-epochs 3 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 #### GhostNet v2: 1.6 (160)
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network ghostnet_v2 --net-param 1.6 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --warmup-epochs 3 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --ra-sampler --ra-reps 2 --amp --compile
+torchrun --nproc_per_node=2 train.py --network ghostnet_v2_1_6 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --warmup-epochs 3 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 ### GroupMixFormer
@@ -1414,13 +1414,13 @@ torchrun --nproc_per_node=2 train.py --network caformer_s18 --opt adamw --lr 0.0
 #### MnasNet: 0.5
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mnasnet --net-param 0.5 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 5 --batch-size 256 --size 256 --epochs 200 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6
+torchrun --nproc_per_node=2 train.py --network mnasnet_0_5 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 5 --batch-size 256 --size 256 --epochs 200 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6
 ```
 
 #### MnasNet: 1
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mnasnet --net-param 1 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 5 --batch-size 256 --size 256 --epochs 200 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6
+torchrun --nproc_per_node=2 train.py --network mnasnet_1_0 --lr 0.5 --lr-scheduler cosine --lr-cosine-min 5e-6 --warmup-epochs 5 --batch-size 256 --size 256 --epochs 200 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6
 ```
 
 ### Mobilenet v1
@@ -1428,19 +1428,19 @@ torchrun --nproc_per_node=2 train.py --network mnasnet --net-param 1 --lr 0.5 --
 #### Mobilenet v1: Original
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v1 --net-param 1 --opt rmsprop --lr 0.045 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.94 --batch-size 256 --aug-level 2
+torchrun --nproc_per_node=2 train.py --network mobilenet_v1_1_0 --opt rmsprop --lr 0.045 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.94 --batch-size 256 --aug-level 2
 ```
 
 #### Mobilenet v1: v4 procedure
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v1 --net-param 1 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 5 --batch-size 256 --size 256 --epochs 600 --wd 0.01 --smoothing-alpha 0.1 --aug-level 6 --ra-sampler --ra-reps 2 --clip-grad-norm 5
+torchrun --nproc_per_node=2 train.py --network mobilenet_v1_1_0 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-8 --warmup-epochs 5 --batch-size 256 --size 256 --epochs 600 --wd 0.01 --smoothing-alpha 0.1 --aug-level 6 --ra-sampler --ra-reps 2 --clip-grad-norm 5
 ```
 
 ### Mobilenet v2
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v2 --net-param 2 --opt rmsprop --lr 0.045 --lr-scheduler step --lr-step-size 1 --lr-step-gamma 0.98 --batch-size 128 --size 256 --epochs 300 --wd 0.00004 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6 --fast-matmul --compile
+torchrun --nproc_per_node=2 train.py --network mobilenet_v2_2_0 --opt rmsprop --lr 0.045 --lr-scheduler step --lr-step-size 1 --lr-step-gamma 0.98 --batch-size 128 --size 256 --epochs 300 --wd 0.00004 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6 --fast-matmul --compile
 ```
 
 ### Mobilenet v3 Large
@@ -1448,19 +1448,19 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v2 --net-param 2 --opt 
 #### Mobilenet v3 Large: 1.5
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large --net-param 1.5 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --amp --compile --stop-epoch 320
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large_1_5 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --amp --compile --stop-epoch 320
 ```
 
 At epoch 320 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large --net-param 1.5 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 128 --size 384 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --amp --compile --resume-epoch 320 --load-states
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large_1_5 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 128 --size 384 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --amp --compile --resume-epoch 320 --load-states
 ```
 
 Optional intermediate training
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large --net-param 1.5 --tag intermediate --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --amp --compile --wds --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large_1_5 --tag intermediate --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --amp --compile --wds --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
 ```
 
 ### Mobilenet v3 Small
@@ -1468,7 +1468,7 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large --net-param 1.
 #### Mobilenet v3 Small: 1
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3_small --net-param 1 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6 --fast-matmul --compile --stop-epoch 320
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3_small_1_0 --opt rmsprop --lr 0.064 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --batch-size 256 --size 256 --epochs 400 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6 --fast-matmul --compile --stop-epoch 320
 ```
 
 ### Mobilenet v4
@@ -1550,31 +1550,31 @@ torchrun --nproc_per_node=2 train.py --network mobilevit_v1_s --opt adamw --lr 0
 #### MobileViT v2: 1
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilevit_v2 --net-param 1 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 2e-5 --warmup-epochs 20 --batch-size 256 --size 256 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+torchrun --nproc_per_node=2 train.py --network mobilevit_v2_1_0 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 2e-5 --warmup-epochs 20 --batch-size 256 --size 256 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6 --model-ema --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 #### MobileViT v2: 1.5
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilevit_v2 --net-param 1.5 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 2e-5 --warmup-epochs 20 --batch-size 128 --size 256 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --amp --compile --stop-epoch 260
+torchrun --nproc_per_node=2 train.py --network mobilevit_v2_1_5 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 2e-5 --warmup-epochs 20 --batch-size 128 --size 256 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --amp --compile --stop-epoch 260
 ```
 
 At epoch 260 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilevit_v2 --net-param 1.5 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 2e-5 --warmup-epochs 20 --batch-size 64 --size 384 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 260 --load-states
+torchrun --nproc_per_node=2 train.py --network mobilevit_v2_1_5 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 2e-5 --warmup-epochs 20 --batch-size 64 --size 384 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 260 --load-states
 ```
 
 Optional intermediate training
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilevit_v2 --net-param 1.5 --tag intermediate --opt adamw --lr 0.0003 --lr-scheduler cosine --lr-cosine-min 2e-5 --batch-size 128 --size 256 --epochs 80 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --amp --compile --wds --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
+torchrun --nproc_per_node=2 train.py --network mobilevit_v2_1_5 --tag intermediate --opt adamw --lr 0.0003 --lr-scheduler cosine --lr-cosine-min 2e-5 --batch-size 128 --size 256 --epochs 80 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --amp --compile --wds --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
 ```
 
 #### MobileViT v2: 2
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilevit_v2 --net-param 2 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 2e-5 --warmup-epochs 20 --batch-size 128 --size 256 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --amp --compile
+torchrun --nproc_per_node=2 train.py --network mobilevit_v2_2_0 --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 2e-5 --warmup-epochs 20 --batch-size 128 --size 256 --epochs 300 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 ### MogaNet
@@ -1998,7 +1998,7 @@ torchrun --nproc_per_node=2 train.py --network regnet_z_4g --lr 0.4 --lr-schedul
 #### RepGhost: 1 (100)
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network repghost --net-param 1 --lr 0.6 --lr-scheduler cosine --warmup-epochs 5 --batch-size 256 --size 256 --epochs 300 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --model-ema --model-ema-steps 1 --ra-sampler --ra-reps 2 --fast-matmul --compile
+torchrun --nproc_per_node=2 train.py --network repghost_1_0 --lr 0.6 --lr-scheduler cosine --warmup-epochs 5 --batch-size 256 --size 256 --epochs 300 --wd 0.00001 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --model-ema --model-ema-steps 1 --ra-sampler --ra-reps 2 --fast-matmul --compile
 ```
 
 ### RepVgg
@@ -2138,13 +2138,13 @@ torchrun --nproc_per_node=2 train.py --network sequencer2d_l --opt adamw --lr 0.
 ### ShuffleNet v1
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network shufflenet_v1 --net-param 4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --batch-size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6
+torchrun --nproc_per_node=2 train.py --network shufflenet_v1_4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --batch-size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6
 ```
 
 ### ShuffleNet v2
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network shufflenet_v2 --net-param 2 --lr 0.5 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --epochs 300 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6 --model-ema --ra-sampler --ra-reps 2
+torchrun --nproc_per_node=2 train.py --network shufflenet_v2_2_0 --lr 0.5 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --epochs 300 --wd 0.00002 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6 --model-ema --ra-sampler --ra-reps 2
 ```
 
 ### Simple ViT
@@ -2220,7 +2220,7 @@ torchrun --nproc_per_node=2 train.py --network squeezenet --lr 0.04 --lr-schedul
 ### SqueezeNext
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network squeezenext --net-param 2 --lr 0.4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.8 --batch-size 128 --wd 0.0001 --warmup-epochs 5 --epochs 120 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6 --fast-matmul --compile
+torchrun --nproc_per_node=2 train.py --network squeezenext_2_0 --lr 0.4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.8 --batch-size 128 --wd 0.0001 --warmup-epochs 5 --epochs 120 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6 --fast-matmul --compile
 ```
 
 ### StarNet

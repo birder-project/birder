@@ -135,22 +135,18 @@ class InvertedResidualBlock(nn.Module):
 
 
 class MNASNet(DetectorBackbone):
-    auto_register = True
-
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
-        assert self.net_param is not None, "must set net-param"
-        assert self.config is None, "config not supported"
-        assert self.net_param > 0.0, "alpha should be greater than 0"
-        alpha = self.net_param
+        super().__init__(input_channels, num_classes, config=config, size=size)
+        assert self.config is not None, "must set config"
+
+        alpha: float = self.config["alpha"]
 
         depths = _get_depths(alpha)
         norm_layer = partial(nn.BatchNorm2d, momentum=1 - 0.99)
@@ -273,8 +269,13 @@ class MNASNet(DetectorBackbone):
         return self.features(x)
 
 
+registry.register_model_config("mnasnet_0_5", MNASNet, config={"alpha": 0.5})
+registry.register_model_config("mnasnet_0_75", MNASNet, config={"alpha": 0.75})
+registry.register_model_config("mnasnet_1_0", MNASNet, config={"alpha": 1.0})
+registry.register_model_config("mnasnet_1_3", MNASNet, config={"alpha": 1.3})
+
 registry.register_weights(
-    "mnasnet_0.5_il-common",
+    "mnasnet_0_5_il-common",
     {
         "description": "MnasNet with depth multiplier of 0.5 trained on the il-common dataset",
         "resolution": (256, 256),
@@ -284,11 +285,11 @@ registry.register_weights(
                 "sha256": "bec1d292d6400b54958206e9f89ec50a31e42abd94447fb466161dd0623cd75a",
             }
         },
-        "net": {"network": "mnasnet", "net_param": 0.5, "tag": "il-common"},
+        "net": {"network": "mnasnet_0_5", "tag": "il-common"},
     },
 )
 registry.register_weights(
-    "mnasnet_1_il-common",
+    "mnasnet_1_0_il-common",
     {
         "description": "MnasNet with depth multiplier of 1 trained on the il-common dataset",
         "resolution": (256, 256),
@@ -298,6 +299,6 @@ registry.register_weights(
                 "sha256": "351256cf362e5ed64838fb72e1455aee05793d2eff3c2c02f5a4c0f89cce7e53",
             }
         },
-        "net": {"network": "mnasnet", "net_param": 1, "tag": "il-common"},
+        "net": {"network": "mnasnet_1_0", "tag": "il-common"},
     },
 )

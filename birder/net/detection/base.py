@@ -58,7 +58,6 @@ class DetectionBaseNet(nn.Module):
         num_classes: int,
         backbone: DetectorBackbone,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
         export_mode: bool = False,
@@ -68,8 +67,6 @@ class DetectionBaseNet(nn.Module):
         self.num_classes = num_classes + 1  # Background always at index 0
         self.backbone = backbone
         self.backbone.transform_to_backbone()
-        if hasattr(self, "net_param") is False:  # Avoid overriding aliases
-            self.net_param = net_param
         if hasattr(self, "config") is False:  # Avoid overriding aliases
             self.config = config
         elif config is not None:

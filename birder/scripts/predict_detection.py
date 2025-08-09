@@ -58,22 +58,15 @@ def predict(args: argparse.Namespace) -> None:
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     amp_dtype: torch.dtype = getattr(torch, args.amp_dtype)
     network_name = lib.get_detection_network_name(
-        args.network,
-        net_param=args.net_param,
-        tag=args.tag,
-        backbone=args.backbone,
-        backbone_param=args.backbone_param,
-        backbone_tag=args.backbone_tag,
+        args.network, tag=args.tag, backbone=args.backbone, backbone_tag=args.backbone_tag
     )
     (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_detection_model(
         device,
         args.network,
-        net_param=args.net_param,
         config=args.model_config,
         tag=args.tag,
         reparameterized=args.reparameterized,
         backbone=args.backbone,
-        backbone_param=args.backbone_param,
         backbone_config=args.backbone_model_config,
         backbone_tag=args.backbone_tag,
         backbone_reparameterized=args.backbone_reparameterized,
@@ -234,7 +227,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("-n", "--network", type=str, help="the neural network to use (i.e. faster_rcnn)")
-    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
     parser.add_argument(
         "--model-config",
         action=cli.FlexibleDictAction,
@@ -244,11 +236,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--backbone", type=str, help="the neural network to used as backbone")
-    parser.add_argument(
-        "--backbone-param",
-        type=float,
-        help="network specific parameter, required by some networks (for the backbone)",
-    )
     parser.add_argument(
         "--backbone-model-config",
         action=cli.FlexibleDictAction,

@@ -36,7 +36,7 @@ def reparameterize(
         logger.error("Reparameterize not supported for this network")
     else:
         net.reparameterize_model()
-        network_name = lib.get_network_name(network_name, net_param=None, tag="reparameterized")
+        network_name = lib.get_network_name(network_name, tag="reparameterized")
         fs_ops.checkpoint_model(
             network_name,
             epoch,
@@ -140,20 +140,16 @@ def set_parser(subparsers: Any) -> None:
         description="convert PyTorch model to various formats",
         epilog=(
             "Usage examples:\n"
-            "python -m birder.tools convert-model --network shufflenet_v2 --net-param 2 --epoch 200 --pts\n"
+            "python -m birder.tools convert-model --network shufflenet_v2_2_0 --epoch 200 --pts\n"
             "python -m birder.tools convert-model --network squeezenet --epoch 100 --onnx\n"
-            "python -m birder.tools convert-model -n mobilevit_v2 -p 1.5 -t intermediate -e 80 --pt2\n"
+            "python -m birder.tools convert-model -n mobilevit_v2_1_5 -t intermediate -e 80 --pt2\n"
             "python -m birder.tools convert-model -n efficientnet_v2_m -e 0 --lite\n"
-            "python -m birder.tools convert-model --network faster_rcnn --backbone resnext "
-            "--backbone-param 101 -e 0 --pts\n"
+            "python -m birder.tools convert-model --network faster_rcnn --backbone resnext_101 -e 0 --pts\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
     subparser.add_argument(
         "-n", "--network", type=str, required=True, help="the neural network to load (i.e. resnet_v2_50)"
-    )
-    subparser.add_argument(
-        "-p", "--net-param", type=float, help="network specific parameter, required by some networks"
     )
     subparser.add_argument(
         "--model-config",
@@ -164,11 +160,6 @@ def set_parser(subparsers: Any) -> None:
         ),
     )
     subparser.add_argument("--backbone", type=str, help="the neural network to used as backbone")
-    subparser.add_argument(
-        "--backbone-param",
-        type=float,
-        help="network specific parameter, required by some networks (for the backbone)",
-    )
     subparser.add_argument(
         "--backbone-model-config",
         action=cli.FlexibleDictAction,
@@ -241,7 +232,6 @@ def main(args: argparse.Namespace) -> None:
         (net, (class_to_idx, signature, rgb_stats, custom_config)) = fs_ops.load_model(
             device,
             args.network,
-            net_param=args.net_param,
             config=args.model_config,
             tag=args.tag,
             epoch=args.epoch,
@@ -249,18 +239,16 @@ def main(args: argparse.Namespace) -> None:
             inference=True,
             reparameterized=args.reparameterized,
         )
-        network_name = lib.get_network_name(args.network, net_param=args.net_param, tag=args.tag)
+        network_name = lib.get_network_name(args.network, tag=args.tag)
 
     else:
         (net, (class_to_idx, signature, rgb_stats, custom_config, backbone_custom_config)) = (
             fs_ops.load_detection_model(
                 device,
                 args.network,
-                net_param=args.net_param,
                 config=args.model_config,
                 tag=args.tag,
                 backbone=args.backbone,
-                backbone_param=args.backbone_param,
                 backbone_config=args.backbone_model_config,
                 backbone_tag=args.backbone_tag,
                 epoch=args.epoch,
@@ -270,12 +258,7 @@ def main(args: argparse.Namespace) -> None:
             )
         )
         network_name = lib.get_detection_network_name(
-            args.network,
-            net_param=args.net_param,
-            tag=args.tag,
-            backbone=args.backbone,
-            backbone_param=args.backbone_param,
-            backbone_tag=args.backbone_tag,
+            args.network, tag=args.tag, backbone=args.backbone, backbone_tag=args.backbone_tag
         )
 
     if args.resize is not None:

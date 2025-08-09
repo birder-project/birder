@@ -54,7 +54,6 @@ def show_image(image, title=""):
 ```{python}
 network = "crossmae"
 encoder = "vit_reg4_so150m_p14_ap"
-encoder_param = None
 size = 224
 epoch = 5
 
@@ -72,9 +71,7 @@ device = torch.device("cpu")
 (net, _) = fs_ops.load_mim_checkpoint(
     device,
     network,
-    net_param=None,
     encoder=encoder,
-    encoder_param=encoder_param,
     epoch=epoch,
 )
 net.kept_mask_ratio = net.mask_ratio

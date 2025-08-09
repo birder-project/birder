@@ -235,14 +235,13 @@ def train(args: argparse.Namespace) -> None:
     #
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
-    network_name = get_network_name(args.network, net_param=args.net_param, tag=args.tag)
+    network_name = get_network_name(args.network, tag=args.tag)
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
         (net, class_to_idx_saved, training_states) = fs_ops.load_checkpoint(
             device,
             args.network,
-            net_param=args.net_param,
             config=args.model_config,
             tag=args.tag,
             epoch=args.resume_epoch,
@@ -259,7 +258,6 @@ def train(args: argparse.Namespace) -> None:
         (net, class_to_idx_saved, training_states) = fs_ops.load_checkpoint(
             device,
             args.network,
-            net_param=args.net_param,
             config=args.model_config,
             tag=args.tag,
             epoch=None,
@@ -272,14 +270,7 @@ def train(args: argparse.Namespace) -> None:
             assert class_to_idx == class_to_idx_saved
 
     else:
-        net = registry.net_factory(
-            args.network,
-            sample_shape[1],
-            num_outputs,
-            net_param=args.net_param,
-            config=args.model_config,
-            size=args.size,
-        )
+        net = registry.net_factory(args.network, sample_shape[1], num_outputs, config=args.model_config, size=args.size)
         training_states = fs_ops.TrainingStates.empty()
 
     net.to(device, dtype=model_dtype)
@@ -810,7 +801,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("-n", "--network", type=str, help="the neural network to use")
-    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
     parser.add_argument(
         "--model-config",
         action=cli.FlexibleDictAction,

@@ -46,15 +46,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "-n", "--network", type=str, required=True, help="the neural network to load (i.e. resnet_v2_50)"
     )
-    subparser.add_argument(
-        "-p", "--net-param", type=float, help="network specific parameter, required by some networks"
-    )
     subparser.add_argument("--backbone", type=str, help="the neural network to used as backbone")
-    subparser.add_argument(
-        "--backbone-param",
-        type=float,
-        help="network specific parameter, required by some networks (for the backbone)",
-    )
     subparser.add_argument("--backbone-tag", type=str, help="backbone training log tag (loading only)")
     subparser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from the training phase)")
@@ -82,7 +74,6 @@ def main(args: argparse.Namespace) -> None:
         (net, (class_to_idx, signature, rgb_stats, custom_config)) = fs_ops.load_model(
             device,
             args.network,
-            net_param=args.net_param,
             tag=args.tag,
             epoch=args.epoch,
             inference=True,
@@ -97,10 +88,8 @@ def main(args: argparse.Namespace) -> None:
             fs_ops.load_detection_model(
                 device,
                 args.network,
-                net_param=args.net_param,
                 tag=args.tag,
                 backbone=args.backbone,
-                backbone_param=args.backbone_param,
                 backbone_tag=args.backbone_tag,
                 epoch=args.epoch,
                 inference=True,

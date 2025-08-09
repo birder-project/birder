@@ -16,6 +16,7 @@ import torch
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
+from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 
 
@@ -48,23 +49,18 @@ class DepthwiseSeparableNormConv2d(nn.Module):
 
 # pylint: disable=invalid-name
 class MobileNet_v1(DetectorBackbone):
-    auto_register = True
-
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
-        assert self.net_param is not None, "must set net-param"
-        assert self.config is None, "config not supported"
-        alpha = net_param
-        alpha_values = [0.25, 0.50, 0.75, 1.0]
-        assert alpha in alpha_values, f"alpha = {alpha} not supported"
+        super().__init__(input_channels, num_classes, config=config, size=size)
+        assert self.config is not None, "must set config"
+
+        alpha: float = self.config["alpha"]
 
         base = int(32 * alpha)
         self.stem = nn.Sequential(
@@ -156,3 +152,9 @@ class MobileNet_v1(DetectorBackbone):
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.forward_features(x)
         return self.features(x)
+
+
+registry.register_model_config("mobilenet_v1_0_25", MobileNet_v1, config={"alpha": 0.25})
+registry.register_model_config("mobilenet_v1_0_5", MobileNet_v1, config={"alpha": 0.5})
+registry.register_model_config("mobilenet_v1_0_75", MobileNet_v1, config={"alpha": 0.75})
+registry.register_model_config("mobilenet_v1_1_0", MobileNet_v1, config={"alpha": 1.0})

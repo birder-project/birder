@@ -15,14 +15,12 @@ from birder.net.base import SignatureType
 logger = logging.getLogger(__name__)
 
 
-def avg_models(
-    network: str, net_param: Optional[float], tag: Optional[str], reparameterized: bool, epochs: list[int], force: bool
-) -> None:
+def avg_models(network: str, tag: Optional[str], reparameterized: bool, epochs: list[int], force: bool) -> None:
     device = torch.device("cpu")
     state_list = []
     aux_data = {}
     for idx, epoch in enumerate(epochs):
-        network_name = get_network_name(network, net_param, tag)
+        network_name = get_network_name(network, tag)
         path = fs_ops.model_path(network_name, epoch=epoch)
         logger.info(f"Loading model from {path}...")
 
@@ -43,7 +41,7 @@ def avg_models(
             num_classes = lib.get_num_labels_from_signature(signature)
             size = lib.get_size_from_signature(signature)
 
-            net = registry.net_factory(network, input_channels, num_classes, net_param=net_param, size=size)
+            net = registry.net_factory(network, input_channels, num_classes, size=size)
             if reparameterized is True:
                 net.reparameterize_model()
 
@@ -88,15 +86,12 @@ def set_parser(subparsers: Any) -> None:
         epilog=(
             "Usage examples:\n"
             "python -m birder.tools avg-model --network efficientnet_v2_m --epochs 290 295 300\n"
-            "python -m birder.tools avg-model --network shufflenet_v2 --net-param 2 --epochs 95 100 100\n"
+            "python -m birder.tools avg-model --network shufflenet_v2_2_0 --epochs 95 100 100\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
     subparser.add_argument(
         "-n", "--network", type=str, required=True, help="the neural network to use (i.e. resnet_v2)"
-    )
-    subparser.add_argument(
-        "-p", "--net-param", type=float, help="network specific parameter, required by some networks"
     )
     subparser.add_argument("--epochs", type=int, nargs="+", metavar="N", help="epochs to average")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from the training phase)")
@@ -108,4 +103,4 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
-    avg_models(args.network, args.net_param, args.tag, args.reparameterized, args.epochs, args.force)
+    avg_models(args.network, args.tag, args.reparameterized, args.epochs, args.force)

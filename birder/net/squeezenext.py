@@ -100,23 +100,19 @@ class SqnxtUnit(nn.Module):
 
 class SqueezeNext(DetectorBackbone):
     default_size = (227, 227)
-    auto_register = True
 
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
-        assert self.net_param is not None, "must set net-param"
-        assert self.config is None, "config not supported"
-        width_scale = self.net_param
-        width_scale_values = [0.25, 0.50, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
-        assert width_scale in width_scale_values, f"width scale = {width_scale} not supported"
+        super().__init__(input_channels, num_classes, config=config, size=size)
+        assert self.config is not None, "must set config"
+
+        width_scale: float = self.config["width_scale"]
 
         channels_per_layers = [32, 64, 128, 256]
         layers_per_stage = [2, 4, 14, 1]
@@ -199,8 +195,13 @@ class SqueezeNext(DetectorBackbone):
         return self.features(x)
 
 
+registry.register_model_config("squeezenext_0_5", SqueezeNext, config={"width_scale": 0.5})
+registry.register_model_config("squeezenext_1_0", SqueezeNext, config={"width_scale": 1.0})
+registry.register_model_config("squeezenext_1_5", SqueezeNext, config={"width_scale": 1.5})
+registry.register_model_config("squeezenext_2_0", SqueezeNext, config={"width_scale": 2.0})
+
 registry.register_weights(
-    "squeezenext_1_il-common",
+    "squeezenext_1_0_il-common",
     {
         "description": "SqueezeNext v2 1.0x output channels model trained on the il-common dataset",
         "resolution": (259, 259),
@@ -210,6 +211,6 @@ registry.register_weights(
                 "sha256": "da01d1cd05c71b80b5e4e6ca66400f64fa3f6179d0e90834c4f6942c8095557a",
             }
         },
-        "net": {"network": "squeezenext", "net_param": 1, "tag": "il-common"},
+        "net": {"network": "squeezenext_1_0", "tag": "il-common"},
     },
 )

@@ -33,13 +33,7 @@ def similarity(args: argparse.Namespace) -> None:
     logger.info(f"Using device {device}")
 
     (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
-        device,
-        args.network,
-        net_param=args.net_param,
-        tag=args.tag,
-        epoch=args.epoch,
-        inference=True,
-        reparameterized=args.reparameterized,
+        device, args.network, tag=args.tag, epoch=args.epoch, inference=True, reparameterized=args.reparameterized
     )
 
     size = lib.get_size_from_signature(signature)
@@ -129,9 +123,6 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument(
         "-n", "--network", type=str, required=True, help="the neural network to use (i.e. resnet_v2)"
-    )
-    subparser.add_argument(
-        "-p", "--net-param", type=float, help="network specific parameter, required by some networks"
     )
     subparser.add_argument("--cosine", default=False, action="store_true", help="use cosine distance")
     subparser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")

@@ -63,8 +63,9 @@ class TestRegistry(unittest.TestCase):
                     # If first attempt fails with an exception, retry once
                     resp = requests.head(url, timeout=5, allow_redirects=True)
 
-                self.assertEqual(resp.status_code, 200, f"{model_name} not found at {url}")
-                self.assertGreater(int(resp.headers["Content-Length"]), 100000)
+                with self.subTest(model_name=model_name, model_format=model_format):
+                    self.assertEqual(resp.status_code, 200, f"{model_name} not found at {url}")
+                    self.assertGreater(int(resp.headers["Content-Length"]), 100000)
 
 
 # pylint: disable=protected-access

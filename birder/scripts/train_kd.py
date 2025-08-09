@@ -102,7 +102,6 @@ def train(args: argparse.Namespace) -> None:
     (teacher, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
         device,
         args.teacher,
-        net_param=args.teacher_param,
         config=args.teacher_model_config,
         tag=args.teacher_tag,
         epoch=args.teacher_epoch,
@@ -262,14 +261,13 @@ def train(args: argparse.Namespace) -> None:
     #
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
-    student_name = get_network_name(args.student, net_param=args.student_param, tag=args.student_tag)
+    student_name = get_network_name(args.student, tag=args.student_tag)
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
         (student, class_to_idx_saved, training_states) = fs_ops.load_checkpoint(
             device,
             args.student,
-            net_param=args.student_param,
             config=args.student_model_config,
             tag=args.student_tag,
             epoch=args.resume_epoch,
@@ -283,7 +281,6 @@ def train(args: argparse.Namespace) -> None:
             args.student,
             sample_shape[1],
             num_outputs,
-            net_param=args.student_param,
             config=args.student_model_config,
             size=args.size,
         )
@@ -832,7 +829,6 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--type", type=str, choices=typing.get_args(DistType), help="type of distillation")
     parser.add_argument("--teacher", type=str, help="the teacher network")
-    parser.add_argument("--teacher-param", type=float, help="network specific parameter (teacher)")
     parser.add_argument(
         "--teacher-model-config",
         action=cli.FlexibleDictAction,
@@ -846,7 +842,6 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pt2", default=False, action="store_true", help="load pt2 teacher")
     parser.add_argument("--teacher-epoch", type=int, help="load teacher weights from selected epoch")
     parser.add_argument("--student", type=str, help="the student network to train")
-    parser.add_argument("--student-param", type=float, help="network specific parameter (student)")
     parser.add_argument(
         "--student-model-config",
         action=cli.FlexibleDictAction,

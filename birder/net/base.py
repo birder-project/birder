@@ -79,15 +79,12 @@ class BaseNet(nn.Module):
         input_channels: int,
         num_classes: int,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__()
         self.input_channels = input_channels
         self.num_classes = num_classes
-        if hasattr(self, "net_param") is False:  # Avoid overriding aliases
-            self.net_param = net_param
         if hasattr(self, "config") is False:  # Avoid overriding aliases
             self.config = config
         elif config is not None:
@@ -176,11 +173,10 @@ class PreTrainEncoder(BaseNet):  # pylint: disable=abstract-method
         input_channels: int,
         num_classes: int,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        super().__init__(input_channels, num_classes, config=config, size=size)
         self.max_stride: int = 32
         self.stem_stride: int
         self.stem_width: int
@@ -220,11 +216,10 @@ class DetectorBackbone(BaseNet):
         input_channels: int,
         num_classes: int,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
+        super().__init__(input_channels, num_classes, config=config, size=size)
         self.return_stages = ["stage1", "stage2", "stage3", "stage4"]
         self.return_channels: list[int]
 

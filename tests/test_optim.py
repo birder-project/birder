@@ -14,7 +14,7 @@ class TestOptimizer(unittest.TestCase):
     def test_lamb(self) -> None:
         # Just a simple sanity test
         size = (64, 64)
-        n = net.MobileNet_v1(3, 10, net_param=0.5, size=size)
+        n = net.MobileNet_v1(3, 10, config={"alpha": 0.5}, size=size)
         optimizer = optim.Lamb(n.parameters(), lr=0.1)
         repr(optimizer)
 
@@ -30,7 +30,7 @@ class TestOptimizer(unittest.TestCase):
     def test_lars(self) -> None:
         # Just a simple sanity test
         size = (64, 64)
-        n = net.MobileNet_v1(3, 10, net_param=0.5, size=size)
+        n = net.MobileNet_v1(3, 10, config={"alpha": 0.5}, size=size)
         optimizer = optim.Lars(n.parameters(), lr=0.1)
         repr(optimizer)
 

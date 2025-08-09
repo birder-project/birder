@@ -178,12 +178,7 @@ def train(args: argparse.Namespace) -> None:
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
     network_name = lib.get_detection_network_name(
-        args.network,
-        net_param=args.net_param,
-        tag=args.tag,
-        backbone=args.backbone,
-        backbone_param=args.backbone_param,
-        backbone_tag=args.backbone_tag,
+        args.network, tag=args.tag, backbone=args.backbone, backbone_tag=args.backbone_tag
     )
 
     if args.resume_epoch is not None:
@@ -191,11 +186,9 @@ def train(args: argparse.Namespace) -> None:
         (net, class_to_idx_saved, training_states) = fs_ops.load_detection_checkpoint(
             device,
             args.network,
-            net_param=args.net_param,
             config=args.model_config,
             tag=args.tag,
             backbone=args.backbone,
-            backbone_param=args.backbone_param,
             backbone_config=args.backbone_model_config,
             backbone_tag=args.backbone_tag,
             epoch=args.resume_epoch,
@@ -212,11 +205,9 @@ def train(args: argparse.Namespace) -> None:
         (net, class_to_idx_saved, training_states) = fs_ops.load_detection_checkpoint(
             device,
             args.network,
-            net_param=args.net_param,
             config=args.model_config,
             tag=args.tag,
             backbone=args.backbone,
-            backbone_param=args.backbone_param,
             backbone_config=args.backbone_model_config,
             backbone_tag=args.backbone_tag,
             epoch=None,
@@ -234,7 +225,6 @@ def train(args: argparse.Namespace) -> None:
             (backbone, class_to_idx_saved, _) = fs_ops.load_checkpoint(
                 device,
                 args.backbone,
-                net_param=args.backbone_param,
                 config=args.backbone_model_config,
                 tag=args.backbone_tag,
                 epoch=args.backbone_epoch,
@@ -244,13 +234,12 @@ def train(args: argparse.Namespace) -> None:
 
         elif args.backbone_pretrained is True:
             fs_ops.download_model_by_weights(
-                lib.get_network_name(args.backbone, net_param=args.backbone_param, tag=args.backbone_tag),
+                lib.get_network_name(args.backbone, tag=args.backbone_tag),
                 progress_bar=training_utils.is_local_primary(args),
             )
             (backbone, class_to_idx_saved, _) = fs_ops.load_checkpoint(
                 device,
                 args.backbone,
-                net_param=args.backbone_param,
                 config=args.backbone_model_config,
                 tag=args.backbone_tag,
                 epoch=None,
@@ -260,21 +249,11 @@ def train(args: argparse.Namespace) -> None:
 
         else:
             backbone = registry.net_factory(
-                args.backbone,
-                sample_shape[1],
-                num_outputs,
-                net_param=args.backbone_param,
-                config=args.backbone_model_config,
-                size=args.size,
+                args.backbone, sample_shape[1], num_outputs, config=args.backbone_model_config, size=args.size
             )
 
         net = registry.detection_net_factory(
-            args.network,
-            num_outputs,
-            backbone,
-            net_param=args.net_param,
-            config=args.model_config,
-            size=args.size,
+            args.network, num_outputs, backbone, config=args.model_config, size=args.size
         )
         training_states = fs_ops.TrainingStates.empty()
 
@@ -788,7 +767,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("-n", "--network", type=str, help="the neural network to use")
-    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
     parser.add_argument(
         "--model-config",
         action=cli.FlexibleDictAction,
@@ -799,11 +777,6 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("-t", "--tag", type=str, help="add model tag")
     parser.add_argument("--backbone", type=str, help="the neural network to used as backbone")
-    parser.add_argument(
-        "--backbone-param",
-        type=float,
-        help="network specific parameter, required by some networks (for the backbone)",
-    )
     parser.add_argument(
         "--backbone-model-config",
         action=cli.FlexibleDictAction,

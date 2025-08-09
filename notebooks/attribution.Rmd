@@ -50,7 +50,6 @@ default_cmap = LinearSegmentedColormap.from_list(
 ```{python}
 network = "regnet_y_8g"
 # network = "swin_transformer_v2"
-net_param = None
 epoch = 0
 tag = "raw384px"
 ```
@@ -58,7 +57,7 @@ tag = "raw384px"
 ```{python}
 device = torch.device("cpu")
 (net, (class_to_idx, signature, rgb_stats, _)) = fs_ops.load_model(
-    device, network, net_param=net_param, epoch=epoch, tag=tag, inference=True
+    device, network, epoch=epoch, tag=tag, inference=True
 )
 idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
 size = lib.get_size_from_signature(signature)

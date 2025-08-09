@@ -122,11 +122,10 @@ def predict(args: argparse.Namespace) -> None:
     else:
         amp_dtype = getattr(torch, args.amp_dtype)
 
-    network_name = lib.get_network_name(args.network, net_param=args.net_param, tag=args.tag)
+    network_name = lib.get_network_name(args.network, tag=args.tag)
     (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
         device,
         args.network,
-        net_param=args.net_param,
         config=args.model_config,
         tag=args.tag,
         epoch=args.epoch,
@@ -325,7 +324,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "python predict.py -n efficientnet_v2_m -e 0 --gpu --save-embeddings data/testing\n"
             "python predict.py -n efficientnet_v1_b4 -e 300 --gpu --save-embeddings "
             "data/*/Alpine\\ swift --suffix alpine_swift\n"
-            "python predict.py -n mobilevit_v2 -p 1.5 -t intermediate -e 80 --gpu --save-results "
+            "python predict.py -n mobilevit_v2_1_5 -t intermediate -e 80 --gpu --save-results "
             "--wds data/validation_packed\n"
             "python -m birder.scripts.predict -n rope_i_vit_l14_pn_ap_c1 -t pe-core --gpu --parallel --batch-size 256 "
             "--chunk-size 50000 --amp --amp-dtype bfloat16 --compile --save-embeddings data/raw_data\n"
@@ -336,7 +335,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("-n", "--network", type=str, help="the neural network to use (i.e. resnet_v2)")
-    parser.add_argument("-p", "--net-param", type=float, help="network specific parameter, required by some networks")
     parser.add_argument(
         "--model-config",
         action=cli.FlexibleDictAction,

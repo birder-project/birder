@@ -54,37 +54,30 @@ def show_image(image, title=""):
 ```{python}
 network = "mae_vit"
 encoder = "vit_reg4_b16"
-encoder_param = None
 size = 224
 
 # network = "mae_vit"
 # encoder = "vit_l16"
-# encoder_param = None
 # size = 224
 
 # network = "mae_hiera"
 # encoder = "hiera_abswin_tiny"
-# encoder_param = None
 # size = 224
 
 # network = "fcmae"
-# encoder = "convnext_v2"
-# encoder_param = 5
+# encoder = "convnext_v2_base"
 # size = 224
 
 # network = "fcmae"
 # encoder = "regnet_y_8g"
-# encoder_param = None
 # size = 224
 
 # network = "simmim"
 # encoder = "swin_transformer_v2_s"
-# encoder_param = None
 # size = 192
 
 # network = "simmim"
 # encoder = "maxvit_t"
-# encoder_param = None
 # size = 192
 
 epoch_start = 1
@@ -107,9 +100,7 @@ for e in range(epoch_start, epoch_end + 1):
         (net, _) = fs_ops.load_mim_checkpoint(
             device,
             network,
-            net_param=None,
             encoder=encoder,
-            encoder_param=encoder_param,
             epoch=e,
         )
         net.eval()

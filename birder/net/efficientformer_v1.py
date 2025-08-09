@@ -238,12 +238,10 @@ class EfficientFormer_v1(BaseNet):
         input_channels: int,
         num_classes: int,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
-        assert self.net_param is None, "net-param not supported"
+        super().__init__(input_channels, num_classes, config=config, size=size)
         assert self.config is not None, "must set config"
 
         resolution = (int(self.size[0] / (2**5)), int(self.size[1] / (2**5)))

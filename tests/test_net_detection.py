@@ -1,7 +1,6 @@
 import json
 import logging
 import unittest
-from typing import Optional
 
 import torch
 from parameterized import parameterized
@@ -25,34 +24,33 @@ class TestBase(unittest.TestCase):
 class TestNetDetection(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
-            ("deformable_detr", None, ("fasternet_t0", None)),
-            ("deformable_detr", None, ("efficientvit_msft_m0", None)),  # 3 stage network
-            ("deformable_detr_boxref", None, ("regnet_x_200m", None)),
-            ("detr", None, ("regnet_y_1_6g", None)),
-            ("efficientdet_d0", None, ("efficientnet_v1_b0", None)),
-            ("faster_rcnn", None, ("resnet_v2_18", None)),
-            ("faster_rcnn", None, ("efficientvit_msft_m0", None)),  # 3 stage network
-            ("fcos", None, ("tiny_vit_5m", None)),
-            ("fcos", None, ("vit_s32", None)),  # 1 stage network
-            ("retinanet", None, ("mobilenet_v3_small", 1)),
-            ("retinanet", None, ("efficientvit_msft_m0", None)),  # 3 stage network
-            ("retinanet_sfp", None, ("vit_det_m16_rms", None)),
-            ("ssd", None, ("efficientnet_v2_s", None)),
-            ("ssd", None, ("vit_s16", None)),  # 1 stage network
-            ("ssdlite", None, ("mobilenet_v2", 1), (512, 512)),
-            ("ssdlite", None, ("vit_t16", None)),  # 1 stage network
-            ("vitdet", None, ("vit_sam_b16", None)),
+            ("deformable_detr", "fasternet_t0"),
+            ("deformable_detr", "efficientvit_msft_m0"),  # 3 stage network
+            ("deformable_detr_boxref", "regnet_x_200m"),
+            ("detr", "regnet_y_1_6g"),
+            ("efficientdet_d0", "efficientnet_v1_b0"),
+            ("faster_rcnn", "resnet_v2_18"),
+            ("faster_rcnn", "efficientvit_msft_m0"),  # 3 stage network
+            ("fcos", "tiny_vit_5m"),
+            ("fcos", "vit_s32"),  # 1 stage network
+            ("retinanet", "mobilenet_v3_small_1_0"),
+            ("retinanet", "efficientvit_msft_m0"),  # 3 stage network
+            ("retinanet_sfp", "vit_det_m16_rms"),
+            ("ssd", "efficientnet_v2_s"),
+            ("ssd", "vit_s16"),  # 1 stage network
+            ("ssdlite", "mobilenet_v2_0_25", (512, 512)),
+            ("ssdlite", "vit_t16"),  # 1 stage network
+            ("vitdet", "vit_sam_b16"),
         ]
     )
     def test_net_detection(
         self,
         network_name: str,
-        net_param: Optional[float],
-        encoder: tuple[str, float],
+        encoder: str,
         size: tuple[int, int] = (256, 256),
     ) -> None:
-        backbone = registry.net_factory(encoder[0], 3, 10, net_param=encoder[1], size=size)
-        n = registry.detection_net_factory(network_name, 10, backbone, net_param=net_param, size=size, export_mode=True)
+        backbone = registry.net_factory(encoder, 3, 10, size=size)
+        n = registry.detection_net_factory(network_name, 10, backbone, size=size, export_mode=True)
 
         # Ensure config is serializable
         _ = json.dumps(n.config)

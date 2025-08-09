@@ -200,21 +200,18 @@ class GhostBottleneck(nn.Module):
 
 # pylint: disable=invalid-name
 class GhostNet_v2(DetectorBackbone):
-    auto_register = True
-
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
-        assert self.net_param is not None, "must set net-param"
-        assert self.config is None, "config not supported"
-        width = self.net_param
+        super().__init__(input_channels, num_classes, config=config, size=size)
+        assert self.config is not None, "must set config"
+
+        width: float = self.config["width"]
 
         block_config: list[list[tuple[int, int, int, float, int]]] = [
             # kernel, expansion, channels, se ratio, stride
@@ -338,8 +335,12 @@ class GhostNet_v2(DetectorBackbone):
         return self.features(x)
 
 
+registry.register_model_config("ghostnet_v2_1_0", GhostNet_v2, config={"width": 1.0})
+registry.register_model_config("ghostnet_v2_1_3", GhostNet_v2, config={"width": 1.3})
+registry.register_model_config("ghostnet_v2_1_6", GhostNet_v2, config={"width": 1.6})
+
 registry.register_weights(
-    "ghostnet_v2_1_il-common",
+    "ghostnet_v2_1_0_il-common",
     {
         "description": "GhostNet v2 1.0x model trained on the il-common dataset",
         "resolution": (256, 256),
@@ -349,6 +350,6 @@ registry.register_weights(
                 "sha256": "efb438440a88b7e159b36bbba7de1d0748c8caae16dbe85b0330ccf16ade93c0",
             }
         },
-        "net": {"network": "ghostnet_v2", "net_param": 1, "tag": "il-common"},
+        "net": {"network": "ghostnet_v2_1_0", "tag": "il-common"},
     },
 )

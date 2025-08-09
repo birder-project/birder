@@ -47,12 +47,10 @@ class MAE_Hiera(MIMBaseNet):
         self,
         encoder: Hiera,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(encoder, net_param=net_param, config=config, size=size)
-        assert self.net_param is None, "net-param not supported"
+        super().__init__(encoder, config=config, size=size)
         assert self.config is None, "config not supported"
         assert isinstance(self.encoder, Hiera)
 

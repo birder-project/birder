@@ -211,21 +211,18 @@ class RepGhostBottleneck(nn.Module):
 
 
 class RepGhost(DetectorBackbone):
-    auto_register = True
-
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
-        assert self.net_param is not None, "must set net-param"
-        assert self.config is None, "config not supported"
-        width = self.net_param
+        super().__init__(input_channels, num_classes, config=config, size=size)
+        assert self.config is not None, "must set config"
+
+        width: float = self.config["width"]
 
         self.reparameterized = False
         block_config: list[list[tuple[int, int, int, float, int]]] = [
@@ -349,8 +346,13 @@ class RepGhost(DetectorBackbone):
         self.reparameterized = True
 
 
+registry.register_model_config("repghost_0_5", RepGhost, config={"width": 0.5})
+registry.register_model_config("repghost_1_0", RepGhost, config={"width": 1.0})
+registry.register_model_config("repghost_1_3", RepGhost, config={"width": 1.3})
+registry.register_model_config("repghost_1_5", RepGhost, config={"width": 1.5})
+
 registry.register_weights(
-    "repghost_1_il-common",
+    "repghost_1_0_il-common",
     {
         "description": "RepGhost 1.0x model trained on the il-common dataset",
         "resolution": (256, 256),
@@ -360,11 +362,11 @@ registry.register_weights(
                 "sha256": "37e211ec65c752ad79bbbaacea277f7d683d0b0f69d954a7ca7af46b9a1260e6",
             }
         },
-        "net": {"network": "repghost", "net_param": 1, "tag": "il-common"},
+        "net": {"network": "repghost_1_0", "tag": "il-common"},
     },
 )
 registry.register_weights(
-    "repghost_1_il-common_reparameterized",
+    "repghost_1_0_il-common_reparameterized",
     {
         "description": "RepGhost 1.0x (reparameterized) model trained on the il-common dataset",
         "resolution": (256, 256),
@@ -374,6 +376,6 @@ registry.register_weights(
                 "sha256": "e003e0498d63428305c10f879a0e2b999604795d417f07ea0da35ea925f794f5",
             }
         },
-        "net": {"network": "repghost", "net_param": 1, "tag": "il-common_reparameterized", "reparameterized": True},
+        "net": {"network": "repghost_1_0", "tag": "il-common_reparameterized", "reparameterized": True},
     },
 )

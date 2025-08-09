@@ -49,27 +49,25 @@ class TestLib(unittest.TestCase):
         self.assertEqual(lib.get_num_labels_from_signature(detection_signature), 91)
 
         # Network name
-        net_name = lib.get_network_name("net", net_param=None)
+        net_name = lib.get_network_name("net")
         self.assertEqual(net_name, "net")
 
-        net_name = lib.get_network_name("net", net_param=1.25)
-        self.assertEqual(net_name, "net_1.25")
+        net_name = lib.get_network_name("net_1_25")
+        self.assertEqual(net_name, "net_1_25")
 
-        net_name = lib.get_network_name("net", net_param=1.25, tag="exp")
-        self.assertEqual(net_name, "net_1.25_exp")
+        net_name = lib.get_network_name("net", tag="exp")
+        self.assertEqual(net_name, "net_exp")
 
-        net_name = lib.get_network_name("net", net_param=None, tag="exp")
+        net_name = lib.get_network_name("net", tag="exp")
         self.assertEqual(net_name, "net_exp")
 
         # MIM network name
-        net_name = lib.get_mim_network_name("net", net_param=None, encoder="encoder", encoder_param=3, tag="exp")
-        self.assertEqual(net_name, "net_encoder_3_exp")
+        net_name = lib.get_mim_network_name("net", encoder="encoder", tag="exp")
+        self.assertEqual(net_name, "net_encoder_exp")
 
         # Detection network name
-        net_name = lib.get_detection_network_name(
-            "net", net_param=None, backbone="back", backbone_param=3, tag="exp", backbone_tag=None
-        )
-        self.assertEqual(net_name, "net_exp_back_3")
+        net_name = lib.get_detection_network_name("net", backbone="back", tag="exp", backbone_tag=None)
+        self.assertEqual(net_name, "net_exp_back")
 
         # Label from path
         label = lib.get_label_from_path("data/validation/Barn owl/000001.jpeg")

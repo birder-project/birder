@@ -41,18 +41,15 @@ from birder.net.vit import adjust_position_embedding
 class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
-    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
-        assert self.net_param is None, "net-param not supported"
+        super().__init__(input_channels, num_classes, config=config, size=size)
         assert self.config is not None, "must set config"
 
         image_size = self.size

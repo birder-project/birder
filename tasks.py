@@ -528,10 +528,8 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 def model_pre_publish(  # pylint: disable=too-many-locals
     _ctx,
     model,
-    net_param=None,
     tag=None,
     backbone=None,
-    backbone_param=None,
     backbone_tag=None,
     backbone_reparameterized=None,
     epoch=None,
@@ -542,20 +540,13 @@ def model_pre_publish(  # pylint: disable=too-many-locals
     Generate data required for publishing a model
     """
 
-    if net_param is not None:
-        net_param = float(net_param)
-    if backbone_param is not None:
-        backbone_param = float(backbone_param)
-
     if backbone is not None:
-        network_name = fs_ops.get_detection_network_name(model, net_param, tag, backbone, backbone_param, backbone_tag)
+        network_name = fs_ops.get_detection_network_name(model, tag, backbone, backbone_tag)
         (net, model_info) = fs_ops.load_detection_model(
             torch.device("cpu"),
             model,
-            net_param=net_param,
             tag=tag,
             backbone=backbone,
-            backbone_param=backbone_param,
             backbone_tag=backbone_tag,
             backbone_reparameterized=backbone_reparameterized,
             epoch=epoch,
@@ -564,11 +555,10 @@ def model_pre_publish(  # pylint: disable=too-many-locals
         )
 
     else:
-        network_name = fs_ops.get_network_name(model, net_param, tag)
+        network_name = fs_ops.get_network_name(model, tag)
         (net, model_info) = fs_ops.load_model(
             torch.device("cpu"),
             model,
-            net_param=net_param,
             tag=tag,
             epoch=epoch,
             inference=True,

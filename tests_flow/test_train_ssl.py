@@ -14,8 +14,7 @@ class TestSSLTrainFlow(unittest.TestCase):
 
         # Training
         args = train_vicreg.args_from_dict(
-            network="mobilenet_v1",
-            net_param=0.5,
+            network="mobilenet_v1_1_0",
             mlp_dim=64,
             num_workers=1,
             batch_size=2,

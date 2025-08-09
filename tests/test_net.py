@@ -3,7 +3,6 @@ import json
 import logging
 import math
 import unittest
-from typing import Optional
 
 import torch
 from parameterized import parameterized
@@ -72,7 +71,7 @@ class TestNet(unittest.TestCase):
             ("convnext_v1_tiny"),
             ("convnext_v2_atto"),
             ("crossformer_t"),
-            ("crossvit_9d", None, True, True, 1, 48),
+            ("crossvit_9d", True, True, 1, 48),
             ("csp_resnet_50"),
             ("csp_resnext_50"),
             ("csp_darknet_53"),
@@ -80,7 +79,7 @@ class TestNet(unittest.TestCase):
             ("cswin_transformer_t"),  # PT2 fails
             ("darknet_53"),
             ("davit_tiny"),
-            ("deit_t16", None, True),
+            ("deit_t16", True),
             ("deit3_t16"),
             ("deit3_reg4_t16"),
             ("densenet_121"),
@@ -92,18 +91,18 @@ class TestNet(unittest.TestCase):
             ("efficientnet_lite0"),
             ("efficientnet_v1_b0"),
             ("efficientnet_v2_s"),
-            ("efficientvim_m1", None, True, True),
+            ("efficientvim_m1", True, True),
             ("efficientvit_mit_b0"),
             ("efficientvit_mit_l1"),
-            ("efficientvit_msft_m0", None, False, False, 2),
+            ("efficientvit_msft_m0", False, False, 2),
             ("fasternet_t0"),
             ("fastvit_t8"),
             ("fastvit_sa12"),
             ("mobileclip_i0"),
             ("flexivit_s16"),
             ("focalnet_t_srf"),
-            ("ghostnet_v1", 1),
-            ("ghostnet_v2", 1),
+            ("ghostnet_v1_0_5"),
+            ("ghostnet_v2_1_0"),
             ("groupmixformer_mobile"),
             ("hgnet_v1_tiny"),
             ("hgnet_v2_b0"),
@@ -124,35 +123,35 @@ class TestNet(unittest.TestCase):
             ("poolformer_v2_s12"),
             ("convformer_s18"),
             ("caformer_s18"),
-            ("mnasnet", 0.5),
-            ("mobilenet_v1", 1),
-            ("mobilenet_v2", 1),
-            ("mobilenet_v3_large", 1),
-            ("mobilenet_v3_small", 1),
-            ("mobilenet_v4_s", None, False, False, 2),
-            ("mobilenet_v4_hybrid_m", None, False, False, 2),
-            ("mobilenet_v4_hybrid_l", None, False, False, 2),  # GELU (inplace)
+            ("mnasnet_0_5"),
+            ("mobilenet_v1_0_25"),
+            ("mobilenet_v2_0_25"),
+            ("mobilenet_v3_large_0_75"),
+            ("mobilenet_v3_small_1_0"),
+            ("mobilenet_v4_s", False, False, 2),
+            ("mobilenet_v4_hybrid_m", False, False, 2),
+            ("mobilenet_v4_hybrid_l", False, False, 2),  # GELU (inplace)
             ("mobileone_s0"),
             ("mobilevit_v1_xxs"),
-            ("mobilevit_v2", 1),
+            ("mobilevit_v2_0_25"),
             ("moganet_xt"),
             ("mvit_v2_t"),
             ("mvit_v2_t_cls"),
             ("nextvit_s"),
             ("nfnet_f0"),
-            ("pit_t", None, True, True),
+            ("pit_t", True, True),
             ("pvt_v1_t"),
             ("pvt_v2_b0"),
             ("rdnet_t"),
-            ("regionvit_t", None, False, True),
+            ("regionvit_t", False, True),
             ("regnet_x_200m"),
             ("regnet_y_200m"),
             ("regnet_z_500m"),
-            ("repghost", 1),
+            ("ghostnet_v2_1_0"),
             ("repvgg_a0"),
-            ("repvit_m0_6", None, False, False, 2),
-            ("resmlp_12", None, False, False, 1, 0),  # No resize support
-            ("resnest_14", None, False, False, 2),
+            ("repvit_m0_6", False, False, 2),
+            ("resmlp_12", False, False, 1, 0),  # No resize support
+            ("resnest_14", False, False, 2),
             ("resnet_v1_18"),
             ("resnet_v2_18"),
             ("resnext_50"),
@@ -163,19 +162,19 @@ class TestNet(unittest.TestCase):
             ("rope_i_vit_s16_pn_ap_c1"),
             ("rope_vit_reg4_b32"),
             ("rope_vit_reg4_m16_rms_avg"),
-            ("rope_vit_reg8_nps_b14_ap", None, False, False, 1, 14),
-            ("rope_vit_so150m_p14_ap", None, False, False, 1, 14),
-            ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", None, False, False, 1, 14),
+            ("rope_vit_reg8_nps_b14_ap", False, False, 1, 14),
+            ("rope_vit_so150m_p14_ap", False, False, 1, 14),
+            ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", False, False, 1, 14),
             ("se_resnet_v1_18"),
             ("se_resnet_v2_18"),
             ("se_resnext_50"),
             ("sequencer2d_s"),
             ("shufflenet_v1_8"),
-            ("shufflenet_v2", 1),
+            ("shufflenet_v2_0_5"),
             ("simple_vit_s32"),
             ("smt_t"),
-            ("squeezenet", None, True),
-            ("squeezenext", 0.5),
+            ("squeezenet", True),
+            ("squeezenext_0_5"),
             ("starnet_esm05"),
             ("swiftformer_xs"),
             ("swin_transformer_v1_t"),
@@ -191,8 +190,8 @@ class TestNet(unittest.TestCase):
             ("vit_s16_pn"),
             ("vit_reg4_b32"),
             ("vit_reg4_m16_rms_avg"),
-            ("vit_so150m_p14_ap", None, False, False, 1, 14),
-            ("vit_reg8_so150m_p14_swiglu_avg", None, False, False, 1, 14),
+            ("vit_so150m_p14_ap", False, False, 1, 14),
+            ("vit_reg8_so150m_p14_swiglu_avg", False, False, 1, 14),
             ("vit_parallel_s16_18x2_ls"),
             ("vit_det_b16"),
             ("vit_sam_b16"),
@@ -204,13 +203,12 @@ class TestNet(unittest.TestCase):
     def test_net(
         self,
         network_name: str,
-        net_param: Optional[float] = None,
         skip_embedding: bool = False,
         skip_features: bool = False,
         batch_size: int = 1,
         size_step: int = 2**5,
     ) -> None:
-        n = registry.net_factory(network_name, 3, 100, net_param=net_param)
+        n = registry.net_factory(network_name, 3, 100)
         size = n.default_size
 
         # Ensure config is serializable
@@ -306,8 +304,8 @@ class TestNet(unittest.TestCase):
             ("fastvit_t8"),
             ("flexivit_s16"),
             ("focalnet_t_srf"),
-            ("ghostnet_v1", 1),
-            ("ghostnet_v2", 1),
+            ("ghostnet_v1_0_5"),
+            ("ghostnet_v2_1_0"),
             ("groupmixformer_mobile"),
             ("hgnet_v1_tiny"),
             ("hgnet_v2_b0"),
@@ -327,15 +325,15 @@ class TestNet(unittest.TestCase):
             ("poolformer_v2_s12"),
             ("convformer_s18"),
             ("caformer_s18"),
-            ("mnasnet", 0.5),
-            ("mobilenet_v1", 1),
-            ("mobilenet_v2", 1),
-            ("mobilenet_v3_large", 1),
-            ("mobilenet_v3_small", 1),
+            ("mnasnet_0_5"),
+            ("mobilenet_v1_0_25"),
+            ("mobilenet_v2_0_25"),
+            ("mobilenet_v3_large_0_75"),
+            ("mobilenet_v3_small_1_0"),
             ("mobilenet_v4_s"),
             ("mobilenet_v4_hybrid_m"),
             ("mobileone_s0"),
-            ("mobilevit_v2", 1),
+            ("mobilevit_v2_0_25"),
             ("moganet_xt"),
             ("mvit_v2_t"),
             ("mvit_v2_t_cls"),
@@ -348,10 +346,10 @@ class TestNet(unittest.TestCase):
             ("regionvit_t"),
             ("regnet_y_200m"),
             ("regnet_z_500m"),
-            ("repghost", 1),
+            ("repghost_0_5"),
             ("repvgg_a0"),
             ("repvit_m0_6"),
-            ("resnest_14", None, 2),
+            ("resnest_14", 2),
             ("resnet_v1_18"),
             ("resnet_v2_18"),
             ("resnext_50"),
@@ -369,9 +367,9 @@ class TestNet(unittest.TestCase):
             ("se_resnet_v2_18"),
             ("se_resnext_50"),
             ("shufflenet_v1_8"),
-            ("shufflenet_v2", 1),
+            ("shufflenet_v2_0_5"),
             ("smt_t"),
-            ("squeezenext", 0.5),
+            ("squeezenext_0_5"),
             ("starnet_esm05"),
             ("swiftformer_xs"),
             ("swin_transformer_v1_t"),
@@ -393,17 +391,16 @@ class TestNet(unittest.TestCase):
             ("vit_sam_b16"),
             ("wide_resnet_50"),
             ("xception"),
-            ("xcit_nano12_p16", None, 1, True),
+            ("xcit_nano12_p16", 1, True),
         ]
     )
     def test_detection_backbone(
         self,
         network_name: str,
-        net_param: Optional[float] = None,
         batch_size: int = 1,
         allow_equal_stages: bool = False,
     ) -> None:
-        n = registry.net_factory(network_name, 3, 100, net_param=net_param)
+        n = registry.net_factory(network_name, 3, 100)
         size = n.default_size
 
         self.assertEqual(len(n.return_channels), len(n.return_stages))
@@ -432,12 +429,12 @@ class TestNet(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[misc]
         [
-            ("hiera_tiny", None),
-            ("hiera_abswin_tiny", None),
+            ("hiera_tiny",),
+            ("hiera_abswin_tiny",),
         ]
     )
-    def test_pre_training_encoder_hiera(self, network_name: str, net_param: Optional[float]) -> None:
-        n = registry.net_factory(network_name, 3, 100, net_param=net_param)
+    def test_pre_training_encoder_hiera(self, network_name: str) -> None:
+        n = registry.net_factory(network_name, 3, 100)
         size = n.default_size
 
         # self.assertIsInstance(n, Hiera)
@@ -485,8 +482,8 @@ class TestNet(unittest.TestCase):
             ("poolformer_v2_s12"),
             ("convformer_s18"),
             ("caformer_s18"),
-            ("mobilenet_v4_s", None, 2),
-            ("mobilenet_v4_hybrid_m", None, 2),
+            ("mobilenet_v4_s", 2),
+            ("mobilenet_v4_hybrid_m", 2),
             ("moganet_xt"),
             ("mvit_v2_t"),
             ("mvit_v2_t_cls"),
@@ -517,10 +514,8 @@ class TestNet(unittest.TestCase):
             ("xcit_nano12_p16"),
         ]
     )
-    def test_pre_training_encoder_retention(
-        self, network_name: str, net_param: Optional[float] = None, batch_size: int = 1
-    ) -> None:
-        n = registry.net_factory(network_name, 3, 100, net_param=net_param)
+    def test_pre_training_encoder_retention(self, network_name: str, batch_size: int = 1) -> None:
+        n = registry.net_factory(network_name, 3, 100)
         size = n.default_size
 
         # self.assertIsInstance(n, MaskedTokenRetentionMixin)
@@ -569,8 +564,8 @@ class TestNet(unittest.TestCase):
             ("deit3_t16"),
             ("deit3_reg4_t16"),
             ("flexivit_s16"),
-            ("hiera_tiny", None, False),
-            ("hiera_abswin_tiny", None, False),
+            ("hiera_tiny", False),
+            ("hiera_abswin_tiny", False),
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
             ("rope_flexivit_s16"),
@@ -591,10 +586,8 @@ class TestNet(unittest.TestCase):
             ("vit_parallel_s16_18x2_ls"),
         ]
     )
-    def test_pre_training_encoder_omission(
-        self, network_name: str, net_param: Optional[float] = None, test_all_features: bool = True
-    ) -> None:
-        n = registry.net_factory(network_name, 3, 100, net_param=net_param)
+    def test_pre_training_encoder_omission(self, network_name: str, test_all_features: bool = True) -> None:
+        n = registry.net_factory(network_name, 3, 100)
         size = n.default_size
 
         # self.assertIsInstance(n, MaskedTokenOmissionMixin)
@@ -654,7 +647,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("convnext_v1_tiny"),
             ("convnext_v2_atto"),
             ("crossformer_t"),
-            ("crossvit_9d", None, 1, 48, 48),
+            ("crossvit_9d", 1, 48, 48),
             ("csp_resnet_50"),
             ("csp_resnext_50"),
             ("csp_darknet_53"),
@@ -676,15 +669,15 @@ class TestNonSquareNet(unittest.TestCase):
             ("efficientvim_m1"),
             ("efficientvit_mit_b0"),
             ("efficientvit_mit_l1"),
-            ("efficientvit_msft_m0", None, 2),
+            ("efficientvit_msft_m0", 2),
             ("fasternet_t0"),
             ("fastvit_t8"),
             ("fastvit_sa12"),
             ("mobileclip_i0"),
             ("flexivit_s16"),
             ("focalnet_t_srf"),
-            ("ghostnet_v1", 1),
-            ("ghostnet_v2", 1),
+            ("ghostnet_v1_0_5"),
+            ("ghostnet_v2_1_0"),
             ("groupmixformer_mobile"),
             ("hgnet_v1_tiny"),
             ("hgnet_v2_b0"),
@@ -705,16 +698,16 @@ class TestNonSquareNet(unittest.TestCase):
             ("poolformer_v2_s12"),
             ("convformer_s18"),
             ("caformer_s18"),
-            ("mnasnet", 0.5),
-            ("mobilenet_v1", 1),
-            ("mobilenet_v2", 1),
-            ("mobilenet_v3_large", 1),
-            ("mobilenet_v3_small", 1),
-            ("mobilenet_v4_s", None, 2),
-            ("mobilenet_v4_hybrid_m", None, 2),
+            ("mnasnet_0_5"),
+            ("mobilenet_v1_0_25"),
+            ("mobilenet_v2_0_25"),
+            ("mobilenet_v3_large_0_75"),
+            ("mobilenet_v3_small_1_0"),
+            ("mobilenet_v4_s", 2),
+            ("mobilenet_v4_hybrid_m", 2),
             ("mobileone_s0"),
             ("mobilevit_v1_xxs"),
-            ("mobilevit_v2", 1),
+            ("mobilevit_v2_0_25"),
             ("moganet_xt"),
             ("mvit_v2_t"),
             ("mvit_v2_t_cls"),
@@ -728,11 +721,11 @@ class TestNonSquareNet(unittest.TestCase):
             ("regnet_x_200m"),
             ("regnet_y_200m"),
             ("regnet_z_500m"),
-            ("repghost", 1),
+            ("repghost_0_5"),
             ("repvgg_a0"),
-            ("repvit_m0_6", None, 2),
-            ("resmlp_12", None, 1, 0),  # No resize support
-            ("resnest_14", None, 2),
+            ("repvit_m0_6", 2),
+            ("resmlp_12", 1, 0),  # No resize support
+            ("resnest_14", 2),
             ("resnet_v1_18"),
             ("resnet_v2_18"),
             ("resnext_50"),
@@ -743,19 +736,19 @@ class TestNonSquareNet(unittest.TestCase):
             ("rope_i_vit_s16_pn_ap_c1"),
             ("rope_vit_reg4_b32"),
             ("rope_vit_reg4_m16_rms_avg"),
-            ("rope_vit_reg8_nps_b14_ap", None, 1, 14, 14),
-            ("rope_vit_so150m_p14_ap", None, 1, 14, 14),
-            ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", None, 1, 14, 14),
+            ("rope_vit_reg8_nps_b14_ap", 1, 14, 14),
+            ("rope_vit_so150m_p14_ap", 1, 14, 14),
+            ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", 1, 14, 14),
             ("se_resnet_v1_18"),
             ("se_resnet_v2_18"),
             ("se_resnext_50"),
             ("sequencer2d_s"),
             ("shufflenet_v1_8"),
-            ("shufflenet_v2", 1),
+            ("shufflenet_v2_0_5"),
             ("simple_vit_b32"),
             ("smt_t"),
             ("squeezenet"),
-            ("squeezenext", 0.5),
+            ("squeezenext_0_5"),
             ("starnet_esm05"),
             ("swiftformer_xs"),
             ("swin_transformer_v1_t"),
@@ -771,8 +764,8 @@ class TestNonSquareNet(unittest.TestCase):
             ("vit_s16_pn"),
             ("vit_reg4_b32"),
             ("vit_reg4_m16_rms_avg"),
-            ("vit_so150m_p14_ap", None, 1, 14, 14),
-            ("vit_reg8_so150m_p14_swiglu_avg", None, 1, 14, 14),
+            ("vit_so150m_p14_ap", 1, 14, 14),
+            ("vit_reg8_so150m_p14_swiglu_avg", 1, 14, 14),
             ("vit_parallel_s16_18x2_ls"),
             ("vit_det_b16"),
             ("vit_sam_b16"),
@@ -784,13 +777,12 @@ class TestNonSquareNet(unittest.TestCase):
     def test_non_square_net(
         self,
         network_name: str,
-        net_param: Optional[float] = None,
         batch_size: int = 1,
         size_step: int = 2**5,
         size_offset: int = 2**5,
     ) -> None:
         # Test resize
-        n = registry.net_factory(network_name, 3, 100, net_param=net_param)
+        n = registry.net_factory(network_name, 3, 100)
         default_size = n.default_size
         if n.square_only is True:
             return
@@ -807,7 +799,7 @@ class TestNonSquareNet(unittest.TestCase):
 
         # Test initialization
         size = (default_size[0], default_size[1] + size_offset)
-        n = registry.net_factory(network_name, 3, 100, net_param=net_param, size=size)
+        n = registry.net_factory(network_name, 3, 100, size=size)
         out = n(torch.rand((batch_size, 3, *size)))
         self.assertEqual(out.numel(), 100 * batch_size)
 
@@ -827,9 +819,9 @@ class TestDynamicSize(unittest.TestCase):
             ("rope_i_vit_s16_pn_ap_c1"),
             ("rope_vit_reg4_b32"),
             ("rope_vit_reg4_m16_rms_avg"),
-            ("rope_vit_reg8_nps_b14_ap", None, 1, 14),
-            ("rope_vit_so150m_p14_ap", None, 1, 14),
-            ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", None, 1, 14),
+            ("rope_vit_reg8_nps_b14_ap", 1, 14),
+            ("rope_vit_so150m_p14_ap", 1, 14),
+            ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", 1, 14),
             ("simple_vit_b32"),
             ("swin_transformer_v1_t"),
             ("swin_transformer_v2_t"),
@@ -838,19 +830,18 @@ class TestDynamicSize(unittest.TestCase):
             ("vit_s16_pn"),
             ("vit_reg4_b32"),
             ("vit_reg4_m16_rms_avg"),
-            ("vit_so150m_p14_ap", None, 1, 14),
-            ("vit_reg8_so150m_p14_swiglu_avg", None, 1, 14),
+            ("vit_so150m_p14_ap", 1, 14),
+            ("vit_reg8_so150m_p14_swiglu_avg", 1, 14),
             ("vit_parallel_s16_18x2_ls"),
         ]
     )
     def test_dynamic_size(
         self,
         network_name: str,
-        net_param: Optional[float] = None,
         batch_size: int = 1,
         size_step: int = 2**5,
     ) -> None:
-        n = registry.net_factory(network_name, 3, 100, net_param=net_param)
+        n = registry.net_factory(network_name, 3, 100)
         default_size = n.default_size
         n.set_dynamic_size()
 

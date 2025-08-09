@@ -32,7 +32,6 @@ def show_pgd(args: argparse.Namespace) -> None:
     (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
         device,
         args.network,
-        net_param=args.net_param,
         tag=args.tag,
         epoch=args.epoch,
         inference=True,
@@ -85,7 +84,6 @@ def show_fgsm(args: argparse.Namespace) -> None:
     (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
         device,
         args.network,
-        net_param=args.net_param,
         tag=args.tag,
         epoch=args.epoch,
         inference=False,
@@ -144,9 +142,6 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--method", type=str, choices=["fgsm", "pgd"], help="introspection method")
     subparser.add_argument(
         "-n", "--network", type=str, required=True, help="the neural network to use (i.e. resnet_v2)"
-    )
-    subparser.add_argument(
-        "-p", "--net-param", type=float, help="network specific parameter, required by some networks"
     )
     subparser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from the training phase)")

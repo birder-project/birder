@@ -80,7 +80,6 @@ class ModelRegistry:
         alias: str,
         net_type: "BaseNetType",
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
     ) -> None:
         """
@@ -90,12 +89,12 @@ class ModelRegistry:
 
         if net_type.auto_register is False:
             # Register the model manually, as the base class doesn't take care of that for us
-            registry.register_model(alias, type(alias, (net_type,), {"net_param": net_param, "config": config}))
+            registry.register_model(alias, type(alias, (net_type,), {"config": config}))
 
         if alias in self.aliases:
             warnings.warn(f"Alias {alias} is already registered", UserWarning)
 
-        self.aliases[alias] = type(alias, (net_type,), {"net_param": net_param, "config": config})
+        self.aliases[alias] = type(alias, (net_type,), {"config": config})
 
     def register_weights(self, name: str, weights_info: manifest.ModelMetadataType) -> None:
         if name in self._pretrained_nets:
@@ -232,11 +231,10 @@ class ModelRegistry:
         input_channels: int,
         num_classes: int,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> "BaseNet":
-        return self._nets[name](input_channels, num_classes, net_param=net_param, config=config, size=size)
+        return self._nets[name](input_channels, num_classes, config=config, size=size)
 
     def detection_net_factory(
         self,
@@ -244,25 +242,21 @@ class ModelRegistry:
         num_classes: int,
         backbone: "DetectorBackbone",
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
         export_mode: bool = False,
     ) -> "DetectionBaseNet":
-        return self._detection_nets[name](
-            num_classes, backbone, net_param=net_param, config=config, size=size, export_mode=export_mode
-        )
+        return self._detection_nets[name](num_classes, backbone, config=config, size=size, export_mode=export_mode)
 
     def mim_net_factory(
         self,
         name: str,
         encoder: "PreTrainEncoder",
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> "MIMBaseNet":
-        return self._mim_nets[name](encoder, net_param=net_param, config=config, size=size)
+        return self._mim_nets[name](encoder, config=config, size=size)
 
 
 registry = ModelRegistry()

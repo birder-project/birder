@@ -205,23 +205,19 @@ class MobileVitBlock(nn.Module):
 # pylint: disable=invalid-name
 class MobileViT_v2(DetectorBackbone):
     default_size = (256, 256)
-    auto_register = True
 
     def __init__(
         self,
         input_channels: int,
         num_classes: int,
         *,
-        net_param: Optional[float] = None,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
-        super().__init__(input_channels, num_classes, net_param=net_param, config=config, size=size)
-        assert self.net_param is not None, "must set net-param"
-        assert self.config is None, "config not supported"
-        width_factor = net_param
-        width_factor_values = [0.25, 0.50, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
-        assert width_factor in width_factor_values, f"alpha = {width_factor} not supported"
+        super().__init__(input_channels, num_classes, config=config, size=size)
+        assert self.config is not None, "must set config"
+
+        width_factor: float = self.config["width_factor"]
 
         patch_size = (2, 2)
         attn_drop = 0.1
@@ -354,8 +350,17 @@ class MobileViT_v2(DetectorBackbone):
         return nn.Linear(embed_dim, self.num_classes, bias=False)
 
 
+registry.register_model_config("mobilevit_v2_0_25", MobileViT_v2, config={"width_factor": 0.25})
+registry.register_model_config("mobilevit_v2_0_5", MobileViT_v2, config={"width_factor": 0.5})
+registry.register_model_config("mobilevit_v2_0_75", MobileViT_v2, config={"width_factor": 0.75})
+registry.register_model_config("mobilevit_v2_1_0", MobileViT_v2, config={"width_factor": 1.0})
+registry.register_model_config("mobilevit_v2_1_25", MobileViT_v2, config={"width_factor": 1.25})
+registry.register_model_config("mobilevit_v2_1_5", MobileViT_v2, config={"width_factor": 1.5})
+registry.register_model_config("mobilevit_v2_1_75", MobileViT_v2, config={"width_factor": 1.75})
+registry.register_model_config("mobilevit_v2_2_0", MobileViT_v2, config={"width_factor": 2.0})
+
 registry.register_weights(
-    "mobilevit_v2_1_il-common",
+    "mobilevit_v2_1_0_il-common",
     {
         "description": "MobileViT v2 with width multiplier of 1.0 trained on the il-common dataset",
         "resolution": (256, 256),
@@ -365,11 +370,11 @@ registry.register_weights(
                 "sha256": "2b45b7f2ffe3dd129d9a7e9690d2dfd0f93ac60f24d118b920a51bcb950fd95e",
             }
         },
-        "net": {"network": "mobilevit_v2", "net_param": 1, "tag": "il-common"},
+        "net": {"network": "mobilevit_v2_1_0", "tag": "il-common"},
     },
 )
 registry.register_weights(
-    "mobilevit_v2_1.5_il-common",
+    "mobilevit_v2_1_5_il-common",
     {
         "description": "MobileViT v2 with width multiplier of 1.5 trained on the il-common dataset",
         "resolution": (256, 256),
@@ -379,6 +384,6 @@ registry.register_weights(
                 "sha256": "acd28c3ee653b62c69ad765c1d99827cea5051deb6dbdd7b9c8d7612782c86a3",
             }
         },
-        "net": {"network": "mobilevit_v2", "net_param": 1.5, "tag": "il-common"},
+        "net": {"network": "mobilevit_v2_1_5", "tag": "il-common"},
     },
 )

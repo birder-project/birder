@@ -58,10 +58,8 @@ device = torch.device("cpu")
 (net, class_to_idx, _, _, _) = fs_ops.load_detection_checkpoint(
     device,
     "faster_rcnn",
-    net_param=None,
     tag=None,
-    backbone="resnext",
-    backbone_param=101,
+    backbone="resnext_101",
     backbone_tag=None,
     epoch=0,
 )

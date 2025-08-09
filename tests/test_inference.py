@@ -24,7 +24,7 @@ class TestInference(unittest.TestCase):
     def setUp(self) -> None:
         self.size = net.GhostNet_v2.default_size
         self.num_classes = 10
-        self.model = net.GhostNet_v2(3, self.num_classes, net_param=1)
+        self.model = net.GhostNet_v2(3, self.num_classes, config={"width": 1.0})
         self.model.eval()
 
     def test_infer_batch_default_behavior(self) -> None:
@@ -84,7 +84,7 @@ class TestInferenceDataParallel(unittest.TestCase):
         self.num_devices = torch.cuda.device_count()
 
         # Create and prepare model for inference (mimics load_model with inference=True)
-        self.model = net.GhostNet_v2(3, self.num_classes, net_param=1)
+        self.model = net.GhostNet_v2(3, self.num_classes, config={"width": 1.0})
         self.model.eval()
         for param in self.model.parameters():
             param.requires_grad = False

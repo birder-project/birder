@@ -116,11 +116,14 @@ image = "data/img_001.jpeg"  # Path to your image
 
 Alternatively, you can load Birder models directly using Torch Hub:
 
-By default the model will be downloaded into `$TORCH_HOME` and not into the standard Birder directories.
+Notes:
+
+- By default the model will be downloaded into `$TORCH_HOME` and not into the standard Birder directories.
+- Replace all dashes with underscores as Torch Hub define all entry points as functions
 
 ```python
 import torch
 
 # Load a model using Torch Hub
-net = torch.hub.load("birder-project/birder", "mvit_v2_t_il-all")
+net = torch.hub.load("birder-project/birder", "mvit_v2_t_il_all")
 ```

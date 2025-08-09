@@ -1,7 +1,6 @@
 import json
 import logging
 import unittest
-from typing import Optional
 
 import torch
 from parameterized import parameterized
@@ -15,53 +14,53 @@ logging.disable(logging.CRITICAL)
 class TestNetMIM(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
-            ("crossmae", None, ("deit3_t16", None)),
-            ("crossmae", None, ("deit3_reg4_t16", None)),
-            ("crossmae", None, ("rope_vit_b32", None)),
-            ("crossmae", None, ("rope_vit_reg4_b32", None)),
-            ("crossmae", None, ("rope_vit_so150m_p14_ap", None)),
-            ("crossmae", None, ("rope_vit_reg4_so150m_p14_ap", None)),
-            ("crossmae", None, ("simple_vit_b32", None)),
-            ("crossmae", None, ("vit_b32", None)),
-            ("crossmae", None, ("vit_reg4_b32", None)),
-            ("crossmae", None, ("vit_so150m_p14_ap", None)),
-            ("crossmae", None, ("vit_reg4_so150m_p14_ap", None)),
-            ("crossmae", None, ("vit_parallel_s16_18x2_ls", None)),
-            ("fcmae", None, ("convnext_v2_atto", None)),
-            ("fcmae", None, ("regnet_y_200m", None)),
-            ("fcmae", None, ("regnet_z_500m", None)),
-            ("mae_hiera", None, ("hiera_tiny", None)),
-            ("mae_hiera", None, ("hiera_abswin_tiny", None)),
-            ("mae_vit", None, ("deit3_t16", None)),
-            ("mae_vit", None, ("deit3_reg4_t16", None)),
-            ("mae_vit", None, ("rope_vit_b32", None)),
-            ("mae_vit", None, ("rope_vit_reg4_b32", None)),
-            ("mae_vit", None, ("rope_vit_so150m_p14_ap", None)),
-            ("mae_vit", None, ("rope_vit_reg4_so150m_p14_ap", None)),
-            ("mae_vit", None, ("simple_vit_b32", None)),
-            ("mae_vit", None, ("vit_b32", None)),
-            ("mae_vit", None, ("vit_reg4_b32", None)),
-            ("mae_vit", None, ("vit_so150m_p14_ap", None)),
-            ("mae_vit", None, ("vit_reg4_so150m_p14_ap", None)),
-            ("mae_vit", None, ("vit_parallel_s16_18x2_ls", None)),
-            ("simmim", None, ("hieradet_tiny", None)),
-            ("simmim", None, ("maxvit_t", None)),
-            ("simmim", None, ("nextvit_s", None)),
-            ("simmim", None, ("regnet_y_800m", None)),
-            ("simmim", None, ("swin_transformer_v2_t", None)),
-            ("simmim", None, ("swin_transformer_v2_w2_t", None)),
-            ("simmim", None, ("vit_b32", None)),
-            ("simmim", None, ("vit_reg4_b32", None)),
-            ("simmim", None, ("vit_so150m_p14_ap", None)),
-            ("simmim", None, ("vit_reg4_so150m_p14_ap", None)),
-            ("simmim", None, ("vit_parallel_s16_18x2_ls", None)),
+            ("crossmae", "deit3_t16"),
+            ("crossmae", "deit3_reg4_t16"),
+            ("crossmae", "rope_vit_b32"),
+            ("crossmae", "rope_vit_reg4_b32"),
+            ("crossmae", "rope_vit_so150m_p14_ap"),
+            ("crossmae", "rope_vit_reg4_so150m_p14_ap"),
+            ("crossmae", "simple_vit_b32"),
+            ("crossmae", "vit_b32"),
+            ("crossmae", "vit_reg4_b32"),
+            ("crossmae", "vit_so150m_p14_ap"),
+            ("crossmae", "vit_reg4_so150m_p14_ap"),
+            ("crossmae", "vit_parallel_s16_18x2_ls"),
+            ("fcmae", "convnext_v2_atto"),
+            ("fcmae", "regnet_y_200m"),
+            ("fcmae", "regnet_z_500m"),
+            ("mae_hiera", "hiera_tiny"),
+            ("mae_hiera", "hiera_abswin_tiny"),
+            ("mae_vit", "deit3_t16"),
+            ("mae_vit", "deit3_reg4_t16"),
+            ("mae_vit", "rope_vit_b32"),
+            ("mae_vit", "rope_vit_reg4_b32"),
+            ("mae_vit", "rope_vit_so150m_p14_ap"),
+            ("mae_vit", "rope_vit_reg4_so150m_p14_ap"),
+            ("mae_vit", "simple_vit_b32"),
+            ("mae_vit", "vit_b32"),
+            ("mae_vit", "vit_reg4_b32"),
+            ("mae_vit", "vit_so150m_p14_ap"),
+            ("mae_vit", "vit_reg4_so150m_p14_ap"),
+            ("mae_vit", "vit_parallel_s16_18x2_ls"),
+            ("simmim", "hieradet_tiny"),
+            ("simmim", "maxvit_t"),
+            ("simmim", "nextvit_s"),
+            ("simmim", "regnet_y_800m"),
+            ("simmim", "swin_transformer_v2_t"),
+            ("simmim", "swin_transformer_v2_w2_t"),
+            ("simmim", "vit_b32"),
+            ("simmim", "vit_reg4_b32"),
+            ("simmim", "vit_so150m_p14_ap"),
+            ("simmim", "vit_reg4_so150m_p14_ap"),
+            ("simmim", "vit_parallel_s16_18x2_ls"),
         ]
     )
-    def test_net_mim(self, network_name: str, net_param: Optional[float], encoder_params: tuple[str, float]) -> None:
-        encoder = registry.net_factory(encoder_params[0], 3, 10, net_param=encoder_params[1])
+    def test_net_mim(self, network_name: str, encoder: str) -> None:
+        encoder = registry.net_factory(encoder, 3, 10)
         size = (encoder.max_stride * 6, encoder.max_stride * 6)
         encoder.adjust_size(size)
-        n = registry.mim_net_factory(network_name, encoder, net_param=net_param, size=size)
+        n = registry.mim_net_factory(network_name, encoder, size=size)
 
         # Ensure config is serializable
         _ = json.dumps(n.config)
