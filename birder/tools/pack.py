@@ -283,7 +283,7 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
 
     else:
         idx_to_class = {}
-        dataset = fs_ops.samples_from_paths(data_paths, class_to_idx={})
+        dataset = fs_ops.collect_samples_from_paths(data_paths, class_to_idx={})
 
     if args.shuffle is True:
         indices = torch.randperm(len(dataset)).tolist()

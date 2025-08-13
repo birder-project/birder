@@ -16,7 +16,7 @@ class OrderTestModel(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Return first element of each sample as identifier
         # This lets us track if order is preserved
-        batch_size = x.shape[0]
+        batch_size = x.size(0)
         return x.view(batch_size, -1)[:, :10]
 
 

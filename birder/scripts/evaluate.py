@@ -9,6 +9,7 @@ import birder
 from birder.common import cli
 from birder.conf import settings
 from birder.data.datasets.directory import make_image_dataset
+from birder.inference.data_parallel import InferenceDataParallel
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +22,13 @@ def evaluate(args: argparse.Namespace) -> None:
     else:
         device = torch.device("cpu")
 
-    if args.gpu_id is not None:
-        torch.cuda.set_device(args.gpu_id)
+    if args.parallel is True and torch.cuda.device_count() > 1:
+        logger.info(f"Using {torch.cuda.device_count()} {device} devices")
+    else:
+        if args.gpu_id is not None:
+            torch.cuda.set_device(args.gpu_id)
 
-    logger.info(f"Using device {device}")
+        logger.info(f"Using device {device}")
 
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
@@ -36,6 +40,8 @@ def evaluate(args: argparse.Namespace) -> None:
         (net, (class_to_idx, signature, rgb_stats, *_)) = birder.load_pretrained_model(
             model_name, inference=True, device=device, dtype=model_dtype
         )
+        if args.parallel is True and torch.cuda.device_count() > 1:
+            net = InferenceDataParallel(net, output_device="cpu", compile_replicas=args.compile)
         if args.compile is True:
             net = torch.compile(net)
 
@@ -59,14 +65,19 @@ def evaluate(args: argparse.Namespace) -> None:
                 args.amp,
                 amp_dtype,
                 num_samples=num_samples,
+                sparse=args.save_sparse_results,
             )
 
         logger.info(f"{model_name}: accuracy={results.accuracy:.4f}")
         base_output_path = (
             f"{args.dir}/{model_name}_{len(class_to_idx)}_{size[0]}px_crop{args.center_crop}_{num_samples}"
         )
+        if args.save_sparse_results is True:
+            results_file_suffix = "_sparse.csv"
+        else:
+            results_file_suffix = ".csv"
 
-        results.save(f"{base_output_path}.csv")
+        results.save(f"{base_output_path}{results_file_suffix}")
 
 
 def get_args_parser() -> argparse.ArgumentParser:
@@ -76,7 +87,8 @@ def get_args_parser() -> argparse.ArgumentParser:
         epilog=(
             "Usage example:\n"
             "python evaluate.py --filter '*il-common*' --fast-matmul --gpu data/validation_il-common_packed\n"
-            "python evaluate.py --compile --amp --gpu --gpu-id 1 data/testing\n"
+            "python -m birder.scripts.evaluate --amp --compile --gpu --gpu-id 1 data/testing\n"
+            "python evaluate.py --filter '*inat21*' --amp --compile --gpu --parallel ~/Datasets/inat2021/val\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -114,6 +126,13 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
     parser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use")
     parser.add_argument("--mps", default=False, action="store_true", help="use mps (Metal Performance Shaders) device")
+    parser.add_argument("--parallel", default=False, action="store_true", help="use multiple gpus")
+    parser.add_argument(
+        "--save-sparse-results",
+        default=False,
+        action="store_true",
+        help="save results object in memory-efficient sparse format (only top-k probabilities)",
+    )
     parser.add_argument("data_path", nargs="+", help="data files path (directories and files)")
 
     return parser

@@ -231,7 +231,7 @@ def make_image_dataset(
     return_orig_sizes: bool = False,
     hierarchical: bool = False,
 ) -> ImageListDataset:
-    samples = fs_ops.samples_from_paths(paths, class_to_idx=class_to_idx, hierarchical=hierarchical)
+    samples = fs_ops.collect_samples_from_paths(paths, class_to_idx=class_to_idx, hierarchical=hierarchical)
     if return_orig_sizes is True:
         dataset = ImageListDatasetWithSize(samples, transforms=transforms, loader=loader)
     else:

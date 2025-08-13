@@ -32,11 +32,15 @@ def top_k_accuracy_score(y_true: npt.NDArray[Any], y_pred: npt.NDArray[np.float6
 
     (num_samples, _num_labels) = y_pred.shape
     indices: list[int] = []
-    # arg_sorted = np.argsort(y_pred, axis=1)[:, -top_k:]
     arg_sorted = np.argpartition(y_pred, -top_k, axis=1)[:, -top_k:]
     for i in range(num_samples):
         if y_true[i] in arg_sorted[i]:
             indices.append(i)
+
+    # NumPy version, for some reason it's slightly slower...
+    # y_true_expanded = y_true[:, np.newaxis]
+    # matches = np.any(arg_sorted == y_true_expanded, axis=1)
+    # indices = np.where(matches)[0].tolist()
 
     return indices
 
@@ -87,6 +91,7 @@ class Results:
 
         names = [label_names[label] if label != settings.NO_LABEL else "" for label in labels]
         self._label_names = label_names
+        self._lazy = lazy
 
         output_df = pl.DataFrame(
             {
@@ -100,7 +105,10 @@ class Results:
         self._results_df = pl.concat([self._results_df, output_df], how="horizontal")
         self._results_df = self._results_df.sort("sample", descending=False)
 
-        if np.all(self.labels == settings.NO_LABEL) is np.True_:
+        self._setup_metrics_and_flags()
+
+    def _setup_metrics_and_flags(self) -> None:
+        if np.all(self.labels == settings.NO_LABEL):
             self.missing_all_labels = True
         else:
             self.missing_all_labels = False
@@ -115,9 +123,15 @@ class Results:
             self._num_mistakes = self._valid_length - accuracy
             self._accuracy = accuracy / self._valid_length
 
-            if lazy is False:
+            if self._lazy is False:
                 _ = self.top_k
                 _ = self.confusion_matrix
+
+        else:
+            self.valid_idx = np.array([], dtype=bool)  # Empty boolean array
+            self._valid_length = 0
+            self._num_mistakes = np.nan
+            self._accuracy = np.nan
 
     def __len__(self) -> int:
         return len(self._results_df)
@@ -204,7 +218,7 @@ class Results:
     def confusion_matrix(self) -> npt.NDArray[np.int_]:
         return confusion_matrix(self.labels[self.valid_idx], self.predictions[self.valid_idx])  # type: ignore
 
-    def most_confused(self, n: int = 10) -> pl.DataFrame:
+    def most_confused_pairs(self, n: int = 10) -> pl.DataFrame:
         cnf_matrix = self.confusion_matrix.copy()
         np.fill_diagonal(cnf_matrix, -1)
         top_indices = np.argsort(cnf_matrix.ravel())[-n:][::-1]
@@ -227,7 +241,7 @@ class Results:
 
         return pl.DataFrame(data)
 
-    def get_as_df(self) -> pl.DataFrame:
+    def to_dataframe(self) -> pl.DataFrame:
         return self._results_df.clone()
 
     def detailed_report(self) -> pl.DataFrame:
@@ -403,6 +417,16 @@ class Results:
                 f"{self._valid_length} out of total {len(self)} samples"
             )
 
+    def filter_by_labels(self, target_label_indices: list[int]) -> "Results":
+        filtered_df = self._results_df.filter(pl.col("label").is_in(target_label_indices))
+
+        samples = filtered_df["sample"].to_list()
+        labels = filtered_df["label"].to_list()
+        predictions = filtered_df["prediction"].to_numpy()
+        output = filtered_df[:, Results.num_desc_cols :].to_numpy()
+
+        return Results(samples, labels, self._label_names, output, predictions, lazy=self._lazy)
+
     def save(self, name: str, append: bool = False) -> None:
         """
         Save results object to file
@@ -490,11 +514,13 @@ class SparseResults(Results):
         sample_list: list[str],
         labels: list[int],
         label_names: list[str],
-        output: npt.NDArray[np.float32],
+        output: Optional[npt.NDArray[np.float32]],
         predictions: Optional[npt.NDArray[np.int_]] = None,
         *,
         lazy: bool = True,
         sparse_k: int = 10,
+        sparse_probs: Optional[npt.NDArray[np.float32]] = None,
+        sparse_indices: Optional[npt.NDArray[np.int_]] = None,
     ):
         """
         Initialize a sparse result object
@@ -516,47 +542,47 @@ class SparseResults(Results):
             If False, all metrics will be computed during initialization.
         sparse_k
             Number of top probabilities to keep per sample.
+        sparse_probs
+            Pre-extracted top-k probabilities (used when loading from file).
+        sparse_indices
+            Pre-extracted top-k indices (used when loading from file).
         """
 
-        assert len(label_names) == len(output[0]), "Model output and label name list do not match"
-        assert len(sample_list) == len(output), "Each output must have a sample name"
-        assert sparse_k < output.shape[1], "sparse_k must be smaller than the number of classes"
-        assert sparse_k >= settings.TOP_K, "sparse_k must be larger than top-k being calculated"
+        if output is not None:
+            assert len(label_names) == len(output[0]), "Model output and label name list do not match"
+            assert len(sample_list) == len(output), "Each output must have a sample name"
+            assert sparse_k < output.shape[1], "sparse_k must be smaller than the number of classes"
+            assert sparse_k >= settings.TOP_K, "sparse_k must be larger than top-k being calculated"
 
-        self._sparse_k = min(sparse_k, len(label_names))
-        if predictions is None:
-            predictions = output.argmax(axis=1)
+            self._sparse_k = min(sparse_k, len(label_names))
+            if predictions is None:
+                predictions = output.argmax(axis=1)
+
+            # Extract and store only top-k probabilities and their indices
+            self._extract_sparse_probabilities(output)
+
+        elif sparse_indices is not None and sparse_probs is not None:
+            assert len(sample_list) == len(labels), "Each label must have a sample name"
+
+            self._sparse_indices = sparse_indices
+            self._sparse_probs = sparse_probs
+            self._sparse_k = sparse_indices.shape[1]  # Infer sparse_k from loaded data
+            if predictions is None:
+                predictions = sparse_indices[:, 0]
+
+        else:
+            raise ValueError("Either 'output' or 'sparse_indices' and 'sparse_probs' must be provided")
 
         names = [label_names[label] if label != settings.NO_LABEL else "" for label in labels]
         self._label_names = label_names
-
-        # Extract and store only top-k probabilities and their indices
-        self._extract_sparse_probabilities(output)
+        self._lazy = lazy
 
         self._results_df = pl.DataFrame(
             {"sample": sample_list, "label": labels, "label_name": names, "prediction": predictions}
         )
-        # self._results_df = pl.concat([self._results_df, output_df], how="horizontal")
         self._results_df = self._results_df.sort("sample", descending=False)
 
-        if np.all(self.labels == settings.NO_LABEL) is np.True_:
-            self.missing_all_labels = True
-        else:
-            self.missing_all_labels = False
-
-        # Calculate metrics
-        if self.missing_all_labels is False:
-            self.valid_idx = self.labels != settings.NO_LABEL
-            self._valid_length: int = np.sum(self.valid_idx).item()
-            accuracy: int = int(
-                accuracy_score(self.labels[self.valid_idx], self.predictions[self.valid_idx], normalize=False)
-            )
-            self._num_mistakes = self._valid_length - accuracy
-            self._accuracy = accuracy / self._valid_length
-
-            if lazy is False:
-                _ = self.top_k
-                _ = self.confusion_matrix
+        self._setup_metrics_and_flags()
 
     def _extract_sparse_probabilities(self, output: npt.NDArray[np.float32]) -> None:
         top_k_indices = np.argpartition(output, -self._sparse_k, axis=1)[:, -self._sparse_k :]
@@ -567,8 +593,67 @@ class SparseResults(Results):
         self._sparse_indices = np.take_along_axis(top_k_indices, sort_idx, axis=1).astype(np.int32)
         self._sparse_probs = np.take_along_axis(top_k_probs, sort_idx, axis=1)
 
+    def filter_by_labels(self, target_label_indices: list[int]) -> "SparseResults":
+        indexed_df = self._results_df.with_row_index("original_index")
+        filtered_indexed_df = indexed_df.filter(pl.col("label").is_in(target_label_indices))
+
+        original_row_indices = filtered_indexed_df["original_index"].to_numpy()
+
+        samples = filtered_indexed_df["sample"].to_list()
+        labels = filtered_indexed_df["label"].to_list()
+        predictions = filtered_indexed_df["prediction"].to_numpy()
+
+        sparse_probs = self._sparse_probs[original_row_indices]
+        sparse_indices = self._sparse_indices[original_row_indices]
+
+        return SparseResults(
+            samples,
+            labels,
+            self._label_names,
+            output=None,
+            predictions=predictions,
+            lazy=self._lazy,
+            sparse_k=self._sparse_k,
+            sparse_probs=sparse_probs,
+            sparse_indices=sparse_indices,
+        )
+
     def save(self, name: str, append: bool = False) -> None:
-        raise NotImplementedError("Cannot save SparseResults object")
+        """
+        Save sparse results object to file
+        """
+
+        if settings.RESULTS_DIR.exists() is False:
+            logger.info(f"Creating {settings.RESULTS_DIR} directory...")
+            settings.RESULTS_DIR.mkdir(parents=True)
+
+        results_path = settings.RESULTS_DIR.joinpath(name)
+
+        # Prepare sparse data for DataFrame
+        sparse_dict = {}
+        for k_val in range(self._sparse_k):
+            sparse_dict[f"prob_{k_val}"] = self._sparse_probs[:, k_val].astype(np.float32)
+            sparse_dict[f"idx_{k_val}"] = self._sparse_indices[:, k_val].astype(np.int32)
+
+        sparse_df = pl.DataFrame(sparse_dict)
+        sparse_results_df = pl.concat([self._results_df, sparse_df], how="horizontal")
+
+        if append is False:
+            logger.info(f"Saving results at {results_path}")
+
+            # Write label names list
+            with open(results_path, "w", encoding="utf-8") as handle:
+                handle.write("," * Results.num_desc_cols)
+                handle.write(",".join(self._label_names))
+                handle.write(os.linesep)
+
+            # Write the data frame
+            with open(results_path, "a", encoding="utf-8") as handle:
+                sparse_results_df.write_csv(handle)
+        else:
+            logger.info(f"Adding results to {results_path}")
+            with open(results_path, "a", encoding="utf-8") as handle:
+                sparse_results_df.write_csv(handle, include_header=False)
 
     @property
     def output(self) -> npt.NDArray[np.float64]:
@@ -592,26 +677,49 @@ class SparseResults(Results):
         """
         Load results object from file
 
+        This method automatically detects whether the file is in sparse format
+        (only top-k probabilities and corresponding class indices stored) or regular format
+        (full probability distribution stored).
+
         Parameters
         ----------
         path
-            Path to load from.
+            Path to the saved results file (CSV or gzipped CSV).
         lazy
             If True, metrics and computed properties will be lazily evaluated (computed only when accessed).
             If False, all metrics will be computed during initialization.
         sparse_k
-            Number of top probabilities to keep per sample.
+            Number of top probabilities to keep per sample when loading from a regular (non-sparse) file.
+            For sparse files, this value is ignored.
         """
 
-        # Read label names
-        if path.endswith(".gz") is True:
-            with gzip.open(path, "rt", encoding="utf-8") as handle:
-                label_names = handle.readline().rstrip(os.linesep).split(",")
-                label_names = label_names[Results.num_desc_cols :]
-        else:
-            with open(path, "r", encoding="utf-8") as handle:
-                label_names = handle.readline().rstrip(os.linesep).split(",")
-                label_names = label_names[Results.num_desc_cols :]
+        (label_names, detected_sparse_k) = detect_file_format(path)
+
+        if detected_sparse_k is not None:
+            schema_overrides = {
+                "sample": pl.String,
+                "label": pl.Int32,
+                "label_name": pl.String,
+                "prediction": pl.Int32,
+                **{f"prob_{i}": pl.Float32 for i in range(detected_sparse_k)},
+                **{f"idx_{i}": pl.Int32 for i in range(detected_sparse_k)},
+            }
+            results_df = pl.read_csv(path, skip_rows=1, schema_overrides=schema_overrides)
+
+            probs = np.stack([results_df[f"prob_{i}"].to_numpy() for i in range(detected_sparse_k)], axis=1)
+            indices = np.stack([results_df[f"idx_{i}"].to_numpy() for i in range(detected_sparse_k)], axis=1)
+
+            return SparseResults(
+                results_df["sample"].to_list(),
+                results_df["label"].to_list(),
+                label_names,
+                output=None,
+                predictions=results_df["prediction"].to_numpy(),
+                lazy=lazy,
+                sparse_k=detected_sparse_k,
+                sparse_probs=probs,
+                sparse_indices=indices,
+            )
 
         # Read the data frame
         schema_overrides = {
@@ -628,9 +736,94 @@ class SparseResults(Results):
             label_names,
             results_df[:, Results.num_desc_cols :].to_numpy(),
             results_df["prediction"].to_numpy(),
-            sparse_k=sparse_k,
             lazy=lazy,
+            sparse_k=sparse_k,
         )
+
+
+def detect_file_format(path: str) -> tuple[list[str], Optional[int]]:
+    """
+    Detect file format and extract metadata from results file
+
+    Parameters
+    ----------
+    path
+        Path to the results file (CSV or gzipped CSV)
+
+    Returns
+    -------
+    A tuple containing:
+    - label_names: List of label names extracted from first line
+    - sparse_k: Number of top-k probabilities if sparse format, None if regular format
+    """
+
+    # Read label names and peek at header to detect format
+    if path.endswith(".gz") is True:
+        with gzip.open(path, "rt", encoding="utf-8") as handle:
+            label_names = handle.readline().rstrip(os.linesep).split(",")
+            label_names = label_names[Results.num_desc_cols :]
+
+            # Peek at the header line to detect format
+            header_cols = handle.readline().rstrip(os.linesep).split(",")
+    else:
+        with open(path, "r", encoding="utf-8") as handle:
+            label_names = handle.readline().rstrip(os.linesep).split(",")
+            label_names = label_names[Results.num_desc_cols :]
+
+            # Peek at the header line to detect format
+            header_cols = handle.readline().rstrip(os.linesep).split(",")
+
+    # Detect format by looking for sparse-specific columns
+    has_prob_col = any(col.startswith("prob_") for col in header_cols)
+    has_idx_col = any(col.startswith("idx_") for col in header_cols)
+    is_sparse_format = has_prob_col and has_idx_col
+
+    if is_sparse_format is True:
+        # Count the number of prob_ columns to determine sparse_k
+        sparse_k = len([col for col in header_cols if col.startswith("prob_")])
+        return (label_names, sparse_k)
+
+    return (label_names, None)
+
+
+def load_results(path: str, lazy: bool = True) -> Results | SparseResults:
+    """
+    Automatically detect and load results from either regular or sparse format files
+
+    This function examines the file structure to determine whether it contains
+    regular results (full probability distributions) or sparse results (only top-k
+    probabilities and indices), then loads using the appropriate class.
+
+    Parameters
+    ----------
+    path
+        Path to the results file (CSV or gzipped CSV)
+    lazy
+        If True, metrics and computed properties will be lazily evaluated.
+        If False, all metrics will be computed during initialization.
+
+    Returns
+    -------
+    Loaded results object of the appropriate type, Results or SparseResults
+
+    Examples
+    --------
+    >>> results = load_results("model_results.csv")
+    >>> type(results)
+    <class 'birder.results.classification.Results'>
+
+    >>> sparse_results = load_results("model_results_sparse.csv")
+    >>> type(sparse_results)
+    <class 'birder.results.classification.SparseResults'>
+    """
+
+    (_, sparse_k) = detect_file_format(path)
+
+    # Load using appropriate class
+    if sparse_k is not None:
+        return SparseResults.load(path, lazy=lazy)
+
+    return Results.load(path, lazy=lazy)
 
 
 def compare_results(results_dict: dict[str, Results | SparseResults], include_top_k: bool = True) -> pl.DataFrame:

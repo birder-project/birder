@@ -47,7 +47,7 @@ echo "Tasks per node: $SLURM_NTASKS_PER_NODE"
 echo "Total tasks: $SLURM_NTASKS"
 echo "Node list: $SLURM_JOB_NODELIST"
 echo "Partition: $SLURM_JOB_PARTITION"
-echo "Start time: $(date)"
+echo "Current time: $(date)"
 echo "======================="
 echo ""
 

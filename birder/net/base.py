@@ -54,6 +54,39 @@ def make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> i
     return new_v
 
 
+# class MiscNet(nn.Module):
+#     """
+#     Base class for general-purpose neural networks with automatic model registration
+
+#     MiscNet provides a minimal foundation for integrating arbitrary PyTorch models into a unified model ecosystem.
+#     Unlike specialized base classes (e.g., DetectionBaseNet for object detection),
+#     MiscNet imposes minimal constraints and is suitable for any neural network architecture
+#     that doesn't fit into specific task categories.
+#     """
+
+#     auto_register = False
+#     scriptable = True
+#     task = str(Task.MISCELLANEOUS)
+
+#     def __init_subclass__(cls) -> None:
+#         if cls.auto_register is False:
+#             # Exclude networks with custom config (initialized only with aliases)
+#             return
+
+#         registry.register_model(cls.__name__.lower(), cls)
+
+#     def __init__(self, *, config: Optional[dict[str, Any]] = None) -> None:
+#         super().__init__()
+#         if hasattr(self, "config") is False:  # Avoid overriding aliases
+#             self.config = config
+#         elif config is not None:
+#             assert self.config is not None
+#             self.config.update(config)  # Override with custom config
+
+#     def forward(self, x: torch.Tensor) -> torch.Tensor:
+#         raise NotImplementedError
+
+
 class BaseNet(nn.Module):
     default_size: tuple[int, int] = (224, 224)
     block_group_regex: Optional[str]

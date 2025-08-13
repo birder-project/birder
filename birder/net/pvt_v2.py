@@ -505,7 +505,7 @@ registry.register_weights(
                 "sha256": "1b160a37d6fdd172ba21842de2d32cf2cc9524db155218a6949be81b88a70fe4",
             }
         },
-        "net": {"network": "pvt_v2_b2", "tag": "il-all"},
+        "net": {"network": "pvt_v2_b2", "tag": "mmcr-il-all256px"},
     },
 )
 registry.register_weights(
@@ -520,6 +520,6 @@ registry.register_weights(
                 "sha256": "c0ffa0feb298e40c4335347ff648fe952fb0310e4c931d79be96a6af6bcbf1eb",
             }
         },
-        "net": {"network": "pvt_v2_b2", "tag": "il-all"},
+        "net": {"network": "pvt_v2_b2", "tag": "mmcr-il-all"},
     },
 )

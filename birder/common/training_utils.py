@@ -589,9 +589,9 @@ def get_training_transform(args: argparse.Namespace) -> Callable[..., torch.Tens
 ###############################################################################
 
 
-def to_tensor(x: torch.Tensor | float, device: torch.device) -> torch.Tensor:
+def to_tensor(x: torch.Tensor | float, device: Optional[torch.device] = None) -> torch.Tensor:
     if isinstance(x, torch.Tensor):
-        return x.to(device)
+        return x.to(device) if device is not None else x
 
     return torch.tensor(x, device=device)
 
@@ -605,22 +605,21 @@ class SmoothedValue:
         self.total: torch.Tensor | float = 0.0
         self.count: int = 0
 
-    def update(self, value: torch.Tensor | float) -> None:
+    def update(self, value: torch.Tensor | float, n: int = 1) -> None:
         self.deque.append(value)
-        self.count += 1
-        self.total += value
+        self.count += n
+        self.total += value * n
 
-    def synchronize_between_processes(self, device: torch.device) -> None:
+    def synchronize_between_processes(self, device: torch.device, op: dist.ReduceOp = dist.ReduceOp.AVG) -> None:
         if is_dist_available_and_initialized() is False:
             return
 
-        # logger.debug("Synchronizing values")
-        count = to_tensor(self.count, device=device).to(dtype=torch.float64).reshape(1)
-        total = to_tensor(self.total, device=device).to(dtype=torch.float64).reshape(1)
+        count = to_tensor(self.count).to(device=device, dtype=torch.float64).reshape(1)
+        total = to_tensor(self.total).to(device=device, dtype=torch.float64).reshape(1)
         tensor_deque = torch.tensor(list(self.deque), dtype=torch.float64, device=device)
         t = torch.concat([count, total, tensor_deque], dim=0)
         dist.barrier()
-        dist.all_reduce(t, op=dist.ReduceOp.AVG)
+        dist.all_reduce(t, op=op)
         self.count = int(t[0].cpu().item())
         self.total = t[1]
         self.deque = deque(list(t[2:]), maxlen=self.window_size)

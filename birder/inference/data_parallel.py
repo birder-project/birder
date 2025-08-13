@@ -188,9 +188,10 @@ class InferenceDataParallel(nn.Module):
             return output.to(self.output_device)
 
         # Move all outputs to output device and concatenate
+        non_blocking = self.output_device.type == "cuda"
         gathered = []
         for output in valid_outputs:
-            gathered.append(output.to(self.output_device, non_blocking=True))
+            gathered.append(output.to(self.output_device, non_blocking=non_blocking))
 
         if self.output_device.type == "cuda":
             torch.cuda.synchronize(self.output_device)

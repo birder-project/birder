@@ -46,7 +46,10 @@ def main(args: argparse.Namespace) -> None:
 
     model_metadata = registry.get_pretrained_metadata(args.model_name)
     if args.format not in model_metadata["formats"]:
-        logger.warning(f"Available formats for {args.model_name} are: {list(model_metadata['formats'].keys())}")
+        logger.warning(
+            f"Requested format '{args.format}' not found, "
+            f"available formats for {args.model_name} are: {list(model_metadata['formats'].keys())}"
+        )
         raise SystemExit(1)
 
     (model_file, url) = get_pretrained_model_url(args.model_name, args.format)

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 from typing import NamedTuple
 from typing import Optional
+from typing import overload
 from urllib.request import Request
 from urllib.request import urlopen
 
@@ -90,8 +91,11 @@ def read_config(network_name: str) -> dict[str, Any]:
 
 def read_config_from_path(path: str | Path) -> dict[str, Any]:
     logger.info(f"Reading {path}")
-    with open(path, "r", encoding="utf-8") as handle:
-        model_config: dict[str, Any] = json.load(handle)
+    if isinstance(path, str) and "://" in path:
+        model_config: dict[str, Any] = json.loads(read_url(path))
+    else:
+        with open(path, "r", encoding="utf-8") as handle:
+            model_config = json.load(handle)
 
     return model_config
 
@@ -623,7 +627,7 @@ def load_model(
         for param in net.parameters():
             param.requires_grad = False
 
-        if pt2 is False:  # Remove when GraphModule add support for 'eval'
+        if pt2 is False:  # NOTE: Remove when GraphModule add support for 'eval'
             net.eval()
 
     if len(loaded_config) == 0:
@@ -1009,7 +1013,9 @@ def download_model_by_weights(
         raise ValueError("ptl format not supported")
     if file_format not in model_metadata["formats"]:
         available_formats = ", ".join(model_metadata["formats"].keys())
-        raise ValueError(f"{file_format} not available for {weights}, available formats: {available_formats}")
+        raise ValueError(
+            f"Requested format '{file_format}' not available for {weights}, available formats are: {available_formats}"
+        )
 
     (model_file, url) = get_pretrained_model_url(weights, file_format)
     if dst is None:
@@ -1102,40 +1108,76 @@ def file_iter(data_path: str, extensions: list[str]) -> Iterator[str]:
                 yield file_path
 
 
-def sample_iter(data_path: str, class_to_idx: dict[str, int], hierarchical: bool = False) -> Iterator[tuple[str, int]]:
-    """
-    Generate file paths of specified path (file path, label)
+@overload
+def collect_samples(
+    data_path: str, class_to_idx: dict[str, int], hierarchical: bool = False
+) -> list[tuple[str, int]]: ...
 
-    If the data path is a directory, the function will recursively walk through the directory,
-    including all subdirectories, and yield file paths of any files that have a matching file extension.
+
+@overload
+def collect_samples(data_path: str, class_to_idx: None = None, hierarchical: bool = False) -> list[str]: ...
+
+
+def collect_samples(
+    data_path: str, class_to_idx: Optional[dict[str, int]] = None, hierarchical: bool = False
+) -> list[tuple[str, int]] | list[str]:
     """
+    Collect image file paths (and optionally their class indices) from a given path.
+
+    If 'data_path' is a directory, the function will recursively traverse it,
+    including all subdirectories, collecting files that match IMG_EXTENSIONS.
+
+    If 'data_path' is a single file, it will be included only if it has a valid image extension.
+    """
+
+    results: list[Any] = []  # Actually list[tuple[str, int]] | list[str], but mypy cannot infer that
 
     if os.path.isdir(data_path) is True:
         for file_path in file_iter(data_path, extensions=IMG_EXTENSIONS):
-            label = lib.get_label_from_path(file_path, hierarchical=hierarchical, root=data_path)
-            if label in class_to_idx:
-                yield (file_path, class_to_idx[label])
+            if class_to_idx is None:
+                results.append(file_path)
             else:
-                yield (file_path, settings.NO_LABEL)
+                label = lib.get_label_from_path(file_path, hierarchical=hierarchical, root=data_path)
+                results.append((file_path, class_to_idx.get(label, settings.NO_LABEL)))
 
     else:
         suffix = os.path.splitext(data_path)[1].lower()
-        label = lib.get_label_from_path(data_path)
         if suffix in IMG_EXTENSIONS:
-            if label in class_to_idx:
-                yield (data_path, class_to_idx[label])
+            if class_to_idx is None:
+                results.append(data_path)
             else:
-                yield (data_path, settings.NO_LABEL)
+                label = lib.get_label_from_path(data_path)
+                results.append((data_path, class_to_idx.get(label, settings.NO_LABEL)))
+
+    return results
 
 
-def samples_from_paths(
-    data_paths: list[str], class_to_idx: dict[str, int], hierarchical: bool = False
-) -> list[tuple[str, int]]:
-    samples: list[tuple[str, int]] = []
+@overload
+def collect_samples_from_paths(
+    data_paths: list[str], class_to_idx: dict[str, int], hierarchical: bool = False, return_sorted: bool = True
+) -> list[tuple[str, int]]: ...
+
+
+@overload
+def collect_samples_from_paths(
+    data_paths: list[str], class_to_idx: None = None, hierarchical: bool = False, return_sorted: bool = True
+) -> list[str]: ...
+
+
+def collect_samples_from_paths(
+    data_paths: list[str],
+    class_to_idx: Optional[dict[str, int]] = None,
+    hierarchical: bool = False,
+    return_sorted: bool = True,
+) -> list[tuple[str, int]] | list[str]:
+    samples: list[Any] = []  # Actually list[tuple[str, int]] | list[str], but mypy cannot infer that
     for data_path in data_paths:
-        samples.extend(sample_iter(data_path, class_to_idx=class_to_idx, hierarchical=hierarchical))
+        samples.extend(collect_samples(data_path, class_to_idx=class_to_idx, hierarchical=hierarchical))
 
-    return sorted(samples)
+    if return_sorted is True:
+        return sorted(samples)
+
+    return samples
 
 
 def wds_braces_from_path(wds_directory: Path, prefix: str = "") -> tuple[str, int]:

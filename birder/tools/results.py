@@ -13,7 +13,10 @@ from rich.table import Table
 from birder.common import cli
 from birder.conf import settings
 from birder.results.classification import Results
+from birder.results.classification import SparseResults
 from birder.results.classification import compare_results
+from birder.results.classification import detect_file_format
+from birder.results.classification import load_results
 from birder.results.gui import ROC
 from birder.results.gui import ConfusionMatrix
 from birder.results.gui import PrecisionRecall
@@ -105,7 +108,7 @@ def print_report(results_dict: dict[str, Results]) -> None:
 
 
 def print_most_confused_pairs(results: Results) -> None:
-    most_confused_df = results.most_confused(n=14)
+    most_confused_df = results.most_confused_pairs(n=14)
 
     console = Console()
 
@@ -122,6 +125,26 @@ def print_most_confused_pairs(results: Results) -> None:
     console.print(table)
 
 
+def convert_to_sparse(results_file: str, sparse_k: int) -> None:
+    logger.info(f"Converting {results_file} to sparse format (k={sparse_k})...")
+    (_, detected_sparse_k) = detect_file_format(results_file)
+
+    if detected_sparse_k is not None:
+        logger.info(f"File is already in sparse format (with k={detected_sparse_k}). Skipping conversion.")
+        return
+
+    sparse_results = SparseResults.load(results_file, sparse_k=sparse_k)
+
+    input_path = Path(results_file)
+    output_path = input_path.with_stem(f"{input_path.stem}_sparse")
+    if output_path.exists() is True:
+        logger.warning(f"Target file already exists: {output_path}. Skipping conversion.")
+        return
+
+    relative_path = output_path.relative_to(settings.RESULTS_DIR)
+    sparse_results.save(str(relative_path))
+
+
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "results",
@@ -131,7 +154,7 @@ def set_parser(subparsers: Any) -> None:
         epilog=(
             "Usage examples:\n"
             "python -m birder.tools results results/vit_l16_mim340_218_e0_448px_crop1.0_10883.csv "
-            "--cnf --cnf-mistakes\n"
+            "--cnf --cnf-errors-only\n"
             'python -m birder.tools results results/deit_2_* --print --classes "Lesser kestrel" '
             '"Common kestrel" "*swan"\n'
             "python -m birder.tools results results/inception_resnet_v2_105_e100_299px_crop1.0_3150.csv "
@@ -148,6 +171,8 @@ def set_parser(subparsers: Any) -> None:
             '--prob-hist "Common kestrel" "Lesser kestrel"\n'
             "python -m birder.tools results results/squeezenet_il-common_367_e0_259px_crop1.0_13029.csv "
             "--most-confused\n"
+            "python -m birder.tools results results/inat21/rope_vit_b14_inat21_10000_336px_crop1.0_100000.csv.gz "
+            "--to-sparse --sparse-k 15\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -156,14 +181,17 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--save-summary", default=False, action="store_true", help="save results summary as csv")
     subparser.add_argument("--summary-suffix", type=str, help="add suffix to summary file")
     subparser.add_argument(
-        "--print-mistakes", default=False, action="store_true", help="print only classes with non-perfect f1-score"
+        "--imperfect-only",
+        default=False,
+        action="store_true",
+        help="display only classes with imperfect performance (F1 < 1.0)",
     )
     subparser.add_argument("--classes", default=[], type=str, nargs="+", help="class names to compare")
     subparser.add_argument("--list-mistakes", default=False, action="store_true", help="list all mistakes")
     subparser.add_argument("--list-out-of-k", default=False, action="store_true", help="list all samples not in top-k")
     subparser.add_argument("--cnf", default=False, action="store_true", help="plot confusion matrix")
     subparser.add_argument(
-        "--cnf-mistakes",
+        "--cnf-errors-only",
         default=False,
         action="store_true",
         help="show only classes with mistakes at the confusion matrix",
@@ -175,36 +203,42 @@ def set_parser(subparsers: Any) -> None:
         "--prob-hist", type=str, nargs=2, help="classes to plot probability histogram against each other"
     )
     subparser.add_argument("--most-confused", default=False, action="store_true", help="print most confused pairs")
+    subparser.add_argument(
+        "--to-sparse", default=False, action="store_true", help="convert regular results file to sparse format"
+    )
+    subparser.add_argument("--sparse-k", type=int, default=10, help="number of top probabilities to keep per sample")
     subparser.add_argument("result_files", type=str, nargs="+", help="result files to process")
     subparser.set_defaults(func=main)
 
 
 # pylint: disable=too-many-branches
 def main(args: argparse.Namespace) -> None:
-    results_dict: dict[str, Results] = {}
+    if args.to_sparse is True:
+        # Type conversion exits early, no further flag handling is done
+        logger.info(f"Converting {len(args.result_files)} file(s) to sparse format...")
+        for results_file in args.result_files:
+            convert_to_sparse(results_file, args.sparse_k)
+
+        return
+
+    results_dict: dict[str, Results | SparseResults] = {}
     for results_file in args.result_files:
-        results = Results.load(results_file)
+        results = load_results(results_file)
         result_name = results_file.split("/")[-1]
         results_dict[result_name] = results
 
     if args.print is True:
-        if args.print_mistakes is True and len(results_dict) > 1:
+        if args.imperfect_only is True and len(results_dict) > 1:
             logger.warning("Cannot print mistakes in compare mode. processing only the first file")
 
-        if args.print_mistakes is True:
+        if args.imperfect_only is True:
             (result_name, results) = next(iter(results_dict.items()))
-            label_names_arr = np.array(results.label_names)
-            classes_list: list[str] = label_names_arr[results.mistakes["prediction"].unique()].tolist()
-            classes_list.extend(list(results.mistakes["label_name"].unique()))
-            results_df = results.get_as_df().filter(pl.col("label_name").is_in(classes_list))
+            mistake_prediction_indices = results.mistakes["prediction"].unique().to_numpy().tolist()
+            mistake_label_indices = results.mistakes["label"].unique().to_numpy().tolist()
+            imperfect_class_indices = np.unique(mistake_prediction_indices + mistake_label_indices).tolist()
 
-            results = Results(
-                results_df["sample"].to_list(),
-                results_df["label"].to_list(),
-                results.label_names,
-                results_df[:, Results.num_desc_cols :].to_numpy(),
-            )
-            results_dict = {result_name: results}
+            new_results = results.filter_by_labels(imperfect_class_indices)
+            results_dict = {result_name: new_results}
 
         print_report(results_dict)
         if len(args.classes) > 0:
@@ -245,25 +279,20 @@ def main(args: argparse.Namespace) -> None:
 
         results = next(iter(results_dict.values()))
         if len(args.classes) > 0:
-            results_df = results.get_as_df().filter(pl.col("label_name").is_in(args.classes))
-            cnf_results = Results(
-                results_df["sample"].to_list(),
-                results_df["label"].to_list(),
-                results.label_names,
-                results_df[:, Results.num_desc_cols :].to_numpy(),
-            )
+            selected_class_indices = []
+            for pattern in args.classes:
+                selected_class_indices.extend(
+                    [idx for idx, name in enumerate(results.label_names) if fnmatch.fnmatch(name, pattern)]
+                )
 
-        elif args.cnf_mistakes is True:
-            label_names_arr = np.array(results.label_names)
-            classes_list: list[str] = label_names_arr[results.mistakes["prediction"].unique()].tolist()  # type: ignore
-            classes_list.extend(list(results.mistakes["label_name"].unique()))
-            results_df = results.get_as_df().filter(pl.col("label_name").is_in(classes_list))
-            cnf_results = Results(
-                results_df["sample"].to_list(),
-                results_df["label"].to_list(),
-                results.label_names,
-                results_df[:, Results.num_desc_cols :].to_numpy(),
-            )
+            cnf_results = results.filter_by_labels(np.unique(selected_class_indices).tolist())
+
+        elif args.cnf_errors_only is True:
+            mistake_prediction_indices = results.mistakes["prediction"].unique().to_numpy().tolist()
+            mistake_label_indices = results.mistakes["label"].unique().to_numpy().tolist()
+            imperfect_class_indices = np.unique(mistake_prediction_indices + mistake_label_indices).tolist()
+
+            cnf_results = results.filter_by_labels(imperfect_class_indices)
 
         else:
             cnf_results = results
@@ -278,6 +307,13 @@ def main(args: argparse.Namespace) -> None:
     if args.roc is True:
         roc = ROC()
         for name, results in results_dict.items():
+            if isinstance(results, SparseResults):
+                logger.warning(
+                    f"Skipping ROC curve for '{name}' as it is a SparseResults object. "
+                    "ROC curve requires full probability outputs."
+                )
+                continue
+
             roc.add_result(Path(name).name, results)
 
         roc.show(args.classes)
@@ -285,6 +321,12 @@ def main(args: argparse.Namespace) -> None:
     if args.pr_curve is True:
         pr_curve = PrecisionRecall()
         for name, results in results_dict.items():
+            if isinstance(results, SparseResults):
+                logger.warning(
+                    f"Skipping Precision-Recall curve for '{name}' as it is a SparseResults object. "
+                    "Precision-Recall curve requires full probability outputs."
+                )
+                continue
             pr_curve.add_result(Path(name).name, results)
 
         pr_curve.show(args.classes)
@@ -294,6 +336,13 @@ def main(args: argparse.Namespace) -> None:
             logger.warning("Cannot compare probability histograms, processing only the first file")
 
         results = next(iter(results_dict.values()))
+        if isinstance(results, SparseResults):
+            logger.warning(
+                "Probability histogram is not supported for SparseResults objects. "
+                "It requires full probability outputs."
+            )
+            return  # Exit early as this feature is not supported for sparse data
+
         ProbabilityHistogram(results).show(*args.prob_hist)
 
     if args.most_confused is True:

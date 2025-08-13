@@ -23,6 +23,7 @@ from birder.data.transforms.classification import inference_preset
 from birder.inference.classification import infer_dataloader_iter
 from birder.inference.data_parallel import InferenceDataParallel
 from birder.results.classification import Results
+from birder.results.classification import SparseResults
 from birder.results.gui import show_top_k
 
 logger = logging.getLogger(__name__)
@@ -245,6 +246,12 @@ def predict(args: argparse.Namespace) -> None:
     if args.suffix is not None:
         base_output_path = f"{base_output_path}_{args.suffix}"
 
+    if args.save_sparse_results is True:
+        results_file_suffix = "_sparse.csv"
+    else:
+        results_file_suffix = ".csv"
+
+    results_path = f"{base_output_path}{results_file_suffix}"
     embeddings_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_embeddings.csv")
     output_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_output.csv")
     label_names = list(class_to_idx.keys())
@@ -279,11 +286,16 @@ def predict(args: argparse.Namespace) -> None:
                 if args.save_output is True:
                     save_output(output_path, sample_paths, label_names, outs, append=append)
 
-                # Handle results
-                results = Results(sample_paths, labels, label_names, output=outs)
+                # Handle results (Results / SparseResults)
+                results: Results | SparseResults
+                if args.save_sparse_results is True:
+                    results = SparseResults(sample_paths, labels, label_names, output=outs)
+                else:
+                    results = Results(sample_paths, labels, label_names, output=outs)
+
                 if results.missing_all_labels is False:
-                    if args.save_results is True:
-                        results.save(f"{base_output_path}.csv", append=append)
+                    if args.save_results is True or args.save_sparse_results is True:
+                        results.save(results_path, append=append)
                     if args.chunk_size is None:
                         results.log_short_report()
 
@@ -402,6 +414,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--shuffle", default=False, action="store_true", help="predict samples in random order")
     parser.add_argument("--summary", default=False, action="store_true", help="log prediction summary")
     parser.add_argument("--save-results", default=False, action="store_true", help="save results object")
+    parser.add_argument(
+        "--save-sparse-results",
+        default=False,
+        action="store_true",
+        help="save results object in memory-efficient sparse format (only top-k probabilities)",
+    )
     parser.add_argument("--save-output", default=False, action="store_true", help="save raw output as CSV")
     parser.add_argument("--save-embeddings", default=False, action="store_true", help="save embedding layer outputs")
     parser.add_argument("--suffix", type=str, help="add suffix to output file")

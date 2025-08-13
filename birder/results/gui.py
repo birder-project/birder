@@ -351,7 +351,7 @@ class ProbabilityHistogram:
         self.results = results
 
     def show(self, cls_a: str, cls_b: str) -> None:
-        results_df = self.results.get_as_df()
+        results_df = self.results.to_dataframe()
         hist = partial(np.histogram, bins=20, range=(0, 1), density=True)
 
         cls_a_df = results_df.filter(pl.col("label_name") == cls_a)

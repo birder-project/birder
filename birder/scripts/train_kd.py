@@ -582,7 +582,7 @@ def train(args: argparse.Namespace) -> None:
             if targets.ndim == 2:
                 targets = targets.argmax(dim=1)
 
-            train_accuracy.update(training_utils.accuracy(targets, outputs))
+            train_accuracy.update(training_utils.accuracy(targets, outputs.detach()))
 
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
@@ -661,7 +661,7 @@ def train(args: argparse.Namespace) -> None:
 
                 # Statistics
                 running_val_loss.update(val_loss.detach())
-                val_accuracy.update(training_utils.accuracy(targets, outputs))
+                val_accuracy.update(training_utils.accuracy(targets, outputs), n=outputs.size(0))
 
                 # Update progress bar
                 progress.update(n=batch_size * args.world_size)

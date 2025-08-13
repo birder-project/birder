@@ -56,6 +56,28 @@ class TestClassification(unittest.TestCase):
         cnf = results.confusion_matrix
         self.assertSequenceEqual(cnf.shape, (4, 4))
 
+    def test_results_filter(self) -> None:
+        sample_list = ["file1.jpeg", "file2.jpg", "file3.jpeg", "file4.jpeg", "file5.png", "file6.webp"]
+        labels = [0, 0, 2, 1, 1, 3]
+        label_names = ["l0", "l1", "l2", "l3"]
+        output = np.array(
+            [
+                [0.1, 0.25, 0.5, 0.15],
+                [0.25, 0.5, 0.15, 0.1],
+                [0.1, 0.25, 0.5, 0.15],
+                [0.1, 0.25, 0.5, 0.15],
+                [0.1, 0.15, 0.5, 0.25],
+                [0.1, 0.25, 0.5, 0.15],
+            ]
+        )
+
+        results = Results(sample_list, labels, label_names, output)
+        filtered_results = results.filter_by_labels([0, 2])
+
+        self.assertEqual(len(filtered_results), 3)
+        self.assertFalse(filtered_results.missing_labels)
+        self.assertAlmostEqual(filtered_results.accuracy, 1.0 / 3.0)
+
     def test_partial_results(self) -> None:
         sample_list = ["file1.jpeg", "file2.jpg", "file3.jpeg", "file4.jpeg", "file5.png", "file6.webp"]
         labels = [0, settings.NO_LABEL, 2, settings.NO_LABEL, 1, 3]
@@ -113,6 +135,28 @@ class TestClassification(unittest.TestCase):
 
         cnf = results.confusion_matrix
         self.assertSequenceEqual(cnf.shape, (4, 4))
+
+    def test_sparse_results_filter(self) -> None:
+        sample_list = ["file1.jpeg", "file2.jpg", "file3.jpeg", "file4.jpeg", "file5.png", "file6.webp"]
+        labels = [0, 0, 2, 1, 1, 3]
+        label_names = ["l0", "l1", "l2", "l3"]
+        output = np.array(
+            [
+                [0.1, 0.25, 0.5, 0.15],
+                [0.25, 0.5, 0.15, 0.1],
+                [0.1, 0.25, 0.5, 0.15],
+                [0.1, 0.25, 0.5, 0.15],
+                [0.1, 0.15, 0.5, 0.25],
+                [0.1, 0.25, 0.5, 0.15],
+            ]
+        )
+
+        results = SparseResults(sample_list, labels, label_names, output, sparse_k=3)
+        filtered_results = results.filter_by_labels([0, 2])
+
+        self.assertEqual(len(filtered_results), 3)
+        self.assertFalse(filtered_results.missing_labels)
+        self.assertAlmostEqual(filtered_results.accuracy, 1.0 / 3.0)
 
     def test_partial_sparse_results(self) -> None:
         sample_list = ["file1.jpeg", "file2.jpg", "file3.jpeg", "file4.jpeg", "file5.png", "file6.webp"]

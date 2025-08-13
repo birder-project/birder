@@ -2,6 +2,7 @@ import sys
 from collections.abc import Callable
 from collections.abc import Iterator
 from typing import Any
+from typing import Literal
 from typing import Optional
 from typing import overload
 
@@ -17,6 +18,7 @@ from torchvision.transforms.v2.functional import five_crop
 from tqdm import tqdm
 
 from birder.results.classification import Results
+from birder.results.classification import SparseResults
 
 
 def infer_image(
@@ -349,6 +351,7 @@ def infer_dataloader(
     return result_iter
 
 
+@overload
 def evaluate(
     device: torch.device,
     net: torch.nn.Module | torch.ScriptModule,
@@ -359,10 +362,41 @@ def evaluate(
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
     num_samples: Optional[int] = None,
-) -> Results:
+    sparse: Literal[False] = False,
+) -> Results: ...
+
+
+@overload
+def evaluate(
+    device: torch.device,
+    net: torch.nn.Module | torch.ScriptModule,
+    dataloader: DataLoader,
+    class_to_idx: dict[str, int],
+    tta: bool = False,
+    model_dtype: torch.dtype = torch.float32,
+    amp: bool = False,
+    amp_dtype: Optional[torch.dtype] = None,
+    num_samples: Optional[int] = None,
+    sparse: Literal[True] = True,
+) -> SparseResults: ...
+
+
+def evaluate(
+    device: torch.device,
+    net: torch.nn.Module | torch.ScriptModule,
+    dataloader: DataLoader,
+    class_to_idx: dict[str, int],
+    tta: bool = False,
+    model_dtype: torch.dtype = torch.float32,
+    amp: bool = False,
+    amp_dtype: Optional[torch.dtype] = None,
+    num_samples: Optional[int] = None,
+    sparse: bool = False,
+) -> Results | SparseResults:
     (sample_paths, outs, labels, _) = infer_dataloader(
         device, net, dataloader, tta=tta, model_dtype=model_dtype, amp=amp, amp_dtype=amp_dtype, num_samples=num_samples
     )
-    results = Results(sample_paths, labels, list(class_to_idx.keys()), outs)
+    if sparse is True:
+        return SparseResults(sample_paths, labels, list(class_to_idx.keys()), outs)
 
-    return results
+    return Results(sample_paths, labels, list(class_to_idx.keys()), outs)
