@@ -462,6 +462,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError(f"--center-crop must be in range of (0, 1.0], got {args.center_crop}")
     if args.parallel is True and args.gpu is False:
         raise cli.ValidationError("--parallel requires --gpu to be set")
+    if args.save_results is True and args.save_sparse_results is True:
+        raise cli.ValidationError("--save-results cannot be used with --save-sparse-results")
     if args.save_embeddings is True and args.tta is True:
         raise cli.ValidationError("--save-embeddings cannot be used with --tta")
     if args.amp is True and args.model_dtype != "float32":

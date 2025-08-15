@@ -616,6 +616,18 @@ def common_args_validation(args: argparse.Namespace) -> None:
     if args.cooldown_epochs is not None and args.cooldown_iters is not None:
         raise ValidationError("--cooldown-epochs cannot be used with --cooldown-iters")
 
+    if hasattr(args, "lr_scheduler_update") is True:
+        if args.lr_scheduler_update != "iter" and args.warmup_iters is not None:
+            raise ValidationError(
+                "--warmup-iters can only be used when --lr-scheduler-update is 'iter', "
+                f"but it is set to '{args.lr_scheduler_update}'"
+            )
+        if args.lr_scheduler_update != "iter" and args.cooldown_iters is not None:
+            raise ValidationError(
+                "--cooldown-iters can only be used when --lr-scheduler-update is 'iter', "
+                f"but it is set to '{args.lr_scheduler_update}'"
+            )
+
     # Compile args, argument dependant
     if hasattr(args, "compile_teacher") is True:
         if args.compile is True and args.compile_teacher is True:

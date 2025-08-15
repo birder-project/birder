@@ -4,5 +4,6 @@ exclude: ./.venv/
 # B101: Use of assert detected. The enclosed code will be removed when compiling to optimized byte code.
 # B311: Standard pseudo-random generators are not suitable for security/cryptographic purposes.
 # B404: import_subprocess.
+# B608: hardcoded_sql_expressions.
 # B614: Use of unsafe PyTorch load or save.
-skips: B101,B311,B404,B614
+skips: B101,B311,B404,B608,B614

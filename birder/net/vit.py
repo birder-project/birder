@@ -1549,7 +1549,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 166.8,
-                "sha256": "1cfa7ebea3db95363bf9e35fc24be94e419debe5db58746fe3320fbcb8bda6dd",
+                "sha256": "9ff659be9826bbbafbcfa85d79d0fa9d5ac383fd2442ffa36db6c4f7ab09b86a",
             },
         },
         "net": {"network": "vit_reg4_m16_rms_avg", "tag": "i-jepa-inat21-256px"},

@@ -86,9 +86,10 @@ def get_args_parser() -> argparse.ArgumentParser:
         description="evaluate pretrained models on specified dataset",
         epilog=(
             "Usage example:\n"
-            "python evaluate.py --filter '*il-common*' --fast-matmul --gpu data/validation_il-common_packed\n"
+            "python -m birder.scripts.evaluate --filter '*il-all*' --fast-matmul --gpu data/validation_il-all_packed\n"
             "python -m birder.scripts.evaluate --amp --compile --gpu --gpu-id 1 data/testing\n"
-            "python evaluate.py --filter '*inat21*' --amp --compile --gpu --parallel ~/Datasets/inat2021/val\n"
+            "python -m birder.scripts.evaluate --filter '*inat21*' --amp --compile --gpu "
+            "--parallel ~/Datasets/inat2021/val\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
