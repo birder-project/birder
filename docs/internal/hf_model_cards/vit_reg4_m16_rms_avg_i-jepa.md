@@ -18,7 +18,7 @@ A ViT m16 RMS norm image encoder pre-trained using I-JEPA. This model has *not* 
     - Params (M): 38.3
     - Input image size: 224 x 224
 - **Dataset:** Trained on a diverse dataset of approximately 13.5M images (12M before sampling), including:
-    - iNaturalist 2021 (~2.6M) x1
+    - iNaturalist 2021 (~2.7M) x1
     - imagenet-1k-webp (~1.3M) x2
     - COCO (~120K) x2
     - VOC 2012 (~17K) x2

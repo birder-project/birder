@@ -29,27 +29,45 @@ from birder.results.gui import show_top_k
 logger = logging.getLogger(__name__)
 
 
+def _save_dataframe(path: Path, df: pl.DataFrame, append: bool, data_type: str) -> None:
+    if append is False:
+        logger.info(f"Saving {data_type} at {path}")
+        df.write_csv(path)
+    else:
+        logger.info(f"Adding {data_type} to {path}")
+        with open(path, "a", encoding="utf-8") as handle:
+            df.write_csv(handle, include_header=False)
+
+
 def save_embeddings(
-    embeddings_path: Path, sample_paths: list[str], embedding_list: list[npt.NDArray[np.float32]], append: bool
+    path: Path, sample_paths: list[str], embedding_list: list[npt.NDArray[np.float32]], append: bool
 ) -> None:
     embeddings = np.concatenate(embedding_list, axis=0)
-    data = {
-        "sample": sample_paths,
-        **{f"{i}": embeddings[:, i] for i in range(embeddings.shape[-1])},
-    }
-    embeddings_df = pl.DataFrame(data).sort("sample", descending=False)
+    embeddings_df = pl.DataFrame(
+        {
+            "sample": sample_paths,
+            **{f"{i}": embeddings[:, i] for i in range(embeddings.shape[-1])},
+        }
+    )
+    embeddings_df = embeddings_df.sort("sample", descending=False)
+    _save_dataframe(path, embeddings_df, append, data_type="embeddings")
 
-    if append is False:
-        logger.info(f"Saving embeddings at {embeddings_path}")
-        embeddings_df.write_csv(embeddings_path)
-    else:
-        logger.info(f"Adding embeddings to {embeddings_path}")
-        with open(embeddings_path, "a", encoding="utf-8") as handle:
-            embeddings_df.write_csv(handle, include_header=False)
+
+def save_logits(
+    path: Path, sample_paths: list[str], label_names: list[str], logits: npt.NDArray[np.float32], append: bool
+) -> None:
+    logits_df = pl.DataFrame(
+        {
+            "sample": sample_paths,
+            **{name: logits[:, i] for i, name in enumerate(label_names)},
+        }
+    )
+    logits_df = logits_df.sort("sample", descending=False)
+    _save_dataframe(path, logits_df, append, data_type="logits")
 
 
 def save_output(
-    output_path: Path, sample_paths: list[str], label_names: list[str], outs: npt.NDArray[np.float32], append: bool
+    path: Path, sample_paths: list[str], label_names: list[str], outs: npt.NDArray[np.float32], append: bool
 ) -> None:
     output_df = pl.DataFrame(
         {
@@ -59,13 +77,7 @@ def save_output(
         }
     )
     output_df = output_df.sort("sample", descending=False)
-    if append is False:
-        logger.info(f"Saving output at {output_path}")
-        output_df.write_csv(output_path)
-    else:
-        logger.info(f"Adding output to {output_path}")
-        with open(output_path, "a", encoding="utf-8") as handle:
-            output_df.write_csv(handle, include_header=False)
+    _save_dataframe(path, output_df, append, data_type="output")
 
 
 def handle_show_flags(
@@ -139,6 +151,7 @@ def predict(args: argparse.Namespace) -> None:
         st=args.st,
         dtype=model_dtype,
     )
+    logger.debug(f"RGB stats: {rgb_stats}")
 
     if args.ignore_dir_names is True:
         num_classes = len(class_to_idx)
@@ -175,7 +188,7 @@ def predict(args: argparse.Namespace) -> None:
         logger.debug(f"Using size={args.size}")
 
     batch_size = args.batch_size
-    inference_transform = inference_preset(args.size, rgb_stats, args.center_crop)
+    inference_transform = inference_preset(args.size, rgb_stats, args.center_crop, args.simple_crop)
     if args.wds is True:
         wds_path: str | list[str]
         if args.wds_info is not None:
@@ -239,6 +252,8 @@ def predict(args: argparse.Namespace) -> None:
     base_output_path = (
         f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size[0]}px_crop{args.center_crop}_{num_samples}"
     )
+    if args.simple_crop is True:
+        base_output_path = f"{base_output_path}_sc"
     if args.tta is True:
         base_output_path = f"{base_output_path}_tta"
     if args.model_dtype != "float32":
@@ -253,6 +268,7 @@ def predict(args: argparse.Namespace) -> None:
 
     results_path = f"{base_output_path}{results_file_suffix}"
     embeddings_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_embeddings.csv")
+    logits_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_logits.csv")
     output_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_output.csv")
     label_names = list(class_to_idx.keys())
 
@@ -264,7 +280,7 @@ def predict(args: argparse.Namespace) -> None:
         inference_loader,
         args.save_embeddings,
         args.tta,
-        return_logits=False,
+        return_logits=args.save_logits,
         model_dtype=model_dtype,
         amp=args.amp,
         amp_dtype=amp_dtype,
@@ -281,7 +297,9 @@ def predict(args: argparse.Namespace) -> None:
             if args.save_embeddings is True:
                 save_embeddings(embeddings_path, sample_paths, embedding_list, append=append)
 
-            if len(class_to_idx) > 0:
+            if args.save_logits is True:
+                save_logits(logits_path, sample_paths, label_names, outs, append=append)
+            elif len(class_to_idx) > 0:
                 # Save output
                 if args.save_output is True:
                     save_output(output_path, sample_paths, label_names, outs, append=append)
@@ -310,8 +328,7 @@ def predict(args: argparse.Namespace) -> None:
 
     toc = time.time()
     rate = num_samples / (toc - tic)
-    (minutes, seconds) = divmod(toc - tic, 60)
-    logger.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {num_samples:,} samples ({rate:.2f} samples/sec)")
+    logger.info(f"{lib.format_duration(toc-tic)} to classify {num_samples:,} samples ({rate:.2f} samples/sec)")
 
     #  Print summary
     if args.summary is True:
@@ -339,7 +356,8 @@ def get_args_parser() -> argparse.ArgumentParser:
             "python predict.py -n mobilevit_v2_1_5 -t intermediate -e 80 --gpu --save-results "
             "--wds data/validation_packed\n"
             "python -m birder.scripts.predict -n rope_i_vit_l14_pn_ap_c1 -t pe-core --gpu --parallel --batch-size 256 "
-            "--chunk-size 50000 --amp --amp-dtype bfloat16 --compile --save-embeddings data/raw_data\n"
+            "--chunk-size 50000 --amp --amp-dtype bfloat16 --compile --save-embeddings "
+            "--suffix raw_data data/raw_data\n"
             "python predict.py -n convnext_v2_tiny -t intermediate -e 70 --gpu --gpu-id 1 --compile --fast-matmul "
             "--show-class Unknown data/raw_data\n"
             "python -m birder.scripts.predict -n rope_vit_reg4_b14 --gpu --amp --ignore-dir-names data/imagenet-v2\n"
@@ -405,6 +423,12 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--chunk-size", type=int, metavar="N", help="process in chunks of N samples to reduce memory usage"
     )
     parser.add_argument("--center-crop", type=float, default=1.0, help="center crop ratio to use during inference")
+    parser.add_argument(
+        "--simple-crop",
+        default=False,
+        action="store_true",
+        help="use a simple crop that preserves aspect ratio but may trim parts of the image",
+    )
     parser.add_argument("--show", default=False, action="store_true", help="show image predictions")
     parser.add_argument("--show-top-below", type=float, help="show when top prediction is below given threshold")
     parser.add_argument("--show-target-below", type=float, help="show when target prediction is below given threshold")
@@ -420,7 +444,8 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="save results object in memory-efficient sparse format (only top-k probabilities)",
     )
-    parser.add_argument("--save-output", default=False, action="store_true", help="save raw output as CSV")
+    parser.add_argument("--save-output", default=False, action="store_true", help="save raw output")
+    parser.add_argument("--save-logits", default=False, action="store_true", help="save raw model logits")
     parser.add_argument("--save-embeddings", default=False, action="store_true", help="save embedding layer outputs")
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
@@ -468,6 +493,26 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--save-embeddings cannot be used with --tta")
     if args.amp is True and args.model_dtype != "float32":
         raise cli.ValidationError("--amp can only be used with --model-dtype float32")
+
+    if args.save_logits is True and args.save_results is True:
+        raise cli.ValidationError("--save-logits cannot be used with --save-results")
+    if args.save_logits is True and args.save_sparse_results is True:
+        raise cli.ValidationError("--save-logits cannot be used with --save-sparse-results")
+    if args.save_logits is True and args.save_output is True:
+        raise cli.ValidationError("--save-logits cannot be used with --save-output")
+    if args.save_logits is True and args.summary is True:
+        raise cli.ValidationError("--save-logits cannot be used with --summary")
+
+    if args.save_logits is True and (  # pylint: disable=too-many-boolean-expressions
+        args.show is True
+        or args.show_top_below is not None
+        or args.show_target_below is not None
+        or args.show_mistakes is True
+        or args.show_out_of_k is True
+        or args.show_class is not None
+    ):
+        # Results are not calculated
+        raise cli.ValidationError("--save-logits cannot be used with any of the 'show' flags")
 
     if args.wds is False and len(args.data_path) == 0:
         raise cli.ValidationError("Must provide at least one data source, --data-path or --wds")

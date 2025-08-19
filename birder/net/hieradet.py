@@ -467,3 +467,22 @@ registry.register_model_config(
         "drop_path_rate": 0.2,
     },
 )
+
+registry.register_weights(
+    "hieradet_small_dino-v2",
+    {
+        "url": "https://huggingface.co/birder-project/hieradet_small_dino-v2/resolve/main",
+        "description": (
+            "HieraDet small image encoder pre-trained using DINOv2. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 129.6,
+                "sha256": "eb41b8a35445e7f350797094d5e365306b29351e64edd4a316420c23d1e17073",
+            }
+        },
+        "net": {"network": "hieradet_small", "tag": "dino-v2"},
+    },
+)

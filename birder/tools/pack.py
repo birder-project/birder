@@ -20,6 +20,7 @@ from tqdm import tqdm
 
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common.lib import format_duration
 from birder.conf import settings
 
 logger = logging.getLogger(__name__)
@@ -171,15 +172,16 @@ def wds_write_worker(
             else:
                 more = False
 
-            if args.no_cls is True:
-                cls = {}
-            else:
-                cls = {"cls": target}
-
             # Ensures ordered write
             while count in buf:
                 (sample, suffix, target) = buf[count]
                 del buf[count]
+
+                if args.no_cls is True:
+                    cls = {}
+                else:
+                    cls = {"cls": target}
+
                 sink.write(
                     {
                         "__key__": f"sample{count:09d}",
@@ -370,8 +372,7 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
 
     toc = time.time()
     rate = len(dataset) / (toc - tic)
-    (minutes, seconds) = divmod(toc - tic, 60)
-    logger.info(f"{int(minutes):0>2}m{seconds:04.1f}s to pack {len(dataset):,} samples ({rate:.2f} samples/sec)")
+    logger.info(f"{format_duration(toc-tic)} to pack {len(dataset):,} samples ({rate:.2f} samples/sec)")
 
 
 def set_parser(subparsers: Any) -> None:

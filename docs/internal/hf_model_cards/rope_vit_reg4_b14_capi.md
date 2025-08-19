@@ -18,7 +18,7 @@ A RoPE ViT b14 image encoder pre-trained using CAPI. This model has *not* been f
     - Params (M): 85.7
     - Input image size: 224 x 224
 - **Dataset:** Trained on a diverse dataset of approximately 15M images, including:
-    - iNaturalist 2021 (~2.6M)
+    - iNaturalist 2021 (~2.7M)
     - imagenet-w21-webp-wds (~1.6M random subset)
     - WebVision-2.0 (~1.5M random subset)
     - GLDv2 (~820K random subset of 100 chunks)

@@ -20,7 +20,7 @@ This is a Masked Autoencoder (MAE) model based on the Hiera (Hierarchical Vision
     - Params (M): 85.9
     - Input image size: 224 x 224
 - **Dataset:** Trained on a diverse dataset of approximately 12M images, including:
-    - iNaturalist 2021 (~2.6M)
+    - iNaturalist 2021 (~2.7M)
     - WebVision-2.0 (~1.5M random subset)
     - imagenet-w21-webp-wds (~1M random subset)
     - SA-1B (~220K random subset of 20 chunks)

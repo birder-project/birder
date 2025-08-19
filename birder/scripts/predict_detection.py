@@ -79,6 +79,7 @@ def predict(args: argparse.Namespace) -> None:
         st=args.st,
         dtype=model_dtype,
     )
+    logger.debug(f"RGB stats: {rgb_stats}")
 
     if args.dynamic_size is True or args.max_size is not None or args.no_resize:
         net.set_dynamic_size()
@@ -188,8 +189,7 @@ def predict(args: argparse.Namespace) -> None:
 
     toc = time.time()
     rate = len(dataset) / (toc - tic)
-    (minutes, seconds) = divmod(toc - tic, 60)
-    logger.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {len(dataset):,} samples ({rate:.2f} samples/sec)")
+    logger.info(f"{lib.format_duration(toc-tic)} to classify {len(dataset):,} samples ({rate:.2f} samples/sec)")
 
     # Save output
     if args.save_output is True:

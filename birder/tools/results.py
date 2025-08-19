@@ -136,6 +136,9 @@ def convert_to_sparse(results_file: str, sparse_k: int) -> None:
     sparse_results = SparseResults.load(results_file, sparse_k=sparse_k)
 
     input_path = Path(results_file)
+    if input_path.suffix == ".gz":
+        input_path = input_path.with_suffix("")
+
     output_path = input_path.with_stem(f"{input_path.stem}_sparse")
     if output_path.exists() is True:
         logger.warning(f"Target file already exists: {output_path}. Skipping conversion.")

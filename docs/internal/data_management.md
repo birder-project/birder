@@ -14,6 +14,9 @@ Convert the training directory into webp format and resize to max image size
 Count files in all sub directories according to file extensions
 `find . -type f -name '*.*' -not -name '.*' | sed -Ee 's,.*/.+\.([^/]+)$,\1,' | sort | uniq -ci | sort -n`
 
+Count files per sub directory
+`for dir in */; do echo -n "${dir%/}: "; find "$dir" -type f | wc -l; done`
+
 Generate simple table of contents for a markdown file
 `cat training.md | grep -E "^### " | sed -E 's/(#+) (.+)/\1:\2:\2/g' | awk -F ":" '{ gsub(/#/,"  ",$1); gsub(/[ ]/,"-",$3); print $1 "- [" $2 "](#" tolower($3) ")" }'`
 

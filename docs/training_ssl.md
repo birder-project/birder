@@ -197,7 +197,7 @@ torchrun --nproc_per_node=8 -m birder.scripts.train_capi --network rope_vit_reg8
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_so150m_p14_swiglu_rms_avg --tag capi --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 252 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --rgb-mode none --resume-epoch 0 --reset-head --freeze-body --unfreeze-features
+torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_so150m_p14_swiglu_rms_avg --tag capi --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --rgb-mode none --resume-epoch 0 --reset-head --freeze-body
 ```
 
 ### Data2Vec
@@ -373,7 +373,7 @@ torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-imag
 ImageNet 12K, extended training:
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-imagenet12k --opt adamw --lr 7.5e-5 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 10 --epochs 50 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 9 --resize-min-scale 0.1 --model-ema --model-ema-decay 0.9998 --model-ema-steps 1 --model-ema-warmup 0 --amp --amp-dtype bfloat16 --compile --compile-opt --layer-decay 0.6 --layer-decay-no-opt-scale 0.0003 --resume-epoch 0 --save-frequency 1 --wds --wds-class-file public_datasets_metadata/imagenet-12k-classes.txt --wds-info ~/Datasets/imagenet-12k-wds/_info.json --wds-training-split train
+torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-imagenet12k --opt adamw --lr 5e-5 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 10 --epochs 50 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 9 --resize-min-scale 0.1 --model-ema --model-ema-decay 0.9998 --model-ema-steps 1 --model-ema-warmup 0 --amp --amp-dtype bfloat16 --compile --compile-opt --layer-decay 0.6 --layer-decay-no-opt-scale 0.0003 --resume-epoch 0 --save-frequency 1 --wds --wds-class-file public_datasets_metadata/imagenet-12k-classes.txt --wds-info ~/Datasets/imagenet-12k-wds/_info.json --wds-training-split train
 ```
 
 ImageNet 1K fine-tuning of ImageNet 12K (after linear probing)
@@ -398,12 +398,6 @@ iNaturalist 2021 increase resolution
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-inat21 --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 5 --epochs 50 --size 384 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --amp --amp-dtype bfloat16 --compile --compile-opt --layer-decay 0.65 --resume-epoch 0 --save-frequency 1 --data-path ~/Datasets/inat2021/train --val-path ~/Datasets/inat2021/val
-```
-
-iNaturalist 2021 at increased resolution, extended training:
-
-```sh
-torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-inat21 --opt adamw --lr 7.5e-5 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 5 --epochs 50 --size 384 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 9 --resize-min-scale 0.25 --model-ema --model-ema-decay 0.9998 --model-ema-steps 1 --model-ema-warmup 0 --amp --amp-dtype bfloat16 --compile --compile-opt --layer-decay 0.6 --layer-decay-no-opt-scale 0.0003 --resume-epoch 0 --save-frequency 1 --data-path ~/Datasets/inat2021/train --val-path ~/Datasets/inat2021/val
 ```
 
 #### DINO v2: HieraDet Base

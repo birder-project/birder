@@ -49,7 +49,7 @@ def show_iterator(args: argparse.Namespace) -> None:
             args.simple_crop,
         )
     elif args.mode == "inference":
-        transform = inference_preset(args.size, get_rgb_stats("birder"), args.center_crop)
+        transform = inference_preset(args.size, get_rgb_stats("birder"), args.center_crop, args.simple_crop)
     else:
         raise ValueError(f"Unknown mode={args.mode}")
 

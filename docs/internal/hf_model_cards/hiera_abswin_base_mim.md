@@ -20,7 +20,7 @@ The full MAE model is available at <https://huggingface.co/birder-project/mae_hi
     - Params (M): 50.5
     - Input image size: 224 x 224
 - **Dataset:** Trained on a diverse dataset of approximately 12M images, including:
-    - iNaturalist 2021 (~2.6M)
+    - iNaturalist 2021 (~2.7M)
     - WebVision-2.0 (~1.5M random subset)
     - imagenet-w21-webp-wds (~1M random subset)
     - SA-1B (~220K random subset of 20 chunks)

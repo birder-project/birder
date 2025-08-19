@@ -417,12 +417,16 @@ def training_preset(
 
 
 def inference_preset(
-    size: tuple[int, int], rgv_values: RGBType, center_crop: float = 1.0
+    size: tuple[int, int], rgv_values: RGBType, center_crop: float = 1.0, simple_crop: bool = False
 ) -> Callable[..., torch.Tensor]:
     mean = rgv_values["mean"]
     std = rgv_values["std"]
 
-    base_size = (int(size[0] / center_crop), int(size[1] / center_crop))
+    if simple_crop is True:
+        base_size: int | tuple[int, int] = int(min(size) / center_crop)
+    else:
+        base_size = (int(size[0] / center_crop), int(size[1] / center_crop))
+
     return v2.Compose(  # type: ignore
         [
             v2.Resize(base_size, interpolation=v2.InterpolationMode.BICUBIC, antialias=True),

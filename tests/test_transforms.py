@@ -45,6 +45,7 @@ class TestTransforms(unittest.TestCase):
         classification.training_preset((256, 256), "birder", 8, classification.get_rgb_stats("birder"))
         classification.training_preset((256, 256), "3aug", 3, classification.get_rgb_stats("none"))
         classification.inference_preset((256, 256), classification.get_rgb_stats("none"), 0.9)
+        classification.inference_preset((256, 256), classification.get_rgb_stats("none"), 0.9, True)
 
     def test_detection(self) -> None:
         # Presets
