@@ -3,10 +3,13 @@ import logging
 import time
 from pathlib import Path
 from typing import Any
+from typing import Optional
 
 import numpy as np
 import numpy.typing as npt
 import polars as pl
+import pyarrow as pa
+import pyarrow.parquet as pq
 import torch
 from torch.utils.data import DataLoader
 
@@ -27,6 +30,64 @@ from birder.results.classification import SparseResults
 from birder.results.gui import show_top_k
 
 logger = logging.getLogger(__name__)
+
+
+def _init_array_parquet_writer(
+    metadata_columns: list[str], array_name: str, array_len: int, path: Path
+) -> pq.ParquetWriter:
+    embeddings_schema = pa.schema(
+        [pa.field(name, pa.string()) for name in metadata_columns]
+        + [pa.field(array_name, pa.list_(pa.float32(), list_size=array_len))]
+    )
+    return pq.ParquetWriter(path, embeddings_schema)
+
+
+def _init_parquet_writer(metadata_columns: list[str], label_names: list[str], path: Path) -> pq.ParquetWriter:
+    logits_schema = pa.schema(
+        [pa.field(name, pa.string()) for name in metadata_columns]
+        + [pa.field(name, pa.float32()) for name in label_names]
+    )
+    return pq.ParquetWriter(path, logits_schema)
+
+
+def save_embeddings_parquet(
+    writer: pq.ParquetWriter, sample_paths: list[str], embedding_list: list[npt.NDArray[np.float32]]
+) -> None:
+    logger.info(f"Writing embeddings at {writer.where}")
+    embeddings = np.concatenate(embedding_list, axis=0)
+    table = pa.Table.from_pydict(
+        {
+            "sample": pa.array(sample_paths, type=pa.string()),
+            "embedding": pa.array(embeddings.tolist(), type=pa.list_(pa.float32())),
+        },
+        schema=writer.schema,
+    )
+    writer.write_table(table)
+
+
+def save_logits_parquet(writer: pq.ParquetWriter, sample_paths: list[str], logits: npt.NDArray[np.float32]) -> None:
+    logger.info(f"Writing logits at {writer.where}")
+    data = {"sample": pa.array(sample_paths, type=pa.string())}
+    for i, field_name in enumerate(writer.schema.names[1:]):
+        data[field_name] = pa.array(logits[:, i], type=pa.float32())
+
+    table = pa.Table.from_pydict(data, schema=writer.schema)
+    writer.write_table(table)
+
+
+def save_output_parquet(
+    writer: pq.ParquetWriter, sample_paths: list[str], label_names: list[str], outs: npt.NDArray[np.float32]
+) -> None:
+    logger.info(f"Writing outputs at {writer.where}")
+    data = {
+        "sample": pa.array(sample_paths, type=pa.string()),
+        "prediction": pa.array(np.array(label_names)[outs.argmax(axis=1)], type=pa.string()),
+    }
+    for i, field_name in enumerate(writer.schema.names[2:]):
+        data[field_name] = pa.array(outs[:, i], type=pa.float32())
+
+    table = pa.Table.from_pydict(data, schema=writer.schema)
+    writer.write_table(table)
 
 
 def _save_dataframe(path: Path, df: pl.DataFrame, append: bool, data_type: str) -> None:
@@ -214,6 +275,7 @@ def predict(args: argparse.Namespace) -> None:
             collate_fn=None,
             world_size=1,
             pin_memory=False,
+            exact=True,
         )
 
     else:
@@ -258,6 +320,8 @@ def predict(args: argparse.Namespace) -> None:
         base_output_path = f"{base_output_path}_tta"
     if args.model_dtype != "float32":
         base_output_path = f"{base_output_path}_{args.model_dtype}"
+    if args.prefix is not None:
+        base_output_path = f"{args.prefix}_{base_output_path}"
     if args.suffix is not None:
         base_output_path = f"{base_output_path}_{args.suffix}"
 
@@ -267,10 +331,21 @@ def predict(args: argparse.Namespace) -> None:
         results_file_suffix = ".csv"
 
     results_path = f"{base_output_path}{results_file_suffix}"
-    embeddings_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_embeddings.csv")
-    logits_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_logits.csv")
-    output_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_output.csv")
-    label_names = list(class_to_idx.keys())
+    embeddings_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_embeddings.{args.output_format}")
+    logits_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_logits.{args.output_format}")
+    output_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_output.{args.output_format}")
+    label_names: Optional[list[str]] = list(class_to_idx.keys())
+    if args.save_logits or args.save_output:
+        if label_names is not None and len(label_names) == 0:
+            logger.warning("No class labels found, using numeric indices instead")
+            # In case that a 'pts' or 'pt2' type models were loaded, we don't know the output size
+            # so we’ll fill this lazily on the first batch
+            label_names = None
+
+    # Define Parquet writers
+    embeddings_writer: pq.ParquetWriter | None = None
+    logits_writer: pq.ParquetWriter | None = None
+    output_writer: pq.ParquetWriter | None = None
 
     # Inference
     tic = time.time()
@@ -293,17 +368,40 @@ def predict(args: argparse.Namespace) -> None:
     summary_list = []
     with torch.inference_mode():
         for sample_paths, outs, labels, embedding_list in infer_iter:
+            if label_names is None:
+                label_names = [str(i) for i in range(outs.shape[1])]
+                logger.warning(f"Falling back to {len(label_names)} numeric class names")
+
             # Save embeddings
             if args.save_embeddings is True:
-                save_embeddings(embeddings_path, sample_paths, embedding_list, append=append)
+                if args.output_format == "parquet":
+                    if embeddings_writer is None:
+                        embeddings_writer = _init_array_parquet_writer(
+                            ["sample"], "embedding", outs.shape[1], embeddings_path
+                        )
+
+                    save_embeddings_parquet(embeddings_writer, sample_paths, embedding_list)
+                else:
+                    save_embeddings(embeddings_path, sample_paths, embedding_list, append=append)
 
             if args.save_logits is True:
-                save_logits(logits_path, sample_paths, label_names, outs, append=append)
-            elif len(class_to_idx) > 0:
-                # Save output
-                if args.save_output is True:
+                if args.output_format == "parquet":
+                    if logits_writer is None:
+                        logits_writer = _init_parquet_writer(["sample"], label_names, logits_path)
+
+                    save_logits_parquet(logits_writer, sample_paths, outs)
+                else:
+                    save_logits(logits_path, sample_paths, label_names, outs, append=append)
+            elif args.save_output is True:
+                if args.output_format == "parquet":
+                    if output_writer is None:
+                        output_writer = _init_parquet_writer(["sample", "prediction"], label_names, output_path)
+
+                    save_output_parquet(output_writer, sample_paths, label_names, outs)
+                else:
                     save_output(output_path, sample_paths, label_names, outs, append=append)
 
+            if len(class_to_idx) > 0:
                 # Handle results (Results / SparseResults)
                 results: Results | SparseResults
                 if args.save_sparse_results is True:
@@ -325,6 +423,13 @@ def predict(args: argparse.Namespace) -> None:
                     summary_list.append(results.prediction_names.value_counts())
 
             append = True
+
+    if embeddings_writer is not None:
+        embeddings_writer.close()
+    if logits_writer is not None:
+        logits_writer.close()
+    if output_writer is not None:
+        output_writer.close()
 
     toc = time.time()
     rate = num_samples / (toc - tic)
@@ -447,6 +552,14 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--save-output", default=False, action="store_true", help="save raw output")
     parser.add_argument("--save-logits", default=False, action="store_true", help="save raw model logits")
     parser.add_argument("--save-embeddings", default=False, action="store_true", help="save embedding layer outputs")
+    parser.add_argument(
+        "--output-format",
+        type=str,
+        choices=["csv", "parquet"],
+        default="csv",
+        help="output format for raw data (embeddings, logits, output) - does not affect results files",
+    )
+    parser.add_argument("--prefix", type=str, help="add prefix to output file")
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
     parser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use (ignored in parallel mode)")
@@ -555,5 +668,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logger = logging.getLogger(__spec__.name)
+    logger = logging.getLogger(getattr(__spec__, "name", __name__))
     main()

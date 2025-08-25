@@ -128,10 +128,11 @@ def infer_dataloader_iter(
     out_list: list[npt.NDArray[np.float32]] = []
     labels: list[int] = []
     sample_paths: list[str] = []
-    batch_size = dataloader.batch_size
     sample_count = 0
     with tqdm(total=num_samples, initial=0, unit="images", unit_scale=True, leave=False) as progress:
         for file_paths, inputs, targets in dataloader:
+            batch_size = inputs.size(0)
+
             # Inference
             inputs = inputs.to(device, dtype=model_dtype)
 

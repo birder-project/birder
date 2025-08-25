@@ -370,12 +370,6 @@ ImageNet 12K next, full fine-tuning with layer-wise learning rate decay
 torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-imagenet12k --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 5e-7 --batch-size 256 --warmup-epochs 5 --epochs 100 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --resize-min-scale 0.1 --model-ema --amp --amp-dtype bfloat16 --compile --compile-opt --layer-decay 0.65 --resume-epoch 0 --save-frequency 1 --wds --wds-class-file public_datasets_metadata/imagenet-12k-classes.txt --wds-info ~/Datasets/imagenet-12k-wds/_info.json --wds-training-split train
 ```
 
-ImageNet 12K, extended training:
-
-```sh
-torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-imagenet12k --opt adamw --lr 5e-5 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --warmup-epochs 10 --epochs 50 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 9 --resize-min-scale 0.1 --model-ema --model-ema-decay 0.9998 --model-ema-steps 1 --model-ema-warmup 0 --amp --amp-dtype bfloat16 --compile --compile-opt --layer-decay 0.6 --layer-decay-no-opt-scale 0.0003 --resume-epoch 0 --save-frequency 1 --wds --wds-class-file public_datasets_metadata/imagenet-12k-classes.txt --wds-info ~/Datasets/imagenet-12k-wds/_info.json --wds-training-split train
-```
-
 ImageNet 1K fine-tuning of ImageNet 12K (after linear probing)
 
 ```sh

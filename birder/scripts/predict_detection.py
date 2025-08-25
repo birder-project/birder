@@ -168,6 +168,8 @@ def predict(args: argparse.Namespace) -> None:
     base_output_path = f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size[0]}px_{num_samples}"
     if args.model_dtype != "float32":
         base_output_path = f"{base_output_path}_{args.model_dtype}"
+    if args.prefix is not None:
+        base_output_path = f"{args.prefix}_{base_output_path}"
     if args.suffix is not None:
         base_output_path = f"{base_output_path}_{args.suffix}"
 
@@ -315,6 +317,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--shuffle", default=False, action="store_true", help="predict samples in random order")
     parser.add_argument("--save-results", default=False, action="store_true", help="save results object")
     parser.add_argument("--save-output", default=False, action="store_true", help="save raw output as CSV")
+    parser.add_argument("--prefix", type=str, help="add prefix to output file")
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
     parser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use (ignored in parallel mode)")
@@ -373,5 +376,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logger = logging.getLogger(__spec__.name)
+    logger = logging.getLogger(getattr(__spec__, "name", __name__))
     main()
