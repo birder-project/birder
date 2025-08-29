@@ -377,7 +377,7 @@ def predict(args: argparse.Namespace) -> None:
                 if args.output_format == "parquet":
                     if embeddings_writer is None:
                         embeddings_writer = _init_array_parquet_writer(
-                            ["sample"], "embedding", outs.shape[1], embeddings_path
+                            ["sample"], "embedding", embedding_list[0].shape[1], embeddings_path
                         )
 
                     save_embeddings_parquet(embeddings_writer, sample_paths, embedding_list)

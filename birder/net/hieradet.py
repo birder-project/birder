@@ -486,3 +486,48 @@ registry.register_weights(
         "net": {"network": "hieradet_small", "tag": "dino-v2"},
     },
 )
+registry.register_weights(
+    "hieradet_small_dino-v2-inat21-256px",
+    {
+        "url": "https://huggingface.co/birder-project/hieradet_small_dino-v2-inat21/resolve/main",
+        "description": "HieraDet small model pre-trained using DINOv2, then fine-tuned on the iNaturalist 2021 dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 159.8,
+                "sha256": "e1bdeba97eae816ec3ab9b3238d97decf2c34d29b70f9291116ce962b9a4f9df",
+            }
+        },
+        "net": {"network": "hieradet_small", "tag": "dino-v2-inat21-256px"},
+    },
+)
+registry.register_weights(
+    "hieradet_small_dino-v2-inat21",
+    {
+        "url": "https://huggingface.co/birder-project/hieradet_small_dino-v2-inat21/resolve/main",
+        "description": "HieraDet small model pre-trained using DINOv2, then fine-tuned on the iNaturalist 2021 dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 159.8,
+                "sha256": "271fa9ed6a9aa1f4d1fc8bbb4c4cac9d15b264f2ac544efb5cd971412691880d",
+            }
+        },
+        "net": {"network": "hieradet_small", "tag": "dino-v2-inat21"},
+    },
+)
+registry.register_weights(
+    "hieradet_small_dino-v2-imagenet12k",
+    {
+        "url": "https://huggingface.co/birder-project/hieradet_small_dino-v2-imagenet12k/resolve/main",
+        "description": "HieraDet small model pre-trained using DINOv2, then fine-tuned on the ImageNet-12K dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 164.8,
+                "sha256": "b89dd6c13d061fe8a09d051bb3d76e632e650067ca71578e37b02033107c9963",
+            }
+        },
+        "net": {"network": "hieradet_small", "tag": "dino-v2-imagenet12k"},
+    },
+)
