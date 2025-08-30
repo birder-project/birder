@@ -249,7 +249,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 328.1,
-                "sha256": "bdf8a8495c99f4cb0f345cfcc5d616a427b59d46be0c5a7936766b60cd1efa60",
+                "sha256": "fddafce6ce190982ba77af3100bc46d0fbdf65d96eda7e76a51883af4f95227f",
             }
         },
         "net": {"network": "mae_hiera"},

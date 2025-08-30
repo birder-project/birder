@@ -135,6 +135,9 @@ def train(args: argparse.Namespace) -> None:
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
     encoder_name = get_network_name(args.network, tag="i-jepa")
+    if args.tag is not None:
+        encoder_name = f"{encoder_name}-{args.tag}"
+
     network_name = get_mim_network_name("i_jepa", encoder=args.network, tag=args.tag)
 
     if args.model_config is not None:

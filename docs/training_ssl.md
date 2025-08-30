@@ -550,6 +550,12 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network convnext_v2_s
 torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network rdnet_t --shared-head --local-crops-number 8 --teacher-temp 0.07 --warmup-teacher-temp-epochs 30 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --freeze-last-layer-epochs 1 --epochs 800 --warmup-epochs 10 --size 192 --batch-size 96 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --grad-accum-steps 16 --clip-grad-norm 3 --amp --compile-teacher --data-path data/training
 ```
 
+BIOSCAN-5M (family) fine-tuning, first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network rdnet_t --tag ibot --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 224 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --reset-head --freeze-body --data-path ~/Datasets/BIOSCAN-5M/family/training --val-path ~/Datasets/BIOSCAN-5M/family/validation
+```
+
 #### iBOT: RegNet Y 1.6 GF
 
 ```sh

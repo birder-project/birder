@@ -197,6 +197,9 @@ def train(args: argparse.Namespace) -> None:
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
     backbone_name = get_network_name(args.network, tag="byol")
+    if args.tag is not None:
+        backbone_name = f"{backbone_name}-{args.tag}"
+
     network_name = get_mim_network_name("byol", encoder=args.network, tag=args.tag)
 
     backbone = registry.net_factory(args.network, sample_shape[1], 0, config=args.model_config, size=args.size)

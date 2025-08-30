@@ -108,6 +108,7 @@ class TestNet(unittest.TestCase):
             ("hgnet_v2_b0"),
             ("hiera_tiny"),
             ("hiera_abswin_tiny"),  # No bfloat16 support
+            ("hiera_abswin_base_plus_ap"),  # No bfloat16 support
             ("hieradet_tiny"),
             ("hornet_tiny_7x7"),
             ("hornet_tiny_gf"),  # PT2 fails, no bfloat16 support
@@ -311,6 +312,7 @@ class TestNet(unittest.TestCase):
             ("hgnet_v2_b0"),
             ("hiera_tiny"),
             ("hiera_abswin_tiny"),
+            ("hiera_abswin_base_plus_ap"),
             ("hieradet_tiny"),
             ("hornet_tiny_7x7"),
             ("hornet_tiny_gf"),
@@ -431,6 +433,7 @@ class TestNet(unittest.TestCase):
         [
             ("hiera_tiny",),
             ("hiera_abswin_tiny",),
+            ("hiera_abswin_base_plus_ap"),
         ]
     )
     def test_pre_training_encoder_hiera(self, network_name: str) -> None:
@@ -566,6 +569,7 @@ class TestNet(unittest.TestCase):
             ("flexivit_s16"),
             ("hiera_tiny", False),
             ("hiera_abswin_tiny", False),
+            ("hiera_abswin_base_plus_ap", False),
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
             ("rope_flexivit_s16"),
@@ -683,6 +687,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("hgnet_v2_b0"),
             ("hiera_tiny"),
             ("hiera_abswin_tiny"),
+            ("hiera_abswin_base_plus_ap"),
             ("hieradet_tiny"),
             ("hornet_tiny_7x7"),
             ("hornet_tiny_gf"),

@@ -384,7 +384,7 @@ class HieraDet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                 i += 1
 
     def load_hiera_weights(self, state_dict: dict[str, Any]) -> None:
-        # NOTE: Only abswin variant supported
+        # NOTE: Only abswin variant supported, attention pool not supported
 
         # Remove classifier weights
         if "classifier.weight" in state_dict:
@@ -398,6 +398,10 @@ class HieraDet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             state_dict["pos_embed"] = pos_embed
 
         # Load the modified state dict
+        v = state_dict.pop("features.1.weight")
+        state_dict["features.0.weight"] = v
+        v = state_dict.pop("features.1.bias")
+        state_dict["features.0.bias"] = v
         incompatible_keys = self.load_state_dict(state_dict, strict=False)
         assert len(incompatible_keys.unexpected_keys) == 0
 

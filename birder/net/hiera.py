@@ -26,6 +26,7 @@ from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_from_indices
+from birder.layers import MultiHeadAttentionPool
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
@@ -76,6 +77,11 @@ def undo_windowing(x: torch.Tensor, shape: tuple[int, int], mu_shape: list[int])
     x = x.permute(permute).reshape(B, *shape, C)
 
     return x
+
+
+class AvgTokens(nn.Module):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x.mean(dim=1)
 
 
 class PatchEmbed(nn.Module):
@@ -350,6 +356,8 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         embed_dim: int = self.config["embed_dim"]
         num_heads: int = self.config["num_heads"]
         abs_win_pos_embed: bool = self.config["abs_win_pos_embed"]
+        attn_pool_head: bool = self.config.get("attn_pool_head", False)
+        attn_pool_num_heads: Optional[int] = self.config.get("attn_pool_num_heads", None)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         tokens_spatial_shape = [i // s for i, s in zip(image_size, patch_stride)]
@@ -429,8 +437,19 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
 
         assert len(layers) == 0
 
+        if attn_pool_head is False:
+            attn_pool = None
+        else:
+            if attn_pool_num_heads is None:
+                attn_pool_num_heads = num_heads
+
+            attn_pool = MultiHeadAttentionPool(
+                embed_dim, attn_pool_num_heads, int(mlp_ratio * embed_dim), qkv_bias=True
+            )
+
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
+            attn_pool if attn_pool is not None else AvgTokens(),
             nn.LayerNorm(embed_dim),
             nn.Flatten(1),
         )
@@ -538,7 +557,6 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
             result["tokens"] = x
 
         if return_keys in ("all", "embedding"):
-            x = x.mean(dim=1)
             x = self.features(x)
             result["embedding"] = x
 
@@ -578,7 +596,6 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.forward_features(x)
-        x = x.mean(dim=1)
         x = self.features(x)
 
         return x
@@ -741,6 +758,18 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
+    "hiera_abswin_base_plus_ap",
+    Hiera,
+    config={
+        "depths": [2, 3, 16, 3],
+        "embed_dim": 112,
+        "num_heads": 2,
+        "abs_win_pos_embed": True,
+        "attn_pool_head": True,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
     "hiera_abswin_large",
     Hiera,
     config={
@@ -775,11 +804,11 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 192.7,
-                "sha256": "d8ce30c2d9d46af8bdfe7c591610d12c4e592ad4bc4b00e2ba41457e683702da",
+                "sha256": "7133b4f857cca69d320173808d5c9921c1f05c129a76d58310a22bfafcd6deb1",
             },
             "safetensors": {
                 "file_size": 192.6,
-                "sha256": "b03f9ec88f7b391fe6b2f5ab7707c156351ab4151c95163f631db0712c48b843",
+                "sha256": "48adf5f778081ea2e5aa98e10149d3bf8f1d4ad15e7998cb5611cd450557dfc1",
             },
         },
         "net": {"network": "hiera_abswin_base", "tag": "mim"},
@@ -797,7 +826,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 194.9,
-                "sha256": "e6e9d28e0cd98a5c72c1a4a67301c62d2ade97e6d162f34ad630e5ffb2f9ec2a",
+                "sha256": "ce44e29c36b083c9e1d0eed9693a3f9c5bc39c03cf03efce3d453bfa328c7b9c",
             }
         },
         "net": {"network": "hiera_abswin_base", "tag": "mim-intermediate-eu-common"},
