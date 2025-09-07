@@ -424,3 +424,19 @@ registry.register_model_config(
     CSWin_Transformer,
     config={"embed_dim": 144, "depths": [2, 4, 32, 2], "num_heads": [6, 12, 24, 24], "drop_path_rate": 0.5},
 )
+
+registry.register_weights(
+    "cswin_transformer_s_eu-common",
+    {
+        "url": "https://huggingface.co/birder-project/cswin_transformer_s_eu-common/resolve/main",
+        "description": "CSWin Transformer small model trained on the eu-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 131.9,
+                "sha256": "0bd308783e62e058a143c7c86827d35a97d99fafc8d2ac1eb3ffafcf76cf5113",
+            }
+        },
+        "net": {"network": "cswin_transformer_s", "tag": "eu-common"},
+    },
+)

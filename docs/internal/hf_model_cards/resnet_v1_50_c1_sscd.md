@@ -7,7 +7,7 @@ library_name: birder
 license: mit
 ---
 
-# Model Card for resnet_v1_50_sscd
+# Model Card for resnet_v1_50_c1_sscd
 
 A ResNet v1 model designed to be used for image copy detection, converted to the Birder format for image feature extraction. This version retains the original model weights. The model produces 512-dimensional L2 normalized descriptors for each input image.
 
@@ -46,7 +46,7 @@ import birder
 from birder.inference.classification import infer_image
 from birder.net.ssl.sscd import SSCD
 
-(backbone, model_info) = birder.load_pretrained_model("resnet_v1_50_sscd", inference=True)
+(backbone, model_info) = birder.load_pretrained_model("resnet_v1_50_c1_sscd", inference=True)
 net = SSCD(backbone)
 
 # Get the image size the model was trained on
@@ -74,7 +74,7 @@ torch.linalg.vector_norm(out1 - out2, dim=1)
 import birder
 from birder.inference.classification import infer_image
 
-(net, model_info) = birder.load_pretrained_model("resnet_v1_50_sscd", inference=True)
+(net, model_info) = birder.load_pretrained_model("resnet_v1_50_c1_sscd", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -93,7 +93,7 @@ image = "path/to/image.jpeg"  # or a PIL image
 from PIL import Image
 import birder
 
-(net, model_info) = birder.load_pretrained_model("resnet_v1_50_sscd", inference=True)
+(net, model_info) = birder.load_pretrained_model("resnet_v1_50_c1_sscd", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)

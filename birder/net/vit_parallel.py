@@ -561,3 +561,67 @@ registry.register_model_config(
         "drop_path_rate": 0.2,
     },
 )
+
+registry.register_weights(
+    "vit_parallel_s16_18x2_ls_avg_data2vec-intermediate-il-all",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/"
+            "vit_parallel_s16_18x2_ls_avg_data2vec-intermediate-il-all/resolve/main"
+        ),
+        "description": (
+            "ViT Parallel s16 18x2 model with data2vec pretraining and intermediate training, "
+            "then fine-tuned on the il-all dataset"
+        ),
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 246.8,
+                "sha256": "aaf3963ea12373a358cce77c46ee5aa2a5ca58bcb799e8748e84605b82c9b81b",
+            },
+        },
+        "net": {"network": "vit_parallel_s16_18x2_ls_avg", "tag": "data2vec-intermediate-il-all"},
+    },
+)
+registry.register_weights(
+    "vit_parallel_s16_18x2_ls_avg_data2vec-intermediate-eu-common",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/"
+            "vit_parallel_s16_18x2_ls_avg_data2vec-intermediate-eu-common/resolve/main"
+        ),
+        "description": (
+            "ViT Parallel s16 18x2 model with data2vec pretraining and intermediate training, "
+            "then fine-tuned on the eu-common dataset"
+        ),
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 247.1,
+                "sha256": "1c697b42eac7150121325335b0d41ab5643ecab7afd04216b5088a538fcf94bb",
+            },
+        },
+        "net": {"network": "vit_parallel_s16_18x2_ls_avg", "tag": "data2vec-intermediate-eu-common"},
+    },
+)
+registry.register_weights(
+    "vit_parallel_s16_18x2_ls_avg_data2vec-intermediate-arabian-peninsula",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/"
+            "vit_parallel_s16_18x2_ls_avg_data2vec-intermediate-arabian-peninsula/resolve/main"
+        ),
+        "description": (
+            "ViT Parallel s16 18x2 model with data2vec pretraining and intermediate training, "
+            "then fine-tuned on the arabian-peninsula dataset"
+        ),
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 247.1,
+                "sha256": "561734d8271eff9831ab4fa8a0e8f80b6bfeb17ea456ea0fc184315b9aa2d837",
+            },
+        },
+        "net": {"network": "vit_parallel_s16_18x2_ls_avg", "tag": "data2vec-intermediate-arabian-peninsula"},
+    },
+)

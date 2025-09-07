@@ -16,6 +16,7 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import SqueezeExcitation
 
+from birder.layers import FixedGeMPool2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 
@@ -105,6 +106,7 @@ class ResNet_v1(DetectorBackbone):
         bottle_neck: bool = self.config["bottle_neck"]
         filter_list: list[int] = self.config["filter_list"]
         units: list[int] = self.config["units"]
+        pooling_param: Optional[float] = self.config.get("pooling_param", None)
 
         assert len(units) + 1 == len(filter_list)
         num_unit = len(units)
@@ -156,7 +158,7 @@ class ResNet_v1(DetectorBackbone):
 
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
-            nn.AdaptiveAvgPool2d(output_size=(1, 1)),
+            nn.AdaptiveAvgPool2d(output_size=(1, 1)) if pooling_param is None else FixedGeMPool2d(pooling_param),
             nn.Flatten(1),
         )
         self.return_channels = return_channels
@@ -210,6 +212,16 @@ registry.register_model_config(
     config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 4, 6, 3]},
 )
 registry.register_model_config(
+    "resnet_v1_50_c1",
+    ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 4, 6, 3],
+        "pooling_param": 3.0,
+    },
+)
+registry.register_model_config(
     "resnet_v1_101",
     ResNet_v1,
     config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 4, 23, 3]},
@@ -246,9 +258,9 @@ registry.register_weights(
     },
 )
 registry.register_weights(  # A Self-Supervised Descriptor for Image Copy Detection: https://arxiv.org/abs/2202.10261
-    "resnet_v1_50_sscd",
+    "resnet_v1_50_c1_sscd",
     {
-        "url": "https://huggingface.co/birder-project/resnet_v1_50_sscd/resolve/main",
+        "url": "https://huggingface.co/birder-project/resnet_v1_50_c1_sscd/resolve/main",
         "description": (
             "ResNet v1 50 model trained DISC for image copy detection. "
             "This model has not been fine-tuned for a specific classification task"
@@ -260,6 +272,6 @@ registry.register_weights(  # A Self-Supervised Descriptor for Image Copy Detect
                 "sha256": "974c71a7ee4645b50b7626b81c3d2d1037ab90345e8b859d8a89aa69a6c64502",
             }
         },
-        "net": {"network": "resnet_v1_50", "tag": "sscd"},
+        "net": {"network": "resnet_v1_50_c1", "tag": "sscd"},
     },
 )

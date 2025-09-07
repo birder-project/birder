@@ -220,6 +220,24 @@ Optional intermediate training: full fine-tuning with layer-wise learning rate d
 torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls_avg --tag data2vec-intermediate --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 192 --warmup-epochs 5 --epochs 100 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --rgb-mode none --model-ema --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.75 --resume-epoch 0 --save-frequency 1 --wds --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
 ```
 
+Optional intermediate training: full fine-tuning with layer-wise learning rate decay, increase resolution
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls_avg --tag data2vec-intermediate --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 96 --warmup-epochs 5 --epochs 50 --size 320 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --rgb-mode none --model-ema --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.75 --resume-epoch 0 --save-frequency 1 --wds --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
+```
+
+Optional intermediate training: specific fine-tuning - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls_avg --tag data2vec-intermediate-il-all --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 384 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --rgb-mode none --amp --compile --resume-epoch 0 --reset-head --freeze-body --data-path data/training_il-all_packed --val-path data/validation_il-all_packed
+```
+
+Optional intermediate training: specific fine-tuning with layer-wise learning rate decay, increase resolution
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls_avg --tag data2vec-intermediate-il-all --opt adamw --lr 0.000075 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 96 --warmup-epochs 5 --epochs 50 --size 384 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 9 --rgb-mode none --model-ema --clip-grad-norm 1 --amp --compile --compile-opt --layer-decay 0.5 --layer-decay-no-opt-scale 0.001 --resume-epoch 0 --save-frequency 1 --data-path data/training_il-all_packed --val-path data/validation_il-all_packed
+```
+
 Fine-tuning, first stage - linear probing
 
 ```sh
@@ -255,7 +273,7 @@ torchrun --nproc_per_node=2 train.py --network vit_reg4_m16 --tag data2vec2 --op
 #### Data2Vec2: ViT b16
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_b16 --opt adamw --lr 0.0005 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 96 --epochs 200 --wd 0.05 --clip-grad-norm 4 --amp --amp-dtype bfloat16 --compile --compile-opt --rgb-mode none --data-path data/training data/raw_data data/detection_data/training
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_b16 --opt adamw --lr 0.0005 --opt-betas 0.9 0.95 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 96 --epochs 200 --wd 0.05 --grad-accum-steps 16 --clip-grad-norm 4 --amp --amp-dtype bfloat16 --compile --compile-opt --rgb-mode none --data-path data/training data/raw_data data/detection_data/training
 ```
 
 Fine-tuning, first stage - linear probing

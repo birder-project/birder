@@ -50,7 +50,7 @@ def evaluate(args: argparse.Namespace) -> None:
         else:
             size = args.size
 
-        transform = birder.classification_transform(size, rgb_stats, args.center_crop)
+        transform = birder.classification_transform(size, rgb_stats, args.center_crop, args.simple_crop)
         dataset = make_image_dataset(args.data_path, class_to_idx, transforms=transform)
         num_samples = len(dataset)
         inference_loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=8)
@@ -121,6 +121,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--batch-size", type=int, default=64, metavar="N", help="the batch size")
     parser.add_argument("--center-crop", type=float, default=1.0, help="center crop ratio to use during inference")
+    parser.add_argument(
+        "--simple-crop",
+        default=False,
+        action="store_true",
+        help="use a simple crop that preserves aspect ratio but may trim parts of the image",
+    )
     parser.add_argument(
         "--dir", type=str, default="evaluate", help="place all outputs in a sub-directory (relative to results)"
     )
