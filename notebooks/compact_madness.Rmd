@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.17.2
+      jupytext_version: 1.17.3
   kernelspec:
     display_name: birder
     language: python
@@ -47,7 +47,7 @@ from birder.tools.model_info import get_model_info
 ```
 
 ```{python}
-PATTERN = "danube-delta"
+PATTERN = "eu-common"
 RESULTS_PATH = PATTERN
 ```
 
@@ -233,6 +233,7 @@ compare_results_df = compare_results_df.filter(~pl.col("File name").is_in(names_
 ```{python}
 benchmark_df = pl.read_csv(settings.RESULTS_DIR.joinpath(f"benchmark_{PATTERN}.csv"))
 benchmark_df = benchmark_df.with_columns(pl.col("model_name").str.replace(r"\d+px$", ""))
+benchmark_df = benchmark_df.with_columns(pl.col("model_name").str.replace(r"-$", ""))  # remove trailing "-"
 compare_results_df = compare_results_df.join(
     benchmark_df, left_on=["Pretrained name", "Resolution"], right_on=["model_name", "size"], how="left"
 )

@@ -335,3 +335,34 @@ registry.register_model_config(
         "layer_scale_init_value": 1e-6,
     },
 )
+
+registry.register_weights(
+    "uniformer_s_eu-common256px",
+    {
+        "url": "https://huggingface.co/birder-project/uniformer_s_eu-common/resolve/main",
+        "description": "A UniFormer small model trained on the eu-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 81.8,
+                "sha256": "b752190d4ced70c112c757b79ed4683be5018c0a80dd86607df2b495c5dbfcd2",
+            },
+        },
+        "net": {"network": "uniformer_s", "tag": "eu-common256px"},
+    },
+)
+registry.register_weights(
+    "uniformer_s_eu-common",
+    {
+        "url": "https://huggingface.co/birder-project/uniformer_s_eu-common/resolve/main",
+        "description": "A UniFormer small model trained on the eu-common dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 81.8,
+                "sha256": "a9541a9393ff69385a0862d7717982c7fd7986221a2c1eae2f9bed8a20c5fca7",
+            },
+        },
+        "net": {"network": "uniformer_s", "tag": "eu-common"},
+    },
+)

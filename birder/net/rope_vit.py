@@ -928,6 +928,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 #     Pooling/Reduction:
 #     - avg         : Average pooling for sequence reduction
 #     - ap          : Attention Pooling for sequence reduction
+#     - aps         : Attention Pooling inc. Special tokens for sequence reduction
 #
 #     Custom Variants:
 #     - c{N}        : Custom variant (N = version number) for models with fine-grained or non-standard
@@ -958,7 +959,7 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
-    "rope_i_vit_s16_pn_ap_c1",  # For PE Core - https://arxiv.org/abs/2504.13181
+    "rope_i_vit_s16_pn_aps_c1",  # For PE Core - https://arxiv.org/abs/2504.13181
     RoPE_ViT,
     config={
         "patch_size": 16,
@@ -1051,7 +1052,7 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
-    "rope_i_vit_b16_pn_ap_c1",  # For PE Core - https://arxiv.org/abs/2504.13181
+    "rope_i_vit_b16_pn_aps_c1",  # For PE Core - https://arxiv.org/abs/2504.13181
     RoPE_ViT,
     config={
         "patch_size": 16,
@@ -1120,7 +1121,7 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
-    "rope_i_vit_l14_pn_ap_c1",  # For PE Core - https://arxiv.org/abs/2504.13181
+    "rope_i_vit_l14_pn_aps_c1",  # For PE Core - https://arxiv.org/abs/2504.13181
     RoPE_ViT,
     config={
         "patch_size": 14,
@@ -1535,6 +1536,24 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
+    "rope_vit_reg8_so150m_p14_swiglu_rms_aps",
+    RoPE_ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 18,
+        "num_heads": 16,
+        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
+        "mlp_dim": 2320,
+        "num_reg_tokens": 8,
+        "class_token": False,
+        "attn_pool_head": True,
+        "attn_pool_special_tokens": True,
+        "norm_layer_type": "RMSNorm",
+        "mlp_layer_type": "SwiGLU_FFN",
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
     "rope_vit_reg8_so150m_p14_ap",
     RoPE_ViT,
     config={
@@ -1662,9 +1681,9 @@ registry.register_weights(
 # Perception Encoder: The best visual embeddings are not at the output of the network, by Meta FAIR
 # https://arxiv.org/abs/2504.13181
 registry.register_weights(
-    "rope_i_vit_s16_pn_ap_c1_pe-core",
+    "rope_i_vit_s16_pn_aps_c1_pe-core",
     {
-        "url": "https://huggingface.co/birder-project/rope_i_vit_s16_pn_ap_c1_pe-core/resolve/main",
+        "url": "https://huggingface.co/birder-project/rope_i_vit_s16_pn_aps_c1_pe-core/resolve/main",
         "description": (
             "ViT s16 image encoder pre-trained by Meta FAIR using CLIP. "
             "This model has not been fine-tuned for a specific classification task"
@@ -1676,7 +1695,7 @@ registry.register_weights(
                 "sha256": "e4429b0bafb9f827698dde73c882c70deb994329ea0dd169f68e76ad256bbb74",
             },
         },
-        "net": {"network": "rope_i_vit_s16_pn_ap_c1", "tag": "pe-core"},
+        "net": {"network": "rope_i_vit_s16_pn_aps_c1", "tag": "pe-core"},
     },
 )
 registry.register_weights(
@@ -1698,9 +1717,9 @@ registry.register_weights(
     },
 )
 registry.register_weights(
-    "rope_i_vit_b16_pn_ap_c1_pe-core",
+    "rope_i_vit_b16_pn_aps_c1_pe-core",
     {
-        "url": "https://huggingface.co/birder-project/rope_i_vit_b16_pn_ap_c1_pe-core/resolve/main",
+        "url": "https://huggingface.co/birder-project/rope_i_vit_b16_pn_aps_c1_pe-core/resolve/main",
         "description": (
             "ViT b16 image encoder pre-trained by Meta FAIR using CLIP. "
             "This model has not been fine-tuned for a specific classification task"
@@ -1712,13 +1731,13 @@ registry.register_weights(
                 "sha256": "d1c1ba1e8c841f495ff3c0e5e6963a39c8d1ae07dea30d3b82422017a4062d97",
             },
         },
-        "net": {"network": "rope_i_vit_b16_pn_ap_c1", "tag": "pe-core"},
+        "net": {"network": "rope_i_vit_b16_pn_aps_c1", "tag": "pe-core"},
     },
 )
 registry.register_weights(
-    "rope_i_vit_l14_pn_ap_c1_pe-core",
+    "rope_i_vit_l14_pn_aps_c1_pe-core",
     {
-        "url": "https://huggingface.co/birder-project/rope_i_vit_l14_pn_ap_c1_pe-core/resolve/main",
+        "url": "https://huggingface.co/birder-project/rope_i_vit_l14_pn_aps_c1_pe-core/resolve/main",
         "description": (
             "ViT l14 image encoder pre-trained by Meta FAIR using CLIP. "
             "This model has not been fine-tuned for a specific classification task"
@@ -1730,6 +1749,6 @@ registry.register_weights(
                 "sha256": "26c2188116cb254d2870c23cc3ab7d60d9ee0606c803b8dbe359e5716498b5c4",
             },
         },
-        "net": {"network": "rope_i_vit_l14_pn_ap_c1", "tag": "pe-core"},
+        "net": {"network": "rope_i_vit_l14_pn_aps_c1", "tag": "pe-core"},
     },
 )

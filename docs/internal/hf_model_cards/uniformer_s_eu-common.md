@@ -7,26 +7,26 @@ library_name: birder
 license: apache-2.0
 ---
 
-# Model Card for cswin_transformer_s_eu-common
+# Model Card for uniformer_s_eu-common
 
-A CSWin Transformer small image classification model. This model was trained on the `eu-common` dataset containing common European bird species.
+A UniFormer small image classification model. This model was trained on the `eu-common` dataset containing common European bird species.
 
 The species list is derived from the Collins bird guide [^1].
 
 [^1]: Svensson, L., Mullarney, K., & Zetterström, D. (2022). Collins bird guide (3rd ed.). London, England: William Collins.
 
-Note: A 256 x 256 variant of this model is available as `cswin_transformer_s_eu-common256px`.
+Note: A 256 x 256 variant of this model is available as `uniformer_s_eu-common256px`.
 
 ## Model Details
 
 - **Model Type:** Image classification and detection backbone
 - **Model Stats:**
-    - Params (M): 34.5
+    - Params (M): 21.4
     - Input image size: 384 x 384
 - **Dataset:** eu-common (707 classes)
 
 - **Papers:**
-    - CSWin Transformer: A General Vision Transformer Backbone with Cross-Shaped Windows: <https://arxiv.org/abs/2107.00652>
+    - UniFormer: Unifying Convolution and Self-attention for Visual Recognition: <https://arxiv.org/abs/2201.09450>
 
 ## Model Usage
 
@@ -36,8 +36,8 @@ Note: A 256 x 256 variant of this model is available as `cswin_transformer_s_eu-
 import birder
 from birder.inference.classification import infer_image
 
-(net, model_info) = birder.load_pretrained_model("cswin_transformer_s_eu-common", inference=True)
-# Note: A 256x256 variant is available as "cswin_transformer_s_eu-common256px"
+(net, model_info) = birder.load_pretrained_model("uniformer_s_eu-common", inference=True)
+# Note: A 256x256 variant is available as "uniformer_s_eu-common256px"
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -56,7 +56,7 @@ image = "path/to/image.jpeg"  # or a PIL image, must be loaded in RGB format
 import birder
 from birder.inference.classification import infer_image
 
-(net, model_info) = birder.load_pretrained_model("cswin_transformer_s_eu-common", inference=True)
+(net, model_info) = birder.load_pretrained_model("uniformer_s_eu-common", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -75,7 +75,7 @@ image = "path/to/image.jpeg"  # or a PIL image
 from PIL import Image
 import birder
 
-(net, model_info) = birder.load_pretrained_model("cswin_transformer_s_eu-common", inference=True)
+(net, model_info) = birder.load_pretrained_model("uniformer_s_eu-common", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -90,20 +90,20 @@ print([(k, v.size()) for k, v in features.items()])
 # Output example:
 # [('stage1', torch.Size([1, 64, 96, 96])),
 #  ('stage2', torch.Size([1, 128, 48, 48])),
-#  ('stage3', torch.Size([1, 256, 24, 24])),
+#  ('stage3', torch.Size([1, 320, 24, 24])),
 #  ('stage4', torch.Size([1, 512, 12, 12]))]
 ```
 
 ## Citation
 
 ```bibtex
-@misc{dong2022cswintransformergeneralvision,
-      title={CSWin Transformer: A General Vision Transformer Backbone with Cross-Shaped Windows},
-      author={Xiaoyi Dong and Jianmin Bao and Dongdong Chen and Weiming Zhang and Nenghai Yu and Lu Yuan and Dong Chen and Baining Guo},
-      year={2022},
-      eprint={2107.00652},
+@misc{li2023uniformerunifyingconvolutionselfattention,
+      title={UniFormer: Unifying Convolution and Self-attention for Visual Recognition},
+      author={Kunchang Li and Yali Wang and Junhao Zhang and Peng Gao and Guanglu Song and Yu Liu and Hongsheng Li and Yu Qiao},
+      year={2023},
+      eprint={2201.09450},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2107.00652},
+      url={https://arxiv.org/abs/2201.09450},
 }
 ```

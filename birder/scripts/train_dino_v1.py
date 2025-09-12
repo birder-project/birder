@@ -247,6 +247,10 @@ def train(args: argparse.Namespace) -> None:
     teacher_backbone = registry.net_factory(
         args.network, sample_shape[1], 0, config=teacher_model_config, size=args.size
     )
+    if args.freeze_body is True:
+        student_backbone.freeze(freeze_classifier=False, unfreeze_features=True)
+        teacher_backbone.freeze(freeze_classifier=False, unfreeze_features=True)
+
     student_backbone.set_dynamic_size()
     teacher_backbone.set_dynamic_size()
     student = DINO_v1(
@@ -728,7 +732,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "whether or not to weight normalize the last layer of the DINO head, "
-            "set this flag with large models (vit_b)"
+            "set this flag with large models (vit_b and above)"
         ),
     )
     parser.add_argument(
@@ -763,6 +767,18 @@ def get_args_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("-t", "--tag", type=str, help="add model tag")
+    parser.add_argument(
+        "--backbone-epoch",
+        type=int,
+        metavar="N",
+        help="load backbone weights from the specified epoch (if not provided, initialize new network)",
+    )
+    parser.add_argument(
+        "--freeze-body",
+        default=False,
+        action="store_true",
+        help="freeze all layers of the backbone except the features layer",
+    )
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser, wd_end=True)
     training_cli.add_lr_scheduler_args(parser)
@@ -792,6 +808,8 @@ def validate_args(args: argparse.Namespace) -> None:
     # Script specific checks
     if registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION) is False:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
+    if args.backbone_epoch is True and args.resume_epoch is True:
+        raise cli.ValidationError("--backbone-epoch cannot be used with --resume-epoch")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

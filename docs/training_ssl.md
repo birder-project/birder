@@ -185,13 +185,19 @@ torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-p
 #### CAPI: RoPE SoViT reg8 150m p14 swiglu rms AVG
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg8_so150m_p14_swiglu_rms_avg --decoder-layers 10 --opt adamw --lr 0.001 --opt-betas 0.9 0.95 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 192 --epochs 400 --wd 0.1 --norm-wd 0.01 --grad-accum-steps 32 --amp --amp-dtype bfloat16 --compile --compile-opt --rgb-mode none --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg8_so150m_p14_swiglu_rms_avg --decoder-layers 10 --opt adamw --lr 0.001 --opt-betas 0.9 0.95 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 192 --epochs 400 --wd 0.1 --norm-wd 0.01 --grad-accum-steps 32 --amp --amp-dtype bfloat16 --compile --compile-opt --rgb-mode none --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 DGX A100 training
 
 ```sh
-torchrun --nproc_per_node=8 -m birder.scripts.train_capi --network rope_vit_reg8_so150m_p14_swiglu_rms_avg --decoder-layers 10 --opt adamw --lr 0.001 --opt-betas 0.9 0.95 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 1024 --epochs 400 --wd 0.1 --norm-wd 0.01 --grad-accum-steps 2 --amp --amp-dtype bfloat16 --compile --rgb-mode none --find-unused-parameters --keep-last 4 --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=8 -m birder.scripts.train_capi --network rope_vit_reg8_so150m_p14_swiglu_rms_avg --decoder-layers 10 --opt adamw --lr 0.001 --opt-betas 0.9 0.95 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 1024 --epochs 400 --wd 0.1 --norm-wd 0.01 --grad-accum-steps 2 --amp --amp-dtype bfloat16 --compile --rgb-mode none --keep-last 4 --wds --wds-info data/ssl_packed/_info.json
+```
+
+Optional: Train attention pooling head using DINO
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network rope_vit_reg8_so150m_p14_swiglu_rms_aps --tag capi --local-crops-number 8 --local-crop-size 98 --teacher-temp 0.07 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 10 --batch-size 256 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --grad-accum-steps 4 --clip-grad-norm 0.5 --amp --amp-dtype bfloat16 --compile --rgb-mode none --backbone-epoch 0 --freeze-body --non-strict-weights --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Fine-tuning, first stage - linear probing

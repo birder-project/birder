@@ -9,7 +9,7 @@ base_model:
 - facebook/PE-Core-L14-336
 ---
 
-# Model Card for rope_i_vit_l14_pn_ap_c1_pe-core
+# Model Card for rope_i_vit_l14_pn_aps_c1_pe-core
 
 A ViT-L14 image encoder from the PE-Core model by Bolya et al., converted to the Birder format for image feature extraction.
 This version retains the original model weights and architecture, with the exception of removing the CLIP projection layer to expose raw image embeddings.
@@ -37,7 +37,7 @@ See: <https://huggingface.co/facebook/PE-Core-L14-336> for further details.
 import birder
 from birder.inference.classification import infer_image
 
-(net, model_info) = birder.load_pretrained_model("rope_i_vit_l14_pn_ap_c1_pe-core", inference=True)
+(net, model_info) = birder.load_pretrained_model("rope_i_vit_l14_pn_aps_c1_pe-core", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -56,7 +56,7 @@ image = "path/to/image.jpeg"  # or a PIL image
 from PIL import Image
 import birder
 
-(net, model_info) = birder.load_pretrained_model("rope_i_vit_l14_pn_ap_c1_pe-core", inference=True)
+(net, model_info) = birder.load_pretrained_model("rope_i_vit_l14_pn_aps_c1_pe-core", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)

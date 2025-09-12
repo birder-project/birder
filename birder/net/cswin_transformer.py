@@ -426,7 +426,7 @@ registry.register_model_config(
 )
 
 registry.register_weights(
-    "cswin_transformer_s_eu-common",
+    "cswin_transformer_s_eu-common256px",
     {
         "url": "https://huggingface.co/birder-project/cswin_transformer_s_eu-common/resolve/main",
         "description": "CSWin Transformer small model trained on the eu-common dataset",
@@ -435,6 +435,21 @@ registry.register_weights(
             "pt": {
                 "file_size": 131.9,
                 "sha256": "0bd308783e62e058a143c7c86827d35a97d99fafc8d2ac1eb3ffafcf76cf5113",
+            }
+        },
+        "net": {"network": "cswin_transformer_s", "tag": "eu-common256px"},
+    },
+)
+registry.register_weights(
+    "cswin_transformer_s_eu-common",
+    {
+        "url": "https://huggingface.co/birder-project/cswin_transformer_s_eu-common/resolve/main",
+        "description": "CSWin Transformer small model trained on the eu-common dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 131.9,
+                "sha256": "8d5e50f67c1416c89281242b13e13f4f99a9bc412c10a9eaf7226a8ed4a1d850",
             }
         },
         "net": {"network": "cswin_transformer_s", "tag": "eu-common"},
