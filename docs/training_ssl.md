@@ -15,6 +15,7 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 - [I-JEPA](#i-jepa)
 - [iBOT](#ibot)
 - [MMCR](#mmcr)
+- [RotNet](#rotnet)
 - [SimCLR](#simclr)
 - [VICReg](#vicreg)
 
@@ -204,6 +205,12 @@ Fine-tuning, first stage - linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_so150m_p14_swiglu_rms_avg --tag capi --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --rgb-mode none --resume-epoch 0 --reset-head --freeze-body
+```
+
+Use as backbone for RotNet
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_rotnet --network rope_vit_reg8_so150m_p14_swiglu_rms_ap --tag capi --rotation-prob 0.5 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --size 224 --aug-level 4 --amp --compile --rgb-mode none --resume-epoch 0 --non-strict-weights --freeze-body --unfreeze-features --wds --wds-info data/ssl_micro_packed/_info.json
 ```
 
 ### Data2Vec
@@ -646,6 +653,20 @@ Fine-tuning, first stage - linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network pvt_v2_b1 --tag mmcr --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --resume-epoch 0 --reset-head --freeze-body
+```
+
+### RotNet
+
+#### RotNet: RegNet Y 6.4 GF
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_rotnet --network regnet_y_6_4g --rotation-prob 0.75 --lr 0.4 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 288 --epochs 200 --wd 0.00005 --aug-level 7 --amp --compile --wds --wds-info data/ssl_packed/_info.json
+```
+
+After 100 epochs, reduce the rotation probability
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_rotnet --network regnet_y_6_4g --rotation-prob 0.65 --lr 0.4 --lr-scheduler cosine --warmup-epochs 5 --batch-size 128 --size 288 --epochs 200 --wd 0.00005 --aug-level 7 --amp --compile --resume-epoch 100 --load-states --wds --wds-info data/ssl_packed/_info.json
 ```
 
 ### SimCLR

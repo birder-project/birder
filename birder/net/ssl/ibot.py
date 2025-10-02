@@ -201,7 +201,7 @@ class iBOTHead(DINOHead):
     ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
         """
         Embedding and features are as coming out of "masked_encoding_retention" function
-        This means embedding shape is (B, D) while features shape is (B, C, H, W)
+        This means embedding shape is (B, C) while features shape is (B, C, H, W)
 
         NOTE: Only models with encoding size == embedding size are supported here
         """

@@ -272,3 +272,33 @@ registry.register_weights(
         "net": {"network": "regnet_z_500m", "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "regnet_z_4g_eu-common256px",
+    {
+        "url": "https://huggingface.co/birder-project/regnet_z_4g_eu-common/resolve/main",
+        "description": "RegNet Z 4g model trained on the eu-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 109.4,
+                "sha256": "d865273b10a377132c86a1634c415de77db067d9a8eed57b98a33a2a3ee8a250",
+            }
+        },
+        "net": {"network": "regnet_z_4g", "tag": "eu-common"},
+    },
+)
+registry.register_weights(
+    "regnet_z_4g_eu-common",
+    {
+        "url": "https://huggingface.co/birder-project/regnet_z_4g_eu-common/resolve/main",
+        "description": "RegNet Z 4g model trained on the eu-common dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 109.4,
+                "sha256": "0d8503eaa34ad5fb0b78c4f6a61b867d58b7a52a5dd5a52a05a9d0d0cde1574d",
+            }
+        },
+        "net": {"network": "regnet_z_4g", "tag": "eu-common"},
+    },
+)

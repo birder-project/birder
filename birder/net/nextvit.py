@@ -421,3 +421,34 @@ class NextViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 registry.register_model_config("nextvit_s", NextViT, config={"depths": [3, 4, 10, 3], "drop_path_rate": 0.1})
 registry.register_model_config("nextvit_b", NextViT, config={"depths": [3, 4, 20, 3], "drop_path_rate": 0.2})
 registry.register_model_config("nextvit_l", NextViT, config={"depths": [3, 4, 30, 3], "drop_path_rate": 0.2})
+
+registry.register_weights(
+    "nextvit_s_eu-common256px",
+    {
+        "url": "https://huggingface.co/birder-project/nextvit_s_eu-common/resolve/main",
+        "description": "Next-ViT small model trained on the eu-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 120.4,
+                "sha256": "7b0962f154cfb0a5c7d5c72ea8b29068a355933a9aedee8e466e8cdb6bd0ac09",
+            }
+        },
+        "net": {"network": "nextvit_s", "tag": "eu-common256px"},
+    },
+)
+registry.register_weights(
+    "nextvit_s_eu-common",
+    {
+        "url": "https://huggingface.co/birder-project/nextvit_s_eu-common/resolve/main",
+        "description": "Next-ViT small model trained on the eu-common dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 120.4,
+                "sha256": "83a9b0bef8378a800ad557a317007a1fec453f9430f5742f178ec1d06ad37980",
+            }
+        },
+        "net": {"network": "nextvit_s", "tag": "eu-common"},
+    },
+)

@@ -412,3 +412,33 @@ registry.register_weights(
         "net": {"network": "moganet_xt", "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "moganet_s_eu-common256px",
+    {
+        "url": "https://huggingface.co/birder-project/moganet_s_eu-common/resolve/main",
+        "description": "MogaNet small model trained on the eu-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 96.4,
+                "sha256": "8faf7f6d578b700f174e6e60c66cea7f101e0b9bac61ceed71c4d5ecc5574ee5",
+            }
+        },
+        "net": {"network": "moganet_s", "tag": "eu-common256px"},
+    },
+)
+registry.register_weights(
+    "moganet_s_eu-common",
+    {
+        "url": "https://huggingface.co/birder-project/moganet_s_eu-common/resolve/main",
+        "description": "MogaNet small model trained on the eu-common dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 96.4,
+                "sha256": "da0fc07f1bf69ef84c71c0d2bbfaa52de0dcd8cfab55d0328f71b2d37bcefb8f",
+            }
+        },
+        "net": {"network": "moganet_s", "tag": "eu-common"},
+    },
+)

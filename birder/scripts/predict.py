@@ -153,6 +153,10 @@ def handle_show_flags(
         show_top_k(img_path, prob, class_to_idx, label)
     elif args.show_top_below is not None and args.show_top_below > prob.max():
         show_top_k(img_path, prob, class_to_idx, label)
+    elif args.show_class is not None:
+        idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
+        if args.show_class == str(idx_to_class[np.argmax(prob)]):  # type: ignore
+            show_top_k(img_path, prob, class_to_idx, label)
 
     # Show mistake (if label exists)
     if label != settings.NO_LABEL:
@@ -165,11 +169,6 @@ def handle_show_flags(
 
         elif args.show_out_of_k is True:
             if label not in np.argsort(prob)[::-1][0 : settings.TOP_K]:
-                show_top_k(img_path, prob, class_to_idx, label)
-
-        elif args.show_class is not None:
-            idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
-            if args.show_class == idx_to_class[np.argmax(prob)]:  # type: ignore
                 show_top_k(img_path, prob, class_to_idx, label)
 
 

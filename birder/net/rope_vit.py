@@ -1677,6 +1677,41 @@ registry.register_weights(
         "net": {"network": "rope_vit_reg4_b14", "tag": "capi-imagenet21k"},
     },
 )
+registry.register_weights(
+    "rope_vit_reg8_so150m_p14_swiglu_rms_avg_capi",
+    {
+        "url": "https://huggingface.co/birder-project/rope_vit_reg8_so150m_p14_swiglu_rms_avg_capi/resolve/main",
+        "description": (
+            "RoPE SoViT 150m p14 image encoder pre-trained using CAPI. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 652.5,
+                "sha256": "84808bdb7a46c70eb13a67a766c2c3c9a4a9a37a90679e03fd75619aa5517e80",
+            }
+        },
+        "net": {"network": "rope_vit_reg8_so150m_p14_swiglu_rms_avg", "tag": "capi"},
+    },
+)
+registry.register_weights(
+    "rope_vit_reg8_so150m_p14_swiglu_rms_ap_rotnet-capi",
+    {
+        "url": "https://huggingface.co/birder-project/rope_vit_reg8_so150m_p14_swiglu_rms_ap_rotnet-capi/resolve/main",
+        "description": (
+            "RoPE SoViT 150m p14 image encoder pre-trained using CAPI, then trained to estimate image orientation"
+        ),
+        "resolution": (252, 252),
+        "formats": {
+            "pt": {
+                "file_size": 680.9,
+                "sha256": "57465120826faa1e61accfb0e51b529c6ae431cc1f6960e4cdd5278d8dbd1edf",
+            }
+        },
+        "net": {"network": "rope_vit_reg8_so150m_p14_swiglu_rms_ap", "tag": "rotnet-capi"},
+    },
+)
 
 # Perception Encoder: The best visual embeddings are not at the output of the network, by Meta FAIR
 # https://arxiv.org/abs/2504.13181

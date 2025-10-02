@@ -1,7 +1,7 @@
 ipykernel~=6.30.0
 ipywidgets~=8.1.7
 jupyterlab-code-formatter~=3.0.2
-jupyterlab~=4.4.7
+jupyterlab~=4.4.9
 jupytext~=1.17.3
 nbconvert~=7.16.6
 pickleshare~=0.7.5

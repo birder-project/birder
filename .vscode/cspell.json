@@ -246,6 +246,7 @@
     "resnext",
     "retinanet",
     "rmsprop",
+    "rotnet",
     "scipy",
     "shufflenet",
     "siglip",

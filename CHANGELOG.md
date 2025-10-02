@@ -2,6 +2,6 @@
 
 ## Unreleased
 
-## 0.0.1 - 2024-07-05
+## 0.1.0 - 2025-10-02
 
-Initial release
+First beta release
