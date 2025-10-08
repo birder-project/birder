@@ -342,6 +342,21 @@ registry.register_model_config(
 )
 
 registry.register_weights(
+    "rdnet_t_ibot-bioscan5m",
+    {
+        "url": "https://huggingface.co/birder-project/rdnet_t_ibot-bioscan5m/resolve/main",
+        "description": "RDNet tiny model pre-trained using iBOT on the BIOSCAN-5M dataset",
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 87.2,
+                "sha256": "ff68958f31557d9d753cdea759c371dcefa807e134afeb2a247aba99f67e72ab",
+            }
+        },
+        "net": {"network": "rdnet_t", "tag": "ibot-bioscan5m"},
+    },
+)
+registry.register_weights(
     "rdnet_s_arabian-peninsula256px",
     {
         "url": "https://huggingface.co/birder-project/rdnet_s_arabian-peninsula/resolve/main",

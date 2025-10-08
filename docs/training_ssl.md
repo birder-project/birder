@@ -198,7 +198,7 @@ torchrun --nproc_per_node=8 -m birder.scripts.train_capi --network rope_vit_reg8
 Optional: Train attention pooling head using DINO
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network rope_vit_reg8_so150m_p14_swiglu_rms_aps --tag capi --local-crops-number 8 --local-crop-size 98 --teacher-temp 0.07 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 10 --batch-size 256 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --grad-accum-steps 4 --clip-grad-norm 0.5 --amp --amp-dtype bfloat16 --compile --rgb-mode none --backbone-epoch 0 --freeze-body --non-strict-weights --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network rope_vit_reg8_so150m_p14_swiglu_rms_aps --tag capi --out-dim 131072 --local-crops-number 8 --local-crop-size 98 --teacher-temp 0.07 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --batch-size 512 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --grad-accum-steps 4 --clip-grad-norm 0.5 --amp --amp-dtype bfloat16 --compile --rgb-mode none --backbone-epoch 0 --freeze-body --non-strict-weights --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Fine-tuning, first stage - linear probing
@@ -578,13 +578,13 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network convnext_v2_s
 #### iBOT: RDNet Tiny
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network rdnet_t --shared-head --local-crops-number 8 --teacher-temp 0.07 --warmup-teacher-temp-epochs 30 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --freeze-last-layer-epochs 1 --epochs 800 --warmup-epochs 10 --size 192 --batch-size 96 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --grad-accum-steps 16 --clip-grad-norm 3 --amp --compile-teacher --data-path data/training
+torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network rdnet_t --tag bioscan5m --shared-head --local-crops-number 8 --teacher-temp 0.07 --warmup-teacher-temp-epochs 30 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --freeze-last-layer-epochs 1 --epochs 800 --warmup-epochs 10 --size 192 --batch-size 96 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --grad-accum-steps 16 --clip-grad-norm 3 --amp --compile-teacher --data-path ~/Datasets/BIOSCAN-5M/pretrain
 ```
 
 BIOSCAN-5M (family) fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network rdnet_t --tag ibot --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 224 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 4 --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --reset-head --freeze-body --data-path ~/Datasets/BIOSCAN-5M/family/training --val-path ~/Datasets/BIOSCAN-5M/family/validation
+torchrun --nproc_per_node=2 train.py --network rdnet_t --tag ibot-bioscan5m --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 10 --batch-size 512 --epochs 90 --size 224 --wd 0.0 --aug-level 1 --fast-matmul --compile --resume-epoch 0 --reset-head --freeze-body --data-path ~/Datasets/BIOSCAN-5M/family/training --val-path ~/Datasets/BIOSCAN-5M/family/validation
 ```
 
 #### iBOT: RegNet Y 1.6 GF

@@ -209,6 +209,9 @@ def set_parser(subparsers: Any) -> None:
         "--onnx-dynamo", default=False, action="store_true", help="convert to ONNX format using TorchDynamo"
     )
     format_group.add_argument("--config", default=False, action="store_true", help="generate model config json")
+    format_group.add_argument(
+        "--head-only", default=False, action="store_true", help="extract and save only the network head weights"
+    )
 
     subparser.set_defaults(func=main)
 
@@ -277,6 +280,9 @@ def main(args: argparse.Namespace) -> None:
         st=args.st,
         onnx=args.onnx or args.onnx_dynamo,
     )
+    if args.head_only is True:
+        model_path = model_path.with_suffix(".head.pt")
+
     if model_path.exists() is True and args.force is False and args.reparameterize is False and args.config is False:
         logger.warning("Converted model already exists... aborting")
         raise SystemExit(1)
@@ -398,6 +404,16 @@ def main(args: argparse.Namespace) -> None:
 
     elif args.config is True:
         config_export(net, signature, rgb_stats, model_path)
+
+    elif args.head_only is True:
+        torch.save(
+            {
+                "state": net.classifier.state_dict(),
+                "birder_version": __version__,
+                "class_to_idx": class_to_idx,
+            },
+            model_path,
+        )
 
     elif args.pts is True:
         if args.trace is True:

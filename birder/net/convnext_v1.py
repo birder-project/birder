@@ -185,3 +185,34 @@ registry.register_model_config(
     ConvNeXt_v1,
     config={"in_channels": [192, 384, 768, 1536], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.5},
 )
+
+registry.register_weights(
+    "convnext_v1_tiny_eu-common256px",
+    {
+        "url": "https://huggingface.co/birder-project/convnext_v1_tiny_eu-common/resolve/main",
+        "description": "ConvNeXt v1 tiny model trained on the eu-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 108.3,
+                "sha256": "38ef8694710eb506a062b4a11932eb7a65829a7e0ba56060a20ce057810d2ae9",
+            }
+        },
+        "net": {"network": "convnext_v1_tiny", "tag": "eu-common256px"},
+    },
+)
+registry.register_weights(
+    "convnext_v1_tiny_eu-common",
+    {
+        "url": "https://huggingface.co/birder-project/convnext_v1_tiny_eu-common/resolve/main",
+        "description": "ConvNeXt v1 tiny model trained on the eu-common dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 108.3,
+                "sha256": "f23b018aa729e8e6620e5dd8088fbe1041b575e60ec555f4a61b5e22d004fa87",
+            }
+        },
+        "net": {"network": "convnext_v1_tiny", "tag": "eu-common"},
+    },
+)

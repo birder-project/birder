@@ -1626,25 +1626,31 @@ torchrun --nproc_per_node=2 train.py --network moganet_xl --opt adamw --lr 0.001
 #### MViT v2: Tiny
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mvit_v2_t --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 70 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --stop-epoch 200
+torchrun --nproc_per_node=2 train.py --network mvit_v2_t --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 70 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --stop-epoch 200
 ```
 
 At epoch 200 increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mvit_v2_t --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 64 --warmup-epochs 70 --epochs 300 --size 384 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --resume-epoch 200 --load-scheduler
+torchrun --nproc_per_node=2 train.py --network mvit_v2_t --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 64 --warmup-epochs 70 --epochs 300 --size 384 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --resume-epoch 200 --load-scheduler
+```
+
+#### MViT v2: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mvit_v2_s --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 70 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile
 ```
 
 #### MViT v2: Base
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mvit_v2_b --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 64 --warmup-epochs 70 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network mvit_v2_b --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 64 --warmup-epochs 70 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile
 ```
 
 Optional intermediate training
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mvit_v2_b --tag intermediate --opt adamw --lr 0.0000675 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 64 --warmup-epochs 20 --epochs 90 --size 256 --wd 0.01 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --wds --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
+torchrun --nproc_per_node=2 train.py --network mvit_v2_b --tag intermediate --opt adamw --lr 0.0000675 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 64 --warmup-epochs 20 --epochs 90 --size 256 --wd 0.01 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --wds --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
 ```
 
 Optional intermediate training: linear probing
@@ -1656,19 +1662,19 @@ torchrun --nproc_per_node=2 train.py --network mvit_v2_b --tag intermediate --op
 Optional intermediate training: fine-tuning
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mvit_v2_b --opt adamw --lr 0.00007 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 64 --warmup-epochs 70 --epochs 40 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --resume-epoch 10
+torchrun --nproc_per_node=2 train.py --network mvit_v2_b --opt adamw --lr 0.00007 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 64 --warmup-epochs 70 --epochs 40 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --resume-epoch 10
 ```
 
 #### MViT v2: Large
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mvit_v2_l --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --warmup-epochs 70 --epochs 300 --size 256 --wd 0.1 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network mvit_v2_l --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --warmup-epochs 70 --epochs 300 --size 256 --wd 0.1 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile
 ```
 
 #### MViT v2: Base w/cls token
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mvit_v2_b_cls --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --warmup-epochs 70 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+torchrun --nproc_per_node=2 train.py --network mvit_v2_b_cls --opt adamw --lr 0.002 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --warmup-epochs 70 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile
 ```
 
 ### Next-ViT

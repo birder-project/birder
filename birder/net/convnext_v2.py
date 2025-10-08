@@ -293,6 +293,36 @@ registry.register_weights(
     },
 )
 registry.register_weights(
+    "convnext_v2_tiny_eu-common256px",
+    {
+        "url": "https://huggingface.co/birder-project/convnext_v2_tiny_eu-common/resolve/main",
+        "description": "ConvNeXt v2 tiny model trained on the eu-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 108.5,
+                "sha256": "056ffe5d4e761c2b9ca59fe7b4063dc749e9bf24d74fe1c5e0f2376898af53c0",
+            }
+        },
+        "net": {"network": "convnext_v2_tiny", "tag": "eu-common256px"},
+    },
+)
+registry.register_weights(
+    "convnext_v2_tiny_eu-common",
+    {
+        "url": "https://huggingface.co/birder-project/convnext_v2_tiny_eu-common/resolve/main",
+        "description": "ConvNeXt v2 tiny model trained on the eu-common dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 108.5,
+                "sha256": "ab44dc459f75bb72309aa4d9d2baaa8467a4bd42f63ad2e4fb8101565276f050",
+            }
+        },
+        "net": {"network": "convnext_v2_tiny", "tag": "eu-common"},
+    },
+)
+registry.register_weights(
     "convnext_v2_tiny_intermediate-eu-common",
     {
         "url": "https://huggingface.co/birder-project/convnext_v2_tiny_intermediate-eu-common/resolve/main",

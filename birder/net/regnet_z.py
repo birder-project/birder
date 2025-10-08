@@ -284,7 +284,7 @@ registry.register_weights(
                 "sha256": "d865273b10a377132c86a1634c415de77db067d9a8eed57b98a33a2a3ee8a250",
             }
         },
-        "net": {"network": "regnet_z_4g", "tag": "eu-common"},
+        "net": {"network": "regnet_z_4g", "tag": "eu-common256px"},
     },
 )
 registry.register_weights(

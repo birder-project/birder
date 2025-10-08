@@ -238,6 +238,11 @@ def train(args: argparse.Namespace) -> None:
     network_name = get_mim_network_name("dino_v1", encoder=args.network, tag=args.tag)
 
     student_backbone = registry.net_factory(args.network, sample_shape[1], 0, config=args.model_config, size=args.size)
+    if args.backbone_epoch is not None:
+        (student_backbone, _) = fs_ops.load_simple_checkpoint(
+            device, student_backbone, backbone_name, epoch=args.backbone_epoch, strict=not args.non_strict_weights
+        )
+
     if args.model_config is not None:
         teacher_model_config = args.model_config.copy()
         teacher_model_config.update({"drop_path_rate": 0.0})
@@ -555,7 +560,8 @@ def train(args: argparse.Namespace) -> None:
                 with torch.no_grad():
                     m = momentum_schedule[global_step]
                     for param_q, param_k in zip(student.parameters(), teacher.parameters()):
-                        param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
+                        if param_q.requires_grad is True:  # Better support for args.freeze_body is True
+                            param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
 
             # Statistics
             running_loss.update(loss.detach())
