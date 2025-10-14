@@ -147,7 +147,7 @@ class Attention2dDownsample(nn.Module):
         self.resolution = resolution
         self.resolution2 = (math.ceil(self.resolution[0] / 2), math.ceil(self.resolution[1] / 2))
         self.N = self.resolution[0] * self.resolution[1]
-        self.N2 = self.resolution2[0] * self.resolution2[1]  # pylint: disable=invalid-name
+        self.N2 = self.resolution2[0] * self.resolution2[1]
 
         self.dh = int(attn_ratio * key_dim) * num_heads
         kh = key_dim * self.num_heads

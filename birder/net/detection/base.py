@@ -565,8 +565,8 @@ class Matcher(nn.Module):
     is returned.
     """
 
-    BELOW_LOW_THRESHOLD = -1
-    BETWEEN_THRESHOLDS = -2
+    BELOW_LOW_THRESHOLD = -1  # pylint: disable=invalid-name
+    BETWEEN_THRESHOLDS = -2  # pylint: disable=invalid-name
 
     def __init__(self, high_threshold: float, low_threshold: float, allow_low_quality_matches: bool = False) -> None:
         """
@@ -585,8 +585,8 @@ class Matcher(nn.Module):
         """
 
         super().__init__()
-        self.BELOW_LOW_THRESHOLD = Matcher.BELOW_LOW_THRESHOLD  # pylint: disable=invalid-name
-        self.BETWEEN_THRESHOLDS = Matcher.BETWEEN_THRESHOLDS  # pylint: disable=invalid-name
+        self.BELOW_LOW_THRESHOLD = Matcher.BELOW_LOW_THRESHOLD
+        self.BETWEEN_THRESHOLDS = Matcher.BETWEEN_THRESHOLDS
         torch._assert(low_threshold <= high_threshold, "low_threshold should be <= high_threshold")
         self.high_threshold = high_threshold
         self.low_threshold = low_threshold

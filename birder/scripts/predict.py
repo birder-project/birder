@@ -18,6 +18,7 @@ from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
+from birder.data.datasets.directory import class_to_idx_from_paths
 from birder.data.datasets.directory import make_image_dataset
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
@@ -215,7 +216,7 @@ def predict(args: argparse.Namespace) -> None:
 
     if args.ignore_dir_names is True:
         num_classes = len(class_to_idx)
-        class_to_idx = fs_ops.class_to_idx_from_paths(args.data_path, hierarchical=args.hierarchical)
+        class_to_idx = class_to_idx_from_paths(args.data_path, hierarchical=args.hierarchical)
         assert len(class_to_idx) == num_classes
 
     if args.class_mapping is not None:

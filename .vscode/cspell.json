@@ -158,6 +158,7 @@
     "majorticklabels",
     "matmul",
     "matplotlib",
+    "matryoshka",
     "matshow",
     "maxpool",
     "maxvit",

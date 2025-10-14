@@ -784,3 +784,33 @@ registry.register_weights(
         "net": {"network": "mvit_v2_t", "tag": "il-all"},
     },
 )
+registry.register_weights(
+    "mvit_v2_s_yellowstone256px",
+    {
+        "url": "https://huggingface.co/birder-project/mvit_v2_s_yellowstone/resolve/main",
+        "description": "MViT v2 small model trained on the yellowstone dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 131.5,
+                "sha256": "df2901c805fd6ce6f49e11c3a01842f2c22f3d0d195e77da49400d03941ad3c5",
+            }
+        },
+        "net": {"network": "mvit_v2_s", "tag": "yellowstone256px"},
+    },
+)
+registry.register_weights(
+    "mvit_v2_s_yellowstone",
+    {
+        "url": "https://huggingface.co/birder-project/mvit_v2_s_yellowstone/resolve/main",
+        "description": "MViT v2 small model trained on the yellowstone dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 131.5,
+                "sha256": "408a5e64e4fecef530fdc13063188e2598c89a939ffea268ab2126832334db30",
+            }
+        },
+        "net": {"network": "mvit_v2_s", "tag": "yellowstone"},
+    },
+)

@@ -420,7 +420,7 @@ class HeadNet(nn.Module):
 class ClassificationHead(HeadNet):
     def __init__(self, num_outputs: int, repeats: int, fpn_channels: int, num_anchors: int) -> None:
         super().__init__(num_outputs, repeats, fpn_channels, num_anchors)
-        self.BETWEEN_THRESHOLDS = Matcher.BETWEEN_THRESHOLDS  # pylint: disable=invalid-name
+        self.BETWEEN_THRESHOLDS = Matcher.BETWEEN_THRESHOLDS
 
     def compute_loss(
         self,

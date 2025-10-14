@@ -73,7 +73,7 @@ class RetinaNetClassificationHead(nn.Module):
 
         self.num_classes = num_classes
         self.num_anchors = num_anchors
-        self.BETWEEN_THRESHOLDS = Matcher.BETWEEN_THRESHOLDS  # pylint: disable=invalid-name
+        self.BETWEEN_THRESHOLDS = Matcher.BETWEEN_THRESHOLDS
 
     def compute_loss(
         self,

@@ -466,6 +466,7 @@ class TestNet(unittest.TestCase):
     @parameterized.expand(  # type: ignore[misc]
         [
             ("conv2former_n"),
+            ("convnext_v1_tiny"),
             ("convnext_v2_atto"),
             ("davit_tiny"),
             ("deit3_t16"),

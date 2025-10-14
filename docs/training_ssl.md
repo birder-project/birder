@@ -111,6 +111,18 @@ torchrun --nproc_per_node=2 train.py --network rope_vit_reg4_m14 --tag capi --op
 torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg8_b14_ap --decoder-layers 8 --decoder-dim 768 --opt adamw --lr 0.001 --opt-betas 0.9 0.95 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 40 --batch-size 192 --epochs 400 --wd 0.1 --norm-wd 0.01 --grad-accum-steps 32 --amp --amp-dtype bfloat16 --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
+Optional intermediate training: first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-intermediate --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 252 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --fast-matmul --compile --resume-epoch 0 --save-frequency 1 --reset-head --freeze-body --unfreeze-features --wds --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
+```
+
+Optional intermediate training: full fine-tuning with layer-wise learning rate decay
+
+```sh
+torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-intermediate --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 192 --warmup-epochs 5 --epochs 100 --size 252 --wd 0.05 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --clip-grad-norm 1 --amp --amp-dtype bfloat16 --compile --compile-opt --layer-decay 0.65 --resume-epoch 0 --save-frequency 1 --wds --wds-class-file data/intermediate_packed/classes.txt --wds-info data/intermediate_packed/_info.json
+```
+
 Fine-tuning, first stage - linear probing
 
 ```sh

@@ -23,8 +23,6 @@ from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
 from birder.common.lib import get_pretrained_model_url
 from birder.conf import settings
-from birder.data.datasets.directory import default_is_valid_file
-from birder.data.datasets.directory import find_hierarchical_classes
 from birder.data.transforms.classification import RGBType
 from birder.model_registry import Task
 from birder.model_registry import registry
@@ -1197,18 +1195,3 @@ def wds_braces_from_path(wds_directory: Path, prefix: str = "") -> tuple[str, in
     num_shards = len(shard_names)
 
     return (wds_path, num_shards)
-
-
-def class_to_idx_from_paths(data_paths: list[str], hierarchical: bool = False) -> dict[str, int]:
-    class_to_idx = {}
-    base = 0
-    for data_path in data_paths:
-        if hierarchical is True:
-            classes = find_hierarchical_classes(data_path, separator="_", is_valid_file=default_is_valid_file)[0]
-        else:
-            classes = sorted(entry.name for entry in os.scandir(data_path) if entry.is_dir())
-
-        class_to_idx.update({cls_name: i + base for i, cls_name in enumerate(classes)})
-        base += len(classes)
-
-    return class_to_idx

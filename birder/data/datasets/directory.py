@@ -238,3 +238,18 @@ def make_image_dataset(
         dataset = ImageListDataset(samples, transforms=transforms, loader=loader)
 
     return dataset
+
+
+def class_to_idx_from_paths(data_paths: list[str], hierarchical: bool = False) -> dict[str, int]:
+    class_to_idx = {}
+    base = 0
+    for data_path in data_paths:
+        if hierarchical is True:
+            classes = find_hierarchical_classes(data_path, separator="_", is_valid_file=default_is_valid_file)[0]
+        else:
+            classes = sorted(entry.name for entry in os.scandir(data_path) if entry.is_dir())
+
+        class_to_idx.update({cls_name: i + base for i, cls_name in enumerate(classes)})
+        base += len(classes)
+
+    return class_to_idx
