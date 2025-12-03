@@ -1,10 +1,6 @@
 # Changelog
 
-## 0.1.2 - 2025-12-03
-
-### Added
-
-- ConvNeXt v1 SSL pre-training support
+## 0.1.3 - 2025-12-03
 
 ### Fixed
 
@@ -12,6 +8,12 @@
 - **Freeze Last Layer**: Fixed `--freeze-last-layer-epochs` to correctly cancel gradients after backward pass (previously called before backward, which had no effect). Affects DINO v1, DINO v2, and iBOT training scripts.
 - **DINOv2 Freeze Last Layer**: Implemented the missing `--freeze-last-layer-epochs` functionality for DINO v2 training.
 - **CAPI Loss Precision**: Added double precision casting in CAPI loss computation to match the original implementation.
+
+## 0.1.2 - 2025-10-14
+
+### Added
+
+- ConvNeXt v1 SSL pre-training support
 
 ## 0.1.1 - 2025-10-08
 
