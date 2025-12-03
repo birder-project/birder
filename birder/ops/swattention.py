@@ -5,8 +5,8 @@ from torch.autograd import Function
 
 from birder.kernels.load_kernel import load_swattention
 
-SWATTENTION_CUDA_NUM_THREADS = 128  # pylint: disable=invalid-name
-SWATTENTION = None  # pylint: disable=invalid-name
+SWATTENTION_CUDA_NUM_THREADS = 128
+SWATTENTION = None
 
 
 def set_swattention_num_threads(num_threads: int) -> None:

@@ -511,7 +511,7 @@ def train(args: argparse.Namespace) -> None:
                 loss = -torch.sum(selected_assignments * F.log_softmax(pred / student_temp, dim=-1), dim=-1)
                 target_entropy = -torch.xlogy(selected_assignments, selected_assignments).sum(dim=-1).mean()
 
-            loss = loss.sum() / len(loss)
+            loss = loss.double().sum() / len(loss)
 
             if scaler is not None:
                 scaler.scale(loss).backward()

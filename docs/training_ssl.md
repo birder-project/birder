@@ -213,6 +213,12 @@ Optional: Train attention pooling head using DINO
 torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network rope_vit_reg8_so150m_p14_swiglu_rms_aps --tag capi --out-dim 131072 --local-crops-number 8 --local-crop-size 98 --teacher-temp 0.07 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --batch-size 512 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --grad-accum-steps 4 --clip-grad-norm 0.5 --amp --amp-dtype bfloat16 --compile --rgb-mode none --backbone-epoch 0 --freeze-body --non-strict-weights --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
+Optional: Linear probing (ImageNet 1K)
+
+```sh
+torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_so150m_p14_swiglu_rms_aps --tag dino-v1-capi-imagenet1k --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 10 --batch-size 512 --epochs 90 --size 224 --wd 0.0 --aug-level 1 --fast-matmul --compile --rgb-mode none --resume-epoch 0 --reset-head --freeze-body --save-frequency 1 --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
+```
+
 Fine-tuning, first stage - linear probing
 
 ```sh

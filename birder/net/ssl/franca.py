@@ -1,5 +1,5 @@
 """
-DINO v2, adapted from
+Franca, adapted from
 https://github.com/valeoai/Franca/tree/main/franca
 
 Paper "Franca: Nested Matryoshka Clustering for Scalable Visual Representation Learning",

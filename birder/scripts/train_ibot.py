@@ -566,11 +566,11 @@ def train(args: argparse.Namespace) -> None:
                     epoch - 1,
                 )["all"]
 
-            if args.freeze_last_layer_epochs >= epoch:
-                student_without_ddp.head.cancel_last_layer_gradients()
-
             if scaler is not None:
                 scaler.scale(loss).backward()
+                if args.freeze_last_layer_epochs >= epoch:
+                    student_without_ddp.head.cancel_last_layer_gradients()
+
                 if optimizer_update is True:
                     if args.clip_grad_norm is not None:
                         scaler.unscale_(optimizer)
@@ -584,6 +584,9 @@ def train(args: argparse.Namespace) -> None:
 
             else:
                 loss.backward()
+                if args.freeze_last_layer_epochs >= epoch:
+                    student_without_ddp.head.cancel_last_layer_gradients()
+
                 if optimizer_update is True:
                     if args.clip_grad_norm is not None:
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)

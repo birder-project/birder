@@ -528,11 +528,11 @@ def train(args: argparse.Namespace) -> None:
                 student_output = student(images)
                 loss = dino_loss(student_output, teacher_output, epoch - 1)
 
-            if args.freeze_last_layer_epochs >= epoch:
-                student_without_ddp.head.cancel_last_layer_gradients()
-
             if scaler is not None:
                 scaler.scale(loss).backward()
+                if args.freeze_last_layer_epochs >= epoch:
+                    student_without_ddp.head.cancel_last_layer_gradients()
+
                 if optimizer_update is True:
                     if args.clip_grad_norm is not None:
                         scaler.unscale_(optimizer)
@@ -546,6 +546,9 @@ def train(args: argparse.Namespace) -> None:
 
             else:
                 loss.backward()
+                if args.freeze_last_layer_epochs >= epoch:
+                    student_without_ddp.head.cancel_last_layer_gradients()
+
                 if optimizer_update is True:
                     if args.clip_grad_norm is not None:
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)

@@ -68,6 +68,9 @@ class DINOHead(nn.Module):
 
         return x
 
+    def cancel_last_layer_gradients(self) -> None:
+        self.last_layer.zero_grad()
+
 
 class DINOLoss(nn.Module):
     def __init__(self, out_dim: int, student_temp: float, center_momentum: float) -> None:
@@ -141,7 +144,7 @@ class DINOLoss(nn.Module):
         self.updated = False
         self.len_teacher_output = len(teacher_output)
         self.async_batch_center = torch.sum(teacher_output, dim=0, keepdim=True)
-        if dist.is_initialized():
+        if training_utils.is_dist_available_and_initialized() is True:
             self.reduce_handle = dist.all_reduce(self.async_batch_center, async_op=True)
 
     @torch.no_grad()  # type: ignore[misc]

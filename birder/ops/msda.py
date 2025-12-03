@@ -6,7 +6,7 @@ from torch.autograd.function import once_differentiable
 
 from birder.kernels.load_kernel import load_msda
 
-MSDA = None  # pylint: disable=invalid-name
+MSDA = None
 
 
 class MultiScaleDeformableAttention(nn.Module):
