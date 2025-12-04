@@ -523,10 +523,12 @@ def train(args: argparse.Namespace) -> None:
     for p in teacher.parameters():
         p.requires_grad = False
 
+    student_without_ddp = student
     if args.distributed is True:
         student = torch.nn.parallel.DistributedDataParallel(
             student, device_ids=[args.local_rank], find_unused_parameters=args.find_unused_parameters
         )
+        student_without_ddp = student.module
 
     model_to_save = net
     if teacher_compile_flag is True and hasattr(model_to_save["teacher"], "_orig_mod") is True:
@@ -669,7 +671,7 @@ def train(args: argparse.Namespace) -> None:
                         teacher_masked_patch_tokens_after_head[:, :n_masked_patches], teacher_temp=teacher_temp
                     )
                     masked_teacher_ibot_softmax_centered = masked_teacher_ibot_softmax_centered.squeeze(0)
-                    ibot_patch_loss.update_center(teacher_masked_patch_tokens_after_head[:n_masked_patches])
+                    ibot_patch_loss.update_center(teacher_masked_patch_tokens_after_head[:, :n_masked_patches])
 
                 else:  # sinkhorn_knopp
                     teacher_dino_softmax_centered_list = dino_loss.sinkhorn_knopp_teacher(
@@ -731,6 +733,11 @@ def train(args: argparse.Namespace) -> None:
 
             if scaler is not None:
                 scaler.scale(loss).backward()
+                if args.freeze_last_layer_epochs >= epoch:
+                    student_without_ddp.dino_head.cancel_last_layer_gradients()
+                    if student_without_ddp.ibot_head is not None:
+                        student_without_ddp.ibot_head.cancel_last_layer_gradients()
+
                 if optimizer_update is True:
                     if args.clip_grad_norm is not None:
                         scaler.unscale_(optimizer)
@@ -744,6 +751,11 @@ def train(args: argparse.Namespace) -> None:
 
             else:
                 loss.backward()
+                if args.freeze_last_layer_epochs >= epoch:
+                    student_without_ddp.dino_head.cancel_last_layer_gradients()
+                    if student_without_ddp.ibot_head is not None:
+                        student_without_ddp.ibot_head.cancel_last_layer_gradients()
+
                 if optimizer_update is True:
                     if args.clip_grad_norm is not None:
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)

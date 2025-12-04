@@ -57,11 +57,12 @@ class TestRegistry(unittest.TestCase):
             for model_format in model_metadata["formats"]:
                 (_, url) = get_pretrained_model_url(model_name, model_format)
 
-                try:
-                    resp = requests.head(url, timeout=5, allow_redirects=True)
-                except requests.RequestException:
-                    # If first attempt fails with an exception, retry once
-                    resp = requests.head(url, timeout=5, allow_redirects=True)
+                for _ in range(3):
+                    try:
+                        resp = requests.head(url, timeout=5, allow_redirects=True)
+                        break
+                    except requests.RequestException:
+                        continue
 
                 with self.subTest(model_name=model_name, model_format=model_format):
                     self.assertEqual(resp.status_code, 200, f"{model_name} not found at {url}")

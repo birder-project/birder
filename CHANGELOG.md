@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 - 2025-12-04
+
+### Fixed
+
+- **DINOv2 Dist. Freeze Last Layer**: Implemented the missing `--freeze-last-layer-epochs` functionality for DINO v2 distillation training.
+
 ## 0.1.3 - 2025-12-03
 
 ### Fixed
