@@ -46,7 +46,7 @@ class HungarianMatcher(nn.Module):
         self.cost_bbox = cost_bbox
         self.cost_giou = cost_giou
 
-    @torch.jit.unused  # type: ignore[misc]
+    @torch.jit.unused  # type: ignore[untyped-decorator]
     def forward(
         self, class_logits: torch.Tensor, box_regression: torch.Tensor, targets: list[dict[str, torch.Tensor]]
     ) -> list[torch.Tensor]:
@@ -401,8 +401,8 @@ class DETR(DetectionBaseNet):
 
         return (loss_bbox, loss_giou)
 
-    @torch.jit.unused  # type: ignore[misc]
-    @torch.compiler.disable()  # type: ignore[misc]
+    @torch.jit.unused  # type: ignore[untyped-decorator]
+    @torch.compiler.disable()  # type: ignore[untyped-decorator]
     def compute_loss(
         self,
         targets: list[dict[str, torch.Tensor]],

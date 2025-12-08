@@ -96,12 +96,12 @@ class DINOLoss(nn.Module):
 
         return total_loss
 
-    @torch.no_grad()  # type: ignore[misc]
+    @torch.no_grad()  # type: ignore[untyped-decorator]
     def softmax_center_teacher(self, teacher_output: torch.Tensor, teacher_temp: float) -> torch.Tensor:
         self.apply_center_update()
         return F.softmax((teacher_output - self.center) / teacher_temp, dim=-1)
 
-    @torch.no_grad()  # type: ignore[misc]
+    @torch.no_grad()  # type: ignore[untyped-decorator]
     def sinkhorn_knopp_teacher(
         self, teacher_output: torch.Tensor, teacher_temp: float, n_iterations: int = 3
     ) -> torch.Tensor:
@@ -135,11 +135,11 @@ class DINOLoss(nn.Module):
 
         return q.t()
 
-    @torch.no_grad()  # type: ignore[misc]
+    @torch.no_grad()  # type: ignore[untyped-decorator]
     def update_center(self, teacher_output: torch.Tensor) -> None:
         self.reduce_center_update(teacher_output)
 
-    @torch.no_grad()  # type: ignore[misc]
+    @torch.no_grad()  # type: ignore[untyped-decorator]
     def reduce_center_update(self, teacher_output: torch.Tensor) -> None:
         self.updated = False
         self.len_teacher_output = len(teacher_output)
@@ -147,7 +147,7 @@ class DINOLoss(nn.Module):
         if training_utils.is_dist_available_and_initialized() is True:
             self.reduce_handle = dist.all_reduce(self.async_batch_center, async_op=True)
 
-    @torch.no_grad()  # type: ignore[misc]
+    @torch.no_grad()  # type: ignore[untyped-decorator]
     def apply_center_update(self) -> None:
         if self.updated is False:
             world_size = training_utils.get_world_size()
@@ -197,12 +197,12 @@ class iBOTPatchLoss(nn.Module):
 
         return -loss.sum() / student_masks_flat.size(0)
 
-    @torch.no_grad()  # type: ignore[misc]
+    @torch.no_grad()  # type: ignore[untyped-decorator]
     def softmax_center_teacher(self, teacher_patch_tokens: torch.Tensor, teacher_temp: float) -> torch.Tensor:
         self.apply_center_update()
         return F.softmax((teacher_patch_tokens - self.center) / teacher_temp, dim=-1)
 
-    @torch.no_grad()  # type: ignore[misc]
+    @torch.no_grad()  # type: ignore[untyped-decorator]
     def sinkhorn_knopp_teacher(
         self,
         teacher_output: torch.Tensor,
@@ -241,11 +241,11 @@ class iBOTPatchLoss(nn.Module):
 
         return q.t()
 
-    @torch.no_grad()  # type: ignore[misc]
+    @torch.no_grad()  # type: ignore[untyped-decorator]
     def update_center(self, teacher_patch_tokens: torch.Tensor) -> None:
         self.reduce_center_update(teacher_patch_tokens)
 
-    @torch.no_grad()  # type: ignore[misc]
+    @torch.no_grad()  # type: ignore[untyped-decorator]
     def reduce_center_update(self, teacher_patch_tokens: torch.Tensor) -> None:
         self.updated = False
         self.len_teacher_patch_tokens = len(teacher_patch_tokens)
@@ -253,7 +253,7 @@ class iBOTPatchLoss(nn.Module):
         if training_utils.is_dist_available_and_initialized() is True:
             self.reduce_handle = dist.all_reduce(self.async_batch_center, async_op=True)
 
-    @torch.no_grad()  # type: ignore[misc]
+    @torch.no_grad()  # type: ignore[untyped-decorator]
     def apply_center_update(self) -> None:
         if self.updated is False:
             world_size = training_utils.get_world_size()

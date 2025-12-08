@@ -22,7 +22,7 @@ class TestBase(unittest.TestCase):
 
 
 class TestNetDetection(unittest.TestCase):
-    @parameterized.expand(  # type: ignore[misc]
+    @parameterized.expand(  # type: ignore[untyped-decorator]
         [
             ("deformable_detr", "fasternet_t0"),
             ("deformable_detr", "efficientvit_msft_m0"),  # 3 stage network

@@ -131,35 +131,37 @@ class CrossMAE(MIMBaseNet):
 
     def patchify(self, imgs: torch.Tensor) -> torch.Tensor:
         """
-        imgs: (N, 3, H, W)
-        x: (N, L, patch_size**2 * 3)
+        imgs: (N, C, H, W)
+        x: (N, L, patch_size**2 * C)
         """
 
         p = self.patch_size
+        c = self.encoder.input_channels
         assert imgs.shape[2] == imgs.shape[3] and imgs.shape[2] % p == 0
 
         h = imgs.shape[2] // p
         w = imgs.shape[3] // p
-        x = imgs.reshape(shape=(imgs.shape[0], 3, h, p, w, p))
+        x = imgs.reshape(shape=(imgs.shape[0], c, h, p, w, p))
         x = torch.einsum("nchpwq->nhwpqc", x)
-        x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * 3))
+        x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * c))
 
         return x
 
     def unpatchify(self, x: torch.Tensor) -> torch.Tensor:
         """
-        x: (N, L, patch_size**2 * 3)
-        imgs: (N, 3, H, W)
+        x: (N, L, patch_size**2 * C)
+        imgs: (N, C, H, W)
         """
 
         p = self.patch_size
+        c = self.encoder.input_channels
         h = int(x.shape[1] ** 0.5)
         w = int(x.shape[1] ** 0.5)
         assert h * w == x.shape[1]
 
-        x = x.reshape(shape=(x.shape[0], h, w, p, p, 3))
+        x = x.reshape(shape=(x.shape[0], h, w, p, p, c))
         x = torch.einsum("nhwpqc->nchpwq", x)
-        imgs = x.reshape(shape=(x.shape[0], 3, h * p, h * p))
+        imgs = x.reshape(shape=(x.shape[0], c, h * p, h * p))
 
         return imgs
 

@@ -27,7 +27,7 @@ class Lars(Optimizer):
     def __init__(
         self,
         params: ParamsT,
-        lr: float,
+        lr: float | torch.Tensor,
         momentum: float = 0.0,
         dampening: float = 0.0,
         weight_decay: float = 0.0,
@@ -91,7 +91,7 @@ class Lars(Optimizer):
         for group in self.param_groups:
             group.setdefault("nesterov", False)
 
-    @torch.no_grad()  # type: ignore[misc]
+    @torch.no_grad()  # type: ignore[untyped-decorator]
     def step(self, closure: Optional[Callable[[], float]] = None) -> Optional[float]:
         loss = None
         if closure is not None:

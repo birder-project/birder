@@ -150,10 +150,13 @@ Thank you for your understanding and interest in Birder!
 
 ### Code
 
-The code in this project is licensed under Apache 2.0. See [LICENSE](LICENSE) for details.
-Some code is adapted from other projects.
-There are notices with links to the references at the top of the file or at the specific class/function.
-It is your responsibility to ensure compliance with licenses here and conditions of any dependent licenses.
+The code in this project is primarily licensed under Apache 2.0. See [LICENSE](LICENSE) for details.
+
+**Important:** Some model implementations are derivative works of code under less permissive licenses, such as CC-BY-NC (Creative Commons Attribution-NonCommercial) or similar restrictions. These components may prohibit commercial use or impose other conditions.
+
+Files subject to additional license restrictions are marked in their headers. Some code is also adapted from other projects with various licenses. References and license information are provided at the top of affected files or at specific classes/functions.
+
+**You are responsible for ensuring compliance with all licenses and conditions of any dependent licenses.**
 
 If you think we've missed a reference or a license, please create an issue.
 

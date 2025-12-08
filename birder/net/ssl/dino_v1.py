@@ -74,7 +74,7 @@ class DINOLoss(nn.Module):
 
         return total_loss
 
-    @torch.no_grad()  # type: ignore[misc]
+    @torch.no_grad()  # type: ignore[untyped-decorator]
     def update_center(self, teacher_output: torch.Tensor) -> None:
         batch_center = torch.sum(teacher_output, dim=0, keepdim=True)
         if training_utils.is_dist_available_and_initialized() is False:

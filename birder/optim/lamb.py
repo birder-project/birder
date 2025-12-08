@@ -27,7 +27,7 @@ class Lamb(Optimizer):
     def __init__(
         self,
         params: ParamsT,
-        lr: float = 1e-3,
+        lr: float | torch.Tensor = 1e-3,
         bias_correction: bool = True,
         betas: tuple[float, float] = (0.9, 0.999),
         eps: float = 1e-6,
@@ -109,7 +109,7 @@ class Lamb(Optimizer):
         return clip_global_norm
 
     # pylint: disable=too-many-branches
-    @torch.no_grad()  # type: ignore[misc]
+    @torch.no_grad()  # type: ignore[untyped-decorator]
     def step(self, closure: Optional[Callable[[], float]] = None) -> Optional[float]:
         loss = None
         if closure is not None:

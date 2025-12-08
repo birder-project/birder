@@ -58,7 +58,7 @@ class TestBase(unittest.TestCase):
 
 
 class TestNet(unittest.TestCase):
-    @parameterized.expand(  # type: ignore[misc]
+    @parameterized.expand(  # type: ignore[untyped-decorator]
         [
             ("alexnet"),
             ("biformer_t"),
@@ -271,7 +271,7 @@ class TestNet(unittest.TestCase):
         n_copy = copy.deepcopy(n)
         self.assertIsNotNone(n_copy)
 
-    @parameterized.expand(  # type: ignore[misc]
+    @parameterized.expand(  # type: ignore[untyped-decorator]
         [
             ("biformer_t"),
             ("cas_vit_xs"),
@@ -429,7 +429,7 @@ class TestNet(unittest.TestCase):
         for idx in range(num_stages):
             n.freeze_stages(idx)
 
-    @parameterized.expand(  # type: ignore[misc]
+    @parameterized.expand(  # type: ignore[untyped-decorator]
         [
             ("hiera_tiny",),
             ("hiera_abswin_tiny",),
@@ -463,7 +463,7 @@ class TestNet(unittest.TestCase):
         self.assertGreater(len(groups), 5)
         self.assertLess(len(groups), 40)
 
-    @parameterized.expand(  # type: ignore[misc]
+    @parameterized.expand(  # type: ignore[untyped-decorator]
         [
             ("conv2former_n"),
             ("convnext_v1_tiny"),
@@ -563,7 +563,7 @@ class TestNet(unittest.TestCase):
         self.assertGreater(len(groups), 5)
         self.assertLess(len(groups), 50)
 
-    @parameterized.expand(  # type: ignore[misc]
+    @parameterized.expand(  # type: ignore[untyped-decorator]
         [
             ("deit3_t16"),
             ("deit3_reg4_t16"),
@@ -639,7 +639,7 @@ class TestNet(unittest.TestCase):
 
 
 class TestNonSquareNet(unittest.TestCase):
-    @parameterized.expand(  # type: ignore[misc]
+    @parameterized.expand(  # type: ignore[untyped-decorator]
         [
             ("alexnet"),
             ("biformer_t"),
@@ -811,7 +811,7 @@ class TestNonSquareNet(unittest.TestCase):
 
 
 class TestDynamicSize(unittest.TestCase):
-    @parameterized.expand(  # type: ignore[misc]
+    @parameterized.expand(  # type: ignore[untyped-decorator]
         [
             ("davit_tiny"),
             ("deit3_t16"),

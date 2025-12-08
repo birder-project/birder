@@ -47,7 +47,7 @@ def get_patch_sizes(min_size: int, max_size: int, input_size: tuple[int, int]) -
 
 
 # No compile support for antialias
-@torch.compiler.disable()  # type: ignore[misc]
+@torch.compiler.disable()  # type: ignore[untyped-decorator]
 def interpolate_proj(proj_weight: torch.Tensor, patch_size: int) -> torch.Tensor:
     orig_dtype = proj_weight.dtype
     proj_weight = proj_weight.float()  # Interpolate needs float32

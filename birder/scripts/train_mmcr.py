@@ -63,8 +63,7 @@ class TrainTransform:
 
     def __call__(self, sample: Any) -> torch.Tensor:
         x_list = []
-        for _ in range(self.n_aug // 2):
-            x_list.append(self.transform(sample))
+        for _ in range(self.n_aug):
             x_list.append(self.transform(sample))
 
         return torch.stack(x_list, dim=0)

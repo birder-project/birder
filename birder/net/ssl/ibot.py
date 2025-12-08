@@ -140,7 +140,7 @@ class iBOTLoss(nn.Module):
 
         return total_loss
 
-    @torch.no_grad()  # type: ignore[misc]
+    @torch.no_grad()  # type: ignore[untyped-decorator]
     def update_center(self, teacher_embedding: torch.Tensor, teacher_features: torch.Tensor) -> None:
         embedding_center = torch.sum(teacher_embedding, dim=0, keepdim=True)
         if training_utils.is_dist_available_and_initialized() is False:

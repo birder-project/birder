@@ -13,6 +13,7 @@ from birder.net.ssl import data2vec
 from birder.net.ssl import data2vec2
 from birder.net.ssl import dino_v1
 from birder.net.ssl import dino_v2
+from birder.net.ssl import franca
 from birder.net.ssl import i_jepa
 from birder.net.ssl import ibot
 from birder.net.ssl import mmcr
@@ -396,6 +397,198 @@ class TestNetSSL(unittest.TestCase):
         # iBOT loss
         masks_weight = (1 / masks.sum(-1).clamp(min=1.0)).unsqueeze(-1).expand_as(masks)[masks.bool()]
         loss_ibot_patch = ibot_patch_loss.forward_masked(
+            student_global_masked_patch_tokens_after_head,
+            masked_teacher_ibot_softmax_centered,
+            student_masks_flat=masks,
+            masks_weight=masks_weight,
+            n_masked_patches=n_masked_patches,
+        )
+        self.assertFalse(torch.isnan(loss_ibot_patch).any())
+        self.assertEqual(loss_ibot_patch.ndim, 0)
+
+    # pylint: disable=too-many-locals
+    def test_franca(self) -> None:
+        batch_size = 4
+        size = (192, 192)
+        dino_out_dim = 4096
+        num_nesting_levels = 5
+        backbone = registry.net_factory("vit_s16", 3, 0, size=size)
+        backbone.set_dynamic_size()
+
+        # Without iBOT head
+        teacher = franca.FrancaTeacher(
+            backbone,
+            config={
+                "dino_out_dim": dino_out_dim,
+                "use_bn": False,
+                "num_layers": 3,
+                "hidden_dim": 2048,
+                "head_bottleneck_dim": 256,
+                "ibot_separate_head": False,
+            },
+        )
+        student = franca.FrancaStudent(
+            backbone,
+            config={
+                "dino_out_dim": dino_out_dim,
+                "use_bn": False,
+                "num_layers": 3,
+                "hidden_dim": 2048,
+                "head_bottleneck_dim": 256,
+                "ibot_separate_head": False,
+            },
+        )
+
+        x = torch.rand(batch_size * 2, 3, *size)
+        local_x = torch.rand(batch_size * 4, 3, size[0] // 2, size[1] // 2)
+        mask_generator = masking.BlockMasking(
+            (size[0] // backbone.stem_stride, size[1] // backbone.stem_stride), 1, 3, 0.66, 1.5
+        )
+        masks = mask_generator(batch_size * 2)  # Not quite the same, but close enough
+        mask_indices_list = masks.flatten().nonzero().flatten()
+        upper_bound = len(mask_indices_list) + 16
+
+        with torch.no_grad():
+            (teacher_embedding_after_head, teacher_masked_patch_tokens_after_head) = teacher(
+                x, 2, upper_bound=upper_bound, mask_indices_list=mask_indices_list
+            )
+
+        (
+            student_global_embedding,
+            student_global_embedding_after_head,
+            student_local_embedding_after_head,
+            student_global_masked_patch_tokens_after_head,
+        ) = student(x, local_x, masks, upper_bound, mask_indices_list)
+
+        # Teacher outputs are tuples (one per nesting level)
+        self.assertEqual(len(teacher_embedding_after_head), num_nesting_levels)
+        self.assertEqual(len(teacher_masked_patch_tokens_after_head), num_nesting_levels)
+        for i, t in enumerate(teacher_embedding_after_head):
+            expected_dim = dino_out_dim // (2 ** (num_nesting_levels - 1 - i))
+            self.assertFalse(torch.isnan(t).any())
+            self.assertEqual(t.size(), (batch_size * 2, expected_dim))
+
+        for i, t in enumerate(teacher_masked_patch_tokens_after_head):
+            expected_dim = dino_out_dim // (2 ** (num_nesting_levels - 1 - i))
+            self.assertFalse(torch.isnan(t).any())
+            self.assertEqual(t.size(), (len(mask_indices_list), expected_dim))
+
+        # Student outputs
+        self.assertFalse(torch.isnan(student_global_embedding).any())
+        self.assertEqual(student_global_embedding.size(), (batch_size * 2, backbone.embedding_size))
+
+        self.assertEqual(len(student_global_embedding_after_head), num_nesting_levels)
+        self.assertEqual(len(student_local_embedding_after_head), num_nesting_levels)
+        self.assertEqual(len(student_global_masked_patch_tokens_after_head), num_nesting_levels)
+
+        for i, t in enumerate(student_global_embedding_after_head):
+            expected_dim = dino_out_dim // (2 ** (num_nesting_levels - 1 - i))
+            self.assertFalse(torch.isnan(t).any())
+            self.assertEqual(t.size(), (batch_size * 2, expected_dim))
+
+        for i, t in enumerate(student_local_embedding_after_head):
+            expected_dim = dino_out_dim // (2 ** (num_nesting_levels - 1 - i))
+            self.assertFalse(torch.isnan(t).any())
+            self.assertEqual(t.size(), (batch_size * 4, expected_dim))
+
+        for i, t in enumerate(student_global_masked_patch_tokens_after_head):
+            expected_dim = dino_out_dim // (2 ** (num_nesting_levels - 1 - i))
+            self.assertFalse(torch.isnan(t).any())
+            self.assertEqual(t.size(), (len(mask_indices_list), expected_dim))
+
+        # With iBOT head
+        teacher = franca.FrancaTeacher(
+            backbone,
+            config={
+                "dino_out_dim": dino_out_dim,
+                "use_bn": False,
+                "num_layers": 3,
+                "hidden_dim": 2048,
+                "head_bottleneck_dim": 256,
+                "ibot_separate_head": True,
+                "ibot_out_dim": dino_out_dim,
+            },
+        )
+        student = franca.FrancaStudent(
+            backbone,
+            config={
+                "dino_out_dim": dino_out_dim,
+                "use_bn": False,
+                "num_layers": 3,
+                "hidden_dim": 2048,
+                "head_bottleneck_dim": 256,
+                "ibot_separate_head": True,
+                "ibot_out_dim": dino_out_dim,
+            },
+        )
+
+        masks = mask_generator(batch_size * 2)
+        masks = masks.to(torch.long)
+        mask_indices_list = masks.flatten().nonzero().flatten()
+        upper_bound = len(mask_indices_list) + 16
+
+        with torch.no_grad():
+            (teacher_embedding_after_head, teacher_masked_patch_tokens_after_head) = teacher(
+                x, 2, upper_bound=upper_bound, mask_indices_list=mask_indices_list
+            )
+
+        (
+            student_global_embedding,
+            student_global_embedding_after_head,
+            student_local_embedding_after_head,
+            student_global_masked_patch_tokens_after_head,
+        ) = student(x, local_x, masks, upper_bound, mask_indices_list)
+
+        # Verify shapes again with separate iBOT head
+        self.assertEqual(len(teacher_embedding_after_head), num_nesting_levels)
+        self.assertEqual(len(teacher_masked_patch_tokens_after_head), num_nesting_levels)
+
+        # Loss - Sinkhorn-Knopp only (centering not supported for MRL)
+        dino_loss = franca.DINOLossMRL(student_temp=0.1)
+        koleo_loss = dino_v2.KoLeoLoss()
+        ibot_patch_loss = franca.iBOTPatchLossMRL(student_temp=0.1)
+
+        teacher_temp = 0.04
+        n_masked_patches = len(mask_indices_list)
+
+        # Sinkhorn-Knopp centering
+        teacher_dino_softmax_centered_list = dino_loss.sinkhorn_knopp_teacher(
+            teacher_embedding_after_head, teacher_temp=teacher_temp
+        )
+
+        masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
+            teacher_masked_patch_tokens_after_head,
+            teacher_temp=teacher_temp,
+            n_masked_patches_tensor=torch.full((1,), fill_value=mask_indices_list.size(0), dtype=torch.long),
+        )
+
+        self.assertEqual(len(teacher_dino_softmax_centered_list), num_nesting_levels)
+        self.assertEqual(len(masked_teacher_ibot_softmax_centered), num_nesting_levels)
+        for t in teacher_dino_softmax_centered_list:
+            self.assertFalse(torch.isnan(t).any())
+        for t in masked_teacher_ibot_softmax_centered:
+            self.assertFalse(torch.isnan(t).any())
+
+        # DINO loss
+        n_local_crops = 4
+        n_global_crops = 2
+        loss_dino = dino_loss(
+            list(student_local_embedding_after_head),
+            teacher_dino_softmax_centered_list,
+            n_crops=(n_local_crops, n_global_crops),
+            teacher_global=False,
+        )
+        self.assertFalse(torch.isnan(loss_dino).any())
+        self.assertEqual(loss_dino.ndim, 0)
+
+        # KoLeo loss
+        loss_koleo = sum(koleo_loss(p) for p in student_global_embedding.chunk(2))
+        self.assertFalse(torch.isnan(loss_koleo).any())
+        self.assertEqual(loss_koleo.ndim, 0)
+
+        # iBOT loss
+        masks_weight = (1 / masks.sum(-1).clamp(min=1.0)).unsqueeze(-1).expand_as(masks)[masks.bool()]
+        loss_ibot_patch = ibot_patch_loss(
             student_global_masked_patch_tokens_after_head,
             masked_teacher_ibot_softmax_centered,
             student_masks_flat=masks,

@@ -12,6 +12,7 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 - [DINO v1](#dino-v1)
 - [DINO v2](#dino-v2)
 - [DINO v2 Dist](#dino-v2-dist)
+- [Franca](#franca)
 - [I-JEPA](#i-jepa)
 - [iBOT](#ibot)
 - [MMCR](#mmcr)
@@ -467,6 +468,18 @@ torchrun --nproc_per_node=2 train.py --network hieradet_base --tag dino-v2-image
 torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network nextvit_b --ibot-separate-head --dino-out-dim 131072 --ibot-out-dim 131072 --head-bottleneck-dim 384 --centering sinkhorn_knopp --opt adamw --lr 0.0002 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --batch-size 64 --wd 0.04 --wd-end 0.2 --grad-accum-steps 8 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --rgb-mode none --wds --wds-info data/ssl_packed/_info.json
 ```
 
+#### DINO v2: ViT s16 LS
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network vit_s16_ls --dino-out-dim 49152 --centering sinkhorn_knopp --opt adamw --lr 0.0002 --lr-scale 1024 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 10 --batch-size 96 --wd 0.04 --wd-end 0.2 --grad-accum-steps 16 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/intermediate_packed/_info.json
+```
+
+Fine-tuning, first stage - linear probing
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_s16_ls --tag dino-v2 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 512 --epochs 10 --size 224 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --compile --resume-epoch 0 --reset-head --freeze-body
+```
+
 #### DINO v2: ViT reg1 s16 rms LS
 
 ```sh
@@ -509,6 +522,14 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network rope_vit_r
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2_dist --network vit_reg1_t16 --teacher vit_reg1_s16_rms_ls --teacher-epoch 200 --dino-out-dim 32768 --opt adamw --lr 0.0002 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 10 --batch-size 96 --wd 0.04 --wd-end 0.2 --grad-accum-steps 2 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --rgb-mode none --data-path data/training_il-all_packed
+```
+
+### Franca
+
+#### Franca: ViT s16 LS
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_franca --network vit_s16_ls --ibot-separate-head --dino-out-dim 49152 --ibot-out-dim 49152 --momentum-teacher 0.994 --warmup-teacher-temp-epochs 15 --opt adamw --lr 0.00075 --lr-scale 1024 --lr-scale-type sqrt --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --batch-size 64 --wd 0.04 --wd-end 0.2 --grad-accum-steps 16 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training
 ```
 
 ### I-JEPA

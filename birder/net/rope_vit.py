@@ -10,7 +10,7 @@ Changes from original:
 * Implemented only axial RoPE (EVA style RoPE)
 """
 
-# Reference license: Apache-2.0 and Apache-2.0
+# Reference license: Apache-2.0 (both)
 
 import math
 from collections.abc import Callable

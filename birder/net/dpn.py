@@ -101,12 +101,12 @@ class DualPathBlock(nn.Module):
     # pylint: disable=protected-access
 
     @overload
-    @torch.jit._overload_method  # type: ignore[misc]
+    @torch.jit._overload_method  # type: ignore[untyped-decorator]
     def forward(self, x: tuple[torch.Tensor, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         pass
 
     @overload
-    @torch.jit._overload_method  # type: ignore[misc]
+    @torch.jit._overload_method  # type: ignore[untyped-decorator]
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         pass
 

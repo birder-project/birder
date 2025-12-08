@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.5 - 2025-12-08
+
+### Added
+
+- **Franca SSL**: Implemented [Franca](https://arxiv.org/abs/2507.14137) (Nested Matryoshka Clustering) self-supervised learning method.
+
+### Fixed
+
+- **MMCR TrainTransform**: Fixed view generation to correctly produce `n_aug` augmented views instead of using integer division.
+- **Distributed Training Init**: Fixed `init_distributed_mode` to properly pass `device_id` parameter and simplified barrier synchronization.
+
 ## 0.1.4 - 2025-12-04
 
 ### Fixed

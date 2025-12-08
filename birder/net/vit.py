@@ -708,6 +708,19 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
+    "vit_s16_ls",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 6,
+        "hidden_dim": 384,
+        "mlp_dim": 1536,
+        "layer_scale_init_value": 1e-5,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_model_config(
     "vit_s16_pn",
     ViT,
     config={

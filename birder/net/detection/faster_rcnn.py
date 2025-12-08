@@ -586,8 +586,8 @@ class RoIHeads(nn.Module):
 
         return proposals
 
-    @torch.jit.unused  # type: ignore[misc]
-    @torch.compiler.disable()  # type: ignore[misc]
+    @torch.jit.unused  # type: ignore[untyped-decorator]
+    @torch.compiler.disable()  # type: ignore[untyped-decorator]
     def select_training_samples(
         self,
         proposals: list[torch.Tensor],

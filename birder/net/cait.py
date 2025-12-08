@@ -7,7 +7,7 @@ https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/cait.p
 "Going deeper with Image Transformers", https://arxiv.org/abs/2103.17239
 """
 
-# Reference license: Apache-2.0 and Apache-2.0
+# Reference license: Apache-2.0 (both)
 
 from typing import Any
 from typing import Optional

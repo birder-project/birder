@@ -394,7 +394,7 @@ def get_wd_custom_keys(args: argparse.Namespace) -> list[tuple[str, float]]:
 ###############################################################################
 
 
-def get_optimizer(parameters: list[dict[str, Any]], lr: float, args: argparse.Namespace) -> torch.optim.Optimizer:
+def get_optimizer(parameters: list[dict[str, Any]], l_rate: float, args: argparse.Namespace) -> torch.optim.Optimizer:
     opt: OptimizerType = args.opt
     kwargs = {}
     if getattr(args, "opt_eps", None) is not None:
@@ -403,6 +403,12 @@ def get_optimizer(parameters: list[dict[str, Any]], lr: float, args: argparse.Na
         kwargs["betas"] = args.opt_betas
     if getattr(args, "opt_alpha", None) is not None:
         kwargs["alpha"] = args.opt_alpha
+
+    # For optimizer compilation
+    lr = torch.tensor(l_rate)
+    if getattr(args, "compile_opt", None) is not None:
+        if opt not in ("lamb", "lambw", "lars"):
+            kwargs["capturable"] = True
 
     if opt == "sgd":
         optimizer = torch.optim.SGD(
@@ -706,12 +712,16 @@ def init_distributed_mode(args: argparse.Namespace) -> None:
     logger.debug(f"Using {args.dist_backend} backend for distributed training")
     logger.info(f"Distributed init (rank {args.rank}), total {args.world_size}: {args.dist_url}")
     dist.init_process_group(
-        backend=args.dist_backend, init_method=args.dist_url, world_size=args.world_size, rank=args.rank
+        backend=args.dist_backend,
+        init_method=args.dist_url,
+        world_size=args.world_size,
+        rank=args.rank,
+        device_id=torch.device(f"cuda:{args.local_rank}"),
     )
 
     # Synchronize all processes
     logger.debug("Synchronizing all processes...")
-    dist.barrier(device_ids=[args.rank])
+    dist.barrier()
     if is_local_primary(args) is False:
         logger.debug(f"Non-primary process (rank {args.rank}), disabling logging")
         disable_print()

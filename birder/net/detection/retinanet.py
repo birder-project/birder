@@ -338,8 +338,8 @@ class RetinaNet(DetectionBaseNet):
             for param in self.head.classification_head.parameters():
                 param.requires_grad = True
 
-    @torch.jit.unused  # type: ignore[misc]
-    @torch.compiler.disable()  # type: ignore[misc]
+    @torch.jit.unused  # type: ignore[untyped-decorator]
+    @torch.compiler.disable()  # type: ignore[untyped-decorator]
     def compute_loss(
         self,
         targets: list[dict[str, torch.Tensor]],

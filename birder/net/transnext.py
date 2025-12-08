@@ -23,7 +23,7 @@ from birder.ops.swattention import SWAttention_AV
 from birder.ops.swattention import SWAttention_QK_RPB
 
 
-@torch.no_grad()  # type: ignore[misc]
+@torch.no_grad()  # type: ignore[untyped-decorator]
 def get_relative_position_cpb(
     query_size: tuple[int, int], key_size: tuple[int, int]
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -55,7 +55,7 @@ def get_relative_position_cpb(
     return (idx_map, relative_coords_table)
 
 
-@torch.no_grad()  # type: ignore[misc]
+@torch.no_grad()  # type: ignore[untyped-decorator]
 def get_seqlen_and_mask(input_resolution: tuple[int, int], window_size: int) -> tuple[torch.Tensor, torch.Tensor]:
     attn_map = F.unfold(
         torch.ones([1, 1, input_resolution[0], input_resolution[1]]),

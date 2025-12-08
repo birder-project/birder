@@ -12,7 +12,7 @@ logging.disable(logging.CRITICAL)
 
 
 class TestNetMIM(unittest.TestCase):
-    @parameterized.expand(  # type: ignore[misc]
+    @parameterized.expand(  # type: ignore[untyped-decorator]
         [
             ("crossmae", "deit3_t16"),
             ("crossmae", "deit3_reg4_t16"),

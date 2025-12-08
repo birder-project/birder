@@ -52,7 +52,7 @@ def reduced_sum(*args: Any, **kwargs: Any) -> torch.Tensor:
     return summed
 
 
-@torch.no_grad()  # type: ignore[misc]
+@torch.no_grad()  # type: ignore[untyped-decorator]
 def sinkhorn_knopp(M: torch.Tensor, n_iterations: int, eps: float = 1e-8) -> torch.Tensor:
     M = stable_exp(M)
     for _ in range(n_iterations):
