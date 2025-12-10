@@ -406,8 +406,9 @@ def get_optimizer(parameters: list[dict[str, Any]], l_rate: float, args: argpars
 
     # For optimizer compilation
     lr = torch.tensor(l_rate)
-    if getattr(args, "compile_opt", None) is not None:
+    if getattr(args, "compile_opt", False) is not False:
         if opt not in ("lamb", "lambw", "lars"):
+            logger.debug("Setting optimizer capturable to True")
             kwargs["capturable"] = True
 
     if opt == "sgd":

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.6 - 2025-12-10
+
+### Fixed
+
+- **DINOv2 / Franca Weight Decay Schedule**: Changed weight decay scheduling from per-epoch to per-step updates, matching the original implementation behavior.
+- **Optimizer Capturable**: Fixed `compile_opt` check condition in `get_optimizer` to properly detect when optimizer compilation is enabled.
+
 ## 0.1.5 - 2025-12-08
 
 ### Added

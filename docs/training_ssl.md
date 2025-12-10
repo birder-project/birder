@@ -471,7 +471,7 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network nextvit_b 
 #### DINO v2: ViT s16 LS
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network vit_s16_ls --dino-out-dim 49152 --centering sinkhorn_knopp --opt adamw --lr 0.0002 --lr-scale 1024 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 10 --batch-size 96 --wd 0.04 --wd-end 0.2 --grad-accum-steps 16 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/intermediate_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network vit_s16_ls --dino-out-dim 49152 --warmup-teacher-temp-epochs 10 --centering sinkhorn_knopp --opt adamw --lr 0.0002 --lr-scale 1024 --lr-scale-type sqrt --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 15 --batch-size 96 --wd 0.04 --wd-end 0.2 --grad-accum-steps 16 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/intermediate_packed/_info.json
 ```
 
 Fine-tuning, first stage - linear probing

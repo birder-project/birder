@@ -349,14 +349,14 @@ def train(args: argparse.Namespace) -> None:
         for g, last_lr in zip(optimizer.param_groups, last_lrs):
             g["lr"] = last_lr
 
-    last_lr = max(scheduler.get_last_lr())
+    last_lr = float(max(scheduler.get_last_lr()))
     if args.plot_lr is True:
         logger.info("Fast forwarding scheduler...")
         optimizer.step()
         lrs = []
         for _ in range(begin_epoch, epochs):
             for _ in range(iters_per_epoch):
-                lrs.append(max(scheduler.get_last_lr()))
+                lrs.append(float(max(scheduler.get_last_lr())))
                 scheduler.step()
 
         plt.plot(np.linspace(begin_epoch, epochs, iters_per_epoch * (epochs - begin_epoch), endpoint=False), lrs)
@@ -568,7 +568,7 @@ def train(args: argparse.Namespace) -> None:
 
                 start_time = time_now
                 last_idx = i
-                cur_lr = max(scheduler.get_last_lr())
+                cur_lr = float(max(scheduler.get_last_lr()))
 
                 running_loss.synchronize_between_processes(device)
                 train_accuracy.synchronize_between_processes(device)
@@ -672,8 +672,8 @@ def train(args: argparse.Namespace) -> None:
         # Learning rate scheduler update
         if iter_update is False:
             scheduler.step()
-        if last_lr != max(scheduler.get_last_lr()):
-            last_lr = max(scheduler.get_last_lr())
+        if last_lr != float(max(scheduler.get_last_lr())):
+            last_lr = float(max(scheduler.get_last_lr()))
             logger.info(f"Updated learning rate to: {last_lr}")
 
         if training_utils.is_local_primary(args) is True:

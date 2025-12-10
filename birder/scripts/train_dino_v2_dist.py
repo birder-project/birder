@@ -481,7 +481,7 @@ def train(args: argparse.Namespace) -> None:
         args.warmup_teacher_temp,
     )
     if args.wd_end is not None:
-        wd_schedule = training_utils.cosine_scheduler(args.wd, args.wd_end, args.epochs, 0, 1)
+        wd_schedule = training_utils.cosine_scheduler(args.wd, args.wd_end, args.epochs, 0, last_batch_idx + 1)
     else:
         wd_schedule = None
 
@@ -501,14 +501,14 @@ def train(args: argparse.Namespace) -> None:
         for g, last_lr in zip(optimizer.param_groups, last_lrs):
             g["lr"] = last_lr
 
-    last_lr = max(scheduler.get_last_lr())
+    last_lr = float(max(scheduler.get_last_lr()))
     if args.plot_lr is True:
         logger.info("Fast forwarding scheduler...")
         optimizer.step()
         lrs = []
         for _ in range(begin_epoch, epochs):
             for _ in range(iters_per_epoch):
-                lrs.append(max(scheduler.get_last_lr()))
+                lrs.append(float(max(scheduler.get_last_lr())))
                 scheduler.step()
 
         plt.plot(np.linspace(begin_epoch, epochs, iters_per_epoch * (epochs - begin_epoch), endpoint=False), lrs)
@@ -613,13 +613,9 @@ def train(args: argparse.Namespace) -> None:
         if args.distributed is True:
             train_sampler.set_epoch(epoch)
 
+        epoch_first_step = (epoch - 1) * (last_batch_idx + 1)
         if wd_schedule is not None:
-            wd = wd_schedule[epoch - 1]
-            for param_group in optimizer.param_groups:
-                if param_group["weight_decay"] > 0:
-                    param_group["weight_decay"] = wd
-
-            logger.info(f"Updated wd to: {wd}")
+            logger.info(f"Epoch wd: {wd_schedule[epoch_first_step]:.6f}")
 
         progress = tqdm(
             desc=f"Epoch {epoch}/{epochs-1}",
@@ -772,6 +768,13 @@ def train(args: argparse.Namespace) -> None:
                     for param_q, param_k in zip(student.backbone.parameters(), student_backbone_ema.parameters()):
                         param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
 
+                # Weight decay update
+                if wd_schedule is not None:
+                    wd = wd_schedule[global_step]
+                    for param_group in optimizer.param_groups:
+                        if param_group["weight_decay"] > 0:
+                            param_group["weight_decay"] = wd
+
             # Statistics
             running_loss.update(loss.detach())
             running_loss_dino_local.update(loss_dino_local_crops.detach())
@@ -792,7 +795,7 @@ def train(args: argparse.Namespace) -> None:
 
                 start_time = time_now
                 last_idx = i
-                cur_lr = max(scheduler.get_last_lr())
+                cur_lr = float(max(scheduler.get_last_lr()))
 
                 running_loss.synchronize_between_processes(device)
                 running_loss_dino_local.synchronize_between_processes(device)
@@ -838,8 +841,8 @@ def train(args: argparse.Namespace) -> None:
         # Learning rate scheduler update
         if iter_update is False:
             scheduler.step()
-        if last_lr != max(scheduler.get_last_lr()):
-            last_lr = max(scheduler.get_last_lr())
+        if last_lr != float(max(scheduler.get_last_lr())):
+            last_lr = float(max(scheduler.get_last_lr()))
             logger.info(f"Updated learning rate to: {last_lr}")
 
         if training_utils.is_local_primary(args) is True:
