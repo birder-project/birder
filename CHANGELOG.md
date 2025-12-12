@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **YOLO v3 Detection**: Implemented [YOLO v3](https://arxiv.org/abs/1804.02767) object detection network.
+- **Mosaic Augmentation**: Added mosaic data augmentation for object detection with two modes: `fixed_grid` and `random_center`.
+
 ## 0.1.6 - 2025-12-10
 
 ### Fixed

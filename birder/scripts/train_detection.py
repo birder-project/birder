@@ -25,6 +25,7 @@ from birder.common import training_cli
 from birder.common import training_utils
 from birder.conf import settings
 from birder.data.collators.detection import training_collate_fn
+from birder.data.datasets.coco import CocoMosaicTraining
 from birder.data.datasets.coco import CocoTraining
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.detection import InferenceTransform
@@ -97,13 +98,44 @@ def train(args: argparse.Namespace) -> None:
     rgb_stats = get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std)
     logger.debug(f"Using RGB stats: {rgb_stats}")
 
-    training_dataset = CocoTraining(
-        args.data_path,
-        args.coco_json_path,
-        transforms=training_preset(
-            args.size, args.aug_type, args.aug_level, rgb_stats, args.dynamic_size, args.multiscale, args.max_size
-        ),
+    transforms = training_preset(
+        args.size, args.aug_type, args.aug_level, rgb_stats, args.dynamic_size, args.multiscale, args.max_size
     )
+    mosaic_transforms = training_preset(
+        args.size,
+        args.aug_type,
+        args.aug_level,
+        rgb_stats,
+        args.dynamic_size,
+        args.multiscale,
+        args.max_size,
+        post_mosaic=True,
+    )
+    if args.mosaic_prob > 0.0:
+        if args.dynamic_size is True or args.multiscale is True:
+            # Dynamic/Multiscale: args.size is the short-side target
+            if args.max_size is not None:
+                mosaic_dim = args.max_size
+            else:
+                mosaic_dim = min(args.size) * 2
+
+        else:
+            # Fixed size
+            mosaic_dim = max(args.size) * 2
+
+        training_dataset = CocoMosaicTraining(
+            args.data_path,
+            args.coco_json_path,
+            transforms=transforms,
+            mosaic_transforms=mosaic_transforms,
+            output_size=(mosaic_dim, mosaic_dim),
+            fill_value=114,
+            mosaic_prob=args.mosaic_prob,
+            mosaic_type=args.mosaic_type,
+        )
+    else:
+        training_dataset = CocoTraining(args.data_path, args.coco_json_path, transforms=transforms)
+
     validation_dataset = CocoTraining(
         args.val_path,
         args.coco_val_json_path,

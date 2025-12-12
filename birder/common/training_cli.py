@@ -9,6 +9,7 @@ from birder.common.cli import ValidationError
 from birder.common.training_utils import OptimizerType
 from birder.common.training_utils import SchedulerType
 from birder.conf import settings
+from birder.data.datasets.coco import MosaicType
 from birder.data.transforms.classification import AugType
 from birder.data.transforms.classification import RGBMode
 from birder.data.transforms.detection import AugType as DetAugType
@@ -235,6 +236,7 @@ def add_data_aug_args(
         "--re-prob",
         type=float,
         default=default_re_prob,
+        metavar="P",
         help="random erase probability (default according to aug-level)",
     )
     group.add_argument(
@@ -299,6 +301,10 @@ def add_detection_data_aug_args(parser: argparse.ArgumentParser, default_level: 
         nargs=3,
         metavar=("R", "G", "B"),
         help="set custom RGB std values (overrides values from selected RGB mode)",
+    )
+    group.add_argument("--mosaic-prob", type=float, default=0.0, metavar="P", help="mosaic augmentation probability")
+    group.add_argument(
+        "--mosaic-type", type=str, choices=get_args(MosaicType), default="fixed_grid", help="mosaic augmentation type"
     )
 
 

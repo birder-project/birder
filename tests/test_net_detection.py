@@ -41,6 +41,7 @@ class TestNetDetection(unittest.TestCase):
             ("ssdlite", "mobilenet_v2_0_25", (512, 512)),
             ("ssdlite", "vit_t16"),  # 1 stage network
             ("vitdet", "vit_sam_b16"),
+            ("yolo_v3", "resnet_v2_18"),
         ]
     )
     def test_net_detection(

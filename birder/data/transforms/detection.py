@@ -39,6 +39,7 @@ def get_birder_augment(
     dynamic_size: bool,
     multiscale: bool,
     max_size: Optional[int],
+    post_mosaic: bool = False,
 ) -> Callable[..., torch.Tensor]:
     if dynamic_size is True:
         target_size: Optional[int] | tuple[int, int] = min(size)
@@ -51,7 +52,7 @@ def get_birder_augment(
 
     # Base augmentations
     if level >= 1:
-        if dynamic_size is False and multiscale is False:
+        if dynamic_size is False and multiscale is False and post_mosaic is False:
             transformations.extend(
                 [
                     v2.RandomChoice(
@@ -66,12 +67,13 @@ def get_birder_augment(
             )
 
     if level >= 3:
-        transformations.extend(
-            [
-                v2.RandomIoUCrop(),
-                v2.ClampBoundingBoxes(),
-            ]
-        )
+        if post_mosaic is False:
+            transformations.extend(
+                [
+                    v2.RandomIoUCrop(),
+                    v2.ClampBoundingBoxes(),
+                ]
+            )
 
     # Resize
     if multiscale is True:
@@ -138,6 +140,7 @@ def training_preset(
     dynamic_size: bool = False,
     multiscale: bool = False,
     max_size: Optional[int] = None,
+    post_mosaic: bool = False,
 ) -> Callable[..., torch.Tensor]:
     mean = rgv_values["mean"]
     std = rgv_values["std"]
@@ -156,7 +159,7 @@ def training_preset(
         return v2.Compose(  # type:ignore
             [
                 v2.ToImage(),
-                get_birder_augment(size, level, fill_value, dynamic_size, multiscale, max_size),
+                get_birder_augment(size, level, fill_value, dynamic_size, multiscale, max_size, post_mosaic),
                 v2.ToDtype(torch.float32, scale=True),
                 v2.Normalize(mean=mean, std=std),
                 v2.ToPureTensor(),
@@ -167,7 +170,11 @@ def training_preset(
         return v2.Compose(  # type: ignore
             [
                 v2.ToImage(),
-                v2.ScaleJitter(target_size=size, scale_range=(0.1, 2), antialias=True),
+                (
+                    v2.ScaleJitter(target_size=size, scale_range=(0.1, 2), antialias=True)
+                    if post_mosaic is False
+                    else v2.Identity()
+                ),
                 ResizeWithRandomInterpolation(  # Supposed to be FixedSizeCrop
                     target_size, max_size, interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC]
                 ),
@@ -199,8 +206,8 @@ def training_preset(
             [
                 v2.ToImage(),
                 v2.RandomPhotometricDistort(),
-                v2.RandomZoomOut(fill_value),
-                v2.RandomIoUCrop(),
+                v2.RandomZoomOut(fill_value) if post_mosaic is False else v2.Identity(),
+                v2.RandomIoUCrop() if post_mosaic is False else v2.Identity(),
                 ResizeWithRandomInterpolation(
                     target_size, max_size, interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC]
                 ),
@@ -216,7 +223,7 @@ def training_preset(
         return v2.Compose(  # type: ignore
             [
                 v2.ToImage(),
-                v2.RandomIoUCrop(),
+                v2.RandomIoUCrop() if post_mosaic is False else v2.Identity(),
                 ResizeWithRandomInterpolation(
                     target_size, max_size, interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC]
                 ),
@@ -240,7 +247,7 @@ def training_preset(
                         v2.Compose(
                             [
                                 v2.RandomShortestSize((400, 500, 600)),
-                                v2.RandomIoUCrop(),  # Supposed to be RandomSizeCrop
+                                v2.RandomIoUCrop() if post_mosaic is False else v2.Identity(),  # RandomSizeCrop
                                 v2.RandomShortestSize(
                                     (480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800), max_size=max_size or 1333
                                 ),

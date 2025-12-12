@@ -7,6 +7,7 @@ from birder.net.detection.retinanet import RetinaNet
 from birder.net.detection.ssd import SSD
 from birder.net.detection.ssdlite import SSDLite
 from birder.net.detection.vitdet import ViTDet
+from birder.net.detection.yolo_v3 import YOLO_v3
 
 __all__ = [
     "Deformable_DETR",
@@ -18,4 +19,5 @@ __all__ = [
     "SSD",
     "SSDLite",
     "ViTDet",
+    "YOLO_v3",
 ]

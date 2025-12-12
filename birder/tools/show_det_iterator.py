@@ -17,7 +17,9 @@ from birder.common import lib
 from birder.conf import settings
 from birder.data.collators.detection import collate_fn
 from birder.data.datasets.coco import CocoInference
+from birder.data.datasets.coco import CocoMosaicTraining
 from birder.data.datasets.coco import CocoTraining
+from birder.data.datasets.coco import MosaicType
 from birder.data.datasets.directory import tv_loader
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.classification import reverse_preset
@@ -41,7 +43,40 @@ def show_det_iterator(args: argparse.Namespace) -> None:
             args.multiscale,
             args.max_size,
         )
-        dataset = CocoTraining(args.data_path, args.coco_json_path, transforms=transform)
+        mosaic_transforms = training_preset(
+            args.size,
+            args.aug_type,
+            args.aug_level,
+            get_rgb_stats("birder"),
+            args.dynamic_size,
+            args.multiscale,
+            args.max_size,
+            post_mosaic=True,
+        )
+        if args.mosaic_prob > 0.0:
+            if args.dynamic_size is True or args.multiscale is True:
+                # Dynamic/Multiscale: args.size is the short-side target
+                if args.max_size is not None:
+                    mosaic_dim = args.max_size
+                else:
+                    mosaic_dim = min(args.size) * 2
+
+            else:
+                # Fixed size
+                mosaic_dim = max(args.size) * 2
+
+            dataset = CocoMosaicTraining(
+                args.data_path,
+                args.coco_json_path,
+                transforms=transform,
+                mosaic_transforms=mosaic_transforms,
+                output_size=(mosaic_dim, mosaic_dim),
+                fill_value=114,
+                mosaic_prob=args.mosaic_prob,
+                mosaic_type=args.mosaic_type,
+            )
+        else:
+            dataset = CocoTraining(args.data_path, args.coco_json_path, transforms=transform)
     elif args.mode == "inference":
         offset = 1
         transform = InferenceTransform(args.size, get_rgb_stats("birder"), args.dynamic_size, args.max_size)
@@ -70,23 +105,25 @@ def show_det_iterator(args: argparse.Namespace) -> None:
             img = tv_loader(str(root_path.joinpath(img_path)))
             targets = dataset.dataset.coco.loadAnns(dataset.dataset.coco.getAnnIds(coco_id))
 
-            # Roughly what the "wrap_dataset_for_transforms_v2" does
-            canvas_size = tuple(F.get_size(img))
-            boxes = F.convert_bounding_box_format(
-                tv_tensors.BoundingBoxes(
-                    [target["bbox"] for target in targets],
-                    format=tv_tensors.BoundingBoxFormat.XYWH,
-                    canvas_size=canvas_size,
-                ),
-                new_format=tv_tensors.BoundingBoxFormat.XYXY,
-            )
+            if len(targets) > 0:
+                # Roughly what the "wrap_dataset_for_transforms_v2" does
+                canvas_size = tuple(F.get_size(img))
+                boxes = F.convert_bounding_box_format(
+                    tv_tensors.BoundingBoxes(
+                        [target["bbox"] for target in targets],
+                        format=tv_tensors.BoundingBoxFormat.XYWH,
+                        canvas_size=canvas_size,
+                    ),
+                    new_format=tv_tensors.BoundingBoxFormat.XYXY,
+                )
 
-            label_ids = [target["category_id"] for target in targets]
-            labels = [class_list[label_id] for label_id in label_ids]
-            colors = [color_list[label_id].item() for label_id in label_ids]
+                label_ids = [target["category_id"] for target in targets]
+                labels = [class_list[label_id] for label_id in label_ids]
+                colors = [color_list[label_id].item() for label_id in label_ids]
 
-            annotated_img = draw_bounding_boxes(img, boxes, labels=labels, colors=colors)
-            transformed_img = F.to_pil_image(annotated_img)
+                img = draw_bounding_boxes(img, boxes, labels=labels, colors=colors)
+
+            transformed_img = F.to_pil_image(img)
 
             fig = plt.figure(constrained_layout=True)
             grid_spec = fig.add_gridspec(ncols=cols, nrows=rows)
@@ -243,6 +280,10 @@ def set_parser(subparsers: Any) -> None:
         help="training COCO json path",
     )
     subparser.add_argument("--class-file", type=str, metavar="FILE", help="class list file, overrides json categories")
+    subparser.add_argument("--mosaic-prob", type=float, default=0.0, help="mosaic augmentation probability")
+    subparser.add_argument(
+        "--mosaic-type", type=str, choices=get_args(MosaicType), default="fixed_grid", help="mosaic augmentation type"
+    )
     subparser.set_defaults(func=main)
 
 
