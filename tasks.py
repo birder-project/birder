@@ -613,7 +613,7 @@ def model_pre_publish(  # pylint: disable=too-many-locals
                 template = Template(template_str)
                 if isinstance(net, DetectorBackbone):
                     detector_backbone = True
-                    out = net.detection_features(torch.rand((1, 3, *size)))
+                    out = net.detection_features(torch.rand((1, net.input_channels, *size)))
                     feature_map_shapes = [(k, v.size()) for k, v in out.items()]
                 else:
                     detector_backbone = False

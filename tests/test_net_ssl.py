@@ -5,6 +5,7 @@ import torch
 import torch.nn.functional as F
 
 from birder.common import masking
+from birder.conf.settings import DEFAULT_NUM_CHANNELS
 from birder.model_registry import registry
 from birder.net.ssl import barlow_twins
 from birder.net.ssl import byol
@@ -27,21 +28,24 @@ logging.disable(logging.CRITICAL)
 class TestNetSSL(unittest.TestCase):
     def test_barlow_twins(self) -> None:
         batch_size = 4
-        backbone = registry.net_factory("resnet_v1_50", 3, 0)
+        backbone = registry.net_factory("resnet_v1_50", DEFAULT_NUM_CHANNELS, 0)
         net = barlow_twins.BarlowTwins(backbone, config={"projector_sizes": [512, 512, 512], "off_lambda": 0.005})
 
         # Test network
-        out = net(torch.rand((batch_size, 3, 128, 128)), torch.rand((batch_size, 3, 128, 128)))
+        out = net(
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 128, 128)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 128, 128)),
+        )
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 0)
 
     def test_byol(self) -> None:
         batch_size = 2
-        backbone = registry.net_factory("resnet_v1_18", 3, 0)
+        backbone = registry.net_factory("resnet_v1_18", DEFAULT_NUM_CHANNELS, 0)
         net = byol.BYOL(backbone, config={"projection_size": 64, "projection_hidden_size": 128})
 
         # Test network
-        out = net(torch.rand((batch_size, 3, 96, 96)))
+        out = net(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 96, 96)))
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 0)
 
@@ -49,7 +53,7 @@ class TestNetSSL(unittest.TestCase):
         batch_size = 4
         size = (192, 192)
         num_clusters = 320
-        backbone = registry.net_factory("vit_s16", 3, 0, size=size)
+        backbone = registry.net_factory("vit_s16", DEFAULT_NUM_CHANNELS, 0, size=size)
         input_size = (size[0] // backbone.max_stride, size[1] // backbone.max_stride)
         seq_len = input_size[0] * input_size[1]
         n_masked = int(seq_len * 0.65)
@@ -70,7 +74,7 @@ class TestNetSSL(unittest.TestCase):
         predict_indices = masking.get_random_masked_indices(masks, n_predict)
         masks = masking.mask_from_indices(predict_indices, seq_len)
 
-        x = torch.rand(batch_size, 3, *size)
+        x = torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size)
         # all_ids = torch.arange(input_size[0] * input_size[1]).unsqueeze(0).repeat(batch_size, 1)
 
         #
@@ -94,7 +98,7 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(loss.sum().ndim, 0)
 
         # Test with Hiera backbone
-        backbone = registry.net_factory("hiera_tiny", 3, 0, size=size)
+        backbone = registry.net_factory("hiera_tiny", DEFAULT_NUM_CHANNELS, 0, size=size)
         input_size = (size[0] // backbone.max_stride, size[1] // backbone.max_stride)
         seq_len = input_size[0] * input_size[1]
         n_masked = int(seq_len * 0.65)
@@ -115,7 +119,7 @@ class TestNetSSL(unittest.TestCase):
         predict_indices = masking.get_random_masked_indices(masks, n_predict)
         masks = masking.mask_from_indices(predict_indices, seq_len)
 
-        x = torch.rand(batch_size, 3, *size)
+        x = torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size)
 
         # Teacher
         (selected_assignments, clustering_loss) = teacher(x, None, predict_indices)
@@ -130,7 +134,7 @@ class TestNetSSL(unittest.TestCase):
 
     def test_data2vec(self) -> None:
         batch_size = 2
-        backbone = registry.net_factory("vit_t16", 3, 0, size=(96, 96))
+        backbone = registry.net_factory("vit_t16", DEFAULT_NUM_CHANNELS, 0, size=(96, 96))
         net = data2vec.Data2Vec(
             backbone, config={"normalize_targets": True, "average_top_k_layers": 6, "loss_beta": 2.0}
         )
@@ -139,13 +143,13 @@ class TestNetSSL(unittest.TestCase):
         masks = mask_generator(batch_size)
 
         # Test network
-        out = net(torch.rand((batch_size, 3, 96, 96)), masks)
+        out = net(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 96, 96)), masks)
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 0)
 
     def test_data2vec2(self) -> None:
         batch_size = 2
-        backbone = registry.net_factory("vit_t16", 3, 0, size=(128, 128))
+        backbone = registry.net_factory("vit_t16", DEFAULT_NUM_CHANNELS, 0, size=(128, 128))
         net = data2vec2.Data2Vec2(
             backbone,
             config={
@@ -167,13 +171,13 @@ class TestNetSSL(unittest.TestCase):
         masks = mask_generator(batch_size * 3)
 
         # Test network
-        out = net(torch.rand((batch_size, 3, 128, 128)), masks)
+        out = net(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 128, 128)), masks)
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 0)
 
     def test_dino_v1(self) -> None:
         batch_size = 4
-        backbone = registry.net_factory("resnet_v2_18", 3, 0)
+        backbone = registry.net_factory("resnet_v2_18", DEFAULT_NUM_CHANNELS, 0)
         net = dino_v1.DINO_v1(
             backbone,
             config={
@@ -189,17 +193,22 @@ class TestNetSSL(unittest.TestCase):
         # Test network
         out = net(
             [
-                torch.rand((batch_size, 3, 128, 128)),
-                torch.rand((batch_size, 3, 128, 128)),
-                torch.rand((batch_size, 3, 96, 96)),
-                torch.rand((batch_size, 3, 96, 96)),
-                torch.rand((batch_size, 3, 96, 96)),
-                torch.rand((batch_size, 3, 96, 96)),
+                torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 128, 128)),
+                torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 128, 128)),
+                torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 96, 96)),
+                torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 96, 96)),
+                torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 96, 96)),
+                torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 96, 96)),
             ]
         )
         self.assertFalse(torch.isnan(out).any())
 
-        teacher_out = net([torch.rand((batch_size, 3, 128, 128)), torch.rand((batch_size, 3, 128, 128))])
+        teacher_out = net(
+            [
+                torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 128, 128)),
+                torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 128, 128)),
+            ]
+        )
         dino_loss = dino_v1.DINOLoss(
             128,
             6,
@@ -218,7 +227,7 @@ class TestNetSSL(unittest.TestCase):
     def test_dino_v2(self) -> None:
         batch_size = 4
         size = (192, 192)
-        backbone = registry.net_factory("vit_s16", 3, 0, size=size)
+        backbone = registry.net_factory("vit_s16", DEFAULT_NUM_CHANNELS, 0, size=size)
         backbone.set_dynamic_size()
 
         # Without iBOT head
@@ -245,8 +254,8 @@ class TestNetSSL(unittest.TestCase):
             },
         )
 
-        x = torch.rand(batch_size * 2, 3, *size)
-        local_x = torch.rand(batch_size * 4, 3, size[0] // 2, size[1] // 2)
+        x = torch.rand(batch_size * 2, DEFAULT_NUM_CHANNELS, *size)
+        local_x = torch.rand(batch_size * 4, DEFAULT_NUM_CHANNELS, size[0] // 2, size[1] // 2)
         mask_generator = masking.BlockMasking(
             (size[0] // backbone.stem_stride, size[1] // backbone.stem_stride), 1, 3, 0.66, 1.5
         )
@@ -306,8 +315,8 @@ class TestNetSSL(unittest.TestCase):
             },
         )
 
-        x = torch.rand(batch_size * 2, 3, *size)
-        local_x = torch.rand(batch_size * 4, 3, size[0] // 2, size[1] // 2)
+        x = torch.rand(batch_size * 2, DEFAULT_NUM_CHANNELS, *size)
+        local_x = torch.rand(batch_size * 4, DEFAULT_NUM_CHANNELS, size[0] // 2, size[1] // 2)
         mask_generator = masking.BlockMasking(
             (size[0] // backbone.stem_stride, size[1] // backbone.stem_stride), 1, 3, 0.66, 1.5
         )
@@ -412,7 +421,7 @@ class TestNetSSL(unittest.TestCase):
         size = (192, 192)
         dino_out_dim = 4096
         num_nesting_levels = 5
-        backbone = registry.net_factory("vit_s16", 3, 0, size=size)
+        backbone = registry.net_factory("vit_s16", DEFAULT_NUM_CHANNELS, 0, size=size)
         backbone.set_dynamic_size()
 
         # Without iBOT head
@@ -439,8 +448,8 @@ class TestNetSSL(unittest.TestCase):
             },
         )
 
-        x = torch.rand(batch_size * 2, 3, *size)
-        local_x = torch.rand(batch_size * 4, 3, size[0] // 2, size[1] // 2)
+        x = torch.rand(batch_size * 2, DEFAULT_NUM_CHANNELS, *size)
+        local_x = torch.rand(batch_size * 4, DEFAULT_NUM_CHANNELS, size[0] // 2, size[1] // 2)
         mask_generator = masking.BlockMasking(
             (size[0] // backbone.stem_stride, size[1] // backbone.stem_stride), 1, 3, 0.66, 1.5
         )
@@ -601,7 +610,7 @@ class TestNetSSL(unittest.TestCase):
     def test_i_jepa(self) -> None:
         batch_size = 4
         size = (192, 192)
-        backbone = registry.net_factory("vit_s16", 3, 0, size=size)
+        backbone = registry.net_factory("vit_s16", DEFAULT_NUM_CHANNELS, 0, size=size)
         input_size = (size[0] // backbone.stem_stride, size[1] // backbone.stem_stride)
         predictor = i_jepa.VisionTransformerPredictor(
             input_size,
@@ -626,7 +635,7 @@ class TestNetSSL(unittest.TestCase):
         enc_masks = masks[0]
         pred_masks = masks[1]
 
-        x = torch.rand(batch_size, 3, *size)
+        x = torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size)
 
         #
         # Simulate a full step
@@ -657,7 +666,7 @@ class TestNetSSL(unittest.TestCase):
 
     def test_ibot(self) -> None:
         batch_size = 4
-        backbone = registry.net_factory("vit_b32", 3, 0)
+        backbone = registry.net_factory("vit_b32", DEFAULT_NUM_CHANNELS, 0)
         backbone.set_dynamic_size()
         net = ibot.iBOT(
             backbone,
@@ -675,13 +684,13 @@ class TestNetSSL(unittest.TestCase):
         # Test network
         images = [
             # Global
-            torch.rand((batch_size, 3, 128, 128)),
-            torch.rand((batch_size, 3, 128, 128)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 128, 128)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 128, 128)),
             # Local
-            torch.rand((batch_size, 3, 96, 96)),
-            torch.rand((batch_size, 3, 96, 96)),
-            torch.rand((batch_size, 3, 96, 96)),
-            torch.rand((batch_size, 3, 96, 96)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 96, 96)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 96, 96)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 96, 96)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 96, 96)),
         ]
 
         mask_generator = masking.BlockMasking(
@@ -740,12 +749,12 @@ class TestNetSSL(unittest.TestCase):
 
     def test_mmcr(self) -> None:
         batch_size = 4
-        backbone = registry.net_factory("resnet_v1_50", 3, 0)
+        backbone = registry.net_factory("resnet_v1_50", DEFAULT_NUM_CHANNELS, 0)
         net = mmcr.MMCR(backbone, config={"projector_dims": [512, 512, 512]})
         mmcr_loss = mmcr.MMCRMomentumLoss(0.0, 2)
 
         # Test network
-        (out, out_m) = net(torch.rand((batch_size, 2, 3, 128, 128)))
+        (out, out_m) = net(torch.rand((batch_size, 2, DEFAULT_NUM_CHANNELS, 128, 128)))
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 2)
         self.assertFalse(torch.isnan(out_m).any())
@@ -758,7 +767,7 @@ class TestNetSSL(unittest.TestCase):
 
     def test_simclr(self) -> None:
         batch_size = 4
-        backbone = registry.net_factory("resnet_v2_18", 3, 0)
+        backbone = registry.net_factory("resnet_v2_18", DEFAULT_NUM_CHANNELS, 0)
         net = simclr.SimCLR(
             backbone,
             config={
@@ -769,21 +778,24 @@ class TestNetSSL(unittest.TestCase):
         )
 
         # Test network
-        out = net(torch.rand((batch_size, 3, 128, 128)), torch.rand((batch_size, 3, 128, 128)))
+        out = net(
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 128, 128)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 128, 128)),
+        )
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 0)
 
     def test_sscd(self) -> None:
         batch_size = 4
-        backbone = registry.net_factory("resnet_v2_18", 3, 512)
+        backbone = registry.net_factory("resnet_v2_18", DEFAULT_NUM_CHANNELS, 512)
         net = sscd.SSCD(backbone)
-        out = net(torch.rand(batch_size, 3, 128, 128))
+        out = net(torch.rand(batch_size, DEFAULT_NUM_CHANNELS, 128, 128))
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 2)
 
     def test_vicreg(self) -> None:
         batch_size = 4
-        backbone = registry.net_factory("resnet_v1_18", 3, 0)
+        backbone = registry.net_factory("resnet_v1_18", DEFAULT_NUM_CHANNELS, 0)
         net = vicreg.VICReg(
             backbone,
             config={
@@ -796,6 +808,9 @@ class TestNetSSL(unittest.TestCase):
         )
 
         # Test network
-        out = net(torch.rand((batch_size, 3, 128, 128)), torch.rand((batch_size, 3, 128, 128)))
+        out = net(
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 128, 128)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 128, 128)),
+        )
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 0)

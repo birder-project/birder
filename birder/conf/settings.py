@@ -27,6 +27,9 @@ RESULTS_DIR = BASE_DIR.joinpath("results")
 # Labels
 NO_LABEL = -1
 
+# Inputs
+DEFAULT_NUM_CHANNELS = 3
+
 # Results
 TOP_K = 3
 

@@ -337,7 +337,7 @@ class FocalNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         norm_layer = partial(LayerNorm2d, eps=1e-5)
 
         self.stem = Downsample(
-            in_channels=3,
+            in_channels=self.input_channels,
             out_channels=embed_dims[0],
             overlap=use_overlap_down,
             norm_layer=norm_layer,

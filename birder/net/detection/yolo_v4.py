@@ -1,11 +1,11 @@
 """
-YOLO v3, adapted from
-https://github.com/westerndigitalcorporation/YOLOv3-in-PyTorch
+YOLO v4, adapted from
+https://github.com/Tianxiaomo/pytorch-YOLOv4
 
-Paper "YOLOv3: An Incremental Improvement", https://arxiv.org/abs/1804.02767
+Paper "YOLOv4: Optimal Speed and Accuracy of Object Detection", https://arxiv.org/abs/2004.10934
 """
 
-# Reference license: BSD 3-Clause
+# Reference license: Apache-2.0
 
 from functools import partial
 from typing import Any
@@ -19,16 +19,18 @@ from torchvision.ops import boxes as box_ops
 
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import DetectionBaseNet
-from birder.net.detection.base import ImageList
+from birder.net.detection.yolo_v3 import YOLOAnchorGenerator
+from birder.net.detection.yolo_v3 import YOLOHead
 
-# Default anchors from YOLO v3 paper (sorted by area, small to large)
-# These values are in absolute pixels (width, height) computed using K-Means
-# on the COCO dataset with a reference input size of 416x416.
+# Default anchors from YOLO v4 (COCO)
 DEFAULT_ANCHORS = [
-    [(10, 13), (16, 30), (33, 23)],  # Small objects (stride 8)
-    [(30, 61), (62, 45), (59, 119)],  # Medium objects (stride 16)
-    [(116, 90), (156, 198), (373, 326)],  # Large objects (stride 32)
+    [(12, 16), (19, 36), (40, 28)],  # Small
+    [(36, 75), (76, 55), (72, 146)],  # Medium
+    [(142, 110), (192, 243), (459, 401)],  # Large
 ]
+
+# Scale factors per detection scale to eliminate grid sensitivity
+DEFAULT_SCALE_XY = [1.2, 1.1, 1.05]  # [small, medium, large]
 
 
 def decode_predictions(
@@ -37,6 +39,7 @@ def decode_predictions(
     grid: torch.Tensor,
     strides: torch.Tensor,
     num_classes: int,
+    scale_xy: float,
 ) -> torch.Tensor:
     """
     Decode YOLO predictions to bounding boxes.
@@ -53,6 +56,9 @@ def decode_predictions(
         Strides tensor [stride_h, stride_w].
     num_classes
         Number of classes.
+    scale_xy
+        Scale factor for grid sensitivity elimination.
+        YOLOv4 uses 1.05-1.2 depending on scale level.
 
     Returns
     -------
@@ -67,13 +73,15 @@ def decode_predictions(
     predictions = predictions.view(N, num_anchors, 5 + num_classes, H, W)
     predictions = predictions.permute(0, 3, 4, 1, 2).contiguous()
 
-    # Decode center coordinates
-    pred_xy = torch.sigmoid(predictions[..., :2])
+    # Decode center coordinates with scale factor
+    pred_xy_raw = torch.sigmoid(predictions[..., :2])
+    pred_xy = pred_xy_raw * scale_xy - (scale_xy - 1) / 2
+
     pred_wh = predictions[..., 2:4]
     pred_conf = predictions[..., 4:5]
     pred_cls = predictions[..., 5:]
 
-    # Add grid offset and scale
+    # Add grid offset and scale to pixel coordinates
     grid_expanded = grid.unsqueeze(2)  # (H, W, 1, 2)
     stride_tensor = torch.stack([stride_w, stride_h])
     pred_xy = (pred_xy + grid_expanded) * stride_tensor
@@ -99,214 +107,276 @@ def decode_predictions(
     return torch.concat([pred_boxes, pred_conf, pred_cls], dim=-1)
 
 
-class YOLOAnchorGenerator(nn.Module):
-    def __init__(self, anchors: list[list[tuple[int, int]]]) -> None:
+# pylint: disable=too-many-locals
+def compute_ciou_loss(pred_boxes: torch.Tensor, target_boxes: torch.Tensor, eps: float = 1e-7) -> torch.Tensor:
+    """
+    Compute Complete IoU (CIoU) loss.
+
+    CIoU = IoU - (distance**2 / c**2) - alpha * v
+    where v measures aspect ratio consistency and c is diagonal of enclosing box.
+
+    Parameters
+    ----------
+    pred_boxes
+        Predicted boxes in [x1, y1, x2, y2] format.
+    target_boxes
+        Target boxes in [x1, y1, x2, y2] format.
+    eps
+        Small epsilon for numerical stability.
+
+    Returns
+    -------
+    CIoU loss (1 - CIoU) for each box pair, shape (N,).
+    """
+
+    # Extract coordinates
+    (pred_x1, pred_y1, pred_x2, pred_y2) = pred_boxes.unbind(dim=-1)
+    (target_x1, target_y1, target_x2, target_y2) = target_boxes.unbind(dim=-1)
+
+    # Calculate box dimensions (clamped for stability)
+    pred_w = torch.clamp(pred_x2 - pred_x1, min=eps)
+    pred_h = torch.clamp(pred_y2 - pred_y1, min=eps)
+    target_w = torch.clamp(target_x2 - target_x1, min=eps)
+    target_h = torch.clamp(target_y2 - target_y1, min=eps)
+
+    # Calculate areas
+    pred_area = pred_w * pred_h
+    target_area = target_w * target_h
+
+    # Calculate intersection
+    inter_x1 = torch.max(pred_x1, target_x1)
+    inter_y1 = torch.max(pred_y1, target_y1)
+    inter_x2 = torch.min(pred_x2, target_x2)
+    inter_y2 = torch.min(pred_y2, target_y2)
+
+    inter_w = torch.clamp(inter_x2 - inter_x1, min=0)
+    inter_h = torch.clamp(inter_y2 - inter_y1, min=0)
+    inter_area = inter_w * inter_h
+
+    # Calculate IoU
+    union_area = pred_area + target_area - inter_area
+    iou = inter_area / (union_area + eps)
+
+    # Calculate center coordinates
+    pred_cx = (pred_x1 + pred_x2) / 2
+    pred_cy = (pred_y1 + pred_y2) / 2
+    target_cx = (target_x1 + target_x2) / 2
+    target_cy = (target_y1 + target_y2) / 2
+
+    # Calculate squared distance between centers
+    center_dist_sq = (pred_cx - target_cx) ** 2 + (pred_cy - target_cy) ** 2
+
+    # Calculate smallest enclosing box
+    enclose_x1 = torch.min(pred_x1, target_x1)
+    enclose_y1 = torch.min(pred_y1, target_y1)
+    enclose_x2 = torch.max(pred_x2, target_x2)
+    enclose_y2 = torch.max(pred_y2, target_y2)
+
+    # Calculate squared diagonal of enclosing box
+    enclose_w = torch.clamp(enclose_x2 - enclose_x1, min=eps)
+    enclose_h = torch.clamp(enclose_y2 - enclose_y1, min=eps)
+    enclose_diag_sq = enclose_w**2 + enclose_h**2
+
+    # Calculate aspect ratio consistency term
+    v = (4 / (torch.pi**2)) * torch.pow(torch.atan(target_w / target_h) - torch.atan(pred_w / pred_h), 2)
+
+    with torch.no_grad():
+        alpha = v / (1 - iou + v + eps)
+
+    # CIoU = IoU - distance_penalty - aspect_ratio_penalty
+    ciou = iou - (center_dist_sq / (enclose_diag_sq + eps)) - alpha * v
+
+    return 1 - ciou
+
+
+class SPPBlock(nn.Module):
+    """
+    Spatial Pyramid Pooling block.
+    Concatenates max-pooled features at multiple scales.
+    """
+
+    def __init__(self, kernel_sizes: tuple[int, ...]) -> None:
         super().__init__()
-        self.anchors = anchors
-        self.num_scales = len(anchors)
+        self.pools = nn.ModuleList(
+            [nn.MaxPool2d(kernel_size=(k, k), stride=(1, 1), padding=(k // 2, k // 2)) for k in kernel_sizes]
+        )
 
-    def num_anchors_per_location(self) -> list[int]:
-        return [len(a) for a in self.anchors]
-
-    def forward(
-        self, image_list: ImageList, feature_maps: list[torch.Tensor]
-    ) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]:
-        """
-        Generate anchor boxes for each feature map.
-
-        Returns scaled anchors, grids, and strides for each feature map.
-        """
-
-        device = feature_maps[0].device
-        dtype = feature_maps[0].dtype
-        image_size = image_list.tensors.shape[-2:]
-
-        all_anchors: list[torch.Tensor] = []
-        all_grids: list[torch.Tensor] = []
-        all_strides: list[torch.Tensor] = []
-        for idx, feature_map in enumerate(feature_maps):
-            (_, _, H, W) = feature_map.size()
-            stride_h = image_size[0] / H
-            stride_w = image_size[1] / W
-
-            # Create grid
-            (grid_y, grid_x) = torch.meshgrid(
-                torch.arange(H, device=device, dtype=dtype),
-                torch.arange(W, device=device, dtype=dtype),
-                indexing="ij",
-            )
-            grid = torch.stack([grid_x, grid_y], dim=-1)
-
-            # Select anchors for this scale
-            anchors_for_scale = torch.tensor(self.anchors[idx], device=device, dtype=dtype)
-
-            # Store strides as tensor
-            strides = torch.tensor([stride_h, stride_w], device=device, dtype=dtype)
-
-            all_anchors.append(anchors_for_scale)
-            all_grids.append(grid)
-            all_strides.append(strides)
-
-        return (all_anchors, all_grids, all_strides)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        features = [x] + [pool(x) for pool in self.pools]
+        return torch.concat(features, dim=1)
 
 
-class YOLOHead(nn.Module):
-    def __init__(self, in_channels: list[int], num_anchors: list[int], num_classes: int) -> None:
+class YOLONeckBlock(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int, num_layers: int) -> None:
         super().__init__()
-        self.num_classes = num_classes
+        assert num_layers % 2 == 1
 
-        self.conv_layers = nn.ModuleList()
-        for in_ch, n_anchors in zip(in_channels, num_anchors):
-            out_ch = n_anchors * (5 + num_classes)  # 4 bbox + 1 objectness
-            self.conv_layers.append(nn.Conv2d(in_ch, out_ch, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)))
+        layers = []
+        prev_channels = in_channels
+        for i in range(num_layers):
+            if i % 2 == 0:
+                layers.append(
+                    Conv2dNormActivation(
+                        prev_channels,
+                        out_channels,
+                        kernel_size=(1, 1),
+                        stride=(1, 1),
+                        padding=(0, 0),
+                        activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
+                    )
+                )
+                prev_channels = out_channels
+            else:
+                layers.append(
+                    Conv2dNormActivation(
+                        prev_channels,
+                        out_channels * 2,
+                        kernel_size=(3, 3),
+                        stride=(1, 1),
+                        padding=(1, 1),
+                        activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
+                    )
+                )
+                prev_channels = out_channels * 2
 
-        # Initialize weights
-        for layer in self.conv_layers:
-            nn.init.normal_(layer.weight, std=0.01)
-            nn.init.zeros_(layer.bias)
+        self.block = nn.Sequential(*layers)
 
-    def _get_conv_for_idx(self, x: torch.Tensor, idx: int) -> torch.Tensor:
-        """
-        This is equivalent to self.conv_layers[idx](x),
-        but TorchScript doesn't support this yet
-        """
-
-        out = x
-        for i, conv in enumerate(self.conv_layers):
-            if i == idx:
-                out = conv(x)
-
-        return out
-
-    def forward(self, features: list[torch.Tensor]) -> list[torch.Tensor]:
-        outputs: list[torch.Tensor] = []
-        for i, feature in enumerate(features):
-            outputs.append(self._get_conv_for_idx(feature, i))
-
-        return outputs
-
-
-class DetectionBlock(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int) -> None:
-        super().__init__()
-        mid_channels = out_channels
-
-        self.conv1 = Conv2dNormActivation(
-            in_channels,
-            mid_channels,
-            kernel_size=(1, 1),
-            stride=(1, 1),
-            padding=(0, 0),
-            activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
-        )
-        self.conv2 = Conv2dNormActivation(
-            mid_channels,
-            mid_channels * 2,
-            kernel_size=(3, 3),
-            stride=(1, 1),
-            padding=(1, 1),
-            activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
-        )
-        self.conv3 = Conv2dNormActivation(
-            mid_channels * 2,
-            mid_channels,
-            kernel_size=(1, 1),
-            stride=(1, 1),
-            padding=(0, 0),
-            activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
-        )
-        self.conv4 = Conv2dNormActivation(
-            mid_channels,
-            mid_channels * 2,
-            kernel_size=(3, 3),
-            stride=(1, 1),
-            padding=(1, 1),
-            activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
-        )
-        self.conv5 = Conv2dNormActivation(
-            mid_channels * 2,
-            mid_channels,
-            kernel_size=(1, 1),
-            stride=(1, 1),
-            padding=(0, 0),
-            activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
-        )
-        self.conv6 = Conv2dNormActivation(
-            mid_channels,
-            mid_channels * 2,
-            kernel_size=(3, 3),
-            stride=(1, 1),
-            padding=(1, 1),
-            activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
-        )
-
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
-        x = self.conv4(x)
-        branch = self.conv5(x)  # Branch for upsampling
-        out = self.conv6(branch)
-
-        return (out, branch)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.block(x)
 
 
 class YOLONeck(nn.Module):
+    """
+    Path Aggregation Network (PAN) neck.
+    Combines FPN (top-down) with bottom-up path augmentation.
+    """
+
     def __init__(self, in_channels: list[int]) -> None:
         super().__init__()
-        self.det_block3 = DetectionBlock(in_channels[2], in_channels[2] // 2)  # Large objects
+        (c3, c4, c5) = in_channels
 
-        self.upsample1 = nn.Sequential(
-            Conv2dNormActivation(
-                in_channels[2] // 2,
-                in_channels[1] // 2,
-                kernel_size=(1, 1),
-                stride=(1, 1),
-                padding=(0, 0),
-                activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
-            ),
-            nn.Upsample(scale_factor=2, mode="nearest"),
+        # Top-down pathway (FPN-like) with SPP
+        self.p5_pre_spp = YOLONeckBlock(c5, c5 // 2, num_layers=3)
+        self.spp = SPPBlock(kernel_sizes=(5, 9, 13))
+        self.p5_post_spp = YOLONeckBlock(c5 * 2, c5 // 2, num_layers=3)
+
+        self.p5_to_p4 = Conv2dNormActivation(
+            c5 // 2,
+            c4 // 2,
+            kernel_size=(1, 1),
+            stride=(1, 1),
+            padding=(0, 0),
+            activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
         )
-        self.det_block2 = DetectionBlock(in_channels[1] + in_channels[1] // 2, in_channels[1] // 2)  # Medium objects
-
-        self.upsample2 = nn.Sequential(
-            Conv2dNormActivation(
-                in_channels[1] // 2,
-                in_channels[0] // 2,
-                kernel_size=(1, 1),
-                stride=(1, 1),
-                padding=(0, 0),
-                activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
-            ),
-            nn.Upsample(scale_factor=2, mode="nearest"),
+        self.upsample_p5 = nn.Upsample(scale_factor=2, mode="nearest")
+        self.p4_reduce = Conv2dNormActivation(
+            c4,
+            c4 // 2,
+            kernel_size=(1, 1),
+            stride=(1, 1),
+            padding=(0, 0),
+            activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
         )
-        self.det_block1 = DetectionBlock(in_channels[0] + in_channels[0] // 2, in_channels[0] // 2)  # Small objects
+        self.p4_block = YOLONeckBlock(c4, c4 // 2, num_layers=5)
+        self.p4_to_p3 = Conv2dNormActivation(
+            c4 // 2,
+            c3 // 2,
+            kernel_size=(1, 1),
+            stride=(1, 1),
+            padding=(0, 0),
+            activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
+        )
+        self.upsample_p4 = nn.Upsample(scale_factor=2, mode="nearest")
+        self.p3_reduce = Conv2dNormActivation(
+            c3,
+            c3 // 2,
+            kernel_size=(1, 1),
+            stride=(1, 1),
+            padding=(0, 0),
+            activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
+        )
+        self.p3_block = YOLONeckBlock(c3, c3 // 2, num_layers=5)
 
-        self.out_channels = [in_channels[0], in_channels[1], in_channels[2]]
+        # Bottom-up pathway (PAN augmentation)
+        self.p3_out = Conv2dNormActivation(
+            c3 // 2,
+            c3,
+            kernel_size=(3, 3),
+            stride=(1, 1),
+            padding=(1, 1),
+            activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
+        )
+        self.downsample_p3 = Conv2dNormActivation(
+            c3 // 2,
+            c4 // 2,
+            kernel_size=(3, 3),
+            stride=(2, 2),
+            padding=(1, 1),
+            activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
+        )
+        self.n4_block = YOLONeckBlock(c4, c4 // 2, num_layers=5)
+        self.n4_out = Conv2dNormActivation(
+            c4 // 2,
+            c4,
+            kernel_size=(3, 3),
+            stride=(1, 1),
+            padding=(1, 1),
+            activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
+        )
+        self.downsample_n4 = Conv2dNormActivation(
+            c4 // 2,
+            c5 // 2,
+            kernel_size=(3, 3),
+            stride=(2, 2),
+            padding=(1, 1),
+            activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
+        )
+        self.n5_block = YOLONeckBlock(c5, c5 // 2, num_layers=5)
+        self.n5_out = Conv2dNormActivation(
+            c5 // 2,
+            c5,
+            kernel_size=(3, 3),
+            stride=(1, 1),
+            padding=(1, 1),
+            activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
+        )
+
+        self.out_channels = [c3, c4, c5]
 
     def forward(self, features: dict[str, torch.Tensor]) -> list[torch.Tensor]:
         feature_list = list(features.values())
         (c3, c4, c5) = feature_list[-3:]
 
-        # Large objects
-        (out3, branch3) = self.det_block3(c5)
+        # Top-down pathway with SPP
+        p5 = self.p5_pre_spp(c5)
+        p5 = self.spp(p5)
+        p5 = self.p5_post_spp(p5)
 
-        # Medium objects
-        up3 = self.upsample1(branch3)
-        c4_concat = torch.concat([up3, c4], dim=1)
-        (out2, branch2) = self.det_block2(c4_concat)
+        p5_up = self.upsample_p5(self.p5_to_p4(p5))
+        p4_cat = torch.concat([self.p4_reduce(c4), p5_up], dim=1)
+        p4 = self.p4_block(p4_cat)
 
-        # Small objects
-        up2 = self.upsample2(branch2)
-        c3_concat = torch.concat([up2, c3], dim=1)
-        (out1, _) = self.det_block1(c3_concat)
+        p4_up = self.upsample_p4(self.p4_to_p3(p4))
+        p3_cat = torch.concat([self.p3_reduce(c3), p4_up], dim=1)
+        p3 = self.p3_block(p3_cat)
 
-        return [out1, out2, out3]
+        # Bottom-up pathway (PAN)
+        n3_out = self.p3_out(p3)
+
+        n4_cat = torch.concat([self.downsample_p3(p3), p4], dim=1)
+        n4 = self.n4_block(n4_cat)
+        n4_out = self.n4_out(n4)
+
+        n5_cat = torch.concat([self.downsample_n4(n4), p5], dim=1)
+        n5 = self.n5_block(n5_cat)
+        n5_out = self.n5_out(n5)
+
+        return [n3_out, n4_out, n5_out]
 
 
 # pylint: disable=invalid-name
-class YOLO_v3(DetectionBaseNet):
-    default_size = (416, 416)
+class YOLO_v4(DetectionBaseNet):
+    default_size = (608, 608)
     auto_register = True
 
     def __init__(
@@ -326,19 +396,24 @@ class YOLO_v3(DetectionBaseNet):
         score_thresh = 0.05
         nms_thresh = 0.45
         detections_per_img = 300
-        self.ignore_thresh = 0.5
-        self.noobj_coeff = 0.2
-        self.coord_coeff = 5.0
+        self.ignore_thresh = 0.7
+        self.noobj_coeff = 1.0
+        self.coord_coeff = 0.07
         self.obj_coeff = 1.0
         self.cls_coeff = 1.0
 
         self.anchors = DEFAULT_ANCHORS
+        self.scale_xy = DEFAULT_SCALE_XY
         self.score_thresh = score_thresh
         self.nms_thresh = nms_thresh
         self.detections_per_img = detections_per_img
 
         self.backbone.return_channels = self.backbone.return_channels[-3:]
         self.backbone.return_stages = self.backbone.return_stages[-3:]
+
+        self.label_smoothing = 0.1
+        self.smooth_positive = 1.0 - self.label_smoothing
+        self.smooth_negative = self.label_smoothing / self.num_classes
 
         self.neck = YOLONeck(self.backbone.return_channels)
 
@@ -348,6 +423,7 @@ class YOLO_v3(DetectionBaseNet):
 
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes
+        self.smooth_negative = self.label_smoothing / self.num_classes
         num_anchors = self.anchor_generator.num_anchors_per_location()
         self.head = YOLOHead(self.neck.out_channels, num_anchors, self.num_classes)
 
@@ -366,13 +442,13 @@ class YOLO_v3(DetectionBaseNet):
         Parameters
         ----------
         box_wh
-            Box dimensions (num_boxes, 2)
+            Box dimensions (num_boxes, 2).
         anchor_wh
-            Anchor dimensions (num_anchors, 2)
+            Anchor dimensions (num_anchors, 2).
 
         Returns
         -------
-        IoU matrix (num_boxes, num_anchors)
+        IoU matrix (num_boxes, num_anchors).
         """
 
         inter_w = torch.min(box_wh[:, None, 0], anchor_wh[None, :, 0])
@@ -565,6 +641,9 @@ class YOLO_v3(DetectionBaseNet):
         for scale_idx, pred in enumerate(predictions):
             (N, _, H, W) = pred.size()
             num_anchors_scale = len(self.anchors[scale_idx])
+            stride_h = strides[scale_idx][0]
+            stride_w = strides[scale_idx][1]
+            scale_xy = self.scale_xy[scale_idx]
 
             pred = pred.view(N, num_anchors_scale, 5 + self.num_classes, H, W)
             pred = pred.permute(0, 1, 3, 4, 2).contiguous()
@@ -574,26 +653,56 @@ class YOLO_v3(DetectionBaseNet):
             noobj_mask = noobj_masks[scale_idx]
 
             if obj_mask.any():
-                # XY loss: BCE with logits (targets are in [0,1], predictions are logits)
-                pred_xy = pred[..., :2]
-                target_xy = target[..., :2]
-                xy_loss = F.binary_cross_entropy_with_logits(pred_xy[obj_mask], target_xy[obj_mask], reduction="sum")
+                indices = torch.nonzero(obj_mask)
 
-                # WH loss: MSE on raw values (both are in log-space)
-                pred_wh = pred[..., 2:4]
-                target_wh = target[..., 2:4]
-                wh_loss = F.mse_loss(pred_wh[obj_mask], target_wh[obj_mask], reduction="sum")
+                # Get raw predictions for positive samples
+                pred_obj = pred[obj_mask]
 
-                coord_loss = coord_loss + xy_loss + wh_loss
+                # Get grid coordinates
+                grid_y = indices[:, 2].float()
+                grid_x = indices[:, 3].float()
 
-                # Object confidence loss
+                # Decode predictions to pixel coordinates with scale factor
+                pred_xy_scaled = torch.sigmoid(pred_obj[:, :2]) * scale_xy - (scale_xy - 1) / 2
+                p_x = (pred_xy_scaled[:, 0] + grid_x) * stride_w
+                p_y = (pred_xy_scaled[:, 1] + grid_y) * stride_h
+
+                # Width/Height decoding (anchors are in pixel units)
+                anchors_scale = anchors[scale_idx].to(device)
+                anchor_w = anchors_scale[indices[:, 1], 0]
+                anchor_h = anchors_scale[indices[:, 1], 1]
+                p_w = torch.exp(pred_obj[:, 2]) * anchor_w
+                p_h = torch.exp(pred_obj[:, 3]) * anchor_h
+
+                # Decode targets to pixel coordinates
+                t_tx = target[obj_mask][:, 0]
+                t_ty = target[obj_mask][:, 1]
+                t_tw = target[obj_mask][:, 2]
+                t_th = target[obj_mask][:, 3]
+
+                t_x = (t_tx + grid_x) * stride_w
+                t_y = (t_ty + grid_y) * stride_h
+                t_w = torch.exp(t_tw) * anchor_w
+                t_h = torch.exp(t_th) * anchor_h
+
+                # Convert center-wh to x1y1x2y2
+                pred_boxes = torch.stack([p_x - p_w / 2, p_y - p_h / 2, p_x + p_w / 2, p_y + p_h / 2], dim=1)
+                target_boxes = torch.stack([t_x - t_w / 2, t_y - t_h / 2, t_x + t_w / 2, t_y + t_h / 2], dim=1)
+
+                # Calculate CIoU loss
+                ciou = compute_ciou_loss(pred_boxes, target_boxes)
+                coord_loss = coord_loss + ciou.sum()
+
+                # Objectness loss
                 obj_loss = obj_loss + F.binary_cross_entropy_with_logits(
                     pred[..., 4][obj_mask], target[..., 4][obj_mask], reduction="sum"
                 )
 
                 # Classification loss
+                cls_targets = target[..., 5:][obj_mask]
+                cls_targets_smooth = cls_targets * (self.smooth_positive - self.smooth_negative) + self.smooth_negative
                 cls_loss = cls_loss + F.binary_cross_entropy_with_logits(
-                    pred[..., 5:][obj_mask], target[..., 5:][obj_mask], reduction="sum"
+                    pred[..., 5:][obj_mask], cls_targets_smooth, reduction="sum"
                 )
 
                 num_obj += obj_mask.sum().item()
@@ -696,6 +805,7 @@ class YOLO_v3(DetectionBaseNet):
                     grids[scale_idx],
                     strides[scale_idx],
                     self.num_classes,
+                    self.scale_xy[scale_idx],
                 )
                 all_decoded.append(decoded)
 

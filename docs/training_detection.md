@@ -12,7 +12,9 @@
 - [SSD](#ssd)
 - [SSDLite](#ssdlite)
 - [ViTDet](#vitdet)
+- [YOLO v2](#yolo-v2)
 - [YOLO v3](#yolo-v3)
+- [YOLO v4](#yolo-v4)
 
 ### Deformable DETR
 
@@ -218,6 +220,16 @@ torchrun --nproc_per_node=2 train_detection.py --network vitdet --tag coco --bac
 torchrun --nproc_per_node=2 train_detection.py --network vitdet --backbone vit_sam_b16 --backbone-epoch 0 --opt adamw --lr 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 8 --warmup-epochs 2 --epochs 100 --size 672 --wd 0.1 --norm-wd 0 --clip-grad-norm 1 --amp --compile-backbone --compile-opt --layer-decay 0.7
 ```
 
+### YOLO v2
+
+#### YOLO v2: Darknet 17
+
+Optional intermediate training (COCO)
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network yolo_v2 --tag coco --backbone darknet_17 --lr 0.001 --lr-scheduler multistep --lr-steps 60 90 --lr-step-gamma 0.1 --batch-size 64 --warmup-epochs 3 --epochs 160 --wd 0.0005 --size 416 --aug-type ssd --fast-matmul --compile-backbone --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+```
+
 ### YOLO v3
 
 #### YOLO v3: Darknet 53
@@ -225,7 +237,17 @@ torchrun --nproc_per_node=2 train_detection.py --network vitdet --backbone vit_s
 Optional intermediate training (COCO)
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network yolo_v3 --tag coco --backbone darknet_53 --lr 0.001 --lr-scheduler multistep --lr-steps 400 450 --lr-step-gamma 0.1 --batch-size 64 --warmup-epochs 5 --epochs 500 --wd 0.0005 --size 416 --aug-type ssd --amp --amp-dtype bfloat16 --compile-backbone --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+torchrun --nproc_per_node=2 train_detection.py --network yolo_v3 --tag coco --backbone darknet_53 --lr 0.001 --lr-scheduler multistep --lr-steps 200 250 --lr-step-gamma 0.1 --batch-size 64 --warmup-epochs 5 --epochs 300 --wd 0.0005 --size 416 --aug-type ssd --amp --amp-dtype bfloat16 --compile-backbone --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+```
+
+### YOLO v4
+
+#### YOLO v4: CSP Darknet 53
+
+Optional intermediate training (COCO)
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network yolo_v4 --tag coco --backbone csp_darknet_53 --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --grad-accum-steps 2 --warmup-epochs 5 --epochs 400 --wd 0.0005 --size 608 --aug-type ssd --mosaic-prob 0.5 --amp --amp-dtype bfloat16 --compile-backbone --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 ## Common Dataset Training Scenarios

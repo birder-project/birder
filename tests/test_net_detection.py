@@ -5,6 +5,7 @@ import unittest
 import torch
 from parameterized import parameterized
 
+from birder.conf.settings import DEFAULT_NUM_CHANNELS
 from birder.data.collators.detection import batch_images
 from birder.model_registry import registry
 from birder.net.detection import base
@@ -14,7 +15,7 @@ logging.disable(logging.CRITICAL)
 
 class TestBase(unittest.TestCase):
     def test_get_signature(self) -> None:
-        signature = base.get_detection_signature((1, 3, 224, 224), 10, dynamic=False)
+        signature = base.get_detection_signature((1, DEFAULT_NUM_CHANNELS, 224, 224), 10, dynamic=False)
         self.assertIn("dynamic", signature)
         self.assertIn("inputs", signature)
         self.assertIn("outputs", signature)
@@ -41,7 +42,10 @@ class TestNetDetection(unittest.TestCase):
             ("ssdlite", "mobilenet_v2_0_25", (512, 512)),
             ("ssdlite", "vit_t16"),  # 1 stage network
             ("vitdet", "vit_sam_b16"),
-            ("yolo_v3", "resnet_v2_18"),
+            ("yolo_v2", "resnet_v1_18"),
+            ("yolo_v3", "darknet_17"),
+            ("yolo_v4", "csp_darknet_53"),
+            ("yolo_v4_tiny", "efficientnet_lite0"),
         ]
     )
     def test_net_detection(
@@ -50,7 +54,7 @@ class TestNetDetection(unittest.TestCase):
         encoder: str,
         size: tuple[int, int] = (256, 256),
     ) -> None:
-        backbone = registry.net_factory(encoder, 3, 10, size=size)
+        backbone = registry.net_factory(encoder, DEFAULT_NUM_CHANNELS, 10, size=size)
         n = registry.detection_net_factory(network_name, 10, backbone, size=size, export_mode=True)
 
         # Ensure config is serializable
@@ -58,7 +62,7 @@ class TestNetDetection(unittest.TestCase):
 
         # Test network
         n.eval()
-        out = n(torch.rand((1, 3, *size)))
+        out = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
         (detections, losses) = out
         self.assertEqual(len(losses), 0)
         for detection in detections:
@@ -67,17 +71,18 @@ class TestNetDetection(unittest.TestCase):
 
         # Again in "dynamic size" mode
         (images, masks, image_sizes) = batch_images(
-            [torch.rand((3, *size)), torch.rand((3, size[0] - 12, size[1] - 24))], size_divisible=4
+            [torch.rand((DEFAULT_NUM_CHANNELS, *size)), torch.rand((DEFAULT_NUM_CHANNELS, size[0] - 12, size[1] - 24))],
+            size_divisible=4,
         )
         out = n(images, masks=masks, image_sizes=image_sizes)
 
         # Reset classifier
         n.reset_classifier(20)
-        n(torch.rand((1, 3, *size)))
+        n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
 
         n.train()
         out = n(
-            torch.rand((1, 3, *size)),
+            torch.rand((1, DEFAULT_NUM_CHANNELS, *size)),
             targets=[
                 {
                     "boxes": torch.tensor([[10.1, 10.1, 30.2, 40.2]]),
@@ -101,10 +106,10 @@ class TestNetDetection(unittest.TestCase):
             torch.jit.script(n)
         else:
             n.eval()
-            torch.jit.trace(n, example_inputs=torch.rand((1, 3, *size)))
+            torch.jit.trace(n, example_inputs=torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
             n.train()
 
         # Freeze
         n.eval()
         n.freeze(freeze_classifier=False)
-        n(torch.rand((1, 3, *size)))
+        n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))

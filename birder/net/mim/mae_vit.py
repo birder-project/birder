@@ -63,7 +63,7 @@ class MAE_ViT(MIMBaseNet):
 
         layers.append(nn.LayerNorm(decoder_embed_dim, eps=1e-6))
         layers.append(
-            nn.Linear(decoder_embed_dim, self.patch_size**2 * self.encoder.input_channels, bias=True)
+            nn.Linear(decoder_embed_dim, self.patch_size**2 * self.input_channels, bias=True)
         )  # Decoder to patch
         self.decoder = nn.Sequential(*layers)
 
@@ -74,7 +74,7 @@ class MAE_ViT(MIMBaseNet):
         """
 
         p = self.patch_size
-        c = self.encoder.input_channels
+        c = self.input_channels
         assert imgs.shape[2] == imgs.shape[3] and imgs.shape[2] % p == 0
 
         h = imgs.shape[2] // p
@@ -92,7 +92,7 @@ class MAE_ViT(MIMBaseNet):
         """
 
         p = self.patch_size
-        c = self.encoder.input_channels
+        c = self.input_channels
         h = int(x.size(1) ** 0.5)
         w = int(x.size(1) ** 0.5)
         assert h * w == x.shape[1]

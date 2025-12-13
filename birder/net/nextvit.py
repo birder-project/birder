@@ -282,7 +282,7 @@ class NextViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         ]
 
         self.stem = nn.Sequential(
-            Conv2dNormActivation(3, stem_chs[0], kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)),
+            Conv2dNormActivation(self.input_channels, stem_chs[0], kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)),
             Conv2dNormActivation(stem_chs[0], stem_chs[1], kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
             Conv2dNormActivation(stem_chs[1], stem_chs[2], kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
             Conv2dNormActivation(stem_chs[2], stem_chs[2], kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)),

@@ -75,7 +75,7 @@ class SimMIM(MIMBaseNet):
         # self.mask_token = nn.Parameter(torch.zeros(1, self.encoder.embedding_size, 1, 1))
         self.decoder = nn.Conv2d(
             in_channels=self.encoder.embedding_size,
-            out_channels=self.patch_size**2 * 3,
+            out_channels=self.patch_size**2 * self.input_channels,
             kernel_size=(1, 1),
             stride=(1, 1),
             padding=(0, 0),
@@ -89,8 +89,8 @@ class SimMIM(MIMBaseNet):
 
     def patchify(self, imgs: torch.Tensor) -> torch.Tensor:
         """
-        imgs: (N, 3, H, W)
-        x: (N, L, patch_size**2 * 3)
+        imgs: (N, C, H, W)
+        x: (N, L, patch_size**2 * C)
         """
 
         p = self.patch_size
@@ -98,16 +98,16 @@ class SimMIM(MIMBaseNet):
 
         h = imgs.shape[2] // p
         w = imgs.shape[3] // p
-        x = imgs.reshape(shape=(imgs.shape[0], 3, h, p, w, p))
+        x = imgs.reshape(shape=(imgs.shape[0], self.input_channels, h, p, w, p))
         x = torch.einsum("nchpwq->nhwpqc", x)
-        x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * 3))
+        x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * self.input_channels))
 
         return x
 
     def unpatchify(self, x: torch.Tensor) -> torch.Tensor:
         """
-        x: (N, conv_out**2, L*3) or (N, L*3, conv_out, conv_out)
-        imgs: (N, 3, H, W)
+        x: (N, conv_out**2, L*C) or (N, L*C, conv_out, conv_out)
+        imgs: (N, C, H, W)
         """
 
         if x.ndim == 4:
@@ -120,9 +120,9 @@ class SimMIM(MIMBaseNet):
         w = int(x.shape[1] ** 0.5)
         assert h * w == x.shape[1]
 
-        x = x.reshape(shape=(x.shape[0], h, w, p, p, 3))
+        x = x.reshape(shape=(x.shape[0], h, w, p, p, self.input_channels))
         x = torch.einsum("nhwpqc->nchpwq", x)
-        imgs = x.reshape(shape=(x.shape[0], 3, h * p, h * p))
+        imgs = x.reshape(shape=(x.shape[0], self.input_channels, h * p, h * p))
 
         return imgs
 

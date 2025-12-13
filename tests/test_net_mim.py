@@ -5,6 +5,7 @@ import unittest
 import torch
 from parameterized import parameterized
 
+from birder.conf.settings import DEFAULT_NUM_CHANNELS
 from birder.model_registry import registry
 from birder.net.mim import base  # pylint: disable=unused-import # noqa: F401
 
@@ -57,7 +58,7 @@ class TestNetMIM(unittest.TestCase):
         ]
     )
     def test_net_mim(self, network_name: str, encoder: str) -> None:
-        encoder = registry.net_factory(encoder, 3, 10)
+        encoder = registry.net_factory(encoder, DEFAULT_NUM_CHANNELS, 10)
         size = (encoder.max_stride * 6, encoder.max_stride * 6)
         encoder.adjust_size(size)
         n = registry.mim_net_factory(network_name, encoder, size=size)
@@ -66,7 +67,7 @@ class TestNetMIM(unittest.TestCase):
         _ = json.dumps(n.config)
 
         # Test network
-        out = n(torch.rand((1, 3, *size)))
+        out = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
         for key in ["loss", "pred", "mask"]:
             self.assertFalse(torch.isnan(out[key]).any())
 

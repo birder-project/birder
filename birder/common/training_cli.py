@@ -139,13 +139,17 @@ def add_input_args(parser: argparse.ArgumentParser, size_help: Optional[str] = N
     if size_help is None:
         size_help = "image size (defaults to the network default size)"
 
-    group.add_argument("--channels", type=int, default=3, metavar="N", help="no. of image channels")
+    group.add_argument(
+        "--channels", type=int, default=settings.DEFAULT_NUM_CHANNELS, metavar="N", help="no. of image channels"
+    )
     group.add_argument("--size", type=int, nargs="+", metavar=("H", "W"), help=size_help)
 
 
 def add_detection_input_args(parser: argparse.ArgumentParser) -> None:
     group = parser.add_argument_group("Input parameters")
-    group.add_argument("--channels", type=int, default=3, metavar="N", help="no. of image channels")
+    group.add_argument(
+        "--channels", type=int, default=settings.DEFAULT_NUM_CHANNELS, metavar="N", help="no. of image channels"
+    )
     group.add_argument(
         "--size",
         type=int,

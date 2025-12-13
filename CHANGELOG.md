@@ -4,8 +4,18 @@
 
 ### Added
 
+- **YOLO v2 Detection**: Implemented [YOLO v2](https://arxiv.org/abs/1612.08242) object detection network.
 - **YOLO v3 Detection**: Implemented [YOLO v3](https://arxiv.org/abs/1804.02767) object detection network.
+- **YOLO v4 Detection**: Implemented [YOLO v4](https://arxiv.org/abs/2004.10934) object detection network.
+- **YOLO v4 Tiny Detection**: Implemented [YOLO v4 Tiny](https://arxiv.org/abs/2011.08036) object detection network.
 - **Mosaic Augmentation**: Added mosaic data augmentation for object detection with two modes: `fixed_grid` and `random_center`.
+- **Default Channels Setting**: Added centralized `DEFAULT_NUM_CHANNELS` setting for consistent default input channel configuration.
+
+### Fixed
+
+- **FocalNet Input Channels**: Fixed hardcoded input channels in FocalNet stem to use `input_channels` parameter.
+- **NextViT Input Channels**: Fixed hardcoded input channels in NextViT stem to use `input_channels` parameter.
+- **MIM Input Channels**: Fixed hardcoded channel values in MIM models to properly use `input_channels` parameter, enabling support for non-RGB inputs.
 
 ## 0.1.6 - 2025-12-10
 

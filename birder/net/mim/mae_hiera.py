@@ -120,7 +120,7 @@ class MAE_Hiera(MIMBaseNet):
 
         self.decoder_pred = nn.Linear(
             decoder_embed_dim,
-            (self.pred_stride ** min(2, len(self.encoder.q_stride))) * self.encoder.input_channels,
+            (self.pred_stride ** min(2, len(self.encoder.q_stride))) * self.input_channels,
         )
 
         # Weight initialization
@@ -150,8 +150,8 @@ class MAE_Hiera(MIMBaseNet):
 
     def unpatchify(self, x: torch.Tensor) -> torch.Tensor:
         """
-        x: (N, L, patch_size**2 * 3)
-        imgs: (N, 3, H, W)
+        x: (N, L, patch_size**2 * C)
+        imgs: (N, C, H, W)
         """
 
         p = self.pred_stride
@@ -159,9 +159,9 @@ class MAE_Hiera(MIMBaseNet):
         w = int(x.shape[1] ** 0.5)
         assert h * w == x.shape[1]
 
-        x = x.reshape(shape=(x.shape[0], h, w, p, p, 3))
+        x = x.reshape(shape=(x.shape[0], h, w, p, p, self.input_channels))
         x = torch.einsum("nhwpqc->nchpwq", x)
-        imgs = x.reshape(shape=(x.shape[0], 3, h * p, h * p))
+        imgs = x.reshape(shape=(x.shape[0], self.input_channels, h * p, h * p))
 
         return imgs
 

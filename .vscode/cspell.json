@@ -290,6 +290,7 @@
     "unpartition",
     "unpatchify",
     "unscale",
+    "unshuffle",
     "unsqueeze",
     "upsampling",
     "venv",
