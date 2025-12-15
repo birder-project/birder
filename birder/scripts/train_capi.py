@@ -541,10 +541,11 @@ def train(args: argparse.Namespace) -> None:
                 # EMA update for the teacher
                 with torch.no_grad():
                     m = momentum_schedule[global_step]
-                    for param_q, param_k in zip(
-                        student_without_ddp.backbone.parameters(), teacher_without_ddp.backbone.parameters()
-                    ):
-                        param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
+                    torch._foreach_lerp_(  # pylint: disable=protected-access
+                        list(teacher_without_ddp.backbone.parameters()),
+                        list(student_without_ddp.backbone.parameters()),
+                        weight=1 - m,
+                    )
 
             # Statistics
             running_loss.update(loss.detach())

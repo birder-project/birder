@@ -807,6 +807,19 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
+    "vit_b16_ls",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 12,
+        "hidden_dim": 768,
+        "mlp_dim": 3072,
+        "layer_scale_init_value": 1e-5,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
     "vit_b16_pn_quick_gelu",
     ViT,
     config={
@@ -1306,6 +1319,20 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
+    "vit_reg4_so150m_p16_avg",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 18,
+        "num_heads": 16,
+        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
+        "mlp_dim": 2320,
+        "num_reg_tokens": 4,
+        "class_token": False,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
     "vit_reg8_so150m_p16_swiglu_ap",
     ViT,
     config={
@@ -1332,6 +1359,20 @@ registry.register_model_config(
         "mlp_dim": 2320,
         "num_reg_tokens": 4,
         "class_token": False,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
+    "vit_reg4_so150m_p14_ls",
+    ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 18,
+        "num_heads": 16,
+        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
+        "mlp_dim": 2320,
+        "layer_scale_init_value": 1e-5,
+        "num_reg_tokens": 4,
         "drop_path_rate": 0.1,
     },
 )

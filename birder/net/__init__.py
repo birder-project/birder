@@ -103,6 +103,8 @@ from birder.net.vgg_reduced import Vgg_Reduced
 from birder.net.vit import ViT
 from birder.net.vit_parallel import ViT_Parallel
 from birder.net.vit_sam import ViT_SAM
+from birder.net.vovnet_v1 import VoVNet_v1
+from birder.net.vovnet_v2 import VoVNet_v2
 from birder.net.wide_resnet import Wide_ResNet
 from birder.net.xception import Xception
 from birder.net.xcit import XCiT
@@ -213,6 +215,8 @@ __all__ = [
     "ViT",
     "ViT_Parallel",
     "ViT_SAM",
+    "VoVNet_v1",
+    "VoVNet_v2",
     "Wide_ResNet",
     "Xception",
     "XCiT",

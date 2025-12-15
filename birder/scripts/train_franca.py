@@ -8,7 +8,6 @@ https://arxiv.org/abs/2507.14137
 
 # Reference license: Apache-2.0
 
-
 import argparse
 import json
 import logging
@@ -772,8 +771,9 @@ def train(args: argparse.Namespace) -> None:
                 # EMA update for the teacher
                 with torch.no_grad():
                     m = momentum_schedule[global_step]
-                    for param_q, param_k in zip(student.parameters(), teacher.parameters()):
-                        param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
+                    torch._foreach_lerp_(  # pylint: disable=protected-access
+                        list(teacher.parameters()), list(student.parameters()), weight=1 - m
+                    )
 
                 # Weight decay update
                 if wd_schedule is not None:

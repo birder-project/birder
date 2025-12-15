@@ -405,7 +405,8 @@ def get_optimizer(parameters: list[dict[str, Any]], l_rate: float, args: argpars
         kwargs["alpha"] = args.opt_alpha
 
     # For optimizer compilation
-    lr = torch.tensor(l_rate)
+    # lr = torch.tensor(l_rate) - Causes weird LR scheduling bugs
+    lr = l_rate
     if getattr(args, "compile_opt", False) is not False:
         if opt not in ("lamb", "lambw", "lars"):
             logger.debug("Setting optimizer capturable to True")
@@ -848,6 +849,7 @@ def cosine_scheduler(
 
 def scale_lr(args: argparse.Namespace) -> float:
     lr: float = args.lr
+    logger.debug(f"Learning rate before scaling: {lr}")
     if args.lr_scale is not None:
         ratio = args.batch_size * args.grad_accum_steps * args.world_size / args.lr_scale
         if args.lr_scale_type == "sqrt":

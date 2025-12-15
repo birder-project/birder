@@ -7,7 +7,6 @@ Paper "iBOT: Image BERT Pre-Training with Online Tokenizer", https://arxiv.org/a
 
 # Reference license: Apache-2.0
 
-
 from typing import Any
 from typing import Literal
 from typing import Optional

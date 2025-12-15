@@ -524,8 +524,9 @@ def train(args: argparse.Namespace) -> None:
             # EMA update for the target encoder
             with torch.no_grad():
                 m = momentum_schedule[global_step]
-                for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
-                    param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
+                torch._foreach_lerp_(  # pylint: disable=protected-access
+                    list(target_encoder.parameters()), list(encoder.parameters()), weight=1 - m
+                )
 
             # Statistics
             running_loss.update(loss.detach())

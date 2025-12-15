@@ -765,8 +765,9 @@ def train(args: argparse.Namespace) -> None:
                 # EMA update for the student backbone
                 with torch.no_grad():
                     m = 0.999
-                    for param_q, param_k in zip(student.backbone.parameters(), student_backbone_ema.parameters()):
-                        param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
+                    torch._foreach_lerp_(  # pylint: disable=protected-access
+                        list(student_backbone_ema.parameters()), list(student.backbone.parameters()), weight=1 - m
+                    )
 
                 # Weight decay update
                 if wd_schedule is not None:

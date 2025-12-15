@@ -119,6 +119,8 @@ Most networks train more effectively with growing resolution and augmentation as
 - [ViT](#vit)
 - [ViT Parallel](#vit-parallel)
 - [ViT SAM](#vit-sam)
+- [VoVNet v1](#vovnet-v1)
+- [VoVNet v2](#vovnet-v2)
 - [Wide ResNet](#wide-resnet)
 - [Xception](#xception)
 - [XCiT](#xcit)
@@ -2519,6 +2521,22 @@ torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls --tag in
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_sam_b16 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 64 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.1 --norm-wd 0 --grad-accum-steps 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile
+```
+
+### VoVNet v1
+
+#### VoVNet v1: 39
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vovnet_v1_39 --lr-scheduler cosine --batch-size 128 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6
+```
+
+### VoVNet v2
+
+#### VoVNet v2: 39
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vovnet_v2_39 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 ### Wide ResNet

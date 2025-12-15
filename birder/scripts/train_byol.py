@@ -437,10 +437,11 @@ def train(args: argparse.Namespace) -> None:
                 # EMA update for the teacher
                 with torch.no_grad():
                     m = args.momentum_teacher
-                    for param_q, param_k in zip(
-                        net_without_ddp.online_encoder.parameters(), net_without_ddp.target_encoder.parameters()
-                    ):
-                        param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
+                    torch._foreach_lerp_(  # pylint: disable=protected-access
+                        list(net_without_ddp.target_encoder.parameters()),
+                        list(net_without_ddp.online_encoder.parameters()),
+                        weight=1 - m,
+                    )
 
             # Statistics
             running_loss.update(loss.detach())

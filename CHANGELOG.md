@@ -1,9 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.1.7 - 2025-12-15
 
 ### Added
 
+- **VoVNet v2**: Implemented [VoVNet v2 (ESE-VoVNet)](https://arxiv.org/abs/1911.06667) classification network.
+- **VoVNet v1**: Implemented [VoVNet v1](https://arxiv.org/abs/1904.09730) (One-Shot Aggregation) classification network.
 - **YOLO v2 Detection**: Implemented [YOLO v2](https://arxiv.org/abs/1612.08242) object detection network.
 - **YOLO v3 Detection**: Implemented [YOLO v3](https://arxiv.org/abs/1804.02767) object detection network.
 - **YOLO v4 Detection**: Implemented [YOLO v4](https://arxiv.org/abs/2004.10934) object detection network.

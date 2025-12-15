@@ -564,7 +564,7 @@ def train(args: argparse.Namespace) -> None:
                     m = momentum_schedule[global_step]
                     for param_q, param_k in zip(student.parameters(), teacher.parameters()):
                         if param_q.requires_grad is True:  # Better support for args.freeze_body is True
-                            param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
+                            param_k.lerp_(param_q, weight=1 - m)
 
             # Statistics
             running_loss.update(loss.detach())
