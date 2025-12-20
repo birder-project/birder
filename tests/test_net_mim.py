@@ -44,6 +44,7 @@ class TestNetMIM(unittest.TestCase):
             ("mae_vit", "vit_so150m_p14_ap"),
             ("mae_vit", "vit_reg4_so150m_p14_ap"),
             ("mae_vit", "vit_parallel_s16_18x2_ls"),
+            ("mae_vit_dec512d24_npl", "vit_s32"),
             ("simmim", "hieradet_tiny"),
             ("simmim", "maxvit_t"),
             ("simmim", "nextvit_s"),
@@ -67,6 +68,15 @@ class TestNetMIM(unittest.TestCase):
         _ = json.dumps(n.config)
 
         # Test network
+        out = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+        for key in ["loss", "pred", "mask"]:
+            self.assertFalse(torch.isnan(out[key]).any())
+
+        self.assertEqual(out["loss"].ndim, 0)
+
+        # Test with custom min_mask_size
+        n = registry.mim_net_factory(network_name, encoder, size=size, min_mask_size=2)
+
         out = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
         for key in ["loss", "pred", "mask"]:
             self.assertFalse(torch.isnan(out[key]).any())

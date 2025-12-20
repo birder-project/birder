@@ -397,7 +397,15 @@ class YOLO_v4(DetectionBaseNet):
         nms_thresh = 0.45
         detections_per_img = 300
         self.ignore_thresh = 0.7
-        self.noobj_coeff = 1.0
+
+        # Loss coefficients
+        # Note: coord_coeff=0.07 matches darknet's iou_normalizer for CIoU loss.
+        # However, darknet uses squared deltas (loss = sum(delta^2) / batch) while we compute
+        # CIoU loss directly (loss = coeff * sum(ciou) / num_obj). This different formulation
+        # means darknet's obj_normalizer=1.0 overweights background loss relative to box
+        # regression in our implementation. We use a lower noobj_coeff (vs darknet's 1.0) to
+        # restore a better balance, similar to YOLOv3's noobj_coeff=0.2.
+        self.noobj_coeff = 0.3
         self.coord_coeff = 0.07
         self.obj_coeff = 1.0
         self.cls_coeff = 1.0

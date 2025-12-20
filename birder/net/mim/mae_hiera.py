@@ -42,6 +42,7 @@ def apply_fusion_head(head: nn.Module, x: torch.Tensor) -> torch.Tensor:
 # pylint: disable=invalid-name
 class MAE_Hiera(MIMBaseNet):
     default_size = (224, 224)
+    default_mask_ratio = 0.6
 
     def __init__(
         self,
@@ -49,12 +50,13 @@ class MAE_Hiera(MIMBaseNet):
         *,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
+        mask_ratio: Optional[float] = None,
+        min_mask_size: int = 1,
     ) -> None:
-        super().__init__(encoder, config=config, size=size)
+        super().__init__(encoder, config=config, size=size, mask_ratio=mask_ratio, min_mask_size=min_mask_size)
         assert self.config is None, "config not supported"
         assert isinstance(self.encoder, Hiera)
 
-        self.mask_ratio = 0.6
         encoder_dim = self.encoder.encoding_size
         decoder_embed_dim = 512
         decoder_depth = 8
@@ -161,15 +163,20 @@ class MAE_Hiera(MIMBaseNet):
 
         x = x.reshape(shape=(x.shape[0], h, w, p, p, self.input_channels))
         x = torch.einsum("nhwpqc->nchpwq", x)
-        imgs = x.reshape(shape=(x.shape[0], self.input_channels, h * p, h * p))
+        imgs = x.reshape(shape=(x.shape[0], self.input_channels, h * p, w * p))
 
         return imgs
 
     def forward_encoder(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         # Tokens selected for masking at mask unit level
-        num_windows = math.prod(self.encoder.mask_spatial_shape)
-
-        (mask, _, _) = uniform_mask(x.size(0), num_windows, self.mask_ratio, device=x.device)
+        (mask, _, _) = uniform_mask(
+            x.size(0),
+            self.encoder.mask_spatial_shape[0],
+            self.encoder.mask_spatial_shape[1],
+            self.mask_ratio,
+            min_mask_size=self.min_mask_size,
+            device=x.device,
+        )
 
         # Get multi-scale representations from encoder
         (intermediates, mask) = self.encoder.masked_encoding(x, mask)

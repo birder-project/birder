@@ -17,6 +17,7 @@ from torch import nn
 from torchvision.ops import MLP
 
 from birder.common.masking import uniform_mask
+from birder.model_registry import registry
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import pos_embedding_sin_cos_2d
@@ -74,6 +75,8 @@ class CrossAttentionBlock(nn.Module):
 
 class CrossMAE(MIMBaseNet):
     default_size = (224, 224)
+    default_mask_ratio: float = 0.75
+    auto_register = False
 
     def __init__(
         self,
@@ -81,17 +84,18 @@ class CrossMAE(MIMBaseNet):
         *,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
+        mask_ratio: Optional[float] = None,
+        min_mask_size: int = 1,
     ) -> None:
-        super().__init__(encoder, config=config, size=size)
-        assert self.config is None, "config not supported"
+        super().__init__(encoder, config=config, size=size, mask_ratio=mask_ratio, min_mask_size=min_mask_size)
+        assert self.config is not None, "must set config"
         assert isinstance(self.encoder, MaskedTokenOmissionMixin)
 
-        self.mask_ratio = 0.75
         self.kept_mask_ratio = 0.25
         self.patch_size = self.encoder.stem_stride
         encoder_dim = self.encoder.embedding_size
-        decoder_embed_dim = 512
-        decoder_depth = 8
+        decoder_embed_dim: int = self.config["decoder_embed_dim"]
+        decoder_depth: int = self.config["decoder_depth"]
 
         self.wfm = WeightedFeatureMaps(self.encoder.num_layers, decoder_depth=decoder_depth)
         self.decoder_norms = nn.ModuleList()
@@ -161,7 +165,7 @@ class CrossMAE(MIMBaseNet):
 
         x = x.reshape(shape=(x.shape[0], h, w, p, p, c))
         x = torch.einsum("nhwpqc->nchpwq", x)
-        imgs = x.reshape(shape=(x.shape[0], c, h * p, h * p))
+        imgs = x.reshape(shape=(x.shape[0], c, h * p, w * p))
 
         return imgs
 
@@ -207,11 +211,18 @@ class CrossMAE(MIMBaseNet):
         return loss
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        seq_len = (self.size[0] // self.encoder.stem_stride) * (self.size[1] // self.encoder.stem_stride)
-        (mask, ids_keep, _) = uniform_mask(x.size(0), seq_len, self.mask_ratio, self.kept_mask_ratio, device=x.device)
+        h = self.size[0] // self.encoder.stem_stride
+        w = self.size[1] // self.encoder.stem_stride
+        (mask, ids_keep, _) = uniform_mask(
+            x.size(0), h, w, self.mask_ratio, self.kept_mask_ratio, min_mask_size=self.min_mask_size, device=x.device
+        )
 
         latent = self.encoder.masked_encoding_omission(x, ids_keep, return_all_features=True)["tokens"]
         pred = self.forward_decoder(latent, mask)
         loss = self.forward_loss(x, pred, mask)
 
         return {"loss": loss, "pred": pred, "mask": mask}
+
+
+registry.register_model_config("crossmae", CrossMAE, config={"decoder_depth": 8, "decoder_embed_dim": 512})
+registry.register_model_config("crossmae_dec512d12", CrossMAE, config={"decoder_depth": 12, "decoder_embed_dim": 512})

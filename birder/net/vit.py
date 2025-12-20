@@ -1191,6 +1191,36 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
+    "vit_reg8_l16_avg",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 24,
+        "num_heads": 16,
+        "hidden_dim": 1024,
+        "mlp_dim": 4096,
+        "num_reg_tokens": 8,
+        "class_token": False,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
+    "vit_reg8_l16_aps",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 24,
+        "num_heads": 16,
+        "hidden_dim": 1024,
+        "mlp_dim": 4096,
+        "num_reg_tokens": 8,
+        "class_token": False,
+        "attn_pool_head": True,
+        "attn_pool_special_tokens": True,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
     "vit_reg4_l14",
     ViT,
     config={

@@ -57,6 +57,7 @@ def norm_targets(targets: torch.Tensor, patch_size: int) -> torch.Tensor:
 
 class SimMIM(MIMBaseNet):
     default_size = (192, 192)
+    default_mask_ratio = 0.6
 
     def __init__(
         self,
@@ -64,15 +65,15 @@ class SimMIM(MIMBaseNet):
         *,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
+        mask_ratio: Optional[float] = None,
+        min_mask_size: int = 1,
     ) -> None:
-        super().__init__(encoder, config=config, size=size)
+        super().__init__(encoder, config=config, size=size, mask_ratio=mask_ratio, min_mask_size=min_mask_size)
         assert self.config is None, "config not supported"
         assert isinstance(self.encoder, MaskedTokenRetentionMixin)
 
-        self.mask_ratio = 0.6
         self.patch_size = encoder.max_stride
 
-        # self.mask_token = nn.Parameter(torch.zeros(1, self.encoder.embedding_size, 1, 1))
         self.decoder = nn.Conv2d(
             in_channels=self.encoder.embedding_size,
             out_channels=self.patch_size**2 * self.input_channels,
@@ -122,13 +123,12 @@ class SimMIM(MIMBaseNet):
 
         x = x.reshape(shape=(x.shape[0], h, w, p, p, self.input_channels))
         x = torch.einsum("nhwpqc->nchpwq", x)
-        imgs = x.reshape(shape=(x.shape[0], self.input_channels, h * p, h * p))
+        imgs = x.reshape(shape=(x.shape[0], self.input_channels, h * p, w * p))
 
         return imgs
 
     def forward_decoder(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.decoder(x)
-        return x
+        return self.decoder(x)
 
     def forward_loss(self, x: torch.Tensor, pred: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """
@@ -149,8 +149,9 @@ class SimMIM(MIMBaseNet):
         return loss
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        seq_len = (self.size[0] // self.encoder.max_stride) * (self.size[1] // self.encoder.max_stride)
-        mask = uniform_mask(x.size(0), seq_len, mask_ratio=self.mask_ratio, device=x.device)[0]
+        h = self.size[0] // self.encoder.max_stride
+        w = self.size[1] // self.encoder.max_stride
+        mask = uniform_mask(x.size(0), h, w, self.mask_ratio, min_mask_size=self.min_mask_size, device=x.device)[0]
 
         latent = self.encoder.masked_encoding_retention(x, mask, mask_token=self.mask_token)
         pred = self.forward_decoder(latent["features"])

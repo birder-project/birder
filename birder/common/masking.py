@@ -102,36 +102,94 @@ def mask_tensor(
 
 def uniform_mask(
     batch_size: int,
-    seq_len: int,
+    h: int,
+    w: int,
     mask_ratio: float,
     kept_mask_ratio: Optional[float] = None,
+    min_mask_size: int = 1,
     device: Optional[torch.device] = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Generate a uniform random mask for a batch of sequences.
+
+    Performs per-sample random masking by shuffling random noise. The mask can optionally
+    keep a portion of the masked tokens (useful for certain training strategies).
+
+    Parameters
+    ----------
+    batch_size
+        Number of samples in the batch.
+    h
+        Height of the 2D grid (number of patches along height).
+    w
+        Width of the 2D grid (number of patches along width).
+    mask_ratio
+        The ratio of the sequence length to be masked. This value should be between 0 and 1.
+    kept_mask_ratio
+        The ratio of the masked tokens to be kept. If None, it defaults to the value of mask_ratio.
+        This value should be between 0 and mask_ratio.
+    min_mask_size
+        The minimum masking unit size. When greater than 1, masking is performed at a coarser
+        granularity where each mask unit covers a block of min_mask_size x min_mask_size patches.
+        Both h and w must be divisible by min_mask_size.
+    device
+        The device on which to create the tensors.
+
+    Returns
+    -------
+    A tuple containing three elements:
+    - The binary mask tensor of shape (batch_size, h * w), where 0 indicates kept tokens and 1 indicates
+      masked tokens.
+    - The indices of kept tokens of shape (batch_size, len_keep).
+    - The indices to restore the original order of the sequence of shape (batch_size, h * w).
+    """
+
     if kept_mask_ratio is None:
         kept_mask_ratio = mask_ratio
 
-    # Masking: length -> length * mask_ratio
-    # Perform per-sample random masking by per-sample shuffling.
-    # Per-sample shuffling is done by argsort random noise.
-    len_keep = int(seq_len * (1 - mask_ratio))
-    len_masked = int(seq_len * (mask_ratio - kept_mask_ratio))
+    seq_len = h * w
+    h_coarse = h // min_mask_size
+    w_coarse = w // min_mask_size
+    seq_len_coarse = h_coarse * w_coarse
 
-    noise = torch.rand(batch_size, seq_len, device=device)  # Noise in [0, 1]
+    len_keep_coarse = int(seq_len_coarse * (1 - mask_ratio))
+    len_masked_coarse = int(seq_len_coarse * (mask_ratio - kept_mask_ratio))
 
-    # Sort noise for each sample
-    ids_shuffle = torch.argsort(noise, dim=1)  # Ascend: small is keep, large is remove
-    ids_restore = torch.argsort(ids_shuffle, dim=1)
+    noise = torch.rand(batch_size, seq_len_coarse, device=device)
+    ids_shuffle_coarse = torch.argsort(noise, dim=1)
+    ids_restore_coarse = torch.argsort(ids_shuffle_coarse, dim=1)
 
-    # Keep the first subset
+    mask_coarse = torch.ones([batch_size, seq_len_coarse], device=device)
+    mask_coarse[:, : len_keep_coarse + len_masked_coarse] = 0
+    mask_coarse = torch.gather(mask_coarse, dim=1, index=ids_restore_coarse)
+
+    if min_mask_size > 1:
+        # Expand coarse mask to fine resolution
+        mask = (
+            mask_coarse.reshape(batch_size, h_coarse, w_coarse)
+            .repeat_interleave(min_mask_size, dim=1)
+            .repeat_interleave(min_mask_size, dim=2)
+            .reshape(batch_size, seq_len)
+        )
+
+        # Derive ids_shuffle from mask using expanded noise as tie-breaker
+        noise_fine = (
+            noise.reshape(batch_size, h_coarse, w_coarse)
+            .repeat_interleave(min_mask_size, dim=1)
+            .repeat_interleave(min_mask_size, dim=2)
+            .reshape(batch_size, seq_len)
+        )
+        sort_key = mask * 2 + noise_fine  # kept: [0,1), masked: [2,3)
+        ids_shuffle = torch.argsort(sort_key, dim=1)
+        ids_restore = torch.argsort(ids_shuffle, dim=1)
+    else:
+        # Coarse is already fine, no expansion needed
+        mask = mask_coarse
+        ids_shuffle = ids_shuffle_coarse
+        ids_restore = ids_restore_coarse
+
+    len_keep = len_keep_coarse * (min_mask_size**2)
     ids_keep = ids_shuffle[:, :len_keep]
-
-    # Generate the binary mask: 0 is keep, 1 is remove
-    mask = torch.ones([batch_size, seq_len], device=device)
-    mask[:, : len_keep + len_masked] = 0
-
-    # Un-shuffle to get the binary mask
-    mask = torch.gather(mask, dim=1, index=ids_restore)
-    # assert mask.ndim == 2
 
     return (mask, ids_keep, ids_restore)
 
@@ -171,12 +229,13 @@ class Masking:
 
 class UniformMasking(Masking):
     def __init__(self, input_size: tuple[int, int], mask_ratio: float, device: Optional[torch.device] = None) -> None:
-        self.seq_len = input_size[0] * input_size[1]
+        self.h = input_size[0]
+        self.w = input_size[1]
         self.mask_ratio = mask_ratio
         self.device = device
 
     def __call__(self, batch_size: int) -> torch.Tensor:
-        return uniform_mask(batch_size, self.seq_len, self.mask_ratio, self.device)[0]
+        return uniform_mask(batch_size, self.h, self.w, self.mask_ratio, device=self.device)[0]
 
 
 class BlockMasking(Masking):

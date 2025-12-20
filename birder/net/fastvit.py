@@ -3,20 +3,26 @@ FastViT, adapted from
 https://github.com/apple/ml-fastvit/blob/main/models/fastvit.py
 and
 https://github.com/apple/ml-mobileclip/blob/main/mobileclip/models/mci.py
+and
+https://github.com/apple/ml-mobileclip/blob/main/mobileclip2/mobileclip2.py
 
 Paper "FastViT: A Fast Hybrid Vision Transformer using Structural Reparameterization",
 https://arxiv.org/abs/2303.14189
 and
 Paper "MobileCLIP: Fast Image-Text Models through Multi-Modal Reinforced Training",
 https://arxiv.org/abs/2311.17049
+and
+Paper "MobileCLIP2: Improving Multi-Modal Reinforced Training",
+https://arxiv.org/abs/2508.20691
 
 Changes from original:
 * Fixed ReparamLargeKernelConv activation (at forward)
 """
 
-# Reference license: Apple MIT License (both)
+# Reference license: Apple MIT License (all)
 
 from collections import OrderedDict
+from collections.abc import Callable
 from typing import Any
 from typing import Literal
 from typing import Optional
@@ -28,6 +34,7 @@ from torchvision.ops import SqueezeExcitation
 from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_tensor
+from birder.layers import LayerNorm2d
 from birder.layers import LayerScale2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
@@ -570,10 +577,11 @@ class AttentionBlock(nn.Module):
         proj_drop: float,
         drop_path: float,
         layer_scale_init_value: Optional[float],
+        norm_layer: Callable[..., nn.Module],
     ):
         super().__init__()
 
-        self.norm = nn.BatchNorm2d(dim)
+        self.norm = norm_layer(dim)
         self.token_mixer = MHSA(dim, head_dim=32, qkv_bias=False, attn_drop=0.0, proj_drop=0.0)
         if layer_scale_init_value is not None:
             self.layer_scale_1 = LayerScale2d(dim, layer_scale_init_value)
@@ -616,6 +624,7 @@ class FastVitStage(nn.Module):
         proj_drop_rate: float,
         drop_path_rate: list[float],
         layer_scale_init_value: Optional[float],
+        norm_layer: Callable[..., nn.Module],
         reparameterized: bool,
     ) -> None:
         super().__init__()
@@ -659,6 +668,7 @@ class FastVitStage(nn.Module):
                         proj_drop=proj_drop_rate,
                         drop_path=drop_path_rate[block_idx],
                         layer_scale_init_value=layer_scale_init_value,
+                        norm_layer=norm_layer,
                     )
                 )
             else:
@@ -678,6 +688,7 @@ class FastViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     default_size = (256, 256)
     block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
 
+    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,
@@ -691,14 +702,23 @@ class FastViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         self.reparameterized = False
         cls_ratio = 2.0
-        layers: tuple[int, int, int, int] = self.config["layers"]
-        embed_dims: tuple[int, int, int, int] = self.config["embed_dims"]
-        mlp_ratios: tuple[int, int, int, int] = self.config["mlp_ratios"]
-        se_downsamples: tuple[bool, bool, bool, bool] = self.config["se_downsamples"]
-        use_cpe: tuple[bool, bool, bool, bool] = self.config["use_cpe"]
-        token_mixers: tuple[str, str, str, str] = self.config["token_mixers"]
+        layers: tuple[int, ...] = self.config["layers"]
+        embed_dims: tuple[int, ...] = self.config["embed_dims"]
+        mlp_ratios: tuple[int, ...] = self.config["mlp_ratios"]
+        se_downsamples: tuple[bool, ...] = self.config["se_downsamples"]
+        use_cpe: tuple[bool, ...] = self.config["use_cpe"]
+        token_mixers: tuple[str, ...] = self.config["token_mixers"]
         layer_scale_init_value: float = self.config["layer_scale_init_value"]
+        stem_use_scale_branch: bool = self.config.get("stem_use_scale_branch", True)
+        norm_layer_type: str = self.config.get("norm_layer_type", "BatchNorm2d")
         drop_path_rate: float = self.config["drop_path_rate"]
+
+        if norm_layer_type == "BatchNorm2d":
+            norm_layer: type[nn.Module] = nn.BatchNorm2d
+        elif norm_layer_type == "LayerNorm2d":
+            norm_layer = LayerNorm2d
+        else:
+            raise ValueError(f"Unknown norm_layer_type '{norm_layer_type}'")
 
         self.stem = nn.Sequential(
             MobileOneBlock(
@@ -710,7 +730,7 @@ class FastViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                 groups=1,
                 use_se=False,
                 use_act=True,
-                use_scale_branch=True,
+                use_scale_branch=stem_use_scale_branch,
                 num_conv_branches=1,
                 reparameterized=self.reparameterized,
                 activation_layer=nn.GELU,
@@ -724,7 +744,7 @@ class FastViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                 groups=embed_dims[0],
                 use_se=False,
                 use_act=True,
-                use_scale_branch=True,
+                use_scale_branch=stem_use_scale_branch,
                 num_conv_branches=1,
                 reparameterized=self.reparameterized,
                 activation_layer=nn.GELU,
@@ -738,7 +758,7 @@ class FastViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                 groups=1,
                 use_se=False,
                 use_act=True,
-                use_scale_branch=True,
+                use_scale_branch=stem_use_scale_branch,
                 num_conv_branches=1,
                 reparameterized=self.reparameterized,
                 activation_layer=nn.GELU,
@@ -768,6 +788,7 @@ class FastViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                 proj_drop_rate=0.0,
                 drop_path_rate=dpr[i],
                 layer_scale_init_value=layer_scale_init_value,
+                norm_layer=norm_layer,
                 reparameterized=self.reparameterized,
             )
             return_channels.append(embed_dims[i])
@@ -793,12 +814,14 @@ class FastViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
+        self.return_stages = [f"stage{i+1}" for i in range(num_stages)]
         self.embedding_size = int(embed_dims[-1] * cls_ratio)
         self.classifier = self.create_classifier()
 
         self.stem_stride = 4
         self.stem_width = embed_dims[0]
         self.encoding_size = int(embed_dims[-1] * cls_ratio)
+        self.max_stride = 2 ** (len(layers) + 1)
 
         # Weights initialization
         for m in self.modules():
@@ -964,7 +987,7 @@ registry.register_model_config(
 )
 
 registry.register_model_config(
-    "mobileclip_i0",
+    "mobileclip_v1_i0",
     FastViT,
     config={
         "layers": (2, 6, 10, 2),
@@ -978,7 +1001,7 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
-    "mobileclip_i1",
+    "mobileclip_v1_i1",
     FastViT,
     config={
         "layers": (4, 12, 20, 4),
@@ -992,7 +1015,7 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
-    "mobileclip_i2",
+    "mobileclip_v1_i2",
     FastViT,
     config={
         "layers": (4, 12, 24, 4),
@@ -1003,6 +1026,39 @@ registry.register_model_config(
         "token_mixers": ("repmixer", "repmixer", "repmixer", "attention"),
         "layer_scale_init_value": 1e-5,
         "drop_path_rate": 0.15,
+    },
+)
+
+registry.register_model_config(
+    "mobileclip_v2_i3",
+    FastViT,
+    config={
+        "layers": (2, 12, 24, 4, 2),
+        "embed_dims": (96, 192, 384, 768, 1536),
+        "mlp_ratios": (4, 4, 4, 4, 4),
+        "se_downsamples": (False, False, False, False, False),
+        "use_cpe": (False, False, False, True, True),
+        "token_mixers": ("repmixer", "repmixer", "repmixer", "attention", "attention"),
+        "layer_scale_init_value": 1e-5,
+        "drop_path_rate": 0.2,
+        "stem_use_scale_branch": False,
+        "norm_layer_type": "LayerNorm2d",
+    },
+)
+registry.register_model_config(
+    "mobileclip_v2_i4",
+    FastViT,
+    config={
+        "layers": (2, 12, 24, 4, 4),
+        "embed_dims": (128, 256, 512, 1024, 2048),
+        "mlp_ratios": (4, 4, 4, 4, 4),
+        "se_downsamples": (False, False, False, False, False),
+        "use_cpe": (False, False, False, True, True),
+        "token_mixers": ("repmixer", "repmixer", "repmixer", "attention", "attention"),
+        "layer_scale_init_value": 1e-5,
+        "drop_path_rate": 0.25,
+        "stem_use_scale_branch": False,
+        "norm_layer_type": "LayerNorm2d",
     },
 )
 
@@ -1091,9 +1147,9 @@ registry.register_weights(
     },
 )
 registry.register_weights(
-    "mobileclip_i0_il-common",
+    "mobileclip_v1_i0_il-common",
     {
-        "description": "MobileClip i0 model trained on the il-common dataset",
+        "description": "MobileClip v1 i0 model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -1101,13 +1157,13 @@ registry.register_weights(
                 "sha256": "f6599c5c5373d0928add5747c9e6524d5273b24c3c580a1c7b80acc7c10fd655",
             }
         },
-        "net": {"network": "mobileclip_i0", "tag": "il-common"},
+        "net": {"network": "mobileclip_v1_i0", "tag": "il-common"},
     },
 )
 registry.register_weights(
-    "mobileclip_i0_il-common_reparameterized",
+    "mobileclip_v1_i0_il-common_reparameterized",
     {
-        "description": "MobileClip i0 model trained on the il-common dataset",
+        "description": "MobileClip v1 i0 (reparameterized) model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -1115,6 +1171,6 @@ registry.register_weights(
                 "sha256": "aec9bf62c0eaa12943158b056e7cef2fa93ebd78519080ad18bfacc5ef006670",
             }
         },
-        "net": {"network": "mobileclip_i0", "tag": "il-common_reparameterized", "reparameterized": True},
+        "net": {"network": "mobileclip_v1_i0", "tag": "il-common_reparameterized", "reparameterized": True},
     },
 )

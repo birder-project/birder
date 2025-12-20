@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import math
 import os
 import tempfile
 import typing
@@ -719,7 +720,9 @@ class TestMasking(unittest.TestCase):
         x = x.reshape(1, -1, 1).expand(2, -1, 80)
 
         (N, L, D) = x.size()  # batch, length, dim
-        (mask, ids_keep, ids_restore) = masking.uniform_mask(N, L, mask_ratio=0.75, device=x.device)
+        h = int(math.sqrt(L))
+        w = h
+        (mask, ids_keep, ids_restore) = masking.uniform_mask(N, h, w, mask_ratio=0.75, device=x.device)
         x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
 
         # Test x masked
@@ -742,7 +745,7 @@ class TestMasking(unittest.TestCase):
 
     def test_mask_tensor(self) -> None:
         x = torch.rand(2, 8, 8, 80)
-        mask = masking.uniform_mask(2, 4 * 4, mask_ratio=0.5, device=x.device)[0]
+        mask = masking.uniform_mask(2, 4, 4, mask_ratio=0.5, device=x.device)[0]
         x_masked = masking.mask_tensor(x, mask, channels_last=True, patch_factor=2)
 
         # Test x masked
@@ -758,7 +761,7 @@ class TestMasking(unittest.TestCase):
 
         # Test mask token
         mask_token = torch.zeros(1, 1, 1, 80) * 2
-        mask = masking.uniform_mask(2, 8 * 8, mask_ratio=1.0, device=x.device)[0]
+        mask = masking.uniform_mask(2, 8, 8, mask_ratio=1.0, device=x.device)[0]
         x_masked = masking.mask_tensor(x, mask, channels_last=True, mask_token=mask_token)
         self.assertEqual(x_masked.size(), x.size())
 
@@ -820,6 +823,41 @@ class TestMasking(unittest.TestCase):
         mask = generator(8)
         self.assertEqual((mask == 0).sum().item(), 384)
         self.assertNotEqual(mask.dtype, torch.bool)
+
+    def test_uniform_mask_block(self) -> None:
+        batch_size = 2
+        h = 8
+        w = 8
+        min_mask_size = 2
+        mask_ratio = 0.75
+
+        (mask, ids_keep, ids_restore) = masking.uniform_mask(
+            batch_size, h, w, mask_ratio=mask_ratio, min_mask_size=min_mask_size
+        )
+
+        # Test output shapes
+        seq_len = h * w
+        h_coarse = h // min_mask_size
+        w_coarse = w // min_mask_size
+        seq_len_coarse = h_coarse * w_coarse
+        len_keep_coarse = int(seq_len_coarse * (1 - mask_ratio))
+        len_keep = len_keep_coarse * (min_mask_size**2)
+
+        self.assertEqual(mask.shape, (batch_size, seq_len))
+        self.assertEqual(ids_keep.shape, (batch_size, len_keep))
+        self.assertEqual(ids_restore.shape, (batch_size, seq_len))
+
+        # Test that mask has block structure (2x2 blocks should have same value)
+        mask_2d = mask.reshape(batch_size, h, w)
+        for b in range(batch_size):
+            for i in range(0, h, min_mask_size):
+                for j in range(0, w, min_mask_size):
+                    block = mask_2d[b, i : i + min_mask_size, j : j + min_mask_size]
+                    # All values in the block should be the same
+                    self.assertTrue(torch.all(block == block[0, 0]))
+
+        # Test number of kept tokens
+        self.assertEqual((mask == 0).sum().item(), batch_size * len_keep)
 
     def test_get_ids_keep(self) -> None:
         mask = torch.tensor(

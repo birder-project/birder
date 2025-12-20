@@ -80,6 +80,7 @@ for e in range(epoch_start, epoch_end + 1):
             network,
             encoder=encoder,
             epoch=e,
+            min_mask_size=1,
         )
         net.eval()
 

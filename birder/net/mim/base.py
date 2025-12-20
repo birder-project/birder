@@ -28,10 +28,16 @@ def get_mim_signature(input_shape: tuple[int, ...]) -> MIMSignatureType:
 
 class MIMBaseNet(nn.Module):
     default_size: tuple[int, int]
+    default_mask_ratio: float
+    auto_register = True
     task = str(Task.MASKED_IMAGE_MODELING)
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
+        if cls.auto_register is False:
+            # Exclude networks with custom config (initialized only with aliases)
+            return
+
         registry.register_model(cls.__name__.lower(), cls)
 
     def __init__(
@@ -40,10 +46,14 @@ class MIMBaseNet(nn.Module):
         *,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
+        mask_ratio: Optional[float] = None,
+        min_mask_size: int = 1,
     ) -> None:
         super().__init__()
         self.input_channels = encoder.input_channels
         self.encoder = encoder
+        self.mask_ratio = mask_ratio if mask_ratio is not None else self.default_mask_ratio
+        self.min_mask_size = min_mask_size
         if hasattr(self, "config") is False:  # Avoid overriding aliases
             self.config = config
         elif config is not None:
@@ -58,6 +68,7 @@ class MIMBaseNet(nn.Module):
         assert isinstance(self.size, tuple)
         assert isinstance(self.size[0], int)
         assert isinstance(self.size[1], int)
+        assert isinstance(self.mask_ratio, float)
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         raise NotImplementedError

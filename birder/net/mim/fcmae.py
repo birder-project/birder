@@ -22,6 +22,7 @@ from birder.net.mim.base import MIMBaseNet
 
 class FCMAE(MIMBaseNet):
     default_size = (224, 224)
+    default_mask_ratio = 0.6
 
     def __init__(
         self,
@@ -29,13 +30,14 @@ class FCMAE(MIMBaseNet):
         *,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
+        mask_ratio: Optional[float] = None,
+        min_mask_size: int = 1,
     ) -> None:
-        super().__init__(encoder, config=config, size=size)
+        super().__init__(encoder, config=config, size=size, mask_ratio=mask_ratio, min_mask_size=min_mask_size)
         assert self.config is None, "config not supported"
         assert isinstance(self.encoder, MaskedTokenRetentionMixin)
         assert hasattr(self.encoder, "decoder_block")
 
-        self.mask_ratio = 0.6
         self.decoder_embed_dim = 512
         self.decoder_depth = 1
         self.patch_size = encoder.max_stride
@@ -115,7 +117,7 @@ class FCMAE(MIMBaseNet):
 
         x = x.reshape(shape=(x.shape[0], h, w, p, p, self.input_channels))
         x = torch.einsum("nhwpqc->nchpwq", x)
-        imgs = x.reshape(shape=(x.shape[0], self.input_channels, h * p, h * p))
+        imgs = x.reshape(shape=(x.shape[0], self.input_channels, h * p, w * p))
 
         return imgs
 
@@ -151,8 +153,9 @@ class FCMAE(MIMBaseNet):
         return loss
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        seq_len = (self.size[0] // self.encoder.max_stride) * (self.size[1] // self.encoder.max_stride)
-        mask = uniform_mask(x.size(0), seq_len, mask_ratio=self.mask_ratio, device=x.device)[0]
+        h = self.size[0] // self.encoder.max_stride
+        w = self.size[1] // self.encoder.max_stride
+        mask = uniform_mask(x.size(0), h, w, self.mask_ratio, min_mask_size=self.min_mask_size, device=x.device)[0]
 
         latent = self.encoder.masked_encoding_retention(x, mask, return_keys="features")
         pred = self.forward_decoder(latent["features"], mask)

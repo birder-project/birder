@@ -190,6 +190,8 @@ def train(args: argparse.Namespace) -> None:
             encoder=args.encoder,
             encoder_config=args.encoder_model_config,
             tag=args.tag,
+            mask_ratio=args.mask_ratio,
+            min_mask_size=args.min_mask_size,
             epoch=args.resume_epoch,
             strict=not args.non_strict_weights,
         )
@@ -203,6 +205,8 @@ def train(args: argparse.Namespace) -> None:
             encoder=args.encoder,
             encoder_config=args.encoder_model_config,
             tag=args.tag,
+            mask_ratio=args.mask_ratio,
+            min_mask_size=args.min_mask_size,
             epoch=None,
             strict=not args.non_strict_weights,
         )
@@ -211,7 +215,14 @@ def train(args: argparse.Namespace) -> None:
         encoder = registry.net_factory(
             args.encoder, sample_shape[1], 0, config=args.encoder_model_config, size=args.size
         )
-        net = registry.mim_net_factory(args.network, encoder, config=args.model_config, size=args.size)
+        net = registry.mim_net_factory(
+            args.network,
+            encoder,
+            config=args.model_config,
+            size=args.size,
+            mask_ratio=args.mask_ratio,
+            min_mask_size=args.min_mask_size,
+        )
         training_states = fs_ops.TrainingStates.empty()
 
     net.to(device, dtype=model_dtype)
@@ -221,6 +232,8 @@ def train(args: argparse.Namespace) -> None:
     # Compile network
     if args.compile is True:
         net = torch.compile(net)
+
+    logger.info(f"Training with mask ratio of {net.mask_ratio} and min mask size of {net.min_mask_size}")
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
@@ -586,6 +599,10 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
+    parser.add_argument(
+        "--mask-ratio", type=float, default=None, help="mask ratio for MIM training (default: model-specific)"
+    )
+    parser.add_argument("--min-mask-size", type=int, default=1, help="minimum mask unit size in patches")
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser)
     training_cli.add_lr_scheduler_args(parser)

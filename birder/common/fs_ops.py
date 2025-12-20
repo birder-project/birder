@@ -416,6 +416,8 @@ def load_mim_checkpoint(
     encoder: str,
     encoder_config: Optional[dict[str, Any]] = None,
     tag: Optional[str] = None,
+    mask_ratio: Optional[float] = None,
+    min_mask_size: int = 1,
     epoch: Optional[int] = None,
     strict: bool = True,
 ) -> MIMCheckpointStates:
@@ -436,7 +438,9 @@ def load_mim_checkpoint(
 
     # Initialize network and restore checkpoint state
     net_encoder = registry.net_factory(encoder, input_channels, num_classes, config=encoder_config, size=size)
-    net = registry.mim_net_factory(network, net_encoder, config=config, size=size)
+    net = registry.mim_net_factory(
+        network, net_encoder, config=config, size=size, mask_ratio=mask_ratio, min_mask_size=min_mask_size
+    )
     net.load_state_dict(model_dict["state"], strict=strict)
     net.to(device)
 

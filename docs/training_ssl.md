@@ -510,12 +510,12 @@ torchrun --nproc_per_node=2 train.py --network flexivit_reg1_s16_rms_ls --tag di
 torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network vit_reg4_m16_rms_avg --dino-out-dim 32768 --opt adamw --lr 0.0002 --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --batch-size 96 --wd 0.04 --wd-end 0.2 --grad-accum-steps 4 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --data-path data/training
 ```
 
-#### DINO v2: SoViT reg4 150m p14 AVG
+#### DINO v2: SoViT reg4 150m p14 LS
 
 DGX A100 training
 
 ```sh
-torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --ibot-separate-head --dino-out-dim 98304 --ibot-out-dim 98304 --head-bottleneck-dim 384 --centering sinkhorn_knopp --local-crop-size 98 --opt adamw --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 64 --batch-size 32 --wd 0.04 --wd-end 0.2 --grad-accum-steps 8 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --rgb-mode none --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --ibot-separate-head --dino-out-dim 98304 --ibot-out-dim 98304 --head-bottleneck-dim 320 --local-crop-size 98 --opt adamw --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --lr-scheduler-update iter --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --batch-size 32 --wd 0.04 --wd-end 0.2 --grad-accum-steps 8 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --rgb-mode none --wds --wds-info data/ssl_packed/_info.json
 ```
 
 #### DINO v2: RoPE SoViT reg8 150m p14 AP

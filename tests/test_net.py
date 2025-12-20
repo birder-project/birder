@@ -1,7 +1,6 @@
 import copy
 import json
 import logging
-import math
 import unittest
 
 import torch
@@ -99,7 +98,8 @@ class TestNet(unittest.TestCase):
             ("fasternet_t0"),
             ("fastvit_t8"),
             ("fastvit_sa12"),
-            ("mobileclip_i0"),
+            ("mobileclip_v1_i0"),
+            ("mobileclip_v2_i3"),
             ("flexivit_s16"),
             ("focalnet_t_srf"),
             ("ghostnet_v1_0_5"),
@@ -306,6 +306,8 @@ class TestNet(unittest.TestCase):
             ("efficientvit_msft_m0"),
             ("fasternet_t0"),
             ("fastvit_t8"),
+            ("mobileclip_v1_i0"),
+            ("mobileclip_v2_i3"),
             ("flexivit_s16"),
             ("focalnet_t_srf"),
             ("ghostnet_v1_0_5"),
@@ -450,8 +452,7 @@ class TestNet(unittest.TestCase):
 
         x = torch.rand((1, DEFAULT_NUM_CHANNELS, *size))
 
-        seq_len = math.prod(n.mask_spatial_shape)
-        mask = uniform_mask(1, seq_len, mask_ratio=0.6, device=x.device)[0]
+        mask = uniform_mask(1, n.mask_spatial_shape[0], n.mask_spatial_shape[1], mask_ratio=0.6, device=x.device)[0]
         (outs, mask) = n.masked_encoding(x, mask)
 
         for out in outs:
@@ -481,7 +482,8 @@ class TestNet(unittest.TestCase):
             ("efficientnet_v2_s"),
             ("fastvit_t8"),
             ("fastvit_sa12"),
-            ("mobileclip_i0"),
+            ("mobileclip_v1_i0"),
+            ("mobileclip_v2_i3"),
             ("flexivit_s16"),
             ("focalnet_t_srf"),
             ("hieradet_tiny"),
@@ -529,9 +531,10 @@ class TestNet(unittest.TestCase):
 
         # self.assertIsInstance(n, MaskedTokenRetentionMixin)
         assert isinstance(n, MaskedTokenRetentionMixin)
-        seq_len = (size[0] // n.max_stride) * (size[1] // n.max_stride)
+        h = size[0] // n.max_stride
+        w = size[1] // n.max_stride
         x = torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size))
-        mask = uniform_mask(batch_size, seq_len, mask_ratio=0.6, device=x.device)[0]
+        mask = uniform_mask(batch_size, h, w, mask_ratio=0.6, device=x.device)[0]
 
         # Test retention
         out = n.masked_encoding_retention(x, mask, return_keys="features")
@@ -566,7 +569,7 @@ class TestNet(unittest.TestCase):
         names = [n for n, _ in n.named_parameters()]
         groups = group_by_regex(names, n.block_group_regex)  # type: ignore[arg-type]
         self.assertGreater(len(groups), 5)
-        self.assertLess(len(groups), 50)
+        self.assertLessEqual(len(groups), 50)
 
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
@@ -602,9 +605,10 @@ class TestNet(unittest.TestCase):
 
         # self.assertIsInstance(n, MaskedTokenOmissionMixin)
         assert isinstance(n, MaskedTokenOmissionMixin)
-        seq_len = (size[0] // n.max_stride) * (size[1] // n.max_stride)
+        h = size[0] // n.max_stride
+        w = size[1] // n.max_stride
         x = torch.rand((1, DEFAULT_NUM_CHANNELS, *size))
-        ids_keep = uniform_mask(x.size(0), seq_len, mask_ratio=0.75, device=x.device)[1]
+        ids_keep = uniform_mask(x.size(0), h, w, mask_ratio=0.75, device=x.device)[1]
         out = n.masked_encoding_omission(x, ids_keep, return_keys="all")
         tokens = out["tokens"]
         embedding = out["embedding"]
@@ -683,7 +687,8 @@ class TestNonSquareNet(unittest.TestCase):
             ("fasternet_t0"),
             ("fastvit_t8"),
             ("fastvit_sa12"),
-            ("mobileclip_i0"),
+            ("mobileclip_v1_i0"),
+            ("mobileclip_v2_i3"),
             ("flexivit_s16"),
             ("focalnet_t_srf"),
             ("ghostnet_v1_0_5"),

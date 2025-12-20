@@ -47,6 +47,7 @@
     "capi",
     "captum",
     "cflags",
+    "ciou",
     "cmap",
     "coeff",
     "colorbar",

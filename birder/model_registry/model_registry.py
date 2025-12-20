@@ -255,8 +255,12 @@ class ModelRegistry:
         *,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
+        mask_ratio: Optional[float] = None,
+        min_mask_size: int = 1,
     ) -> "MIMBaseNet":
-        return self._mim_nets[name](encoder, config=config, size=size)
+        return self._mim_nets[name](
+            encoder, config=config, size=size, mask_ratio=mask_ratio, min_mask_size=min_mask_size
+        )
 
 
 registry = ModelRegistry()
