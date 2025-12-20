@@ -166,6 +166,6 @@ registry.register_model_config("mae_vit_dec512d32", MAE_ViT, config={"decoder_de
 registry.register_model_config(
     "mae_vit_dec512d24_npl", MAE_ViT, config={"decoder_depth": 24, "decoder_embed_dim": 512, "norm_pix_loss": True}
 )
-registry.register_model_config(
+registry.register_model_config(  # From "In Pursuit of Pixel Supervision for Visual Pre-training"
     "mae_vit_dec512d32_npl", MAE_ViT, config={"decoder_depth": 32, "decoder_embed_dim": 512, "norm_pix_loss": True}
 )

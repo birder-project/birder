@@ -19,6 +19,7 @@ from typing import Optional
 import torch
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
+from torchvision.ops import DropBlock2d
 from torchvision.ops import SqueezeExcitation
 
 from birder.model_registry import registry
@@ -33,6 +34,8 @@ class BottleneckBlock(nn.Module):
         bottle_ratio: float,
         groups: int,
         squeeze_excitation: bool,
+        drop_block: float,
+        drop_block_size: int,
     ) -> None:
         super().__init__()
         mid_channels = int(round(out_channels * bottle_ratio))
@@ -57,6 +60,11 @@ class BottleneckBlock(nn.Module):
         self.conv3 = Conv2dNormActivation(
             mid_channels, out_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), activation_layer=None
         )
+        if drop_block > 0.0:
+            self.drop_block = DropBlock2d(p=drop_block, block_size=drop_block_size)
+        else:
+            self.drop_block = nn.Identity()
+
         self.act = nn.LeakyReLU()
 
         # Weights initialization
@@ -68,6 +76,7 @@ class BottleneckBlock(nn.Module):
         x = self.conv2(x)
         x = self.se(x)
         x = self.conv3(x)
+        x = self.drop_block(x)
         x = x + shortcut
         x = self.act(x)
 
@@ -82,6 +91,8 @@ class DarkBlock(nn.Module):
         bottle_ratio: float,
         groups: int,
         squeeze_excitation: bool,
+        drop_block: float,
+        drop_block_size: int,
     ) -> None:
         super().__init__()
         mid_channels = int(round(out_channels * bottle_ratio))
@@ -104,6 +115,11 @@ class DarkBlock(nn.Module):
             activation_layer=nn.LeakyReLU,
         )
 
+        if drop_block > 0.0:
+            self.drop_block = DropBlock2d(p=drop_block, block_size=drop_block_size)
+        else:
+            self.drop_block = nn.Identity()
+
         # Weights initialization
         nn.init.zeros_(self.conv2[1].weight)  # BN
 
@@ -112,6 +128,7 @@ class DarkBlock(nn.Module):
         x = self.conv1(x)
         x = self.se(x)
         x = self.conv2(x)
+        x = self.drop_block(x)
         x = x + shortcut
 
         return x
@@ -131,6 +148,8 @@ class CrossStage(nn.Module):
         down_growth: bool,
         cross_linear: bool,
         squeeze_excitation: bool,
+        drop_block: float,
+        drop_block_size: int,
         block_fn: Callable[..., nn.Module],
     ) -> None:
         super().__init__()
@@ -181,6 +200,8 @@ class CrossStage(nn.Module):
                     bottle_ratio=bottle_ratio,
                     groups=groups,
                     squeeze_excitation=squeeze_excitation,
+                    drop_block=drop_block,
+                    drop_block_size=drop_block_size,
                 ),
             )
             prev_channels = block_out_channels
@@ -241,6 +262,8 @@ class CSPNet(DetectorBackbone):
         down_growth: bool = self.config["down_growth"]
         cross_linear: bool = self.config["cross_linear"]
         squeeze_excitation: bool = self.config["squeeze_excitation"]
+        drop_block: float = self.config.get("drop_block", 0.0)
+        drop_block_size: int = self.config.get("drop_block_size", 7)
         block_type_name: str = self.config["block_type_name"]
 
         if block_type_name == "BottleneckBlock":
@@ -289,6 +312,8 @@ class CSPNet(DetectorBackbone):
                 down_growth=down_growth,
                 cross_linear=cross_linear,
                 squeeze_excitation=squeeze_excitation,
+                drop_block=drop_block,
+                drop_block_size=drop_block_size,
                 block_fn=block_type,
             )
             return_channels.append(filters[idx])

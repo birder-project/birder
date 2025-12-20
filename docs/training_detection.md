@@ -248,7 +248,7 @@ torchrun --nproc_per_node=2 train_detection.py --network yolo_v3 --tag coco --ba
 Optional intermediate training (COCO)
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network yolo_v4 --tag coco --backbone csp_darknet_53 --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --grad-accum-steps 2 --warmup-epochs 5 --epochs 400 --wd 0.0005 --size 608 --aug-level 5 --mosaic-prob 0.5 --amp --amp-dtype bfloat16 --compile-backbone --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+torchrun --nproc_per_node=2 train_detection.py --network yolo_v4 --tag coco --backbone csp_darknet_53 --backbone-model-config drop_block=0.1 --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 32 --grad-accum-steps 2 --warmup-epochs 5 --epochs 400 --wd 0.0005 --size 608 --aug-level 5 --mosaic-prob 0.5 --amp --amp-dtype bfloat16 --compile-backbone --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 ### YOLO v4 Tiny

@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-<!--
-Add changes here before the next release.
--->
+### Added
+
+- **CSPNet DropBlock Regularization**: Added optional DropBlock2d support to CSPNet backbone blocks (`DarkBlock`, `BottleneckBlock`) for YOLO v4-style training regularization.
 
 ## 0.1.8 - 2025-12-20
 
