@@ -45,7 +45,11 @@ def add_optimization_args(parser: argparse.ArgumentParser, default_batch_size: i
     group.add_argument("--opt-alpha", type=float, help="optimizer alpha (None to use the optimizer default)")
     group.add_argument("--clip-grad-norm", type=float, help="the maximum gradient norm")
     group.add_argument(
-        "--grad-accum-steps", type=int, default=1, metavar="N", help="number of steps to accumulate gradients"
+        "--grad-accum-steps",
+        type=int,
+        default=1,
+        metavar="N",
+        help="number of iterations to accumulate gradients per optimizer step",
     )
 
 
@@ -90,9 +94,9 @@ def add_lr_scheduler_args(parser: argparse.ArgumentParser) -> None:
     group.add_argument(
         "--lr-scheduler-update",
         type=str,
-        choices=["epoch", "iter"],
+        choices=["epoch", "step"],
         default="epoch",
-        help="when to apply learning rate scheduler update",
+        help="when to apply learning rate scheduler update: epoch (once per epoch), step (each optimizer step)",
     )
     group.add_argument(
         "--lr-scheduler",
@@ -172,6 +176,12 @@ def add_detection_input_args(parser: argparse.ArgumentParser) -> None:
         help="allow variable image sizes while preserving aspect ratios",
     )
     group.add_argument("--multiscale", default=False, action="store_true", help="enable random scale per image")
+    group.add_argument(
+        "--batch-multiscale",
+        default=False,
+        action="store_true",
+        help="enable random square resize once per batch (capped by max(--size))",
+    )
 
 
 def add_training_schedule_args(parser: argparse.ArgumentParser, default_epochs: int = 100) -> None:
@@ -181,9 +191,11 @@ def add_training_schedule_args(parser: argparse.ArgumentParser, default_epochs: 
         "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi stage training)"
     )
     group.add_argument("--warmup-epochs", type=int, metavar="N", help="number of warmup epochs")
-    group.add_argument("--warmup-iters", type=int, metavar="N", help="number of warmup iterations")
+    group.add_argument("--warmup-steps", type=int, metavar="N", help="number of warmup optimizer steps")
     group.add_argument("--cooldown-epochs", type=int, metavar="N", help="number of cooldown epochs (linear to zero)")
-    group.add_argument("--cooldown-iters", type=int, metavar="N", help="number of cooldown iterations (linear to zero)")
+    group.add_argument(
+        "--cooldown-steps", type=int, metavar="N", help="number of cooldown optimizer steps (linear to zero)"
+    )
 
 
 def add_batch_norm_args(parser: argparse.ArgumentParser, backbone_freeze: bool = False) -> None:
@@ -310,6 +322,12 @@ def add_detection_data_aug_args(parser: argparse.ArgumentParser, default_level: 
     group.add_argument(
         "--mosaic-type", type=str, choices=get_args(MosaicType), default="fixed_grid", help="mosaic augmentation type"
     )
+    group.add_argument(
+        "--mosaic-stop-epoch",
+        type=int,
+        metavar="N",
+        help="epoch to disable mosaic (linearly decays to 0 over the final 10%% of the mosaic schedule)",
+    )
 
 
 def add_checkpoint_args(
@@ -361,7 +379,7 @@ def add_ema_args(
         type=int,
         default=default_ema_steps,
         metavar="N",
-        help="the number of iterations that controls how often to update the EMA model (adjusted to grad-accum-steps)",
+        help="number of optimizer steps between EMA updates",
     )
     group.add_argument(
         "--model-ema-decay",
@@ -373,7 +391,7 @@ def add_ema_args(
         "--model-ema-warmup",
         type=int,
         metavar="N",
-        help="number of steps before EMA is applied (defaults to schedule warmup steps, pass 0 to disable warmup)",
+        help="number of epochs before EMA is applied (defaults to warmup epochs/iters, pass 0 to disable warmup)",
     )
 
 
@@ -481,7 +499,7 @@ def add_logging_and_debug_args(
         type=int,
         default=default_log_interval,
         metavar="N",
-        help="how many steps between summary writes",
+        help="how many iterations between summary writes",
     )
     group.add_argument(
         "--grad-anomaly-detection",
@@ -621,20 +639,20 @@ def common_args_validation(args: argparse.Namespace) -> None:
         raise ValidationError(
             f"--stop-epoch must be smaller than the total number of epochs ({args.epochs}), got {args.stop_epoch}"
         )
-    if args.warmup_epochs is not None and args.warmup_iters is not None:
-        raise ValidationError("--warmup-epochs cannot be used with --warmup-iters")
-    if args.cooldown_epochs is not None and args.cooldown_iters is not None:
-        raise ValidationError("--cooldown-epochs cannot be used with --cooldown-iters")
+    if args.warmup_epochs is not None and args.warmup_steps is not None:
+        raise ValidationError("--warmup-epochs cannot be used with --warmup-steps")
+    if args.cooldown_epochs is not None and args.cooldown_steps is not None:
+        raise ValidationError("--cooldown-epochs cannot be used with --cooldown-steps")
 
     if hasattr(args, "lr_scheduler_update") is True:
-        if args.lr_scheduler_update != "iter" and args.warmup_iters is not None:
+        if args.lr_scheduler_update != "step" and args.warmup_steps is not None:
             raise ValidationError(
-                "--warmup-iters can only be used when --lr-scheduler-update is 'iter', "
+                "--warmup-steps can only be used when --lr-scheduler-update is 'step', "
                 f"but it is set to '{args.lr_scheduler_update}'"
             )
-        if args.lr_scheduler_update != "iter" and args.cooldown_iters is not None:
+        if args.lr_scheduler_update != "step" and args.cooldown_steps is not None:
             raise ValidationError(
-                "--cooldown-iters can only be used when --lr-scheduler-update is 'iter', "
+                "--cooldown-steps can only be used when --lr-scheduler-update is 'step', "
                 f"but it is set to '{args.lr_scheduler_update}'"
             )
 

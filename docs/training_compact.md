@@ -1,5 +1,7 @@
 # Compact Networks Training Procedure
 
+Examples use repo-root script names (e.g., `train.py`). If you installed Birder as a package, use the module form such as `python -m birder.scripts.train`.
+
 ## Compact Madness
 
 ### CaiT

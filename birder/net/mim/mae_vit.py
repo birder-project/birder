@@ -49,20 +49,26 @@ class MAE_ViT(MIMBaseNet):
         decoder_embed_dim: int = self.config["decoder_embed_dim"]
         decoder_depth: int = self.config["decoder_depth"]
         norm_pix_loss: bool = self.config.get("norm_pix_loss", False)
+        learnable_pos_embed: bool = self.config.get("learnable_pos_embed", False)
 
         self.norm_pix_loss = norm_pix_loss
 
         self.decoder_embed = nn.Linear(encoder_dim, decoder_embed_dim, bias=True)
         self.mask_token = nn.Parameter(torch.zeros(1, 1, decoder_embed_dim))
 
-        # Fixed sin-cos embedding
-        pos_embedding = pos_embedding_sin_cos_2d(
-            h=self.size[0] // self.patch_size,
-            w=self.size[1] // self.patch_size,
-            dim=decoder_embed_dim,
-            num_special_tokens=self.encoder.num_special_tokens,
-        )
-        self.decoder_pos_embed = nn.Parameter(pos_embedding, requires_grad=False)
+        if learnable_pos_embed is True:
+            seq_len = (self.size[0] // self.patch_size) * (self.size[1] // self.patch_size)
+            seq_len += self.encoder.num_special_tokens
+            self.decoder_pos_embed = nn.Parameter(torch.empty(1, seq_len, decoder_embed_dim).normal_(std=0.02))
+        else:
+            # Fixed sin-cos embedding
+            pos_embedding = pos_embedding_sin_cos_2d(
+                h=self.size[0] // self.patch_size,
+                w=self.size[1] // self.patch_size,
+                dim=decoder_embed_dim,
+                num_special_tokens=self.encoder.num_special_tokens,
+            )
+            self.decoder_pos_embed = nn.Parameter(pos_embedding, requires_grad=False)
 
         layers = []
         for _ in range(decoder_depth):
@@ -159,13 +165,36 @@ class MAE_ViT(MIMBaseNet):
         return {"loss": loss, "pred": pred, "mask": mask}
 
 
+# Base models
 registry.register_model_config("mae_vit", MAE_ViT, config={"decoder_depth": 8, "decoder_embed_dim": 512})
 registry.register_model_config("mae_vit_dec512d12", MAE_ViT, config={"decoder_depth": 12, "decoder_embed_dim": 512})
 registry.register_model_config("mae_vit_dec512d24", MAE_ViT, config={"decoder_depth": 24, "decoder_embed_dim": 512})
 registry.register_model_config("mae_vit_dec512d32", MAE_ViT, config={"decoder_depth": 32, "decoder_embed_dim": 512})
+
+# With norm pix loss
+registry.register_model_config(
+    "mae_vit_dec512d12_npl", MAE_ViT, config={"decoder_depth": 12, "decoder_embed_dim": 512, "norm_pix_loss": True}
+)
 registry.register_model_config(
     "mae_vit_dec512d24_npl", MAE_ViT, config={"decoder_depth": 24, "decoder_embed_dim": 512, "norm_pix_loss": True}
 )
-registry.register_model_config(  # From "In Pursuit of Pixel Supervision for Visual Pre-training"
+registry.register_model_config(
     "mae_vit_dec512d32_npl", MAE_ViT, config={"decoder_depth": 32, "decoder_embed_dim": 512, "norm_pix_loss": True}
+)
+
+# With norm pix loss and learnable positional embedding
+registry.register_model_config(
+    "mae_vit_dec512d12_npl_lpe",
+    MAE_ViT,
+    config={"decoder_depth": 12, "decoder_embed_dim": 512, "norm_pix_loss": True, "learnable_pos_embed": True},
+)
+registry.register_model_config(
+    "mae_vit_dec512d24_npl_lpe",
+    MAE_ViT,
+    config={"decoder_depth": 24, "decoder_embed_dim": 512, "norm_pix_loss": True, "learnable_pos_embed": True},
+)
+registry.register_model_config(  # From "In Pursuit of Pixel Supervision for Visual Pre-training"
+    "mae_vit_dec512d32_npl_lpe",
+    MAE_ViT,
+    config={"decoder_depth": 32, "decoder_embed_dim": 512, "norm_pix_loss": True, "learnable_pos_embed": True},
 )

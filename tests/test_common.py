@@ -452,7 +452,7 @@ class TestTrainingUtils(unittest.TestCase):
             training_utils.get_scheduler(opt, 1, args)
 
         # Resume during warmup with all phases
-        # iters_per_epoch = 10 (iter mode)
+        # steps_per_epoch = 10 (step update)
         # epochs = 20 => total_steps = 200
         # warmup_epochs = 5 => warmup_steps = 50
         # cooldown_epochs = 5 => cooldown_steps = 50
@@ -476,7 +476,7 @@ class TestTrainingUtils(unittest.TestCase):
             lr_power=1.0,
             lr_warmup_decay=0.1,
         )
-        scheduler = training_utils.get_scheduler(opt, iters_per_epoch=10, args=args_resume_warmup)
+        scheduler = training_utils.get_scheduler(opt, steps_per_epoch=10, args=args_resume_warmup)
 
         self.assertIsInstance(scheduler, torch.optim.lr_scheduler.SequentialLR)
         self.assertEqual(len(scheduler._schedulers), 3)  # Expect Warmup, Main, Cooldown
@@ -495,7 +495,7 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertEqual(scheduler._milestones, [20, 120])
 
         # Resume after warmup with all phases
-        # iters_per_epoch = 1 (epoch mode)
+        # steps_per_epoch = 1 (epoch update)
         # epochs = 20
         # warmup_epochs = 5
         # cooldown_epochs = 5
@@ -519,7 +519,7 @@ class TestTrainingUtils(unittest.TestCase):
             lr_power=1.0,
             lr_warmup_decay=0.1,
         )
-        scheduler = training_utils.get_scheduler(opt, iters_per_epoch=1, args=args_resume_warmup)
+        scheduler = training_utils.get_scheduler(opt, steps_per_epoch=1, args=args_resume_warmup)
 
         self.assertIsInstance(scheduler, torch.optim.lr_scheduler.SequentialLR)
         self.assertEqual(len(scheduler._schedulers), 3)  # Expect Warmup, Main, Cooldown
@@ -538,7 +538,7 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertEqual(scheduler._milestones, [0, 8])
 
         # Resume during cooldown with all phases
-        # iters_per_epoch = 10 (iter mode)
+        # steps_per_epoch = 10 (step update)
         # epochs = 20 => total_steps = 200
         # warmup_epochs = 5 => warmup_steps = 50
         # cooldown_epochs = 5 => cooldown_steps = 50
@@ -562,7 +562,7 @@ class TestTrainingUtils(unittest.TestCase):
             lr_power=1.0,
             lr_warmup_decay=0.1,
         )
-        scheduler = training_utils.get_scheduler(opt, iters_per_epoch=10, args=args_resume_warmup)
+        scheduler = training_utils.get_scheduler(opt, steps_per_epoch=10, args=args_resume_warmup)
 
         self.assertIsInstance(scheduler, torch.optim.lr_scheduler.SequentialLR)
         self.assertEqual(len(scheduler._schedulers), 3)  # Expect Warmup, Main, Cooldown

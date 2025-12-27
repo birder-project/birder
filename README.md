@@ -7,6 +7,7 @@ An open-source computer vision framework for wildlife image analysis, featuring 
 - [Getting Started](#getting-started)
 - [Pre-trained Models](#pre-trained-models)
 - [Detection](#detection)
+- [Project Status and Contributions](#project-status-and-contributions)
 - [Licenses](#licenses)
 - [Acknowledgments](#acknowledgments)
 
@@ -14,7 +15,7 @@ An open-source computer vision framework for wildlife image analysis, featuring 
 
 Birder is an open-source computer vision framework designed for wildlife imagery analysis, offering robust classification and detection capabilities for various species. While initially developed with a focus on avian species, the framework's architecture and methodologies are applicable to a wide range of wildlife computer vision tasks. This project leverages deep neural networks to provide models that can handle real-world data challenges in natural environments.
 
-For comprehensive documentation, tutorials, and more visit the main documentation at [docs/README.md](docs/README.md).
+For comprehensive documentation and tutorials, see [docs/README.md](docs/README.md).
 
 The project features:
 
@@ -24,7 +25,7 @@ The project features:
 - Custom utilities and data augmentation techniques
 - Comprehensive training scripts
 - Advanced error analysis tools
-- Extensive documentation and tutorials (hopefully...)
+- Documentation and tutorials
 
 Unlike projects that aim to reproduce ImageNet training results from common papers, Birder is tailored specifically for practical applications in wildlife monitoring, conservation efforts, ecological research, and nature photography.
 
@@ -55,8 +56,6 @@ Check out the Birder Colab notebook for an interactive tutorial.
 [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/birder-project/birder/blob/main/notebooks/getting_started.ipynb)
 [![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Project-blue)](https://huggingface.co/birder-project)
 
-If you prefer a local setup, follow the installation instructions below.
-
 Once Birder is installed, you can start exploring its capabilities.
 
 Birder provides pre-trained models that you can download using the `download-model` tool.
@@ -85,7 +84,7 @@ For more options and detailed usage of the prediction tool, run:
 birder-predict --help
 ```
 
-For more detailed usage instructions and examples, please refer to our [documentation](docs/README.md).
+For more detailed usage instructions and examples, see [docs/README.md](docs/README.md).
 
 ## Pre-trained Models
 
@@ -117,20 +116,21 @@ Other tags:
 
 Epoch Number (optional): The last part of the model name may include an underscore followed by a number (e.g., `0`, `200`), which represents the epoch.
 
-For instance, *mnasnet_1_0_intermediate_300* represents a MnasNet model with a alpha value of 1.0 that underwent intermediate training and is from epoch 300.
+For instance, *mnasnet_1_0_intermediate_300* represents a MnasNet model with an alpha value of 1.0 that underwent intermediate training and is from epoch 300.
 
 ### Self-supervised Image Pre-training
 
 Our pre-training process utilizes a diverse collection of image datasets, combining general imagery with wildlife-specific content.
 This approach allows our models to learn rich, general-purpose visual representations before fine-tuning on specific classification tasks.
 
-The pre-training dataset is composed of a mix of general images and bird specific imagery to improve downstream performance on the bird classification tasks.
+The pre-training dataset is composed of a mix of general images and bird-specific imagery to improve downstream performance on the bird classification tasks.
 
 For detailed information about these datasets, including descriptions, citations, and licensing details, please refer to [docs/public_datasets.md](docs/public_datasets.md).
 
 ## Detection
 
-Detection features are currently under development and will be available in future releases.
+Detection training and inference are available, see [docs/training_detection.md](docs/training_detection.md) and
+[docs/inference.md](docs/inference.md). APIs and model coverage may evolve as detection support matures.
 
 ## Project Status and Contributions
 

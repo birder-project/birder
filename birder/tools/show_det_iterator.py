@@ -15,6 +15,7 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
+from birder.data.collators.detection import BatchRandomResizeCollator
 from birder.data.collators.detection import collate_fn
 from birder.data.datasets.coco import CocoInference
 from birder.data.datasets.coco import CocoMosaicTraining
@@ -28,7 +29,7 @@ from birder.data.transforms.detection import InferenceTransform
 from birder.data.transforms.detection import training_preset
 
 
-# pylint: disable=too-many-locals,too-many-branches
+# pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def show_det_iterator(args: argparse.Namespace) -> None:
     reverse_transform = reverse_preset(get_rgb_stats("birder"))
     root_path = Path(args.data_path)
@@ -158,11 +159,16 @@ def show_det_iterator(args: argparse.Namespace) -> None:
             plt.show()
 
     else:
+        if args.batch_multiscale is True:
+            data_collate_fn: Any = BatchRandomResizeCollator(offset, args.size)
+        else:
+            data_collate_fn = collate_fn
+
         data_loader = DataLoader(
             dataset,
             batch_size=batch_size,
             shuffle=True,
-            collate_fn=collate_fn,
+            collate_fn=data_collate_fn,
         )
 
         cols = 2
@@ -254,6 +260,12 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--multiscale", default=False, action="store_true", help="enable random scale per image")
     subparser.add_argument(
+        "--batch-multiscale",
+        default=False,
+        action="store_true",
+        help="enable random square resize once per batch (batch mode only, capped by max(--size))",
+    )
+    subparser.add_argument(
         "--aug-type",
         type=str,
         choices=list(get_args(AugType)),
@@ -292,5 +304,17 @@ def main(args: argparse.Namespace) -> None:
 
     if args.multiscale is True and args.aug_type != "birder":
         raise cli.ValidationError(f"--multiscale only supported with --aug-type birder, got {args.aug_type}")
+    if args.batch_multiscale is True:
+        if args.batch is False:
+            raise cli.ValidationError("--batch-multiscale requires --batch")
+        if args.dynamic_size is True or args.multiscale is True or args.max_size is not None:
+            raise cli.ValidationError(
+                "--batch-multiscale cannot be used with --dynamic-size, --multiscale or --max-size"
+            )
+        if args.aug_type in {"multiscale", "detr"}:
+            raise cli.ValidationError(
+                f"--batch-multiscale not supported with --aug-type {args.aug_type}, "
+                "use a fixed-size aug type (e.g. birder, ssd, ssdlite)"
+            )
 
     show_det_iterator(args)

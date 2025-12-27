@@ -971,3 +971,34 @@ class TestSpecialFunctions(unittest.TestCase):
         flexivit = registry.net_factory("rope_flexivit_s16", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
         vit = registry.net_factory("rope_vit_s16", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
         flexivit.load_rope_vit_weights(vit.state_dict())
+
+    @parameterized.expand(  # type: ignore[untyped-decorator]
+        [
+            ("deit_t16"),
+            ("deit3_t16"),
+            ("flexivit_s16"),
+            ("rope_deit3_t16"),
+            ("rope_flexivit_s16"),
+            ("rope_vit_s32"),
+            ("simple_vit_s32"),
+            ("vit_s32"),
+            ("vit_parallel_s16_18x2_ls"),
+            ("vit_sam_b16"),
+        ]
+    )
+    def test_set_causal_attention(self, network_name: str) -> None:
+        n = registry.net_factory(network_name, DEFAULT_NUM_CHANNELS, 10)
+        size = n.default_size
+        x = torch.rand((1, DEFAULT_NUM_CHANNELS, *size))
+
+        # Test enabling causal attention
+        n.set_causal_attention(True)
+        out = n(x)
+        self.assertEqual(out.numel(), 10)
+        self.assertFalse(torch.isnan(out).any())
+
+        # Test disabling causal attention
+        n.set_causal_attention(False)
+        out = n(x)
+        self.assertEqual(out.numel(), 10)
+        self.assertFalse(torch.isnan(out).any())

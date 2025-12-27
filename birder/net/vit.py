@@ -108,6 +108,7 @@ class EncoderBlock(nn.Module):
     ) -> None:
         super().__init__()
         self.need_attn = False
+        self.is_causal = False
 
         if mlp_dim is None:
             mlp_dim = hidden_dim * 4
@@ -133,8 +134,23 @@ class EncoderBlock(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # torch._assert(x.dim() == 3, f"Expected (batch_size, seq_length, hidden_dim) got {x.size()}")
         branch1 = self.ln1(x)
+        if self.is_causal is True:
+            seq_len = x.size(1)
+            attn_mask = torch.triu(
+                torch.full((seq_len, seq_len), float("-inf"), dtype=x.dtype, device=x.device),
+                diagonal=1,
+            )
+        else:
+            attn_mask = None
+
         (branch1, _) = self.self_attention(
-            branch1, branch1, branch1, need_weights=self.need_attn, average_attn_weights=False
+            branch1,
+            branch1,
+            branch1,
+            need_weights=self.need_attn,
+            attn_mask=attn_mask,
+            average_attn_weights=False,
+            is_causal=self.is_causal,
         )
         branch1 = self.layer_scale_1(branch1)
         branch1 = self.drop_path1(branch1) + x
@@ -147,8 +163,11 @@ class EncoderBlock(nn.Module):
 
         return x
 
-    def set_need_attn(self) -> None:
-        self.need_attn = True
+    def set_need_attn(self, need_attn: bool = True) -> None:
+        self.need_attn = need_attn
+
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        self.is_causal = is_causal
 
 
 class Encoder(nn.Module):
@@ -211,9 +230,13 @@ class Encoder(nn.Module):
 
         return xs
 
-    def set_need_attn(self) -> None:
+    def set_need_attn(self, need_attn: bool = True) -> None:
         for b in self.block:
-            b.set_need_attn()
+            b.set_need_attn(need_attn)
+
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        for b in self.block:
+            b.set_causal_attention(is_causal)
 
 
 # pylint: disable=too-many-instance-attributes
@@ -408,6 +431,9 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             if self.attn_pool is not None:
                 for param in self.attn_pool.parameters():
                     param.requires_grad = True
+
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        self.encoder.set_causal_attention(is_causal)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         (H, W) = x.shape[-2:]

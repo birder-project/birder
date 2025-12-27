@@ -553,7 +553,7 @@ class AnchorGenerator(nn.Module):
 class Matcher(nn.Module):
     """
     This class assigns to each predicted "element" (e.g., a box) a ground-truth
-    element. Each predicted element will have exactly zero or one matches; each
+    element. Each predicted element will have exactly zero or one matches, each
     ground-truth element may be assigned to zero or more predicted elements.
 
     Matching is based on the MxN match_quality_matrix, that characterizes how well
@@ -641,7 +641,7 @@ class Matcher(nn.Module):
         """
         Produce additional matches for predictions that have only low-quality matches.
         Specifically, for each ground-truth find the set of predictions that have
-        maximum overlap with it (including ties); for each prediction in that set, if
+        maximum overlap with it (including ties), for each prediction in that set, if
         it is unmatched, then match it to the ground-truth with which it has the highest
         quality value.
         """

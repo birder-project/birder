@@ -441,17 +441,17 @@ def train(args: argparse.Namespace) -> None:
     grad_accum_steps: int = args.grad_accum_steps
 
     if args.lr_scheduler_update == "epoch":
-        iter_update = False
-        iters_per_epoch = 1
-    elif args.lr_scheduler_update == "iter":
-        iter_update = True
-        iters_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
+        step_update = False
+        steps_per_epoch = 1
+    elif args.lr_scheduler_update == "step":
+        step_update = True
+        steps_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
     else:
         raise ValueError("Unsupported lr_scheduler_update")
 
     # Optimizer and learning rate scheduler
     optimizer = training_utils.get_optimizer(parameters, lr, args)
-    scheduler = training_utils.get_scheduler(optimizer, iters_per_epoch, args)
+    scheduler = training_utils.get_scheduler(optimizer, steps_per_epoch, args)
     if args.compile_opt is True:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
 
@@ -492,11 +492,11 @@ def train(args: argparse.Namespace) -> None:
         optimizer.step()
         lrs = []
         for _ in range(begin_epoch, epochs):
-            for _ in range(iters_per_epoch):
+            for _ in range(steps_per_epoch):
                 lrs.append(float(max(scheduler.get_last_lr())))
                 scheduler.step()
 
-        plt.plot(np.linspace(begin_epoch, epochs, iters_per_epoch * (epochs - begin_epoch), endpoint=False), lrs)
+        plt.plot(np.linspace(begin_epoch, epochs, steps_per_epoch * (epochs - begin_epoch), endpoint=False), lrs)
         plt.show()
         raise SystemExit(0)
 
@@ -619,9 +619,9 @@ def train(args: argparse.Namespace) -> None:
         start_time = epoch_start
         last_idx = 0
         for i, data in enumerate(training_loader):
-            global_step = ((epoch - 1) * (last_batch_idx + 1)) + i
+            global_iter = ((epoch - 1) * (last_batch_idx + 1)) + i
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
-            teacher_temp = teacher_temp_schedule[global_step]
+            teacher_temp = teacher_temp_schedule[global_iter]
 
             global_crops = data["collated_global_crops"].to(device, dtype=model_dtype, non_blocking=True)
             local_crops = data["collated_local_crops"].to(device, dtype=model_dtype, non_blocking=True)
@@ -728,7 +728,7 @@ def train(args: argparse.Namespace) -> None:
                     scaler.step(optimizer)
                     scaler.update()
                     optimizer.zero_grad()
-                    if iter_update is True:
+                    if step_update is True:
                         scheduler.step()
 
             else:
@@ -744,20 +744,20 @@ def train(args: argparse.Namespace) -> None:
 
                     optimizer.step()
                     optimizer.zero_grad()
-                    if iter_update is True:
+                    if step_update is True:
                         scheduler.step()
 
             if optimizer_update is True:
                 # EMA update for the teacher
                 with torch.no_grad():
-                    m = momentum_schedule[global_step]
+                    m = momentum_schedule[global_iter]
                     torch._foreach_lerp_(  # pylint: disable=protected-access
                         list(teacher.parameters()), list(student.parameters()), weight=1 - m
                     )
 
                 # Weight decay update
                 if wd_schedule is not None:
-                    wd = wd_schedule[global_step]
+                    wd = wd_schedule[global_iter]
                     for param_group in optimizer.param_groups:
                         if param_group["weight_decay"] > 0:
                             param_group["weight_decay"] = wd
@@ -773,12 +773,12 @@ def train(args: argparse.Namespace) -> None:
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
                 time_now = time.time()
                 time_cost = time_now - start_time
-                steps_processed_in_interval = i - last_idx
-                rate = steps_processed_in_interval * (batch_size * args.world_size) / time_cost
+                iters_processed_in_interval = i - last_idx
+                rate = iters_processed_in_interval * (batch_size * args.world_size) / time_cost
 
-                avg_time_per_step = time_cost / steps_processed_in_interval
-                remaining_steps_in_epoch = last_batch_idx - i
-                estimated_time_to_finish_epoch = remaining_steps_in_epoch * avg_time_per_step
+                avg_time_per_iter = time_cost / iters_processed_in_interval
+                remaining_iters_in_epoch = last_batch_idx - i
+                estimated_time_to_finish_epoch = remaining_iters_in_epoch * avg_time_per_iter
 
                 start_time = time_now
                 last_idx = i
@@ -791,7 +791,7 @@ def train(args: argparse.Namespace) -> None:
                 running_loss_ibot_patch.synchronize_between_processes(device)
                 with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
                     log.info(
-                        f"[Trn] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx+1}  "
+                        f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
                         f"Loss: {running_loss.avg:.4f}  "
                         f"Elapsed: {format_duration(time_now-epoch_start)}  "
                         f"ETA: {format_duration(estimated_time_to_finish_epoch)}  "
@@ -826,7 +826,7 @@ def train(args: argparse.Namespace) -> None:
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} ibot_patch_loss: {running_loss_ibot_patch.global_avg:.4f}")
 
         # Learning rate scheduler update
-        if iter_update is False:
+        if step_update is False:
             scheduler.step()
         if last_lr != float(max(scheduler.get_last_lr())):
             last_lr = float(max(scheduler.get_last_lr()))

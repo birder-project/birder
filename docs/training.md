@@ -2,6 +2,8 @@
 
 Before running any training scripts, set the `OMP_NUM_THREADS` environment variable appropriately for your system.
 
+Examples use repo-root script names (e.g., `train.py`). If you installed Birder as a package, use the module form such as `python -m birder.scripts.train`.
+
 ## Table of Contents
 
 - [General Training Guidelines](#general-training-guidelines)
@@ -2600,5 +2602,5 @@ torchrun --nproc_per_node=2 train.py --network resnet_v2_50 --tag imagenet1k --o
 #### ResNet v2: 50 ImageNet 21K example
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network resnet_v2_50 --tag imagenet21k --lr-scheduler step --lr-step-size 30 --lr-step-gamma 0.1 --batch-size 256 --epochs 90 --smoothing-alpha 0.1 ----aug-type aa --rgb-mode imagenet --fast-matmul --compile --wds --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-info ~/Datasets/imagenet-w21-webp-wds/_info.json --wds-training-split train
+torchrun --nproc_per_node=2 train.py --network resnet_v2_50 --tag imagenet21k --lr-scheduler step --lr-step-size 30 --lr-step-gamma 0.1 --batch-size 256 --epochs 90 --smoothing-alpha 0.1 --aug-type aa --rgb-mode imagenet --fast-matmul --compile --wds --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-info ~/Datasets/imagenet-w21-webp-wds/_info.json --wds-training-split train
 ```

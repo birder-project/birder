@@ -12,6 +12,7 @@
 #SBATCH --mem=64G                         # Memory per node
 #SBATCH --time=24:00:00                   # Maximum runtime (HH:MM:SS) or (days-HH:MM:SS) e.g. --time=7-00:00:00
 #SBATCH --partition=main                  # Partition name (adjust as needed)
+#SBATCH --chdir=/path/to/birder           # Set working directory (optional)
 #SBATCH --output=logs/slurm_%j.out        # Output log file
 #SBATCH --error=logs/slurm_%j.err         # Error log file
 
@@ -109,7 +110,7 @@ echo "====================================="
 echo ""
 
 # Launch distributed training
-srun python -m birder.scripts.train \
+srun --kill-on-bad-exit=1 --export=ALL python -m birder.scripts.train \
     --network resnet_v1_101 \
     --tag test \
     --opt lamb \

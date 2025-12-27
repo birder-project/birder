@@ -126,6 +126,9 @@ class DeiT(BaseNet):
             for param in self.dist_classifier.parameters():
                 param.requires_grad = True
 
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        self.encoder.set_causal_attention(is_causal)
+
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         # Reshape and permute the input tensor
         x = self.conv_proj(x)

@@ -256,6 +256,9 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             for param in module.parameters():
                 param.requires_grad = False
 
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        self.encoder.set_causal_attention(is_causal)
+
     def masked_encoding_omission(
         self,
         x: torch.Tensor,

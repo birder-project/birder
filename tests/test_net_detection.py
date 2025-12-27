@@ -8,6 +8,7 @@ from parameterized import parameterized
 from birder.conf.settings import DEFAULT_NUM_CHANNELS
 from birder.data.collators.detection import batch_images
 from birder.model_registry import registry
+from birder.net.base import reparameterize_available
 from birder.net.detection import base
 
 logging.disable(logging.CRITICAL)
@@ -37,6 +38,7 @@ class TestNetDetection(unittest.TestCase):
             ("retinanet", "mobilenet_v3_small_1_0"),
             ("retinanet", "efficientvit_msft_m0"),  # 3 stage network
             ("retinanet_sfp", "vit_det_m16_rms"),
+            ("rt_detr_v1", "resnet_v1_50"),
             ("ssd", "efficientnet_v2_s"),
             ("ssd", "vit_s16"),  # 1 stage network
             ("ssdlite", "mobilenet_v2_0_25", (512, 512)),
@@ -113,3 +115,12 @@ class TestNetDetection(unittest.TestCase):
         n.eval()
         n.freeze(freeze_classifier=False)
         n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+
+        # Reparameterize
+        if reparameterize_available(n) is True:
+            n.reparameterize_model()
+            (detections, losses) = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+            self.assertEqual(len(losses), 0)
+            for detection in detections:
+                for key in ["boxes", "labels", "scores"]:
+                    self.assertFalse(torch.isnan(detection[key]).any())

@@ -12,7 +12,7 @@ Birder's model loading APIs are designed to cater to different user personas and
 
 - Optimized for quick model initialization with pre-trained weights
 - Simplified, one-step loading process
-- **Limitation:** Exclusively loads pre-existing weights; does not support custom fine-tuned model weights
+- **Limitation:** Exclusively loads pre-existing weights, does not support custom fine-tuned model weights
 
 #### `birder.load_model_with_cfg`
 

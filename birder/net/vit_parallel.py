@@ -39,6 +39,8 @@ class Attention(nn.Module):
     def __init__(self, dim: int, num_heads: int, attn_drop: float, proj_drop: float) -> None:
         super().__init__()
         assert dim % num_heads == 0, "dim should be divisible by num_heads"
+
+        self.is_causal = False
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
         self.scale = self.head_dim**-0.5
@@ -54,7 +56,7 @@ class Attention(nn.Module):
         (q, k, v) = qkv.unbind(0)
 
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
-            q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
+            q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, is_causal=self.is_causal, scale=self.scale
         )
 
         x = x.transpose(1, 2).reshape(B, N, C)
@@ -62,6 +64,9 @@ class Attention(nn.Module):
         x = self.proj_drop(x)
 
         return x
+
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        self.is_causal = is_causal
 
 
 class EncoderParallelBlock(nn.Module):
@@ -118,6 +123,11 @@ class EncoderParallelBlock(nn.Module):
 
         return x
 
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        for b in self.attn_blocks:
+            if hasattr(b, "set_causal_attention") is True:
+                b.set_causal_attention(is_causal)
+
 
 class Encoder(nn.Module):
     def __init__(
@@ -169,6 +179,10 @@ class Encoder(nn.Module):
             xs.append(x)
 
         return xs
+
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        for b in self.block:
+            b.set_causal_attention(is_causal)
 
 
 # pylint: disable=invalid-name,too-many-instance-attributes
@@ -320,6 +334,9 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         if freeze_classifier is False:
             for param in self.classifier.parameters():
                 param.requires_grad = True
+
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        self.encoder.set_causal_attention(is_causal)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         (H, W) = x.shape[-2:]

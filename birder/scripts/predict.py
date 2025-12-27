@@ -343,9 +343,9 @@ def predict(args: argparse.Namespace) -> None:
             label_names = None
 
     # Define Parquet writers
-    embeddings_writer: pq.ParquetWriter | None = None
-    logits_writer: pq.ParquetWriter | None = None
-    output_writer: pq.ParquetWriter | None = None
+    embeddings_writer: Optional[pq.ParquetWriter] = None
+    logits_writer: Optional[pq.ParquetWriter] = None
+    output_writer: Optional[pq.ParquetWriter] = None
 
     # Inference
     tic = time.time()

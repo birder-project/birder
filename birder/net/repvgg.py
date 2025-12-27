@@ -8,6 +8,7 @@ Paper "RepVGG: Making VGG-style ConvNets Great Again", https://arxiv.org/abs/210
 # Reference license: MIT
 
 from collections import OrderedDict
+from collections.abc import Callable
 from typing import Any
 from typing import Optional
 
@@ -31,6 +32,8 @@ class RepVggBlock(nn.Module):
         groups: int,
         use_se: bool,
         reparameterized: bool,
+        act_layer: Callable[..., nn.Module] = nn.ReLU,
+        skip_identity: bool = False,
     ) -> None:
         super().__init__()
         self.reparameterized = reparameterized
@@ -43,7 +46,7 @@ class RepVggBlock(nn.Module):
         else:
             self.se = nn.Identity()
 
-        self.activation = nn.ReLU()
+        self.activation = act_layer()
 
         if reparameterized is True:
             self.reparam_conv = nn.Conv2d(
@@ -59,7 +62,7 @@ class RepVggBlock(nn.Module):
             self.reparam_conv = None
 
             self.rbr_identity = None
-            if out_channels == in_channels and stride == 1:
+            if skip_identity is False and out_channels == in_channels and stride == 1:
                 self.rbr_identity = nn.BatchNorm2d(num_features=in_channels)
 
             self.conv_kxk = nn.Sequential()

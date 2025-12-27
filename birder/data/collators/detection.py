@@ -1,7 +1,11 @@
 import math
+import random
 from typing import Any
 
 import torch
+from torchvision.transforms import v2
+
+BATCH_MULTISCALE_SIZES = (480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800)
 
 
 def collate_fn(batch: list[tuple[Any, ...]]) -> tuple[Any, ...]:
@@ -54,6 +58,42 @@ class DetectionCollator:
         (batched_imgs, masks, size_list) = batch_images(images, self.size_divisible)
 
         return data[: self.offset] + (batched_imgs,) + data[self.offset + 1 :] + (masks, size_list)
+
+
+class BatchRandomResizeCollator(DetectionCollator):
+    def __init__(self, input_offset: int, size: tuple[int, int], size_divisible: int = 32) -> None:
+        super().__init__(input_offset, size_divisible=size_divisible)
+        if size is None:
+            raise ValueError("size must be provided for batch multiscale")
+
+        max_side = max(size)
+        sizes = [side for side in BATCH_MULTISCALE_SIZES if side <= max_side]
+        if len(sizes) == 0:
+            sizes = [max_side]
+
+        self.sizes = [int(side) for side in sizes]
+
+    def __call__(self, batch: list[tuple[Any, ...]]) -> tuple[Any, ...]:
+        data = list(collate_fn(batch))
+        images: list[torch.Tensor] = data[self.offset]
+        targets: list[dict[str, Any]] = data[self.offset + 1]
+
+        target_size = random.choice(self.sizes)
+        resize = v2.Resize((target_size, target_size), interpolation=v2.InterpolationMode.BILINEAR, antialias=True)
+
+        resized_images = []
+        resized_targets = []
+        for image, target in zip(images, targets):
+            (image, target) = resize(image, target)
+            resized_images.append(image)
+            resized_targets.append(target)
+
+        data[self.offset] = resized_images
+        data[self.offset + 1] = resized_targets
+
+        (batched_imgs, masks, size_list) = batch_images(resized_images, self.size_divisible)
+
+        return tuple(data[: self.offset]) + (batched_imgs,) + tuple(data[self.offset + 1 :]) + (masks, size_list)
 
 
 # inputs, targets

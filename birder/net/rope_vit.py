@@ -151,6 +151,8 @@ class RoPEAttention(nn.Module):
     ) -> None:
         super().__init__()
         assert dim % num_heads == 0, "dim should be divisible by num_heads"
+
+        self.is_causal = False
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
         self.scale = self.head_dim**-0.5
@@ -177,7 +179,7 @@ class RoPEAttention(nn.Module):
         k = torch.concat([k[:, :, :n, :], self.apply_rot_fn(k[:, :, n:, :], rope)], dim=2)
 
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
-            q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
+            q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, is_causal=self.is_causal, scale=self.scale
         )
 
         x = x.transpose(1, 2).reshape(B, N, C)
@@ -238,6 +240,9 @@ class EncoderBlock(nn.Module):
         x = x + self.drop_path(self.layer_scale_2(self.mlp(self.norm2(x))))
 
         return x
+
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        self.attn.is_causal = is_causal
 
 
 class Encoder(nn.Module):
@@ -304,6 +309,10 @@ class Encoder(nn.Module):
             xs.append(x)
 
         return xs
+
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        for b in self.block:
+            b.set_causal_attention(is_causal)
 
 
 class MAEDecoderBlock(nn.Module):
@@ -612,6 +621,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             if self.attn_pool is not None:
                 for param in self.attn_pool.parameters():
                     param.requires_grad = True
+
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        self.encoder.set_causal_attention(is_causal)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         (H, W) = x.shape[-2:]

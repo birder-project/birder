@@ -45,12 +45,13 @@ class HungarianMatcher(nn.Module):
     This class computes an assignment between the targets and the predictions of the network
     """
 
-    def __init__(self, cost_class: float, cost_bbox: float, cost_giou: float):
+    def __init__(self, cost_class: float, cost_bbox: float, cost_giou: float, use_giou: bool = True) -> None:
         super().__init__()
         assert cost_class != 0 or cost_bbox != 0 or cost_giou != 0
         self.cost_class = cost_class
         self.cost_bbox = cost_bbox
         self.cost_giou = cost_giou
+        self.use_giou = use_giou
 
     @torch.jit.unused  # type: ignore[untyped-decorator]
     def forward(
@@ -77,11 +78,13 @@ class HungarianMatcher(nn.Module):
             # Compute the L1 cost between boxes
             cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1.0)
 
-            # Compute the giou cost between boxes
-            cost_giou = -box_ops.generalized_box_iou(
-                box_ops.box_convert(out_bbox, in_fmt="cxcywh", out_fmt="xyxy"),
-                box_ops.box_convert(tgt_bbox, in_fmt="cxcywh", out_fmt="xyxy"),
-            )
+            # Compute the GIoU or IoU cost between boxes
+            out_bbox_xyxy = box_ops.box_convert(out_bbox, in_fmt="cxcywh", out_fmt="xyxy")
+            tgt_bbox_xyxy = box_ops.box_convert(tgt_bbox, in_fmt="cxcywh", out_fmt="xyxy")
+            if self.use_giou is True:
+                cost_giou = -box_ops.generalized_box_iou(out_bbox_xyxy, tgt_bbox_xyxy)
+            else:
+                cost_giou = -box_ops.box_iou(out_bbox_xyxy, tgt_bbox_xyxy)
 
             # Final cost matrix
             C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
@@ -229,7 +232,7 @@ class DeformableTransformerEncoderLayer(nn.Module):
         reference_points: torch.Tensor,
         spatial_shapes: torch.Tensor,
         level_start_index: torch.Tensor,
-        mask: torch.Tensor,
+        mask: Optional[torch.Tensor],
     ) -> torch.Tensor:
         src2 = self.self_attn(src + pos, reference_points, src, spatial_shapes, level_start_index, mask)
         src = src + self.dropout(src2)
@@ -270,13 +273,15 @@ class DeformableTransformerDecoderLayer(nn.Module):
         src: torch.Tensor,
         src_spatial_shapes: torch.Tensor,
         level_start_index: torch.Tensor,
-        src_padding_mask: torch.Tensor,
+        src_padding_mask: Optional[torch.Tensor],
+        self_attn_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         # Self attention
         q = tgt + query_pos
         k = tgt + query_pos
 
-        tgt2 = self.self_attn(q.transpose(0, 1), k.transpose(0, 1), tgt.transpose(0, 1))[0].transpose(0, 1)
+        tgt2 = self.self_attn(q.transpose(0, 1), k.transpose(0, 1), tgt.transpose(0, 1), attn_mask=self_attn_mask)
+        tgt2 = tgt2[0].transpose(0, 1)
         tgt = tgt + self.dropout(tgt2)
         tgt = self.norm1(tgt)
 
@@ -598,15 +603,15 @@ class Deformable_DETR(DetectionBaseNet):
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)
         for class_embed in self.class_embed:
-            class_embed.bias.data = torch.ones(self.num_classes) * bias_value
+            nn.init.constant_(class_embed.bias, bias_value)
 
         for proj in self.input_proj:
             nn.init.xavier_uniform_(proj[0].weight, gain=1)
             nn.init.zeros_(proj[0].bias)
 
         for bbox_embed in self.bbox_embed:
-            nn.init.zeros_(bbox_embed[-2].weight.data)
-            nn.init.zeros_(bbox_embed[-2].bias.data)
+            nn.init.zeros_(bbox_embed[-2].weight)
+            nn.init.zeros_(bbox_embed[-2].bias)
 
         nn.init.constant_(self.bbox_embed[0][-2].bias.data[2:], -2.0)
 

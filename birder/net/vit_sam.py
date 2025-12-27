@@ -120,6 +120,7 @@ class Attention(nn.Module):
         self, dim: int, num_heads: int, qkv_bias: bool, use_rel_pos: bool, input_size: Optional[tuple[int, int]] = None
     ) -> None:
         super().__init__()
+        self.is_causal = False
         self.num_heads = num_heads
         head_dim = dim // num_heads
         self.scale = head_dim**-0.5
@@ -143,6 +144,17 @@ class Attention(nn.Module):
         else:
             attn_bias = None
 
+        if self.is_causal is True:
+            seq_len = H * W
+            causal_mask = torch.triu(
+                torch.full((seq_len, seq_len), float("-inf"), dtype=q.dtype, device=q.device),
+                diagonal=1,
+            )
+            if attn_bias is not None:
+                attn_bias = attn_bias + causal_mask
+            else:
+                attn_bias = causal_mask
+
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q, k, v, attn_mask=attn_bias, scale=self.scale
         )
@@ -151,6 +163,9 @@ class Attention(nn.Module):
         x = self.proj(x)
 
         return x
+
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        self.is_causal = is_causal
 
 
 class EncoderBlock(nn.Module):
@@ -214,6 +229,9 @@ class EncoderBlock(nn.Module):
         x = x + self.drop_path2(self.layer_scale_2(self.mlp(self.norm2(x))))
 
         return x
+
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        self.attn.set_causal_attention(is_causal)
 
 
 # pylint: disable=invalid-name
@@ -370,6 +388,10 @@ class ViT_SAM(DetectorBackbone):
 
             for param in module.parameters():
                 param.requires_grad = False
+
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        for b in self.body:
+            b.set_causal_attention(is_causal)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)

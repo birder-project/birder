@@ -446,26 +446,26 @@ def get_optimizer(parameters: list[dict[str, Any]], l_rate: float, args: argpars
 
 
 def get_scheduler(
-    optimizer: torch.optim.Optimizer, iters_per_epoch: int, args: argparse.Namespace
+    optimizer: torch.optim.Optimizer, steps_per_epoch: int, args: argparse.Namespace
 ) -> torch.optim.lr_scheduler.LRScheduler:
     # At first, we translate everything into "steps"
     begin_step = 0
     if args.resume_epoch is not None:
-        begin_step = args.resume_epoch * iters_per_epoch
+        begin_step = args.resume_epoch * steps_per_epoch
 
-    steps = args.epochs * iters_per_epoch
+    steps = args.epochs * steps_per_epoch
 
     if args.warmup_epochs is not None:
-        warmup_steps = args.warmup_epochs * iters_per_epoch
-    elif args.warmup_iters is not None:
-        warmup_steps = args.warmup_iters
+        warmup_steps = args.warmup_epochs * steps_per_epoch
+    elif args.warmup_steps is not None:
+        warmup_steps = args.warmup_steps
     else:
         warmup_steps = 0
 
     if args.cooldown_epochs is not None:
-        cooldown_steps = args.cooldown_epochs * iters_per_epoch
-    elif args.cooldown_iters is not None:
-        cooldown_steps = args.cooldown_iters
+        cooldown_steps = args.cooldown_epochs * steps_per_epoch
+    elif args.cooldown_steps is not None:
+        cooldown_steps = args.cooldown_steps
     else:
         cooldown_steps = 0
 
@@ -477,7 +477,7 @@ def get_scheduler(
 
     main_steps = steps - begin_step - remaining_warmup - remaining_cooldown - 1
 
-    logger.debug(f"Using {iters_per_epoch} steps per epoch")
+    logger.debug(f"Using {steps_per_epoch} steps per epoch")
     logger.debug(
         f"Scheduler {args.lr_scheduler} set for {steps} steps of which {warmup_steps} "
         f"are warmup and {cooldown_steps} cooldown"
@@ -581,7 +581,7 @@ def get_training_transform(args: argparse.Namespace) -> Callable[..., torch.Tens
         args.size,
         args.aug_type,
         args.aug_level,
-        get_rgb_stats(args.rgb_mode),
+        get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std),
         args.resize_min_scale,
         args.re_prob,
         args.use_grayscale,
@@ -671,6 +671,13 @@ def accuracy(y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
 ###############################################################################
 
 
+def _maybe_set_device(args: argparse.Namespace) -> None:
+    if args.cpu is True or torch.cuda.is_available() is False:
+        return
+
+    torch.cuda.set_device(args.local_rank)
+
+
 def init_distributed_mode(args: argparse.Namespace) -> None:
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
         # torch.distributed.run, torchrun
@@ -700,10 +707,10 @@ def init_distributed_mode(args: argparse.Namespace) -> None:
         if args.local_rank is None:
             args.local_rank = 0
 
-        torch.cuda.set_device(args.local_rank)
+        _maybe_set_device(args)
         return
 
-    torch.cuda.set_device(args.local_rank)
+    _maybe_set_device(args)
 
     args.distributed = args.world_size > 1
     if args.distributed is False:

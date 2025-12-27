@@ -2,6 +2,8 @@
 
 Before running any training scripts, set the `OMP_NUM_THREADS` environment variable appropriately for your system.
 
+Examples use repo-root script names (e.g., `train_kd.py`). If you installed Birder as a package, use the module form such as `python -m birder.scripts.train_kd`.
+
 ## Knowledge Distillation
 
 ### MobileNet v4

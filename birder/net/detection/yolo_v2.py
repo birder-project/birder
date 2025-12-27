@@ -262,6 +262,9 @@ class YOLO_v2(DetectionBaseNet):
         num_anchors = self.anchor_generator.num_anchors_per_location()
         self.head = YOLOHead(self.neck.out_channels, num_anchors, self.num_classes)
 
+        if self.export_mode is False:
+            self.forward = torch.compiler.disable(recursive=False)(self.forward)  # type: ignore[method-assign]
+
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes
         num_anchors = self.anchor_generator.num_anchors_per_location()
@@ -407,6 +410,8 @@ class YOLO_v2(DetectionBaseNet):
 
         return (target_tensor, obj_mask, noobj_mask)
 
+    @torch.jit.unused  # type: ignore[untyped-decorator]
+    @torch.compiler.disable()  # type: ignore[untyped-decorator]
     def compute_loss(
         self,
         predictions: torch.Tensor,
@@ -464,10 +469,7 @@ class YOLO_v2(DetectionBaseNet):
         coord_loss = self.coord_coeff * coord_loss / num_obj
         obj_loss = self.obj_coeff * obj_loss / num_obj
         cls_loss = self.cls_coeff * cls_loss / num_obj
-
-        # Normalize background loss by batch size (average per image)
-        batch_size = predictions.shape[0]
-        noobj_loss = self.noobj_coeff * noobj_loss / batch_size
+        noobj_loss = self.noobj_coeff * noobj_loss / num_obj
 
         return {
             "bbox_regression": coord_loss,

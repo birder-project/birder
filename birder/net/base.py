@@ -270,12 +270,12 @@ class DetectorBackbone(BaseNet):
 
 
 def pos_embedding_sin_cos_2d(
-    h: int, w: int, dim: int, num_special_tokens: int, temperature: int = 10000
+    h: int, w: int, dim: int, num_special_tokens: int, temperature: int = 10000, device: Optional[torch.device] = None
 ) -> torch.Tensor:
-    assert (dim % 4) == 0, "feature dimension must be multiple of 4 for sin-cos emb"
+    # assert (dim % 4) == 0, "feature dimension must be multiple of 4 for sin-cos emb"
 
-    (y, x) = torch.meshgrid(torch.arange(h), torch.arange(w), indexing="ij")
-    omega = torch.arange(dim // 4) / (dim // 4 - 1)
+    (y, x) = torch.meshgrid(torch.arange(h, device=device), torch.arange(w, device=device), indexing="ij")
+    omega = torch.arange(dim // 4, device=device) / (dim // 4 - 1)
     omega = 1.0 / (temperature**omega)
 
     y = y.flatten()[:, None] * omega[None, :]
@@ -283,7 +283,7 @@ def pos_embedding_sin_cos_2d(
     pe = torch.concat((x.sin(), x.cos(), y.sin(), y.cos()), dim=1)
 
     if num_special_tokens > 0:
-        pe = torch.concat([torch.zeros([num_special_tokens, dim]), pe], dim=0)
+        pe = torch.concat([torch.zeros([num_special_tokens, dim], device=device), pe], dim=0)
 
     return pe
 

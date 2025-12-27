@@ -123,6 +123,45 @@ class CocoMosaicTraining(CocoBase):
         self.fill_value = fill_value
         self.mosaic_prob = mosaic_prob
         self.mosaic_fn = mosaic_fixed_grid if mosaic_type == "fixed_grid" else mosaic_random_center
+        self._mosaic_base_prob: Optional[float] = None
+        self._mosaic_decay_epochs: Optional[int] = None
+        self._mosaic_decay_start: Optional[int] = None
+
+    def configure_mosaic_linear_decay(
+        self, base_prob: float, total_epochs: int, decay_fraction: float = 0.1
+    ) -> None:
+        if total_epochs <= 0:
+            raise ValueError("total_epochs must be positive")
+        if decay_fraction <= 0.0 or decay_fraction > 1.0:
+            raise ValueError("decay_fraction must be in (0.0, 1.0]")
+
+        decay_epochs = max(1, int(total_epochs * decay_fraction))
+        self._mosaic_base_prob = base_prob
+        self._mosaic_decay_epochs = decay_epochs
+        self._mosaic_decay_start = max(1, total_epochs - decay_epochs + 1)
+
+    def update_mosaic_prob(self, epoch: int) -> Optional[float]:
+        if (
+            self._mosaic_base_prob is None
+            or self._mosaic_decay_epochs is None
+            or self._mosaic_decay_start is None
+        ):
+            return None
+
+        if epoch >= self._mosaic_decay_start:
+            if self._mosaic_decay_epochs <= 1:
+                self.mosaic_prob = 0.0
+            else:
+                progress = (epoch - self._mosaic_decay_start) / (self._mosaic_decay_epochs - 1)
+                self.mosaic_prob = max(0.0, self._mosaic_base_prob * (1 - progress))
+        else:
+            self.mosaic_prob = self._mosaic_base_prob
+
+        return self.mosaic_prob
+
+    @property
+    def mosaic_decay_start(self) -> Optional[int]:
+        return self._mosaic_decay_start
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, Any]:
         if torch.rand(1) < self.mosaic_prob:

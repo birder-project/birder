@@ -21,7 +21,8 @@ python -m birder.scripts.train --help
 
 ## General Usage
 
-Training scripts can be used either directly or through the Birder package:
+Training scripts can be used either directly or through the Birder package.
+Direct execution assumes you're running from the repo root.
 
 ```sh
 # Direct execution
@@ -37,7 +38,7 @@ For distributed training with multiple GPUs, use `torchrun`:
 torchrun --nproc_per_node=2 train.py --network resnet_v2_50 --batch-size 64
 ```
 
-Which can also be done via module
+You can also run the same command as a module:
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train --network resnet_v2_50 --batch-size 64
@@ -62,7 +63,7 @@ When providing a directory path, Birder will:
 python train.py --network resnet_v2_50 \
     --wds \
     --data-path /path/to/webdataset/train/directory \
-    --data-val /path/to/webdataset/val/directory \
+    --val-path /path/to/webdataset/val/directory \
     --wds-class-file /path/to/classes.txt
 ```
 

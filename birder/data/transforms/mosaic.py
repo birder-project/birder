@@ -1,5 +1,6 @@
 import random
 from typing import Any
+from typing import Optional
 
 import torch
 from PIL import Image
@@ -156,7 +157,7 @@ def mosaic_fixed_grid(
     fill_value: int | tuple[int, int, int],
     min_visibility: float = 0.05,
     crop_to_square: bool = False,
-    max_aspect_ratio: float | None = 2.0,
+    max_aspect_ratio: Optional[float] = 2.0,
 ) -> tuple[Image.Image, dict[str, Any]]:
     """
     Create a grid-based mosaic augmentation by combining 4 images into a 2x2 grid.

@@ -205,6 +205,9 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
         )
         self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=False)
 
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        self.encoder.set_causal_attention(is_causal)
+
 
 registry.register_model_config(
     "simple_vit_s32",

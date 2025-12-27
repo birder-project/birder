@@ -269,6 +269,9 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
                 for param in self.attn_pool.parameters():
                     param.requires_grad = True
 
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        self.encoder.set_causal_attention(is_causal)
+
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         (H, W) = x.shape[-2:]
         x = self.conv_proj(x)

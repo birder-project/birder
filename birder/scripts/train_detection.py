@@ -5,6 +5,7 @@ import math
 import os
 import sys
 import time
+import types
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -24,6 +25,7 @@ from birder.common import lib
 from birder.common import training_cli
 from birder.common import training_utils
 from birder.conf import settings
+from birder.data.collators.detection import BatchRandomResizeCollator
 from birder.data.collators.detection import training_collate_fn
 from birder.data.datasets.coco import CocoMosaicTraining
 from birder.data.datasets.coco import CocoTraining
@@ -38,6 +40,14 @@ from birder.net.detection.base import get_detection_signature
 logger = logging.getLogger(__name__)
 
 
+def _rebind_forward_functions(model: torch.nn.Module) -> None:
+    # EMA deep-copies models that monkey-patch instance forwards (e.g. torch.compiler.disable),
+    # leaving the wrapper bound to the original instance. Rebind to keep eval_model correct.
+    for module in model.modules():
+        if isinstance(module.__dict__.get("forward"), types.FunctionType):
+            module.forward = types.MethodType(type(module).forward, module)
+
+
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
     #
@@ -47,22 +57,22 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Starting training, birder version: {birder.__version__}, pytorch version: {torch.__version__}")
     training_utils.log_git_info()
 
-    if (
+    transform_dynamic_size = (
         args.multiscale is True
         or args.dynamic_size is True
         or args.max_size is not None
         or args.aug_type == "multiscale"
         or args.aug_type == "detr"
-    ):
-        dynamic_size = True
-    else:
-        dynamic_size = False
+    )
+    model_dynamic_size = transform_dynamic_size or args.batch_multiscale is True
 
     if args.size is None:
         args.size = registry.get_default_size(args.network)
 
-    if dynamic_size is False:
+    if model_dynamic_size is False:
         logger.info(f"Using size={args.size}")
+    elif args.batch_multiscale is True:
+        logger.info(f"Running with batch multiscale, with base size={args.size}")
     else:
         logger.info(f"Running with dynamic size, with base size={args.size}")
 
@@ -76,7 +86,11 @@ def train(args: argparse.Namespace) -> None:
     if args.use_deterministic_algorithms is True:
         torch.backends.cudnn.benchmark = False
         torch.use_deterministic_algorithms(True)
-    elif dynamic_size is False:
+    elif transform_dynamic_size is True:
+        # Disable cuDNN for dynamic sizes to avoid per-size algorithm selection overhead
+        torch.backends.cudnn.enabled = False
+    else:
+        torch.backends.cudnn.enabled = True
         torch.backends.cudnn.benchmark = True
 
     if args.seed is not None:
@@ -101,17 +115,18 @@ def train(args: argparse.Namespace) -> None:
     transforms = training_preset(
         args.size, args.aug_type, args.aug_level, rgb_stats, args.dynamic_size, args.multiscale, args.max_size
     )
-    mosaic_transforms = training_preset(
-        args.size,
-        args.aug_type,
-        args.aug_level,
-        rgb_stats,
-        args.dynamic_size,
-        args.multiscale,
-        args.max_size,
-        post_mosaic=True,
-    )
+    mosaic_dataset = None
     if args.mosaic_prob > 0.0:
+        mosaic_transforms = training_preset(
+            args.size,
+            args.aug_type,
+            args.aug_level,
+            rgb_stats,
+            args.dynamic_size,
+            args.multiscale,
+            args.max_size,
+            post_mosaic=True,
+        )
         if args.dynamic_size is True or args.multiscale is True:
             # Dynamic/Multiscale: args.size is the short-side target
             if args.max_size is not None:
@@ -133,13 +148,23 @@ def train(args: argparse.Namespace) -> None:
             mosaic_prob=args.mosaic_prob,
             mosaic_type=args.mosaic_type,
         )
+        mosaic_dataset = training_dataset
+        if args.mosaic_stop_epoch is not None:
+            training_dataset.configure_mosaic_linear_decay(args.mosaic_prob, args.mosaic_stop_epoch, decay_fraction=0.1)
+            logger.info(
+                "Mosaic schedule: "
+                f"base_prob={args.mosaic_prob}, "
+                f"stop_epoch={args.mosaic_stop_epoch}, "
+                f"decay_start={training_dataset.mosaic_decay_start}, "
+                "decay_fraction=0.1"
+            )
     else:
         training_dataset = CocoTraining(args.data_path, args.coco_json_path, transforms=transforms)
 
     validation_dataset = CocoTraining(
         args.val_path,
         args.coco_val_json_path,
-        transforms=InferenceTransform(args.size, rgb_stats, dynamic_size, args.max_size),
+        transforms=InferenceTransform(args.size, rgb_stats, transform_dynamic_size, args.max_size),
     )
 
     if args.class_file is not None:
@@ -161,8 +186,6 @@ def train(args: argparse.Namespace) -> None:
 
     training_dataset.remove_images_without_annotations(ignore_list)
 
-    assert args.model_ema is False or args.model_ema_steps <= len(training_dataset) / args.batch_size
-
     logger.info(f"Using device {device}:{device_id}")
     logger.info(f"Training on {len(training_dataset):,} samples")
     logger.info(f"Validating on {len(validation_dataset):,} samples")
@@ -175,13 +198,18 @@ def train(args: argparse.Namespace) -> None:
     # Data loaders and samplers
     (train_sampler, validation_sampler) = training_utils.get_samplers(args, training_dataset, validation_dataset)
 
+    if args.batch_multiscale is True:
+        train_collate_fn: Any = BatchRandomResizeCollator(0, args.size)
+    else:
+        train_collate_fn = training_collate_fn
+
     training_loader = DataLoader(
         training_dataset,
         batch_size=batch_size,
         sampler=train_sampler,
         num_workers=args.num_workers,
         prefetch_factor=args.prefetch_factor,
-        collate_fn=training_collate_fn,
+        collate_fn=train_collate_fn,
         pin_memory=True,
         drop_last=args.drop_last,
     )
@@ -195,6 +223,9 @@ def train(args: argparse.Namespace) -> None:
         pin_memory=True,
         drop_last=args.drop_last,
     )
+
+    optimizer_steps_per_epoch = math.ceil(len(training_loader) / args.grad_accum_steps)
+    assert args.model_ema is False or args.model_ema_steps <= optimizer_steps_per_epoch
 
     last_batch_idx = len(training_loader) - 1
     begin_epoch = 1
@@ -290,7 +321,7 @@ def train(args: argparse.Namespace) -> None:
         training_states = fs_ops.TrainingStates.empty()
 
     net.to(device, dtype=model_dtype)
-    if dynamic_size is True:
+    if model_dynamic_size is True:
         net.set_dynamic_size()
 
     # Freeze
@@ -341,17 +372,17 @@ def train(args: argparse.Namespace) -> None:
     grad_accum_steps: int = args.grad_accum_steps
 
     if args.lr_scheduler_update == "epoch":
-        iter_update = False
-        iters_per_epoch = 1
-    elif args.lr_scheduler_update == "iter":
-        iter_update = True
-        iters_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
+        step_update = False
+        steps_per_epoch = 1
+    elif args.lr_scheduler_update == "step":
+        step_update = True
+        steps_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
     else:
         raise ValueError("Unsupported lr_scheduler_update")
 
     # Optimizer and learning rate scheduler
     optimizer = training_utils.get_optimizer(parameters, lr, args)
-    scheduler = training_utils.get_scheduler(optimizer, iters_per_epoch, args)
+    scheduler = training_utils.get_scheduler(optimizer, steps_per_epoch, args)
     if args.compile_opt is True:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
 
@@ -377,11 +408,11 @@ def train(args: argparse.Namespace) -> None:
         optimizer.step()
         lrs = []
         for _ in range(begin_epoch, epochs):
-            for _ in range(iters_per_epoch):
+            for _ in range(steps_per_epoch):
                 lrs.append(float(max(scheduler.get_last_lr())))
                 scheduler.step()
 
-        plt.plot(np.linspace(begin_epoch, epochs, iters_per_epoch * (epochs - begin_epoch), endpoint=False), lrs)
+        plt.plot(np.linspace(begin_epoch, epochs, steps_per_epoch * (epochs - begin_epoch), endpoint=False), lrs)
         plt.show()
         raise SystemExit(0)
 
@@ -392,8 +423,8 @@ def train(args: argparse.Namespace) -> None:
         ema_warmup_epochs = args.model_ema_warmup
     elif args.warmup_epochs is not None:
         ema_warmup_epochs = args.warmup_epochs
-    elif args.warmup_iters is not None:
-        ema_warmup_epochs = args.warmup_iters // iters_per_epoch
+    elif args.warmup_steps is not None:
+        ema_warmup_epochs = args.warmup_steps // steps_per_epoch
     else:
         ema_warmup_epochs = 0
 
@@ -418,6 +449,11 @@ def train(args: argparse.Namespace) -> None:
                 model_ema.module.load_state_dict(training_states.ema_model_state)
 
             model_ema.n_averaged += 1  # pylint:disable=no-member
+
+        if args.compile is True and hasattr(model_ema.module, "_orig_mod") is True:
+            _rebind_forward_functions(model_ema.module._orig_mod)  # pylint: disable=protected-access
+        else:
+            _rebind_forward_functions(model_ema.module)
 
         model_to_save = model_ema.module  # Save EMA model weights as default weights
         eval_model = model_ema  # Use EMA for evaluation
@@ -464,7 +500,7 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Logging training run at {training_log_path}")
     summary_writer = SummaryWriter(training_log_path)
 
-    signature = get_detection_signature(input_shape=sample_shape, num_outputs=num_outputs, dynamic=dynamic_size)
+    signature = get_detection_signature(input_shape=sample_shape, num_outputs=num_outputs, dynamic=model_dynamic_size)
     file_handler: logging.Handler = logging.NullHandler()
     if training_utils.is_local_primary(args) is True:
         summary_writer.flush()
@@ -505,6 +541,8 @@ def train(args: argparse.Namespace) -> None:
 
         if args.distributed is True:
             train_sampler.set_epoch(epoch)
+        if mosaic_dataset is not None:
+            mosaic_dataset.update_mosaic_prob(epoch)
 
         progress = tqdm(
             desc=f"Epoch {epoch}/{epochs-1}",
@@ -546,7 +584,7 @@ def train(args: argparse.Namespace) -> None:
                     scaler.step(optimizer)
                     scaler.update()
                     optimizer.zero_grad()
-                    if iter_update is True:
+                    if step_update is True:
                         scheduler.step()
 
             else:
@@ -557,7 +595,7 @@ def train(args: argparse.Namespace) -> None:
 
                     optimizer.step()
                     optimizer.zero_grad()
-                    if iter_update is True:
+                    if step_update is True:
                         scheduler.step()
 
             # Exponential moving average
@@ -574,12 +612,12 @@ def train(args: argparse.Namespace) -> None:
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
                 time_now = time.time()
                 time_cost = time_now - start_time
-                steps_processed_in_interval = i - last_idx
-                rate = steps_processed_in_interval * (batch_size * args.world_size) / time_cost
+                iters_processed_in_interval = i - last_idx
+                rate = iters_processed_in_interval * (batch_size * args.world_size) / time_cost
 
-                avg_time_per_step = time_cost / steps_processed_in_interval
-                remaining_steps_in_epoch = last_batch_idx - i
-                estimated_time_to_finish_epoch = remaining_steps_in_epoch * avg_time_per_step
+                avg_time_per_iter = time_cost / iters_processed_in_interval
+                remaining_iters_in_epoch = last_batch_idx - i
+                estimated_time_to_finish_epoch = remaining_iters_in_epoch * avg_time_per_iter
 
                 start_time = time_now
                 last_idx = i
@@ -588,7 +626,7 @@ def train(args: argparse.Namespace) -> None:
                 running_loss.synchronize_between_processes(device)
                 with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
                     log.info(
-                        f"[Trn] Epoch {epoch}/{epochs-1}, step {i+1}/{last_batch_idx+1}  "
+                        f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
                         f"Loss: {running_loss.avg:.4f}  "
                         f"Elapsed: {lib.format_duration(time_now-epoch_start)}  "
                         f"ETA: {lib.format_duration(estimated_time_to_finish_epoch)}  "
@@ -676,7 +714,7 @@ def train(args: argparse.Namespace) -> None:
             logger.info(f"[Val] Epoch {epoch}/{epochs-1} {metric}: {validation_metrics_dict[metric]:.4f}")
 
         # Learning rate scheduler update
-        if iter_update is False:
+        if step_update is False:
             scheduler.step()
         if last_lr != float(max(scheduler.get_last_lr())):
             last_lr = float(max(scheduler.get_last_lr()))
@@ -879,7 +917,7 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
     if registry.exists(args.backbone, net_type=DetectorBackbone) is False:
         raise cli.ValidationError(
-            f"--backbone {args.network} not supported, see list-models tool for available options"
+            f"--backbone {args.backbone} not supported, see list-models tool for available options"
         )
 
     if args.freeze_backbone is True and args.freeze_backbone_stages is not None:
@@ -890,6 +928,23 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--freeze-body cannot be used with --freeze-backbone-stages")
     if args.multiscale is True and args.aug_type != "birder":
         raise cli.ValidationError(f"--multiscale only supported with --aug-type birder, got {args.aug_type}")
+    if args.batch_multiscale is True:
+        if args.dynamic_size is True or args.multiscale is True or args.max_size is not None:
+            raise cli.ValidationError(
+                "--batch-multiscale cannot be used with --dynamic-size, --multiscale or --max-size"
+            )
+        if args.aug_type in {"multiscale", "detr"}:
+            raise cli.ValidationError(
+                f"--batch-multiscale not supported with --aug-type {args.aug_type}, "
+                "use a fixed-size aug type (e.g. birder, ssd, ssdlite)"
+            )
+    if args.mosaic_stop_epoch is not None:
+        if args.mosaic_stop_epoch <= 0:
+            raise cli.ValidationError("--mosaic-stop-epoch must be positive")
+        if args.mosaic_stop_epoch > args.epochs:
+            raise cli.ValidationError(
+                f"--mosaic-stop-epoch must be <= --epochs ({args.epochs}), got {args.mosaic_stop_epoch}"
+            )
     if args.backbone_pretrained is True and args.backbone_epoch is not None:
         raise cli.ValidationError("--backbone-pretrained cannot be used with --backbone-epoch")
 

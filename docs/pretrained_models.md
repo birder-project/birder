@@ -83,7 +83,7 @@ python -m birder.tools list-models --pretrained --filter "*mobile*"
 Fetch specific model:
 
 ```bash
-python -m birder.tools fetch-model mobilenet_v4_l_eu-common
+python -m birder.tools download-model mobilenet_v4_l_eu-common
 ```
 
 For detailed usage of model management tools, see the [Tools and Utilities](tools/index.md) section.

@@ -4,7 +4,20 @@
 
 ### Added
 
+- **Mosaic Schedule**: Added `--mosaic-stop-epoch` for linear mosaic decay and disabling mosaic after the specified epoch.
+- **Detection Batch Multiscale**: Added `--batch-multiscale` for per-batch square resizing in detection training and show-det-iterator.
+- **RT-DETR v1 Detection**: Added [RT-DETR v1](https://arxiv.org/abs/2304.08069) object detection model.
+- **ViT Causal Attention**: Added optional causal attention support to ViT encoder blocks via `set_causal_attention()` method across all ViT variants (ViT, Simple ViT, DeiT, DeiT3, FlexiViT, ViT Parallel, ViT SAM and RoPE variants).
 - **CSPNet DropBlock Regularization**: Added optional DropBlock2d support to CSPNet backbone blocks (`DarkBlock`, `BottleneckBlock`) for YOLO v4-style training regularization.
+- **MAE ViT Learnable Positional Embedding**: Added optional `learnable_pos_embed` support for MAE ViT decoder, enabling learnable positional embeddings as an alternative to fixed sin-cos embeddings.
+
+### Changed
+
+- **Training Scheduler CLI**: Renamed `--warmup-iters/--cooldown-iters` to `--warmup-steps/--cooldown-steps` and replaced `--lr-scheduler-update iter` with `--lr-scheduler-update step` to align with optimizer-step terminology.
+
+### Fixed
+
+- **YOLO v2 / v3 / v4 Loss Normalization**: Fixed loss normalization to use consistent scaling across all loss terms.
 
 ## 0.1.8 - 2025-12-20
 
