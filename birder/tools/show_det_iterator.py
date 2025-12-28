@@ -314,7 +314,7 @@ def main(args: argparse.Namespace) -> None:
         if args.aug_type in {"multiscale", "detr"}:
             raise cli.ValidationError(
                 f"--batch-multiscale not supported with --aug-type {args.aug_type}, "
-                "use a fixed-size aug type (e.g. birder, ssd, ssdlite)"
+                "use a fixed-size aug type (e.g. birder, ssd, ssdlite, yolo)"
             )
 
     show_det_iterator(args)

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.1 - 2025-12-28
+
+### Added
+
+- **YOLO Augmentation**: Added a `yolo` detection augmentation preset for YOLO-style training pipelines.
+
+### Fixed
+
+- **YOLO v3 / v4 Dynamic Anchors**: Scale anchors per input size when running in dynamic-size mode.
+- **Detection Batch Multiscale Targets**: Fixed batch multiscale resizing to rescale target boxes alongside images.
+
 ## 0.2.0 - 2025-12-27
 
 ### Added

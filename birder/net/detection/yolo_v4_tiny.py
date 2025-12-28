@@ -18,12 +18,13 @@ from torchvision.ops import Conv2dNormActivation
 from birder.net.base import DetectorBackbone
 from birder.net.detection.yolo_v3 import YOLOAnchorGenerator
 from birder.net.detection.yolo_v3 import YOLOHead
+from birder.net.detection.yolo_v3 import scale_anchors
 from birder.net.detection.yolo_v4 import YOLO_v4
 
 # Default anchors from YOLO v4 Tiny (COCO)
 DEFAULT_ANCHORS = [
-    [(10, 14), (23, 27), (37, 58)],  # Medium
-    [(81, 82), (135, 169), (344, 319)],  # Large
+    [(10.0, 14.0), (23.0, 27.0), (37.0, 58.0)],  # Medium
+    [(81.0, 82.0), (135.0, 169.0), (344.0, 319.0)],  # Large
 ]
 
 # Scale factors per detection scale to eliminate grid sensitivity
@@ -118,7 +119,7 @@ class YOLO_v4_Tiny(YOLO_v4):
         self.obj_coeff = 1.0
         self.cls_coeff = 1.0
 
-        self.anchors = DEFAULT_ANCHORS
+        self.anchors = scale_anchors(DEFAULT_ANCHORS, self.default_size, self.size)
         self.scale_xy = DEFAULT_SCALE_XY
         self.score_thresh = score_thresh
         self.nms_thresh = nms_thresh

@@ -21,12 +21,13 @@ from birder.net.base import DetectorBackbone
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.yolo_v3 import YOLOAnchorGenerator
 from birder.net.detection.yolo_v3 import YOLOHead
+from birder.net.detection.yolo_v3 import scale_anchors
 
 # Default anchors from YOLO v4 (COCO)
 DEFAULT_ANCHORS = [
-    [(12, 16), (19, 36), (40, 28)],  # Small
-    [(36, 75), (76, 55), (72, 146)],  # Medium
-    [(142, 110), (192, 243), (459, 401)],  # Large
+    [(12.0, 16.0), (19.0, 36.0), (40.0, 28.0)],  # Small
+    [(36.0, 75.0), (76.0, 55.0), (72.0, 146.0)],  # Medium
+    [(142.0, 110.0), (192.0, 243.0), (459.0, 401.0)],  # Large
 ]
 
 # Scale factors per detection scale to eliminate grid sensitivity
@@ -410,7 +411,7 @@ class YOLO_v4(DetectionBaseNet):
         self.obj_coeff = 1.0
         self.cls_coeff = 1.0
 
-        self.anchors = DEFAULT_ANCHORS
+        self.anchors = scale_anchors(DEFAULT_ANCHORS, self.default_size, self.size)
         self.scale_xy = DEFAULT_SCALE_XY
         self.score_thresh = score_thresh
         self.nms_thresh = nms_thresh
@@ -437,6 +438,15 @@ class YOLO_v4(DetectionBaseNet):
         self.smooth_negative = self.label_smoothing / self.num_classes
         num_anchors = self.anchor_generator.num_anchors_per_location()
         self.head = YOLOHead(self.neck.out_channels, num_anchors, self.num_classes)
+
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
+        if new_size == self.size:
+            return
+
+        old_size = self.size
+        super().adjust_size(new_size)
+        self.anchors = scale_anchors(self.anchors, old_size, new_size)
+        self.anchor_generator = YOLOAnchorGenerator(self.anchors)
 
     def freeze(self, freeze_classifier: bool = True) -> None:
         for param in self.parameters():
@@ -799,6 +809,13 @@ class YOLO_v4(DetectionBaseNet):
         neck_features = self.neck(features)
         predictions = self.head(neck_features)
         (anchors, grids, strides) = self.anchor_generator(images, neck_features)
+        if self.dynamic_size is True:
+            image_size = (images.tensors.shape[-2], images.tensors.shape[-1])
+            if image_size[0] != self.size[0] or image_size[1] != self.size[1]:
+                scale_w = image_size[1] / self.size[1]
+                scale_h = image_size[0] / self.size[0]
+                scale_tensor = torch.tensor([scale_w, scale_h], device=anchors[0].device, dtype=anchors[0].dtype)
+                anchors = [anchor * scale_tensor for anchor in anchors]
 
         losses: dict[str, torch.Tensor] = {}
         detections: list[dict[str, torch.Tensor]] = []

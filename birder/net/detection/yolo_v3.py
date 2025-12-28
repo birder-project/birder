@@ -25,10 +25,24 @@ from birder.net.detection.base import ImageList
 # These values are in absolute pixels (width, height) computed using K-Means
 # on the COCO dataset with a reference input size of 416x416.
 DEFAULT_ANCHORS = [
-    [(10, 13), (16, 30), (33, 23)],  # Small objects (stride 8)
-    [(30, 61), (62, 45), (59, 119)],  # Medium objects (stride 16)
-    [(116, 90), (156, 198), (373, 326)],  # Large objects (stride 32)
+    [(10.0, 13.0), (16.0, 30.0), (33.0, 23.0)],  # Small objects (stride 8)
+    [(30.0, 61.0), (62.0, 45.0), (59.0, 119.0)],  # Medium objects (stride 16)
+    [(116.0, 90.0), (156.0, 198.0), (373.0, 326.0)],  # Large objects (stride 32)
 ]
+
+
+def scale_anchors(
+    anchors: list[list[tuple[float, float]]],
+    from_size: tuple[int, int],
+    to_size: tuple[int, int],
+) -> list[list[tuple[float, float]]]:
+    if from_size == to_size:
+        # Avoid aliasing default anchors in case they are mutated later.
+        return [list(scale) for scale in anchors]
+
+    scale_h = to_size[0] / from_size[0]
+    scale_w = to_size[1] / from_size[1]
+    return [[(w * scale_w, h * scale_h) for (w, h) in scale] for scale in anchors]
 
 
 def decode_predictions(
@@ -100,7 +114,7 @@ def decode_predictions(
 
 
 class YOLOAnchorGenerator(nn.Module):
-    def __init__(self, anchors: list[list[tuple[int, int]]]) -> None:
+    def __init__(self, anchors: list[list[tuple[float, float]]]) -> None:
         super().__init__()
         self.anchors = anchors
         self.num_scales = len(anchors)
@@ -332,7 +346,7 @@ class YOLO_v3(DetectionBaseNet):
         self.obj_coeff = 1.0
         self.cls_coeff = 1.0
 
-        self.anchors = DEFAULT_ANCHORS
+        self.anchors = scale_anchors(DEFAULT_ANCHORS, self.default_size, self.size)
         self.score_thresh = score_thresh
         self.nms_thresh = nms_thresh
         self.detections_per_img = detections_per_img
@@ -353,6 +367,15 @@ class YOLO_v3(DetectionBaseNet):
         self.num_classes = num_classes
         num_anchors = self.anchor_generator.num_anchors_per_location()
         self.head = YOLOHead(self.neck.out_channels, num_anchors, self.num_classes)
+
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
+        if new_size == self.size:
+            return
+
+        old_size = self.size
+        super().adjust_size(new_size)
+        self.anchors = scale_anchors(self.anchors, old_size, new_size)
+        self.anchor_generator.anchors = self.anchors
 
     def freeze(self, freeze_classifier: bool = True) -> None:
         for param in self.parameters():
@@ -682,6 +705,13 @@ class YOLO_v3(DetectionBaseNet):
         neck_features = self.neck(features)
         predictions = self.head(neck_features)
         (anchors, grids, strides) = self.anchor_generator(images, neck_features)
+        if self.dynamic_size is True:
+            image_size = (images.tensors.shape[-2], images.tensors.shape[-1])
+            if image_size[0] != self.size[0] or image_size[1] != self.size[1]:
+                scale_w = image_size[1] / self.size[1]
+                scale_h = image_size[0] / self.size[0]
+                scale_tensor = torch.tensor([scale_w, scale_h], device=anchors[0].device, dtype=anchors[0].dtype)
+                anchors = [anchor * scale_tensor for anchor in anchors]
 
         losses: dict[str, torch.Tensor] = {}
         detections: list[dict[str, torch.Tensor]] = []

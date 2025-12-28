@@ -629,8 +629,15 @@ def validate_args(args: argparse.Namespace) -> None:
 
     if args.wds is False and len(args.data_path) == 0:
         raise cli.ValidationError("Must provide at least one data source, --data-path or --wds")
-    if args.wds is True and len(args.data_path) > 1:
-        raise cli.ValidationError(f"--wds can have at most 1 --data-path, got {len(args.data_path)}")
+    if args.wds is True:
+        if args.wds_info is None and len(args.data_path) == 0:
+            raise cli.ValidationError("--wds requires a data path unless --wds-info is provided")
+        if len(args.data_path) > 1:
+            raise cli.ValidationError(f"--wds can have at most 1 --data-path, got {len(args.data_path)}")
+        if args.wds_info is None and len(args.data_path) == 1:
+            data_path = args.data_path[0]
+            if "://" in data_path and args.wds_size is None:
+                raise cli.ValidationError("--wds-size is required for remote --data-path")
     if args.wds is True and args.hierarchical is True:
         raise cli.ValidationError("--wds cannot be used with --hierarchical")
     if args.wds is True and args.ignore_dir_names is True:

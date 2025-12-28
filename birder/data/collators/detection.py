@@ -3,7 +3,9 @@ import random
 from typing import Any
 
 import torch
+from torchvision import tv_tensors
 from torchvision.transforms import v2
+from torchvision.transforms.v2 import functional as F
 
 BATCH_MULTISCALE_SIZES = (480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800)
 
@@ -84,6 +86,16 @@ class BatchRandomResizeCollator(DetectionCollator):
         resized_images = []
         resized_targets = []
         for image, target in zip(images, targets):
+            if "boxes" in target:
+                boxes = target["boxes"]
+                if isinstance(boxes, tv_tensors.BoundingBoxes) is False:
+                    if boxes.numel() == 0:
+                        boxes = boxes.reshape(0, 4)
+                    boxes = tv_tensors.BoundingBoxes(
+                        boxes, format=tv_tensors.BoundingBoxFormat.XYXY, canvas_size=F.get_size(image)
+                    )
+                    target = {**target, "boxes": boxes}
+
             (image, target) = resize(image, target)
             resized_images.append(image)
             resized_targets.append(target)

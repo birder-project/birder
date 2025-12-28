@@ -129,7 +129,7 @@ def get_birder_augment(
     return v2.Compose(transformations)  # type: ignore
 
 
-AugType = Literal["birder", "lsj", "multiscale", "ssd", "ssdlite", "detr"]
+AugType = Literal["birder", "lsj", "multiscale", "ssd", "ssdlite", "yolo", "detr"]
 
 
 def training_preset(
@@ -224,6 +224,34 @@ def training_preset(
             [
                 v2.ToImage(),
                 v2.RandomIoUCrop() if post_mosaic is False else v2.Identity(),
+                ResizeWithRandomInterpolation(
+                    target_size, max_size, interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC]
+                ),
+                v2.RandomHorizontalFlip(0.5),
+                v2.SanitizeBoundingBoxes(),
+                v2.ToDtype(torch.float32, scale=True),
+                v2.Normalize(mean=mean, std=std),
+                v2.ToPureTensor(),
+            ]
+        )
+
+    if aug_type == "yolo":
+        return v2.Compose(  # type: ignore
+            [
+                v2.ToImage(),
+                v2.RandomPhotometricDistort(),
+                (
+                    v2.RandomAffine(
+                        degrees=10.0,
+                        translate=(0.1, 0.1),
+                        scale=(0.5, 1.5),
+                        shear=2.0,
+                        interpolation=v2.InterpolationMode.BILINEAR,
+                        fill=fill_value,
+                    )
+                    if post_mosaic is False
+                    else v2.Identity()
+                ),
                 ResizeWithRandomInterpolation(
                     target_size, max_size, interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC]
                 ),
