@@ -1,8 +1,7 @@
 """
 Inference-optimized multi-GPU parallelization
 
-This module provides InferenceDataParallel, an inference-specific alternative to
-torch.nn.DataParallel.
+This module provides InferenceDataParallel, an inference-specific alternative to torch.nn.DataParallel.
 """
 
 import copy

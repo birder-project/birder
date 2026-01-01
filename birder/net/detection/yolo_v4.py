@@ -400,14 +400,8 @@ class YOLO_v4(DetectionBaseNet):
         self.ignore_thresh = 0.7
 
         # Loss coefficients
-        # Note: coord_coeff=0.07 matches darknet's iou_normalizer for CIoU loss.
-        # However, darknet uses squared deltas (loss = sum(delta^2) / batch) while we compute
-        # CIoU loss directly (loss = coeff * sum(ciou) / num_obj). This different formulation
-        # means darknet's obj_normalizer=1.0 overweights background loss relative to box
-        # regression in our implementation. We use a lower noobj_coeff (vs darknet's 1.0) to
-        # restore a better balance, similar to YOLOv3's noobj_coeff=0.2.
-        self.noobj_coeff = 0.3
-        self.coord_coeff = 0.07
+        self.noobj_coeff = 0.25
+        self.coord_coeff = 3.0
         self.obj_coeff = 1.0
         self.cls_coeff = 1.0
 
@@ -439,14 +433,16 @@ class YOLO_v4(DetectionBaseNet):
         num_anchors = self.anchor_generator.num_anchors_per_location()
         self.head = YOLOHead(self.neck.out_channels, num_anchors, self.num_classes)
 
-    def adjust_size(self, new_size: tuple[int, int]) -> None:
+    def adjust_size(self, new_size: tuple[int, int], adjust_anchors: bool = False) -> None:
         if new_size == self.size:
             return
 
         old_size = self.size
         super().adjust_size(new_size)
-        self.anchors = scale_anchors(self.anchors, old_size, new_size)
-        self.anchor_generator = YOLOAnchorGenerator(self.anchors)
+
+        if adjust_anchors is True:
+            self.anchors = scale_anchors(self.anchors, old_size, new_size)
+            self.anchor_generator = YOLOAnchorGenerator(self.anchors)
 
     def freeze(self, freeze_classifier: bool = True) -> None:
         for param in self.parameters():
@@ -809,13 +805,6 @@ class YOLO_v4(DetectionBaseNet):
         neck_features = self.neck(features)
         predictions = self.head(neck_features)
         (anchors, grids, strides) = self.anchor_generator(images, neck_features)
-        if self.dynamic_size is True:
-            image_size = (images.tensors.shape[-2], images.tensors.shape[-1])
-            if image_size[0] != self.size[0] or image_size[1] != self.size[1]:
-                scale_w = image_size[1] / self.size[1]
-                scale_h = image_size[0] / self.size[0]
-                scale_tensor = torch.tensor([scale_w, scale_h], device=anchors[0].device, dtype=anchors[0].dtype)
-                anchors = [anchor * scale_tensor for anchor in anchors]
 
         losses: dict[str, torch.Tensor] = {}
         detections: list[dict[str, torch.Tensor]] = []

@@ -78,7 +78,7 @@ class Data2Vec(SSLBaseNet):
         if self.normalize_targets is True:
             y = F.layer_norm(y.float(), y.shape[-1:])
 
-        mask = ~mask.bool()
+        mask = mask.bool()
         x = x[mask]
         y = y[mask]
 

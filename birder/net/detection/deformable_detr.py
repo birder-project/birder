@@ -133,7 +133,7 @@ class MultiScaleDeformableAttention(nn.Module):
         self._reset_parameters()
 
     def _reset_parameters(self) -> None:
-        nn.init.constant_(self.sampling_offsets.weight.data, 0.0)
+        nn.init.constant_(self.sampling_offsets.weight, 0.0)
         thetas = torch.arange(self.n_heads, dtype=torch.float32) * (2.0 * math.pi / self.n_heads)
         grid_init = torch.stack([thetas.cos(), thetas.sin()], -1)
         grid_init = (
@@ -147,12 +147,12 @@ class MultiScaleDeformableAttention(nn.Module):
         with torch.no_grad():
             self.sampling_offsets.bias = nn.Parameter(grid_init.view(-1))
 
-        nn.init.constant_(self.attention_weights.weight.data, 0.0)
-        nn.init.constant_(self.attention_weights.bias.data, 0.0)
-        nn.init.xavier_uniform_(self.value_proj.weight.data)
-        nn.init.constant_(self.value_proj.bias.data, 0.0)
-        nn.init.xavier_uniform_(self.output_proj.weight.data)
-        nn.init.constant_(self.output_proj.bias.data, 0.0)
+        nn.init.constant_(self.attention_weights.weight, 0.0)
+        nn.init.constant_(self.attention_weights.bias, 0.0)
+        nn.init.xavier_uniform_(self.value_proj.weight)
+        nn.init.constant_(self.value_proj.bias, 0.0)
+        nn.init.xavier_uniform_(self.output_proj.weight)
+        nn.init.constant_(self.output_proj.bias, 0.0)
 
     def forward(
         self,
@@ -280,8 +280,10 @@ class DeformableTransformerDecoderLayer(nn.Module):
         q = tgt + query_pos
         k = tgt + query_pos
 
-        tgt2 = self.self_attn(q.transpose(0, 1), k.transpose(0, 1), tgt.transpose(0, 1), attn_mask=self_attn_mask)
-        tgt2 = tgt2[0].transpose(0, 1)
+        (tgt2, _) = self.self_attn(
+            q.transpose(0, 1), k.transpose(0, 1), tgt.transpose(0, 1), need_weights=False, attn_mask=self_attn_mask
+        )
+        tgt2 = tgt2.transpose(0, 1)
         tgt = tgt + self.dropout(tgt2)
         tgt = self.norm1(tgt)
 
@@ -451,8 +453,8 @@ class DeformableTransformer(nn.Module):
             if isinstance(m, MultiScaleDeformableAttention):
                 m._reset_parameters()
 
-            nn.init.xavier_uniform_(self.reference_points.weight.data, gain=1.0)
-            nn.init.zeros_(self.reference_points.bias.data)
+            nn.init.xavier_uniform_(self.reference_points.weight, gain=1.0)
+            nn.init.zeros_(self.reference_points.bias)
 
         nn.init.normal_(self.level_embed)
 
@@ -613,7 +615,7 @@ class Deformable_DETR(DetectionBaseNet):
             nn.init.zeros_(bbox_embed[-2].weight)
             nn.init.zeros_(bbox_embed[-2].bias)
 
-        nn.init.constant_(self.bbox_embed[0][-2].bias.data[2:], -2.0)
+        nn.init.constant_(self.bbox_embed[0][-2].bias[2:], -2.0)
 
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes

@@ -234,7 +234,7 @@ class TransformerEncoderLayer(nn.Module):
         q = src + pos
         k = src + pos
 
-        (src2, _) = self.self_attn(q, k, value=src, key_padding_mask=key_padding_mask)
+        (src2, _) = self.self_attn(q, k, value=src, key_padding_mask=key_padding_mask, need_weights=False)
         src = src + self.dropout1(src2)
         src = self.norm1(src)
 
@@ -465,8 +465,8 @@ class RT_DETRDecoder(nn.Module):
             nn.init.constant_(class_embed.bias, bias_value)
 
         for bbox_embed in self.bbox_embed:
-            nn.init.zeros_(bbox_embed[-2].weight.data)
-            nn.init.zeros_(bbox_embed[-2].bias.data)
+            nn.init.zeros_(bbox_embed[-2].weight)
+            nn.init.zeros_(bbox_embed[-2].bias)
 
     def set_cache_enabled(self, enabled: bool) -> None:
         self.use_cache = enabled

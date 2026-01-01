@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.2.2 - 2026-01-01
+
+### Added
+
+- **ResNet-D Variants**: Added ResNet-D support to ResNet v1 based on the ["Bag of Tricks for Image Classification with Convolutional Neural Networks"](https://arxiv.org/abs/1812.01187) paper, featuring deep stem and average pooling downsample.
+- **DeepFool Attack**: Added [DeepFool](https://arxiv.org/abs/1511.04599) adversarial attack support.
+- **SimBA Attack**: Added [SimBA](https://arxiv.org/abs/1905.07121) (Simple Black-box Attack) adversarial support.
+- **YOLO Auto Anchors**: Added a k-means anchor fitting tool for YOLO models.
+- **Transformer Attribution**: Added [Transformer Attribution](https://arxiv.org/abs/2012.09838) for transformer interpretability.
+
+### Changed
+
+- **Data2Vec2 Target Normalization**: Align target normalization more closely with the paper (per-layer instance norm before averaging).
+- **EMA Step Alignment**: Align EMA updates and warmup to optimizer steps (including grad accumulation).
+- **Adversarial Attack Refactor**: Major refactor of adversarial attack implementations and CLI wiring.
+- **Introspection Module Refactor**: Major refactor of interpretability methods.
+- **Detection Training Loss Logging**: Enhanced detection training to log individual loss components (e.g., `loss_objectness`, `loss_rpn_box_reg`, `labels`, `giou`, etc.).
+
+### Fixed
+
+- **YOLO v3 / v4 Dynamic Anchor Scaling**: Removed automatic anchor scaling during multiscale training/inference as it caused prediction instability.
+- **MultiStepLR Absolute Milestones**: Fixed MultiStepLR scheduler to treat `--lr-steps` as absolute epoch/step positions rather than relative to warmup end.
+- **DINOv2 Distillation Teacher Mode**: Keep the teacher in eval mode during distillation training.
+- **Data2Vec Mask Selection**: Use keep tokens rather than masked tokens when selecting targets for loss computation.
+
 ## 0.2.1 - 2025-12-28
 
 ### Added

@@ -259,7 +259,7 @@ class PiT(DetectorBackbone):
         width = (new_size[1] - self.patch_size[1]) // self.patch_stride[1] + 1
 
         self.pos_embed = nn.Parameter(
-            F.interpolate(self.pos_embed.data, (height, width), mode="bicubic"), requires_grad=True
+            F.interpolate(self.pos_embed, (height, width), mode="bicubic"), requires_grad=True
         )
 
 

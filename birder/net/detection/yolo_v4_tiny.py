@@ -113,9 +113,9 @@ class YOLO_v4_Tiny(YOLO_v4):
         detections_per_img = 300
         self.ignore_thresh = 0.7
 
-        # Loss coefficients - see YOLO v4 for detailed explanation
-        self.noobj_coeff = 0.3
-        self.coord_coeff = 0.07
+        # Loss coefficients
+        self.noobj_coeff = 0.25
+        self.coord_coeff = 3.0
         self.obj_coeff = 1.0
         self.cls_coeff = 1.0
 

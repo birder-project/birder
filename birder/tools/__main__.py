@@ -2,6 +2,7 @@ import argparse
 
 from birder.common import cli
 from birder.tools import adversarial
+from birder.tools import auto_anchors
 from birder.tools import avg_model
 from birder.tools import convert_model
 from birder.tools import det_results
@@ -30,8 +31,10 @@ def main() -> None:
         description="Tool to run auxiliary commands",
         epilog=(
             "Usage examples:\n"
-            "python -m birder.tools adversarial --method fgsm -n swin_transformer_v1_s -e 0 "
-            "--image 'data/training/Mallard/000112.jpeg'\n"
+            "python -m birder.tools adversarial --method pgd -n swin_transformer_v1_s -e 0 --eps 0.02 --steps 10 "
+            "data/training/Mallard/000112.jpeg\n"
+            "python -m birder.tools auto-anchors --preset yolo_v4 --size 640 "
+            "--coco-json-path data/detection_data/training_annotations_coco.json\n"
             "python -m birder.tools avg-model --network resnet_v2_50 --epochs 95 95 100\n"
             "python -m birder.tools convert-model --network convnext_v2_base --epoch 0 --pt2\n"
             "python -m birder.tools det-results "
@@ -60,6 +63,7 @@ def main() -> None:
     )
     subparsers = parser.add_subparsers(dest="cmd", required=True)
     adversarial.set_parser(subparsers)
+    auto_anchors.set_parser(subparsers)
     avg_model.set_parser(subparsers)
     convert_model.set_parser(subparsers)
     det_results.set_parser(subparsers)

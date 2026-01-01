@@ -108,7 +108,7 @@ class TransformerEncoderLayer(nn.Module):
         q = src + pos
         k = src + pos
 
-        (src2, _) = self.self_attn(q, k, value=src, key_padding_mask=src_key_padding_mask)
+        (src2, _) = self.self_attn(q, k, value=src, key_padding_mask=src_key_padding_mask, need_weights=False)
         src = src + self.dropout1(src2)
         src = self.norm1(src)
         src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
@@ -148,11 +148,15 @@ class TransformerDecoderLayer(nn.Module):
         q = tgt + query_pos
         k = tgt + query_pos
 
-        (tgt2, _) = self.self_attn(q, k, value=tgt)
+        (tgt2, _) = self.self_attn(q, k, value=tgt, need_weights=False)
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
         (tgt2, _) = self.multihead_attn(
-            query=tgt + query_pos, key=memory + pos, value=memory, key_padding_mask=memory_key_padding_mask
+            query=tgt + query_pos,
+            key=memory + pos,
+            value=memory,
+            key_padding_mask=memory_key_padding_mask,
+            need_weights=False,
         )
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)

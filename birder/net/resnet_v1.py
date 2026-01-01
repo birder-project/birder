@@ -3,6 +3,9 @@ ResNet v1, adapted from
 https://github.com/pytorch/vision/blob/main/torchvision/models/resnet.py
 
 Paper "Deep Residual Learning for Image Recognition", https://arxiv.org/abs/1512.03385
+and
+Paper "Bag of Tricks for Image Classification with Convolutional Neural Networks",
+https://arxiv.org/abs/1812.01187
 """
 
 # Reference license: BSD 3-Clause
@@ -23,34 +26,25 @@ from birder.net.base import DetectorBackbone
 
 class ResidualBlock(nn.Module):
     def __init__(
-        self, in_channels: int, out_channels: int, stride: tuple[int, int], bottle_neck: bool, squeeze_excitation: bool
+        self,
+        in_channels: int,
+        out_channels: int,
+        stride: tuple[int, int],
+        bottle_neck: bool,
+        squeeze_excitation: bool,
+        avg_down: bool,
     ) -> None:
         super().__init__()
         if bottle_neck is True:
             self.block1 = nn.Sequential(
                 Conv2dNormActivation(
-                    in_channels,
-                    out_channels // 4,
-                    kernel_size=(1, 1),
-                    stride=(1, 1),
-                    padding=(0, 0),
-                    bias=False,
+                    in_channels, out_channels // 4, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False
                 ),
                 Conv2dNormActivation(
-                    out_channels // 4,
-                    out_channels // 4,
-                    kernel_size=(3, 3),
-                    stride=stride,
-                    padding=(1, 1),
-                    bias=False,
+                    out_channels // 4, out_channels // 4, kernel_size=(3, 3), stride=stride, padding=(1, 1), bias=False
                 ),
                 nn.Conv2d(
-                    out_channels // 4,
-                    out_channels,
-                    kernel_size=(1, 1),
-                    stride=(1, 1),
-                    padding=(0, 0),
-                    bias=False,
+                    out_channels // 4, out_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False
                 ),
                 nn.BatchNorm2d(out_channels),
             )
@@ -67,10 +61,19 @@ class ResidualBlock(nn.Module):
         if in_channels == out_channels:
             self.block2 = nn.Identity()
         else:
-            self.block2 = nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), stride=stride, padding=(0, 0), bias=False),
-                nn.BatchNorm2d(out_channels),
-            )
+            if avg_down is True and stride != (1, 1):
+                # ResNet-D: Apply average pooling before 1x1 conv for downsampling
+                self.block2 = nn.Sequential(
+                    nn.AvgPool2d(kernel_size=2, stride=stride, ceil_mode=True, count_include_pad=False),
+                    nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
+                    nn.BatchNorm2d(out_channels),
+                )
+            else:
+                # Standard ResNet: Use strided 1x1 conv
+                self.block2 = nn.Sequential(
+                    nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), stride=stride, padding=(0, 0), bias=False),
+                    nn.BatchNorm2d(out_channels),
+                )
 
         self.relu = nn.ReLU(inplace=True)
         if squeeze_excitation is True:
@@ -107,21 +110,30 @@ class ResNet_v1(DetectorBackbone):
         filter_list: list[int] = self.config["filter_list"]
         units: list[int] = self.config["units"]
         pooling_param: Optional[float] = self.config.get("pooling_param", None)
+        deep_stem: bool = self.config.get("deep_stem", False)
+        avg_down: bool = self.config.get("avg_down", False)
 
         assert len(units) + 1 == len(filter_list)
         num_unit = len(units)
 
-        self.stem = nn.Sequential(
-            Conv2dNormActivation(
-                self.input_channels,
-                filter_list[0],
-                kernel_size=(7, 7),
-                stride=(2, 2),
-                padding=(3, 3),
-                bias=False,
-            ),
-            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)),
-        )
+        if deep_stem is True:
+            # ResNet-D
+            self.stem = nn.Sequential(
+                Conv2dNormActivation(
+                    self.input_channels, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False
+                ),
+                Conv2dNormActivation(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
+                Conv2dNormActivation(32, filter_list[0], kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
+                nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)),
+            )
+        else:
+            # Standard ResNet stem: 7x7 conv
+            self.stem = nn.Sequential(
+                Conv2dNormActivation(
+                    self.input_channels, filter_list[0], kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False
+                ),
+                nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)),
+            )
 
         # Generate body layers
         stages: OrderedDict[str, nn.Module] = OrderedDict()
@@ -140,6 +152,7 @@ class ResNet_v1(DetectorBackbone):
                     stride=stride,
                     bottle_neck=bottle_neck,
                     squeeze_excitation=squeeze_excitation,
+                    avg_down=avg_down,
                 )
             )
             for _ in range(1, units[i]):
@@ -150,6 +163,7 @@ class ResNet_v1(DetectorBackbone):
                         stride=(1, 1),
                         bottle_neck=bottle_neck,
                         squeeze_excitation=squeeze_excitation,
+                        avg_down=avg_down,
                     )
                 )
 
@@ -240,6 +254,52 @@ registry.register_model_config(
     "resnet_v1_269",
     ResNet_v1,
     config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 30, 48, 8]},
+)
+
+# ResNet-D variants (From: Bag of Tricks for Image Classification with Convolutional Neural Networks)
+registry.register_model_config(
+    "resnet_d_50",
+    ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 4, 6, 3],
+        "deep_stem": True,
+        "avg_down": True,
+    },
+)
+registry.register_model_config(
+    "resnet_d_101",
+    ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 4, 23, 3],
+        "deep_stem": True,
+        "avg_down": True,
+    },
+)
+registry.register_model_config(
+    "resnet_d_152",
+    ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 8, 36, 3],
+        "deep_stem": True,
+        "avg_down": True,
+    },
+)
+registry.register_model_config(
+    "resnet_d_200",
+    ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 24, 36, 3],
+        "deep_stem": True,
+        "avg_down": True,
+    },
 )
 
 registry.register_weights(

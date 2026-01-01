@@ -1,47 +1,29 @@
 """
-Adapted from https://github.com/jacobgil/pytorch-grad-cam
+Guided Backpropagation, adapted from
+https://github.com/jacobgil/pytorch-grad-cam
 
 Paper "Striving for Simplicity: The All Convolutional Net", https://arxiv.org/abs/1412.6806
 """
 
 # Reference license: MIT
 
+import math
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from typing import Optional
 
-import numpy as np
-import numpy.typing as npt
 import torch
+import torch.nn.functional as F
 from PIL import Image
 from torch import nn
 from torch.autograd import Function
 
 from birder.introspection.base import InterpretabilityResult
-from birder.introspection.base import Interpreter
-
-
-def _deprocess_image(img: npt.NDArray[np.float32]) -> npt.NDArray[np.uint8]:
-    """
-    See https://github.com/jacobgil/keras-grad-cam/blob/master/grad-cam.py#L65
-    """
-
-    img = img - np.mean(img)
-    img = img / (np.std(img) + 1e-5)
-    img = img * 0.1
-    img = img + 0.5
-    img = np.clip(img, 0, 1)
-
-    return np.array(img * 255).astype(np.uint8)
-
-
-# pylint: disable=protected-access
-def _replace_all_layer_type_recursive(model: nn.Module, old_layer_type: nn.Module, new_layer: nn.Module) -> None:
-    for name, layer in model._modules.items():
-        if isinstance(layer, old_layer_type):
-            model._modules[name] = new_layer
-
-        _replace_all_layer_type_recursive(layer, old_layer_type, new_layer)
+from birder.introspection.base import deprocess_image
+from birder.introspection.base import predict_class
+from birder.introspection.base import preprocess_image
+from birder.introspection.base import validate_target_class
 
 
 # pylint: disable=abstract-method,arguments-differ
@@ -57,7 +39,6 @@ class GuidedBackpropReLU(Function):
     @staticmethod
     def backward(ctx: Any, grad_output: torch.Tensor) -> torch.Tensor:
         (input_img, _output) = ctx.saved_tensors
-        grad_input = None
 
         positive_mask_1 = (input_img > 0).type_as(grad_output)
         positive_mask_2 = (grad_output > 0).type_as(grad_output)
@@ -71,7 +52,7 @@ class GuidedBackpropReLU(Function):
 
 
 # pylint: disable=abstract-method,arguments-differ
-class GuidedBackpropSwish(Function):
+class GuidedBackpropSiLU(Function):
     @staticmethod
     def forward(ctx: Any, input_img: torch.Tensor) -> torch.Tensor:
         result = input_img * torch.sigmoid(input_img)
@@ -90,66 +71,159 @@ class GuidedBackpropSwish(Function):
         return grad_input
 
 
-class GuidedBackpropReLUAsModule(nn.Module):
-    def forward(self, input_img: torch.Tensor) -> Any:
-        return GuidedBackpropReLU.apply(input_img)
+# pylint: disable=abstract-method,arguments-differ
+class GuidedBackpropGELU(Function):
+    @staticmethod
+    def forward(ctx: Any, input_img: torch.Tensor) -> torch.Tensor:
+        result = F.gelu(input_img, approximate="none")  # pylint:disable=not-callable
+        ctx.save_for_backward(input_img)
+        return result
+
+    @staticmethod
+    def backward(ctx: Any, grad_output: torch.Tensor) -> torch.Tensor:
+        x = ctx.saved_tensors[0]
+
+        sqrt_2 = math.sqrt(2.0)
+        sqrt_2pi = math.sqrt(2.0 * math.pi)
+
+        cdf = 0.5 * (1.0 + torch.erf(x / sqrt_2))
+        pdf = torch.exp(-0.5 * x * x) / sqrt_2pi
+
+        d_gelu = cdf + x * pdf
+
+        positive_mask_1 = (x > 0).type_as(grad_output)
+        positive_mask_2 = (grad_output > 0).type_as(grad_output)
+
+        grad_input = grad_output * d_gelu * positive_mask_1 * positive_mask_2
+
+        return grad_input
 
 
-class GuidedBackpropSwishAsModule(nn.Module):
-    def forward(self, input_img: torch.Tensor) -> Any:
-        return GuidedBackpropSwish.apply(input_img)
+# pylint: disable=abstract-method,arguments-differ
+class GuidedBackpropHardswish(Function):
+    @staticmethod
+    def forward(ctx: Any, input_img: torch.Tensor) -> torch.Tensor:
+        result = F.hardswish(input_img)
+        ctx.save_for_backward(input_img)
+        return result
+
+    @staticmethod
+    def backward(ctx: Any, grad_output: torch.Tensor) -> torch.Tensor:
+        x = ctx.saved_tensors[0]
+
+        grad = torch.zeros_like(x)
+
+        mask_mid = (x > -3) & (x < 3)
+        grad[mask_mid] = (2.0 * x[mask_mid] + 3.0) / 6.0
+
+        mask_high = x >= 3
+        grad[mask_high] = 1.0
+
+        positive_mask_1 = (x > 0).type_as(grad_output)
+        positive_mask_2 = (grad_output > 0).type_as(grad_output)
+
+        grad_input = grad_output * grad * positive_mask_1 * positive_mask_2
+
+        return grad_input
 
 
-class GuidedBackpropGeLUAsModule(nn.Module):
-    def forward(self, input_img: torch.Tensor) -> Any:
-        return GuidedBackpropSwish.apply(input_img)
+class GuidedReLU(nn.Module):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return GuidedBackpropReLU.apply(x)
 
 
-class GuidedBackpropHardswishAsModule(nn.Module):
-    def forward(self, input_img: torch.Tensor) -> Any:
-        return GuidedBackpropSwish.apply(input_img)
+class GuidedSiLU(nn.Module):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return GuidedBackpropSiLU.apply(x)
 
 
-class GuidedBackpropModel:
-    def __init__(self, model: nn.Module) -> None:
-        self.model = model
-        self.model.eval()
-
-    def forward(self, input_img: torch.Tensor) -> torch.Tensor:
-        return self.model(input_img)
-
-    def __call__(self, input_img: torch.Tensor, target_category: Optional[int] = None) -> npt.NDArray[np.float32]:
-        _replace_all_layer_type_recursive(self.model, nn.ReLU, GuidedBackpropReLUAsModule())
-        _replace_all_layer_type_recursive(self.model, nn.GELU, GuidedBackpropGeLUAsModule())
-        _replace_all_layer_type_recursive(self.model, nn.SiLU, GuidedBackpropSwishAsModule())
-        _replace_all_layer_type_recursive(self.model, nn.Hardswish, GuidedBackpropHardswishAsModule())
-
-        input_img = input_img.requires_grad_(True)
-        output = self.forward(input_img)
-
-        if target_category is None:
-            target_category = np.argmax(output.cpu().data.numpy()).item()
-
-        loss = output[0, target_category]
-        loss.backward(retain_graph=True)
-
-        output_grad = input_img.grad.cpu().data.numpy()
-        output_grad = output_grad[0, :, :, :]
-        output_grad = output_grad.transpose((1, 2, 0))
-
-        _replace_all_layer_type_recursive(self.model, GuidedBackpropHardswishAsModule, nn.Hardswish())
-        _replace_all_layer_type_recursive(self.model, GuidedBackpropSwishAsModule, nn.SiLU())
-        _replace_all_layer_type_recursive(self.model, GuidedBackpropGeLUAsModule, nn.GELU())
-        _replace_all_layer_type_recursive(self.model, GuidedBackpropReLUAsModule, nn.ReLU())
-
-        return output_grad  # type: ignore[no-any-return]
+class GuidedGELU(nn.Module):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return GuidedBackpropGELU.apply(x)
 
 
-class GuidedBackpropInterpreter(Interpreter):
-    def interpret(self, image: str | Path | Image.Image, target_class: Optional[int] = None) -> InterpretabilityResult:
-        (input_tensor, rgb_img) = self._preprocess_image(image)
+class GuidedHardswish(nn.Module):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return GuidedBackpropHardswish.apply(x)
 
-        guided_bp = GuidedBackpropModel(self.model)
-        bp_img = guided_bp(input_tensor, target_category=target_class)
 
-        return InterpretabilityResult(rgb_img, _deprocess_image(bp_img * rgb_img), raw_output=bp_img)
+# Activation replacement mapping
+ACTIVATION_REPLACEMENTS: dict[type, type] = {
+    nn.ReLU: GuidedReLU,
+    nn.SiLU: GuidedSiLU,
+    nn.GELU: GuidedGELU,
+    nn.Hardswish: GuidedHardswish,
+}
+
+
+def replace_activations_recursive(model: nn.Module, replacements: dict[type, type]) -> None:
+    """
+    NOTE: This ONLY works for activations defined as nn.Module objects (e.g., self.act = nn.ReLU()).
+    It will NOT affect functional calls inside forward methods, such as F.relu(x) or F.gelu(x).
+    """
+
+    for name, module in list(model._modules.items()):  # pylint: disable=protected-access
+        for old_type, new_type in replacements.items():
+            if isinstance(module, old_type):
+                model._modules[name] = new_type()  # pylint: disable=protected-access
+                break
+        else:
+            # Recurse into submodules
+            replace_activations_recursive(module, replacements)
+
+
+def restore_activations_recursive(model: nn.Module, guided_types: dict[type, type]) -> None:
+    reverse_mapping = {v: k for k, v in guided_types.items()}
+    for name, module in list(model._modules.items()):  # pylint: disable=protected-access
+        for guided_type, original_type in reverse_mapping.items():
+            if isinstance(module, guided_type):
+                model._modules[name] = original_type()  # pylint: disable=protected-access
+                break
+        else:
+            restore_activations_recursive(module, guided_types)
+
+
+class GuidedBackprop:
+    def __init__(self, net: nn.Module, device: torch.device, transform: Callable[..., torch.Tensor]) -> None:
+        self.net = net.eval()
+        self.device = device
+        self.transform = transform
+
+    def __call__(self, image: str | Path | Image.Image, target_class: Optional[int] = None) -> InterpretabilityResult:
+        (input_tensor, rgb_img) = preprocess_image(image, self.transform, self.device)
+
+        # Get prediction
+        with torch.inference_mode():
+            logits = self.net(input_tensor)
+
+        if target_class is None:
+            target_class = predict_class(logits)
+        else:
+            validate_target_class(target_class, logits.shape[-1])
+
+        # Replace activations with guided versions
+        replace_activations_recursive(self.net, ACTIVATION_REPLACEMENTS)
+
+        try:
+            input_tensor = input_tensor.detach().requires_grad_(True)
+            output = self.net(input_tensor)
+
+            loss = output[0, target_class]
+            loss.backward(retain_graph=False)
+
+            gradients = input_tensor.grad.cpu().numpy()
+            gradients = gradients[0, :, :, :]  # Remove batch dim
+            gradients = gradients.transpose((1, 2, 0))  # CHW -> HWC
+
+        finally:
+            restore_activations_recursive(self.net, ACTIVATION_REPLACEMENTS)
+
+        visualization = deprocess_image(gradients * rgb_img)
+
+        return InterpretabilityResult(
+            original_image=rgb_img,
+            visualization=visualization,
+            raw_output=gradients,
+            logits=logits.detach(),
+            predicted_class=target_class,
+        )

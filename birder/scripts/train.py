@@ -160,8 +160,9 @@ def train(args: argparse.Namespace) -> None:
 
     num_outputs = len(class_to_idx)
     batch_size: int = args.batch_size
-    model_ema_steps: int = args.model_ema_steps * args.grad_accum_steps
-    logger.debug(f"Effective batch size = {args.batch_size * args.grad_accum_steps * args.world_size}")
+    grad_accum_steps: int = args.grad_accum_steps
+    model_ema_steps: int = args.model_ema_steps
+    logger.debug(f"Effective batch size = {args.batch_size * grad_accum_steps * args.world_size}")
 
     # Set data iterators
     if args.mixup_alpha is not None or args.cutmix is True:
@@ -220,8 +221,8 @@ def train(args: argparse.Namespace) -> None:
             pin_memory=True,
         )
 
-    optimizer_steps_per_epoch = math.ceil(len(training_loader) / args.grad_accum_steps)
-    assert args.model_ema is False or args.model_ema_steps <= optimizer_steps_per_epoch
+    optimizer_steps_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
+    assert args.model_ema is False or model_ema_steps <= optimizer_steps_per_epoch
 
     last_batch_idx = len(training_loader) - 1
     begin_epoch = 1
@@ -317,20 +318,19 @@ def train(args: argparse.Namespace) -> None:
 
     # Learning rate scaling
     lr = training_utils.scale_lr(args)
-    grad_accum_steps: int = args.grad_accum_steps
 
     if args.lr_scheduler_update == "epoch":
         step_update = False
-        steps_per_epoch = 1
+        scheduler_steps_per_epoch = 1
     elif args.lr_scheduler_update == "step":
         step_update = True
-        steps_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
+        scheduler_steps_per_epoch = optimizer_steps_per_epoch
     else:
         raise ValueError("Unsupported lr_scheduler_update")
 
     # Optimizer and learning rate scheduler
     optimizer = training_utils.get_optimizer(parameters, lr, args)
-    scheduler = training_utils.get_scheduler(optimizer, steps_per_epoch, args)
+    scheduler = training_utils.get_scheduler(optimizer, scheduler_steps_per_epoch, args)
     if args.compile_opt is True:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
 
@@ -356,11 +356,14 @@ def train(args: argparse.Namespace) -> None:
         optimizer.step()
         lrs = []
         for _ in range(begin_epoch, epochs):
-            for _ in range(steps_per_epoch):
+            for _ in range(scheduler_steps_per_epoch):
                 lrs.append(float(max(scheduler.get_last_lr())))
                 scheduler.step()
 
-        plt.plot(np.linspace(begin_epoch, epochs, steps_per_epoch * (epochs - begin_epoch), endpoint=False), lrs)
+        plt.plot(
+            np.linspace(begin_epoch, epochs, scheduler_steps_per_epoch * (epochs - begin_epoch), endpoint=False),
+            lrs,
+        )
         plt.show()
         raise SystemExit(0)
 
@@ -368,15 +371,15 @@ def train(args: argparse.Namespace) -> None:
     # Distributed (DDP) and Model EMA
     #
     if args.model_ema_warmup is not None:
-        ema_warmup_epochs = args.model_ema_warmup
+        ema_warmup_steps = args.model_ema_warmup * optimizer_steps_per_epoch
     elif args.warmup_epochs is not None:
-        ema_warmup_epochs = args.warmup_epochs
+        ema_warmup_steps = args.warmup_epochs * optimizer_steps_per_epoch
     elif args.warmup_steps is not None:
-        ema_warmup_epochs = args.warmup_steps // steps_per_epoch
+        ema_warmup_steps = args.warmup_steps
     else:
-        ema_warmup_epochs = 0
+        ema_warmup_steps = 0
 
-    logger.debug(f"EMA warmup epochs = {ema_warmup_epochs}")
+    logger.debug(f"EMA warmup steps = {ema_warmup_steps}")
     net_without_ddp = net
     if args.distributed is True:
         net = torch.nn.parallel.DistributedDataParallel(
@@ -474,6 +477,7 @@ def train(args: argparse.Namespace) -> None:
     #
     # Training loop
     #
+    optimizer_step = (begin_epoch - 1) * optimizer_steps_per_epoch
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
@@ -542,10 +546,13 @@ def train(args: argparse.Namespace) -> None:
                     if step_update is True:
                         scheduler.step()
 
+            if optimizer_update is True:
+                optimizer_step += 1
+
             # Exponential moving average
-            if args.model_ema is True and i % model_ema_steps == 0:
+            if args.model_ema is True and optimizer_update is True and optimizer_step % model_ema_steps == 0:
                 model_ema.update_parameters(net)
-                if epoch <= ema_warmup_epochs:
+                if ema_warmup_steps > 0 and optimizer_step <= ema_warmup_steps:
                     # Reset ema buffer to keep copying weights during warmup period
                     model_ema.n_averaged.fill_(0)  # pylint: disable=no-member
 

@@ -7,7 +7,6 @@ https://arxiv.org/abs/2212.07525
 
 Changes from original:
 * Target CLS is taken just from the last layer
-* Replaced instance norm (1st of the IN -> AVG -> LM) with layer norm
 """
 
 # Reference license: MIT
@@ -140,7 +139,10 @@ class Data2Vec2(SSLBaseNet):
         y = y[..., -self.average_top_k_layers :]  # Take the last k layers
         y = y.permute(3, 0, 1, 2)
 
-        y = [F.layer_norm(t.float(), t.shape[-1:]) for t in y[:-1]] + [y[-1]]
+        # Note: the backbone already LN-normalizes the final layer (per-token),
+        # but data2vec2 uses per-layer instance norm across tokens (per-channel)
+        # before averaging (IN -> AVG -> LN), so we keep IN for all K layers.
+        y = [F.instance_norm(t.float().transpose(1, 2)).transpose(1, 2) for t in y]
         y = sum(y) / len(y)
         y = F.layer_norm(y.float(), y.shape[-1:])
 

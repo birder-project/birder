@@ -31,6 +31,7 @@ def show_detections(
     detection: dict[str, torch.Tensor],
     class_to_idx: dict[str, int],
     score_threshold: float = 0.5,
+    class_min_scores: Optional[dict[str, float]] = None,
     color_list: Optional[list[tuple[int, ...]]] = None,
     show: bool = True,
 ) -> tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
@@ -38,10 +39,22 @@ def show_detections(
     idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
 
     scores = detection["scores"]
-    idxs = torch.where(scores > score_threshold)
+    labels_all = detection["labels"]
+
+    # Apply per-class minimum scores if provided, otherwise use global threshold
+    if class_min_scores is not None and len(class_min_scores) > 0:
+        mask = torch.zeros(len(scores), dtype=torch.bool)
+        for i, (score, label) in enumerate(zip(scores, labels_all)):
+            class_name = idx_to_class[label.item()]
+            min_score = class_min_scores.get(class_name, score_threshold)
+            mask[i] = score > min_score
+        idxs = torch.where(mask)[0]
+    else:
+        idxs = torch.where(scores > score_threshold)
+
     scores = scores[idxs]
     boxes = detection["boxes"][idxs]
-    labels = detection["labels"][idxs]
+    labels = labels_all[idxs]
     label_names = [f"{idx_to_class[i.item()]}: {s:.4f}" for i, s in zip(labels, scores)]
     if color_list is not None:
         colors = [color_list[label] for label in labels]

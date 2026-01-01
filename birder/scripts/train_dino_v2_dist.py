@@ -215,7 +215,8 @@ def train(args: argparse.Namespace) -> None:
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
 
     batch_size: int = args.batch_size
-    logger.debug(f"Effective batch size = {args.batch_size * args.grad_accum_steps * args.world_size}")
+    grad_accum_steps: int = args.grad_accum_steps
+    logger.debug(f"Effective batch size = {args.batch_size * grad_accum_steps * args.world_size}")
 
     begin_epoch = 1
     epochs = args.epochs + 1
@@ -240,6 +241,7 @@ def train(args: argparse.Namespace) -> None:
         args.network, sample_shape[1], 0, config=args.model_config, size=args.size
     )
     student_backbone_ema.load_state_dict(student_backbone.state_dict())
+    student_backbone_ema.requires_grad_(False)
 
     teacher_backbone = registry.net_factory(
         args.teacher,
@@ -248,6 +250,11 @@ def train(args: argparse.Namespace) -> None:
         config=args.teacher_model_config,
         size=args.size,
     )
+    assert student_backbone.max_stride == teacher_backbone.max_stride, (
+        "Student and teacher max_stride must match for distillation "
+        f"(student={student_backbone.max_stride}, teacher={teacher_backbone.max_stride})"
+    )
+
     student_backbone.set_dynamic_size()
     if args.ibot_separate_head is False:
         args.ibot_out_dim = args.dino_out_dim
@@ -433,6 +440,7 @@ def train(args: argparse.Namespace) -> None:
             drop_last=args.drop_last,
         )
 
+    optimizer_steps_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
     last_batch_idx = len(training_loader) - 1
 
     #
@@ -454,20 +462,19 @@ def train(args: argparse.Namespace) -> None:
 
     # Learning rate scaling
     lr = training_utils.scale_lr(args)
-    grad_accum_steps: int = args.grad_accum_steps
 
     if args.lr_scheduler_update == "epoch":
         step_update = False
-        steps_per_epoch = 1
+        scheduler_steps_per_epoch = 1
     elif args.lr_scheduler_update == "step":
         step_update = True
-        steps_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
+        scheduler_steps_per_epoch = optimizer_steps_per_epoch
     else:
         raise ValueError("Unsupported lr_scheduler_update")
 
     # Optimizer and learning rate scheduler
     optimizer = training_utils.get_optimizer(parameters, lr, args)
-    scheduler = training_utils.get_scheduler(optimizer, steps_per_epoch, args)
+    scheduler = training_utils.get_scheduler(optimizer, scheduler_steps_per_epoch, args)
     if args.compile_opt is True:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
 
@@ -507,11 +514,13 @@ def train(args: argparse.Namespace) -> None:
         optimizer.step()
         lrs = []
         for _ in range(begin_epoch, epochs):
-            for _ in range(steps_per_epoch):
+            for _ in range(scheduler_steps_per_epoch):
                 lrs.append(float(max(scheduler.get_last_lr())))
                 scheduler.step()
 
-        plt.plot(np.linspace(begin_epoch, epochs, steps_per_epoch * (epochs - begin_epoch), endpoint=False), lrs)
+        plt.plot(
+            np.linspace(begin_epoch, epochs, scheduler_steps_per_epoch * (epochs - begin_epoch), endpoint=False), lrs
+        )
         plt.show()
         raise SystemExit(0)
 
@@ -604,6 +613,7 @@ def train(args: argparse.Namespace) -> None:
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
+        teacher.eval()
         running_loss = training_utils.SmoothedValue()
         running_loss_dino_local = training_utils.SmoothedValue()
         running_loss_dino_global = training_utils.SmoothedValue()

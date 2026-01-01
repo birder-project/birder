@@ -24,12 +24,12 @@ python -m birder.tools [TOOL_NAME] --help
 
 ### Available Tools
 
-- adversarial
+- [adversarial](adversarial.md)
 - avg-model
 - [convert-model](convert-model.md)
 - download-model
 - [ensemble-model](ensemble-model.md)
-- introspection
+- [introspection](introspection.md)
 - labelme-to-coco
 - list-models
 - model-info

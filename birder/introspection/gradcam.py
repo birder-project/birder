@@ -1,5 +1,9 @@
 """
-Adapted from https://github.com/jacobgil/pytorch-grad-cam
+Gradient-weighted Class Activation Mapping (Grad-CAM), adapted from
+https://github.com/jacobgil/pytorch-grad-cam
+
+Paper "Grad-CAM: Visual Explanations from Deep Networks via Gradient-based Localization",
+https://arxiv.org/abs/1610.02391
 """
 
 # Reference license: MIT
@@ -16,71 +20,51 @@ from torch import nn
 from torch.utils.hooks import RemovableHandle
 
 from birder.introspection.base import InterpretabilityResult
-from birder.introspection.base import Interpreter
+from birder.introspection.base import predict_class
+from birder.introspection.base import preprocess_image
+from birder.introspection.base import scale_cam_image
 from birder.introspection.base import show_mask_on_image
+from birder.introspection.base import validate_target_class
 
 
-def _scale_cam_image(
-    cam: npt.NDArray[np.float32], target_size: Optional[tuple[int, int]] = None
-) -> npt.NDArray[np.float32]:
-    result = []
-    for img in cam:
-        img = img - np.min(img)
-        img = img / (1e-7 + np.max(img))
-        if target_size is not None:
-            img = np.array(Image.fromarray(img).resize(target_size))
+def compute_cam(activations: npt.NDArray[np.float32], gradients: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+    weights: npt.NDArray[np.float32] = np.mean(gradients, axis=(2, 3))
+    weighted_activations = weights[:, :, None, None] * activations
+    cam: npt.NDArray[np.float32] = weighted_activations.sum(axis=1)
+    cam = np.maximum(cam, 0)
 
-        result.append(img)
-
-    return np.array(result, dtype=np.float32)
+    return cam
 
 
-class ClassifierOutputTarget:
-    def __init__(self, category: int) -> None:
-        self.category = category
-
-    def __call__(self, model_output: torch.Tensor) -> torch.Tensor:
-        if len(model_output.shape) == 1:
-            return model_output[self.category]
-
-        return model_output[:, self.category]
-
-
-class ActivationsAndGradients:
-    """
-    Class for extracting activations and
-    registering gradients from targeted intermediate layers
-    """
-
+class ActivationCapture:
     def __init__(
         self,
         model: nn.Module,
         target_layer: nn.Module,
-        reshape_transform: Optional[Callable[[torch.Tensor], torch.Tensor]],
+        reshape_transform: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
     ) -> None:
         self.model = model
-        self.gradients: torch.Tensor
-        self.activations: torch.Tensor
+        self.target_layer = target_layer
         self.reshape_transform = reshape_transform
+
+        self.activations: Optional[torch.Tensor] = None
+        self.gradients: Optional[torch.Tensor] = None
         self.handles: list[RemovableHandle] = []
 
-        self.handles.append(target_layer.register_forward_hook(self.save_activation))
-        # Because of https://github.com/pytorch/pytorch/issues/61519,
-        # we don't use backward hook to record gradients.
-        self.handles.append(target_layer.register_forward_hook(self.save_gradient))
+        # Register hooks
+        self.handles.append(target_layer.register_forward_hook(self._save_activation))
+        self.handles.append(target_layer.register_forward_hook(self._save_gradient))
 
-    def save_activation(self, _module: nn.Module, _input: torch.Tensor, output: torch.Tensor) -> None:
+    def _save_activation(self, _module: nn.Module, _input: torch.Tensor, output: torch.Tensor) -> None:
         if self.reshape_transform is not None:
             output = self.reshape_transform(output)
 
         self.activations = output.cpu().detach()
 
-    def save_gradient(self, _module: nn.Module, _input: torch.Tensor, output: torch.Tensor) -> None:
+    def _save_gradient(self, _module: nn.Module, _input: torch.Tensor, output: torch.Tensor) -> None:
         if hasattr(output, "requires_grad") is False or output.requires_grad is False:
-            # You can only register hooks on tensor requires grad.
             return
 
-        # Gradients are computed in reverse order
         def _store_grad(grad: torch.Tensor) -> None:
             if self.reshape_transform is not None:
                 grad = self.reshape_transform(grad)
@@ -100,77 +84,64 @@ class ActivationsAndGradients:
 class GradCAM:
     def __init__(
         self,
-        model: nn.Module,
-        target_layer: nn.Module,
-        reshape_transform: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
-    ) -> None:
-        self.model = model.eval()
-        self.target_layer = target_layer
-        self.activations_and_grads = ActivationsAndGradients(self.model, target_layer, reshape_transform)
-
-    def get_cam_image(
-        self, activations: npt.NDArray[np.float32], grads: npt.NDArray[np.float32]
-    ) -> npt.NDArray[np.float32]:
-        weights: npt.NDArray[np.float32] = np.mean(grads, axis=(2, 3))
-        weighted_activations = weights[:, :, None, None] * activations
-        cam: npt.NDArray[np.float32] = weighted_activations.sum(axis=1)
-
-        return cam
-
-    def compute_layer_cam(self, input_tensor: torch.Tensor) -> npt.NDArray[np.float32]:
-        target_size = (input_tensor.size(-1), input_tensor.size(-2))
-
-        layer_activations = self.activations_and_grads.activations.numpy()
-        layer_grads = self.activations_and_grads.gradients.numpy()
-
-        cam = self.get_cam_image(layer_activations, layer_grads)
-        cam = np.maximum(cam, 0)
-        scaled = _scale_cam_image(cam, target_size)
-        return scaled[:, None, :]
-
-    def __call__(
-        self, input_tensor: torch.Tensor, target: Optional[ClassifierOutputTarget] = None
-    ) -> npt.NDArray[np.float32]:
-        output = self.activations_and_grads(input_tensor)
-        if target is None:
-            category = np.argmax(output.cpu().data.numpy(), axis=-1)
-            target = ClassifierOutputTarget(category)
-
-        self.model.zero_grad()
-        loss = target(output)
-        loss.backward(retain_graph=True)
-
-        cam_per_layer = self.compute_layer_cam(input_tensor)
-        cam_per_layer = np.mean(cam_per_layer, axis=1)
-        cam_per_layer = _scale_cam_image(cam_per_layer)
-
-        return cam_per_layer
-
-    def __del__(self) -> None:
-        self.activations_and_grads.release()
-
-
-class GradCamInterpreter(Interpreter):
-    def __init__(
-        self,
-        model: nn.Module,
+        net: nn.Module,
         device: torch.device,
         transform: Callable[..., torch.Tensor],
         target_layer: nn.Module,
         reshape_transform: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
     ) -> None:
-        super().__init__(model, device, transform)
-        self.grad_cam = GradCAM(model, target_layer, reshape_transform=reshape_transform)
+        self.net = net.eval()
+        self.device = device
+        self.transform = transform
+        self.target_layer = target_layer
 
-    def interpret(self, image: str | Path | Image.Image, target_class: Optional[int] = None) -> InterpretabilityResult:
-        (input_tensor, rgb_img) = self._preprocess_image(image)
+        self.activation_capture = ActivationCapture(net, target_layer, reshape_transform)
 
-        if target_class is not None:
-            target = ClassifierOutputTarget(target_class)
+    def __call__(self, image: str | Path | Image.Image, target_class: Optional[int] = None) -> InterpretabilityResult:
+        (input_tensor, rgb_img) = preprocess_image(image, self.transform, self.device)
+        input_tensor.requires_grad_(True)
+
+        # Forward pass
+        logits = self.activation_capture(input_tensor)
+
+        # Determine target class
+        if target_class is None:
+            target_class = predict_class(logits)
         else:
-            target = None
+            validate_target_class(target_class, logits.shape[-1])
 
-        grayscale_cam = self.grad_cam(input_tensor, target=target)[0, :]
+        # Backward pass
+        self.net.zero_grad()
+        loss = logits[0, target_class]
+        loss.backward(retain_graph=False)
+
+        # Get captured activations and gradients
+        if self.activation_capture.activations is None:
+            raise RuntimeError("No activations captured")
+
+        if self.activation_capture.gradients is None:
+            raise RuntimeError("No gradients captured")
+
+        activations = self.activation_capture.activations.numpy()
+        gradients = self.activation_capture.gradients.numpy()
+
+        # Compute CAM
+        cam = compute_cam(activations, gradients)
+        target_size = (input_tensor.size(-1), input_tensor.size(-2))
+        cam_scaled = scale_cam_image(cam, target_size)
+        grayscale_cam = cam_scaled[0]
+
+        # Create visualization
         visualization = show_mask_on_image(rgb_img, grayscale_cam)
 
-        return InterpretabilityResult(rgb_img, visualization, raw_output=grayscale_cam)
+        return InterpretabilityResult(
+            original_image=rgb_img,
+            visualization=visualization,
+            raw_output=grayscale_cam,
+            logits=logits.detach(),
+            predicted_class=target_class,
+        )
+
+    def __del__(self) -> None:
+        if hasattr(self, "activation_capture") is True:
+            self.activation_capture.release()

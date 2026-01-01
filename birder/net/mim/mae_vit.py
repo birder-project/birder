@@ -2,13 +2,12 @@
 MAE ViT, adapted from
 https://github.com/lucidrains/vit-pytorch/blob/main/vit_pytorch/mae.py
 and
-https://github.com/facebookresearch/mae/blob/main/models_mae.py
+https://github.com/huggingface/transformers/blob/main/src/transformers/models/vit_mae/modeling_vit_mae.py
 
-Paper "Masked Autoencoders Are Scalable Vision Learners",
-https://arxiv.org/abs/2111.06377
+Paper "Masked Autoencoders Are Scalable Vision Learners", https://arxiv.org/abs/2111.06377
 """
 
-# Reference license: MIT and Attribution-NonCommercial 4.0 International
+# Reference license: MIT and Apache-2.0
 
 from typing import Any
 from typing import Optional
@@ -61,7 +60,7 @@ class MAE_ViT(MIMBaseNet):
             seq_len += self.encoder.num_special_tokens
             self.decoder_pos_embed = nn.Parameter(torch.empty(1, seq_len, decoder_embed_dim).normal_(std=0.02))
         else:
-            # Fixed sin-cos embedding
+            # Fixed sin-cos embeddings
             pos_embedding = pos_embedding_sin_cos_2d(
                 h=self.size[0] // self.patch_size,
                 w=self.size[1] // self.patch_size,
@@ -124,12 +123,12 @@ class MAE_ViT(MIMBaseNet):
         mask_tokens = self.mask_token.repeat(x.size(0), ids_restore.size(1) + special_token_len - x.size(1), 1)
         x_ = torch.concat([x[:, special_token_len:, :], mask_tokens], dim=1)  # No special tokens
         x_ = torch.gather(x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.size(2)))  # Un-shuffle
-        x = torch.concat([x[:, :special_token_len, :], x_], dim=1)  # Append special tokens
+        x = torch.concat([x[:, :special_token_len, :], x_], dim=1)  # Re-append special tokens
 
-        # Add pos embed
+        # Add positional embeddings
         x = x + self.decoder_pos_embed
 
-        # Apply transformer
+        # Apply decoder transformer
         x = self.decoder(x)
 
         # Remove special tokens

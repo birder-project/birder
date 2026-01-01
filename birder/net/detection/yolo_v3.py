@@ -37,7 +37,7 @@ def scale_anchors(
     to_size: tuple[int, int],
 ) -> list[list[tuple[float, float]]]:
     if from_size == to_size:
-        # Avoid aliasing default anchors in case they are mutated later.
+        # Avoid aliasing default anchors in case they are mutated later
         return [list(scale) for scale in anchors]
 
     scale_h = to_size[0] / from_size[0]
@@ -368,14 +368,16 @@ class YOLO_v3(DetectionBaseNet):
         num_anchors = self.anchor_generator.num_anchors_per_location()
         self.head = YOLOHead(self.neck.out_channels, num_anchors, self.num_classes)
 
-    def adjust_size(self, new_size: tuple[int, int]) -> None:
+    def adjust_size(self, new_size: tuple[int, int], adjust_anchors: bool = False) -> None:
         if new_size == self.size:
             return
 
         old_size = self.size
         super().adjust_size(new_size)
-        self.anchors = scale_anchors(self.anchors, old_size, new_size)
-        self.anchor_generator.anchors = self.anchors
+
+        if adjust_anchors is True:
+            self.anchors = scale_anchors(self.anchors, old_size, new_size)
+            self.anchor_generator.anchors = self.anchors
 
     def freeze(self, freeze_classifier: bool = True) -> None:
         for param in self.parameters():
@@ -705,13 +707,6 @@ class YOLO_v3(DetectionBaseNet):
         neck_features = self.neck(features)
         predictions = self.head(neck_features)
         (anchors, grids, strides) = self.anchor_generator(images, neck_features)
-        if self.dynamic_size is True:
-            image_size = (images.tensors.shape[-2], images.tensors.shape[-1])
-            if image_size[0] != self.size[0] or image_size[1] != self.size[1]:
-                scale_w = image_size[1] / self.size[1]
-                scale_h = image_size[0] / self.size[0]
-                scale_tensor = torch.tensor([scale_w, scale_h], device=anchors[0].device, dtype=anchors[0].dtype)
-                anchors = [anchor * scale_tensor for anchor in anchors]
 
         losses: dict[str, torch.Tensor] = {}
         detections: list[dict[str, torch.Tensor]] = []

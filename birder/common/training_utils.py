@@ -491,12 +491,29 @@ def get_scheduler(
     if args.lr_scheduler == "constant":
         main_scheduler = torch.optim.lr_scheduler.ConstantLR(optimizer, factor=1.0, total_iters=1)
     elif args.lr_scheduler == "step":
+        # Note: StepLR step_size is relative to when the main scheduler starts (after warmup)
+        # This means drops occur relative to the end of warmup, not at absolute epoch numbers
         main_scheduler = torch.optim.lr_scheduler.StepLR(
             optimizer, step_size=args.lr_step_size, gamma=args.lr_step_gamma
         )
     elif args.lr_scheduler == "multistep":
+        # For MultiStepLR, milestones should be absolute step numbers
+        # Adjust them to be relative to when the main scheduler starts (after warmup)
+        # This ensures drops occur at the specified absolute steps, not relative to after warmup
+        adjusted_milestones = [m - warmup_steps for m in args.lr_steps if m >= warmup_steps]
+        if len(adjusted_milestones) == 0:
+            logger.debug(
+                f"All MultiStepLR milestones {args.lr_steps} are before warmup "
+                f"(warmup ends at step {warmup_steps}). Using empty milestone list."
+            )
+            adjusted_milestones = []
+
+        logger.debug(
+            f"MultiStepLR milestones adjusted from {args.lr_steps} to {adjusted_milestones} "
+            f"(relative to main scheduler start after {warmup_steps} warmup steps)"
+        )
         main_scheduler = torch.optim.lr_scheduler.MultiStepLR(
-            optimizer, milestones=args.lr_steps, gamma=args.lr_step_gamma
+            optimizer, milestones=adjusted_milestones, gamma=args.lr_step_gamma
         )
     elif args.lr_scheduler == "cosine":
         main_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(

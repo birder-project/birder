@@ -818,10 +818,10 @@ class FastViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.embedding_size = int(embed_dims[-1] * cls_ratio)
         self.classifier = self.create_classifier()
 
+        self.max_stride = 2 ** (len(layers) + 1)
         self.stem_stride = 4
         self.stem_width = embed_dims[0]
         self.encoding_size = int(embed_dims[-1] * cls_ratio)
-        self.max_stride = 2 ** (len(layers) + 1)
 
         # Weights initialization
         for m in self.modules():

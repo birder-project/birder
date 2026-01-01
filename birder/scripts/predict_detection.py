@@ -101,6 +101,17 @@ def predict(args: argparse.Namespace) -> None:
 
     score_threshold = args.min_score
 
+    # Process per-class minimum scores
+    class_min_scores: dict[str, float] = {}
+    if args.class_min_score is not None:
+        for class_name, score_str in args.class_min_score:
+            score = float(score_str)
+            if class_name not in class_to_idx:
+                logger.warning(f"Class '{class_name}' from --class-min-score not found in model classes")
+            else:
+                class_min_scores[class_name] = score
+                logger.info(f"Using minimum score {score} for class '{class_name}'")
+
     # Set label colors
     cmap = plt.get_cmap("jet")
     color_list = []
@@ -157,6 +168,7 @@ def predict(args: argparse.Namespace) -> None:
                     detection,
                     class_to_idx=class_to_idx,
                     score_threshold=score_threshold,
+                    class_min_scores=class_min_scores,
                     color_list=color_list,
                 )
 
@@ -224,7 +236,10 @@ def get_args_parser() -> argparse.ArgumentParser:
             "-e 0 --min-score 0.25 --gpu --show --shuffle data/detection_data/validation\n"
             "python predict_detection.py --network faster_rcnn -t coco --backbone csp_resnet_50 "
             "--backbone-tag imagenet1k -e 0 --batch-size 1 --gpu --gpu-id 1 "
-            "--coco-json-path data/detection_data/validation_annotations_coco.json data/detection_data"
+            "--coco-json-path data/detection_data/validation_annotations_coco.json data/detection_data\n"
+            "python predict_detection.py -n yolo_v4 --backbone csp_resnet_50 --backbone-tag imagenet1k -t coco "
+            " --min-score 0.4 --class-min-score person 0.75 --class-min-score car 0.3 --batch-size 1 --show "
+            "--shuffle ~/Datasets/cocodataset/val2017\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -285,6 +300,13 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--min-score", type=float, default=0.5, help="prediction score threshold")
     parser.add_argument(
+        "--class-min-score",
+        action="append",
+        nargs=2,
+        metavar=("CLASS", "SCORE"),
+        help="set custom minimum score for specific class (can be used multiple times)",
+    )
+    parser.add_argument(
         "--size",
         type=int,
         nargs="+",
@@ -342,6 +364,16 @@ def validate_args(args: argparse.Namespace) -> None:
         )
     if args.min_score >= 1 or args.min_score <= 0.0:
         raise cli.ValidationError(f"--min-score must be in range of (0, 1.0), got {args.min_score}")
+    if args.class_min_score is not None:
+        for class_name, score_str in args.class_min_score:
+            try:
+                score = float(score_str)
+                if score >= 1.0 or score <= 0.0:
+                    raise cli.ValidationError(
+                        f"--class-min-score for '{class_name}' must be in range of (0, 1.0), got {score}"
+                    )
+            except ValueError as e:
+                raise cli.ValidationError(f"--class-min-score value must be a valid float, got '{score_str}'") from e
     if args.parallel is True and args.gpu is False:
         raise cli.ValidationError("--parallel requires --gpu to be set")
     if args.parallel is True and args.compile is True:

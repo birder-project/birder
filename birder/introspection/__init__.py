@@ -1,9 +1,13 @@
-from birder.introspection.attention_rollout import AttentionRolloutInterpreter
-from birder.introspection.gradcam import GradCamInterpreter
-from birder.introspection.guided_backprop import GuidedBackpropInterpreter
+from birder.introspection.attention_rollout import AttentionRollout
+from birder.introspection.base import InterpretabilityResult
+from birder.introspection.gradcam import GradCAM
+from birder.introspection.guided_backprop import GuidedBackprop
+from birder.introspection.transformer_attribution import TransformerAttribution
 
 __all__ = [
-    "AttentionRolloutInterpreter",
-    "GradCamInterpreter",
-    "GuidedBackpropInterpreter",
+    "InterpretabilityResult",
+    "AttentionRollout",
+    "GradCAM",
+    "GuidedBackprop",
+    "TransformerAttribution",
 ]

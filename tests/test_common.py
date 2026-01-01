@@ -431,7 +431,11 @@ class TestTrainingUtils(unittest.TestCase):
         training_cli.add_lr_scheduler_args(parser)
         training_cli.add_checkpoint_args(parser)
         for scheduler_type in typing.get_args(training_utils.SchedulerType):
-            args = parser.parse_args(["--lr-scheduler", scheduler_type])
+            parse_args = ["--lr-scheduler", scheduler_type]
+            if scheduler_type == "multistep":
+                parse_args.extend(["--lr-steps", "10", "20"])
+
+            args = parser.parse_args(parse_args)
             scheduler = training_utils.get_scheduler(opt, 1, args)
             self.assertIsInstance(scheduler, torch.optim.lr_scheduler.LRScheduler)
 

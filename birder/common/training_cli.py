@@ -110,10 +110,13 @@ def add_lr_scheduler_args(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=40,
         metavar="N",
-        help="decrease lr every step-size epochs (for step scheduler only)",
+        help="decrease lr every N epochs/steps (relative to after warmup, step scheduler only)",
     )
     group.add_argument(
-        "--lr-steps", type=int, nargs="+", help="decrease lr every step-size epochs (multistep scheduler only)"
+        "--lr-steps",
+        type=int,
+        nargs="+",
+        help="absolute epoch/step milestones when to decrease lr (multistep scheduler only)",
     )
     group.add_argument(
         "--lr-step-gamma",
@@ -391,7 +394,7 @@ def add_ema_args(
         "--model-ema-warmup",
         type=int,
         metavar="N",
-        help="number of epochs before EMA is applied (defaults to warmup epochs/iters, pass 0 to disable warmup)",
+        help="number of epochs/steps before EMA is applied (defaults to warmup epochs/steps, pass 0 to disable warmup)",
     )
 
 
@@ -655,6 +658,11 @@ def common_args_validation(args: argparse.Namespace) -> None:
                 "--cooldown-steps can only be used when --lr-scheduler-update is 'step', "
                 f"but it is set to '{args.lr_scheduler_update}'"
             )
+
+    # EMA
+    if hasattr(args, "model_ema_steps") is True:
+        if args.model_ema_steps < 1:
+            raise ValidationError("--model-ema-steps must be >= 1")
 
     # Compile args, argument dependant
     if hasattr(args, "compile_teacher") is True:
