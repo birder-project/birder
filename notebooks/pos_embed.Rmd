@@ -241,7 +241,7 @@ plt.matshow(similarity.detach().numpy())
 ## RoPE
 
 ```{python}
-rope = RoPE(192, temperature=100.0, grid_size=(16, 16), grid_indexing="ij", grid_offset=0)
+rope = RoPE(768, temperature=100.0, grid_size=(16, 16), grid_indexing="ij", grid_offset=0)
 ```
 
 ```{python}
@@ -262,6 +262,10 @@ plt.matshow(rotate_half(sin_emb).detach().numpy())
 ```
 
 ```{python}
+plt.matshow(cos_emb.detach().numpy() + rotate_half(sin_emb).detach().numpy())
+```
+
+```{python}
 similarity = rotate_half(sin_emb).squeeze() @ rotate_half(sin_emb).squeeze().T
 plt.matshow(similarity.detach().numpy())
 ```
@@ -273,6 +277,10 @@ plt.matshow(similarity.detach().numpy())
 
 ```{python}
 plt.matshow(rotate_half_interleaved(sin_emb).detach().numpy())
+```
+
+```{python}
+plt.matshow(cos_emb.detach().numpy() + rotate_half_interleaved(sin_emb).detach().numpy())
 ```
 
 ```{python}

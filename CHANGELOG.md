@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.2.3 - 2026-01-09
+
+### Added
+
+- **LIT v2**: Added [LIT v2](https://arxiv.org/abs/2205.13213) classification models with HiLo attention.
+- **LIT v1**: Added [LIT v1](https://arxiv.org/abs/2105.14217) classification models.
+- **GC-ViT**: Added [Global Context Vision Transformer](https://arxiv.org/abs/2206.09959) classification models with dynamic size support (adapted from timm).
+- **YOLO Custom Anchors**: Allow YOLO models to consume user-provided anchor specs or auto-anchors JSON.
+- **Detection TTA (WBF)**: Added test time augmentations with Weighted Boxes Fusion in detection inference.
+- **EfficientDet Dynamic Size**: Support dynamic multiscale inputs for EfficientDet.
+- **Embedding Distillation**: Added embedding matching distillation to `train_kd.py` via `--type embedding`.
+- **Custom Layer LR Scaling**: Added `--custom-layer-lr-scale` CLI argument to apply custom learning rate scales to specific layers by name (e.g., `--custom-layer-lr-scale offset_conv=0.01,attention=0.5`).
+- **Custom Layer Weight Decay**: Added `--custom-layer-wd` CLI argument to apply custom weight decay to specific layers by name (e.g., `--custom-layer-wd offset_conv=0.0`).
+- **Pretrained Models**:
+    - `vovnet_v2_19_il-common`
+    - `vovnet_v2_39_il-common`
+
+### Fixed
+
+- **Layer-wise LR Decay**: Fixed critical bug where `lr_scale` from layer decay and custom layer LR scaling was not being applied to actual learning rates.
+- **CocoInference Bounding Boxes**: Fixed incorrect bounding box coordinates in detection inference.
+- **Pack Tool**: Fixed multiprocessing reliability issues, hangs and signal handling.
+
 ## 0.2.2 - 2026-01-01
 
 ### Added

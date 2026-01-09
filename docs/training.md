@@ -51,6 +51,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [FastViT](#fastvit)
 - [FlexiViT](#flexivit)
 - [FocalNet](#focalnet)
+- [GC ViT](#gc-vit)
 - [GhostNet v1](#ghostnet-v1)
 - [GhostNet v2](#ghostnet-v2)
 - [GroupMixFormer](#groupmixformer)
@@ -66,6 +67,8 @@ Most networks train more effectively with growing resolution and augmentation as
 - [Inception v3](#inception-v3)
 - [Inception v4](#inception-v4)
 - [LeViT](#levit)
+- [LIT v1](#lit-v1)
+- [LIT v2](#lit-v2)
 - [MaxViT](#maxvit)
 - [MetaFormer](#metaformer)
 - [MnasNet](#mnasnet)
@@ -1115,6 +1118,32 @@ Optional intermediate training: linear probing
 torchrun --nproc_per_node=2 train.py --network focalnet_b_lrf --tag intermediate --opt adamw --lr 1e-4 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --epochs 10 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --aug-level 6 --clip-grad-norm 5 --amp --compile --rgb-mode none --resume-epoch 0 --reset-head --freeze-body
 ```
 
+### GC ViT
+
+#### GC ViT: XX-Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network gc_vit_xxt --opt adamw --lr 0.005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --cooldown-epochs 10 --epochs 310 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 8 --model-ema --clip-grad-norm 5 --fast-matmul --compile
+```
+
+#### GC ViT: X-Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network gc_vit_xt --opt adamw --lr 0.005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --cooldown-epochs 10 --epochs 310 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 8 --model-ema --clip-grad-norm 5 --fast-matmul --compile
+```
+
+#### GC ViT: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network gc_vit_t --opt adamw --lr 0.005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --cooldown-epochs 10 --epochs 310 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 8 --model-ema --clip-grad-norm 5 --fast-matmul --compile
+```
+
+#### GC ViT: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network gc_vit_s --opt adamw --lr 0.005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 32 --warmup-epochs 20 --cooldown-epochs 10 --epochs 310 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 8 --model-ema --clip-grad-norm 5 --fast-matmul --compile
+```
+
 ### GhostNet v1
 
 #### GhostNet v1: 0.5 (50)
@@ -1353,6 +1382,22 @@ torchrun --nproc_per_node=2 train.py --network levit_128 --opt adamw --lr 0.0005
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network levit_256 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 256 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.025 --norm-wd 0 --grad-accum-steps 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --model-ema-decay 0.9998 --clip-grad-norm 1 --amp --compile
+```
+
+### LIT v1
+
+#### LIT v1: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network lit_v1_s --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --custom-layer-wd offset_conv=0.0 --custom-layer-lr-scale offset_conv=0.01 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --clip-grad-norm 5 --amp --amp-dtype bfloat16 --compile
+```
+
+### LIT v2
+
+#### LIT v2: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network lit_v2_s --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --custom-layer-wd offset_conv=0.0 --custom-layer-lr-scale offset_conv=0.01 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --clip-grad-norm 5 --amp --amp-dtype bfloat16 --compile
 ```
 
 ### MaxViT
@@ -2540,6 +2585,12 @@ torchrun --nproc_per_node=2 train.py --network vovnet_v1_39 --lr-scheduler cosin
 ```
 
 ### VoVNet v2
+
+#### VoVNet v2: 19
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vovnet_v2_19 --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --ra-sampler --ra-reps 2 --fast-matmul --compile
+```
 
 #### VoVNet v2: 39
 

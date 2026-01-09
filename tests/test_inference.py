@@ -7,6 +7,7 @@ from torch import nn
 
 from birder import net
 from birder.inference import classification
+from birder.inference import wbf
 from birder.inference.data_parallel import InferenceDataParallel
 
 logging.disable(logging.CRITICAL)
@@ -73,6 +74,74 @@ class TestInference(unittest.TestCase):
             expected_logits = self.model(dummy_input).cpu().float().numpy()
 
         np.testing.assert_allclose(out, expected_logits)
+
+
+class TestWBF(unittest.TestCase):
+    def test_weighted_boxes_fusion_merges_overlapping(self) -> None:
+        boxes_list = [
+            torch.tensor([[0.0, 0.0, 1.0, 1.0]]),
+            torch.tensor([[0.0, 0.0, 1.0, 1.0]]),
+        ]
+        scores_list = [torch.tensor([0.9]), torch.tensor([0.7])]
+        labels_list = [torch.tensor([1]), torch.tensor([1])]
+
+        (boxes, scores, labels) = wbf.weighted_boxes_fusion(
+            boxes_list, scores_list, labels_list, weights=[1.0, 1.0], iou_thr=0.5
+        )
+
+        self.assertEqual(boxes.shape, (1, 4))
+        self.assertEqual(labels.tolist(), [1])
+        self.assertAlmostEqual(scores.item(), 0.8)
+        torch.testing.assert_close(boxes[0], torch.tensor([0.0, 0.0, 1.0, 1.0]))
+
+    def test_weighted_boxes_fusion_separates_labels(self) -> None:
+        boxes_list = [
+            torch.tensor([[0.0, 0.0, 1.0, 1.0]]),
+            torch.tensor([[0.0, 0.0, 1.0, 1.0]]),
+        ]
+        scores_list = [torch.tensor([0.9]), torch.tensor([0.7])]
+        labels_list = [torch.tensor([1]), torch.tensor([2])]
+
+        (boxes, scores, labels) = wbf.weighted_boxes_fusion(boxes_list, scores_list, labels_list, iou_thr=0.5)
+
+        self.assertEqual(boxes.shape, (2, 4))
+        self.assertEqual(labels.tolist(), [1, 2])
+        self.assertAlmostEqual(scores[0].item(), 0.9)
+        self.assertAlmostEqual(scores[1].item(), 0.7)
+
+    def test_fuse_detections_wbf_batch(self) -> None:
+        detections_a = [
+            {
+                "boxes": torch.tensor([[0.0, 0.0, 1.0, 1.0]]),
+                "scores": torch.tensor([0.9]),
+                "labels": torch.tensor([1]),
+            },
+            {
+                "boxes": torch.tensor([[0.0, 0.0, 1.0, 1.0]]),
+                "scores": torch.tensor([0.6]),
+                "labels": torch.tensor([2]),
+            },
+        ]
+        detections_b = [
+            {
+                "boxes": torch.tensor([[0.0, 0.0, 1.0, 1.0]]),
+                "scores": torch.tensor([0.7]),
+                "labels": torch.tensor([1]),
+            },
+            {
+                "boxes": torch.tensor([[0.0, 0.0, 1.0, 1.0]]),
+                "scores": torch.tensor([0.8]),
+                "labels": torch.tensor([2]),
+            },
+        ]
+
+        fused = wbf.fuse_detections_wbf([detections_a, detections_b], weights=[1.0, 1.0], iou_thr=0.5)
+
+        self.assertEqual(len(fused), 2)
+        self.assertEqual(fused[0]["labels"].tolist(), [1])
+        self.assertAlmostEqual(fused[0]["scores"].item(), 0.8)
+        self.assertEqual(fused[1]["labels"].tolist(), [2])
+        self.assertAlmostEqual(fused[1]["scores"].item(), 0.7)
 
 
 @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")

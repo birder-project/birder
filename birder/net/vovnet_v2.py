@@ -12,6 +12,7 @@ from typing import Any
 from typing import Optional
 
 import torch
+import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
@@ -31,7 +32,7 @@ class EffectiveSE(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x_se = x.mean(dim=(2, 3), keepdim=True)
         x_se = self.fc(x_se)
-        return x * x_se.sigmoid()
+        return x * F.hardsigmoid(x_se)
 
 
 class OSABlock(nn.Module):
@@ -293,5 +294,34 @@ registry.register_model_config(
         "stage_out_channels": [256, 512, 768, 1024],
         "blocks_per_stage": [1, 3, 9, 3],
         "layers_per_block": 5,
+    },
+)
+
+registry.register_weights(
+    "vovnet_v2_19_il-common",
+    {
+        "description": "VoVNet v2 19 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 40.4,
+                "sha256": "10c9b2d528477c4249e3699eba6dd56abd8de503cc23dfd9d413be282bff7872",
+            }
+        },
+        "net": {"network": "vovnet_v2_19", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "vovnet_v2_39_il-common",
+    {
+        "description": "VoVNet v2 39 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 91.4,
+                "sha256": "2bae668446d56e2b2257f4630cb2e6367526e05aeb90f493a05568a5d516e6d5",
+            }
+        },
+        "net": {"network": "vovnet_v2_39", "tag": "il-common"},
     },
 )

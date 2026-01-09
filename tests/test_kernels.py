@@ -1,5 +1,7 @@
 import logging
+import os
 import unittest
+from unittest.mock import patch
 
 import torch
 
@@ -9,6 +11,17 @@ logging.disable(logging.CRITICAL)
 
 
 class TestKernels(unittest.TestCase):
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+    def test_disable_custom_kernels(self) -> None:
+        with (
+            patch.dict(os.environ, {"DISABLE_CUSTOM_KERNELS": "1"}),
+            patch("birder.kernels.load_kernel.load") as load_mock,
+        ):
+            self.assertIsNone(load_kernel.load_soft_nms())
+            self.assertIsNone(load_kernel.load_msda())
+            self.assertIsNone(load_kernel.load_swattention())
+            load_mock.assert_not_called()
+
     @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
     def test_deformable_detr(self) -> None:
         device = torch.device("cuda")

@@ -212,6 +212,7 @@ def predict(args: argparse.Namespace) -> None:
         st=args.st,
         dtype=model_dtype,
     )
+    logger.debug(f"Model loaded with {len(class_to_idx)} classes")
     logger.debug(f"RGB stats: {rgb_stats}")
 
     if args.ignore_dir_names is True:

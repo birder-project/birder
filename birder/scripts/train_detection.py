@@ -53,10 +53,6 @@ def train(args: argparse.Namespace) -> None:
     #
     # Initialize
     #
-    training_utils.init_distributed_mode(args)
-    logger.info(f"Starting training, birder version: {birder.__version__}, pytorch version: {torch.__version__}")
-    training_utils.log_git_info()
-
     transform_dynamic_size = (
         args.multiscale is True
         or args.dynamic_size is True
@@ -65,6 +61,10 @@ def train(args: argparse.Namespace) -> None:
         or args.aug_type == "detr"
     )
     model_dynamic_size = transform_dynamic_size or args.batch_multiscale is True
+
+    (device, device_id, disable_tqdm) = training_utils.init_training(
+        args, logger, cudnn_dynamic_size=transform_dynamic_size
+    )
 
     if args.size is None:
         args.size = registry.get_default_size(args.network)
@@ -76,36 +76,6 @@ def train(args: argparse.Namespace) -> None:
     else:
         logger.info(f"Running with dynamic size, with base size={args.size}")
 
-    if args.cpu is True:
-        device = torch.device("cpu")
-        device_id = 0
-    else:
-        device = torch.device("cuda")
-        device_id = torch.cuda.current_device()
-
-    if args.use_deterministic_algorithms is True:
-        torch.backends.cudnn.benchmark = False
-        torch.use_deterministic_algorithms(True)
-    elif transform_dynamic_size is True:
-        # Disable cuDNN for dynamic sizes to avoid per-size algorithm selection overhead
-        torch.backends.cudnn.enabled = False
-    else:
-        torch.backends.cudnn.enabled = True
-        torch.backends.cudnn.benchmark = True
-
-    if args.seed is not None:
-        lib.set_random_seeds(args.seed)
-
-    if args.non_interactive is True or training_utils.is_local_primary(args) is False:
-        disable_tqdm = True
-    elif sys.stderr.isatty() is False:
-        disable_tqdm = True
-    else:
-        disable_tqdm = False
-
-    # Enable or disable the autograd anomaly detection
-    torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
-
     #
     # Data
     #
@@ -113,7 +83,14 @@ def train(args: argparse.Namespace) -> None:
     logger.debug(f"Using RGB stats: {rgb_stats}")
 
     transforms = training_preset(
-        args.size, args.aug_type, args.aug_level, rgb_stats, args.dynamic_size, args.multiscale, args.max_size
+        args.size,
+        args.aug_type,
+        args.aug_level,
+        rgb_stats,
+        args.dynamic_size,
+        args.multiscale,
+        args.max_size,
+        args.multiscale_min_size,
     )
     mosaic_dataset = None
     if args.mosaic_prob > 0.0:
@@ -125,6 +102,7 @@ def train(args: argparse.Namespace) -> None:
             args.dynamic_size,
             args.multiscale,
             args.max_size,
+            args.multiscale_min_size,
             post_mosaic=True,
         )
         if args.dynamic_size is True or args.multiscale is True:
@@ -194,13 +172,13 @@ def train(args: argparse.Namespace) -> None:
     batch_size: int = args.batch_size
     grad_accum_steps: int = args.grad_accum_steps
     model_ema_steps: int = args.model_ema_steps
-    logger.debug(f"Effective batch size = {args.batch_size * grad_accum_steps * args.world_size}")
+    logger.debug(f"Effective batch size = {batch_size * grad_accum_steps * args.world_size}")
 
     # Data loaders and samplers
     (train_sampler, validation_sampler) = training_utils.get_samplers(args, training_dataset, validation_dataset)
 
     if args.batch_multiscale is True:
-        train_collate_fn: Any = BatchRandomResizeCollator(0, args.size)
+        train_collate_fn: Any = BatchRandomResizeCollator(0, args.size, multiscale_min_size=args.multiscale_min_size)
     else:
         train_collate_fn = training_collate_fn
 
@@ -235,6 +213,8 @@ def train(args: argparse.Namespace) -> None:
         args.stop_epoch = epochs
     else:
         args.stop_epoch += 1
+
+    logging.debug(f"Epoch has {last_batch_idx+1} iterations ({optimizer_steps_per_epoch} steps)")
 
     #
     # Initialize network
@@ -354,22 +334,25 @@ def train(args: argparse.Namespace) -> None:
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
     #
 
+    # Learning rate scaling
+    lr = training_utils.scale_lr(args)
+
     # Training parameter groups
     custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
     parameters = training_utils.optimizer_parameter_groups(
         net,
         args.wd,
+        base_lr=lr,
         norm_weight_decay=args.norm_wd,
         custom_keys_weight_decay=custom_keys_weight_decay,
+        custom_layer_weight_decay=args.custom_layer_wd,
         layer_decay=args.layer_decay,
         layer_decay_min_scale=args.layer_decay_min_scale,
         layer_decay_no_opt_scale=args.layer_decay_no_opt_scale,
         bias_lr=args.bias_lr,
         backbone_lr=args.backbone_lr,
+        custom_layer_lr_scale=args.custom_layer_lr_scale,
     )
-
-    # Learning rate scaling
-    lr = training_utils.scale_lr(args)
 
     if args.lr_scheduler_update == "epoch":
         step_update = False
@@ -857,6 +840,31 @@ def get_args_parser() -> argparse.ArgumentParser:
             "    --fast-matmul \\\n"
             "    --compile-backbone \\\n"
             "    --compile-opt\n"
+            "\n"
+            "YOLO v4 with custom anchors training example (COCO):\n"
+            "python train_detection.py \\\n"
+            "    --network yolo_v4 \\\n"
+            "    --model-config anchors=data/anchors.json \\\n"
+            "    --tag coco \\\n"
+            "    --backbone csp_darknet_53 \\\n"
+            "    --backbone-model-config drop_block=0.1 \\\n"
+            "    --lr 0.001 \\\n"
+            "    --lr-scheduler multistep \\\n"
+            "    --lr-steps 300 350 \\\n"
+            "    --lr-step-gamma 0.1 \\\n"
+            "    --batch-size 32 \\\n"
+            "    --warmup-epochs 5 \\\n"
+            "    --epochs 400 \\\n"
+            "    --wd 0.0005 \\\n"
+            "    --aug-level 5 \\\n"
+            "    --mosaic-prob 0.5 --mosaic-stop-epoch 360 \\\n"
+            "    --batch-multiscale \\\n"
+            "    --amp --amp-dtype float16 \\\n"
+            "    --data-path ~/Datasets/cocodataset/train2017 \\\n"
+            "    --val-path ~/Datasets/cocodataset/val2017 \\\n"
+            "    --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json \\\n"
+            "    --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json \\\n"
+            "    --class-file public_datasets_metadata/coco-classes.txt\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

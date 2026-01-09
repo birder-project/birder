@@ -6,7 +6,7 @@ Paper "Run, Don't Walk: Chasing Higher FLOPS for Faster Neural Networks",
 https://arxiv.org/abs/2303.03667
 
 Changes from original:
-* No extra norm's for detection
+* No extra norms for detection
 """
 
 # Reference license: MIT

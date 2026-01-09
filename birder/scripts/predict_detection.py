@@ -79,10 +79,15 @@ def predict(args: argparse.Namespace) -> None:
         st=args.st,
         dtype=model_dtype,
     )
+    logger.debug(f"Model loaded with {len(class_to_idx)} classes")
     logger.debug(f"RGB stats: {rgb_stats}")
+    logger.debug(f"Model signature dynamic={signature['dynamic']}")
 
-    if args.dynamic_size is True or args.max_size is not None or args.no_resize:
+    if args.dynamic_size is True or args.max_size is not None or args.no_resize is True or args.tta is True:
         net.set_dynamic_size()
+    if args.dynamic_size is True or args.max_size is not None or args.no_resize is True:
+        # Disable cuDNN for dynamic sizes to avoid per-size algorithm selection overhead
+        torch.backends.cudnn.enabled = False
 
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
@@ -178,6 +183,8 @@ def predict(args: argparse.Namespace) -> None:
         epoch_str = f"_e{args.epoch}"
 
     base_output_path = f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size[0]}px_{num_samples}"
+    if args.tta is True:
+        base_output_path = f"{base_output_path}_tta"
     if args.model_dtype != "float32":
         base_output_path = f"{base_output_path}_{args.model_dtype}"
     if args.prefix is not None:
@@ -194,10 +201,11 @@ def predict(args: argparse.Namespace) -> None:
             device,
             net,
             inference_loader,
-            model_dtype,
-            args.amp,
-            amp_dtype,
-            num_samples,
+            tta=args.tta,
+            model_dtype=model_dtype,
+            amp=args.amp,
+            amp_dtype=amp_dtype,
+            num_samples=num_samples,
             batch_callback=batch_callback,
         )
 
@@ -231,15 +239,13 @@ def get_args_parser() -> argparse.ArgumentParser:
             "python -m birder.scripts.predict_detection --network faster_rcnn --backbone resnext_101 "
             "-e 0 data/detection_data/validation\n"
             "python predict_detection.py --network retinanet --backbone resnext_101 "
-            "-e 0 --show --gpu --compile data/detection_data/training\n"
-            "python predict_detection.py --network faster_rcnn --backbone resnext_101 "
-            "-e 0 --min-score 0.25 --gpu --show --shuffle data/detection_data/validation\n"
+            "-e 0 --shuffle --show --gpu --compile data/detection_data/training\n"
+            "python predict_detection.py -n yolo_v4 --backbone csp_resnet_50 --backbone-tag imagenet1k "
+            "-t coco -e 19 --batch-size 1 --gpu --gpu-id 1 --coco-json-path "
+            "~/Datasets/cocodataset/annotations/instances_val2017.json ~/Datasets/cocodataset/val2017\n"
             "python predict_detection.py --network faster_rcnn -t coco --backbone csp_resnet_50 "
             "--backbone-tag imagenet1k -e 0 --batch-size 1 --gpu --gpu-id 1 "
             "--coco-json-path data/detection_data/validation_annotations_coco.json data/detection_data\n"
-            "python predict_detection.py -n yolo_v4 --backbone csp_resnet_50 --backbone-tag imagenet1k -t coco "
-            " --min-score 0.4 --class-min-score person 0.75 --class-min-score car 0.3 --batch-size 1 --show "
-            "--shuffle ~/Datasets/cocodataset/val2017\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -298,6 +304,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
     )
+    parser.add_argument("--tta", default=False, action="store_true", help="test time augmentation (oversampling)")
     parser.add_argument("--min-score", type=float, default=0.5, help="prediction score threshold")
     parser.add_argument(
         "--class-min-score",

@@ -137,7 +137,3 @@ for e in range(epoch_start, epoch_end + 1):
 
     plt.show()
 ```
-
-```{python}
-
-```

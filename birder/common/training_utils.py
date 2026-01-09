@@ -3,8 +3,10 @@ import contextlib
 import logging
 import math
 import os
+import random
 import re
 import subprocess
+import sys
 from collections import deque
 from collections.abc import Callable
 from collections.abc import Generator
@@ -29,11 +31,24 @@ from birder.data.transforms.classification import training_preset
 from birder.optim import Lamb
 from birder.optim import Lars
 from birder.scheduler import CooldownLR
+from birder.version import __version__ as birder_version
 
 logger = logging.getLogger(__name__)
 
 OptimizerType = Literal["sgd", "rmsprop", "adam", "adamw", "nadam", "nadamw", "lamb", "lambw", "lars"]
 SchedulerType = Literal["constant", "step", "multistep", "cosine", "polynomial"]
+
+###############################################################################
+# Core Utilities
+###############################################################################
+
+
+def set_random_seeds(seed: int) -> None:
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
 
 ###############################################################################
 # Data Sampling
@@ -207,13 +222,16 @@ def count_layers(model: torch.nn.Module) -> int:
 def optimizer_parameter_groups(
     model: torch.nn.Module,
     weight_decay: float,
+    base_lr: float,
     norm_weight_decay: Optional[float] = None,
     custom_keys_weight_decay: Optional[list[tuple[str, float]]] = None,
+    custom_layer_weight_decay: Optional[dict[str, float]] = None,
     layer_decay: Optional[float] = None,
     layer_decay_min_scale: Optional[float] = None,
     layer_decay_no_opt_scale: Optional[float] = None,
     bias_lr: Optional[float] = None,
     backbone_lr: Optional[float] = None,
+    custom_layer_lr_scale: Optional[dict[str, float]] = None,
 ) -> list[dict[str, Any]]:
     """
     Return parameter groups for optimizers with per-parameter group weight decay.
@@ -233,11 +251,16 @@ def optimizer_parameter_groups(
         The PyTorch model whose parameters will be grouped for optimization.
     weight_decay
         Default weight decay (L2 regularization) value applied to parameters.
+    base_lr
+        Base learning rate that will be scaled by lr_scale factors for each parameter group.
     norm_weight_decay
         Weight decay value specifically for normalization layers. If None, uses weight_decay.
     custom_keys_weight_decay
         List of (parameter_name, weight_decay) tuples for applying custom weight decay
         values to specific parameters by name matching.
+    custom_layer_weight_decay
+        Dictionary mapping layer name substrings to custom weight decay values.
+        Applied to parameters whose names contain the specified keys.
     layer_decay
         Layer-wise learning rate decay factor.
     layer_decay_min_scale
@@ -248,6 +271,9 @@ def optimizer_parameter_groups(
         Custom learning rate for bias parameters (parameters ending with '.bias').
     backbone_lr
         Custom learning rate for backbone parameters (parameters starting with 'backbone.').
+    custom_layer_lr_scale
+        Dictionary mapping layer name substrings to custom lr_scale values.
+        Applied to parameters whose names contain the specified keys.
 
     Returns
     -------
@@ -291,14 +317,14 @@ def optimizer_parameter_groups(
     if layer_decay is not None:
         layer_max = num_layers - 1
         layer_scales = [max(layer_decay_min_scale, layer_decay ** (layer_max - i)) for i in range(num_layers)]
-        logger.info(f"Layer scaling in range of {min(layer_scales)} - {max(layer_scales)} on {num_layers} layers")
+        logger.info(f"Layer scaling ranges from {min(layer_scales)} to {max(layer_scales)} across {num_layers} layers")
 
     # Set weight decay and layer decay
     idx = 0
     params = []
     module_stack_with_prefix = [(model, "")]
     visited_modules = []
-    while len(module_stack_with_prefix) > 0:
+    while len(module_stack_with_prefix) > 0:  # pylint: disable=too-many-nested-blocks
         skip_module = False
         (module, prefix) = module_stack_with_prefix.pop()
         if id(module) in visited_modules:
@@ -324,13 +350,35 @@ def optimizer_parameter_groups(
                 for key, custom_wd in custom_keys_weight_decay:
                     target_name_for_custom_key = f"{prefix}.{name}" if prefix != "" and "." in key else name
                     if key == target_name_for_custom_key:
+                        # Calculate lr_scale (from layer_decay or custom_layer_lr_scale)
+                        lr_scale = 1.0 if layer_decay is None else layer_scales[idx]
+                        if custom_layer_lr_scale is not None:
+                            for layer_name_key, custom_scale in custom_layer_lr_scale.items():
+                                if layer_name_key in target_name:
+                                    lr_scale = custom_scale
+                                    break
+
+                        # Apply custom layer weight decay (substring matching)
+                        wd = custom_wd
+                        if custom_layer_weight_decay is not None:
+                            for layer_name_key, custom_wd_value in custom_layer_weight_decay.items():
+                                if layer_name_key in target_name:
+                                    wd = custom_wd_value
+                                    break
+
                         d = {
                             "params": p,
-                            "weight_decay": custom_wd,
-                            "lr_scale": 1.0 if layer_decay is None else layer_scales[idx],
+                            "weight_decay": wd,
+                            "lr_scale": lr_scale,  # Used only for reference/debugging
                         }
-                        if backbone_lr is not None and target_name.startswith("backbone.") is True:
+
+                        # Apply learning rate based on priority: bias_lr > backbone_lr > lr_scale
+                        if bias_lr is not None and target_name.endswith(".bias") is True:
+                            d["lr"] = bias_lr
+                        elif backbone_lr is not None and target_name.startswith("backbone.") is True:
                             d["lr"] = backbone_lr
+                        elif lr_scale != 1.0:
+                            d["lr"] = base_lr * lr_scale
 
                         params.append(d)
                         is_custom_key = True
@@ -342,16 +390,34 @@ def optimizer_parameter_groups(
                 else:
                     wd = weight_decay
 
+                # Apply custom layer weight decay (substring matching)
+                if custom_layer_weight_decay is not None:
+                    for layer_name_key, custom_wd_value in custom_layer_weight_decay.items():
+                        if layer_name_key in target_name:
+                            wd = custom_wd_value
+                            break
+
+                # Calculate lr_scale (from layer_decay or custom_layer_lr_scale)
+                lr_scale = 1.0 if layer_decay is None else layer_scales[idx]
+                if custom_layer_lr_scale is not None:
+                    for layer_name_key, custom_scale in custom_layer_lr_scale.items():
+                        if layer_name_key in target_name:
+                            lr_scale = custom_scale
+                            break
+
                 d = {
                     "params": p,
                     "weight_decay": wd,
-                    "lr_scale": 1.0 if layer_decay is None else layer_scales[idx],
+                    "lr_scale": lr_scale,  # Used only for reference/debugging
                 }
-                if backbone_lr is not None and target_name.startswith("backbone.") is True:
-                    d["lr"] = backbone_lr
 
+                # Apply learning rate based on priority: bias_lr > backbone_lr > lr_scale
                 if bias_lr is not None and target_name.endswith(".bias") is True:
                     d["lr"] = bias_lr
+                elif backbone_lr is not None and target_name.startswith("backbone.") is True:
+                    d["lr"] = backbone_lr
+                elif lr_scale != 1.0:
+                    d["lr"] = base_lr * lr_scale
 
                 params.append(d)
 
@@ -442,6 +508,8 @@ def get_optimizer(parameters: list[dict[str, Any]], l_rate: float, args: argpars
     else:
         raise ValueError("Unknown optimizer")
 
+    logger.debug(f"Created {opt} optimizer with lr={lr}, weight_decay={args.wd}")
+
     return optimizer
 
 
@@ -477,10 +545,10 @@ def get_scheduler(
 
     main_steps = steps - begin_step - remaining_warmup - remaining_cooldown - 1
 
-    logger.debug(f"Using {steps_per_epoch} steps per epoch")
+    logger.debug(f"Scheduler using {steps_per_epoch} steps per epoch")
     logger.debug(
         f"Scheduler {args.lr_scheduler} set for {steps} steps of which {warmup_steps} "
-        f"are warmup and {cooldown_steps} cooldown"
+        f"are warmup and {cooldown_steps} are cooldown"
     )
     logger.debug(
         f"Currently starting from step {begin_step} with {remaining_warmup} remaining warmup steps "
@@ -808,6 +876,51 @@ def is_local_primary(args: argparse.Namespace) -> bool:
         return True
 
     return args.local_rank == 0  # type: ignore[no-any-return]
+
+
+def init_training(
+    args: argparse.Namespace,
+    log: logging.Logger,
+    *,
+    cudnn_dynamic_size: bool = False,
+) -> tuple[torch.device, int, bool]:
+    init_distributed_mode(args)
+
+    log.info(f"Starting training, birder version: {birder_version}, pytorch version: {torch.__version__}")
+
+    log_git_info()
+
+    if args.cpu is True:
+        device = torch.device("cpu")
+        device_id = 0
+    else:
+        device = torch.device("cuda")
+        device_id = torch.cuda.current_device()
+
+    if args.use_deterministic_algorithms is True:
+        torch.backends.cudnn.benchmark = False
+        torch.use_deterministic_algorithms(True)
+    elif cudnn_dynamic_size is True:
+        # Dynamic sizes: avoid per-size algorithm selection overhead.
+        torch.backends.cudnn.enabled = False
+    else:
+        torch.backends.cudnn.enabled = True
+        torch.backends.cudnn.benchmark = True
+
+    if args.seed is not None:
+        set_random_seeds(args.seed)
+
+    if args.non_interactive is True or is_local_primary(args) is False:
+        disable_tqdm = True
+    elif sys.stderr.isatty() is False:
+        disable_tqdm = True
+    else:
+        disable_tqdm = False
+
+    # Enable or disable the autograd anomaly detection.
+    torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
+
+    return (device, device_id, disable_tqdm)
 
 
 ###############################################################################

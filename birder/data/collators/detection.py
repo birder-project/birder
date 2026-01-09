@@ -1,13 +1,14 @@
 import math
 import random
 from typing import Any
+from typing import Optional
 
 import torch
 from torchvision import tv_tensors
 from torchvision.transforms import v2
 from torchvision.transforms.v2 import functional as F
 
-BATCH_MULTISCALE_SIZES = (480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800)
+from birder.data.transforms.detection import build_multiscale_sizes
 
 
 def collate_fn(batch: list[tuple[Any, ...]]) -> tuple[Any, ...]:
@@ -63,13 +64,19 @@ class DetectionCollator:
 
 
 class BatchRandomResizeCollator(DetectionCollator):
-    def __init__(self, input_offset: int, size: tuple[int, int], size_divisible: int = 32) -> None:
+    def __init__(
+        self,
+        input_offset: int,
+        size: tuple[int, int],
+        size_divisible: int = 32,
+        multiscale_min_size: Optional[int] = None,
+    ) -> None:
         super().__init__(input_offset, size_divisible=size_divisible)
         if size is None:
             raise ValueError("size must be provided for batch multiscale")
 
         max_side = max(size)
-        sizes = [side for side in BATCH_MULTISCALE_SIZES if side <= max_side]
+        sizes = [side for side in build_multiscale_sizes(multiscale_min_size) if side <= max_side]
         if len(sizes) == 0:
             sizes = [max_side]
 

@@ -25,3 +25,6 @@ class SE_ResNeXt(ResNeXt):
 registry.register_model_config("se_resnext_50", SE_ResNeXt, config={"units": [3, 4, 6, 3]})
 registry.register_model_config("se_resnext_101", SE_ResNeXt, config={"units": [3, 4, 23, 3]})
 registry.register_model_config("se_resnext_152", SE_ResNeXt, config={"units": [3, 8, 36, 3]})
+
+registry.register_model_config("se_resnext_101_32x8", SE_ResNeXt, config={"units": [3, 4, 23, 3], "base_width": 8})
+registry.register_model_config("se_resnext_101_64x4", SE_ResNeXt, config={"units": [3, 4, 23, 3], "groups": 64})

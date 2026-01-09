@@ -1,10 +1,10 @@
 import logging
-import os
 import unittest
 import warnings
 
 import requests
 
+from birder.common.lib import env_bool
 from birder.common.lib import get_pretrained_model_url
 from birder.model_registry import registry
 from birder.model_registry.model_registry import ModelRegistry
@@ -51,7 +51,7 @@ class TestRegistry(unittest.TestCase):
 
         self.assertEqual(len(all_names), len(set(all_names)))
 
-    @unittest.skipUnless(os.environ.get("NETWORK_TESTS", False), "Avoid tests that require network access")
+    @unittest.skipUnless(env_bool("NETWORK_TESTS"), "Avoid tests that require network access")
     def test_manifest(self) -> None:
         for model_name, model_metadata in registry._pretrained_nets.items():
             for model_format in model_metadata["formats"]:

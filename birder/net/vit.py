@@ -1588,21 +1588,6 @@ registry.register_weights(
         "net": {"network": "vit_l16", "tag": "mim"},
     },
 )
-registry.register_weights(
-    "vit_l16_mim-eu-common",
-    {
-        "url": "https://huggingface.co/birder-project/vit_l16_mim-eu-common/resolve/main",
-        "description": "ViT l16 model with MIM pretraining, then fine-tuned on the eu-common dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 1160.1,
-                "sha256": "3b7235b90f76fb1e0e36d4c4111777a4cc4e4500552fe840c51170b208310d16",
-            },
-        },
-        "net": {"network": "vit_l16", "tag": "mim-eu-common"},
-    },
-)
 registry.register_weights(  # BioCLIP v2: https://arxiv.org/abs/2505.23883
     "vit_l14_pn_bioclip-v2",
     {

@@ -83,32 +83,25 @@ class Interpolate2d(nn.Module):
 
     def __init__(
         self,
-        size: Optional[int | tuple[int, int]] = None,
-        scale_factor: Optional[float | tuple[float, float]] = None,
         mode: str = "nearest",
         align_corners: Optional[bool] = False,
     ) -> None:
         super().__init__()
-        self.size = size
-        self.scale_factor = scale_factor
         self.mode = mode
         self.align_corners = align_corners
         if mode == "nearest":
             self.align_corners = None
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return F.interpolate(
-            x, self.size, self.scale_factor, self.mode, self.align_corners, recompute_scale_factor=False
-        )
+    def forward(self, x: torch.Tensor, size: tuple[int, int]) -> torch.Tensor:
+        size_list = [size[0], size[1]]
+        return F.interpolate(x, size_list, None, self.mode, self.align_corners, recompute_scale_factor=False)
 
 
-class ResampleFeatureMap(nn.Sequential):
+class ResampleFeatureMap(nn.Module):
     def __init__(
         self,
         in_channels: int,
         out_channels: int,
-        input_size: tuple[int, int],
-        output_size: tuple[int, int],
         downsample: Literal["max", "bilinear"],
         upsample: Literal["nearest", "bilinear"],
         norm_layer: Optional[Callable[..., nn.Module]],
@@ -116,46 +109,63 @@ class ResampleFeatureMap(nn.Sequential):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.input_size = input_size
-        self.output_size = output_size
+        self.downsample_mode = downsample
 
         if in_channels != out_channels:
             # padding = ((stride - 1) + (kernel_size - 1)) // 2
-            self.add_module(
-                "conv",
-                Conv2dNormActivation(
-                    in_channels,
-                    out_channels,
-                    kernel_size=(1, 1),
-                    stride=(1, 1),
-                    padding=(0, 0),
-                    norm_layer=norm_layer,
-                    bias=False,
-                    activation_layer=None,
-                ),
+            self.conv = Conv2dNormActivation(
+                in_channels,
+                out_channels,
+                kernel_size=(1, 1),
+                stride=(1, 1),
+                padding=(0, 0),
+                norm_layer=norm_layer,
+                bias=False,
+                activation_layer=None,
             )
+        else:
+            self.conv = None
 
-        if input_size[0] > output_size[0] and input_size[1] > output_size[1]:
-            if downsample == "max":
-                stride_size_h = int((input_size[0] - 1) // output_size[0] + 1)
-                stride_size_w = int((input_size[1] - 1) // output_size[1] + 1)
+        self.downsample = None
+        if downsample != "max":
+            self.downsample = Interpolate2d(mode=downsample)
+
+        self.upsample = Interpolate2d(mode=upsample)
+
+    def forward(self, x: torch.Tensor, target_size: tuple[int, int]) -> torch.Tensor:
+        if self.conv is not None:
+            x = self.conv(x)
+
+        (in_h, in_w) = x.shape[-2:]
+        (target_h, target_w) = target_size
+        if in_h == target_h and in_w == target_w:
+            return x
+
+        downsample_needed = in_h > target_h or in_w > target_w
+        upsample_needed = in_h < target_h or in_w < target_w
+
+        if downsample_needed is True and upsample_needed is False:
+            if self.downsample_mode == "max":
+                stride_size_h = int((in_h - 1) // target_h + 1)
+                stride_size_w = int((in_w - 1) // target_w + 1)
                 kernel_size = (stride_size_h + 1, stride_size_w + 1)
                 stride = (stride_size_h, stride_size_w)
                 padding = (
                     ((stride[0] - 1) + (kernel_size[0] - 1)) // 2,
                     ((stride[1] - 1) + (kernel_size[1] - 1)) // 2,
                 )
+                return F.max_pool2d(x, kernel_size=kernel_size, stride=stride, padding=padding)
 
-                down_inst = nn.MaxPool2d(kernel_size, stride=stride, padding=padding)
+            if self.downsample is not None:
+                return self.downsample(x, size=target_size)
 
-            else:
-                down_inst = Interpolate2d(size=output_size, mode=downsample)
+        if upsample_needed is True and downsample_needed is False:
+            return self.upsample(x, size=target_size)
 
-            self.add_module("downsample", down_inst)
+        if self.downsample is not None and self.downsample_mode != "max":
+            return self.downsample(x, size=target_size)
 
-        else:
-            if input_size[0] < output_size[0] or input_size[1] < output_size[1]:
-                self.add_module("upsample", Interpolate2d(size=output_size, mode=upsample))
+        return self.upsample(x, size=target_size)
 
 
 class FpnCombine(nn.Module):
@@ -164,8 +174,6 @@ class FpnCombine(nn.Module):
         in_channels: list[int],
         fpn_channels: int,
         inputs_offsets: list[int],
-        input_size: list[tuple[int, int]],
-        output_size: tuple[int, int],
         downsample: Literal["max", "bilinear"],
         upsample: Literal["nearest", "bilinear"],
         norm_layer: Optional[Callable[..., nn.Module]],
@@ -173,14 +181,14 @@ class FpnCombine(nn.Module):
     ):
         super().__init__()
         self.weight_method = weight_method
+        self.inputs_offsets = inputs_offsets
+        self.target_offset = inputs_offsets[0]
 
         self.resample = nn.ModuleDict()
         for offset in inputs_offsets:
             self.resample[str(offset)] = ResampleFeatureMap(
                 in_channels[offset],
                 fpn_channels,
-                input_size=input_size[offset],
-                output_size=output_size,
                 downsample=downsample,
                 upsample=upsample,
                 norm_layer=norm_layer,
@@ -193,10 +201,12 @@ class FpnCombine(nn.Module):
 
     def forward(self, x: list[torch.Tensor]) -> torch.Tensor:
         dtype = x[0].dtype
+        target = x[self.target_offset]
+        target_size = (int(target.shape[-2]), int(target.shape[-1]))
         nodes = []
         for offset, resample in self.resample.items():
             input_node = x[int(offset)]
-            input_node = resample(input_node)
+            input_node = resample(input_node, target_size=target_size)
             nodes.append(input_node)
 
         if self.weight_method == "attn":
@@ -231,8 +241,6 @@ class BiFpnLayer(nn.Module):
     def __init__(
         self,
         in_channels: list[int],
-        input_size: list[tuple[int, int]],
-        feat_sizes: list[tuple[int, int]],
         fpn_config: list[dict[str, Any]],
         fpn_channels: int,
         num_levels: int,
@@ -248,8 +256,6 @@ class BiFpnLayer(nn.Module):
                 in_channels,
                 fpn_channels,
                 inputs_offsets=fnode_cfg["inputs_offsets"],
-                input_size=input_size,
-                output_size=feat_sizes[fnode_cfg["feat_level"]],
                 downsample=downsample,
                 upsample=upsample,
                 norm_layer=norm_layer,
@@ -290,9 +296,6 @@ class BiFpnLayer(nn.Module):
 class BiFpn(nn.Module):
     def __init__(
         self,
-        image_size: tuple[int, int],
-        min_level: int,
-        max_level: int,
         num_levels: int,
         backbone_channels: list[int],
         fpn_channels: int,
@@ -300,45 +303,29 @@ class BiFpn(nn.Module):
         bifpn_config: list[dict[str, Any]],
     ):
         super().__init__()
-        feat_size = image_size
-        feat_sizes = [feat_size]
-        for _ in range(1, max_level + 1):
-            feat_size = ((feat_size[0] - 1) // 2 + 1, (feat_size[1] - 1) // 2 + 1)
-            feat_sizes.append(feat_size)
-
-        input_size = feat_sizes.copy()
-        input_size = input_size[-num_levels:]
-        prev_feat_size = feat_sizes[min_level]
-        self.resample = nn.ModuleDict()
-        for level in range(num_levels):
-            feat_size = feat_sizes[level + min_level]
-            if level < len(backbone_channels):
-                in_channels = backbone_channels[level]
-                input_size[level] = feat_size
-            else:
-                self.resample[str(level)] = ResampleFeatureMap(
+        self.resample = nn.ModuleList()
+        num_backbone_levels = len(backbone_channels)
+        extra_levels = max(0, num_levels - num_backbone_levels)
+        in_channels = backbone_channels[-1]
+        for _ in range(extra_levels):
+            self.resample.append(
+                ResampleFeatureMap(
                     in_channels=in_channels,
                     out_channels=fpn_channels,
-                    input_size=prev_feat_size,
-                    output_size=feat_size,
                     downsample="max",
                     upsample="nearest",
                     norm_layer=nn.BatchNorm2d,
                 )
-                in_channels = fpn_channels
-                backbone_channels.append(in_channels)
-
-            prev_feat_size = feat_size
+            )
+            in_channels = fpn_channels
+            backbone_channels.append(in_channels)
 
         self.cells = nn.ModuleList()
         fpn_combine_channels = backbone_channels
         for _ in range(fpn_cell_repeats):
             fpn_combine_channels = fpn_combine_channels + [fpn_channels for _ in bifpn_config]
-            input_size = input_size + [feat_sizes[fc["feat_level"]] for fc in bifpn_config]
             fpn_layer = BiFpnLayer(
                 in_channels=fpn_combine_channels,
-                input_size=input_size,
-                feat_sizes=feat_sizes,
                 fpn_config=bifpn_config,
                 fpn_channels=fpn_channels,
                 num_levels=num_levels,
@@ -348,11 +335,12 @@ class BiFpn(nn.Module):
             )
             self.cells.append(fpn_layer)
             fpn_combine_channels = fpn_combine_channels[-num_levels::]
-            input_size = input_size[-num_levels::]
 
     def forward(self, x: list[torch.Tensor]) -> list[torch.Tensor]:
-        for resample in self.resample.values():
-            x.append(resample(x[-1]))
+        for resample in self.resample:
+            input_node = x[-1]
+            target_size = ((input_node.shape[-2] - 1) // 2 + 1, (input_node.shape[-1] - 1) // 2 + 1)
+            x.append(resample(input_node, target_size=target_size))
 
         for cell in self.cells:
             x = cell(x)
@@ -572,9 +560,6 @@ class EfficientDet(DetectionBaseNet):
         self.backbone.return_stages = self.backbone.return_stages[-3:]
 
         self.bifpn = BiFpn(
-            image_size=self.size,
-            min_level=min_level,
-            max_level=max_level,
             num_levels=num_levels,
             backbone_channels=self.backbone.return_channels,
             fpn_channels=fpn_channels,
@@ -613,12 +598,6 @@ class EfficientDet(DetectionBaseNet):
             fpn_channels=self.fpn_channels,
             num_anchors=self.anchor_generator.num_anchors_per_location()[0],
         )
-
-    def adjust_size(self, new_size: tuple[int, int]) -> None:
-        if new_size == self.size:
-            return
-
-        raise RuntimeError("Model resizing not supported")
 
     def freeze(self, freeze_classifier: bool = True) -> None:
         for param in self.parameters():

@@ -491,7 +491,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 39.7,
-                "sha256": "220df49e08ea49e24f30dcc777bf48c7aaea4aaa5909b56c931f41747381d390",
+                "sha256": "d7d76733e0116d351bf8aafc563659eab7bea02174a02c10fba8eb3a64ea87e1",
             }
         },
         "net": {"network": "mobilenet_v4_hybrid_m", "tag": "il-common"},

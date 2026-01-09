@@ -31,6 +31,7 @@ from birder.net.fasternet import FasterNet
 from birder.net.fastvit import FastViT
 from birder.net.flexivit import FlexiViT
 from birder.net.focalnet import FocalNet
+from birder.net.gc_vit import GC_ViT
 from birder.net.ghostnet_v1 import GhostNet_v1
 from birder.net.ghostnet_v2 import GhostNet_v2
 from birder.net.groupmixformer import GroupMixFormer
@@ -46,6 +47,9 @@ from birder.net.inception_resnet_v2 import Inception_ResNet_v2
 from birder.net.inception_v3 import Inception_v3
 from birder.net.inception_v4 import Inception_v4
 from birder.net.levit import LeViT
+from birder.net.lit_v1 import LIT_v1
+from birder.net.lit_v1_tiny import LIT_v1_Tiny
+from birder.net.lit_v2 import LIT_v2
 from birder.net.maxvit import MaxViT
 from birder.net.metaformer import MetaFormer
 from birder.net.mnasnet import MNASNet
@@ -143,6 +147,7 @@ __all__ = [
     "FastViT",
     "FlexiViT",
     "FocalNet",
+    "GC_ViT",
     "GhostNet_v1",
     "GhostNet_v2",
     "GroupMixFormer",
@@ -158,6 +163,9 @@ __all__ = [
     "Inception_v3",
     "Inception_v4",
     "LeViT",
+    "LIT_v1",
+    "LIT_v1_Tiny",
+    "LIT_v2",
     "MaxViT",
     "MetaFormer",
     "MNASNet",

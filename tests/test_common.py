@@ -3,7 +3,6 @@
 import argparse
 import logging
 import math
-import os
 import tempfile
 import typing
 import unittest
@@ -19,6 +18,7 @@ from birder.common import lib
 from birder.common import masking
 from birder.common import training_cli
 from birder.common import training_utils
+from birder.common.lib import env_bool
 from birder.conf import settings
 from birder.net.base import SignatureType
 from birder.net.detection.base import DetectionSignatureType
@@ -93,7 +93,23 @@ class TestCLI(unittest.TestCase):
             m.assert_called_with("some_file.tar.gz", "rb")
             self.assertEqual(hex_digest, "916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9")
 
-    @unittest.skipUnless(os.environ.get("NETWORK_TESTS", False), "Avoid tests that require network access")
+    def test_parse_size(self) -> None:
+        self.assertIsNone(cli.parse_size(None))
+        self.assertEqual(cli.parse_size(224), (224, 224))
+        self.assertEqual(cli.parse_size([224]), (224, 224))
+        self.assertEqual(cli.parse_size((224, 256)), (224, 256))
+        with self.assertRaises(ValueError):
+            cli.parse_size([1, 2, 3])
+
+    def test_flexible_dict_action(self) -> None:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--opts", action=cli.FlexibleDictAction)
+        args = parser.parse_args(["--opts", '{"a": 1}', "--opts", "b=2,c=three"])
+        self.assertEqual(args.opts["a"], 1)
+        self.assertEqual(args.opts["b"], 2)
+        self.assertEqual(args.opts["c"], "three")
+
+    @unittest.skipUnless(env_bool("NETWORK_TESTS"), "Avoid tests that require network access")
     def test_download_file(self) -> None:
         with tempfile.NamedTemporaryFile() as f:
             cli.download_file(
@@ -245,13 +261,14 @@ class TestTrainingUtils(unittest.TestCase):
         sample_iterator = iter(sampler)
         self.assertLessEqual(next(sample_iterator), 512)  # type: ignore
 
+    # pylint: disable=too-many-branches
     def test_optimizer_parameter_groups(self) -> None:
         model = torch.nn.Sequential(
             torch.nn.Linear(1, 2, bias=True),
             torch.nn.BatchNorm1d(2),
             torch.nn.Linear(2, 1, bias=False),
         )
-        params = training_utils.optimizer_parameter_groups(model, 0.1)
+        params = training_utils.optimizer_parameter_groups(model, 0.1, 0.1)
         self.assertEqual(len(params), 5)  # Linear + bias + norm std + norm mean + linear
         self.assertEqual(params[0]["weight_decay"], 0.1)
         self.assertEqual(params[1]["weight_decay"], 0.1)
@@ -262,7 +279,7 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertIsInstance(params[0]["params"], torch.Tensor)
 
         # Test bias
-        params = training_utils.optimizer_parameter_groups(model, 0.1, custom_keys_weight_decay=[("bias", 0)])
+        params = training_utils.optimizer_parameter_groups(model, 0.1, 0.1, custom_keys_weight_decay=[("bias", 0)])
         self.assertEqual(params[0]["weight_decay"], 0.1)
         self.assertEqual(params[1]["weight_decay"], 0.0)
         self.assertEqual(params[2]["weight_decay"], 0.1)
@@ -270,7 +287,7 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertEqual(params[4]["weight_decay"], 0.1)
 
         # Test norm
-        params = training_utils.optimizer_parameter_groups(model, 0.1, norm_weight_decay=0)
+        params = training_utils.optimizer_parameter_groups(model, 0.1, 0.1, norm_weight_decay=0)
         self.assertEqual(params[0]["weight_decay"], 0.1)
         self.assertEqual(params[1]["weight_decay"], 0.1)
         self.assertEqual(params[2]["weight_decay"], 0.0)
@@ -279,7 +296,7 @@ class TestTrainingUtils(unittest.TestCase):
 
         # Test bias and norm
         params = training_utils.optimizer_parameter_groups(
-            model, 0.1, norm_weight_decay=0, custom_keys_weight_decay=[("bias", 0)]
+            model, 0.1, 0.1, norm_weight_decay=0, custom_keys_weight_decay=[("bias", 0)]
         )
         self.assertEqual(params[0]["weight_decay"], 0.1)
         self.assertEqual(params[1]["weight_decay"], 0.0)
@@ -288,7 +305,7 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertEqual(params[4]["weight_decay"], 0.1)
 
         # Test layer decay
-        params = training_utils.optimizer_parameter_groups(model, 0, layer_decay=0.1)
+        params = training_utils.optimizer_parameter_groups(model, 0, 0.1, layer_decay=0.1)
         self.assertAlmostEqual(params[0]["lr_scale"], 1e-2)
         self.assertAlmostEqual(params[1]["lr_scale"], 1e-2)
         self.assertEqual(params[2]["lr_scale"], 0.1)
@@ -296,7 +313,7 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertEqual(params[4]["lr_scale"], 1.0)
 
         model = ResNeXt(3, 2, config={"units": [3, 4, 6, 3]})
-        params = training_utils.optimizer_parameter_groups(model, 0, layer_decay=0.1)
+        params = training_utils.optimizer_parameter_groups(model, 0, 0.1, layer_decay=0.1)
         self.assertEqual(params[-1]["lr_scale"], 1.0)
         self.assertEqual(params[-2]["lr_scale"], 1.0)
         self.assertEqual(params[-3]["lr_scale"], 0.1)
@@ -314,7 +331,7 @@ class TestTrainingUtils(unittest.TestCase):
                 "drop_path_rate": 0.0,
             },
         )
-        params = training_utils.optimizer_parameter_groups(model, 0, layer_decay=0.1)
+        params = training_utils.optimizer_parameter_groups(model, 0, 0.1, layer_decay=0.1)
         for param in params[-4:]:  # Head + norm
             self.assertEqual(param["lr_scale"], 1.0)
         for param in params[-16:-4]:  # Block 12
@@ -338,7 +355,7 @@ class TestTrainingUtils(unittest.TestCase):
                 "drop_path_rate": 0.0,
             },
         )
-        params = training_utils.optimizer_parameter_groups(model, 0, layer_decay=0.1, layer_decay_min_scale=0.01)
+        params = training_utils.optimizer_parameter_groups(model, 0, 0.1, layer_decay=0.1, layer_decay_min_scale=0.01)
         for param in params[-4:]:  # Head + norm
             self.assertEqual(param["lr_scale"], 1.0)
         for param in params[-16:-4]:  # Block 12
@@ -363,7 +380,9 @@ class TestTrainingUtils(unittest.TestCase):
                 "drop_path_rate": 0.0,
             },
         )
-        params = training_utils.optimizer_parameter_groups(model, 0, layer_decay=0.1, layer_decay_no_opt_scale=1e-4)
+        params = training_utils.optimizer_parameter_groups(
+            model, 0, 0.1, layer_decay=0.1, layer_decay_no_opt_scale=1e-4
+        )
         for param in params[-4:]:  # Head + norm
             self.assertTrue(param["params"].requires_grad)
         for param in params[-16:-4]:  # Block 12
@@ -387,7 +406,7 @@ class TestTrainingUtils(unittest.TestCase):
                 }
             )
         )
-        params = training_utils.optimizer_parameter_groups(model, 0, backbone_lr=0.1)
+        params = training_utils.optimizer_parameter_groups(model, 0, 0.1, backbone_lr=0.1)
         for param in params[:4]:  # Linear + norm
             self.assertEqual(param["lr"], 0.1)
         for param in params[4:]:
@@ -399,9 +418,174 @@ class TestTrainingUtils(unittest.TestCase):
             torch.nn.BatchNorm1d(2),
             torch.nn.Linear(2, 1, bias=False),
         )
-        params = training_utils.optimizer_parameter_groups(model, 0, bias_lr=0.01)
+        params = training_utils.optimizer_parameter_groups(model, 0, 0.1, bias_lr=0.01)
         self.assertEqual(params[1]["lr"], 0.01)
         self.assertEqual(params[3]["lr"], 0.01)
+
+        # Test custom_layer_wd
+        model = torch.nn.Sequential(
+            torch.nn.Conv1d(3, 16, kernel_size=3),
+            torch.nn.BatchNorm2d(16),
+            torch.nn.Conv1d(16, 24, kernel_size=3),
+        )
+        custom_layer_wd = {"0.weight": 0.01, "1.": 0.05}
+        params = training_utils.optimizer_parameter_groups(model, 0.1, 0.1, custom_layer_weight_decay=custom_layer_wd)
+
+        # Check that custom weight decay is applied correctly
+        for pg in params:
+            wd = pg["weight_decay"]
+            param_tensor = pg["params"]
+            param_name = None
+            for name, p in model.named_parameters():
+                if p is param_tensor:
+                    param_name = name
+                    break
+
+            if param_name == "0.weight":
+                self.assertEqual(wd, 0.01)
+            elif param_name is not None and param_name.startswith("1."):
+                self.assertEqual(wd, 0.05)
+            elif param_name is not None and param_name.startswith("2."):
+                self.assertEqual(wd, 0.1)
+
+        # Test custom_layer_wd with norm_weight_decay (custom_layer_wd should take precedence)
+        params = training_utils.optimizer_parameter_groups(
+            model, 0.1, 0.1, norm_weight_decay=0.0, custom_layer_weight_decay={"2.weight": 0.02}
+        )
+        for pg in params:
+            param_tensor = pg["params"]
+            param_name = None
+            for name, p in model.named_parameters():
+                if p is param_tensor:
+                    param_name = name
+                    break
+
+            if param_name == "2.weight":
+                self.assertEqual(pg["weight_decay"], 0.02)
+            elif param_name is not None and param_name.startswith("1."):
+                self.assertEqual(pg["weight_decay"], 0.0)
+            elif param_name is not None and param_name in ("0.weight", "0.bias"):
+                self.assertEqual(pg["weight_decay"], 0.1)
+
+    # pylint: disable=too-many-branches
+    def test_lr_scale_with_optimizer_and_scheduler(self) -> None:
+        model = torch.nn.Sequential(
+            torch.nn.Linear(10, 20, bias=True),
+            torch.nn.BatchNorm1d(20),
+            torch.nn.Linear(20, 10, bias=False),
+        )
+
+        base_lr = 1.0
+        params = training_utils.optimizer_parameter_groups(model, 0.01, base_lr, layer_decay=0.1)
+
+        # Create optimizer
+        args = argparse.Namespace(opt="sgd", lr=base_lr, momentum=0.9, wd=0.01, nesterov=False)
+        optimizer = training_utils.get_optimizer(params, base_lr, args)
+
+        # Verify initial learning rates are set correctly (base_lr * lr_scale for groups with lr_scale != 1.0)
+        self.assertAlmostEqual(optimizer.param_groups[0]["lr"], base_lr * 0.01)
+        self.assertAlmostEqual(optimizer.param_groups[1]["lr"], base_lr * 0.01)
+        self.assertAlmostEqual(optimizer.param_groups[2]["lr"], base_lr * 0.1)
+        self.assertAlmostEqual(optimizer.param_groups[3]["lr"], base_lr * 0.1)
+        self.assertAlmostEqual(optimizer.param_groups[4]["lr"], base_lr)
+
+        initial_lrs = [pg["lr"] for pg in optimizer.param_groups]
+        optimizer.zero_grad()
+
+        # Create dummy gradients
+        for param in model.parameters():
+            if param.requires_grad:
+                param.grad = torch.randn_like(param) * 0.01
+
+        optimizer.step()
+
+        # Verify learning rates are unchanged after optimizer step
+        for i, pg in enumerate(optimizer.param_groups):
+            self.assertAlmostEqual(pg["lr"], initial_lrs[i])
+
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.5)
+
+        # Perform optimizer step before scheduler step (correct PyTorch order)
+        optimizer.zero_grad()
+        for param in model.parameters():
+            if param.requires_grad:
+                param.grad = torch.randn_like(param) * 0.01
+
+        optimizer.step()
+        scheduler.step()
+
+        # Verify all learning rates are scaled by gamma=0.5, maintaining relative differences
+        expected_lrs_after_step1 = [lr * 0.5 for lr in initial_lrs]
+        for i, pg in enumerate(optimizer.param_groups):
+            self.assertAlmostEqual(pg["lr"], expected_lrs_after_step1[i], places=6)
+
+        # Verify relative ratios are maintained
+        self.assertAlmostEqual(optimizer.param_groups[0]["lr"] / optimizer.param_groups[2]["lr"], 0.1, places=6)
+        self.assertAlmostEqual(optimizer.param_groups[0]["lr"] / optimizer.param_groups[4]["lr"], 0.01, places=6)
+        self.assertAlmostEqual(optimizer.param_groups[2]["lr"] / optimizer.param_groups[4]["lr"], 0.1, places=6)
+
+        # Another training iteration
+        optimizer.zero_grad()
+        for param in model.parameters():
+            if param.requires_grad:
+                param.grad = torch.randn_like(param) * 0.01
+
+        optimizer.step()
+        scheduler.step()
+        expected_lrs_after_step2 = [lr * 0.5 for lr in expected_lrs_after_step1]
+        for i, pg in enumerate(optimizer.param_groups):
+            self.assertAlmostEqual(pg["lr"], expected_lrs_after_step2[i], places=6)
+
+        # Verify relative ratios are still maintained
+        self.assertAlmostEqual(optimizer.param_groups[0]["lr"] / optimizer.param_groups[2]["lr"], 0.1, places=6)
+
+        # Test custom layer LR scale with CosineLR scheduler
+        model = torch.nn.Sequential(
+            torch.nn.Conv1d(3, 16, kernel_size=3),
+            torch.nn.BatchNorm2d(16),
+            torch.nn.Conv1d(16, 24, kernel_size=3),
+        )
+
+        base_lr = 0.1
+        custom_layer_lr_scale = {"0.weight": 0.01, "1.": 0.1}  # First conv scaled down, BN scaled down
+
+        params = training_utils.optimizer_parameter_groups(
+            model, 0.01, base_lr, custom_layer_lr_scale=custom_layer_lr_scale
+        )
+        optimizer = training_utils.get_optimizer(params, base_lr, args)
+
+        # Verify custom LR scaling is applied
+        for i, pg in enumerate(optimizer.param_groups):
+            lr_scale = pg.get("lr_scale", 1.0)
+            if lr_scale == 0.01:  # 0.weight group
+                self.assertAlmostEqual(pg["lr"], base_lr * 0.01)
+            elif lr_scale == 0.1:  # 1.* groups (BatchNorm)
+                self.assertAlmostEqual(pg["lr"], base_lr * 0.1)
+            elif lr_scale == 1.0:  # Other groups (2.* conv)
+                self.assertAlmostEqual(pg["lr"], base_lr)
+
+        # Create CosineAnnealingLR scheduler
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=0)
+        initial_lrs = [pg["lr"] for pg in optimizer.param_groups]
+
+        # Step through multiple training iterations and verify relative ratios are maintained
+        for _ in range(5):
+            # Perform optimizer step before scheduler step (correct PyTorch order)
+            optimizer.zero_grad()
+            for param in model.parameters():
+                if param.requires_grad:
+                    param.grad = torch.randn_like(param) * 0.01
+
+            optimizer.step()
+            scheduler.step()
+
+            # Verify relative ratios between groups are maintained
+            for i in range(len(optimizer.param_groups)):  # pylint: disable=consider-using-enumerate
+                for j in range(i + 1, len(optimizer.param_groups)):
+                    if initial_lrs[j] > 0:  # Avoid division by zero
+                        expected_ratio = initial_lrs[i] / initial_lrs[j]
+                        actual_ratio = optimizer.param_groups[i]["lr"] / optimizer.param_groups[j]["lr"]
+                        self.assertAlmostEqual(actual_ratio, expected_ratio, places=5)
 
     def test_get_optimizer(self) -> None:
         parser = argparse.ArgumentParser()

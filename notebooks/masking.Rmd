@@ -27,8 +27,8 @@ from PIL import Image
 ```
 
 ```{python}
-from birder.common import lib
 from birder.common import masking
+from birder.common.training_utils import set_random_seeds
 from birder.conf import settings
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.classification import inference_preset
@@ -66,7 +66,7 @@ orig_img_tensor = torch.einsum("nchw->nhwc", img_tensor).squeeze()
 ### Uniform Masking
 
 ```{python}
-lib.set_random_seeds(0)
+set_random_seeds(0)
 
 mask_generator = masking.UniformMasking(input_size, mask_ratio=0.5)
 mask = mask_generator(1)
@@ -85,7 +85,7 @@ show_image(masked_img_tensor, "Masked")
 ### Block Masking
 
 ```{python}
-lib.set_random_seeds(42)
+set_random_seeds(42)
 
 mask_generator = masking.BlockMasking(
     input_size,
@@ -110,7 +110,7 @@ show_image(masked_img_tensor, "Masked")
 ### Roll Block Masking
 
 ```{python}
-lib.set_random_seeds(8)
+set_random_seeds(8)
 
 mask_generator = masking.RollBlockMasking(input_size, num_masking_patches=int(input_size[0] * input_size[1] * 0.5))
 mask = mask_generator(1)
@@ -127,7 +127,7 @@ show_image(masked_img_tensor, "Rolled Block Mask")
 ```
 
 ```{python}
-lib.set_random_seeds(8)
+set_random_seeds(8)
 
 mask_generator = masking.InverseRollBlockMasking(
     input_size, num_masking_patches=int(input_size[0] * input_size[1] * 0.5)
@@ -163,7 +163,7 @@ def get_jepa_mask(input_size: tuple[int, int], patch_size: int, mask_ids: torch.
 ```
 
 ```{python}
-lib.set_random_seeds(8)
+set_random_seeds(8)
 
 mask_generator = MultiBlockMasking(
     input_size,

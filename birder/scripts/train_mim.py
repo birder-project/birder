@@ -25,7 +25,6 @@ from birder.common import training_utils
 from birder.common.lib import format_duration
 from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
-from birder.common.lib import set_random_seeds
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import make_image_dataset
@@ -49,41 +48,13 @@ def train(args: argparse.Namespace) -> None:
     #
     # Initialize
     #
-    training_utils.init_distributed_mode(args)
-    logger.info(f"Starting training, birder version: {birder.__version__}, pytorch version: {torch.__version__}")
-    training_utils.log_git_info()
+    (device, device_id, disable_tqdm) = training_utils.init_training(args, logger)
 
     if args.size is None:
         # Prefer mim size over encoder default size
         args.size = registry.get_default_size(args.network)
 
     logger.info(f"Using size={args.size}")
-
-    if args.cpu is True:
-        device = torch.device("cpu")
-        device_id = 0
-    else:
-        device = torch.device("cuda")
-        device_id = torch.cuda.current_device()
-
-    if args.use_deterministic_algorithms is True:
-        torch.backends.cudnn.benchmark = False
-        torch.use_deterministic_algorithms(True)
-    else:
-        torch.backends.cudnn.benchmark = True
-
-    if args.seed is not None:
-        set_random_seeds(args.seed)
-
-    if args.non_interactive is True or training_utils.is_local_primary(args) is False:
-        disable_tqdm = True
-    elif sys.stderr.isatty() is False:
-        disable_tqdm = True
-    else:
-        disable_tqdm = False
-
-    # Enable or disable the autograd anomaly detection
-    torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
 
     #
     # Data
@@ -131,7 +102,7 @@ def train(args: argparse.Namespace) -> None:
 
     batch_size: int = args.batch_size
     grad_accum_steps: int = args.grad_accum_steps
-    logger.debug(f"Effective batch size = {args.batch_size * grad_accum_steps * args.world_size}")
+    logger.debug(f"Effective batch size = {batch_size * grad_accum_steps * args.world_size}")
 
     # Data loaders and samplers
     if args.distributed is True:
@@ -171,6 +142,8 @@ def train(args: argparse.Namespace) -> None:
         args.stop_epoch = epochs
     else:
         args.stop_epoch += 1
+
+    logging.debug(f"Epoch has {last_batch_idx+1} iterations ({optimizer_steps_per_epoch} steps)")
 
     #
     # Initialize network
@@ -241,21 +214,24 @@ def train(args: argparse.Namespace) -> None:
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
     #
 
+    # Learning rate scaling
+    lr = training_utils.scale_lr(args)
+
     # Training parameter groups
     custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
     parameters = training_utils.optimizer_parameter_groups(
         net,
         args.wd,
+        base_lr=lr,
         norm_weight_decay=args.norm_wd,
         custom_keys_weight_decay=custom_keys_weight_decay,
+        custom_layer_weight_decay=args.custom_layer_wd,
         layer_decay=args.layer_decay,
         layer_decay_min_scale=args.layer_decay_min_scale,
         layer_decay_no_opt_scale=args.layer_decay_no_opt_scale,
         bias_lr=args.bias_lr,
+        custom_layer_lr_scale=args.custom_layer_lr_scale,
     )
-
-    # Learning rate scaling
-    lr = training_utils.scale_lr(args)
 
     if args.lr_scheduler_update == "epoch":
         step_update = False

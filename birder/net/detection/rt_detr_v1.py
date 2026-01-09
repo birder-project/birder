@@ -1070,6 +1070,7 @@ class RT_DETR_v1(DetectionBaseNet):
             W = feat.shape[3]
             spatial_shapes.append([H, W])
             level_start_index.append(H * W + level_start_index[-1])
+
         level_start_index.pop()
 
         detections: list[dict[str, torch.Tensor]] = []

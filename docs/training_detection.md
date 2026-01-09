@@ -102,6 +102,14 @@ Optional intermediate training (COCO)
 torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d3 --tag coco --backbone efficientnet_v1_b3 --lr 0.08 --lr-scheduler cosine --warmup-epochs 10 --batch-size 24 --epochs 300 --wd 0.00004 --sync-bn --model-ema --clip-grad-norm 10 --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
+#### EfficientDet D4: RegNet Y 4 GF
+
+Optional intermediate training (COCO)
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d4 --tag coco --backbone regnet_y_4g --lr 0.08 --lr-scheduler cosine --warmup-epochs 10 --batch-size 24 --epochs 300 --wd 0.00004 --size 640 --model-ema --clip-grad-norm 10 --batch-multiscale --multiscale-min-size 512 --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+```
+
 ### Faster R-CNN
 
 #### Faster R-CNN: EfficientNet v2 Small
@@ -263,7 +271,7 @@ torchrun --nproc_per_node=2 train_detection.py --network yolo_v3 --tag coco --ba
 Optional intermediate training (COCO)
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network yolo_v4 --tag coco --backbone csp_darknet_53 --backbone-model-config drop_block=0.1 --lr 0.001 --lr-scheduler multistep --lr-steps 300 350 --lr-step-gamma 0.1 --batch-size 32 --grad-accum-steps 2 --warmup-epochs 5 --epochs 400 --wd 0.0005 --size 608 --aug-level 5 --mosaic-prob 0.5 --mosaic-stop-epoch 360 --batch-multiscale --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+torchrun --nproc_per_node=2 train_detection.py --network yolo_v4 --tag coco --backbone csp_darknet_53 --backbone-model-config drop_block=0.1 --lr 0.001 --lr-scheduler multistep --lr-steps 300 350 --lr-step-gamma 0.1 --batch-size 32 --grad-accum-steps 2 --warmup-epochs 5 --epochs 400 --wd 0.0005 --size 608 --multiscale-min-size 384 --aug-level 5 --mosaic-prob 0.5 --mosaic-stop-epoch 360 --batch-multiscale --amp --amp-dtype float16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 ### YOLO v4 Tiny
@@ -273,7 +281,7 @@ torchrun --nproc_per_node=2 train_detection.py --network yolo_v4 --tag coco --ba
 Optional intermediate training (COCO)
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network yolo_v4_tiny --tag coco --backbone vovnet_v2_19 --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 64 --warmup-epochs 5 --epochs 600 --wd 0.0005 --size 416 --aug-type yolo --mosaic-prob 0.5 --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+torchrun --nproc_per_node=2 train_detection.py --network yolo_v4_tiny --tag coco --backbone vovnet_v2_19 --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 128 --warmup-epochs 5 --epochs 600 --wd 0.0005 --size 416 --aug-type yolo --mosaic-prob 0.5 --mosaic-stop-epoch 540 --batch-multiscale --multiscale-min-size 320 --amp --amp-dtype float16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 ## Common Dataset Training Scenarios

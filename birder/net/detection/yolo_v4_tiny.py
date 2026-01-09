@@ -15,17 +15,12 @@ import torch
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
+from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.detection.yolo_anchors import resolve_anchor_groups
 from birder.net.detection.yolo_v3 import YOLOAnchorGenerator
 from birder.net.detection.yolo_v3 import YOLOHead
-from birder.net.detection.yolo_v3 import scale_anchors
 from birder.net.detection.yolo_v4 import YOLO_v4
-
-# Default anchors from YOLO v4 Tiny (COCO)
-DEFAULT_ANCHORS = [
-    [(10.0, 14.0), (23.0, 27.0), (37.0, 58.0)],  # Medium
-    [(81.0, 82.0), (135.0, 169.0), (344.0, 319.0)],  # Large
-]
 
 # Scale factors per detection scale to eliminate grid sensitivity
 DEFAULT_SCALE_XY = [1.05, 1.05]  # [medium, large]
@@ -92,7 +87,6 @@ class YOLOTinyNeck(nn.Module):
 # pylint: disable=invalid-name
 class YOLO_v4_Tiny(YOLO_v4):
     default_size = (416, 416)
-    auto_register = True
 
     def __init__(
         self,
@@ -104,22 +98,26 @@ class YOLO_v4_Tiny(YOLO_v4):
         export_mode: bool = False,
     ) -> None:
         super().__init__(num_classes, backbone, config=config, size=size, export_mode=export_mode)
-        assert self.config is None, "config not supported"
+        assert self.config is not None, "must set config"
 
         # self.num_classes = self.num_classes - 1 (Subtracted at parent)
 
         score_thresh = 0.05
         nms_thresh = 0.45
         detections_per_img = 300
-        self.ignore_thresh = 0.7
+        ignore_thresh = 0.7
+        noobj_coeff = 0.25
+        coord_coeff = 3.0
+        obj_coeff = 1.0
+        cls_coeff = 1.0
+        label_smoothing = 0.1
+        anchor_spec = self.config["anchors"]
 
-        # Loss coefficients
-        self.noobj_coeff = 0.25
-        self.coord_coeff = 3.0
-        self.obj_coeff = 1.0
-        self.cls_coeff = 1.0
-
-        self.anchors = scale_anchors(DEFAULT_ANCHORS, self.default_size, self.size)
+        self.ignore_thresh = ignore_thresh
+        self.noobj_coeff = noobj_coeff
+        self.coord_coeff = coord_coeff
+        self.obj_coeff = obj_coeff
+        self.cls_coeff = cls_coeff
         self.scale_xy = DEFAULT_SCALE_XY
         self.score_thresh = score_thresh
         self.nms_thresh = nms_thresh
@@ -128,12 +126,18 @@ class YOLO_v4_Tiny(YOLO_v4):
         self.backbone.return_channels = self.backbone.return_channels[-2:]
         self.backbone.return_stages = self.backbone.return_stages[-2:]
 
-        self.label_smoothing = 0.1
+        self.label_smoothing = label_smoothing
         self.smooth_positive = 1.0 - self.label_smoothing
         self.smooth_negative = self.label_smoothing / self.num_classes
 
         self.neck = YOLOTinyNeck(self.backbone.return_channels)
 
-        self.anchor_generator = YOLOAnchorGenerator(self.anchors)
+        anchors = resolve_anchor_groups(
+            anchor_spec, anchor_format="pixels", model_size=self.size, model_strides=(16, 32)
+        )
+        self.anchor_generator = YOLOAnchorGenerator(anchors)
         num_anchors = self.anchor_generator.num_anchors_per_location()
         self.head = YOLOHead(self.neck.out_channels, num_anchors, self.num_classes)
+
+
+registry.register_model_config("yolo_v4_tiny", YOLO_v4_Tiny, config={"anchors": "yolo_v4_tiny"})

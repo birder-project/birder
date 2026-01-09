@@ -5,6 +5,7 @@ import typing
 from typing import Optional
 from typing import get_args
 
+from birder.common.cli import FlexibleDictAction
 from birder.common.cli import ValidationError
 from birder.common.training_utils import OptimizerType
 from birder.common.training_utils import SchedulerType
@@ -82,10 +83,22 @@ def add_lr_wd_args(parser: argparse.ArgumentParser, backbone_lr: bool = False, w
         metavar="WD",
         help="weight decay for embedding parameters for vision transformer models",
     )
+    group.add_argument(
+        "--custom-layer-wd",
+        action=FlexibleDictAction,
+        metavar="LAYER=WD",
+        help="custom weight decay for specific layers by name (e.g., offset_conv=0.0)",
+    )
     group.add_argument("--layer-decay", type=float, help="layer-wise learning rate decay (LLRD)")
     group.add_argument("--layer-decay-min-scale", type=float, help="minimum layer scale factor clamp value")
     group.add_argument(
         "--layer-decay-no-opt-scale", type=float, help="layer scale threshold below which parameters are frozen"
+    )
+    group.add_argument(
+        "--custom-layer-lr-scale",
+        action=FlexibleDictAction,
+        metavar="LAYER=SCALE",
+        help="custom lr_scale for specific layers by name (e.g., offset_conv=0.01,attention=0.5)",
     )
 
 
@@ -184,6 +197,11 @@ def add_detection_input_args(parser: argparse.ArgumentParser) -> None:
         default=False,
         action="store_true",
         help="enable random square resize once per batch (capped by max(--size))",
+    )
+    group.add_argument(
+        "--multiscale-min-size",
+        type=int,
+        help="minimum short-edge size for multiscale lists (rounded up to nearest multiple of 32)",
     )
 
 

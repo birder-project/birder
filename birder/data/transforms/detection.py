@@ -1,3 +1,4 @@
+import math
 import random
 from collections.abc import Callable
 from typing import Any
@@ -9,6 +10,24 @@ from torch import nn
 from torchvision.transforms import v2
 
 from birder.data.transforms.classification import RGBType
+
+MULTISCALE_STEP = 32
+DEFAULT_MULTISCALE_MIN_SIZE = 480
+DEFAULT_MULTISCALE_MAX_SIZE = 800
+
+
+def build_multiscale_sizes(
+    min_size: Optional[int] = None, max_size: int = DEFAULT_MULTISCALE_MAX_SIZE
+) -> tuple[int, ...]:
+    if min_size is None:
+        min_size = DEFAULT_MULTISCALE_MIN_SIZE
+
+    start = int(math.ceil(min_size / MULTISCALE_STEP) * MULTISCALE_STEP)
+    end = int(math.floor(max_size / MULTISCALE_STEP) * MULTISCALE_STEP)
+    if end < start:
+        return (start,)
+
+    return tuple(range(start, end + 1, MULTISCALE_STEP))
 
 
 class ResizeWithRandomInterpolation(nn.Module):
@@ -39,6 +58,7 @@ def get_birder_augment(
     dynamic_size: bool,
     multiscale: bool,
     max_size: Optional[int],
+    multiscale_min_size: Optional[int],
     post_mosaic: bool = False,
 ) -> Callable[..., torch.Tensor]:
     if dynamic_size is True:
@@ -78,9 +98,7 @@ def get_birder_augment(
     # Resize
     if multiscale is True:
         transformations.append(
-            v2.RandomShortestSize(
-                min_size=(480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800), max_size=max_size or 1333
-            ),
+            v2.RandomShortestSize(min_size=build_multiscale_sizes(multiscale_min_size), max_size=max_size or 1333),
         )
     else:
         transformations.append(
@@ -132,6 +150,7 @@ def get_birder_augment(
 AugType = Literal["birder", "lsj", "multiscale", "ssd", "ssdlite", "yolo", "detr"]
 
 
+# pylint: disable=too-many-return-statements
 def training_preset(
     size: tuple[int, int],
     aug_type: AugType,
@@ -140,6 +159,7 @@ def training_preset(
     dynamic_size: bool = False,
     multiscale: bool = False,
     max_size: Optional[int] = None,
+    multiscale_min_size: Optional[int] = None,
     post_mosaic: bool = False,
 ) -> Callable[..., torch.Tensor]:
     mean = rgv_values["mean"]
@@ -159,7 +179,9 @@ def training_preset(
         return v2.Compose(  # type:ignore
             [
                 v2.ToImage(),
-                get_birder_augment(size, level, fill_value, dynamic_size, multiscale, max_size, post_mosaic),
+                get_birder_augment(
+                    size, level, fill_value, dynamic_size, multiscale, max_size, multiscale_min_size, post_mosaic
+                ),
                 v2.ToDtype(torch.float32, scale=True),
                 v2.Normalize(mean=mean, std=std),
                 v2.ToPureTensor(),
@@ -190,9 +212,7 @@ def training_preset(
         return v2.Compose(  # type: ignore
             [
                 v2.ToImage(),
-                v2.RandomShortestSize(
-                    min_size=(480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800), max_size=max_size or 1333
-                ),
+                v2.RandomShortestSize(min_size=build_multiscale_sizes(multiscale_min_size), max_size=max_size or 1333),
                 v2.RandomHorizontalFlip(0.5),
                 v2.SanitizeBoundingBoxes(),
                 v2.ToDtype(torch.float32, scale=True),
@@ -264,21 +284,18 @@ def training_preset(
         )
 
     if aug_type == "detr":
+        multiscale_sizes = build_multiscale_sizes(multiscale_min_size)
         return v2.Compose(  # type: ignore
             [
                 v2.ToImage(),
                 v2.RandomChoice(
                     [
-                        v2.RandomShortestSize(
-                            (480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800), max_size=max_size or 1333
-                        ),
+                        v2.RandomShortestSize(min_size=multiscale_sizes, max_size=max_size or 1333),
                         v2.Compose(
                             [
                                 v2.RandomShortestSize((400, 500, 600)),
                                 v2.RandomIoUCrop() if post_mosaic is False else v2.Identity(),  # RandomSizeCrop
-                                v2.RandomShortestSize(
-                                    (480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800), max_size=max_size or 1333
-                                ),
+                                v2.RandomShortestSize(min_size=multiscale_sizes, max_size=max_size or 1333),
                             ]
                         ),
                     ]

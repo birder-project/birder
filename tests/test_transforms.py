@@ -59,6 +59,15 @@ class TestTransforms(unittest.TestCase):
         detection.training_preset((256, 256), "multiscale", 0, classification.get_rgb_stats("none"), False, False)
         detection.InferenceTransform((256, 256), classification.get_rgb_stats("birder"), False)
 
+        # Multiscale
+        sizes = detection.build_multiscale_sizes()
+        self.assertEqual(sizes, (480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800))
+        if len(sizes) > 1:
+            self.assertEqual(sizes[1] - sizes[0], detection.MULTISCALE_STEP)
+
+        self.assertEqual(detection.build_multiscale_sizes(481, max_size=513), (512,))
+        self.assertEqual(detection.build_multiscale_sizes(500, max_size=620), (512, 544, 576, 608))
+
 
 class TestMosaic(unittest.TestCase):
     def _create_dummy_data(self) -> tuple[list[Image.Image], list[dict[str, Any]]]:

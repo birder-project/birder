@@ -58,7 +58,7 @@ class ResidualBlock(nn.Module):
                 nn.BatchNorm2d(out_channels),
             )
 
-        if in_channels == out_channels:
+        if in_channels == out_channels and stride == (1, 1):
             self.block2 = nn.Identity()
         else:
             if avg_down is True and stride != (1, 1):

@@ -43,6 +43,7 @@ def show_det_iterator(args: argparse.Namespace) -> None:
             args.dynamic_size,
             args.multiscale,
             args.max_size,
+            args.multiscale_min_size,
         )
         mosaic_transforms = training_preset(
             args.size,
@@ -52,6 +53,7 @@ def show_det_iterator(args: argparse.Namespace) -> None:
             args.dynamic_size,
             args.multiscale,
             args.max_size,
+            args.multiscale_min_size,
             post_mosaic=True,
         )
         if args.mosaic_prob > 0.0:
@@ -160,7 +162,9 @@ def show_det_iterator(args: argparse.Namespace) -> None:
 
     else:
         if args.batch_multiscale is True:
-            data_collate_fn: Any = BatchRandomResizeCollator(offset, args.size)
+            data_collate_fn: Any = BatchRandomResizeCollator(
+                offset, args.size, multiscale_min_size=args.multiscale_min_size
+            )
         else:
             data_collate_fn = collate_fn
 
@@ -259,6 +263,11 @@ def set_parser(subparsers: Any) -> None:
         help="allow variable image sizes while preserving aspect ratios",
     )
     subparser.add_argument("--multiscale", default=False, action="store_true", help="enable random scale per image")
+    subparser.add_argument(
+        "--multiscale-min-size",
+        type=int,
+        help="minimum short-edge size for multiscale lists (rounded up to nearest multiple of 32)",
+    )
     subparser.add_argument(
         "--batch-multiscale",
         default=False,

@@ -3,6 +3,7 @@ import json
 import logging
 import multiprocessing
 import os
+import queue
 import signal
 import time
 from collections.abc import Callable
@@ -67,39 +68,43 @@ def _save_classes(pack_path: Path, class_to_idx: dict[str, int]) -> None:
 
 
 def _encode_image(path: str, file_format: str, size: Optional[int] = None) -> bytes:
-    image: Image.Image = Image.open(path)
-    if size is not None and size < min(image.size):
-        if image.size[0] > image.size[1]:
-            ratio = image.size[1] / size
-        else:
-            ratio = image.size[0] / size
+    image: Image.Image
+    with Image.open(path) as image:
+        if file_format.lower() in ("jpeg", "jpg") and image.mode in ("RGBA", "P"):
+            image = image.convert("RGB")
 
-        width = round(image.size[0] / ratio)
-        height = round(image.size[1] / ratio)
-        if max(width, height) > MAX_SIZE:
-            if width > height:
-                ratio = width / MAX_SIZE
+        if size is not None and size < min(image.size):
+            if image.size[0] > image.size[1]:
+                ratio = image.size[1] / size
             else:
-                ratio = height / MAX_SIZE
+                ratio = image.size[0] / size
 
-            width = round(width / ratio)
-            height = round(height / ratio)
+            width = round(image.size[0] / ratio)
+            height = round(image.size[1] / ratio)
+            if max(width, height) > MAX_SIZE:
+                if width > height:
+                    ratio = width / MAX_SIZE
+                else:
+                    ratio = height / MAX_SIZE
 
-        image = image.resize((width, height), Image.Resampling.BICUBIC)
+                width = round(width / ratio)
+                height = round(height / ratio)
 
-    elif max(image.size) > MAX_SIZE:
-        if image.size[0] > image.size[1]:
-            ratio = image.size[0] / MAX_SIZE
-        else:
-            ratio = image.size[1] / MAX_SIZE
+            image = image.resize((width, height), Image.Resampling.BICUBIC)
 
-        width = round(image.size[0] / ratio)
-        height = round(image.size[1] / ratio)
-        image = image.resize((width, height), Image.Resampling.BICUBIC)
+        elif max(image.size) > MAX_SIZE:
+            if image.size[0] > image.size[1]:
+                ratio = image.size[0] / MAX_SIZE
+            else:
+                ratio = image.size[1] / MAX_SIZE
 
-    sample_buffer = BytesIO()
-    image.save(sample_buffer, format=file_format, quality=85)
-    return sample_buffer.getvalue()
+            width = round(image.size[0] / ratio)
+            height = round(image.size[1] / ratio)
+            image = image.resize((width, height), Image.Resampling.BICUBIC)
+
+        sample_buffer = BytesIO()
+        image.save(sample_buffer, format=file_format, quality=85)
+        return sample_buffer.getvalue()
 
 
 def read_worker(q_in: Any, q_out: Any, error_event: Any, size: Optional[int], file_format: str) -> None:
@@ -162,38 +167,43 @@ def wds_write_worker(
     count = 0
     buf = {}
     more = True
-    with tqdm(total=total, initial=0, unit="images", unit_scale=True, leave=False) as progress:
-        while more:
-            deq: Optional[tuple[int, bytes, str, int]] = q_out.get()
-            if deq is not None:
-                (idx, sample, suffix, target) = deq
-                buf[idx] = (sample, suffix, target)
+    try:
+        with tqdm(total=total, initial=0, unit="images", unit_scale=True, leave=False) as progress:
+            while more:
+                deq: Optional[tuple[int, bytes, str, int]] = q_out.get()
+                if deq is not None:
+                    (idx, sample, suffix, target) = deq
+                    buf[idx] = (sample, suffix, target)
 
-            else:
-                more = False
-
-            # Ensures ordered write
-            while count in buf:
-                (sample, suffix, target) = buf[count]
-                del buf[count]
-
-                if args.no_cls is True:
-                    cls = {}
                 else:
-                    cls = {"cls": target}
+                    more = False
 
-                sink.write(
-                    {
-                        "__key__": f"sample{count:09d}",
-                        suffix: sample,
-                        **cls,
-                    }
-                )
+                # Ensures ordered write
+                while count in buf:
+                    (sample, suffix, target) = buf[count]
+                    del buf[count]
 
-                count += 1
+                    if args.no_cls is True:
+                        cls = {}
+                    else:
+                        cls = {"cls": target}
 
-                # Update progress bar
-                progress.update(n=1)
+                    sink.write(
+                        {
+                            "__key__": f"sample{count:09d}",
+                            suffix: sample,
+                            **cls,
+                        }
+                    )
+
+                    count += 1
+
+                    # Update progress bar
+                    progress.update(n=1)
+
+    except Exception:
+        error_event.set()
+        raise
 
     sink.close()
 
@@ -218,35 +228,42 @@ def wds_write_worker(
 
 
 def directory_write_worker(
-    q_out: Any, _error_event: Any, pack_path: Path, total: int, _: argparse.Namespace, idx_to_class: dict[int, str]
+    q_out: Any, error_event: Any, pack_path: Path, total: int, _: argparse.Namespace, idx_to_class: dict[int, str]
 ) -> None:
     count = 0
     buf = {}
     more = True
-    with tqdm(total=total, initial=0, unit="images", unit_scale=True, leave=False) as progress:
-        while more:
-            deq: Optional[tuple[int, bytes, str, int]] = q_out.get()
-            if deq is not None:
-                (idx, sample, suffix, target) = deq
-                buf[idx] = (sample, suffix, target)
+    try:
+        with tqdm(total=total, initial=0, unit="images", unit_scale=True, leave=False) as progress:
+            while more:
+                deq: Optional[tuple[int, bytes, str, int]] = q_out.get()
+                if deq is not None:
+                    (idx, sample, suffix, target) = deq
+                    buf[idx] = (sample, suffix, target)
 
-            else:
-                more = False
+                else:
+                    more = False
 
-            # Ensures ordered write
-            while count in buf:
-                (sample, suffix, target) = buf[count]
-                del buf[count]
-                with open(pack_path.joinpath(idx_to_class[target]).joinpath(f"{count:06d}.{suffix}"), "wb") as handle:
-                    handle.write(sample)
+                # Ensures ordered write
+                while count in buf:
+                    (sample, suffix, target) = buf[count]
+                    del buf[count]
+                    with open(
+                        pack_path.joinpath(idx_to_class[target]).joinpath(f"{count:06d}.{suffix}"), "wb"
+                    ) as handle:
+                        handle.write(sample)
 
-                count += 1
+                    count += 1
 
-                # Update progress bar
-                progress.update(n=1)
+                    # Update progress bar
+                    progress.update(n=1)
+
+    except Exception:
+        error_event.set()
+        raise
 
 
-# pylint: disable=too-many-locals,too-many-branches
+# pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def pack(args: argparse.Namespace, pack_path: Path) -> None:
     if args.sampling_file is not None:
         with open(args.sampling_file, "r", encoding="utf-8") as handle:
@@ -308,9 +325,7 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
     read_processes: list[multiprocessing.Process] = []
     for idx in range(args.jobs):
         read_processes.append(
-            multiprocessing.Process(
-                target=read_worker, args=(q_in[idx], q_out, error_event, args.size, args.format), daemon=True
-            )
+            multiprocessing.Process(target=read_worker, args=(q_in[idx], q_out, error_event, args.size, args.format))
         )
 
     for p in read_processes:
@@ -326,53 +341,107 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
         raise ValueError("Unknown pack type")
 
     write_process = multiprocessing.Process(
-        target=target_writer, args=(q_out, error_event, pack_path, len(dataset), args, idx_to_class), daemon=True
+        target=target_writer, args=(q_out, error_event, pack_path, len(dataset), args, idx_to_class)
     )
     write_process.start()
+
+    # Flag to prevent signal handler re-entry
+    cleanup_in_progress = False
+
+    def cleanup_processes() -> None:
+        nonlocal cleanup_in_progress
+        if cleanup_in_progress is True:
+            return
+
+        cleanup_in_progress = True
+
+        # Cancel queue join threads to prevent blocking during cleanup
+        for q in q_in:
+            q.cancel_join_thread()
+
+        q_out.cancel_join_thread()
+
+        # Terminate child processes
+        for p in read_processes:
+            if p.is_alive():
+                p.terminate()
+
+        if write_process.is_alive():
+            write_process.terminate()
+
+        # Wait briefly for termination
+        for p in read_processes:
+            p.join(timeout=1)
+
+        write_process.join(timeout=1)
 
     def signal_handler(signum, _frame) -> None:  # type: ignore
         logger.info(f"Received signal: {signum} at {multiprocessing.current_process().name}, aborting...")
         error_event.set()
+        cleanup_processes()
         raise SystemExit(1)
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    tic = time.time()
-    for idx, sample_idx in enumerate(indices):
-        if idx % 1000 == 0:
-            if error_event.is_set() is True:
-                raise RuntimeError()
+    try:
+        tic = time.time()
+        for idx, sample_idx in enumerate(indices):
+            if idx % 1000 == 0:
+                if error_event.is_set() is True:
+                    cleanup_processes()
+                    raise RuntimeError()
 
-        (path, target) = dataset[sample_idx]
-        q_in[idx % len(q_in)].put((idx, path, target), block=True, timeout=None)
+            (path, target) = dataset[sample_idx]
 
-    for q in q_in:
-        q.put(None, block=True, timeout=None)
+            while True:
+                try:
+                    q_in[idx % len(q_in)].put((idx, path, target), block=True, timeout=1)
+                    break
+                except queue.Full:
+                    if error_event.is_set() is True:
+                        cleanup_processes()
+                        raise RuntimeError()  # pylint: disable=raise-missing-from
 
-    for p in read_processes:
+        for q in q_in:
+            q.put(None, block=True, timeout=None)
+
+        for p in read_processes:
+            while True:
+                p.join(timeout=2)
+                if p.is_alive() is False:
+                    break
+
+                if error_event.is_set() is True:
+                    cleanup_processes()
+                    raise RuntimeError()
+
+        q_out.put(None, block=True, timeout=None)
         while True:
-            p.join(timeout=2)
-            if p.is_alive() is False:
+            write_process.join(timeout=2)
+            if write_process.is_alive() is False:
                 break
 
             if error_event.is_set() is True:
+                cleanup_processes()
                 raise RuntimeError()
 
-    q_out.put(None, block=True, timeout=None)
-    write_process.join()
+        if error_event.is_set() is True:
+            cleanup_processes()
+            raise RuntimeError()
 
-    if error_event.is_set() is True:
-        raise RuntimeError()
+        if args.type == "wds":
+            (wds_path, num_shards) = fs_ops.wds_braces_from_path(pack_path, prefix=f"{args.suffix}-{args.split}")
+            logger.info(f"Packed {len(dataset):,} samples into {num_shards} shards at {wds_path}")
+        elif args.type == "directory":
+            logger.info(f"Packed {len(dataset):,} samples")
 
-    if args.type == "wds":
-        (wds_path, num_shards) = fs_ops.wds_braces_from_path(pack_path, prefix=f"{args.suffix}-{args.split}")
-        logger.info(f"Packed {len(dataset):,} samples into {num_shards} shards at {wds_path}")
-    elif args.type == "directory":
-        logger.info(f"Packed {len(dataset):,} samples")
+        toc = time.time()
+        rate = len(dataset) / (toc - tic)
+        logger.info(f"{format_duration(toc-tic)} to pack {len(dataset):,} samples ({rate:.2f} samples/sec)")
 
-    toc = time.time()
-    rate = len(dataset) / (toc - tic)
-    logger.info(f"{format_duration(toc-tic)} to pack {len(dataset):,} samples ({rate:.2f} samples/sec)")
+    except Exception:
+        cleanup_processes()
+        raise
 
 
 def set_parser(subparsers: Any) -> None:

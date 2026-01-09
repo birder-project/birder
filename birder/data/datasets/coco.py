@@ -98,10 +98,14 @@ class CocoTraining(CocoBase):
 class CocoInference(CocoBase):
     def __getitem__(self, index: int) -> tuple[str, torch.Tensor, Any, list[int]]:
         coco_id = self.dataset.ids[index]
-        path = self.dataset.coco.loadImgs(coco_id)[0]["file_name"]
+        img_info = self.dataset.coco.loadImgs(coco_id)[0]
+        path = img_info["file_name"]
         (sample, labels) = self.dataset[index]
 
-        return (path, sample, labels, F.get_size(sample))
+        # Get original image size (height, width) before transforms
+        orig_size = [img_info["height"], img_info["width"]]
+
+        return (path, sample, labels, orig_size)
 
 
 class CocoMosaicTraining(CocoBase):
@@ -127,9 +131,7 @@ class CocoMosaicTraining(CocoBase):
         self._mosaic_decay_epochs: Optional[int] = None
         self._mosaic_decay_start: Optional[int] = None
 
-    def configure_mosaic_linear_decay(
-        self, base_prob: float, total_epochs: int, decay_fraction: float = 0.1
-    ) -> None:
+    def configure_mosaic_linear_decay(self, base_prob: float, total_epochs: int, decay_fraction: float = 0.1) -> None:
         if total_epochs <= 0:
             raise ValueError("total_epochs must be positive")
         if decay_fraction <= 0.0 or decay_fraction > 1.0:
@@ -141,11 +143,7 @@ class CocoMosaicTraining(CocoBase):
         self._mosaic_decay_start = max(1, total_epochs - decay_epochs + 1)
 
     def update_mosaic_prob(self, epoch: int) -> Optional[float]:
-        if (
-            self._mosaic_base_prob is None
-            or self._mosaic_decay_epochs is None
-            or self._mosaic_decay_start is None
-        ):
+        if self._mosaic_base_prob is None or self._mosaic_decay_epochs is None or self._mosaic_decay_start is None:
             return None
 
         if epoch >= self._mosaic_decay_start:

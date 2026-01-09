@@ -6,6 +6,7 @@ import unittest
 import torch
 from parameterized import parameterized
 
+from birder.common.lib import env_bool
 from birder.common.masking import uniform_mask
 from birder.common.training_utils import group_by_regex
 from birder.conf.settings import DEFAULT_NUM_CHANNELS
@@ -16,6 +17,188 @@ from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import MaskedTokenRetentionMixin
 
 logging.disable(logging.CRITICAL)
+
+NET_TEST_CASES = [
+    ("alexnet"),
+    ("biformer_t"),
+    ("cait_xxs24"),
+    ("cas_vit_xs"),
+    ("coat_tiny"),
+    ("coat_lite_tiny"),
+    ("conv2former_n"),
+    ("convmixer_768_32"),
+    ("convnext_v1_tiny"),
+    ("convnext_v2_atto"),
+    ("crossformer_t"),
+    ("crossvit_9d", True, True, 1, 48),
+    ("csp_resnet_50"),
+    ("csp_resnext_50"),
+    ("csp_darknet_53"),
+    ("csp_se_resnet_50"),
+    ("cswin_transformer_t"),  # PT2 fails
+    ("darknet_53"),
+    ("davit_tiny"),
+    ("deit_t16", True),
+    ("deit3_t16"),
+    ("deit3_reg4_t16"),
+    ("densenet_121"),
+    ("dpn_92"),
+    ("edgenext_xxs"),
+    ("edgevit_xxs"),
+    ("efficientformer_v1_l1"),
+    ("efficientformer_v2_s0"),
+    ("efficientnet_lite0"),
+    ("efficientnet_v1_b0"),
+    ("efficientnet_v2_s"),
+    ("efficientvim_m1", True, True),
+    ("efficientvit_mit_b0"),
+    ("efficientvit_mit_l1"),
+    ("efficientvit_msft_m0", False, False, 2),
+    ("fasternet_t0"),
+    ("fastvit_t8"),
+    ("fastvit_sa12"),
+    ("mobileclip_v1_i0"),
+    ("mobileclip_v2_i3"),
+    ("flexivit_s16"),
+    ("focalnet_t_srf"),
+    ("gc_vit_xxt"),
+    ("ghostnet_v1_0_5"),
+    ("ghostnet_v2_1_0"),
+    ("groupmixformer_mobile"),
+    ("hgnet_v1_tiny"),
+    ("hgnet_v2_b0"),
+    ("hiera_tiny"),
+    ("hiera_abswin_tiny"),  # No bfloat16 support
+    ("hiera_abswin_base_plus_ap"),  # No bfloat16 support
+    ("hieradet_tiny"),
+    ("hornet_tiny_7x7"),
+    ("hornet_tiny_gf"),  # PT2 fails, no bfloat16 support
+    ("iformer_s"),
+    ("inception_next_t"),
+    ("inception_resnet_v1"),
+    ("inception_resnet_v2"),
+    ("inception_v3"),
+    ("inception_v4"),
+    ("levit_128"),
+    ("lit_v1_s"),
+    ("lit_v1_t"),
+    ("lit_v2_s"),
+    ("maxvit_t"),
+    ("poolformer_v1_s12"),
+    ("poolformer_v2_s12"),
+    ("convformer_s18"),
+    ("caformer_s18"),
+    ("mnasnet_0_5"),
+    ("mobilenet_v1_0_25"),
+    ("mobilenet_v2_0_25"),
+    ("mobilenet_v3_large_0_75"),
+    ("mobilenet_v3_small_1_0"),
+    ("mobilenet_v4_s", False, False, 2),
+    ("mobilenet_v4_hybrid_m", False, False, 2),
+    ("mobilenet_v4_hybrid_l", False, False, 2),  # GELU (inplace)
+    ("mobileone_s0"),
+    ("mobilevit_v1_xxs"),
+    ("mobilevit_v2_0_25"),
+    ("moganet_xt"),
+    ("mvit_v2_t"),
+    ("mvit_v2_t_cls"),
+    ("nextvit_s"),
+    ("nfnet_f0"),
+    ("pit_t", True, True),
+    ("pvt_v1_t"),
+    ("pvt_v2_b0"),
+    ("rdnet_t"),
+    ("regionvit_t", False, True),
+    ("regnet_x_200m"),
+    ("regnet_y_200m"),
+    ("regnet_z_500m"),
+    ("ghostnet_v2_1_0"),
+    ("repvgg_a0"),
+    ("repvit_m0_6", False, False, 2),
+    ("resmlp_12", False, False, 1, 0),  # No resize support
+    ("resnest_14", False, False, 2),
+    ("resnet_v1_18"),
+    ("resnet_d_50"),
+    ("resnet_v2_18"),
+    ("resnext_50"),
+    ("rope_deit3_t16"),
+    ("rope_deit3_reg4_t16"),
+    ("rope_flexivit_s16"),
+    ("rope_vit_s32"),
+    ("rope_i_vit_s16_pn_aps_c1"),
+    ("rope_vit_reg4_b32"),
+    ("rope_vit_reg4_m16_rms_avg"),
+    ("rope_vit_reg8_nps_b14_ap", False, False, 1, 14),
+    ("rope_vit_so150m_p14_ap", False, False, 1, 14),
+    ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", False, False, 1, 14),
+    ("se_resnet_v1_18"),
+    ("se_resnet_v2_18"),
+    ("se_resnext_50"),
+    ("sequencer2d_s"),
+    ("shufflenet_v1_8"),
+    ("shufflenet_v2_0_5"),
+    ("simple_vit_s32"),
+    ("smt_t"),
+    ("squeezenet", True),
+    ("squeezenext_0_5"),
+    ("starnet_esm05"),
+    ("swiftformer_xs"),
+    ("swin_transformer_v1_t"),
+    ("swin_transformer_v2_t"),
+    ("swin_transformer_v2_w2_t"),
+    ("tiny_vit_5m"),
+    ("transnext_micro"),
+    ("uniformer_s"),
+    ("van_b0"),
+    ("vgg_11"),
+    ("vgg_reduced_11"),
+    ("vit_s32"),
+    ("vit_s16_pn"),
+    ("vit_reg4_b32"),
+    ("vit_reg4_m16_rms_avg"),
+    ("vit_so150m_p14_ap", False, False, 1, 14),
+    ("vit_reg8_so150m_p14_swiglu_avg", False, False, 1, 14),
+    ("vit_parallel_s16_18x2_ls"),
+    ("vit_det_b16"),
+    ("vit_sam_b16"),
+    ("vovnet_v1_27s"),
+    ("vovnet_v2_19"),
+    ("wide_resnet_50"),
+    ("xception"),
+    ("xcit_nano12_p16"),
+]
+
+DYNAMIC_SIZE_CASES = [
+    ("davit_tiny"),
+    ("deit3_t16"),
+    ("deit3_reg4_t16"),
+    ("flexivit_s16"),
+    ("gc_vit_xxt"),
+    ("iformer_s"),
+    ("lit_v1_s"),
+    ("lit_v1_t"),
+    ("rope_deit3_t16"),
+    ("rope_deit3_reg4_t16"),
+    ("rope_flexivit_s16"),
+    ("rope_vit_s32"),
+    ("rope_i_vit_s16_pn_aps_c1"),
+    ("rope_vit_reg4_b32"),
+    ("rope_vit_reg4_m16_rms_avg"),
+    ("rope_vit_reg8_nps_b14_ap", 1, 14),
+    ("rope_vit_so150m_p14_ap", 1, 14),
+    ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", 1, 14),
+    ("simple_vit_b32"),
+    ("swin_transformer_v1_t"),
+    ("swin_transformer_v2_t"),
+    ("swin_transformer_v2_w2_t"),
+    ("vit_s32"),
+    ("vit_s16_pn"),
+    ("vit_reg4_b32"),
+    ("vit_reg4_m16_rms_avg"),
+    ("vit_so150m_p14_ap", 1, 14),
+    ("vit_reg8_so150m_p14_swiglu_avg", 1, 14),
+    ("vit_parallel_s16_18x2_ls"),
+]
 
 
 class TestBase(unittest.TestCase):
@@ -58,153 +241,7 @@ class TestBase(unittest.TestCase):
 
 
 class TestNet(unittest.TestCase):
-    @parameterized.expand(  # type: ignore[untyped-decorator]
-        [
-            ("alexnet"),
-            ("biformer_t"),
-            ("cait_xxs24"),
-            ("cas_vit_xs"),
-            ("coat_tiny"),
-            ("coat_lite_tiny"),
-            ("conv2former_n"),
-            ("convmixer_768_32"),
-            ("convnext_v1_tiny"),
-            ("convnext_v2_atto"),
-            ("crossformer_t"),
-            ("crossvit_9d", True, True, 1, 48),
-            ("csp_resnet_50"),
-            ("csp_resnext_50"),
-            ("csp_darknet_53"),
-            ("csp_se_resnet_50"),
-            ("cswin_transformer_t"),  # PT2 fails
-            ("darknet_53"),
-            ("davit_tiny"),
-            ("deit_t16", True),
-            ("deit3_t16"),
-            ("deit3_reg4_t16"),
-            ("densenet_121"),
-            ("dpn_92"),
-            ("edgenext_xxs"),
-            ("edgevit_xxs"),
-            ("efficientformer_v1_l1"),
-            ("efficientformer_v2_s0"),
-            ("efficientnet_lite0"),
-            ("efficientnet_v1_b0"),
-            ("efficientnet_v2_s"),
-            ("efficientvim_m1", True, True),
-            ("efficientvit_mit_b0"),
-            ("efficientvit_mit_l1"),
-            ("efficientvit_msft_m0", False, False, 2),
-            ("fasternet_t0"),
-            ("fastvit_t8"),
-            ("fastvit_sa12"),
-            ("mobileclip_v1_i0"),
-            ("mobileclip_v2_i3"),
-            ("flexivit_s16"),
-            ("focalnet_t_srf"),
-            ("ghostnet_v1_0_5"),
-            ("ghostnet_v2_1_0"),
-            ("groupmixformer_mobile"),
-            ("hgnet_v1_tiny"),
-            ("hgnet_v2_b0"),
-            ("hiera_tiny"),
-            ("hiera_abswin_tiny"),  # No bfloat16 support
-            ("hiera_abswin_base_plus_ap"),  # No bfloat16 support
-            ("hieradet_tiny"),
-            ("hornet_tiny_7x7"),
-            ("hornet_tiny_gf"),  # PT2 fails, no bfloat16 support
-            ("iformer_s"),
-            ("inception_next_t"),
-            ("inception_resnet_v1"),
-            ("inception_resnet_v2"),
-            ("inception_v3"),
-            ("inception_v4"),
-            ("levit_128"),
-            ("maxvit_t"),
-            ("poolformer_v1_s12"),
-            ("poolformer_v2_s12"),
-            ("convformer_s18"),
-            ("caformer_s18"),
-            ("mnasnet_0_5"),
-            ("mobilenet_v1_0_25"),
-            ("mobilenet_v2_0_25"),
-            ("mobilenet_v3_large_0_75"),
-            ("mobilenet_v3_small_1_0"),
-            ("mobilenet_v4_s", False, False, 2),
-            ("mobilenet_v4_hybrid_m", False, False, 2),
-            ("mobilenet_v4_hybrid_l", False, False, 2),  # GELU (inplace)
-            ("mobileone_s0"),
-            ("mobilevit_v1_xxs"),
-            ("mobilevit_v2_0_25"),
-            ("moganet_xt"),
-            ("mvit_v2_t"),
-            ("mvit_v2_t_cls"),
-            ("nextvit_s"),
-            ("nfnet_f0"),
-            ("pit_t", True, True),
-            ("pvt_v1_t"),
-            ("pvt_v2_b0"),
-            ("rdnet_t"),
-            ("regionvit_t", False, True),
-            ("regnet_x_200m"),
-            ("regnet_y_200m"),
-            ("regnet_z_500m"),
-            ("ghostnet_v2_1_0"),
-            ("repvgg_a0"),
-            ("repvit_m0_6", False, False, 2),
-            ("resmlp_12", False, False, 1, 0),  # No resize support
-            ("resnest_14", False, False, 2),
-            ("resnet_v1_18"),
-            ("resnet_d_50"),
-            ("resnet_v2_18"),
-            ("resnext_50"),
-            ("rope_deit3_t16"),
-            ("rope_deit3_reg4_t16"),
-            ("rope_flexivit_s16"),
-            ("rope_vit_s32"),
-            ("rope_i_vit_s16_pn_aps_c1"),
-            ("rope_vit_reg4_b32"),
-            ("rope_vit_reg4_m16_rms_avg"),
-            ("rope_vit_reg8_nps_b14_ap", False, False, 1, 14),
-            ("rope_vit_so150m_p14_ap", False, False, 1, 14),
-            ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", False, False, 1, 14),
-            ("se_resnet_v1_18"),
-            ("se_resnet_v2_18"),
-            ("se_resnext_50"),
-            ("sequencer2d_s"),
-            ("shufflenet_v1_8"),
-            ("shufflenet_v2_0_5"),
-            ("simple_vit_s32"),
-            ("smt_t"),
-            ("squeezenet", True),
-            ("squeezenext_0_5"),
-            ("starnet_esm05"),
-            ("swiftformer_xs"),
-            ("swin_transformer_v1_t"),
-            ("swin_transformer_v2_t"),
-            ("swin_transformer_v2_w2_t"),
-            ("tiny_vit_5m"),
-            ("transnext_micro"),
-            ("uniformer_s"),
-            ("van_b0"),
-            ("vgg_11"),
-            ("vgg_reduced_11"),
-            ("vit_s32"),
-            ("vit_s16_pn"),
-            ("vit_reg4_b32"),
-            ("vit_reg4_m16_rms_avg"),
-            ("vit_so150m_p14_ap", False, False, 1, 14),
-            ("vit_reg8_so150m_p14_swiglu_avg", False, False, 1, 14),
-            ("vit_parallel_s16_18x2_ls"),
-            ("vit_det_b16"),
-            ("vit_sam_b16"),
-            ("vovnet_v1_27s"),
-            ("vovnet_v2_19"),
-            ("wide_resnet_50"),
-            ("xception"),
-            ("xcit_nano12_p16"),
-        ]
-    )
+    @parameterized.expand(NET_TEST_CASES)  # type: ignore[untyped-decorator]
     def test_net(
         self,
         network_name: str,
@@ -275,6 +312,27 @@ class TestNet(unittest.TestCase):
         n_copy = copy.deepcopy(n)
         self.assertIsNotNone(n_copy)
 
+    @parameterized.expand(NET_TEST_CASES)  # type: ignore[untyped-decorator]
+    @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    def test_net_backward(
+        self,
+        network_name: str,
+        _skip_embedding: bool = False,
+        _skip_features: bool = False,
+        batch_size: int = 1,
+        _size_step: int = 2**5,
+    ) -> None:
+        n = registry.net_factory(network_name, DEFAULT_NUM_CHANNELS, 100)
+        size = n.default_size
+
+        out = n(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
+        loss = out.sum()
+        loss.backward()
+
+        for name, param in n.named_parameters():
+            self.assertIsNotNone(param.grad, msg=f"{network_name} missing grad for {name}")
+            self.assertTrue(torch.isfinite(param.grad).all().item(), msg=f"{network_name} non-finite grad for {name}")
+
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
             ("biformer_t"),
@@ -311,6 +369,7 @@ class TestNet(unittest.TestCase):
             ("mobileclip_v2_i3"),
             ("flexivit_s16"),
             ("focalnet_t_srf"),
+            ("gc_vit_xxt"),
             ("ghostnet_v1_0_5"),
             ("ghostnet_v2_1_0"),
             ("groupmixformer_mobile"),
@@ -328,6 +387,9 @@ class TestNet(unittest.TestCase):
             ("inception_resnet_v2"),
             ("inception_v3"),
             ("inception_v4"),
+            ("lit_v1_s"),
+            ("lit_v1_t"),
+            ("lit_v2_s"),
             ("maxvit_t"),
             ("poolformer_v1_s12"),
             ("poolformer_v2_s12"),
@@ -488,6 +550,7 @@ class TestNet(unittest.TestCase):
             ("mobileclip_v2_i3"),
             ("flexivit_s16"),
             ("focalnet_t_srf"),
+            ("gc_vit_xxt"),
             ("hieradet_tiny"),
             ("iformer_s"),
             ("maxvit_t"),
@@ -693,6 +756,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("mobileclip_v2_i3"),
             ("flexivit_s16"),
             ("focalnet_t_srf"),
+            ("gc_vit_xxt"),
             ("ghostnet_v1_0_5"),
             ("ghostnet_v2_1_0"),
             ("groupmixformer_mobile"),
@@ -711,6 +775,9 @@ class TestNonSquareNet(unittest.TestCase):
             ("inception_v3"),
             ("inception_v4"),
             ("levit_128s"),
+            ("lit_v1_s"),
+            ("lit_v1_t"),
+            ("lit_v2_s"),
             ("maxvit_t"),
             ("poolformer_v1_s12"),
             ("poolformer_v2_s12"),
@@ -826,36 +893,7 @@ class TestNonSquareNet(unittest.TestCase):
 
 
 class TestDynamicSize(unittest.TestCase):
-    @parameterized.expand(  # type: ignore[untyped-decorator]
-        [
-            ("davit_tiny"),
-            ("deit3_t16"),
-            ("deit3_reg4_t16"),
-            ("flexivit_s16"),
-            ("iformer_s"),
-            ("rope_deit3_t16"),
-            ("rope_deit3_reg4_t16"),
-            ("rope_flexivit_s16"),
-            ("rope_vit_s32"),
-            ("rope_i_vit_s16_pn_aps_c1"),
-            ("rope_vit_reg4_b32"),
-            ("rope_vit_reg4_m16_rms_avg"),
-            ("rope_vit_reg8_nps_b14_ap", 1, 14),
-            ("rope_vit_so150m_p14_ap", 1, 14),
-            ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", 1, 14),
-            ("simple_vit_b32"),
-            ("swin_transformer_v1_t"),
-            ("swin_transformer_v2_t"),
-            ("swin_transformer_v2_w2_t"),
-            ("vit_s32"),
-            ("vit_s16_pn"),
-            ("vit_reg4_b32"),
-            ("vit_reg4_m16_rms_avg"),
-            ("vit_so150m_p14_ap", 1, 14),
-            ("vit_reg8_so150m_p14_swiglu_avg", 1, 14),
-            ("vit_parallel_s16_18x2_ls"),
-        ]
-    )
+    @parameterized.expand(DYNAMIC_SIZE_CASES)  # type: ignore[untyped-decorator]
     def test_dynamic_size(
         self,
         network_name: str,
@@ -875,6 +913,26 @@ class TestDynamicSize(unittest.TestCase):
             out = n.detection_features(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
             for stage_name in n.return_stages:
                 self.assertFalse(torch.isnan(out[stage_name]).any())
+
+    @parameterized.expand(DYNAMIC_SIZE_CASES)  # type: ignore[untyped-decorator]
+    @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    def test_dynamic_size_backward(
+        self,
+        network_name: str,
+        batch_size: int = 1,
+        size_step: int = 2**5,
+    ) -> None:
+        n = registry.net_factory(network_name, DEFAULT_NUM_CHANNELS, 100)
+        default_size = n.default_size
+        n.set_dynamic_size()
+
+        size = (default_size[0] + size_step, default_size[1] + size_step)
+        out = n(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
+        loss = out.sum()
+        loss.backward()
+        for name, param in n.named_parameters():
+            self.assertIsNotNone(param.grad, msg=f"{network_name} missing grad for {name}")
+            self.assertTrue(torch.isfinite(param.grad).all().item(), msg=f"{network_name} non-finite grad for {name}")
 
 
 class TestSpecialFunctions(unittest.TestCase):

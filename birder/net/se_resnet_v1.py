@@ -57,3 +57,49 @@ registry.register_model_config(
     SE_ResNet_v1,
     config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 30, 48, 8]},
 )
+
+# SE-ResNet-D variants (From: Bag of Tricks for Image Classification with Convolutional Neural Networks)
+registry.register_model_config(
+    "se_resnet_d_50",
+    SE_ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 4, 6, 3],
+        "deep_stem": True,
+        "avg_down": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_d_101",
+    SE_ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 4, 23, 3],
+        "deep_stem": True,
+        "avg_down": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_d_152",
+    SE_ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 8, 36, 3],
+        "deep_stem": True,
+        "avg_down": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_d_200",
+    SE_ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 24, 36, 3],
+        "deep_stem": True,
+        "avg_down": True,
+    },
+)

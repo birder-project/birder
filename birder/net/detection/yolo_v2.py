@@ -17,18 +17,11 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import boxes as box_ops
 
+from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import ImageList
-
-# Default anchors from yolo.cfg (COCO dataset)
-DEFAULT_ANCHORS = [
-    (0.57273, 0.677385),
-    (1.87446, 2.06253),
-    (3.33843, 5.47434),
-    (7.88282, 3.52778),
-    (9.77052, 9.16828),
-]
+from birder.net.detection.yolo_anchors import resolve_anchor_group
 
 
 def decode_predictions(
@@ -102,8 +95,8 @@ def decode_predictions(
 class YOLOAnchorGenerator(nn.Module):
     def __init__(self, anchors: list[tuple[float, float]]) -> None:
         super().__init__()
-        self.anchors = anchors
-        self.num_anchors = len(anchors)
+        self.anchors = nn.Buffer(torch.tensor(anchors, dtype=torch.float32))
+        self.num_anchors: int = self.anchors.size(0)
 
     def num_anchors_per_location(self) -> int:
         return self.num_anchors
@@ -134,8 +127,7 @@ class YOLOAnchorGenerator(nn.Module):
         grid = torch.stack([grid_x, grid_y], dim=-1)
 
         # Scale anchors to feature map stride (anchors are in grid units)
-        anchors_tensor = torch.tensor(self.anchors, device=device, dtype=dtype)
-        anchors_tensor = anchors_tensor * torch.tensor([stride_w, stride_h], device=device, dtype=dtype)
+        anchors_tensor = self.anchors * torch.tensor([stride_w, stride_h], device=device, dtype=dtype)
 
         # Store strides as tensor
         stride = torch.tensor([stride_h, stride_w], device=device, dtype=dtype)
@@ -222,7 +214,6 @@ class YOLOHead(nn.Module):
 # pylint: disable=invalid-name
 class YOLO_v2(DetectionBaseNet):
     default_size = (416, 416)
-    auto_register = True
 
     def __init__(
         self,
@@ -234,7 +225,7 @@ class YOLO_v2(DetectionBaseNet):
         export_mode: bool = False,
     ) -> None:
         super().__init__(num_classes, backbone, config=config, size=size, export_mode=export_mode)
-        assert self.config is None, "config not supported"
+        assert self.config is not None, "must set config"
 
         self.num_classes = self.num_classes - 1
 
@@ -242,13 +233,19 @@ class YOLO_v2(DetectionBaseNet):
         nms_thresh = 0.45
         detections_per_img = 300
         mid_channels = 1024
-        self.ignore_thresh = 0.5
-        self.noobj_coeff = 0.5
-        self.coord_coeff = 5.0
-        self.obj_coeff = 1.0
-        self.cls_coeff = 1.0
+        ignore_thresh = 0.5
+        noobj_coeff = 0.5
+        coord_coeff = 5.0
+        obj_coeff = 1.0
+        cls_coeff = 1.0
+        anchor_spec = self.config["anchors"]
 
-        self.anchors = DEFAULT_ANCHORS
+        self.ignore_thresh = ignore_thresh
+        self.noobj_coeff = noobj_coeff
+        self.coord_coeff = coord_coeff
+        self.obj_coeff = obj_coeff
+        self.cls_coeff = cls_coeff
+
         self.score_thresh = score_thresh
         self.nms_thresh = nms_thresh
         self.detections_per_img = detections_per_img
@@ -258,7 +255,8 @@ class YOLO_v2(DetectionBaseNet):
 
         self.neck = YOLONeck(self.backbone.return_channels, mid_channels)
 
-        self.anchor_generator = YOLOAnchorGenerator(self.anchors)
+        anchors = resolve_anchor_group(anchor_spec, anchor_format="grid", model_size=self.size, model_strides=(32,))
+        self.anchor_generator = YOLOAnchorGenerator(anchors)
         num_anchors = self.anchor_generator.num_anchors_per_location()
         self.head = YOLOHead(self.neck.out_channels, num_anchors, self.num_classes)
 
@@ -319,7 +317,7 @@ class YOLO_v2(DetectionBaseNet):
         device = predictions.device
         dtype = predictions.dtype
         (batch_size, _, H, W) = predictions.size()
-        num_anchors = len(self.anchors)
+        num_anchors = self.anchor_generator.num_anchors
 
         stride_h = stride[0]
         stride_w = stride[1]
@@ -423,7 +421,7 @@ class YOLO_v2(DetectionBaseNet):
 
         device = predictions.device
         (N, _, H, W) = predictions.size()
-        num_anchors = len(self.anchors)
+        num_anchors = self.anchor_generator.num_anchors
 
         predictions = predictions.view(N, num_anchors, 5 + self.num_classes, H, W)
         predictions = predictions.permute(0, 1, 3, 4, 2).contiguous()
@@ -552,3 +550,6 @@ class YOLO_v2(DetectionBaseNet):
             detections = self.postprocess_detections(decoded_predictions, images.image_sizes)
 
         return (detections, losses)
+
+
+registry.register_model_config("yolo_v2", YOLO_v2, config={"anchors": "yolo_v2"})

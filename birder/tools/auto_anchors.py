@@ -242,6 +242,7 @@ def _validate_args(
     return (size, num_scales, num_anchors, output_format, strides)
 
 
+# pylint: disable=too-many-locals
 def auto_anchors(args: argparse.Namespace) -> None:
     (size, num_scales, num_anchors, output_format, strides) = _validate_args(args)
 
@@ -272,6 +273,7 @@ def auto_anchors(args: argparse.Namespace) -> None:
     logger.info(f"Mean IoU: {best_iou.mean().item():.4f}")
 
     formatted_groups = _format_anchor_groups(anchor_groups, args.precision)
+    anchors_output = None
     if output_format == "pixels":
         if num_scales == 1:
             formatted_anchors: Any = formatted_groups[0]
@@ -280,6 +282,7 @@ def auto_anchors(args: argparse.Namespace) -> None:
 
         print("Anchors (pixels):")
         print(pformat(formatted_anchors))
+        anchors_output = formatted_anchors
 
     if output_format == "grid":
         grid_groups: list[torch.Tensor] = []
@@ -297,6 +300,21 @@ def auto_anchors(args: argparse.Namespace) -> None:
 
         print("Anchors (grid units):")
         print(pformat(formatted_grid_output))
+        anchors_output = formatted_grid_output
+
+    if args.output is not None:
+        payload = {
+            "anchors": anchors_output,
+            "format": output_format,
+            "size": [size[0], size[1]],
+        }
+        if output_format == "grid":
+            payload["strides"] = strides
+
+        with open(args.output, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2)
+
+        logger.info(f"Wrote anchors to {args.output}")
 
 
 def set_parser(subparsers: Any) -> None:
@@ -312,7 +330,7 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools auto-anchors --size 640 --num-anchors 9 --num-scales 3 --format pixels "
             "--coco-json-path data/detection_data/training_annotations_coco.json\n"
             "python -m birder.tools auto-anchors --preset yolo_v4_tiny --size 416 416 "
-            "--coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json\n"
+            "--coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --output anchors.json\n"
             "python -m birder.tools auto-anchors --preset yolo_v2 --stride 32 "
             "--coco-json-path data/detection_data/training_annotations_coco.json\n"
             "python -m birder.tools auto-anchors --size 640 --num-anchors 9 --num-scales 3 "
@@ -354,6 +372,7 @@ def set_parser(subparsers: Any) -> None:
         default=f"{settings.TRAINING_DETECTION_ANNOTATIONS_PATH}_coco.json",
         help="training COCO json path",
     )
+    subparser.add_argument("--output", type=str, help="write anchors as JSON to this path")
     subparser.set_defaults(func=main)
 
 

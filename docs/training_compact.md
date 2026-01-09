@@ -310,6 +310,14 @@ torchrun --nproc_per_node=2 train.py --network levit_128s --tag il-common --opt 
 torchrun --nproc_per_node=2 train.py --network levit_128 --tag il-common --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --batch-size 512 --warmup-epochs 5 --epochs 400 --size 256 --wd 0.025 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --model-ema-decay 0.9998 --clip-grad-norm 1 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### LIT v1
+
+#### LIT v1: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network lit_v1_t --tag il-common --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 5 --epochs 300 --size 256 --wd 0.05 --custom-layer-wd offset_conv=0.0 --custom-layer-lr-scale offset_conv=0.01 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### MetaFormer
 
 #### MetaFormer: PoolFormer v1 s12
@@ -670,6 +678,28 @@ torchrun --nproc_per_node=2 train.py --network transnext_micro --tag il-common -
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network van_b0 --tag il-common --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --clip-grad-norm 1 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+### VoVNet v1
+
+#### VoVNet v1: 39
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vovnet_v1_39 --tag il-common --lr-scheduler cosine --batch-size 128 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+### VoVNet v2
+
+#### VoVNet v2: 19
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vovnet_v2_19 --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+#### VoVNet v2: 39
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vovnet_v2_39 --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 20 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --ra-sampler --ra-reps 2 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### XCiT

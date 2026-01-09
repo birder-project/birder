@@ -17,18 +17,12 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import boxes as box_ops
 
+from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import DetectionBaseNet
+from birder.net.detection.yolo_anchors import resolve_anchor_groups
 from birder.net.detection.yolo_v3 import YOLOAnchorGenerator
 from birder.net.detection.yolo_v3 import YOLOHead
-from birder.net.detection.yolo_v3 import scale_anchors
-
-# Default anchors from YOLO v4 (COCO)
-DEFAULT_ANCHORS = [
-    [(12.0, 16.0), (19.0, 36.0), (40.0, 28.0)],  # Small
-    [(36.0, 75.0), (76.0, 55.0), (72.0, 146.0)],  # Medium
-    [(142.0, 110.0), (192.0, 243.0), (459.0, 401.0)],  # Large
-]
 
 # Scale factors per detection scale to eliminate grid sensitivity
 DEFAULT_SCALE_XY = [1.2, 1.1, 1.05]  # [small, medium, large]
@@ -59,7 +53,6 @@ def decode_predictions(
         Number of classes.
     scale_xy
         Scale factor for grid sensitivity elimination.
-        YOLOv4 uses 1.05-1.2 depending on scale level.
 
     Returns
     -------
@@ -378,7 +371,6 @@ class YOLONeck(nn.Module):
 # pylint: disable=invalid-name
 class YOLO_v4(DetectionBaseNet):
     default_size = (608, 608)
-    auto_register = True
 
     def __init__(
         self,
@@ -390,22 +382,26 @@ class YOLO_v4(DetectionBaseNet):
         export_mode: bool = False,
     ) -> None:
         super().__init__(num_classes, backbone, config=config, size=size, export_mode=export_mode)
-        assert self.config is None, "config not supported"
+        assert self.config is not None, "must set config"
 
         self.num_classes = self.num_classes - 1
 
         score_thresh = 0.05
         nms_thresh = 0.45
         detections_per_img = 300
-        self.ignore_thresh = 0.7
+        ignore_thresh = 0.7
+        noobj_coeff = 0.25
+        coord_coeff = 3.0
+        obj_coeff = 1.0
+        cls_coeff = 1.0
+        label_smoothing = 0.1
+        anchor_spec = self.config["anchors"]
 
-        # Loss coefficients
-        self.noobj_coeff = 0.25
-        self.coord_coeff = 3.0
-        self.obj_coeff = 1.0
-        self.cls_coeff = 1.0
-
-        self.anchors = scale_anchors(DEFAULT_ANCHORS, self.default_size, self.size)
+        self.ignore_thresh = ignore_thresh
+        self.noobj_coeff = noobj_coeff
+        self.coord_coeff = coord_coeff
+        self.obj_coeff = obj_coeff
+        self.cls_coeff = cls_coeff
         self.scale_xy = DEFAULT_SCALE_XY
         self.score_thresh = score_thresh
         self.nms_thresh = nms_thresh
@@ -414,13 +410,16 @@ class YOLO_v4(DetectionBaseNet):
         self.backbone.return_channels = self.backbone.return_channels[-3:]
         self.backbone.return_stages = self.backbone.return_stages[-3:]
 
-        self.label_smoothing = 0.1
+        self.label_smoothing = label_smoothing
         self.smooth_positive = 1.0 - self.label_smoothing
         self.smooth_negative = self.label_smoothing / self.num_classes
 
         self.neck = YOLONeck(self.backbone.return_channels)
 
-        self.anchor_generator = YOLOAnchorGenerator(self.anchors)
+        anchors = resolve_anchor_groups(
+            anchor_spec, anchor_format="pixels", model_size=self.size, model_strides=(8, 16, 32)
+        )
+        self.anchor_generator = YOLOAnchorGenerator(anchors)
         num_anchors = self.anchor_generator.num_anchors_per_location()
         self.head = YOLOHead(self.neck.out_channels, num_anchors, self.num_classes)
 
@@ -441,8 +440,7 @@ class YOLO_v4(DetectionBaseNet):
         super().adjust_size(new_size)
 
         if adjust_anchors is True:
-            self.anchors = scale_anchors(self.anchors, old_size, new_size)
-            self.anchor_generator = YOLOAnchorGenerator(self.anchors)
+            self.anchor_generator.scale_anchors(old_size, new_size)
 
     def freeze(self, freeze_classifier: bool = True) -> None:
         for param in self.parameters():
@@ -500,7 +498,7 @@ class YOLO_v4(DetectionBaseNet):
 
         # Build flat list of all anchors with their scale indices
         all_anchors = torch.concat(anchors, dim=0)
-        anchors_per_scale = [len(self.anchors[i]) for i in range(num_scales)]
+        anchors_per_scale = self.anchor_generator.num_anchors_per_location()
         cumsum_anchors = torch.tensor([0] + anchors_per_scale, device=device).cumsum(0)
 
         # Get grid sizes and strides for each scale
@@ -651,6 +649,7 @@ class YOLO_v4(DetectionBaseNet):
         (target_tensors, obj_masks, noobj_masks) = self._build_targets(predictions, targets, anchors, strides)
 
         device = predictions[0].device
+        anchors_per_scale = self.anchor_generator.num_anchors_per_location()
         coord_loss = torch.tensor(0.0, device=device)
         obj_loss = torch.tensor(0.0, device=device)
         noobj_loss = torch.tensor(0.0, device=device)
@@ -659,7 +658,7 @@ class YOLO_v4(DetectionBaseNet):
         num_obj = 0
         for scale_idx, pred in enumerate(predictions):
             (N, _, H, W) = pred.size()
-            num_anchors_scale = len(self.anchors[scale_idx])
+            num_anchors_scale = anchors_per_scale[scale_idx]
             stride_h = strides[scale_idx][0]
             stride_w = strides[scale_idx][1]
             scale_xy = self.scale_xy[scale_idx]
@@ -829,3 +828,6 @@ class YOLO_v4(DetectionBaseNet):
             detections = self.postprocess_detections(decoded_predictions, images.image_sizes)
 
         return (detections, losses)
+
+
+registry.register_model_config("yolo_v4", YOLO_v4, config={"anchors": "yolo_v4"})

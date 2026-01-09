@@ -79,7 +79,7 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
             dim=hidden_dim,
             num_special_tokens=self.num_special_tokens,
         )
-        self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=False)
+        self.pos_embedding = nn.Buffer(pos_embedding)
 
         self.encoder = Encoder(num_layers, num_heads, hidden_dim, mlp_dim, dropout=0.0, attention_dropout=0.0, dpr=dpr)
         self.norm = nn.LayerNorm(hidden_dim, eps=1e-6)
@@ -203,7 +203,7 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
             dim=self.hidden_dim,
             num_special_tokens=self.num_special_tokens,
         )
-        self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=False)
+        self.pos_embedding = nn.Buffer(pos_embedding)
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
         self.encoder.set_causal_attention(is_causal)

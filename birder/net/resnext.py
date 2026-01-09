@@ -30,6 +30,7 @@ class ResidualBlock(nn.Module):
         base_width: int,
         expansion: int,
         squeeze_excitation: bool,
+        avg_down: bool,
     ) -> None:
         super().__init__()
         width = int(out_channels * (base_width / 64.0)) * groups
@@ -62,20 +63,34 @@ class ResidualBlock(nn.Module):
             nn.BatchNorm2d(out_channels * expansion),
         )
 
-        if in_channels == out_channels * expansion:
+        if in_channels == out_channels * expansion and stride == (1, 1):
             self.block2 = nn.Identity()
         else:
-            self.block2 = nn.Sequential(
-                nn.Conv2d(
-                    in_channels,
-                    out_channels * expansion,
-                    kernel_size=(1, 1),
-                    stride=stride,
-                    padding=(0, 0),
-                    bias=False,
-                ),
-                nn.BatchNorm2d(out_channels * expansion),
-            )
+            if avg_down is True and stride != (1, 1):
+                self.block2 = nn.Sequential(
+                    nn.AvgPool2d(kernel_size=2, stride=stride, ceil_mode=True, count_include_pad=False),
+                    nn.Conv2d(
+                        in_channels,
+                        out_channels * expansion,
+                        kernel_size=(1, 1),
+                        stride=(1, 1),
+                        padding=(0, 0),
+                        bias=False,
+                    ),
+                    nn.BatchNorm2d(out_channels * expansion),
+                )
+            else:
+                self.block2 = nn.Sequential(
+                    nn.Conv2d(
+                        in_channels,
+                        out_channels * expansion,
+                        kernel_size=(1, 1),
+                        stride=stride,
+                        padding=(0, 0),
+                        bias=False,
+                    ),
+                    nn.BatchNorm2d(out_channels * expansion),
+                )
 
         self.relu = nn.ReLU(inplace=True)
         if squeeze_excitation is True:
@@ -107,23 +122,35 @@ class ResNeXt(DetectorBackbone):
         super().__init__(input_channels, num_classes, config=config, size=size)
         assert self.config is not None, "must set config"
 
-        groups = 32
-        base_width = 4
         expansion = 4
+        groups: int = self.config.get("groups", 32)
+        base_width: int = self.config.get("base_width", 4)
         filter_list = [64, 128, 256, 512]
         units: list[int] = self.config["units"]
+        deep_stem: bool = self.config.get("deep_stem", False)
+        avg_down: bool = self.config.get("avg_down", False)
 
-        self.stem = nn.Sequential(
-            Conv2dNormActivation(
-                self.input_channels,
-                filter_list[0],
-                kernel_size=(7, 7),
-                stride=(2, 2),
-                padding=(3, 3),
-                bias=False,
-            ),
-            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)),
-        )
+        if deep_stem is True:
+            self.stem = nn.Sequential(
+                Conv2dNormActivation(
+                    self.input_channels, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False
+                ),
+                Conv2dNormActivation(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
+                Conv2dNormActivation(32, filter_list[0], kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
+                nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)),
+            )
+        else:
+            self.stem = nn.Sequential(
+                Conv2dNormActivation(
+                    self.input_channels,
+                    filter_list[0],
+                    kernel_size=(7, 7),
+                    stride=(2, 2),
+                    padding=(3, 3),
+                    bias=False,
+                ),
+                nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)),
+            )
 
         # Generate body layers
         in_channels = filter_list[0]
@@ -150,6 +177,7 @@ class ResNeXt(DetectorBackbone):
                         base_width=base_width,
                         expansion=expansion,
                         squeeze_excitation=squeeze_excitation,
+                        avg_down=avg_down,
                     )
                 )
                 in_channels = channels * expansion
@@ -209,3 +237,17 @@ class ResNeXt(DetectorBackbone):
 registry.register_model_config("resnext_50", ResNeXt, config={"units": [3, 4, 6, 3]})
 registry.register_model_config("resnext_101", ResNeXt, config={"units": [3, 4, 23, 3]})
 registry.register_model_config("resnext_152", ResNeXt, config={"units": [3, 8, 36, 3]})
+
+registry.register_model_config("resnext_101_32x8", ResNeXt, config={"units": [3, 4, 23, 3], "base_width": 8})
+registry.register_model_config("resnext_101_64x4", ResNeXt, config={"units": [3, 4, 23, 3], "groups": 64})
+
+# ResNeXt-D variants (From: Bag of Tricks for Image Classification with Convolutional Neural Networks)
+registry.register_model_config(
+    "resnext_d_50", ResNeXt, config={"units": [3, 4, 6, 3], "deep_stem": True, "avg_down": True}
+)
+registry.register_model_config(
+    "resnext_d_101", ResNeXt, config={"units": [3, 4, 23, 3], "deep_stem": True, "avg_down": True}
+)
+registry.register_model_config(
+    "resnext_d_152", ResNeXt, config={"units": [3, 8, 36, 3], "deep_stem": True, "avg_down": True}
+)

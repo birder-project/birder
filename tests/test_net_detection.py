@@ -124,3 +124,47 @@ class TestNetDetection(unittest.TestCase):
             for detection in detections:
                 for key in ["boxes", "labels", "scores"]:
                     self.assertFalse(torch.isnan(detection[key]).any())
+
+    @parameterized.expand(  # type: ignore[untyped-decorator]
+        [
+            ("deformable_detr", "fasternet_t0"),
+            ("deformable_detr_boxref", "regnet_x_200m"),
+            ("detr", "regnet_y_1_6g"),
+            ("efficientdet_d0", "efficientnet_v1_b0"),
+            ("faster_rcnn", "resnet_v2_18"),
+            ("fcos", "resnet_d_50"),
+            ("retinanet", "mobilenet_v3_small_1_0"),
+            ("retinanet_sfp", "vit_s16"),
+            ("rt_detr_v1", "resnet_v1_50"),
+            ("ssd", "efficientnet_v2_s"),
+            ("ssdlite", "mobilenet_v2_0_25", (512, 512)),
+            ("vitdet", "vit_b32"),
+            ("yolo_v2", "resnet_v1_18"),
+            ("yolo_v3", "darknet_17"),
+            ("yolo_v4", "csp_darknet_53"),
+            ("yolo_v4_tiny", "efficientnet_lite0"),
+        ]
+    )
+    def test_detection_dynamic_size(
+        self,
+        network_name: str,
+        encoder: str,
+        size: tuple[int, int] = (256, 256),
+    ) -> None:
+        backbone = registry.net_factory(encoder, DEFAULT_NUM_CHANNELS, 10, size=size)
+        n = registry.detection_net_factory(network_name, 10, backbone, size=size)
+        n.eval()
+        n.set_dynamic_size()
+
+        (detections, losses) = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+        self.assertEqual(len(losses), 0)
+        for detection in detections:
+            for key in ["boxes", "labels", "scores"]:
+                self.assertFalse(torch.isnan(detection[key]).any())
+
+        size = (size[0] + 32, size[1] + 64)
+        (detections, losses) = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+        self.assertEqual(len(losses), 0)
+        for detection in detections:
+            for key in ["boxes", "labels", "scores"]:
+                self.assertFalse(torch.isnan(detection[key]).any())

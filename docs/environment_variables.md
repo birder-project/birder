@@ -34,3 +34,15 @@ Number of samples to pre-fill WebDataset shuffle buffer.
 
 **`DISABLE_CUSTOM_KERNELS`**  
 Set to `1` to disable custom CUDA/CPU kernels. Useful for debugging or compatibility issues.
+
+## Testing Environment Variables
+
+These environment variables control which tests are executed when running the Birder test suite. They are intended for use during development and continuous integration to selectively enable slower or more resource-dependent tests.
+
+**`SLOW_TESTS`**  
+When set to a truthy value (for example `1`), enables execution of tests that are marked as slow.
+If not set, slow tests are skipped to keep test runs fast by default.
+
+**`NETWORK_TESTS`**  
+When set to a truthy value (for example `1`), enables tests that require network access.
+If not set, tests that depend on external network resources are skipped.

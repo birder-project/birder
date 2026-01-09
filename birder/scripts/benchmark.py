@@ -11,6 +11,7 @@ import torch.amp
 import birder
 from birder.common import cli
 from birder.conf import settings
+from birder.model_registry import Task
 from birder.model_registry import registry
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,12 @@ logger = logging.getLogger(__name__)
 
 def dummy(arg: Any) -> None:
     type(arg)
+
+
+def prepare_model(net: torch.nn.Module) -> None:
+    net.eval()
+    for param in net.parameters():
+        param.requires_grad = False
 
 
 def throughput_benchmark(
@@ -95,7 +102,18 @@ def memory_benchmark(
     else:
         amp_dtype = getattr(torch, args.amp_dtype)
 
-    (net, _) = birder.load_pretrained_model(model_name, inference=True, device=device)
+    if args.plain is True:
+        size = (sample_shape[2], sample_shape[3])
+        input_channels = sample_shape[1]
+        net = registry.net_factory(model_name, input_channels, 0, size=size)
+        net.to(device)
+        prepare_model(net)
+
+    else:
+        (net, _) = birder.load_pretrained_model(model_name, inference=True, device=device)
+        if args.size is not None:
+            size = (sample_shape[2], sample_shape[3])
+            net.adjust_size(size)
 
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats(device)
@@ -114,12 +132,18 @@ def benchmark(args: argparse.Namespace) -> None:
     mp.set_start_method("spawn")
 
     torch_version = torch.__version__
-    output_path = "benchmark"
+    if args.plain is True:
+        output_path = "benchmark_plain"
+    else:
+        output_path = "benchmark"
+
     if args.suffix is not None:
         output_path = f"{output_path}_{args.suffix}"
 
     benchmark_path = settings.RESULTS_DIR.joinpath(f"{output_path}.csv")
-    if benchmark_path.exists() is True and args.append is False:  # pylint: disable=no-else-raise
+    if args.dry_run is True:
+        existing_df = None
+    elif benchmark_path.exists() is True and args.append is False:
         logger.warning("Benchmark file already exists... aborting")
         raise SystemExit(1)
     elif benchmark_path.exists() is True:
@@ -147,10 +171,27 @@ def benchmark(args: argparse.Namespace) -> None:
 
     input_channels = 3
     results = []
-    model_list = birder.list_pretrained_models(args.filter)
+    if args.plain is True:
+        model_list = args.models or []
+        if len(model_list) == 0:
+            model_list = registry.list_models(include_filter=args.filter, task=Task.IMAGE_CLASSIFICATION)
+
+    else:
+        model_list = birder.list_pretrained_models(args.filter)
+
     for model_name in model_list:
-        model_metadata = registry.get_pretrained_metadata(model_name)
-        size = model_metadata["resolution"]
+        if args.plain is True:
+            if args.size is not None:
+                size = args.size
+            else:
+                size = registry.get_default_size(model_name)
+
+        else:
+            model_metadata = registry.get_pretrained_metadata(model_name)
+            if args.size is not None:
+                size = args.size
+            else:
+                size = model_metadata["resolution"]
 
         # Check if model already benchmarked at this configuration
         if existing_df is not None:
@@ -183,7 +224,15 @@ def benchmark(args: argparse.Namespace) -> None:
             logger.info(f"{model_name} used {peak_memory:.2f}MB")
         else:
             # Initialize model
-            (net, _) = birder.load_pretrained_model(model_name, inference=True, device=device)
+            if args.plain is True:
+                net = registry.net_factory(model_name, input_channels, 0, size=size)
+                net.to(device)
+                prepare_model(net)
+            else:
+                (net, _) = birder.load_pretrained_model(model_name, inference=True, device=device)
+                if args.size is not None:
+                    net.adjust_size(size)
+
             if args.compile is True:
                 torch.compiler.reset()
                 net = torch.compile(net)
@@ -216,6 +265,10 @@ def benchmark(args: argparse.Namespace) -> None:
 
     results_df = pl.DataFrame(results)
 
+    if args.dry_run is True:
+        logger.info("Dry run enabled, skipping save")
+        return
+
     if args.append is True and existing_df is not None:
         include_header = False
         mode = "a"
@@ -231,20 +284,24 @@ def benchmark(args: argparse.Namespace) -> None:
 def get_args_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         allow_abbrev=False,
-        description="Benchmark pretrained models",
+        description="Benchmark models",
         epilog=(
             "Usage example:\n"
-            "python benchmark.py --compile --suffix all\n"
-            "python benchmark.py --filter '*il-common*' --compile --suffix il-common\n"
-            "python benchmark.py --filter '*il-common*' --suffix il-common\n"
-            "python benchmark.py --filter '*il-common*' --max-batch-size 512 --gpu\n"
-            "python benchmark.py --filter '*il-common*' --max-batch-size 512 --gpu --warmup 20\n"
-            "python benchmark.py --filter '*il-common*' --max-batch-size 512 --gpu --fast-matmul --compile "
-            "--suffix il-common --append\n"
+            "python -m birder.scripts.benchmark --compile --suffix all\n"
+            "python -m birder.scripts.benchmark --filter '*il-common*' --compile --suffix il-common\n"
+            "python -m birder.scripts.benchmark --filter '*il-common*' --suffix il-common\n"
+            "python -m birder.scripts.benchmark --filter '*il-common*' --max-batch-size 512 --gpu\n"
+            "python -m birder.scripts.benchmark --filter '*il-common*' --max-batch-size 512 --gpu --warmup 20\n"
+            "python -m birder.scripts.benchmark --filter '*il-common*' --max-batch-size 512 --gpu --fast-matmul "
+            "--compile --suffix il-common --append\n"
+            "python -m birder.scripts.benchmark --plain --models rdnet_t convnext_v1_tiny --bench-iter 50 --repeats 1 "
+            "--gpu --size 416 --dry-run\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("--filter", type=str, help="models to benchmark (fnmatch type filter)")
+    parser.add_argument("--models", nargs="+", help="plain network names to benchmark")
+    parser.add_argument("--plain", default=False, action="store_true", help="benchmark plain networks without weights")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
         "--amp", default=False, action="store_true", help="use torch.amp.autocast for mixed precision inference"
@@ -258,6 +315,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
     )
+    parser.add_argument(
+        "--size", type=int, nargs="+", metavar=("H", "W"), help="input size override (defaults to model resolution)"
+    )
     parser.add_argument("--max-batch-size", type=int, default=1, metavar="N", help="the max batch size to try")
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
     parser.add_argument("--single-thread", default=False, action="store_true", help="use CPU with a single thread")
@@ -268,14 +328,22 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--bench-iter", type=int, default=300, metavar="N", help="number of benchmark iterations")
     parser.add_argument("--memory", default=False, action="store_true", help="benchmark memory instead of throughput")
     parser.add_argument("--append", default=False, action="store_true", help="append to existing output file")
+    parser.add_argument("--dry-run", default=False, action="store_true", help="run without reading or writing results")
 
     return parser
 
 
 def validate_args(args: argparse.Namespace) -> None:
-    assert args.single_thread is False or args.gpu is False
-    assert args.memory is False or args.gpu is True
-    assert args.memory is False or args.compile is False
+    args.size = cli.parse_size(args.size)
+
+    if args.single_thread is True and args.gpu is True:
+        raise cli.ValidationError("--single-thread cannot be used with --gpu")
+    if args.memory is True and args.gpu is False:
+        raise cli.ValidationError("--memory requires --gpu")
+    if args.memory is True and args.compile is True:
+        raise cli.ValidationError("--memory cannot be used with --compile")
+    if args.plain is False and args.models is not None:
+        raise cli.ValidationError("--models can only be used with --plain")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:
@@ -292,9 +360,10 @@ def main() -> None:
     args = parser.parse_args()
     validate_args(args)
 
-    if settings.RESULTS_DIR.exists() is False:
-        logger.info(f"Creating {settings.RESULTS_DIR} directory...")
-        settings.RESULTS_DIR.mkdir(parents=True)
+    if args.dry_run is False:
+        if settings.RESULTS_DIR.exists() is False:
+            logger.info(f"Creating {settings.RESULTS_DIR} directory...")
+            settings.RESULTS_DIR.mkdir(parents=True)
 
     benchmark(args)
 

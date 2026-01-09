@@ -4,6 +4,7 @@ Supports:
  * Logits matching (Soft distillation), https://arxiv.org/abs/1503.02531
  * Hard-label distillation, https://arxiv.org/pdf/2012.12877
  * Distillation token, https://arxiv.org/pdf/2012.12877
+ * Embedding matching (L2-normalized MSE)
 """
 
 import argparse
@@ -16,6 +17,7 @@ import typing
 from pathlib import Path
 from typing import Any
 from typing import Literal
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -39,7 +41,6 @@ from birder.common import training_cli
 from birder.common import training_utils
 from birder.common.lib import format_duration
 from birder.common.lib import get_network_name
-from birder.common.lib import set_random_seeds
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import HierarchicalImageFolder
@@ -55,7 +56,18 @@ from birder.net.base import get_signature
 
 logger = logging.getLogger(__name__)
 
-DistType = Literal["soft", "hard", "deit"]
+DistType = Literal["soft", "hard", "deit", "embedding"]
+
+
+class EmbeddingDistillWrapper(torch.nn.Module):
+    def __init__(self, model: torch.nn.Module) -> None:
+        super().__init__()
+        self.model = model
+
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        embedding = self.model.embedding(x)
+        outputs = self.model.classify(embedding)
+        return (outputs, embedding)
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
@@ -63,40 +75,10 @@ def train(args: argparse.Namespace) -> None:
     #
     # Initialize
     #
-    training_utils.init_distributed_mode(args)
-    logger.info(f"Starting training, birder version: {birder.__version__}, pytorch version: {torch.__version__}")
-    training_utils.log_git_info()
+    (device, device_id, disable_tqdm) = training_utils.init_training(args, logger)
 
     if args.type != "soft":
         args.temperature = 1.0
-
-    logger.info(f"Using size={args.size}")
-
-    if args.cpu is True:
-        device = torch.device("cpu")
-        device_id = 0
-    else:
-        device = torch.device("cuda")
-        device_id = torch.cuda.current_device()
-
-    if args.use_deterministic_algorithms is True:
-        torch.backends.cudnn.benchmark = False
-        torch.use_deterministic_algorithms(True)
-    else:
-        torch.backends.cudnn.benchmark = True
-
-    if args.seed is not None:
-        set_random_seeds(args.seed)
-
-    if args.non_interactive is True or training_utils.is_local_primary(args) is False:
-        disable_tqdm = True
-    elif sys.stderr.isatty() is False:
-        disable_tqdm = True
-    else:
-        disable_tqdm = False
-
-    # Enable or disable the autograd anomaly detection
-    torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)
 
     # Using the teacher rgb values for the student
     (teacher, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
@@ -112,7 +94,8 @@ def train(args: argparse.Namespace) -> None:
     )
     if args.size is None:
         args.size = lib.get_size_from_signature(signature)
-        logger.debug(f"Using size={args.size}")
+
+    logger.info(f"Using size={args.size}")
 
     #
     # Data
@@ -188,7 +171,7 @@ def train(args: argparse.Namespace) -> None:
     batch_size: int = args.batch_size
     grad_accum_steps: int = args.grad_accum_steps
     model_ema_steps: int = args.model_ema_steps
-    logger.debug(f"Effective batch size = {args.batch_size * grad_accum_steps * args.world_size}")
+    logger.debug(f"Effective batch size = {batch_size * grad_accum_steps * args.world_size}")
 
     # Set data iterators
     if args.mixup_alpha is not None or args.cutmix is True:
@@ -258,6 +241,8 @@ def train(args: argparse.Namespace) -> None:
     else:
         args.stop_epoch += 1
 
+    logging.debug(f"Epoch has {last_batch_idx+1} iterations ({optimizer_steps_per_epoch} steps)")
+
     #
     # Initialize networks
     #
@@ -298,33 +283,61 @@ def train(args: argparse.Namespace) -> None:
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
-    # Compile networks
-    if args.compile is True:
-        teacher = torch.compile(teacher)
-        student = torch.compile(student)
-    elif args.compile_teacher is True:
-        teacher = torch.compile(teacher)
+    distillation_type: DistType = args.type
+    embedding_projection: Optional[torch.nn.Module] = None
+    if distillation_type == "embedding":
+        if student.embedding_size == teacher.embedding_size:
+            embedding_projection = torch.nn.Identity()
+        else:
+            logger.info(
+                f"Creating embedding projection layer from {student.embedding_size} to {teacher.embedding_size}"
+            )
+            embedding_projection = torch.nn.Linear(student.embedding_size, teacher.embedding_size)
+
+        embedding_projection.to(device, dtype=model_dtype)
+        if training_states.extra_states is not None:
+            projection_state = training_states.extra_states.get("embedding_projection")
+            if projection_state is not None:
+                embedding_projection.load_state_dict(projection_state)
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
     #
+
+    # Learning rate scaling
+    lr = training_utils.scale_lr(args)
 
     # Training parameter groups and loss criteria
     custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
     parameters = training_utils.optimizer_parameter_groups(
         student,
         args.wd,
+        base_lr=lr,
         norm_weight_decay=args.norm_wd,
         custom_keys_weight_decay=custom_keys_weight_decay,
+        custom_layer_weight_decay=args.custom_layer_wd,
         layer_decay=args.layer_decay,
         layer_decay_min_scale=args.layer_decay_min_scale,
         layer_decay_no_opt_scale=args.layer_decay_no_opt_scale,
         bias_lr=args.bias_lr,
+        custom_layer_lr_scale=args.custom_layer_lr_scale,
     )
+    if embedding_projection is not None:
+        projection_parameters = training_utils.optimizer_parameter_groups(
+            embedding_projection,
+            args.wd,
+            base_lr=lr,
+            norm_weight_decay=args.norm_wd,
+            custom_keys_weight_decay=custom_keys_weight_decay,
+            custom_layer_weight_decay=args.custom_layer_wd,
+            bias_lr=args.bias_lr,
+            custom_layer_lr_scale=args.custom_layer_lr_scale,
+        )
+        parameters.extend(projection_parameters)
+
     criterion = torch.nn.CrossEntropyLoss(label_smoothing=args.smoothing_alpha)
 
     # Distillation
-    distillation_type: DistType = args.type
     if distillation_type == "soft":
         distillation_criterion = torch.nn.KLDivLoss(reduction="batchmean", log_target=False)
     elif distillation_type == "hard":
@@ -332,11 +345,11 @@ def train(args: argparse.Namespace) -> None:
     elif distillation_type == "deit":
         distillation_criterion = torch.nn.CrossEntropyLoss()
         student.set_distillation_output()
+    elif distillation_type == "embedding":
+        distillation_criterion = torch.nn.MSELoss()
     else:
         raise ValueError(f"Unknown KD type: {args.type}")
 
-    # Learning rate scaling
-    lr = training_utils.scale_lr(args)
     if args.lr_scheduler_update == "epoch":
         step_update = False
         scheduler_steps_per_epoch = 1
@@ -398,12 +411,50 @@ def train(args: argparse.Namespace) -> None:
         ema_warmup_steps = 0
 
     logger.debug(f"EMA warmup steps = {ema_warmup_steps}")
+    train_student = student
+    if distillation_type == "embedding":
+        train_student = EmbeddingDistillWrapper(student)
+
+    # Compile networks
+    if args.compile is True:
+        train_student = torch.compile(train_student)
+        if distillation_type == "embedding":
+            teacher.embedding = torch.compile(teacher.embedding)
+            embedding_projection = torch.compile(embedding_projection)
+            student = torch.compile(student)  # For validation
+        else:
+            teacher = torch.compile(teacher)
+            student = train_student
+
+    elif args.compile_teacher is True:
+        if distillation_type == "embedding":
+            teacher.embedding = torch.compile(teacher.embedding)
+        else:
+            teacher = torch.compile(teacher)
+
     net_without_ddp = student
     if args.distributed is True:
-        student = torch.nn.parallel.DistributedDataParallel(
-            student, device_ids=[args.local_rank], find_unused_parameters=args.find_unused_parameters
+        train_student = torch.nn.parallel.DistributedDataParallel(
+            train_student, device_ids=[args.local_rank], find_unused_parameters=args.find_unused_parameters
         )
-        net_without_ddp = student.module
+        if distillation_type != "embedding":
+            net_without_ddp = train_student.module
+
+    embedding_projection_to_save = None
+    if embedding_projection is not None:
+        if args.distributed is True and any(p.requires_grad for p in embedding_projection.parameters()):
+            embedding_projection = torch.nn.parallel.DistributedDataParallel(
+                embedding_projection,
+                device_ids=[args.local_rank],
+                find_unused_parameters=args.find_unused_parameters,
+            )
+            embedding_projection_to_save = embedding_projection.module
+        else:
+            embedding_projection_to_save = embedding_projection
+
+        # Unwrap compiled module for saving
+        if hasattr(embedding_projection_to_save, "_orig_mod"):
+            embedding_projection_to_save = embedding_projection_to_save._orig_mod  # pylint: disable=protected-access
 
     if args.model_ema is True:
         model_base = net_without_ddp  # Original model without DDP wrapper, will be saved as training state
@@ -499,7 +550,10 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
-        student.train()
+        train_student.train()
+        if embedding_projection is not None:
+            embedding_projection.train()
+
         running_loss = training_utils.SmoothedValue(window_size=64)
         running_val_loss = training_utils.SmoothedValue()
         train_accuracy = training_utils.SmoothedValue(window_size=64)
@@ -531,22 +585,37 @@ def train(args: argparse.Namespace) -> None:
 
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                with torch.inference_mode():
-                    teacher_outputs = teacher(inputs)
+                if distillation_type == "embedding":
+                    with torch.no_grad():
+                        teacher_embedding = teacher.embedding(inputs)
+                        teacher_embedding = F.normalize(teacher_embedding, dim=-1)
 
-                softmax_teacher = F.softmax(teacher_outputs / args.temperature, dim=-1)
-                if distillation_type == "soft":
-                    outputs = student(inputs)
-                    dist_output = F.log_softmax(outputs / args.temperature, dim=-1)
-                elif distillation_type == "hard":
-                    outputs = student(inputs)
-                    dist_output = outputs
-                elif distillation_type == "deit":
-                    (outputs, dist_output) = torch.unbind(student(inputs), dim=1)
+                    (outputs, student_embedding) = train_student(inputs)
+                    student_embedding = embedding_projection(student_embedding)  # type: ignore[misc]
+                    student_embedding = F.normalize(student_embedding, dim=-1)
+                    dist_loss = distillation_criterion(student_embedding, teacher_embedding)
+
                 else:
-                    raise RuntimeError
+                    with torch.no_grad():
+                        teacher_outputs = teacher(inputs)
+                        if distillation_type == "soft":
+                            teacher_targets = F.softmax(teacher_outputs / args.temperature, dim=-1)
+                        else:
+                            teacher_targets = teacher_outputs.argmax(dim=-1)
 
-                dist_loss = distillation_criterion(dist_output, softmax_teacher) * (args.temperature**2)
+                    if distillation_type == "soft":
+                        outputs = train_student(inputs)
+                        dist_output = F.log_softmax(outputs / args.temperature, dim=-1)
+                        dist_loss = distillation_criterion(dist_output, teacher_targets) * (args.temperature**2)
+                    elif distillation_type == "hard":
+                        outputs = train_student(inputs)
+                        dist_loss = distillation_criterion(outputs, teacher_targets)
+                    elif distillation_type == "deit":
+                        (outputs, dist_output) = torch.unbind(train_student(inputs), dim=1)
+                        dist_loss = distillation_criterion(dist_output, teacher_targets)
+                    else:
+                        raise RuntimeError
+
                 target_loss = criterion(outputs, targets)
                 loss = (1 - args.lambda_param) * target_loss + (args.lambda_param * dist_loss)
 
@@ -555,7 +624,11 @@ def train(args: argparse.Namespace) -> None:
                 if optimizer_update is True:
                     if args.clip_grad_norm is not None:
                         scaler.unscale_(optimizer)
-                        torch.nn.utils.clip_grad_norm_(student.parameters(), args.clip_grad_norm)
+                        params = list(train_student.parameters())
+                        if embedding_projection is not None:
+                            params += list(embedding_projection.parameters())
+
+                        torch.nn.utils.clip_grad_norm_(params, args.clip_grad_norm)
 
                     scaler.step(optimizer)
                     scaler.update()
@@ -567,7 +640,11 @@ def train(args: argparse.Namespace) -> None:
                 loss.backward()
                 if optimizer_update is True:
                     if args.clip_grad_norm is not None:
-                        torch.nn.utils.clip_grad_norm_(student.parameters(), args.clip_grad_norm)
+                        params = list(train_student.parameters())
+                        if embedding_projection is not None:
+                            params += list(embedding_projection.parameters())
+
+                        torch.nn.utils.clip_grad_norm_(params, args.clip_grad_norm)
 
                     optimizer.step()
                     optimizer.zero_grad()
@@ -710,6 +787,10 @@ def train(args: argparse.Namespace) -> None:
         if training_utils.is_local_primary(args) is True:
             # Checkpoint model
             if epoch % args.save_frequency == 0:
+                extra_states = {}
+                if embedding_projection_to_save is not None:
+                    extra_states["embedding_projection"] = embedding_projection_to_save.state_dict()
+
                 fs_ops.checkpoint_model(
                     student_name,
                     epoch,
@@ -721,6 +802,7 @@ def train(args: argparse.Namespace) -> None:
                     scheduler,
                     scaler,
                     model_base,
+                    **extra_states,
                 )
                 if args.keep_last is not None:
                     fs_ops.clean_checkpoints(student_name, args.keep_last)
@@ -766,6 +848,10 @@ def train(args: argparse.Namespace) -> None:
 
     # Checkpoint model
     if training_utils.is_local_primary(args) is True:
+        extra_states = {}
+        if embedding_projection_to_save is not None:
+            extra_states["embedding_projection"] = embedding_projection_to_save.state_dict()
+
         fs_ops.checkpoint_model(
             student_name,
             epoch,
@@ -777,6 +863,7 @@ def train(args: argparse.Namespace) -> None:
             scheduler,
             scaler,
             model_base,
+            **extra_states,
         )
 
     training_utils.shutdown_distributed_mode(args)
@@ -896,6 +983,8 @@ def validate_args(args: argparse.Namespace) -> None:
     training_cli.common_args_validation(args)
 
     # Script specific checks
+    if args.type is None:
+        raise cli.ValidationError("--type is required")
     if args.teacher is None:
         raise cli.ValidationError("--teacher is required")
     if args.student is None:
@@ -904,6 +993,9 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError(f"--teacher {args.teacher} not supported, see list-models tool for available options")
     if registry.exists(args.student, task=Task.IMAGE_CLASSIFICATION) is False:
         raise cli.ValidationError(f"--student {args.student} not supported, see list-models tool for available options")
+
+    if args.type == "embedding" and (args.pts is True or args.pt2 is True):
+        raise cli.ValidationError("--type embedding does not support --pts or --pt2 teachers")
 
     if args.smoothing_alpha < 0 or args.smoothing_alpha >= 0.5:
         raise cli.ValidationError(f"--smoothing-alpha must be in range of [0, 0.5), got {args.smoothing_alpha}")

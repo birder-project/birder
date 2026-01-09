@@ -5,17 +5,99 @@ from typing import Optional
 import torch
 import torch.amp
 from PIL import Image
+from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from birder.conf import settings
+from birder.data.collators.detection import batch_images
 from birder.data.transforms.detection import InferenceTransform
+from birder.inference.wbf import fuse_detections_wbf
+from birder.net.base import make_divisible
+
+
+def _normalize_image_sizes(inputs: torch.Tensor, image_sizes: Optional[list[list[int]]]) -> list[list[int]]:
+    if image_sizes is not None:
+        return image_sizes
+
+    (_, _, height, width) = inputs.shape
+    return [[height, width] for _ in range(inputs.size(0))]
+
+
+def _hflip_inputs(inputs: torch.Tensor, image_sizes: list[list[int]]) -> torch.Tensor:
+    # Detection collator pads on the right/bottom, so flip only the valid region to keep padding aligned.
+    flipped = inputs.clone()
+    for idx, (height, width) in enumerate(image_sizes):
+        flipped[idx, :, :height, :width] = torch.flip(inputs[idx, :, :height, :width], dims=[2])
+
+    return flipped
+
+
+def _resize_batch(
+    inputs: torch.Tensor, image_sizes: list[list[int]], scale: float, size_divisible: int
+) -> tuple[torch.Tensor, torch.Tensor, list[list[int]]]:
+    resized_images: list[torch.Tensor] = []
+    for idx, (height, width) in enumerate(image_sizes):
+        target_h = make_divisible(height * scale, size_divisible)
+        target_w = make_divisible(width * scale, size_divisible)
+        image = inputs[idx, :, :height, :width]
+        resized = F.interpolate(image.unsqueeze(0), size=(target_h, target_w), mode="bilinear", align_corners=False)
+        resized_images.append(resized.squeeze(0))
+
+    return batch_images(resized_images, size_divisible)
+
+
+def _rescale_boxes(boxes: torch.Tensor, from_size: list[int], to_size: list[int]) -> torch.Tensor:
+    scale_w = to_size[1] / from_size[1]
+    scale_h = to_size[0] / from_size[0]
+    scale = boxes.new_tensor([scale_w, scale_h, scale_w, scale_h])
+    return boxes * scale
+
+
+def _rescale_detections(
+    detections: list[dict[str, torch.Tensor]],
+    from_sizes: list[list[int]],
+    to_sizes: list[list[int]],
+) -> list[dict[str, torch.Tensor]]:
+    for idx, (detection, from_size, to_size) in enumerate(zip(detections, from_sizes, to_sizes)):
+        boxes = detection["boxes"]
+        if boxes.numel() == 0:
+            continue
+
+        detections[idx]["boxes"] = _rescale_boxes(boxes, from_size, to_size)
+
+    return detections
+
+
+def _invert_hflip_boxes(boxes: torch.Tensor, image_size: list[int]) -> torch.Tensor:
+    width = boxes.new_tensor(image_size[1])
+    x1 = boxes[:, 0]
+    x2 = boxes[:, 2]
+    flipped = boxes.clone()
+    flipped[:, 0] = width - x2
+    flipped[:, 2] = width - x1
+
+    return flipped
+
+
+def _invert_detections(
+    detections: list[dict[str, torch.Tensor]], image_sizes: list[list[int]]
+) -> list[dict[str, torch.Tensor]]:
+    for idx, (detection, image_size) in enumerate(zip(detections, image_sizes)):
+        boxes = detection["boxes"]
+        if boxes.numel() == 0:
+            continue
+
+        detections[idx]["boxes"] = _invert_hflip_boxes(boxes, image_size)
+
+    return detections
 
 
 def infer_image(
     net: torch.nn.Module | torch.ScriptModule,
     sample: Image.Image | str,
     transform: Callable[..., torch.Tensor],
+    tta: bool = False,
     device: Optional[torch.device] = None,
     score_threshold: Optional[float] = None,
     **kwargs: Any,
@@ -43,7 +125,7 @@ def infer_image(
         device = torch.device("cpu")
 
     input_tensor = transform(image).unsqueeze(dim=0).to(device)
-    detections = infer_batch(net, input_tensor, **kwargs)
+    detections = infer_batch(net, input_tensor, tta=tta, **kwargs)
     if score_threshold is not None:
         for i, detection in enumerate(detections):
             idxs = torch.where(detection["scores"] > score_threshold)
@@ -63,16 +145,36 @@ def infer_batch(
     inputs: torch.Tensor,
     masks: Optional[torch.Tensor] = None,
     image_sizes: Optional[list[list[int]]] = None,
+    tta: bool = False,
     **kwargs: Any,
 ) -> list[dict[str, torch.Tensor]]:
-    (detections, _) = net(inputs, masks=masks, image_sizes=image_sizes, **kwargs)
-    return detections  # type: ignore[no-any-return]
+    if tta is False:
+        (detections, _) = net(inputs, masks=masks, image_sizes=image_sizes, **kwargs)
+        return detections  # type: ignore[no-any-return]
+
+    normalized_sizes = _normalize_image_sizes(inputs, image_sizes)
+    detections_list: list[list[dict[str, torch.Tensor]]] = []
+
+    for scale in (0.8, 1.0, 1.2):
+        (scaled_inputs, scaled_masks, scaled_sizes) = _resize_batch(inputs, normalized_sizes, scale, size_divisible=32)
+        (detections, _) = net(scaled_inputs, masks=scaled_masks, image_sizes=scaled_sizes, **kwargs)
+        detections = _rescale_detections(detections, scaled_sizes, normalized_sizes)
+        detections_list.append(detections)
+
+        flipped_inputs = _hflip_inputs(scaled_inputs, scaled_sizes)
+        (flipped_detections, _) = net(flipped_inputs, masks=scaled_masks, image_sizes=scaled_sizes, **kwargs)
+        flipped_detections = _invert_detections(flipped_detections, scaled_sizes)
+        flipped_detections = _rescale_detections(flipped_detections, scaled_sizes, normalized_sizes)
+        detections_list.append(flipped_detections)
+
+    return fuse_detections_wbf(detections_list, iou_thr=0.55, conf_type="avg")
 
 
 def infer_dataloader(
     device: torch.device,
     net: torch.nn.Module | torch.ScriptModule,
     dataloader: DataLoader,
+    tta: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
@@ -97,6 +199,8 @@ def infer_dataloader(
         The model to use for inference.
     dataloader
         The DataLoader containing the dataset to perform inference on.
+    tta
+        Run inference with multi-scale and horizontal flip test time augmentation and fuse results with WBF.
     model_dtype
         The base dtype to use.
     amp
@@ -142,7 +246,7 @@ def infer_dataloader(
             masks = masks.to(device, non_blocking=True)
 
             with torch.amp.autocast(device.type, enabled=amp, dtype=amp_dtype):
-                detections = infer_batch(net, inputs, masks, image_sizes)
+                detections = infer_batch(net, inputs, masks=masks, image_sizes=image_sizes, tta=tta)
 
             detections = InferenceTransform.postprocess(detections, image_sizes, orig_sizes)
             if targets[0] != settings.NO_LABEL:
