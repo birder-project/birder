@@ -61,24 +61,23 @@ void update_sorting_order(torch::Tensor& boxes, torch::Tensor& scores, torch::Te
     std::tie(max_score, t_max_idx) = torch::max(scores.index({Slice(idx + 1, None)}), 0);
 
     // max_idx is computed from sliced data, therefore need to convert it to "global" max idx
-    auto max_idx = t_max_idx.item<int>() + idx + 1;
+    auto max_idx = t_max_idx + (idx + 1);
+    auto should_swap = scores.index({idx}) < max_score;
 
-    if (scores.index({idx}).item<float>() < max_score.item<float>()) {
-        auto boxes_idx = boxes.index({idx}).clone();
-        auto boxes_max = boxes.index({max_idx}).clone();
-        boxes.index({idx}) = boxes_max;
-        boxes.index({max_idx}) = boxes_idx;
+    auto boxes_idx = boxes.index({idx}).clone();
+    auto boxes_max = boxes.index({max_idx}).clone();
+    boxes.index_put_({idx}, torch::where(should_swap, boxes_max, boxes_idx));
+    boxes.index_put_({max_idx}, torch::where(should_swap, boxes_idx, boxes_max));
 
-        auto scores_idx = scores.index({idx}).clone();
-        auto scores_max = scores.index({max_idx}).clone();
-        scores.index({idx}) = scores_max;
-        scores.index({max_idx}) = scores_idx;
+    auto scores_idx = scores.index({idx}).clone();
+    auto scores_max = scores.index({max_idx}).clone();
+    scores.index_put_({idx}, torch::where(should_swap, scores_max, scores_idx));
+    scores.index_put_({max_idx}, torch::where(should_swap, scores_idx, scores_max));
 
-        auto areas_idx = areas.index({idx}).clone();
-        auto areas_max = areas.index({max_idx}).clone();
-        areas.index({idx}) = areas_max;
-        areas.index({max_idx}) = areas_idx;
-    }
+    auto areas_idx = areas.index({idx}).clone();
+    auto areas_max = areas.index({max_idx}).clone();
+    areas.index_put_({idx}, torch::where(should_swap, areas_max, areas_idx));
+    areas.index_put_({max_idx}, torch::where(should_swap, areas_idx, areas_max));
 }
 
 std::tuple<torch::Tensor, torch::Tensor> soft_nms(

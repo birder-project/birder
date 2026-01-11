@@ -242,6 +242,14 @@ torchrun --nproc_per_node=2 train.py --network fastvit_sa12 --tag il-common --op
 torchrun --nproc_per_node=2 train.py --network mobileclip_v1_i0 --tag il-common --opt adamw --lr 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --warmup-epochs 5 --batch-size 256 --epochs 300 --size 256 --wd 0.05 --norm-wd 0 --grad-accum-steps 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 8 --model-ema --ra-sampler --ra-reps 2 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### GC ViT
+
+#### GC ViT: XX-Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network gc_vit_xxt --tag il-common --opt adamw --lr 0.005 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 128 --warmup-epochs 20 --cooldown-epochs 10 --epochs 310 --size 256 --wd 0.05 --smoothing-alpha 0.1 --mixup-alpha 0.8 --aug-level 8 --model-ema --clip-grad-norm 5 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### GhostNet v1
 
 #### GhostNet v1: 0.5 (50)
@@ -682,10 +690,16 @@ torchrun --nproc_per_node=2 train.py --network van_b0 --tag il-common --opt adam
 
 ### VoVNet v1
 
+#### VoVNet v1: 27s
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vovnet_v1_27s --tag il-common --lr-scheduler cosine --batch-size 256 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 #### VoVNet v1: 39
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vovnet_v1_39 --tag il-common --lr-scheduler cosine --batch-size 128 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+torchrun --nproc_per_node=2 train.py --network vovnet_v1_39 --tag il-common --lr-scheduler cosine --batch-size 128 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### VoVNet v2

@@ -17,6 +17,7 @@ from typing import Any
 from typing import Literal
 from typing import Optional
 from typing import Sized
+from typing import overload
 
 import numpy as np
 import torch
@@ -70,13 +71,7 @@ class RASampler(torch.utils.data.Sampler):
     """
 
     def __init__(
-        self,
-        dataset: Sized,
-        num_replicas: int,
-        rank: int,
-        shuffle: bool,
-        seed: int = 0,
-        repetitions: int = 3,
+        self, dataset: Sized, num_replicas: int, rank: int, shuffle: bool, seed: int = 0, repetitions: int = 3
     ) -> None:
         super().__init__()
         self.dataset = dataset
@@ -85,12 +80,11 @@ class RASampler(torch.utils.data.Sampler):
         self.epoch = 0
         self.num_samples = int(math.ceil(len(self.dataset) * float(repetitions) / self.num_replicas))
         self.total_size = self.num_samples * self.num_replicas
-        self.num_selected_samples = int(math.floor(len(self.dataset) // 256 * 256 / self.num_replicas))
         self.shuffle = shuffle
         self.seed = seed
         self.repetitions = repetitions
 
-    def __iter__(self) -> Iterator[list[int]]:
+    def __iter__(self) -> Iterator[int]:
         if self.shuffle is True:
             # Deterministically shuffle based on epoch
             g = torch.Generator()
@@ -100,18 +94,148 @@ class RASampler(torch.utils.data.Sampler):
             indices = list(range(len(self.dataset)))
 
         # Add extra samples to make it evenly divisible
-        indices = [ele for ele in indices for i in range(self.repetitions)]
-        indices += indices[: (self.total_size - len(indices))]
-        assert len(indices) == self.total_size
+        indices = [ele for ele in indices for _ in range(self.repetitions)]
+        if len(indices) < self.total_size:
+            indices += indices[: (self.total_size - len(indices))]
+        else:
+            indices = indices[: self.total_size]
 
-        # Subsample
+        # Shard by rank
         indices = indices[self.rank : self.total_size : self.num_replicas]
         assert len(indices) == self.num_samples
 
-        return iter(indices[: self.num_selected_samples])
+        yield from indices
 
     def __len__(self) -> int:
-        return self.num_selected_samples
+        return self.num_samples
+
+    def set_epoch(self, epoch: int) -> None:
+        self.epoch = epoch
+
+
+class InfiniteSampler(torch.utils.data.Sampler):
+    """
+    Infinite sampler that loops indefinitely over the dataset
+    """
+
+    def __init__(self, dataset: Sized, shuffle: bool, seed: int = 0) -> None:
+        super().__init__()
+        self.dataset = dataset
+        self.shuffle = shuffle
+        self.seed = seed
+        self.epoch = 0
+
+    def __iter__(self) -> Iterator[int]:
+        g = torch.Generator()
+        while True:
+            if self.shuffle is True:
+                g.manual_seed(self.seed + self.epoch)
+                indices = torch.randperm(len(self.dataset), generator=g).tolist()
+            else:
+                indices = list(range(len(self.dataset)))
+
+            yield from indices
+
+            logger.debug(f"InfiniteSampler finished epoch {self.epoch}")
+            self.epoch += 1
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
+    def set_epoch(self, epoch: int) -> None:
+        self.epoch = epoch
+
+
+class InfiniteDistributedSampler(torch.utils.data.Sampler):
+    """
+    Infinite distributed sampler that keeps a continuous shuffled stream per rank
+    """
+
+    def __init__(self, dataset: Sized, num_replicas: int, rank: int, shuffle: bool, seed: int = 0) -> None:
+        super().__init__()
+        self.dataset = dataset
+        self.num_replicas = num_replicas
+        self.rank = rank
+        self.shuffle = shuffle
+        self.seed = seed
+        self.epoch = 0
+        self.num_samples = int(math.ceil(len(self.dataset) / self.num_replicas))
+        self.total_size = self.num_samples * self.num_replicas
+
+    def __iter__(self) -> Iterator[int]:
+        g = torch.Generator()
+        while True:
+            if self.shuffle is True:
+                g.manual_seed(self.seed + self.epoch)
+                indices = torch.randperm(len(self.dataset), generator=g).tolist()
+            else:
+                indices = list(range(len(self.dataset)))
+
+            if len(indices) < self.total_size:
+                indices += indices[: (self.total_size - len(indices))]
+            else:
+                indices = indices[: self.total_size]
+
+            indices = indices[self.rank : self.total_size : self.num_replicas]
+            assert len(indices) == self.num_samples
+
+            yield from indices
+
+            logger.debug(f"InfiniteDistributedSampler finished epoch {self.epoch}")
+            self.epoch += 1
+
+    def __len__(self) -> int:
+        return self.num_samples
+
+    def set_epoch(self, epoch: int) -> None:
+        self.epoch = epoch
+
+
+class InfiniteRASampler(torch.utils.data.Sampler):
+    """
+    Infinite version of the repeated augmentation sampler
+    """
+
+    def __init__(
+        self, dataset: Sized, num_replicas: int, rank: int, shuffle: bool, seed: int = 0, repetitions: int = 3
+    ) -> None:
+        super().__init__()
+        self.dataset = dataset
+        self.num_replicas = num_replicas
+        self.rank = rank
+        self.epoch = 0
+        self.num_samples = int(math.ceil(len(self.dataset) * float(repetitions) / self.num_replicas))
+        self.total_size = self.num_samples * self.num_replicas
+        self.shuffle = shuffle
+        self.seed = seed
+        self.repetitions = repetitions
+
+    def __iter__(self) -> Iterator[int]:
+        g = torch.Generator()
+        while True:
+            if self.shuffle is True:
+                g.manual_seed(self.seed + self.epoch)
+                indices = torch.randperm(len(self.dataset), generator=g).tolist()
+            else:
+                indices = list(range(len(self.dataset)))
+
+            indices = [ele for ele in indices for _ in range(self.repetitions)]
+            if len(indices) < self.total_size:
+                indices += indices[: (self.total_size - len(indices))]
+            else:
+                indices = indices[: self.total_size]
+
+            # Shard by rank
+            indices = indices[self.rank : self.total_size : self.num_replicas]
+            assert len(indices) == self.num_samples
+
+            yield from indices
+
+            logger.debug(f"InfiniteRASampler finished epoch {self.epoch}")
+            self.epoch += 1
+
+    def __len__(self) -> int:
+        return self.num_samples
 
     def set_epoch(self, epoch: int) -> None:
         self.epoch = epoch
@@ -636,27 +760,87 @@ def get_amp_scaler(amp: bool, amp_dtype_str: str) -> tuple[Optional[torch.amp.Gr
     return (scaler, amp_dtype)
 
 
+@overload
 def get_samplers(
-    args: argparse.Namespace, training_dataset: torch.utils.data.Dataset, validation_dataset: torch.utils.data.Dataset
-) -> torch.utils.data.Sampler:
+    args: argparse.Namespace,
+    training_dataset: torch.utils.data.Dataset,
+    validation_dataset: torch.utils.data.Dataset,
+    infinite: bool = False,
+) -> tuple[torch.utils.data.Sampler, torch.utils.data.Sampler]: ...
+
+
+@overload
+def get_samplers(
+    args: argparse.Namespace,
+    training_dataset: torch.utils.data.Dataset,
+    validation_dataset: None = None,
+    infinite: bool = False,
+) -> tuple[torch.utils.data.Sampler, None]: ...
+
+
+def get_samplers(
+    args: argparse.Namespace,
+    training_dataset: torch.utils.data.Dataset,
+    validation_dataset: Optional[torch.utils.data.Dataset] = None,
+    infinite: bool = False,
+) -> tuple[torch.utils.data.Sampler, Optional[torch.utils.data.Sampler]]:
+    if args.seed is None:
+        seed = int(torch.empty((), dtype=torch.int64).random_().item())
+        if is_dist_available_and_initialized() is True:
+            seed_tensor = torch.tensor(seed, dtype=torch.int64).cuda()
+            dist.broadcast(seed_tensor, src=0, async_op=False)
+            seed = int(seed_tensor.item())
+    else:
+        seed = args.seed
+
+    ra_sampler = getattr(args, "ra_sampler", False)
     if args.distributed is True:
-        if args.ra_sampler is True:
-            train_sampler = RASampler(
-                training_dataset,
-                num_replicas=args.world_size,
-                rank=args.rank,
-                shuffle=True,
-                repetitions=args.ra_reps,
-            )
-
+        if infinite is True:
+            if ra_sampler is True:
+                train_sampler = InfiniteRASampler(
+                    training_dataset,
+                    num_replicas=args.world_size,
+                    rank=args.rank,
+                    shuffle=True,
+                    seed=seed,
+                    repetitions=args.ra_reps,
+                )
+            else:
+                train_sampler = InfiniteDistributedSampler(
+                    training_dataset, num_replicas=args.world_size, rank=args.rank, shuffle=True, seed=seed
+                )
         else:
-            train_sampler = torch.utils.data.distributed.DistributedSampler(training_dataset, shuffle=True)
+            if ra_sampler is True:
+                train_sampler = RASampler(
+                    training_dataset,
+                    num_replicas=args.world_size,
+                    rank=args.rank,
+                    shuffle=True,
+                    seed=seed,
+                    repetitions=args.ra_reps,
+                )
+            else:
+                train_sampler = torch.utils.data.distributed.DistributedSampler(
+                    training_dataset, shuffle=True, seed=seed
+                )
 
-        validation_sampler = torch.utils.data.distributed.DistributedSampler(validation_dataset, shuffle=False)
+        if validation_dataset is None:
+            validation_sampler = None
+        else:
+            validation_sampler = torch.utils.data.distributed.DistributedSampler(validation_dataset, shuffle=False)
 
     else:
-        train_sampler = torch.utils.data.RandomSampler(training_dataset)
-        validation_sampler = torch.utils.data.SequentialSampler(validation_dataset)
+        if infinite is True:
+            train_sampler = InfiniteSampler(training_dataset, shuffle=True, seed=seed)
+        else:
+            generator = torch.Generator()
+            generator.manual_seed(seed)
+            train_sampler = torch.utils.data.RandomSampler(training_dataset, generator=generator)
+
+        if validation_dataset is None:
+            validation_sampler = None
+        else:
+            validation_sampler = torch.utils.data.SequentialSampler(validation_dataset)
 
     return (train_sampler, validation_sampler)
 

@@ -1,6 +1,7 @@
 # pylint: disable=protected-access
 
 import argparse
+import itertools
 import logging
 import math
 import tempfile
@@ -237,7 +238,7 @@ class TestTrainingUtils(unittest.TestCase):
         sampler = training_utils.RASampler(dataset, num_replicas=2, rank=0, shuffle=False, repetitions=1)
         self.assertEqual(len(sampler), 256)  # Each rank gets half the dataset
         sampler = training_utils.RASampler(dataset, num_replicas=2, rank=1, shuffle=False, repetitions=2)
-        self.assertEqual(len(sampler), 256)
+        self.assertEqual(len(sampler), 512)
 
         sampler = training_utils.RASampler(dataset, num_replicas=2, rank=0, shuffle=False, repetitions=1)
         sample_iterator = iter(sampler)
@@ -259,7 +260,77 @@ class TestTrainingUtils(unittest.TestCase):
         sampler = training_utils.RASampler(dataset, num_replicas=2, rank=0, shuffle=True, repetitions=4)
         sampler.set_epoch(1)
         sample_iterator = iter(sampler)
-        self.assertLessEqual(next(sample_iterator), 512)  # type: ignore
+        self.assertLessEqual(next(sample_iterator), 512)
+
+    def test_infinite_sampler(self) -> None:
+        dataset = list(range(5))
+        sampler = training_utils.InfiniteSampler(dataset, shuffle=False)
+        samples = list(itertools.islice(iter(sampler), 8))
+        self.assertEqual(samples, [0, 1, 2, 3, 4, 0, 1, 2])
+        self.assertEqual(len(sampler), 5)
+
+        # Shuffle
+        sampler = training_utils.InfiniteSampler(dataset, shuffle=True)
+        samples = list(itertools.islice(iter(sampler), 20))
+        counts = {value: 0 for value in dataset}
+        for sample in samples:
+            counts[sample] += 1
+
+        # Each value should have been sampled exactly 4 times
+        for value in dataset:
+            self.assertEqual(counts[value], 4)
+
+    def test_infinite_distributed_sampler(self) -> None:
+        dataset = list(range(5))
+        sampler_rank0 = training_utils.InfiniteDistributedSampler(dataset, num_replicas=2, rank=0, shuffle=False)
+        sampler_rank1 = training_utils.InfiniteDistributedSampler(dataset, num_replicas=2, rank=1, shuffle=False)
+        samples_rank0 = list(itertools.islice(iter(sampler_rank0), 6))
+        samples_rank1 = list(itertools.islice(iter(sampler_rank1), 6))
+        self.assertEqual(samples_rank0, [0, 2, 4, 0, 2, 4])
+        self.assertEqual(samples_rank1, [1, 3, 0, 1, 3, 0])
+        self.assertEqual(len(sampler_rank0), 3)
+        self.assertEqual(len(sampler_rank1), 3)
+
+        # Shuffle
+        dataset = list(range(8))
+        sampler_rank0 = training_utils.InfiniteDistributedSampler(dataset, num_replicas=2, rank=0, shuffle=True)
+        sampler_rank1 = training_utils.InfiniteDistributedSampler(dataset, num_replicas=2, rank=1, shuffle=True)
+        samples_rank0 = list(itertools.islice(iter(sampler_rank0), 24))
+        samples_rank1 = list(itertools.islice(iter(sampler_rank1), 24))
+        epoch_size = len(sampler_rank0)
+        num_epochs = len(samples_rank0) // epoch_size
+        dataset_set = set(dataset)
+        self.assertEqual(len(samples_rank0), len(samples_rank1))
+
+        for epoch in range(num_epochs):
+            start = epoch * epoch_size
+            end = start + epoch_size
+            chunk_rank0 = samples_rank0[start:end]
+            chunk_rank1 = samples_rank1[start:end]
+            self.assertTrue(set(chunk_rank0).isdisjoint(chunk_rank1))
+            self.assertEqual(set(chunk_rank0).union(set(chunk_rank1)), dataset_set)
+
+        counts = {value: 0 for value in dataset}
+        for sample in samples_rank0 + samples_rank1:
+            counts[sample] += 1
+
+        for value in dataset:
+            self.assertEqual(counts[value], num_epochs)
+
+    def test_infinite_ra_sampler(self) -> None:
+        dataset = list(range(512))
+        sampler = training_utils.InfiniteRASampler(dataset, num_replicas=2, rank=0, shuffle=False, repetitions=4)
+        samples = list(itertools.islice(iter(sampler), 1026))
+        self.assertEqual(len(sampler), 1024)
+        self.assertEqual(samples[0], 0)
+        self.assertEqual(samples[1], 0)
+        self.assertEqual(samples[255], 127)
+        self.assertEqual(samples[256], 128)
+        self.assertEqual(samples[257], 128)
+        self.assertEqual(samples[1022], 511)
+        self.assertEqual(samples[1023], 511)
+        self.assertEqual(samples[1024], 0)
+        self.assertEqual(samples[1025], 0)
 
     # pylint: disable=too-many-branches
     def test_optimizer_parameter_groups(self) -> None:

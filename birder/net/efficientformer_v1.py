@@ -357,16 +357,22 @@ class EfficientFormer_v1(BaseNet):
         resolution = (int(new_size[0] / (2**5)), int(new_size[1] / (2**5)))
         for m in self.body.modules():
             if isinstance(m, Attention):
-                m.attention_biases = nn.Parameter(
-                    interpolate_attention_bias(m.attention_biases, old_resolution, resolution)
-                )
+                with torch.no_grad():
+                    m.attention_biases = nn.Parameter(
+                        interpolate_attention_bias(m.attention_biases, old_resolution, resolution)
+                    )
 
-                pos = torch.stack(
-                    torch.meshgrid(torch.arange(resolution[0]), torch.arange(resolution[1]), indexing="ij")
-                ).flatten(1)
-                rel_pos = (pos[..., :, None] - pos[..., None, :]).abs()
-                rel_pos = (rel_pos[0] * resolution[1]) + rel_pos[1]
-                m.attention_bias_idxs = nn.Buffer(rel_pos)
+                    device = m.attention_biases.device
+                    pos = torch.stack(
+                        torch.meshgrid(
+                            torch.arange(resolution[0], device=device),
+                            torch.arange(resolution[1], device=device),
+                            indexing="ij",
+                        )
+                    ).flatten(1)
+                    rel_pos = (pos[..., :, None] - pos[..., None, :]).abs()
+                    rel_pos = (rel_pos[0] * resolution[1]) + rel_pos[1]
+                    m.attention_bias_idxs = nn.Buffer(rel_pos)
 
 
 registry.register_model_config(

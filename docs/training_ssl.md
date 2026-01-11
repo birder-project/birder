@@ -372,16 +372,16 @@ torchrun --nproc_per_node=2 train.py --network xcit_small12_p16 --tag dino-v1 --
 
 ### DINO v2
 
-#### DINO v2: ConvNeXt v2 Nano
+#### DINO v2: ConvNeXt v1 Nano
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network convnext_v2_nano --dino-out-dim 32768 --opt adamw --lr 0.0002 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --batch-size 128 --wd 0.04 --wd-end 0.2 --grad-accum-steps 4 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --data-path data/training
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network convnext_v1_nano --dino-out-dim 32768 --opt adamw --lr 0.0002 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --batch-size 128 --wd 0.04 --wd-end 0.2 --grad-accum-steps 4 --clip-grad-norm 3 --amp --amp-dtype bfloat16 --compile --data-path data/training
 ```
 
 Fine-tuning, first stage - linear probing
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_nano --tag dino-v2 --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --resume-epoch 0 --reset-head --freeze-body
+torchrun --nproc_per_node=2 train.py --network convnext_v1_nano --tag dino-v2 --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --batch-size 256 --epochs 10 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --aug-level 4 --amp --resume-epoch 0 --reset-head --freeze-body
 ```
 
 #### DINO v2: DaViT Small

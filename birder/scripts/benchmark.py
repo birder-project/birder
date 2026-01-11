@@ -31,12 +31,15 @@ def throughput_benchmark(
     net: torch.nn.Module, device: torch.device, sample_shape: tuple[int, ...], model_name: str, args: argparse.Namespace
 ) -> tuple[float, int]:
     # Sanity
-    logger.info(f"Sanity check for {model_name}")
-
     if args.amp_dtype is None:
         amp_dtype = torch.get_autocast_dtype(device.type)
     else:
         amp_dtype = getattr(torch, args.amp_dtype)
+
+    logger.info(
+        f"Sanity check for {model_name}: size={sample_shape[2:]} device={device.type} compile={args.compile} "
+        f"amp={args.amp} amp_dtype={amp_dtype}"
+    )
 
     batch_size = sample_shape[0]
     while batch_size > 0:
@@ -49,21 +52,21 @@ def throughput_benchmark(
                 except Exception:  # pylint: disable=broad-exception-caught
                     batch_size -= 32
                     sample_shape = (batch_size, *sample_shape[1:])
-                    logger.info(f"Reducing batch size to: {batch_size}")
+                    logger.info(f"Reducing batch size to {batch_size}")
 
     if batch_size <= 0:
-        logger.warning(f"Aborting {model_name} !!!")
+        logger.warning(f"Aborting benchmark for {model_name}: batch size reduced to 0")
         return (-1.0, 0)
 
     # Warmup
-    logger.info(f"Starting warmup for {model_name}")
+    logger.info(f"Warmup for {model_name}: {args.warmup} iterations")
     with torch.inference_mode():
         with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
             for _ in range(args.warmup):
                 output = net(torch.rand(sample_shape, device=device))
 
     # Benchmark
-    logger.info(f"Starting benchmark for {model_name}")
+    logger.info(f"Throughput benchmark for {model_name}: repeats={args.repeats} bench_iter={args.bench_iter}")
     with torch.inference_mode():
         with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
             if device.type == "cuda":
@@ -88,7 +91,6 @@ def throughput_benchmark(
 def memory_benchmark(
     sync_peak_memory: Any, sample_shape: tuple[int, ...], model_name: str, args: argparse.Namespace
 ) -> None:
-    logger.info(f"Starting memory benchmark for {model_name}")
     if args.gpu is True:
         device = torch.device("cuda")
     else:
@@ -101,6 +103,11 @@ def memory_benchmark(
         amp_dtype = torch.get_autocast_dtype(device.type)
     else:
         amp_dtype = getattr(torch, args.amp_dtype)
+
+    logger.info(
+        f"Memory benchmark for {model_name}: batch={sample_shape[0]} size={sample_shape[2:]} device={device.type} "
+        f"compile={args.compile} amp={args.amp} amp_dtype={amp_dtype}"
+    )
 
     if args.plain is True:
         size = (sample_shape[2], sample_shape[3])
@@ -142,9 +149,10 @@ def benchmark(args: argparse.Namespace) -> None:
 
     benchmark_path = settings.RESULTS_DIR.joinpath(f"{output_path}.csv")
     if args.dry_run is True:
+        logger.debug("Dry run enabled, results will not be read or written")
         existing_df = None
     elif benchmark_path.exists() is True and args.append is False:
-        logger.warning("Benchmark file already exists... aborting")
+        logger.warning(f"Benchmark file {benchmark_path} already exists... aborting")
         raise SystemExit(1)
     elif benchmark_path.exists() is True:
         logger.info(f"Loading {benchmark_path}...")
@@ -179,6 +187,7 @@ def benchmark(args: argparse.Namespace) -> None:
     else:
         model_list = birder.list_pretrained_models(args.filter)
 
+    logger.info(f"Found {len(model_list)} models to benchmark")
     for model_name in model_list:
         if args.plain is True:
             if args.size is not None:
@@ -209,7 +218,7 @@ def benchmark(args: argparse.Namespace) -> None:
                 }
             ).is_empty()
             if combination_exists is False:
-                logger.info(f"{model_name} at the current configuration is already on file, skipping...")
+                logger.info(f"Skipping {model_name}: configuration already exists in {benchmark_path}")
                 continue
 
         sample_shape = (args.max_batch_size, input_channels) + size
@@ -221,7 +230,7 @@ def benchmark(args: argparse.Namespace) -> None:
             p.start()
             p.join()
             peak_memory = sync_peak_memory.value / (1024 * 1024)
-            logger.info(f"{model_name} used {peak_memory:.2f}MB")
+            logger.info(f"{model_name} peak memory: {peak_memory:.2f} MB")
         else:
             # Initialize model
             if args.plain is True:
@@ -244,7 +253,7 @@ def benchmark(args: argparse.Namespace) -> None:
 
             num_samples = args.repeats * args.bench_iter * batch_size
             samples_per_sec = num_samples / t_elapsed
-            logger.info(f"{model_name} ran at {samples_per_sec:.2f} samples / sec")
+            logger.info(f"{model_name} throughput: {samples_per_sec:.2f} samples/s (batch={batch_size})")
 
         results.append(
             {
@@ -266,7 +275,7 @@ def benchmark(args: argparse.Namespace) -> None:
     results_df = pl.DataFrame(results)
 
     if args.dry_run is True:
-        logger.info("Dry run enabled, skipping save")
+        logger.info("Dry run enabled, skipping saving outputs")
         return
 
     if args.append is True and existing_df is not None:

@@ -84,8 +84,13 @@ class ShiftedWindowAttention(nn.Module):
 
     def define_relative_position_bias_table(self) -> None:
         # Get relative_coords_table
-        relative_coords_h = torch.arange(-(self.window_size[0] - 1), self.window_size[0], dtype=torch.float32)
-        relative_coords_w = torch.arange(-(self.window_size[1] - 1), self.window_size[1], dtype=torch.float32)
+        device = self.qkv.weight.device
+        relative_coords_h = torch.arange(
+            -(self.window_size[0] - 1), self.window_size[0], dtype=torch.float32, device=device
+        )
+        relative_coords_w = torch.arange(
+            -(self.window_size[1] - 1), self.window_size[1], dtype=torch.float32, device=device
+        )
         relative_coords_table = torch.stack(torch.meshgrid([relative_coords_h, relative_coords_w], indexing="ij"))
         relative_coords_table = relative_coords_table.permute(1, 2, 0).contiguous().unsqueeze(0)  # 1, 2*Wh-1, 2*Ww-1, 2
 
@@ -100,8 +105,9 @@ class ShiftedWindowAttention(nn.Module):
 
     def define_relative_position_index(self) -> None:
         # Get pair-wise relative position index for each token inside the window
-        coords_h = torch.arange(self.window_size[0])
-        coords_w = torch.arange(self.window_size[1])
+        device = self.qkv.weight.device
+        coords_h = torch.arange(self.window_size[0], device=device)
+        coords_w = torch.arange(self.window_size[1], device=device)
         coords = torch.stack(torch.meshgrid(coords_h, coords_w, indexing="ij"))  # 2, Wh, Ww
         coords_flatten = torch.flatten(coords, 1)  # 2, Wh*Ww
         relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
@@ -348,42 +354,43 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
         old_size = self.size
         super().adjust_size(new_size)
 
-        for m in self.body.modules():
-            if isinstance(m, SwinTransformerBlock):
-                new_window_size_h = int(new_size[0] / (2**5)) * self.window_scale_factor
-                new_window_size_w = int(new_size[1] / (2**5)) * self.window_scale_factor
-                new_window_size = (new_window_size_h, new_window_size_w)
+        with torch.no_grad():
+            for m in self.body.modules():
+                if isinstance(m, SwinTransformerBlock):
+                    new_window_size_h = int(new_size[0] / (2**5)) * self.window_scale_factor
+                    new_window_size_w = int(new_size[1] / (2**5)) * self.window_scale_factor
+                    new_window_size = (new_window_size_h, new_window_size_w)
 
-                shift_size_h = m.attn.shift_size[0]
-                shift_size_w = m.attn.shift_size[1]
-                window_size_h = new_window_size[0]
-                window_size_w = new_window_size[1]
+                    shift_size_h = m.attn.shift_size[0]
+                    shift_size_w = m.attn.shift_size[1]
+                    window_size_h = new_window_size[0]
+                    window_size_w = new_window_size[1]
 
-                # Adjust resolution
-                scale_h = old_size[0] // m.input_resolution[0]
-                scale_w = old_size[1] // m.input_resolution[1]
-                m.input_resolution = (new_size[0] // scale_h, new_size[1] // scale_w)
+                    # Adjust resolution
+                    scale_h = old_size[0] // m.input_resolution[0]
+                    scale_w = old_size[1] // m.input_resolution[1]
+                    m.input_resolution = (new_size[0] // scale_h, new_size[1] // scale_w)
 
-                if m.input_resolution[0] <= window_size_h:
-                    shift_size_h = 0
-                    window_size_h = m.input_resolution[0]
+                    if m.input_resolution[0] <= window_size_h:
+                        shift_size_h = 0
+                        window_size_h = m.input_resolution[0]
 
-                if m.input_resolution[1] <= window_size_w:
-                    shift_size_w = 0
-                    window_size_w = m.input_resolution[1]
+                    if m.input_resolution[1] <= window_size_w:
+                        shift_size_w = 0
+                        window_size_w = m.input_resolution[1]
 
-                m.attn.window_size = (window_size_h, window_size_w)
+                    m.attn.window_size = (window_size_h, window_size_w)
 
-                if m.attn.shift_size[0] != 0:
-                    shift_size_h = m.attn.window_size[0] // 2
+                    if m.attn.shift_size[0] != 0:
+                        shift_size_h = m.attn.window_size[0] // 2
 
-                if m.attn.shift_size[1] != 0:
-                    shift_size_w = m.attn.window_size[1] // 2
+                    if m.attn.shift_size[1] != 0:
+                        shift_size_w = m.attn.window_size[1] // 2
 
-                m.attn.shift_size = (shift_size_h, shift_size_w)
+                    m.attn.shift_size = (shift_size_h, shift_size_w)
 
-                m.attn.define_relative_position_bias_table()
-                m.attn.define_relative_position_index()
+                    m.attn.define_relative_position_bias_table()
+                    m.attn.define_relative_position_index()
 
 
 # Window factor = 1

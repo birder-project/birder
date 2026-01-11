@@ -470,6 +470,7 @@ class RepViT(DetectorBackbone):
 
         return x
 
+    @torch.no_grad()  # type: ignore[untyped-decorator]
     def reparameterize_model(self) -> None:
         for module in self.modules():
             if hasattr(module, "reparameterize") is True:

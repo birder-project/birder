@@ -15,6 +15,7 @@ import random
 import sys
 import time
 from collections.abc import Callable
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -356,13 +357,13 @@ def train(args: argparse.Namespace) -> None:
         )
 
     logger.info(f"Using device {device}:{device_id}")
-    logger.info(f"Training on {len(training_dataset):,} samples")
+    logger.info(f"Training dataset has {len(training_dataset):,} samples")
 
     # Data loaders and samplers
-    if args.distributed is True:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(training_dataset, shuffle=True)
-    else:
-        train_sampler = torch.utils.data.RandomSampler(training_dataset)
+    virtual_epoch_mode = args.steps_per_epoch is not None
+    (train_sampler, _) = training_utils.get_samplers(
+        args, training_dataset, validation_dataset=None, infinite=virtual_epoch_mode
+    )
 
     if args.wds is True:
         training_loader = make_wds_loader(
@@ -375,6 +376,7 @@ def train(args: argparse.Namespace) -> None:
             pin_memory=True,
             drop_last=args.drop_last,
             shuffle=args.wds_extra_shuffle,
+            infinite=virtual_epoch_mode,
         )
 
     else:
@@ -389,9 +391,21 @@ def train(args: argparse.Namespace) -> None:
             drop_last=args.drop_last,
         )
 
-    optimizer_steps_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
-    last_batch_idx = len(training_loader) - 1
-    logging.debug(f"Epoch has {last_batch_idx+1} iterations ({optimizer_steps_per_epoch} steps)")
+    if virtual_epoch_mode is True:
+        optimizer_steps_per_epoch = args.steps_per_epoch
+        epoch_num_batches = args.steps_per_epoch * grad_accum_steps
+        epoch_samples = epoch_num_batches * batch_size * args.world_size
+        logger.debug(f"Virtual epoch has {epoch_samples:,} samples")
+    else:
+        optimizer_steps_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
+        epoch_num_batches = len(training_loader)
+        epoch_samples = len(training_dataset)
+
+    last_batch_idx = epoch_num_batches - 1
+    logger.debug(
+        f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
+        f"virtual mode={virtual_epoch_mode}"
+    )
 
     #
     # Optimizer, learning rate scheduler and training parameter groups
@@ -432,17 +446,17 @@ def train(args: argparse.Namespace) -> None:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
 
     # Teacher momentum, temperature and weight decay schedule
-    momentum_schedule = training_utils.cosine_scheduler(args.momentum_teacher, 1.0, args.epochs, 0, last_batch_idx + 1)
+    momentum_schedule = training_utils.cosine_scheduler(args.momentum_teacher, 1.0, args.epochs, 0, epoch_num_batches)
     teacher_temp_schedule = training_utils.cosine_scheduler(
         args.teacher_temp,
         args.teacher_temp,
         args.epochs,
         args.warmup_teacher_temp_epochs,
-        last_batch_idx + 1,
+        epoch_num_batches,
         args.warmup_teacher_temp,
     )
     if args.wd_end is not None:
-        wd_schedule = training_utils.cosine_scheduler(args.wd, args.wd_end, args.epochs, 0, last_batch_idx + 1)
+        wd_schedule = training_utils.cosine_scheduler(args.wd, args.wd_end, args.epochs, 0, epoch_num_batches)
     else:
         wd_schedule = None
 
@@ -563,6 +577,10 @@ def train(args: argparse.Namespace) -> None:
     #
     # Training loop
     #
+    track_agreement = not args.no_agreement_metrics
+    if virtual_epoch_mode is True:
+        train_iter = iter(training_loader)
+
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
@@ -572,18 +590,22 @@ def train(args: argparse.Namespace) -> None:
         running_loss_dino_global = training_utils.SmoothedValue()
         running_loss_koleo = training_utils.SmoothedValue()
         running_loss_ibot_patch = training_utils.SmoothedValue()
+        if track_agreement is True:
+            train_proto_agreement = training_utils.SmoothedValue()
+            train_patch_agreement = training_utils.SmoothedValue()
 
-        if args.distributed is True:
+        if args.distributed is True or virtual_epoch_mode is True:
             train_sampler.set_epoch(epoch)
 
-        epoch_first_step = (epoch - 1) * (last_batch_idx + 1)
-        logger.info(f"Epoch momentum: {momentum_schedule[epoch_first_step]:.6f}")
+        epoch_first_step = (epoch - 1) * epoch_num_batches
+        logger.info(f"Epoch momentum: {momentum_schedule[epoch_first_step]}")
+        logger.info(f"Epoch teacher temperature: {teacher_temp_schedule[epoch_first_step]}")
         if wd_schedule is not None:
-            logger.info(f"Epoch wd: {wd_schedule[epoch_first_step]:.6f}")
+            logger.info(f"Epoch wd: {wd_schedule[epoch_first_step]}")
 
         progress = tqdm(
             desc=f"Epoch {epoch}/{epochs-1}",
-            total=len(training_dataset),
+            total=epoch_samples,
             leave=False,
             disable=disable_tqdm,
             unit="samples",
@@ -596,8 +618,14 @@ def train(args: argparse.Namespace) -> None:
         epoch_start = time.time()
         start_time = epoch_start
         last_idx = 0
-        for i, data in enumerate(training_loader):
-            global_iter = ((epoch - 1) * (last_batch_idx + 1)) + i
+        batch_iter: Iterator[tuple[int, Any]]
+        if virtual_epoch_mode is True:
+            batch_iter = ((i, next(train_iter)) for i in range(epoch_num_batches))
+        else:
+            batch_iter = enumerate(training_loader)
+
+        for i, data in batch_iter:
+            global_iter = ((epoch - 1) * epoch_num_batches) + i
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
             teacher_temp = teacher_temp_schedule[global_iter]
 
@@ -620,6 +648,7 @@ def train(args: argparse.Namespace) -> None:
                 (teacher_embedding_after_head, teacher_masked_patch_tokens_after_head) = teacher(
                     global_crops, n_global_crops, upper_bound, mask_indices_list
                 )
+                teacher_patch_tokens_raw = teacher_masked_patch_tokens_after_head
                 if args.centering == "centering":
                     teacher_dino_softmax_centered_list = dino_loss.softmax_center_teacher(
                         teacher_embedding_after_head, teacher_temp=teacher_temp
@@ -747,6 +776,17 @@ def train(args: argparse.Namespace) -> None:
             running_loss_koleo.update(loss_koleo.detach())
             running_loss_ibot_patch.update(loss_ibot_patch.detach())
 
+            if track_agreement is True:
+                probs_teacher = teacher_embedding_after_head.chunk(n_global_crops)
+                probs_student = student_global_embedding_after_head.chunk(n_global_crops)
+                pred_teacher = probs_teacher[0].argmax(dim=1)
+                pred_student = probs_student[0].argmax(dim=1)
+                train_proto_agreement.update(training_utils.accuracy(pred_teacher, pred_student))
+
+                pred_patch_teacher = teacher_patch_tokens_raw.argmax(dim=1)
+                pred_patch_student = student_global_masked_patch_tokens_after_head.argmax(dim=1)
+                train_patch_agreement.update(training_utils.accuracy(pred_patch_teacher, pred_patch_student))
+
             # Write statistics
             if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
                 time_now = time.time()
@@ -767,6 +807,10 @@ def train(args: argparse.Namespace) -> None:
                 running_loss_dino_global.synchronize_between_processes(device)
                 running_loss_koleo.synchronize_between_processes(device)
                 running_loss_ibot_patch.synchronize_between_processes(device)
+                if track_agreement is True:
+                    train_proto_agreement.synchronize_between_processes(device)
+                    train_patch_agreement.synchronize_between_processes(device)
+
                 with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
                     log.info(
                         f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
@@ -788,8 +832,17 @@ def train(args: argparse.Namespace) -> None:
                             "koleo": running_loss_koleo.avg,
                             "patch": running_loss_ibot_patch.avg,
                         },
-                        ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
+                        ((epoch - 1) * epoch_samples) + (i * batch_size * args.world_size),
                     )
+                    if track_agreement is True:
+                        summary_writer.add_scalars(
+                            "performance",
+                            {
+                                "prototype_agreement": train_proto_agreement.avg,
+                                "patch_agreement": train_patch_agreement.avg,
+                            },
+                            ((epoch - 1) * epoch_samples) + (i * batch_size * args.world_size),
+                        )
 
             # Update progress bar
             progress.update(n=batch_size * args.world_size)
@@ -802,6 +855,9 @@ def train(args: argparse.Namespace) -> None:
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} dino_global_loss: {running_loss_dino_global.global_avg:.4f}")
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} koleo_loss: {running_loss_koleo.global_avg:.4f}")
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} ibot_patch_loss: {running_loss_ibot_patch.global_avg:.4f}")
+        if track_agreement is True:
+            logger.info(f"[Trn] Epoch {epoch}/{epochs-1} prototype_agreement: {train_proto_agreement.global_avg:.4f}")
+            logger.info(f"[Trn] Epoch {epoch}/{epochs-1} patch_agreement: {train_patch_agreement.global_avg:.4f}")
 
         # Learning rate scheduler update
         if step_update is False:
@@ -970,6 +1026,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         choices=["centering", "sinkhorn_knopp"],
         default="centering",
         help="algorithm for centering",
+    )
+    parser.add_argument(
+        "--no-agreement-metrics", default=False, action="store_true", help="disable prototype/patch agreement tracking"
     )
     parser.add_argument("-t", "--tag", type=str, help="add model tag")
     training_cli.add_optimization_args(parser)

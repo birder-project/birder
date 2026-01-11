@@ -62,9 +62,11 @@ def pt2_export(
     signature["inputs"][0]["data_shape"][0] = 2  # Set batch size
     sample_shape = signature["inputs"][0]["data_shape"]
     batch_dim = torch.export.Dim("batch", min=1, max=4096)
-    exported_net = torch.export.export(
-        net, (torch.randn(*sample_shape, device=device),), dynamic_shapes={"x": {0: batch_dim}}
-    )
+    with torch.no_grad():
+        exported_net = torch.export.export(
+            net, (torch.randn(*sample_shape, device=device),), dynamic_shapes={"x": {0: batch_dim}}
+        )
+
     fs_ops.save_pt2(exported_net, model_path, net.task, class_to_idx, signature, rgb_stats)
 
 
@@ -99,18 +101,19 @@ def onnx_export(
 
     else:
         batch_dim = torch.export.Dim("batch", min=1, max=4096)
-        torch.onnx.export(
-            net,
-            torch.randn(sample_shape),
-            str(model_path),
-            export_params=True,
-            opset_version=18,
-            input_names=["input"],
-            output_names=["output"],
-            dynamic_shapes={"x": {0: batch_dim}},
-            dynamo=True,
-            external_data=False,
-        )
+        with torch.no_grad():
+            torch.onnx.export(
+                net,
+                torch.randn(sample_shape),
+                str(model_path),
+                export_params=True,
+                opset_version=18,
+                input_names=["input"],
+                output_names=["output"],
+                dynamic_shapes={"x": {0: batch_dim}},
+                dynamo=True,
+                external_data=False,
+            )
 
     signature["inputs"][0]["data_shape"][0] = 0
 

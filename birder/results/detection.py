@@ -119,6 +119,10 @@ class Results:
         return "\n".join(lines)
 
     @property
+    def label_names(self) -> list[str]:
+        return self._label_names
+
+    @property
     def map(self) -> float:
         return self.metrics_dict["map"]
 

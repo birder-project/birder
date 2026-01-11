@@ -2581,7 +2581,7 @@ torchrun --nproc_per_node=2 train.py --network vit_sam_b16 --opt adamw --lr 0.00
 #### VoVNet v1: 39
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vovnet_v1_39 --lr-scheduler cosine --batch-size 128 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 6
+torchrun --nproc_per_node=2 train.py --network vovnet_v1_39 --lr-scheduler cosine --batch-size 128 --size 256 --smoothing-alpha 0.1 --mixup-alpha 0.2 --aug-level 8 --fast-matmul --compile
 ```
 
 ### VoVNet v2

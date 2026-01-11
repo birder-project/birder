@@ -638,18 +638,19 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                         rel_sp_dim_h = 2 * max(q_size_h, kv_size_h) - 1
                         rel_sp_dim_w = 2 * max(q_size_w, kv_size_w) - 1
 
-                        rel_pos_h = m.attn.rel_pos_h
-                        rel_pos_h_resized = F.interpolate(
-                            rel_pos_h.reshape(1, rel_pos_h.shape[0], -1).permute(0, 2, 1),
-                            size=rel_sp_dim_h,
-                            mode="linear",
-                        )
-                        rel_pos_w = m.attn.rel_pos_w
-                        rel_pos_w_resized = F.interpolate(
-                            rel_pos_w.reshape(1, rel_pos_w.shape[0], -1).permute(0, 2, 1),
-                            size=rel_sp_dim_w,
-                            mode="linear",
-                        )
+                        with torch.no_grad():
+                            rel_pos_h = m.attn.rel_pos_h
+                            rel_pos_h_resized = F.interpolate(
+                                rel_pos_h.reshape(1, rel_pos_h.shape[0], -1).permute(0, 2, 1),
+                                size=rel_sp_dim_h,
+                                mode="linear",
+                            )
+                            rel_pos_w = m.attn.rel_pos_w
+                            rel_pos_w_resized = F.interpolate(
+                                rel_pos_w.reshape(1, rel_pos_w.shape[0], -1).permute(0, 2, 1),
+                                size=rel_sp_dim_w,
+                                mode="linear",
+                            )
 
                         m.attn.rel_pos_h = nn.Parameter(rel_pos_h_resized.reshape(-1, rel_sp_dim_h).permute(1, 0))
                         m.attn.rel_pos_w = nn.Parameter(rel_pos_w_resized.reshape(-1, rel_sp_dim_w).permute(1, 0))

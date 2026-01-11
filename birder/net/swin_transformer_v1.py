@@ -213,8 +213,9 @@ class ShiftedWindowAttention(nn.Module):
 
     def define_relative_position_index(self) -> None:
         # Get pair-wise relative position index for each token inside the window
-        coords_h = torch.arange(self.window_size[0])
-        coords_w = torch.arange(self.window_size[1])
+        device = self.relative_position_bias_table.device
+        coords_h = torch.arange(self.window_size[0], device=device)
+        coords_w = torch.arange(self.window_size[1], device=device)
         coords = torch.stack(torch.meshgrid(coords_h, coords_w, indexing="ij"))  # 2, Wh, Ww
         coords_flatten = torch.flatten(coords, 1)  # 2, Wh*Ww
         relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
@@ -405,72 +406,74 @@ class Swin_Transformer_v1(DetectorBackbone):
         old_size = self.size
         super().adjust_size(new_size)
 
-        for m in self.body.modules():
-            if isinstance(m, SwinTransformerBlock):
-                old_window_size = (old_size[0] // (2**5), old_size[1] // (2**5))
-                new_window_size = (new_size[0] // (2**5), new_size[1] // (2**5))
-                m.attn.window_size = new_window_size
-                shift_size_w = m.attn.shift_size[0]
-                shift_size_h = m.attn.shift_size[1]
-                if m.attn.shift_size[0] != 0:
-                    shift_size_w = m.attn.window_size[0] // 2
+        with torch.no_grad():
+            for m in self.body.modules():
+                if isinstance(m, SwinTransformerBlock):
+                    old_window_size = (old_size[0] // (2**5), old_size[1] // (2**5))
+                    new_window_size = (new_size[0] // (2**5), new_size[1] // (2**5))
+                    m.attn.window_size = new_window_size
+                    shift_size_w = m.attn.shift_size[0]
+                    shift_size_h = m.attn.shift_size[1]
+                    if m.attn.shift_size[0] != 0:
+                        shift_size_w = m.attn.window_size[0] // 2
 
-                if m.attn.shift_size[1] != 0:
-                    shift_size_h = m.attn.window_size[1] // 2
+                    if m.attn.shift_size[1] != 0:
+                        shift_size_h = m.attn.window_size[1] // 2
 
-                m.attn.shift_size = (shift_size_w, shift_size_h)
+                    m.attn.shift_size = (shift_size_w, shift_size_h)
 
-                m.attn.define_relative_position_index()
+                    m.attn.define_relative_position_index()
 
-                # Interpolate relative_position_bias_table, adapted from
-                # https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/pos_embed_rel.py
-                src_size = (2 * old_window_size[0] - 1, 2 * old_window_size[1] - 1)
-                dst_size = (2 * new_window_size[0] - 1, 2 * new_window_size[1] - 1)
-                rel_pos_bias = m.attn.relative_position_bias_table
-                rel_pos_bias = rel_pos_bias.detach()
-                num_attn_heads = rel_pos_bias.size(1)
+                    # Interpolate relative_position_bias_table, adapted from
+                    # https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/pos_embed_rel.py
+                    src_size = (2 * old_window_size[0] - 1, 2 * old_window_size[1] - 1)
+                    dst_size = (2 * new_window_size[0] - 1, 2 * new_window_size[1] - 1)
+                    rel_pos_bias = m.attn.relative_position_bias_table.detach()
+                    rel_pos_device = rel_pos_bias.device
+                    rel_pos_bias = rel_pos_bias.cpu()
+                    num_attn_heads = rel_pos_bias.size(1)
 
-                def _calc(src: int, dst: int) -> list[float]:
-                    (left, right) = 1.01, 1.5
-                    while right - left > 1e-6:
-                        q = (left + right) / 2.0
-                        gp = (1.0 - q ** (src // 2)) / (1.0 - q)  # Geometric progression
-                        if gp > dst // 2:
-                            right = q
-                        else:
-                            left = q
+                    def _calc(src: int, dst: int) -> list[float]:
+                        (left, right) = 1.01, 1.5
+                        while right - left > 1e-6:
+                            q = (left + right) / 2.0
+                            gp = (1.0 - q ** (src // 2)) / (1.0 - q)  # Geometric progression
+                            if gp > dst // 2:
+                                right = q
+                            else:
+                                left = q
 
-                    dis = []
-                    cur = 1.0
-                    for i in range(src // 2):
-                        dis.append(cur)
-                        cur += q ** (i + 1)
+                        dis = []
+                        cur = 1.0
+                        for i in range(src // 2):
+                            dis.append(cur)
+                            cur += q ** (i + 1)
 
-                    r_ids = [-_ for _ in reversed(dis)]
-                    return r_ids + [0] + dis
+                        r_ids = [-_ for _ in reversed(dis)]
+                        return r_ids + [0] + dis
 
-                y = _calc(src_size[0], dst_size[0])
-                x = _calc(src_size[1], dst_size[1])
+                    y = _calc(src_size[0], dst_size[0])
+                    x = _calc(src_size[1], dst_size[1])
 
-                ty = dst_size[0] // 2.0
-                tx = dst_size[1] // 2.0
-                dy = torch.arange(-ty, ty + 0.1, 1.0)
-                dx = torch.arange(-tx, tx + 0.1, 1.0)
-                dxy = torch.meshgrid(dx, dy, indexing="ij")
+                    ty = dst_size[0] // 2.0
+                    tx = dst_size[1] // 2.0
+                    dy = torch.arange(-ty, ty + 0.1, 1.0)
+                    dx = torch.arange(-tx, tx + 0.1, 1.0)
+                    dxy = torch.meshgrid(dx, dy, indexing="ij")
 
-                all_rel_pos_bias = []
-                for i in range(num_attn_heads):
-                    z = rel_pos_bias[:, i].view(src_size[0], src_size[1]).float()
-                    rgi = interpolate.RegularGridInterpolator(
-                        (x, y), z.numpy().T, method="cubic", bounds_error=False, fill_value=None
-                    )
-                    r = torch.Tensor(rgi(dxy)).T.contiguous().to(rel_pos_bias.device)
+                    all_rel_pos_bias = []
+                    for i in range(num_attn_heads):
+                        z = rel_pos_bias[:, i].view(src_size[0], src_size[1])
+                        rgi = interpolate.RegularGridInterpolator(
+                            (x, y), z.numpy().T, method="cubic", bounds_error=False, fill_value=None
+                        )
+                        r = torch.tensor(rgi(dxy), device=rel_pos_device, dtype=rel_pos_bias.dtype).T.contiguous()
 
-                    r = r.view(-1, 1)
-                    all_rel_pos_bias.append(r)
+                        r = r.view(-1, 1)
+                        all_rel_pos_bias.append(r)
 
-                rel_pos_bias = torch.concat(all_rel_pos_bias, dim=-1)
-                m.attn.relative_position_bias_table = nn.Parameter(rel_pos_bias)
+                    rel_pos_bias = torch.concat(all_rel_pos_bias, dim=-1)
+                    m.attn.relative_position_bias_table = nn.Parameter(rel_pos_bias)
 
 
 registry.register_model_config(

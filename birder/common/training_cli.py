@@ -211,6 +211,12 @@ def add_training_schedule_args(parser: argparse.ArgumentParser, default_epochs: 
     group.add_argument(
         "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi stage training)"
     )
+    group.add_argument(
+        "--steps-per-epoch",
+        type=int,
+        metavar="N",
+        help="virtual epoch length in steps, leave unset to use the full dataset",
+    )
     group.add_argument("--warmup-epochs", type=int, metavar="N", help="number of warmup epochs")
     group.add_argument("--warmup-steps", type=int, metavar="N", help="number of warmup optimizer steps")
     group.add_argument("--cooldown-epochs", type=int, metavar="N", help="number of cooldown epochs (linear to zero)")

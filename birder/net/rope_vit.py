@@ -48,16 +48,17 @@ def build_rotary_pos_embed(
     grid_indexing: str,
     grid_offset: int,
     pt_grid_size: Optional[tuple[int, int]],
+    device: Optional[torch.device] = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     assert dim % 4 == 0
     num_bands = dim // 4
-    exp = torch.arange(0, num_bands, 1) / num_bands
+    exp = torch.arange(0, num_bands, 1, device=device) / num_bands
     bands = 1.0 / (temperature**exp)
 
     if pt_grid_size is None:
         pt_grid_size = grid_size
 
-    t = [(torch.arange(s) + grid_offset) / s * p for s, p in zip(grid_size, pt_grid_size)]
+    t = [(torch.arange(s, device=device) + grid_offset) / s * p for s, p in zip(grid_size, pt_grid_size)]
     grid = torch.stack(torch.meshgrid(t, indexing=grid_indexing), dim=-1)
     grid = grid.unsqueeze(-1)
     pos = grid * bands
@@ -116,6 +117,7 @@ class RoPE(nn.Module):
         grid_offset: int,
         pt_grid_size: Optional[tuple[int, int]] = None,
         rope_rot_type: str = "standard",
+        device: Optional[torch.device] = None,
     ) -> None:
         super().__init__()
         if rope_rot_type == "standard":
@@ -132,6 +134,7 @@ class RoPE(nn.Module):
             grid_indexing=grid_indexing,
             grid_offset=grid_offset,
             pt_grid_size=pt_grid_size,
+            device=device,
         )
         self.pos_embed = nn.Buffer(torch.concat((sin_emb, cos_emb), dim=-1), persistent=False)
 
@@ -867,14 +870,15 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             num_prefix_tokens = 0
 
         # Add back class tokens
-        self.pos_embedding = nn.Parameter(
-            adjust_position_embedding(
+        with torch.no_grad():
+            pos_embedding = adjust_position_embedding(
                 self.pos_embedding,
                 (old_size[0] // self.patch_size, old_size[1] // self.patch_size),
                 (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
                 num_prefix_tokens,
             )
-        )
+
+        self.pos_embedding = nn.Parameter(pos_embedding)
 
         # Adjust RoPE
         self.rope = RoPE(
@@ -885,6 +889,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             grid_offset=self.rope_grid_offset,
             pt_grid_size=self.pt_grid_size,
             rope_rot_type=self.rope_rot_type,
+            device=self.rope.pos_embed.device,
         )
 
         # Define adjusted decoder block

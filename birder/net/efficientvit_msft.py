@@ -497,14 +497,16 @@ class EfficientViT_MSFT(DetectorBackbone):
 
                                 idxs.append(attention_offsets[offset])
 
-                        m.mixer.m.attn.attention_biases = nn.Parameter(
-                            interpolate_attention_bias(
-                                m.mixer.m.attn.attention_biases, old_window_resolution, window_resolution
+                        with torch.no_grad():
+                            m.mixer.m.attn.attention_biases = nn.Parameter(
+                                interpolate_attention_bias(
+                                    m.mixer.m.attn.attention_biases, old_window_resolution, window_resolution
+                                )
                             )
-                        )
-                        m.mixer.m.attn.attention_bias_idxs = nn.Buffer(
-                            torch.LongTensor(idxs).view(N, N), persistent=False
-                        )
+                            device = m.mixer.m.attn.attention_biases.device
+                            m.mixer.m.attn.attention_bias_idxs = nn.Buffer(
+                                torch.tensor(idxs, device=device, dtype=torch.long).view(N, N), persistent=False
+                            )
 
 
 registry.register_model_config(

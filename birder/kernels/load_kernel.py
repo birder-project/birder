@@ -14,11 +14,24 @@ logger = logging.getLogger(__name__)
 
 
 _CACHED_KERNELS: dict[str, ModuleType] = {}
+_CUSTOM_KERNELS_ENABLED = True
+
+
+def set_custom_kernels_enabled(enabled: bool) -> None:
+    global _CUSTOM_KERNELS_ENABLED  # pylint: disable=global-statement
+    _CUSTOM_KERNELS_ENABLED = enabled
+
+
+def is_custom_kernels_enabled() -> bool:
+    if os.environ.get("DISABLE_CUSTOM_KERNELS", "0") == "1":
+        return False
+
+    return _CUSTOM_KERNELS_ENABLED
 
 
 def load_msda() -> Optional[ModuleType]:
     name = "msda"
-    if torch.cuda.is_available() is False or os.environ.get("DISABLE_CUSTOM_KERNELS", "0") == "1":
+    if torch.cuda.is_available() is False or is_custom_kernels_enabled() is False:
         return None
 
     if name in _CACHED_KERNELS:
@@ -60,7 +73,7 @@ def load_msda() -> Optional[ModuleType]:
 
 def load_swattention() -> Optional[ModuleType]:
     name = "swattention"
-    if torch.cuda.is_available() is False or os.environ.get("DISABLE_CUSTOM_KERNELS", "0") == "1":
+    if torch.cuda.is_available() is False or is_custom_kernels_enabled() is False:
         return None
 
     if name in _CACHED_KERNELS:
@@ -103,7 +116,7 @@ def load_swattention() -> Optional[ModuleType]:
 
 def load_soft_nms() -> Optional[ModuleType]:
     name = "soft_nms"
-    if os.environ.get("DISABLE_CUSTOM_KERNELS", "0") == "1":
+    if is_custom_kernels_enabled() is False:
         return None
 
     if name in _CACHED_KERNELS:
@@ -120,14 +133,6 @@ def load_soft_nms() -> Optional[ModuleType]:
         soft_nms: Optional[ModuleType] = load(
             "soft_nms",
             src_files,
-            with_cuda=True,
-            extra_cflags=["-DWITH_CUDA=1"],
-            extra_cuda_cflags=[
-                "-DCUDA_HAS_FP16=1",
-                "-D__CUDA_NO_HALF_OPERATORS__",
-                "-D__CUDA_NO_HALF_CONVERSIONS__",
-                "-D__CUDA_NO_HALF2_OPERATORS__",
-            ],
         )
 
     if soft_nms is not None:

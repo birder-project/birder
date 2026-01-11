@@ -454,42 +454,54 @@ class LeViT(BaseNet):
                         # Update Subsample resolution
                         m.q[0].resolution = resolution
 
-                        # Interpolate attention biases
-                        m.attention_biases = nn.Parameter(
-                            interpolate_attention_bias(m.attention_biases, old_resolution, resolution)
-                        )
-
-                        # Rebuild attention bias indices
-                        k_pos = torch.stack(
-                            torch.meshgrid(torch.arange(resolution[0]), torch.arange(resolution[1]), indexing="ij")
-                        ).flatten(1)
-                        q_pos = torch.stack(
-                            torch.meshgrid(
-                                torch.arange(0, resolution[0], step=m.stride),
-                                torch.arange(0, resolution[1], step=m.stride),
-                                indexing="ij",
+                        with torch.no_grad():
+                            # Interpolate attention biases
+                            m.attention_biases = nn.Parameter(
+                                interpolate_attention_bias(m.attention_biases, old_resolution, resolution)
                             )
-                        ).flatten(1)
-                        rel_pos = (q_pos[..., :, None] - k_pos[..., None, :]).abs()
-                        rel_pos = (rel_pos[0] * resolution[1]) + rel_pos[1]
-                        m.attention_bias_idxs = nn.Buffer(rel_pos, persistent=False)
+
+                            # Rebuild attention bias indices
+                            device = m.attention_biases.device
+                            k_pos = torch.stack(
+                                torch.meshgrid(
+                                    torch.arange(resolution[0], device=device),
+                                    torch.arange(resolution[1], device=device),
+                                    indexing="ij",
+                                )
+                            ).flatten(1)
+                            q_pos = torch.stack(
+                                torch.meshgrid(
+                                    torch.arange(0, resolution[0], step=m.stride, device=device),
+                                    torch.arange(0, resolution[1], step=m.stride, device=device),
+                                    indexing="ij",
+                                )
+                            ).flatten(1)
+                            rel_pos = (q_pos[..., :, None] - k_pos[..., None, :]).abs()
+                            rel_pos = (rel_pos[0] * resolution[1]) + rel_pos[1]
+                            m.attention_bias_idxs = nn.Buffer(rel_pos, persistent=False)
 
                         old_resolution = ((old_resolution[0] - 1) // 2 + 1, (old_resolution[1] - 1) // 2 + 1)
                         resolution = ((resolution[0] - 1) // 2 + 1, (resolution[1] - 1) // 2 + 1)
 
                     elif isinstance(m, Attention):
-                        # Interpolate attention biases
-                        m.attention_biases = nn.Parameter(
-                            interpolate_attention_bias(m.attention_biases, old_resolution, resolution)
-                        )
+                        with torch.no_grad():
+                            # Interpolate attention biases
+                            m.attention_biases = nn.Parameter(
+                                interpolate_attention_bias(m.attention_biases, old_resolution, resolution)
+                            )
 
-                        # Rebuild attention bias indices
-                        pos = torch.stack(
-                            torch.meshgrid(torch.arange(resolution[0]), torch.arange(resolution[1]), indexing="ij")
-                        ).flatten(1)
-                        rel_pos = (pos[..., :, None] - pos[..., None, :]).abs()
-                        rel_pos = (rel_pos[0] * resolution[1]) + rel_pos[1]
-                        m.attention_bias_idxs = nn.Buffer(rel_pos, persistent=False)
+                            # Rebuild attention bias indices
+                            device = m.attention_biases.device
+                            pos = torch.stack(
+                                torch.meshgrid(
+                                    torch.arange(resolution[0], device=device),
+                                    torch.arange(resolution[1], device=device),
+                                    indexing="ij",
+                                )
+                            ).flatten(1)
+                            rel_pos = (pos[..., :, None] - pos[..., None, :]).abs()
+                            rel_pos = (rel_pos[0] * resolution[1]) + rel_pos[1]
+                            m.attention_bias_idxs = nn.Buffer(rel_pos, persistent=False)
 
 
 registry.register_model_config(

@@ -25,12 +25,12 @@ from birder.ops.swattention import SWAttention_QK_RPB
 
 @torch.no_grad()  # type: ignore[untyped-decorator]
 def get_relative_position_cpb(
-    query_size: tuple[int, int], key_size: tuple[int, int]
+    query_size: tuple[int, int], key_size: tuple[int, int], device: torch.device | None = None
 ) -> tuple[torch.Tensor, torch.Tensor]:
     pretrain_size = query_size
-    axis_qh = torch.arange(query_size[0], dtype=torch.float32)
+    axis_qh = torch.arange(query_size[0], dtype=torch.float32, device=device)
     axis_kh = F.adaptive_avg_pool1d(axis_qh.unsqueeze(0), key_size[0]).squeeze(0)  # pylint: disable=not-callable
-    axis_qw = torch.arange(query_size[1], dtype=torch.float32)
+    axis_qw = torch.arange(query_size[1], dtype=torch.float32, device=device)
     axis_kw = F.adaptive_avg_pool1d(axis_qw.unsqueeze(0), key_size[1]).squeeze(0)  # pylint: disable=not-callable
     (axis_kh, axis_kw) = torch.meshgrid(axis_kh, axis_kw, indexing="ij")
     (axis_qh, axis_qw) = torch.meshgrid(axis_qh, axis_qw, indexing="ij")
@@ -49,16 +49,18 @@ def get_relative_position_cpb(
     relative_coords_table = (
         torch.sign(relative_coords_table)
         * torch.log2(torch.abs(relative_coords_table) + 1.0)
-        / torch.log2(torch.tensor(8, dtype=torch.float32))
+        / torch.log2(torch.tensor(8, dtype=torch.float32, device=device))
     )
 
     return (idx_map, relative_coords_table)
 
 
 @torch.no_grad()  # type: ignore[untyped-decorator]
-def get_seqlen_and_mask(input_resolution: tuple[int, int], window_size: int) -> tuple[torch.Tensor, torch.Tensor]:
+def get_seqlen_and_mask(
+    input_resolution: tuple[int, int], window_size: int, device: torch.device | None = None
+) -> tuple[torch.Tensor, torch.Tensor]:
     attn_map = F.unfold(
-        torch.ones([1, 1, input_resolution[0], input_resolution[1]]),
+        torch.ones([1, 1, input_resolution[0], input_resolution[1]], device=device),
         window_size,
         dilation=1,
         padding=(window_size // 2, window_size // 2),
@@ -549,28 +551,36 @@ class TransNeXt(DetectorBackbone):
             if isinstance(m, TransNeXtStage):
                 input_resolution = (new_size[0] // (2 ** (i + 2)), new_size[1] // (2 ** (i + 2)))
                 sr_ratio = self.sr_ratio[i]
-                (relative_pos_index, relative_coords_table) = get_relative_position_cpb(
-                    query_size=input_resolution,
-                    key_size=(input_resolution[0] // sr_ratio, input_resolution[1] // sr_ratio),
-                )
-                m.relative_pos_index = nn.Buffer(relative_pos_index, persistent=False)
-                m.relative_coords_table = nn.Buffer(relative_coords_table, persistent=False)
+                with torch.no_grad():
+                    device = next(m.parameters()).device
+                    (relative_pos_index, relative_coords_table) = get_relative_position_cpb(
+                        query_size=input_resolution,
+                        key_size=(input_resolution[0] // sr_ratio, input_resolution[1] // sr_ratio),
+                        device=device,
+                    )
+                    m.relative_pos_index = nn.Buffer(relative_pos_index, persistent=False)
+                    m.relative_coords_table = nn.Buffer(relative_coords_table, persistent=False)
 
-                for blk in m.modules():
-                    if isinstance(blk, Attention):
-                        blk.seq_length_scale = nn.Buffer(
-                            torch.log(torch.tensor(input_resolution[0] * input_resolution[1])), persistent=False
-                        )
+                    for blk in m.modules():
+                        if isinstance(blk, Attention):
+                            blk.seq_length_scale = nn.Buffer(
+                                torch.log(torch.tensor(input_resolution[0] * input_resolution[1], device=device)),
+                                persistent=False,
+                            )
 
-                    elif isinstance(blk, AggregatedAttention):
-                        pool_h = input_resolution[0] // sr_ratio
-                        pool_w = input_resolution[1] // sr_ratio
-                        blk.pool_len = pool_h * pool_w
-                        blk.pool = nn.AdaptiveAvgPool2d((pool_h, pool_w))
+                        elif isinstance(blk, AggregatedAttention):
+                            pool_h = input_resolution[0] // sr_ratio
+                            pool_w = input_resolution[1] // sr_ratio
+                            blk.pool_len = pool_h * pool_w
+                            blk.pool = nn.AdaptiveAvgPool2d((pool_h, pool_w))
 
-                        (local_seq_length, padding_mask) = get_seqlen_and_mask(input_resolution, blk.window_size)
-                        blk.seq_length_scale = nn.Buffer(torch.log(local_seq_length + blk.pool_len), persistent=False)
-                        blk.padding_mask = nn.Buffer(padding_mask, persistent=False)
+                            (local_seq_length, padding_mask) = get_seqlen_and_mask(
+                                input_resolution, blk.window_size, device=device
+                            )
+                            blk.seq_length_scale = nn.Buffer(
+                                torch.log(local_seq_length + blk.pool_len), persistent=False
+                            )
+                            blk.padding_mask = nn.Buffer(padding_mask, persistent=False)
 
                 i += 1
 

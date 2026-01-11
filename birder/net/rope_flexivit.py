@@ -553,15 +553,16 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             num_prefix_tokens = 0
 
         # Add back class tokens
-        self.pos_embedding = nn.Parameter(
-            # On rounding error see: https://github.com/facebookresearch/dino/issues/8
-            adjust_position_embedding(
+        with torch.no_grad():
+            pos_embedding = adjust_position_embedding(
+                # On rounding error see: https://github.com/facebookresearch/dino/issues/8
                 self.pos_embedding,
                 (old_size[0] // self.patch_size, old_size[1] // self.patch_size),
                 (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
                 num_prefix_tokens,
             )
-        )
+
+        self.pos_embedding = nn.Parameter(pos_embedding)
 
         # Adjust RoPE
         self.rope = RoPE(
@@ -572,6 +573,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             grid_offset=self.rope_grid_offset,
             pt_grid_size=self.pt_grid_size,
             rope_rot_type=self.rope_rot_type,
+            device=self.rope.pos_embed.device,
         )
 
         # Define adjusted decoder block
@@ -621,6 +623,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             grid_offset=self.rope_grid_offset,
             pt_grid_size=self.pt_grid_size,
             rope_rot_type=self.rope_rot_type,
+            device=self.rope.pos_embed.device,
         )
 
         self.patch_size = patch_size

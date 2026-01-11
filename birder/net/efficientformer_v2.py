@@ -554,26 +554,30 @@ class EfficientFormer_v2(DetectorBackbone):
                         attn.N = attn.resolution[0] * attn.resolution[1]
                         attn.N2 = attn.resolution2[0] * attn.resolution2[1]
 
-                        # Interpolate attention_biases
-                        attn.attention_biases = nn.Parameter(
-                            interpolate_attention_bias(attn.attention_biases, old_base, new_base)
-                        )
+                        with torch.no_grad():
+                            # Interpolate attention_biases
+                            attn.attention_biases = nn.Parameter(
+                                interpolate_attention_bias(attn.attention_biases, old_base, new_base)
+                            )
 
-                        k_pos = torch.stack(
-                            torch.meshgrid(
-                                torch.arange(attn.resolution[0]), torch.arange(attn.resolution[1]), indexing="ij"
-                            )
-                        ).flatten(1)
-                        q_pos = torch.stack(
-                            torch.meshgrid(
-                                torch.arange(0, attn.resolution[0], step=2),
-                                torch.arange(0, attn.resolution[1], step=2),
-                                indexing="ij",
-                            )
-                        ).flatten(1)
-                        rel_pos = (q_pos[..., :, None] - k_pos[..., None, :]).abs()
-                        rel_pos = (rel_pos[0] * attn.resolution[1]) + rel_pos[1]
-                        attn.attention_bias_idxs = nn.Buffer(torch.LongTensor(rel_pos), persistent=False)
+                            device = attn.attention_biases.device
+                            k_pos = torch.stack(
+                                torch.meshgrid(
+                                    torch.arange(attn.resolution[0], device=device),
+                                    torch.arange(attn.resolution[1], device=device),
+                                    indexing="ij",
+                                )
+                            ).flatten(1)
+                            q_pos = torch.stack(
+                                torch.meshgrid(
+                                    torch.arange(0, attn.resolution[0], step=2, device=device),
+                                    torch.arange(0, attn.resolution[1], step=2, device=device),
+                                    indexing="ij",
+                                )
+                            ).flatten(1)
+                            rel_pos = (q_pos[..., :, None] - k_pos[..., None, :]).abs()
+                            rel_pos = (rel_pos[0] * attn.resolution[1]) + rel_pos[1]
+                            attn.attention_bias_idxs = nn.Buffer(rel_pos.to(torch.long), persistent=False)
 
                     old_base = (old_base[0] // 2, old_base[1] // 2)
                     new_base = (new_base[0] // 2, new_base[1] // 2)
@@ -590,16 +594,22 @@ class EfficientFormer_v2(DetectorBackbone):
                             m.token_mixer.resolution = c_new_base
                             m.token_mixer.N = m.token_mixer.resolution[0] * m.token_mixer.resolution[1]
 
-                            m.token_mixer.attention_biases = nn.Parameter(
-                                interpolate_attention_bias(m.token_mixer.attention_biases, c_old_base, c_new_base)
-                            )
+                            with torch.no_grad():
+                                m.token_mixer.attention_biases = nn.Parameter(
+                                    interpolate_attention_bias(m.token_mixer.attention_biases, c_old_base, c_new_base)
+                                )
 
-                            pos = torch.stack(
-                                torch.meshgrid(torch.arange(c_new_base[0]), torch.arange(c_new_base[1]), indexing="ij")
-                            ).flatten(1)
-                            rel_pos = (pos[..., :, None] - pos[..., None, :]).abs()
-                            rel_pos = (rel_pos[0] * c_new_base[1]) + rel_pos[1]
-                            m.token_mixer.attention_bias_idxs = nn.Buffer(torch.LongTensor(rel_pos), persistent=False)
+                                device = m.token_mixer.attention_biases.device
+                                pos = torch.stack(
+                                    torch.meshgrid(
+                                        torch.arange(c_new_base[0], device=device),
+                                        torch.arange(c_new_base[1], device=device),
+                                        indexing="ij",
+                                    )
+                                ).flatten(1)
+                                rel_pos = (pos[..., :, None] - pos[..., None, :]).abs()
+                                rel_pos = (rel_pos[0] * c_new_base[1]) + rel_pos[1]
+                                m.token_mixer.attention_bias_idxs = nn.Buffer(rel_pos.to(torch.long), persistent=False)
 
 
 registry.register_model_config(

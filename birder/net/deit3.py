@@ -355,14 +355,14 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
             num_prefix_tokens = 0
 
         # Add back class tokens
-        self.pos_embedding = nn.Parameter(
-            adjust_position_embedding(
+        with torch.no_grad():
+            pos_embedding = adjust_position_embedding(
                 self.pos_embedding,
                 (old_size[0] // self.patch_size, old_size[1] // self.patch_size),
                 (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
                 num_prefix_tokens,
             )
-        )
+        self.pos_embedding = nn.Parameter(pos_embedding)
 
 
 registry.register_model_config(

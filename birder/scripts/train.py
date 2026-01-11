@@ -4,6 +4,7 @@ import logging
 import math
 import sys
 import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -126,8 +127,8 @@ def train(args: argparse.Namespace) -> None:
         class_to_idx = training_dataset.class_to_idx
 
     logger.info(f"Using device {device}:{device_id}")
-    logger.info(f"Training on {len(training_dataset):,} samples")
-    logger.info(f"Validating on {len(validation_dataset):,} samples")
+    logger.info(f"Training dataset has {len(training_dataset):,} samples")
+    logger.info(f"Validation dataset has {len(validation_dataset):,} samples")
 
     num_outputs = len(class_to_idx)
     batch_size: int = args.batch_size
@@ -147,7 +148,10 @@ def train(args: argparse.Namespace) -> None:
         collate_fn = None  # type: ignore
 
     # Data loaders and samplers
-    (train_sampler, validation_sampler) = training_utils.get_samplers(args, training_dataset, validation_dataset)
+    virtual_epoch_mode = args.steps_per_epoch is not None
+    (train_sampler, validation_sampler) = training_utils.get_samplers(
+        args, training_dataset, validation_dataset, infinite=virtual_epoch_mode
+    )
 
     if args.wds is True:
         training_loader = make_wds_loader(
@@ -160,6 +164,7 @@ def train(args: argparse.Namespace) -> None:
             pin_memory=True,
             drop_last=args.drop_last,
             shuffle=args.wds_extra_shuffle,
+            infinite=virtual_epoch_mode,
         )
 
         validation_loader = make_wds_loader(
@@ -192,10 +197,19 @@ def train(args: argparse.Namespace) -> None:
             pin_memory=True,
         )
 
-    optimizer_steps_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
+    if virtual_epoch_mode is True:
+        optimizer_steps_per_epoch = args.steps_per_epoch
+        epoch_num_batches = args.steps_per_epoch * grad_accum_steps
+        epoch_samples = epoch_num_batches * batch_size * args.world_size
+        logger.debug(f"Virtual epoch has {epoch_samples:,} samples")
+    else:
+        optimizer_steps_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
+        epoch_num_batches = len(training_loader)
+        epoch_samples = len(training_dataset)
+
     assert args.model_ema is False or model_ema_steps <= optimizer_steps_per_epoch
 
-    last_batch_idx = len(training_loader) - 1
+    last_batch_idx = epoch_num_batches - 1
     begin_epoch = 1
     epochs = args.epochs + 1
     if args.stop_epoch is None:
@@ -203,7 +217,10 @@ def train(args: argparse.Namespace) -> None:
     else:
         args.stop_epoch += 1
 
-    logging.debug(f"Epoch has {last_batch_idx+1} iterations ({optimizer_steps_per_epoch} steps)")
+    logger.debug(
+        f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
+        f"virtual mode={virtual_epoch_mode}"
+    )
 
     #
     # Initialize network
@@ -454,6 +471,9 @@ def train(args: argparse.Namespace) -> None:
     # Training loop
     #
     optimizer_step = (begin_epoch - 1) * optimizer_steps_per_epoch
+    if virtual_epoch_mode is True:
+        train_iter = iter(training_loader)
+
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
@@ -463,12 +483,12 @@ def train(args: argparse.Namespace) -> None:
         train_accuracy = training_utils.SmoothedValue(window_size=64)
         val_accuracy = training_utils.SmoothedValue()
 
-        if args.distributed is True:
+        if args.distributed is True or virtual_epoch_mode is True:
             train_sampler.set_epoch(epoch)
 
         progress = tqdm(
             desc=f"Epoch {epoch}/{epochs-1}",
-            total=len(training_dataset),
+            total=epoch_samples,
             leave=False,
             disable=disable_tqdm,
             unit="samples",
@@ -481,7 +501,13 @@ def train(args: argparse.Namespace) -> None:
         epoch_start = time.time()
         start_time = epoch_start
         last_idx = 0
-        for i, (inputs, targets) in enumerate(training_loader):
+        batch_iter: Iterator[tuple[int, Any]]
+        if virtual_epoch_mode is True:
+            batch_iter = ((i, next(train_iter)) for i in range(epoch_num_batches))
+        else:
+            batch_iter = enumerate(training_loader)
+
+        for i, (inputs, targets) in batch_iter:
             inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
             targets = targets.to(device, non_blocking=True)
             loss_targets = targets
@@ -575,12 +601,12 @@ def train(args: argparse.Namespace) -> None:
                     summary_writer.add_scalars(
                         "loss",
                         {"training": running_loss.avg},
-                        ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
+                        ((epoch - 1) * epoch_samples) + (i * batch_size * args.world_size),
                     )
                     summary_writer.add_scalars(
                         "performance",
                         {"training_accuracy": train_accuracy.avg},
-                        ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
+                        ((epoch - 1) * epoch_samples) + (i * batch_size * args.world_size),
                     )
 
             # Update progress bar
@@ -644,9 +670,9 @@ def train(args: argparse.Namespace) -> None:
 
         # Write statistics
         if training_utils.is_local_primary(args) is True:
-            summary_writer.add_scalars("loss", {"validation": epoch_val_loss}, epoch * len(training_dataset))
+            summary_writer.add_scalars("loss", {"validation": epoch_val_loss}, epoch * epoch_samples)
             summary_writer.add_scalars(
-                "performance", {"validation_accuracy": epoch_val_accuracy}, epoch * len(training_dataset)
+                "performance", {"validation_accuracy": epoch_val_accuracy}, epoch * epoch_samples
             )
 
         # Epoch validation metrics

@@ -340,3 +340,18 @@ registry.register_model_config(
         "drop_path_rate": 0.1,
     },
 )
+
+registry.register_weights(
+    "lit_v1_t_il-common",
+    {
+        "description": "LIT v1 Tiny model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 75.2,
+                "sha256": "93813b2716eb9f33e06dc15ab2ba335c6d219354d2983bbc4f834f8f4e688e5c",
+            }
+        },
+        "net": {"network": "lit_v1_t", "tag": "il-common"},
+    },
+)

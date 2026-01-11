@@ -465,11 +465,8 @@ class DETR(DetectionBaseNet):
         for s, l, b in zip(scores, labels, boxes):
             # Non-maximum suppression
             if self.soft_nms is not None:
-                # Actually much faster on CPU
-                device = b.device
-                (soft_scores, keep) = self.soft_nms(b.cpu(), s.cpu(), l.cpu(), score_threshold=0.001)
-                keep = keep.to(device)
-                s[keep] = soft_scores.to(device)
+                (soft_scores, keep) = self.soft_nms(b, s, l, score_threshold=0.001)
+                s[keep] = soft_scores
 
                 b = b[keep]
                 s = s[keep]

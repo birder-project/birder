@@ -420,43 +420,44 @@ class ViT_SAM(DetectorBackbone):
 
         new_base_size_h = new_size[0] // self.patch_size
         new_base_size_w = new_size[1] // self.patch_size
-        for idx, m in enumerate(self.body):
-            if idx not in self.global_attn_indexes:
-                continue
+        with torch.no_grad():
+            for idx, m in enumerate(self.body):
+                if idx not in self.global_attn_indexes:
+                    continue
 
-            if m.attn.use_rel_pos is True:
-                rel_pos_h = m.attn.rel_pos_h
-                rel_pos_w = m.attn.rel_pos_w
+                if m.attn.use_rel_pos is True:
+                    rel_pos_h = m.attn.rel_pos_h
+                    rel_pos_w = m.attn.rel_pos_w
 
-                orig_dtype = rel_pos_h.dtype
-                rel_pos_h = rel_pos_h.float()
-                rel_pos_w = rel_pos_w.float()
+                    orig_dtype = rel_pos_h.dtype
+                    rel_pos_h = rel_pos_h.float()
+                    rel_pos_w = rel_pos_w.float()
 
-                rel_pos_h = rel_pos_h.permute(1, 0)
-                rel_pos_w = rel_pos_w.permute(1, 0)
-                rel_pos_h = rel_pos_h.unsqueeze(0)
-                rel_pos_w = rel_pos_w.unsqueeze(0)
+                    rel_pos_h = rel_pos_h.permute(1, 0)
+                    rel_pos_w = rel_pos_w.permute(1, 0)
+                    rel_pos_h = rel_pos_h.unsqueeze(0)
+                    rel_pos_w = rel_pos_w.unsqueeze(0)
 
-                rel_pos_h = F.interpolate(rel_pos_h, size=2 * new_base_size_h - 1, mode="linear")
-                rel_pos_w = F.interpolate(rel_pos_w, size=2 * new_base_size_w - 1, mode="linear")
-                rel_pos_h = rel_pos_h.squeeze(0)
-                rel_pos_w = rel_pos_w.squeeze(0)
-                rel_pos_h = rel_pos_h.permute(1, 0)
-                rel_pos_w = rel_pos_w.permute(1, 0)
-                rel_pos_h = rel_pos_h.to(orig_dtype)
-                rel_pos_w = rel_pos_w.to(orig_dtype)
+                    rel_pos_h = F.interpolate(rel_pos_h, size=2 * new_base_size_h - 1, mode="linear")
+                    rel_pos_w = F.interpolate(rel_pos_w, size=2 * new_base_size_w - 1, mode="linear")
+                    rel_pos_h = rel_pos_h.squeeze(0)
+                    rel_pos_w = rel_pos_w.squeeze(0)
+                    rel_pos_h = rel_pos_h.permute(1, 0)
+                    rel_pos_w = rel_pos_w.permute(1, 0)
+                    rel_pos_h = rel_pos_h.to(orig_dtype)
+                    rel_pos_w = rel_pos_w.to(orig_dtype)
 
-                m.attn.rel_pos_h = nn.Parameter(rel_pos_h)
-                m.attn.rel_pos_w = nn.Parameter(rel_pos_w)
+                    m.attn.rel_pos_h = nn.Parameter(rel_pos_h)
+                    m.attn.rel_pos_w = nn.Parameter(rel_pos_w)
 
-        orig_dtype = self.pos_embedding.dtype
-        pos_embedding = self.pos_embedding.float()
-        pos_embedding = pos_embedding.permute(0, 3, 1, 2)
-        pos_embedding = F.interpolate(
-            pos_embedding, size=(new_base_size_h, new_base_size_w), mode="bicubic", antialias=True
-        )
-        pos_embedding = pos_embedding.permute(0, 2, 3, 1)
-        pos_embedding = pos_embedding.to(orig_dtype)
+            orig_dtype = self.pos_embedding.dtype
+            pos_embedding = self.pos_embedding.float()
+            pos_embedding = pos_embedding.permute(0, 3, 1, 2)
+            pos_embedding = F.interpolate(
+                pos_embedding, size=(new_base_size_h, new_base_size_w), mode="bicubic", antialias=True
+            )
+            pos_embedding = pos_embedding.permute(0, 2, 3, 1)
+            pos_embedding = pos_embedding.to(orig_dtype)
 
         self.pos_embedding = nn.Parameter(pos_embedding)
 

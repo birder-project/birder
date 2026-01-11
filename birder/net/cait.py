@@ -268,14 +268,15 @@ class CaiT(BaseNet):
         super().adjust_size(new_size)
 
         # Add back class tokens
-        self.pos_embed = nn.Parameter(
-            adjust_position_embedding(
+        with torch.no_grad():
+            pos_embed = adjust_position_embedding(
                 self.pos_embed,
                 (old_size[0] // self.patch_size[0], old_size[1] // self.patch_size[1]),
                 (new_size[0] // self.patch_size[0], new_size[1] // self.patch_size[1]),
                 0,
             )
-        )
+
+        self.pos_embed = nn.Parameter(pos_embed)
 
 
 registry.register_model_config(

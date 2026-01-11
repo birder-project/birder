@@ -98,6 +98,7 @@ class BatchRandomResizeCollator(DetectionCollator):
                 if isinstance(boxes, tv_tensors.BoundingBoxes) is False:
                     if boxes.numel() == 0:
                         boxes = boxes.reshape(0, 4)
+
                     boxes = tv_tensors.BoundingBoxes(
                         boxes, format=tv_tensors.BoundingBoxFormat.XYXY, canvas_size=F.get_size(image)
                     )

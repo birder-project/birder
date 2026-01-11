@@ -525,6 +525,53 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
 
 @task
+def benchmark_results_check(_ctx, tag):
+    """
+    List pretrained models matching tag and check each appears in results/<tag>/*.csv
+    """
+
+    if tag is None or tag == "":
+        echo("Tag is required, for example: inv benchmark-results-check eu-common", color=COLOR_RED)
+        raise Exit(code=1)
+
+    model_list = registry.list_pretrained_models(include_filter=f"*{tag}*")
+    echo(f"Found {len(model_list)} pretrained models matching '{tag}'")
+    if len(model_list) == 0:
+        echo("No models matched the provided tag", color=COLOR_RED)
+        raise Exit(code=1)
+
+    csv_paths = settings.RESULTS_DIR.joinpath(tag).glob("*.csv")
+    found_models = {model_name: False for model_name in model_list}
+    unknown_files = []
+    for csv_path in csv_paths:
+        stem = csv_path.stem
+        matched_model = None
+        for model_name in model_list:
+            if stem.startswith(model_name) is True:
+                matched_model = model_name
+                found_models[matched_model] = True
+                break
+
+        if matched_model is None:
+            unknown_files.append(csv_path.name)
+            continue
+
+    missing_models = [model_name for model_name, found in found_models.items() if found is False]
+    if len(missing_models) > 0:
+        echo(f"Missing results for {len(missing_models)} models:", color=COLOR_RED)
+        for model_name in missing_models:
+            print(model_name)
+
+    if len(unknown_files) > 0:
+        echo("Results files with unknown model names:", color=COLOR_RED)
+        for file_name in unknown_files:
+            print(file_name)
+
+    if len(missing_models) == 0 and len(unknown_files) == 0:
+        echo(f"All {len(model_list)} models have at least one results file", color=COLOR_GREEN)
+
+
+@task
 def model_pre_publish(  # pylint: disable=too-many-locals
     _ctx,
     model,

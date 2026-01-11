@@ -319,6 +319,7 @@ class RepVgg(DetectorBackbone):
         x = self.forward_features(x)
         return self.features(x)
 
+    @torch.no_grad()  # type: ignore[untyped-decorator]
     def reparameterize_model(self) -> None:
         for module in self.modules():
             if hasattr(module, "reparameterize") is True:

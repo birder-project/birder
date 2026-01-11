@@ -477,12 +477,14 @@ class iFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         resolution = (new_size[0] // 4, new_size[1] // 4)
         for stage in self.body.modules():
             if isinstance(stage, InceptionTransformerStage):
-                orig_dtype = stage.pos_embed.dtype
-                pos_embedding = stage.pos_embed.float()
-                pos_embedding = F.interpolate(
-                    pos_embedding.permute(0, 3, 1, 2), size=resolution, mode="bilinear"
-                ).permute(0, 2, 3, 1)
-                pos_embedding = pos_embedding.to(orig_dtype)
+                with torch.no_grad():
+                    orig_dtype = stage.pos_embed.dtype
+                    pos_embedding = stage.pos_embed.float()
+                    pos_embedding = F.interpolate(
+                        pos_embedding.permute(0, 3, 1, 2), size=resolution, mode="bilinear"
+                    ).permute(0, 2, 3, 1)
+                    pos_embedding = pos_embedding.to(orig_dtype)
+
                 stage.pos_embed = nn.Parameter(pos_embedding)
                 stage.resolution = resolution
                 resolution = (resolution[0] // 2, resolution[1] // 2)

@@ -193,8 +193,15 @@ def predict(args: argparse.Namespace) -> None:
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     if args.amp_dtype is None:
         amp_dtype = torch.get_autocast_dtype(device.type)
+        logger.debug(f"AMP: {args.amp}, AMP dtype: {amp_dtype}")
     else:
         amp_dtype = getattr(torch, args.amp_dtype)
+
+    if args.quantized is True:
+        try:
+            import torchao.quantization.pt2e  # pylint: disable=unused-import,import-outside-toplevel # noqa: F401
+        except ImportError as exc:
+            raise RuntimeError("'pip install torchao' to load quantization operators") from exc
 
     network_name = lib.get_network_name(args.network, tag=args.tag)
     (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(

@@ -15,6 +15,7 @@ import math
 import sys
 import time
 from collections.abc import Callable
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -122,17 +123,17 @@ def train(args: argparse.Namespace) -> None:
         )
 
     logger.info(f"Using device {device}:{device_id}")
-    logger.info(f"Training on {len(training_dataset):,} samples")
+    logger.info(f"Training dataset has {len(training_dataset):,} samples")
 
     batch_size: int = args.batch_size
     grad_accum_steps: int = args.grad_accum_steps
     logger.debug(f"Effective batch size = {batch_size * grad_accum_steps * args.world_size}")
 
     # Data loaders and samplers
-    if args.distributed is True:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(training_dataset, shuffle=True)
-    else:
-        train_sampler = torch.utils.data.RandomSampler(training_dataset)
+    virtual_epoch_mode = args.steps_per_epoch is not None
+    (train_sampler, _) = training_utils.get_samplers(
+        args, training_dataset, validation_dataset=None, infinite=virtual_epoch_mode
+    )
 
     if args.wds is True:
         training_loader = make_wds_loader(
@@ -145,6 +146,7 @@ def train(args: argparse.Namespace) -> None:
             pin_memory=True,
             drop_last=args.drop_last,
             shuffle=args.wds_extra_shuffle,
+            infinite=virtual_epoch_mode,
         )
 
     else:
@@ -158,8 +160,17 @@ def train(args: argparse.Namespace) -> None:
             drop_last=args.drop_last,
         )
 
-    optimizer_steps_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
-    last_batch_idx = len(training_loader) - 1
+    if virtual_epoch_mode is True:
+        optimizer_steps_per_epoch = args.steps_per_epoch
+        epoch_num_batches = args.steps_per_epoch * grad_accum_steps
+        epoch_samples = epoch_num_batches * batch_size * args.world_size
+        logger.debug(f"Virtual epoch has {epoch_samples:,} samples")
+    else:
+        optimizer_steps_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
+        epoch_num_batches = len(training_loader)
+        epoch_samples = len(training_dataset)
+
+    last_batch_idx = epoch_num_batches - 1
     begin_epoch = 1
     epochs = args.epochs + 1
     if args.stop_epoch is None:
@@ -167,7 +178,10 @@ def train(args: argparse.Namespace) -> None:
     else:
         args.stop_epoch += 1
 
-    logging.debug(f"Epoch has {last_batch_idx+1} iterations ({optimizer_steps_per_epoch} steps)")
+    logger.debug(
+        f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
+        f"virtual mode={virtual_epoch_mode}"
+    )
 
     #
     # Initialize network
@@ -353,18 +367,21 @@ def train(args: argparse.Namespace) -> None:
     #
     # Training loop
     #
+    if virtual_epoch_mode is True:
+        train_iter = iter(training_loader)
+
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
         running_loss = training_utils.SmoothedValue()
 
-        if args.distributed is True:
+        if args.distributed is True or virtual_epoch_mode is True:
             train_sampler.set_epoch(epoch)
 
         progress = tqdm(
             desc=f"Epoch {epoch}/{epochs-1}",
-            total=len(training_dataset),
+            total=epoch_samples,
             leave=False,
             disable=disable_tqdm,
             unit="samples",
@@ -377,7 +394,13 @@ def train(args: argparse.Namespace) -> None:
         epoch_start = time.time()
         start_time = epoch_start
         last_idx = 0
-        for i, (_, images, _) in enumerate(training_loader):
+        batch_iter: Iterator[tuple[int, Any]]
+        if virtual_epoch_mode is True:
+            batch_iter = ((i, next(train_iter)) for i in range(epoch_num_batches))
+        else:
+            batch_iter = enumerate(training_loader)
+
+        for i, (_, images, _) in batch_iter:
             images = images.to(device, dtype=model_dtype, non_blocking=True)
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
 
@@ -454,7 +477,7 @@ def train(args: argparse.Namespace) -> None:
                     summary_writer.add_scalars(
                         "loss",
                         {"training": running_loss.avg},
-                        ((epoch - 1) * len(training_dataset)) + (i * batch_size * args.world_size),
+                        ((epoch - 1) * epoch_samples) + (i * batch_size * args.world_size),
                     )
 
             # Update progress bar

@@ -239,3 +239,18 @@ registry.register_model_config(
         "layers_per_block": 5,
     },
 )
+
+registry.register_weights(
+    "vovnet_v1_27s_il-common",
+    {
+        "description": "VoVNet v1 27s model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 12.3,
+                "sha256": "c119b61fc3ba69e0184cb5b826b66897d55678b9250e206446badee377b1e34f",
+            }
+        },
+        "net": {"network": "vovnet_v1_27s", "tag": "il-common"},
+    },
+)

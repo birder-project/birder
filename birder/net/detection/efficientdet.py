@@ -685,13 +685,8 @@ class EfficientDet(DetectionBaseNet):
 
             # Non-maximum suppression
             if self.soft_nms is not None:
-                # Actually much faster on CPU
-                device = image_boxes.device
-                (soft_scores, keep) = self.soft_nms(
-                    image_boxes.cpu(), image_scores.cpu(), image_labels.cpu(), score_threshold=0.001
-                )
-                keep = keep.to(device)
-                image_scores[keep] = soft_scores.to(device)
+                (soft_scores, keep) = self.soft_nms(image_boxes, image_scores, image_labels, score_threshold=0.001)
+                image_scores[keep] = soft_scores
             else:
                 keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)
 

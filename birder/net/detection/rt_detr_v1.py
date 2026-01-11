@@ -1087,6 +1087,7 @@ class RT_DETR_v1(DetectionBaseNet):
 
         return (detections, losses)
 
+    @torch.no_grad()  # type: ignore[untyped-decorator]
     def reparameterize_model(self) -> None:
         if self.reparameterized is True:
             return

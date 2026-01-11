@@ -320,18 +320,35 @@ class TestNet(unittest.TestCase):
         _skip_embedding: bool = False,
         _skip_features: bool = False,
         batch_size: int = 1,
-        _size_step: int = 2**5,
+        size_step: int = 2**5,
     ) -> None:
         n = registry.net_factory(network_name, DEFAULT_NUM_CHANNELS, 100)
         size = n.default_size
 
+        # Make sure adjust_size doesn't set any gradients
+        size = (size[0] + size_step, size[1] + size_step)
+        n.adjust_size(size)
+        for name, param in n.named_parameters():
+            self.assertIsNone(param.grad, msg=f"{network_name} adjust_size set grad for {name}")
+            self.assertIsNone(param.grad_fn, msg=f"{network_name} adjust_size tracked grad for {name}")
+
+        # Make sure forward sets valid gradients
         out = n(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
         loss = out.sum()
         loss.backward()
-
         for name, param in n.named_parameters():
             self.assertIsNotNone(param.grad, msg=f"{network_name} missing grad for {name}")
             self.assertTrue(torch.isfinite(param.grad).all().item(), msg=f"{network_name} non-finite grad for {name}")
+
+        n.zero_grad()
+
+        # Make sure reparameterization doesn't set any gradients
+        if base.reparameterize_available(n) is True:
+            n.reparameterize_model()
+            out = n(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
+            for name, param in n.named_parameters():
+                self.assertIsNone(param.grad, msg=f"{network_name} reparameterize_model set grad for {name}")
+                self.assertIsNone(param.grad_fn, msg=f"{network_name} reparameterize_model tracked grad for {name}")
 
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
@@ -933,6 +950,28 @@ class TestDynamicSize(unittest.TestCase):
         for name, param in n.named_parameters():
             self.assertIsNotNone(param.grad, msg=f"{network_name} missing grad for {name}")
             self.assertTrue(torch.isfinite(param.grad).all().item(), msg=f"{network_name} non-finite grad for {name}")
+
+
+class TestCudaAdjustSize(unittest.TestCase):
+    @parameterized.expand(NET_TEST_CASES)  # type: ignore[untyped-decorator]
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+    def test_adjust_size_cuda(
+        self,
+        network_name: str,
+        _skip_embedding: bool = False,
+        _skip_features: bool = False,
+        _batch_size: int = 1,
+        size_step: int = 2**5,
+    ) -> None:
+        device = torch.device("cuda", torch.cuda.current_device())
+        n = registry.net_factory(network_name, DEFAULT_NUM_CHANNELS, 10).to(device)
+        size = (n.default_size[0] + size_step, n.default_size[1] + size_step)
+        n.adjust_size(size)
+
+        for name, param in n.named_parameters():
+            self.assertEqual(param.device, device, msg=f"{network_name} param on {param.device} for {name}")
+        for name, buffer in n.named_buffers():
+            self.assertEqual(buffer.device, device, msg=f"{network_name} buffer on {buffer.device} for {name}")
 
 
 class TestSpecialFunctions(unittest.TestCase):

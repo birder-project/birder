@@ -178,15 +178,24 @@ class Attention(nn.Module):
         self.attention_biases = nn.Parameter(torch.zeros(self.num_heads, resolution[0] * resolution[1]))
 
     def define_bias_idxs(self, resolution: tuple[int, int]) -> None:
+        device = self.qkv.weight.device
         k_pos = torch.stack(
-            torch.meshgrid(torch.arange(resolution[0]), torch.arange(resolution[1]), indexing="ij")
+            torch.meshgrid(
+                torch.arange(resolution[0], device=device),
+                torch.arange(resolution[1], device=device),
+                indexing="ij",
+            )
         ).flatten(1)
         q_pos = torch.stack(
-            torch.meshgrid(torch.arange(0, resolution[0]), torch.arange(0, resolution[1]), indexing="ij")
+            torch.meshgrid(
+                torch.arange(0, resolution[0], device=device),
+                torch.arange(0, resolution[1], device=device),
+                indexing="ij",
+            )
         ).flatten(1)
         rel_pos = (q_pos[..., :, None] - k_pos[..., None, :]).abs()
         rel_pos = (rel_pos[0] * resolution[1]) + rel_pos[1]
-        self.attention_bias_idxs = nn.Buffer(torch.LongTensor(rel_pos), persistent=False)
+        self.attention_bias_idxs = nn.Buffer(rel_pos.to(torch.long), persistent=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         attn_bias = self.attention_biases[:, self.attention_bias_idxs]
@@ -455,15 +464,16 @@ class Tiny_ViT(DetectorBackbone):
                     if isinstance(m, TinyVitBlock):
                         m.window_size = window_sizes[idx]
 
-                        # This will update the index buffer
-                        m.attn.define_bias_idxs(window_sizes[idx])
+                        with torch.no_grad():
+                            # This will update the index buffer
+                            m.attn.define_bias_idxs(window_sizes[idx])
 
-                        # Interpolate the actual table
-                        m.attn.attention_biases = nn.Parameter(
-                            interpolate_attention_bias(
-                                m.attn.attention_biases, old_window_sizes[idx], window_sizes[idx], mode="bilinear"
+                            # Interpolate the actual table
+                            m.attn.attention_biases = nn.Parameter(
+                                interpolate_attention_bias(
+                                    m.attn.attention_biases, old_window_sizes[idx], window_sizes[idx], mode="bilinear"
+                                )
                             )
-                        )
 
             idx += 1
 

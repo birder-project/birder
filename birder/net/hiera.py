@@ -612,23 +612,26 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
 
         if self.pos_embed_win is not None:
             global_pos_size = (new_size[0] // 2**4, new_size[1] // 2**4)
-            pos_embed = F.interpolate(
-                self.pos_embed,
-                size=global_pos_size,
-                mode="bicubic",
-                antialias=True,
-            )
+            with torch.no_grad():
+                pos_embed = F.interpolate(
+                    self.pos_embed,
+                    size=global_pos_size,
+                    mode="bicubic",
+                    antialias=True,
+                )
+
             self.pos_embed = nn.Parameter(pos_embed)
 
         else:
-            self.pos_embed = nn.Parameter(
-                adjust_position_embedding(
+            with torch.no_grad():
+                pos_embed = adjust_position_embedding(
                     self.pos_embed,
                     (old_size[0] // self.patch_stride[0], old_size[1] // self.patch_stride[1]),
                     (new_size[0] // self.patch_stride[0], new_size[1] // self.patch_stride[1]),
                     0,
                 )
-            )
+
+            self.pos_embed = nn.Parameter(pos_embed)
 
         # Re-init vars
         self.tokens_spatial_shape = [i // s for i, s in zip(new_size, self.patch_stride)]

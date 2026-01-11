@@ -22,9 +22,19 @@ def make_wds_loader(
     shuffle: bool = False,
     *,
     exact: bool = False,
+    infinite: bool = False,
 ) -> DataLoader:
+    assert exact is False or infinite is False
+
+    if infinite is True:
+        dataset_iterable = dataset.repeat()
+    elif exact is False:
+        dataset_iterable = dataset.repeat()
+    else:
+        dataset_iterable = dataset
+
     dataloader = wds.WebLoader(
-        dataset.repeat() if exact is False else dataset,
+        dataset_iterable,
         batch_size=batch_size,
         num_workers=num_workers,
         prefetch_factor=prefetch_factor,
@@ -43,7 +53,7 @@ def make_wds_loader(
         epoch_size = math.ceil(len(dataset) / (batch_size * world_size))
 
     dataloader = dataloader.with_length(epoch_size, silent=True)
-    if exact is False:
+    if exact is False and infinite is False:
         dataloader = dataloader.with_epoch(epoch_size)
 
     return dataloader

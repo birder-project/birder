@@ -359,9 +359,10 @@ class CrossViT(BaseNet):
             old_w = old_size[1] // self.patch_size[i]
             h = new_size[0] // self.patch_size[i]
             w = new_size[1] // self.patch_size[i]
-            self.pos_embed[i] = nn.Parameter(
-                adjust_position_embedding(self.pos_embed[i], (old_h, old_w), (h, w), num_prefix_tokens=1)
-            )
+            with torch.no_grad():
+                pos_embed = adjust_position_embedding(self.pos_embed[i], (old_h, old_w), (h, w), num_prefix_tokens=1)
+
+            self.pos_embed[i] = nn.Parameter(pos_embed)
 
 
 registry.register_model_config(

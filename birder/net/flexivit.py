@@ -519,15 +519,16 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         else:
             num_prefix_tokens = 0
 
-        self.pos_embedding = nn.Parameter(
-            # On rounding error see: https://github.com/facebookresearch/dino/issues/8
-            adjust_position_embedding(
+        with torch.no_grad():
+            pos_embedding = adjust_position_embedding(
+                # On rounding error see: https://github.com/facebookresearch/dino/issues/8
                 self.pos_embedding,
                 (old_size[0] // self.patch_size, old_size[1] // self.patch_size),
                 (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
                 num_prefix_tokens,
             )
-        )
+
+        self.pos_embedding = nn.Parameter(pos_embedding)
 
     def adjust_patch_size(self, patch_size: int) -> None:
         if self.patch_size == patch_size:

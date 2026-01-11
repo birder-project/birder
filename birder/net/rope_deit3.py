@@ -422,14 +422,15 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             num_prefix_tokens = 0
 
         # Add back class tokens
-        self.pos_embedding = nn.Parameter(
-            adjust_position_embedding(
+        with torch.no_grad():
+            pos_embedding = adjust_position_embedding(
                 self.pos_embedding,
                 (old_size[0] // self.patch_size, old_size[1] // self.patch_size),
                 (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
                 num_prefix_tokens,
             )
-        )
+
+        self.pos_embedding = nn.Parameter(pos_embedding)
 
         # Adjust RoPE
         self.rope = RoPE(
@@ -440,6 +441,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             grid_offset=self.rope_grid_offset,
             pt_grid_size=self.pt_grid_size,
             rope_rot_type=self.rope_rot_type,
+            device=self.rope.pos_embed.device,
         )
 
         # Define adjusted decoder block

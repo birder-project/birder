@@ -308,7 +308,10 @@ class PVT_v1(DetectorBackbone):
         s = (new_size[0] // 4, new_size[1] // 4)
         for m in self.body.modules():
             if isinstance(m, PyramidVisionTransformerStage):
-                m.pos_embed = nn.Parameter(adjust_position_embedding(m.pos_embed, old_s, s, 0))
+                with torch.no_grad():
+                    pos_embed = adjust_position_embedding(m.pos_embed, old_s, s, 0)
+
+                m.pos_embed = nn.Parameter(pos_embed)
                 old_s = (old_s[0] // 2, old_s[1] // 2)
                 s = (s[0] // 2, s[1] // 2)
 

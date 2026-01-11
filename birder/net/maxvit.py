@@ -52,8 +52,10 @@ def _make_block_input_shapes(input_size: tuple[int, int], n_blocks: int) -> list
     return shapes
 
 
-def _get_relative_position_index(height: int, width: int) -> torch.Tensor:
-    coords = torch.stack(torch.meshgrid([torch.arange(height), torch.arange(width)], indexing="ij"))
+def _get_relative_position_index(height: int, width: int, device: torch.device | None = None) -> torch.Tensor:
+    coords = torch.stack(
+        torch.meshgrid([torch.arange(height, device=device), torch.arange(width, device=device)], indexing="ij")
+    )
     coords_flat = torch.flatten(coords, 1)
     relative_coords = coords_flat[:, :, None] - coords_flat[:, None, :]
     relative_coords = relative_coords.permute(1, 2, 0).contiguous()
@@ -152,7 +154,9 @@ class RelativePositionalMultiHeadAttention(nn.Module):
         self.relative_position_bias_table = nn.Parameter(
             torch.empty(((2 * self.size[0] - 1) * (2 * self.size[1] - 1), self.n_heads), dtype=torch.float32),
         )
-        self.relative_position_index = nn.Buffer(_get_relative_position_index(self.size[0], self.size[1]))
+        self.relative_position_index = nn.Buffer(
+            _get_relative_position_index(self.size[0], self.size[1], device=self.relative_position_bias_table.device)
+        )
 
         # Initialize with truncated normal the bias
         nn.init.trunc_normal_(self.relative_position_bias_table, std=0.02)
@@ -682,60 +686,68 @@ class MaxViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                         old_attn_size = attn.size
                         attn.size = self.partition_size
                         attn.max_seq_len = self.partition_size[0] * self.partition_size[1]
-                        attn.relative_position_index = nn.Buffer(
-                            _get_relative_position_index(attn.size[0], attn.size[1])
-                        )
-
-                        # Interpolate relative_position_bias_table, adapted from
-                        # https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/pos_embed_rel.py
-                        dst_size = (2 * attn.size[0] - 1, 2 * attn.size[1] - 1)
-                        rel_pos_bias = attn.relative_position_bias_table
-                        rel_pos_bias = rel_pos_bias.detach()
-
-                        num_attn_heads = rel_pos_bias.size(1)
-                        src_size = (2 * old_attn_size[0] - 1, 2 * old_attn_size[1] - 1)
-
-                        def _calc(src: int, dst: int) -> list[float]:
-                            (left, right) = 1.01, 1.5
-                            while right - left > 1e-6:
-                                q = (left + right) / 2.0
-                                gp = (1.0 - q ** (src // 2)) / (1.0 - q)  # Geometric progression
-                                if gp > dst // 2:
-                                    right = q
-
-                                else:
-                                    left = q
-
-                            dis = []
-                            cur = 1.0
-                            for i in range(src // 2):
-                                dis.append(cur)
-                                cur += q ** (i + 1)
-
-                            r_ids = [-_ for _ in reversed(dis)]
-                            return r_ids + [0] + dis
-
-                        y = _calc(src_size[0], dst_size[0])
-                        x = _calc(src_size[1], dst_size[1])
-
-                        ty = dst_size[0] // 2.0
-                        tx = dst_size[1] // 2.0
-                        dy = torch.arange(-ty, ty + 0.1, 1.0)
-                        dx = torch.arange(-tx, tx + 0.1, 1.0)
-                        dxy = torch.meshgrid(dx, dy, indexing="ij")
-
-                        all_rel_pos_bias = []
-                        for i in range(num_attn_heads):
-                            z = rel_pos_bias[:, i].view(src_size[0], src_size[1]).float()
-                            rgi = interpolate.RegularGridInterpolator(
-                                (x, y), z.numpy().T, method="cubic", bounds_error=False, fill_value=None
+                        with torch.no_grad():
+                            attn.relative_position_index = nn.Buffer(
+                                _get_relative_position_index(
+                                    attn.size[0],
+                                    attn.size[1],
+                                    device=attn.relative_position_bias_table.device,
+                                )
                             )
-                            r = torch.Tensor(rgi(dxy)).T.contiguous().to(rel_pos_bias.device)
 
-                            r = r.view(-1, 1)
-                            all_rel_pos_bias.append(r)
+                            # Interpolate relative_position_bias_table, adapted from
+                            # https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/pos_embed_rel.py
+                            dst_size = (2 * attn.size[0] - 1, 2 * attn.size[1] - 1)
+                            rel_pos_bias = attn.relative_position_bias_table.detach()
+                            rel_pos_device = rel_pos_bias.device
+                            rel_pos_bias = rel_pos_bias.float().cpu()
 
-                        rel_pos_bias = torch.concat(all_rel_pos_bias, dim=-1)
+                            num_attn_heads = rel_pos_bias.size(1)
+                            src_size = (2 * old_attn_size[0] - 1, 2 * old_attn_size[1] - 1)
+
+                            def _calc(src: int, dst: int) -> list[float]:
+                                (left, right) = 1.01, 1.5
+                                while right - left > 1e-6:
+                                    q = (left + right) / 2.0
+                                    gp = (1.0 - q ** (src // 2)) / (1.0 - q)  # Geometric progression
+                                    if gp > dst // 2:
+                                        right = q
+
+                                    else:
+                                        left = q
+
+                                dis = []
+                                cur = 1.0
+                                for i in range(src // 2):
+                                    dis.append(cur)
+                                    cur += q ** (i + 1)
+
+                                r_ids = [-_ for _ in reversed(dis)]
+                                return r_ids + [0] + dis
+
+                            y = _calc(src_size[0], dst_size[0])
+                            x = _calc(src_size[1], dst_size[1])
+
+                            ty = dst_size[0] // 2.0
+                            tx = dst_size[1] // 2.0
+                            dy = torch.arange(-ty, ty + 0.1, 1.0)
+                            dx = torch.arange(-tx, tx + 0.1, 1.0)
+                            dxy = torch.meshgrid(dx, dy, indexing="ij")
+
+                            all_rel_pos_bias = []
+                            for i in range(num_attn_heads):
+                                z = rel_pos_bias[:, i].view(src_size[0], src_size[1])
+                                rgi = interpolate.RegularGridInterpolator(
+                                    (x, y), z.numpy().T, method="cubic", bounds_error=False, fill_value=None
+                                )
+                                r = torch.tensor(
+                                    rgi(dxy), device=rel_pos_device, dtype=rel_pos_bias.dtype
+                                ).T.contiguous()
+
+                                r = r.view(-1, 1)
+                                all_rel_pos_bias.append(r)
+
+                            rel_pos_bias = torch.concat(all_rel_pos_bias, dim=-1)
                         attn.relative_position_bias_table = nn.Parameter(rel_pos_bias)
 
                 new_grid_size = m.grid_size

@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.0 - 2026-01-11
+
+### Added
+
+- **Infinite Samplers**: Added `InfiniteSampler`, `InfiniteDistributedSampler` and `InfiniteRASampler` for continuous dataset iteration.
+- **Virtual Epochs**: Added `--steps-per-epoch` virtual epoch support across training scripts.
+- **Agreement Metrics**: Added prototype/patch agreement tracking for applicable SSL training (DINO v1/v2 and iBOT).
+- **Custom Kernel Toggle API**: Added `set_custom_kernels_enabled` / `is_custom_kernels_enabled` to control custom kernel loading in code.
+- **Pretrained Models**:
+    - `lit_v1_t_il-common`
+
+### Changed
+
+- **Detection Results CLI**: Expanded `det-results` to support multi-file comparison tables, per-class filtering, short summaries and summary CSV output.
+- **Quantize Model Tool**: Updated `quantize-model` to use PT2E/TorchAO quantization instead of deprecated FX/TorchScript.
+- **SWAttention/MSDA Custom Ops**: Routed custom kernels through `torch.library.custom_op` to allow full-graph `torch.compile` capture.
+
+### Fixed
+
+- **Adjust Size Device / Grad**: Ensure `adjust_size` updates run without grad tracking and keep buffers/parameters on the active device.
+- **Sampler Seeding**: Ensure training samplers consistently honor `--seed` across distributed and non-distributed modes.
+- **Soft-NMS GPU Sync**: Removed host-side `.item()` synchronization from the soft-nms kernel implementation.
+
 ## 0.2.3 - 2026-01-09
 
 ### Added
@@ -16,6 +39,7 @@
 - **Pretrained Models**:
     - `vovnet_v2_19_il-common`
     - `vovnet_v2_39_il-common`
+    - Breaking: Dropped `vit_l16_eu-common`
 
 ### Fixed
 

@@ -332,13 +332,15 @@ class HorNet(DetectorBackbone):
                 for m in module.modules():
                     if isinstance(m, HorBlock):
                         if isinstance(m.gn_conv.dwconv, GlobalLocalFilter):
-                            weight = m.gn_conv.dwconv.complex_weight
-                            weight = F.interpolate(
-                                weight.permute(3, 0, 1, 2),
-                                size=(gn_conv_h[i], gn_conv_w[i]),
-                                mode="bilinear",
-                                align_corners=True,
-                            ).permute(1, 2, 3, 0)
+                            with torch.no_grad():
+                                weight = m.gn_conv.dwconv.complex_weight
+                                weight = F.interpolate(
+                                    weight.permute(3, 0, 1, 2),
+                                    size=(gn_conv_h[i], gn_conv_w[i]),
+                                    mode="bilinear",
+                                    align_corners=True,
+                                ).permute(1, 2, 3, 0)
+
                             m.gn_conv.dwconv.complex_weight = nn.Parameter(weight)
 
 

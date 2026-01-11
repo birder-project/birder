@@ -258,9 +258,10 @@ class PiT(DetectorBackbone):
         height = (new_size[0] - self.patch_size[0]) // self.patch_stride[0] + 1
         width = (new_size[1] - self.patch_size[1]) // self.patch_stride[1] + 1
 
-        self.pos_embed = nn.Parameter(
-            F.interpolate(self.pos_embed, (height, width), mode="bicubic"), requires_grad=True
-        )
+        with torch.no_grad():
+            pos_embed = F.interpolate(self.pos_embed, (height, width), mode="bicubic")
+
+        self.pos_embed = nn.Parameter(pos_embed)
 
 
 registry.register_model_config(

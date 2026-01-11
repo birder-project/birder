@@ -197,12 +197,15 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
         super().adjust_size(new_size)
 
         # Sort out sizes
-        pos_embedding = pos_embedding_sin_cos_2d(
-            h=new_size[0] // self.patch_size,
-            w=new_size[1] // self.patch_size,
-            dim=self.hidden_dim,
-            num_special_tokens=self.num_special_tokens,
-        )
+        with torch.no_grad():
+            pos_embedding = pos_embedding_sin_cos_2d(
+                h=new_size[0] // self.patch_size,
+                w=new_size[1] // self.patch_size,
+                dim=self.hidden_dim,
+                num_special_tokens=self.num_special_tokens,
+                device=self.pos_embedding.device,
+            )
+
         self.pos_embedding = nn.Buffer(pos_embedding)
 
     def set_causal_attention(self, is_causal: bool = True) -> None:

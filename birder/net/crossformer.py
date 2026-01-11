@@ -98,15 +98,17 @@ class Attention(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
 
     def define_bias_table(self) -> None:
-        position_bias_h = torch.arange(1 - self.group_size[0], self.group_size[0])
-        position_bias_w = torch.arange(1 - self.group_size[1], self.group_size[1])
+        device = next(self.pos.parameters()).device
+        position_bias_h = torch.arange(1 - self.group_size[0], self.group_size[0], device=device)
+        position_bias_w = torch.arange(1 - self.group_size[1], self.group_size[1], device=device)
         biases = torch.stack(torch.meshgrid([position_bias_h, position_bias_w], indexing="ij"))  # 2, 2Wh-1, 2W2-1
         biases = biases.flatten(1).transpose(0, 1).float()
         self.biases = nn.Buffer(biases)
 
     def define_relative_position_index(self) -> None:
-        coords_h = torch.arange(self.group_size[0])
-        coords_w = torch.arange(self.group_size[1])
+        device = self.biases.device
+        coords_h = torch.arange(self.group_size[0], device=device)
+        coords_w = torch.arange(self.group_size[1], device=device)
         coords = torch.stack(torch.meshgrid([coords_h, coords_w], indexing="ij"))  # 2, Wh, Ww
         coords_flatten = torch.flatten(coords, 1)  # 2, Wh*Ww
         relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
@@ -430,32 +432,33 @@ class CrossFormer(DetectorBackbone):
 
         new_patch_resolution = (new_size[0] // self.patch_sizes[0], new_size[1] // self.patch_sizes[0])
         input_resolution = new_patch_resolution
-        for mod in self.body.modules():
-            if isinstance(mod, CrossFormerStage):
-                for m in mod.modules():
-                    if isinstance(m, PatchMerging):
-                        m.input_resolution = input_resolution
-                        input_resolution = (input_resolution[0] // 2, input_resolution[1] // 2)
-                    elif isinstance(m, CrossFormerBlock):
-                        m.input_resolution = input_resolution
+        with torch.no_grad():
+            for mod in self.body.modules():
+                if isinstance(mod, CrossFormerStage):
+                    for m in mod.modules():
+                        if isinstance(m, PatchMerging):
+                            m.input_resolution = input_resolution
+                            input_resolution = (input_resolution[0] // 2, input_resolution[1] // 2)
+                        elif isinstance(m, CrossFormerBlock):
+                            m.input_resolution = input_resolution
 
-                mod.resolution = input_resolution
+                    mod.resolution = input_resolution
 
-        new_group_size = (int(new_size[0] / (2**5)), int(new_size[1] / (2**5)))
-        for m in self.body.modules():
-            if isinstance(m, CrossFormerBlock):
-                m.group_size = new_group_size
-                if m.input_resolution[0] <= m.group_size[0]:
-                    m.use_lda = False
-                    m.group_size = (m.input_resolution[0], m.group_size[1])
-                if m.input_resolution[1] <= m.group_size[1]:
-                    m.use_lda = False
-                    m.group_size = (m.group_size[0], m.input_resolution[1])
+            new_group_size = (int(new_size[0] / (2**5)), int(new_size[1] / (2**5)))
+            for m in self.body.modules():
+                if isinstance(m, CrossFormerBlock):
+                    m.group_size = new_group_size
+                    if m.input_resolution[0] <= m.group_size[0]:
+                        m.use_lda = False
+                        m.group_size = (m.input_resolution[0], m.group_size[1])
+                    if m.input_resolution[1] <= m.group_size[1]:
+                        m.use_lda = False
+                        m.group_size = (m.group_size[0], m.input_resolution[1])
 
-            elif isinstance(m, Attention):
-                m.group_size = new_group_size
-                m.define_bias_table()
-                m.define_relative_position_index()
+                elif isinstance(m, Attention):
+                    m.group_size = new_group_size
+                    m.define_bias_table()
+                    m.define_relative_position_index()
 
 
 registry.register_model_config(

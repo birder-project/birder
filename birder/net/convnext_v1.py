@@ -196,6 +196,11 @@ class ConvNeXt_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
 
 registry.register_model_config(
+    "convnext_v1_nano",  # Not in the original v1, taken from v2
+    ConvNeXt_v1,
+    config={"in_channels": [80, 160, 320, 640], "num_layers": [2, 2, 8, 2], "drop_path_rate": 0.1},
+)
+registry.register_model_config(
     "convnext_v1_tiny",
     ConvNeXt_v1,
     config={"in_channels": [96, 192, 384, 768], "num_layers": [3, 3, 9, 3], "drop_path_rate": 0.1},

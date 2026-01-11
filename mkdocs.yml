@@ -7,10 +7,13 @@ nav:
   - Getting Started: getting_started.md
   - Pre-trained Models: pretrained_models.md
   - Training: training_scripts.md
+  - Inference: inference.md
   - Tools:
       - Overview: tools/index.md
+      - Adversarial: tools/adversarial.md
       - Convert Model: tools/convert-model.md
       - Ensemble Model: tools/ensemble-model.md
+      - Introspection: tools/introspection.md
       - Pack: tools/pack.md
       - Results: tools/results.md
   - API:
@@ -19,6 +22,7 @@ nav:
   # - Deployment:
   #     - TorchServe: torchserve.md
   - Other:
+      - Environment Variables: environment_variables.md
       - Public Datasets: public_datasets.md
       - About: about.md
 
