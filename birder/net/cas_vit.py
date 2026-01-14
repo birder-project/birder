@@ -269,18 +269,18 @@ class CAS_ViT(DetectorBackbone):
 
     def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
         for param in self.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
         if freeze_classifier is False:
             for param in self.classifier.parameters():
-                param.requires_grad = True
+                param.requires_grad_(True)
 
             for param in self.dist_classifier.parameters():
-                param.requires_grad = True
+                param.requires_grad_(True)
 
         if unfreeze_features is True:
             for param in self.features.parameters():
-                param.requires_grad = True
+                param.requires_grad_(True)
 
     def transform_to_backbone(self) -> None:
         self.features = nn.Identity()
@@ -300,14 +300,14 @@ class CAS_ViT(DetectorBackbone):
 
     def freeze_stages(self, up_to_stage: int) -> None:
         for param in self.stem.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
         for idx, module in enumerate(self.body.children()):
             if idx >= up_to_stage:
                 break
 
             for param in module.parameters():
-                param.requires_grad = False
+                param.requires_grad_(False)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

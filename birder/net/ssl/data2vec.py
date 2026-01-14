@@ -68,7 +68,9 @@ class Data2Vec(SSLBaseNet):
         x = self.backbone.masked_encoding_retention(src, mask, mask_token=self.mask_token)["features"]
         x = x.flatten(2).transpose(1, 2)
 
-        y = self.ema_backbone.masked_encoding_omission(src, return_all_features=True)["tokens"]
+        with torch.no_grad():
+            y = self.ema_backbone.masked_encoding_omission(src, return_all_features=True)["tokens"]
+
         y = y[:, self.ema_backbone.num_special_tokens :]
         y = y[..., -self.average_top_k_layers :]  # Take the last k layers
         y = y.permute(3, 0, 1, 2)

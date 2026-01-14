@@ -245,16 +245,16 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
 
     def freeze_stages(self, up_to_stage: int) -> None:
         for param in self.conv_proj.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
-        self.pos_embedding.requires_grad = False
+        self.pos_embedding.requires_grad_(False)
 
         for idx, module in enumerate(self.encoder.children()):
             if idx >= up_to_stage:
                 break
 
             for param in module.parameters():
-                param.requires_grad = False
+                param.requires_grad_(False)
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
         self.encoder.set_causal_attention(is_causal)

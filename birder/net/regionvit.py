@@ -464,14 +464,14 @@ class RegionViT(DetectorBackbone):
 
     def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
         for param in self.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
         if freeze_classifier is False:
             for param in self.classifier.parameters():
-                param.requires_grad = True
+                param.requires_grad_(True)
         if unfreeze_features is True:
             for param in self.norm.parameters():
-                param.requires_grad = True
+                param.requires_grad_(True)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         o_x = x
@@ -488,16 +488,16 @@ class RegionViT(DetectorBackbone):
 
     def freeze_stages(self, up_to_stage: int) -> None:
         for param in self.patch_embed.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
         for param in self.cls_token.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
         for idx, module in enumerate(self.body.children()):
             if idx >= up_to_stage:
                 break
 
             for param in module.parameters():
-                param.requires_grad = False
+                param.requires_grad_(False)
 
     def forward_features(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         o_x = x

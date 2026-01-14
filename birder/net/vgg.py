@@ -86,7 +86,7 @@ class Vgg(DetectorBackbone):
                 break
 
             for param in module.parameters():
-                param.requires_grad = False
+                param.requires_grad_(False)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         return self.body(x)

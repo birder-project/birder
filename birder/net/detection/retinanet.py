@@ -332,11 +332,11 @@ class RetinaNet(DetectionBaseNet):
 
     def freeze(self, freeze_classifier: bool = True) -> None:
         for param in self.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
         if freeze_classifier is False:
             for param in self.head.classification_head.parameters():
-                param.requires_grad = True
+                param.requires_grad_(True)
 
     @torch.jit.unused  # type: ignore[untyped-decorator]
     @torch.compiler.disable()  # type: ignore[untyped-decorator]

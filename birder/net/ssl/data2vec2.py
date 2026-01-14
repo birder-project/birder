@@ -133,7 +133,9 @@ class Data2Vec2(SSLBaseNet):
         self, src: torch.Tensor, masks: torch.Tensor
     ) -> torch.Tensor:
         # Target Representations
-        y = self.ema_backbone.masked_encoding_omission(src, return_all_features=True, return_keys="all")
+        with torch.no_grad():
+            y = self.ema_backbone.masked_encoding_omission(src, return_all_features=True, return_keys="all")
+
         y_cls = y["embedding"]
         y = y["tokens"][:, self.ema_backbone.num_special_tokens :]
         y = y[..., -self.average_top_k_layers :]  # Take the last k layers

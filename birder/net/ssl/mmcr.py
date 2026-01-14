@@ -128,6 +128,8 @@ class MMCR(SSLBaseNet):
         (C, H, W) = x.shape[-3:]  # B, num_views, C, H, W
         x = x.reshape(-1, C, H, W)
         z = self.encoder(x)
-        z_m = self.momentum_encoder(x)
+
+        with torch.no_grad():
+            z_m = self.momentum_encoder(x)
 
         return (z, z_m)

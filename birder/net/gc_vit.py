@@ -500,14 +500,14 @@ class GC_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
     def freeze_stages(self, up_to_stage: int) -> None:
         for param in self.stem.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
         for idx, module in enumerate(self.body.children()):
             if idx >= up_to_stage:
                 break
 
             for param in module.parameters():
-                param.requires_grad = False
+                param.requires_grad_(False)
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
         super().set_dynamic_size(dynamic_size)
@@ -667,5 +667,20 @@ registry.register_model_config(
         "mlp_ratio": 2.0,
         "layer_scale": 1e-5,
         "drop_path_rate": 0.5,
+    },
+)
+
+registry.register_weights(
+    "gc_vit_xxt_il-common",
+    {
+        "description": "GC ViT XX-Tiny model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 47.9,
+                "sha256": "5326a53903759e32178a6c2994639e6d0172faa51e1573a700f8d12b4f447c61",
+            }
+        },
+        "net": {"network": "gc_vit_xxt", "tag": "il-common"},
     },
 )

@@ -257,9 +257,11 @@ def train(args: argparse.Namespace) -> None:
     )
     teacher.eval()
 
-    dino_loss = DINOLoss(args.dino_out_dim, student_temp=0.1, center_momentum=0.9)
+    dino_loss = DINOLoss(args.dino_out_dim, student_temp=0.1, center_momentum=0.9, queue_size=args.sinkhorn_queue_size)
     koleo_loss = KoLeoLoss()
-    ibot_patch_loss = iBOTPatchLoss(args.ibot_out_dim, student_temp=0.1, center_momentum=0.9)
+    ibot_patch_loss = iBOTPatchLoss(
+        args.ibot_out_dim, student_temp=0.1, center_momentum=0.9, queue_size=args.sinkhorn_queue_size
+    )
 
     net = torch.nn.ModuleDict(
         {
@@ -318,6 +320,9 @@ def train(args: argparse.Namespace) -> None:
     if args.compile is True:
         student = torch.compile(student)
         teacher = torch.compile(teacher)
+        dino_loss = torch.compile(dino_loss)
+        koleo_loss = torch.compile(koleo_loss)
+        ibot_patch_loss = torch.compile(ibot_patch_loss)
     elif args.compile_teacher is True:
         teacher = torch.compile(teacher)
 
@@ -354,10 +359,10 @@ def train(args: argparse.Namespace) -> None:
         wds_path: str | list[str]
         if args.wds_info is not None:
             (wds_path, dataset_size) = wds_args_from_info(args.wds_info, args.wds_split)
-            if args.wds_train_size is not None:
-                dataset_size = args.wds_train_size
+            if args.wds_size is not None:
+                dataset_size = args.wds_size
         else:
-            (wds_path, dataset_size) = prepare_wds_args(args.data_path[0], args.wds_train_size, device)
+            (wds_path, dataset_size) = prepare_wds_args(args.data_path[0], args.wds_size, device)
 
         training_dataset = make_wds_dataset(
             wds_path,
@@ -519,7 +524,7 @@ def train(args: argparse.Namespace) -> None:
 
     # There is no backpropagation through the teacher
     for p in teacher.parameters():
-        p.requires_grad = False
+        p.requires_grad_(False)
 
     student_without_ddp = student
     if args.distributed is True:
@@ -616,6 +621,12 @@ def train(args: argparse.Namespace) -> None:
             train_proto_agreement = training_utils.SmoothedValue()
             train_patch_agreement = training_utils.SmoothedValue()
 
+        if args.sinkhorn_queue_size is not None:
+            queue_active = epoch > args.sinkhorn_queue_warmup_epochs
+            dino_loss.set_queue_active(queue_active)
+            ibot_patch_loss.set_queue_active(queue_active)
+            logger.debug(f"Sinkhorn queue active: {queue_active}")
+
         if args.distributed is True or virtual_epoch_mode is True:
             train_sampler.set_epoch(epoch)
 
@@ -638,7 +649,7 @@ def train(args: argparse.Namespace) -> None:
 
         epoch_start = time.time()
         start_time = epoch_start
-        last_idx = 0
+        last_idx = -1
         batch_iter: Iterator[tuple[int, Any]]
         if virtual_epoch_mode is True:
             batch_iter = ((i, next(train_iter)) for i in range(epoch_num_batches))
@@ -665,34 +676,35 @@ def train(args: argparse.Namespace) -> None:
 
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                # Teacher
-                (teacher_embedding_after_head, teacher_masked_patch_tokens_after_head) = teacher(
-                    global_crops, n_global_crops, upper_bound, mask_indices_list
-                )
-                teacher_patch_tokens_raw = teacher_masked_patch_tokens_after_head
-                if args.centering == "centering":
-                    teacher_dino_softmax_centered_list = dino_loss.softmax_center_teacher(
-                        teacher_embedding_after_head, teacher_temp=teacher_temp
-                    ).view(n_global_crops, -1, *teacher_embedding_after_head.shape[1:])
-                    dino_loss.update_center(teacher_embedding_after_head)
-
-                    teacher_masked_patch_tokens_after_head = teacher_masked_patch_tokens_after_head.unsqueeze(0)
-                    masked_teacher_ibot_softmax_centered = ibot_patch_loss.softmax_center_teacher(
-                        teacher_masked_patch_tokens_after_head[:, :n_masked_patches], teacher_temp=teacher_temp
+                with torch.no_grad():
+                    # Teacher
+                    (teacher_embedding_after_head, teacher_masked_patch_tokens_after_head) = teacher(
+                        global_crops, n_global_crops, upper_bound, mask_indices_list
                     )
-                    masked_teacher_ibot_softmax_centered = masked_teacher_ibot_softmax_centered.squeeze(0)
-                    ibot_patch_loss.update_center(teacher_masked_patch_tokens_after_head[:, :n_masked_patches])
+                    teacher_patch_tokens_raw = teacher_masked_patch_tokens_after_head
+                    if args.centering == "centering":
+                        teacher_dino_softmax_centered_list = dino_loss.softmax_center_teacher(
+                            teacher_embedding_after_head, teacher_temp=teacher_temp
+                        ).view(n_global_crops, -1, *teacher_embedding_after_head.shape[1:])
+                        dino_loss.update_center(teacher_embedding_after_head)
 
-                else:  # sinkhorn_knopp
-                    teacher_dino_softmax_centered_list = dino_loss.sinkhorn_knopp_teacher(
-                        teacher_embedding_after_head, teacher_temp=teacher_temp
-                    ).view(n_global_crops, -1, *teacher_embedding_after_head.shape[1:])
+                        teacher_masked_patch_tokens_after_head = teacher_masked_patch_tokens_after_head.unsqueeze(0)
+                        masked_teacher_ibot_softmax_centered = ibot_patch_loss.softmax_center_teacher(
+                            teacher_masked_patch_tokens_after_head[:, :n_masked_patches], teacher_temp=teacher_temp
+                        )
+                        masked_teacher_ibot_softmax_centered = masked_teacher_ibot_softmax_centered.squeeze(0)
+                        ibot_patch_loss.update_center(teacher_masked_patch_tokens_after_head[:, :n_masked_patches])
 
-                    masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
-                        teacher_masked_patch_tokens_after_head,
-                        teacher_temp=teacher_temp,
-                        n_masked_patches_tensor=n_masked_patches_tensor,
-                    )
+                    else:  # sinkhorn_knopp
+                        teacher_dino_softmax_centered_list = dino_loss.sinkhorn_knopp_teacher(
+                            teacher_embedding_after_head, teacher_temp=teacher_temp
+                        ).view(n_global_crops, -1, *teacher_embedding_after_head.shape[1:])
+
+                        masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
+                            teacher_masked_patch_tokens_after_head,
+                            teacher_temp=teacher_temp,
+                            n_masked_patches_tensor=n_masked_patches_tensor,
+                        )
 
                 # Student
                 (
@@ -729,7 +741,7 @@ def train(args: argparse.Namespace) -> None:
 
                 # iBOT loss
                 loss_ibot_patch = (
-                    ibot_patch_loss.forward_masked(
+                    ibot_patch_loss(
                         student_global_masked_patch_tokens_after_head,
                         masked_teacher_ibot_softmax_centered,
                         student_masks_flat=masks,
@@ -809,7 +821,7 @@ def train(args: argparse.Namespace) -> None:
                 train_patch_agreement.update(training_utils.accuracy(pred_patch_teacher, pred_patch_student))
 
             # Write statistics
-            if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
+            if i % args.log_interval == 0 or i == last_batch_idx:
                 time_now = time.time()
                 time_cost = time_now - start_time
                 iters_processed_in_interval = i - last_idx
@@ -853,7 +865,7 @@ def train(args: argparse.Namespace) -> None:
                             "koleo": running_loss_koleo.avg,
                             "patch": running_loss_ibot_patch.avg,
                         },
-                        ((epoch - 1) * epoch_samples) + (i * batch_size * args.world_size),
+                        ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                     )
                     if track_agreement is True:
                         summary_writer.add_scalars(
@@ -862,7 +874,7 @@ def train(args: argparse.Namespace) -> None:
                                 "prototype_agreement": train_proto_agreement.avg,
                                 "patch_agreement": train_patch_agreement.avg,
                             },
-                            ((epoch - 1) * epoch_samples) + (i * batch_size * args.world_size),
+                            ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                         )
 
             # Update progress bar
@@ -922,11 +934,6 @@ def train(args: argparse.Namespace) -> None:
         toc = time.time()
         logger.info(f"Total time: {format_duration(toc - tic)}")
         logger.info("---")
-
-        # Reset counters
-        epoch_start = time.time()
-        start_time = epoch_start
-        last_idx = 0
 
     summary_writer.close()
 
@@ -1055,6 +1062,13 @@ def get_args_parser() -> argparse.ArgumentParser:
         default="centering",
         help="algorithm for centering",
     )
+    parser.add_argument("--sinkhorn-queue-size", type=int, help="per-process queue size (in samples) for Sinkhorn")
+    parser.add_argument(
+        "--sinkhorn-queue-warmup-epochs",
+        type=int,
+        default=10,
+        help="number of initial epochs to disable Sinkhorn queueing",
+    )
     parser.add_argument(
         "--no-agreement-metrics", default=False, action="store_true", help="disable prototype/patch agreement tracking"
     )
@@ -1062,10 +1076,10 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_lr_wd_args(parser, wd_end=True)
     training_cli.add_lr_scheduler_args(parser)
     training_cli.add_training_schedule_args(parser, default_epochs=200)
+    training_cli.add_batch_norm_args(parser)
     training_cli.add_input_args(parser)
     training_cli.add_data_aug_args(parser, default_level=5, default_min_scale=0.35, default_re_prob=0.0)
     training_cli.add_dataloader_args(parser, default_drop_last=True)
-    training_cli.add_batch_norm_args(parser)
     training_cli.add_precision_args(parser)
     training_cli.add_compile_args(parser, teacher=True)
     training_cli.add_checkpoint_args(parser)

@@ -627,7 +627,7 @@ def load_model(
         net.to(dtype)
     if inference is True:
         for param in net.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
         if pt2 is False:  # NOTE: Remove when GraphModule add support for 'eval'
             net.eval()
@@ -799,7 +799,7 @@ def load_detection_model(
         net.to(dtype)
     if inference is True:
         for param in net.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
         net.eval()
 

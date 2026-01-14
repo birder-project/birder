@@ -120,7 +120,7 @@ class DINOHead(nn.Module):
         self.last_layer = nn.utils.parametrizations.weight_norm(nn.Linear(bottleneck_dim, out_dim, bias=False))
         self.last_layer.parametrizations.weight.original0.data.fill_(1)
         if norm_last_layer is True:
-            self.last_layer.parametrizations.weight.original0.requires_grad = False
+            self.last_layer.parametrizations.weight.original0.requires_grad_(False)
 
         # Weight initialization
         for m in self.modules():

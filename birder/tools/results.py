@@ -107,9 +107,7 @@ def print_report(results_dict: dict[str, Results]) -> None:
     console.print("\n")
 
 
-def print_most_confused_pairs(results: Results) -> None:
-    most_confused_df = results.most_confused_pairs(n=14)
-
+def print_most_confused_pairs(most_confused_df: pl.DataFrame) -> None:
     console = Console()
 
     table = Table(show_header=True, header_style="bold dark_magenta")
@@ -300,12 +298,17 @@ def main(args: argparse.Namespace) -> None:
         else:
             cnf_results = results
 
-        ConfusionMatrix(cnf_results).show()
+        cnf_matrix = cnf_results.confusion_matrix
+        class_names = [cnf_results.label_names[label_idx] for label_idx in cnf_results.unique_labels]
+        title = f"Confusion matrix, accuracy {cnf_results.accuracy:.4f} on {len(cnf_results)} samples"
+        ConfusionMatrix(cnf_matrix, class_names, title=title).show()
 
     if args.cnf_save is True:
         for results_file, results in results_dict.items():
-            filename = f"{results_file[:-4]}_confusion_matrix.csv"
-            ConfusionMatrix(results).save(filename)
+            filename = f"{results_file.rsplit('.', 1)[0]}_confusion_matrix.csv"
+            cnf_matrix = results.confusion_matrix
+            class_names = [results.label_names[label_idx] for label_idx in results.unique_labels]
+            ConfusionMatrix(cnf_matrix, class_names).save(filename)
 
     if args.roc is True:
         roc = ROC()
@@ -353,4 +356,5 @@ def main(args: argparse.Namespace) -> None:
             logger.warning("Cannot compare, processing only the first file")
 
         results = next(iter(results_dict.values()))
-        print_most_confused_pairs(results)
+        most_confused_df = results.most_confused_pairs(n=14)
+        print_most_confused_pairs(most_confused_df)

@@ -614,16 +614,16 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
     def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
         for param in self.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
         if freeze_classifier is False:
             for param in self.classifier.parameters():
-                param.requires_grad = True
+                param.requires_grad_(True)
 
         if unfreeze_features is True:
             if self.attn_pool is not None:
                 for param in self.attn_pool.parameters():
-                    param.requires_grad = True
+                    param.requires_grad_(True)
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
         self.encoder.set_causal_attention(is_causal)
@@ -661,16 +661,16 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
     def freeze_stages(self, up_to_stage: int) -> None:
         for param in self.conv_proj.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
-        self.pos_embedding.requires_grad = False
+        self.pos_embedding.requires_grad_(False)
 
         for idx, module in enumerate(self.encoder.children()):
             if idx >= up_to_stage:
                 break
 
             for param in module.parameters():
-                param.requires_grad = False
+                param.requires_grad_(False)
 
     def masked_encoding_omission(
         self,
@@ -1307,6 +1307,20 @@ registry.register_model_config(
         "hidden_dim": 512,
         "mlp_dim": 2048,
         "num_reg_tokens": 4,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_model_config(
+    "rope_vit_reg4_m14_avg",
+    RoPE_ViT,
+    config={
+        "patch_size": 14,
+        "num_layers": 12,
+        "num_heads": 8,
+        "hidden_dim": 512,
+        "mlp_dim": 2048,
+        "num_reg_tokens": 4,
+        "class_token": False,
         "drop_path_rate": 0.0,
     },
 )

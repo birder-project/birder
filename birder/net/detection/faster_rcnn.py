@@ -851,11 +851,11 @@ class Faster_RCNN(DetectionBaseNet):
 
     def freeze(self, freeze_classifier: bool = True) -> None:
         for param in self.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
         if freeze_classifier is False:
             for param in self.roi_heads.box_predictor.parameters():
-                param.requires_grad = True
+                param.requires_grad_(True)
 
     def forward(
         self,

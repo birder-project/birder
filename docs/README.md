@@ -28,8 +28,10 @@ Whether you're a researcher in ornithology, a conservation scientist, or a wildl
 1. [Inference](inference.md)
 
 1. [Tools and Utilities](tools/index.md)
+    - [Adversarial](tools/adversarial.md)
     - [Convert Model](tools/convert-model.md)
     - [Ensemble Model](tools/ensemble-model.md)
+    - [Introspection](tools/introspection.md)
     - [Pack](tools/pack.md)
     - [Results](tools/results.md)
 

@@ -563,24 +563,24 @@ class CoaT(DetectorBackbone):
     def freeze_stages(self, up_to_stage: int) -> None:
         if up_to_stage >= 1:
             for param in self.patch_embed1.parameters():
-                param.requires_grad = False
+                param.requires_grad_(False)
             for param in self.serial_blocks1.parameters():
-                param.requires_grad = False
+                param.requires_grad_(False)
         if up_to_stage >= 2:
             for param in self.patch_embed2.parameters():
-                param.requires_grad = False
+                param.requires_grad_(False)
             for param in self.serial_blocks2.parameters():
-                param.requires_grad = False
+                param.requires_grad_(False)
         if up_to_stage >= 3:
             for param in self.patch_embed3.parameters():
-                param.requires_grad = False
+                param.requires_grad_(False)
             for param in self.serial_blocks3.parameters():
-                param.requires_grad = False
+                param.requires_grad_(False)
         if up_to_stage >= 4:
             for param in self.patch_embed4.parameters():
-                param.requires_grad = False
+                param.requires_grad_(False)
             for param in self.serial_blocks4.parameters():
-                param.requires_grad = False
+                param.requires_grad_(False)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         features = self._features(x)

@@ -378,16 +378,16 @@ class ViT_SAM(DetectorBackbone):
 
     def freeze_stages(self, up_to_stage: int) -> None:
         for param in self.patch_embed.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
-        self.pos_embedding.requires_grad = False
+        self.pos_embedding.requires_grad_(False)
 
         for idx, module in enumerate(self.body.children()):
             if idx >= up_to_stage:
                 break
 
             for param in module.parameters():
-                param.requires_grad = False
+                param.requires_grad_(False)
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
         for b in self.body:

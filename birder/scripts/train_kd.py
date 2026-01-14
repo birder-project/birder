@@ -596,7 +596,7 @@ def train(args: argparse.Namespace) -> None:
 
         epoch_start = time.time()
         start_time = epoch_start
-        last_idx = 0
+        last_idx = -1
         batch_iter: Iterator[tuple[int, Any]]
         if virtual_epoch_mode is True:
             batch_iter = ((i, next(train_iter)) for i in range(epoch_num_batches))
@@ -695,7 +695,7 @@ def train(args: argparse.Namespace) -> None:
             train_accuracy.update(training_utils.accuracy(targets, outputs.detach()))
 
             # Write statistics
-            if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
+            if i % args.log_interval == 0 or i == last_batch_idx:
                 time_now = time.time()
                 time_cost = time_now - start_time
                 iters_processed_in_interval = i - last_idx
@@ -730,12 +730,12 @@ def train(args: argparse.Namespace) -> None:
                     summary_writer.add_scalars(
                         "loss",
                         {"training": running_loss.avg},
-                        ((epoch - 1) * epoch_samples) + (i * batch_size * args.world_size),
+                        ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                     )
                     summary_writer.add_scalars(
                         "performance",
                         {"training_accuracy": train_accuracy.avg},
-                        ((epoch - 1) * epoch_samples) + (i * batch_size * args.world_size),
+                        ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                     )
 
             # Update progress bar
@@ -837,11 +837,6 @@ def train(args: argparse.Namespace) -> None:
         toc = time.time()
         logger.info(f"Total time: {format_duration(toc - tic)}")
         logger.info("---")
-
-        # Reset counters
-        epoch_start = time.time()
-        start_time = epoch_start
-        last_idx = 0
 
     # Save model hyperparameters with metrics
     if training_utils.is_local_primary(args) is True:
@@ -971,7 +966,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--student-tag", type=str, help="add student training logs tag")
-    parser.add_argument("--smoothing-alpha", type=float, default=0.0, help="label smoothing alpha")
     parser.add_argument(
         "--temperature",
         type=float,
@@ -983,13 +977,13 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_lr_wd_args(parser)
     training_cli.add_lr_scheduler_args(parser)
     training_cli.add_training_schedule_args(parser)
+    training_cli.add_ema_args(parser)
+    training_cli.add_batch_norm_args(parser)
     training_cli.add_input_args(
         parser, size_help="image size (defaults to teacher network size) shared by both networks"
     )
-    training_cli.add_data_aug_args(parser, mixup_cutmix=True)
-    training_cli.add_ema_args(parser)
+    training_cli.add_data_aug_args(parser, smoothing_alpha=True, mixup_cutmix=True)
     training_cli.add_dataloader_args(parser, ra_sampler=True)
-    training_cli.add_batch_norm_args(parser)
     training_cli.add_precision_args(parser)
     training_cli.add_compile_args(parser, teacher=True)
     training_cli.add_checkpoint_args(parser, default_save_frequency=5)

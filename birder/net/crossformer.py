@@ -404,14 +404,14 @@ class CrossFormer(DetectorBackbone):
 
     def freeze_stages(self, up_to_stage: int) -> None:
         for param in self.patch_embed.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
         for idx, module in enumerate(self.body.children()):
             if idx >= up_to_stage:
                 break
 
             for param in module.parameters():
-                param.requires_grad = False
+                param.requires_grad_(False)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)

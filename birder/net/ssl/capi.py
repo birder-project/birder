@@ -7,6 +7,7 @@ https://arxiv.org/abs/2502.08769
 
 Changes from original:
 * Replaced decoder RoPE with simple sin-cos embedding
+* Added optional SinkhornQueue to improve stability when using smaller batch sizes
 """
 
 # Reference license: Apache-2.0
@@ -34,14 +35,15 @@ exp_max_values = {
 }
 
 
-def stable_exp(M: torch.Tensor) -> torch.Tensor:
+def stable_exp_(M: torch.Tensor) -> torch.Tensor:
     shift = M.max(dim=-2, keepdim=True).values
     if training_utils.is_dist_available_and_initialized() is True:
         torch.distributed.all_reduce(shift, torch.distributed.ReduceOp.MAX)
 
     M += exp_max_values[M.dtype] - shift
+    M.exp_()
 
-    return M.exp()
+    return M
 
 
 def reduced_sum(*args: Any, **kwargs: Any) -> torch.Tensor:
@@ -53,13 +55,103 @@ def reduced_sum(*args: Any, **kwargs: Any) -> torch.Tensor:
 
 
 @torch.no_grad()  # type: ignore[untyped-decorator]
-def sinkhorn_knopp(M: torch.Tensor, n_iterations: int, eps: float = 1e-8) -> torch.Tensor:
-    M = stable_exp(M)
+def sinkhorn_knopp_(M: torch.Tensor, temp: float, n_iterations: int, eps: float = 1e-8) -> torch.Tensor:
+    M /= temp
+    stable_exp_(M)
     for _ in range(n_iterations):
         M /= reduced_sum(M, dim=-2, keepdim=True) + eps
         M /= torch.sum(M, dim=-1, keepdim=True) + eps
 
     return M
+
+
+class SinkhornQueue(nn.Module):
+    def __init__(self, queue_size: int, position_wise: bool) -> None:
+        super().__init__()
+        self.queue_size = queue_size
+        self.position_wise = position_wise
+        self.active = True
+        self.queue = nn.Buffer(torch.empty(0), persistent=False)
+        self.queue_ptr: int = 0
+        self.queue_full: bool = False
+
+    def set_active(self, active: bool) -> None:
+        self.active = active
+
+    def get(self) -> Optional[torch.Tensor]:
+        if self.active is False:
+            return None
+        if self.queue_full is False:
+            return None
+
+        return self.queue
+
+    @torch.no_grad()  # type: ignore[untyped-decorator]
+    def forward(self, values: torch.Tensor) -> None:  # pylint: disable=too-many-branches
+        if self.active is False:
+            return
+        if values.numel() == 0:
+            return
+
+        if self.position_wise is True:
+            # values shape: (seq_len, B, dim)
+            if values.dim() != 3:
+                raise ValueError("SinkhornQueue in position wise mode expects a 3D tensor")
+
+            seq_len = values.size(0)
+            batch_size = values.size(1)
+            dim = values.size(2)
+
+            if self.queue.numel() == 0:
+                self.queue = values.new_empty(seq_len, self.queue_size, dim)
+
+            values = values.detach()
+            if batch_size >= self.queue_size:
+                self.queue.copy_(values[:, -self.queue_size :, :])
+                self.queue_ptr = 0
+                self.queue_full = True
+                return
+
+            ptr = self.queue_ptr
+            end = ptr + batch_size
+            if end <= self.queue_size:
+                self.queue[:, ptr:end, :].copy_(values)
+            else:
+                first = self.queue_size - ptr
+                self.queue[:, ptr:, :].copy_(values[:, :first, :])
+                self.queue[:, : end - self.queue_size, :].copy_(values[:, first:, :])
+
+            self.queue_ptr = end % self.queue_size
+            if end >= self.queue_size:
+                self.queue_full = True
+
+        else:
+            # values shape: (N, dim) - 2D
+            if values.dim() != 2:
+                raise ValueError("SinkhornQueue in non-position wise mode expects a 2D tensor")
+
+            if self.queue.numel() == 0:
+                self.queue = values.new_empty(self.queue_size, values.size(1))
+
+            values = values.detach()
+            if values.size(0) >= self.queue_size:
+                self.queue.copy_(values[-self.queue_size :])
+                self.queue_ptr = 0
+                self.queue_full = True
+                return
+
+            ptr = self.queue_ptr
+            end = ptr + values.size(0)
+            if end <= self.queue_size:
+                self.queue[ptr:end].copy_(values)
+            else:
+                first = self.queue_size - ptr
+                self.queue[ptr:].copy_(values[:first])
+                self.queue[: end - self.queue_size].copy_(values[first:])
+
+            self.queue_ptr = end % self.queue_size
+            if end >= self.queue_size:
+                self.queue_full = True
 
 
 class OnlineClustering(nn.Module):
@@ -72,27 +164,75 @@ class OnlineClustering(nn.Module):
         n_sk_iter: int,
         target_temp: float,
         pred_temp: float,
-        positionwise_sk: bool = True,
+        position_wise_sk: bool = True,
+        queue_size: Optional[int] = None,
     ):
         super().__init__()
         self.n_sk_iter = n_sk_iter
         self.target_temp = target_temp
         self.pred_temp = pred_temp
-        self.positionwise_sk = positionwise_sk
+        self.position_wise_sk = position_wise_sk
         self.layer = nn.Linear(in_dim, out_dim, bias=bias)
+        if queue_size is None:
+            self.sinkhorn_queue = None
+        else:
+            self.sinkhorn_queue = SinkhornQueue(queue_size, position_wise=position_wise_sk)
 
         # Weight initialization
         nn.init.normal_(self.layer.weight, std=1.0)
         if bias is True:
             nn.init.zeros_(self.layer.bias)
 
+    def set_queue_active(self, active: bool) -> None:
+        if self.sinkhorn_queue is not None:
+            self.sinkhorn_queue.set_active(active)
+
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         x_n = F.normalize(x, dim=-1, p=2, eps=1e-7)
         logits = self.layer(x_n)
-        if self.positionwise_sk is False:
-            logits = logits.flatten(0, -2)
 
-        assignments = sinkhorn_knopp(logits.detach() / self.target_temp, n_iterations=self.n_sk_iter)
+        current_logits = logits
+        if self.position_wise_sk is False:
+            sk_in = logits.flatten(0, -2)
+        else:
+            sk_in = logits
+
+        # Concatenate with queue if available
+        queue = None
+        if self.sinkhorn_queue is not None:
+            queue = self.sinkhorn_queue.get()
+
+        if queue is not None:
+            # NOTE: Concat created a new tensor, can modify in-place
+            if self.position_wise_sk is True:
+                # sk_in: (seq_len, B, dim)
+                sk_in = torch.concat([sk_in, queue], dim=1)
+            else:
+                # sk_in: (N, dim)
+                sk_in = torch.concat([sk_in, queue], dim=0)
+        else:
+            sk_in = sk_in.clone()
+
+        assignments = sinkhorn_knopp_(sk_in.detach(), self.target_temp, n_iterations=self.n_sk_iter)
+
+        # Slice out only current batch assignments
+        if queue is not None:
+            if self.position_wise_sk is True:
+                assignments = assignments[:, : current_logits.size(1), :]
+            else:
+                original_size = current_logits.size(0) * current_logits.size(1)
+                assignments = assignments[:original_size]
+
+        if self.position_wise_sk is False:
+            assignments = assignments.unflatten(0, logits.shape[:-1])
+
+        # Update queue with current logits
+        if self.sinkhorn_queue is not None:
+            if self.position_wise_sk is True:
+                self.sinkhorn_queue(current_logits.detach())
+            else:
+                self.sinkhorn_queue(current_logits.flatten(0, -2).detach())
+
         tgt = assignments.flatten(0, -2).float()
         pred = logits.flatten(0, -2).float()
         loss = -torch.sum(tgt * F.log_softmax(pred / self.pred_temp, dim=-1), dim=-1).mean()
@@ -256,6 +396,8 @@ class CAPITeacher(SSLBaseNet):
         n_sk_iter: int = self.config["n_sk_iter"]
         target_temp: float = self.config["target_temp"]
         pred_temp: float = self.config["pred_temp"]
+        sk_mode: str = self.config["sk_mode"]
+        queue_size: Optional[int] = self.config.get("queue_size", None)
 
         self.head = OnlineClustering(
             self.backbone.embedding_size,
@@ -264,6 +406,8 @@ class CAPITeacher(SSLBaseNet):
             n_sk_iter=n_sk_iter,
             target_temp=target_temp,
             pred_temp=pred_temp,
+            position_wise_sk=sk_mode == "position-wise",
+            queue_size=queue_size,
         )
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ
@@ -271,9 +415,10 @@ class CAPITeacher(SSLBaseNet):
     ) -> tuple[torch.Tensor, torch.Tensor]:
         B = x.size(0)
 
-        x = self.backbone.masked_encoding_omission(x, ids_keep)["tokens"]
-        x = x[:, self.backbone.num_special_tokens :, :]
+        with torch.no_grad():
+            x = self.backbone.masked_encoding_omission(x, ids_keep)["tokens"]
 
+        x = x[:, self.backbone.num_special_tokens :, :]
         (assignments, clustering_loss) = self.head(x.transpose(0, 1))
 
         assignments = assignments.detach().transpose(0, 1)

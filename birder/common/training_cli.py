@@ -39,6 +39,7 @@ def add_optimization_args(parser: argparse.ArgumentParser, default_batch_size: i
     group = parser.add_argument_group("Optimization parameters")
     group.add_argument("--batch-size", type=int, default=default_batch_size, metavar="N", help="the batch size")
     group.add_argument("--opt", type=str, choices=list(get_args(OptimizerType)), default="sgd", help="optimizer to use")
+    group.add_argument("--opt-fused", default=False, action="store_true", help="use fused optimizer implementation")
     group.add_argument("--momentum", type=float, default=0.9, metavar="M", help="optimizer momentum")
     group.add_argument("--nesterov", default=False, action="store_true", help="use nesterov momentum")
     group.add_argument("--opt-eps", type=float, help="optimizer epsilon (None to use the optimizer default)")
@@ -249,6 +250,7 @@ def add_data_aug_args(
     default_level: int = 4,
     default_min_scale: Optional[float] = None,
     default_re_prob: Optional[float] = None,
+    smoothing_alpha: bool = False,
     mixup_cutmix: bool = False,
 ) -> None:
     group = parser.add_argument_group("Data augmentation parameters")
@@ -285,6 +287,8 @@ def add_data_aug_args(
     group.add_argument(
         "--simple-crop", default=False, action="store_true", help="use simple random crop (SRC) instead of RRC"
     )
+    if smoothing_alpha is True:
+        group.add_argument("--smoothing-alpha", type=float, default=0.0, help="label smoothing alpha")
     if mixup_cutmix is True:
         group.add_argument("--mixup-alpha", type=float, help="mixup alpha")
         group.add_argument("--cutmix", default=False, action="store_true", help="enable cutmix")
@@ -565,9 +569,9 @@ def add_training_data_args(parser: argparse.ArgumentParser, unsupervised: bool =
     group.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
     group.add_argument("--wds-info", type=str, metavar="FILE", help="wds info file path")
     group.add_argument("--wds-cache-dir", type=str, metavar="DIR", help="webdataset cache directory")
-    group.add_argument("--wds-train-size", type=int, metavar="N", help="size of the wds training set")
     if unsupervised is False:
         group.add_argument("--wds-class-file", type=str, metavar="FILE", help="class list file")
+        group.add_argument("--wds-train-size", type=int, metavar="N", help="size of the wds training set")
         group.add_argument("--wds-val-size", type=int, metavar="N", help="size of the wds validation set")
         group.add_argument(
             "--wds-training-split", type=str, default="training", metavar="NAME", help="wds dataset train split"
@@ -576,6 +580,7 @@ def add_training_data_args(parser: argparse.ArgumentParser, unsupervised: bool =
             "--wds-val-split", type=str, default="validation", metavar="NAME", help="wds dataset validation split"
         )
     else:
+        group.add_argument("--wds-size", type=int, metavar="N", help="size of the wds")
         group.add_argument(
             "--wds-split", type=str, default="training", metavar="NAME", help="wds dataset split to load"
         )

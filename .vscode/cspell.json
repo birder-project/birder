@@ -143,6 +143,7 @@
     "inpt",
     "instancenorm",
     "interp",
+    "ious",
     "ipykernel",
     "isin",
     "iterrows",

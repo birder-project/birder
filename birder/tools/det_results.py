@@ -2,7 +2,10 @@ import argparse
 import fnmatch
 import logging
 from typing import Any
+from typing import Optional
 
+import numpy as np
+import numpy.typing as npt
 import polars as pl
 import polars.datatypes.classes
 from rich.console import Console
@@ -11,6 +14,8 @@ from rich.table import Table
 from birder.common import cli
 from birder.conf import settings
 from birder.results.detection import Results
+from birder.results.gui import ConfusionMatrix
+from birder.tools.results import print_most_confused_pairs
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +126,47 @@ def print_report(results_dict: dict[str, Results]) -> None:
     console.print("\n")
 
 
+def confusion_matrix_data(
+    results: Results,
+    score_threshold: float,
+    iou_threshold: float,
+    classes: list[str],
+    errors_only: bool,
+) -> tuple[npt.NDArray[np.int_], list[str]]:
+    cnf_matrix = results.confusion_matrix(score_threshold=score_threshold, iou_threshold=iou_threshold)
+    label_names = results.label_names
+
+    selected_indices: Optional[list[int]] = None
+    if len(classes) > 0:
+        selected_indices = []
+        for pattern in classes:
+            selected_indices.extend([idx for idx, name in enumerate(label_names) if fnmatch.fnmatch(name, pattern)])
+
+        selected_indices = np.unique(selected_indices).tolist()
+
+    elif errors_only is True:
+        row_sums = cnf_matrix.sum(axis=1)
+        col_sums = cnf_matrix.sum(axis=0)
+        diag = np.diag(cnf_matrix)
+        selected_indices = np.where((row_sums != diag) | (col_sums != diag))[0].tolist()
+        if len(selected_indices) == 0:
+            logger.warning("No mistakes found, showing full confusion matrix")
+            return (cnf_matrix, label_names)
+
+    if selected_indices is None:
+        return (cnf_matrix, label_names)
+
+    if 0 not in selected_indices:
+        selected_indices.insert(0, 0)
+
+    selected_indices = sorted(list(set(selected_indices)))
+
+    cnf_matrix = cnf_matrix[np.ix_(selected_indices, selected_indices)]
+    label_names = [label_names[idx] for idx in selected_indices]
+
+    return (cnf_matrix, label_names)
+
+
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "det-results",
@@ -139,10 +185,26 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--save-summary", default=False, action="store_true", help="save results summary as csv")
     subparser.add_argument("--summary-suffix", type=str, help="add suffix to summary file")
     subparser.add_argument("--classes", default=[], type=str, nargs="+", help="class names to compare")
+    subparser.add_argument("--cnf", default=False, action="store_true", help="plot confusion matrix")
+    subparser.add_argument(
+        "--cnf-errors-only",
+        default=False,
+        action="store_true",
+        help="show only classes with mistakes at the confusion matrix",
+    )
+    subparser.add_argument("--cnf-save", default=False, action="store_true", help="save confusion matrix as csv")
+    subparser.add_argument(
+        "--cnf-score-threshold", type=float, default=0.5, help="detection score threshold for confusion matrix"
+    )
+    subparser.add_argument(
+        "--cnf-iou-threshold", type=float, default=0.5, help="iou threshold for confusion matrix matching"
+    )
+    subparser.add_argument("--most-confused", default=False, action="store_true", help="print most confused pairs")
     subparser.add_argument("result_files", type=str, nargs="+", help="result files to process")
     subparser.set_defaults(func=main)
 
 
+# pylint: disable=too-many-branches
 def main(args: argparse.Namespace) -> None:
     results_dict: dict[str, Results] = {}
     for results_file in args.result_files:
@@ -171,3 +233,32 @@ def main(args: argparse.Namespace) -> None:
             logger.info(f"Writing results summary at '{summary_path}...")
             results_df = compare_results(results_dict)
             results_df.write_csv(summary_path)
+
+    if args.cnf is True:
+        if len(results_dict) > 1:
+            logger.warning("Cannot compare confusion matrix, processing only the first file")
+
+        results = next(iter(results_dict.values()))
+        (cnf_matrix, label_names) = confusion_matrix_data(
+            results, args.cnf_score_threshold, args.cnf_iou_threshold, args.classes, args.cnf_errors_only
+        )
+        title = f"Confusion matrix (score >= {args.cnf_score_threshold:.2f}, IoU >= {args.cnf_iou_threshold:.2f})"
+        ConfusionMatrix(cnf_matrix, label_names, title=title).show()
+
+    if args.cnf_save is True:
+        for results_file, results in results_dict.items():
+            filename = f"{results_file.rsplit('.', 1)[0]}_confusion_matrix.csv"
+            cnf_matrix = results.confusion_matrix(
+                score_threshold=args.cnf_score_threshold, iou_threshold=args.cnf_iou_threshold
+            )
+            ConfusionMatrix(cnf_matrix, results.label_names).save(filename)
+
+    if args.most_confused is True:
+        if len(results_dict) > 1:
+            logger.warning("Cannot compare, processing only the first file")
+
+        results = next(iter(results_dict.values()))
+        most_confused_df = results.most_confused_pairs(
+            n=10, score_threshold=args.cnf_score_threshold, iou_threshold=args.cnf_iou_threshold
+        )
+        print_most_confused_pairs(most_confused_df)

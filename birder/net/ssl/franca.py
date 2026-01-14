@@ -7,6 +7,7 @@ https://arxiv.org/abs/2507.14137
 
 Changes from original:
 * Removed centering (not supported upstream), left only Sinkhorn Knopp
+* Added optional SinkhornQueue to improve stability when using smaller batch sizes
 """
 
 # Reference license: Apache-2.0
@@ -33,19 +34,19 @@ def _build_mlp(num_layers: int, in_dim: int, bottleneck_dim: int, hidden_dim: in
     if num_layers == 1:
         return nn.Linear(in_dim, bottleneck_dim)
 
-    layers = [nn.Linear(in_dim, hidden_dim)]
+    layers = [nn.Linear(in_dim, hidden_dim, bias=not use_bn)]
     if use_bn is True:
         layers.append(nn.BatchNorm1d(hidden_dim))
 
     layers.append(nn.GELU())
     for _ in range(num_layers - 2):
-        layers.append(nn.Linear(hidden_dim, hidden_dim))
+        layers.append(nn.Linear(hidden_dim, hidden_dim, bias=not use_bn))
         if use_bn is True:
             layers.append(nn.BatchNorm1d(hidden_dim))
 
         layers.append(nn.GELU())
 
-    layers.append(nn.Linear(hidden_dim, bottleneck_dim))
+    layers.append(nn.Linear(hidden_dim, bottleneck_dim, bias=not use_bn))
     if use_bn is True:
         layers.append(nn.BatchNorm1d(bottleneck_dim))
 
@@ -122,10 +123,73 @@ class DINOHeadMRL(nn.Module):
             layer.zero_grad()
 
 
+class SinkhornQueue(nn.Module):
+    def __init__(self, queue_size: int) -> None:
+        super().__init__()
+        self.queue_size = queue_size
+        self.active = True
+        self.queue = nn.Buffer(torch.empty(0), persistent=False)
+        self.queue_ptr: int = 0
+        self.queue_full: bool = False
+
+    def set_active(self, active: bool) -> None:
+        self.active = active
+
+    def get(self) -> Optional[torch.Tensor]:
+        if self.active is False:
+            return None
+        if self.queue_full is False:
+            return None
+
+        return self.queue
+
+    @torch.no_grad()  # type: ignore[untyped-decorator]
+    def forward(self, values: torch.Tensor) -> None:
+        if self.active is False:
+            return
+        if values.numel() == 0:
+            return
+        if values.dim() != 2:
+            raise ValueError("SinkhornQueue expects a 2D tensor")
+
+        if self.queue.numel() == 0:
+            self.queue = values.new_empty(self.queue_size, values.size(1))
+
+        values = values.detach()
+        if values.size(0) >= self.queue_size:
+            self.queue.copy_(values[-self.queue_size :])
+            self.queue_ptr = 0
+            self.queue_full = True
+            return
+
+        ptr = self.queue_ptr
+        end = ptr + values.size(0)
+        if end <= self.queue_size:
+            self.queue[ptr:end].copy_(values)
+        else:
+            first = self.queue_size - ptr
+            self.queue[ptr:].copy_(values[:first])
+            self.queue[: end - self.queue_size].copy_(values[first:])
+
+        self.queue_ptr = end % self.queue_size
+        if end >= self.queue_size:
+            self.queue_full = True
+
+
 class DINOLossMRL(nn.Module):
-    def __init__(self, student_temp: float) -> None:
+    def __init__(self, student_temp: float, nesting_levels: int, queue_size: Optional[int] = None) -> None:
         super().__init__()
         self.student_temp = student_temp
+        self.queue_active = True
+        self.queue_size = queue_size
+        if queue_size is None:
+            self.sinkhorn_queue = None
+        else:
+            self.sinkhorn_queue = nn.ModuleList()
+            for _ in range(nesting_levels):
+                queue = SinkhornQueue(queue_size)
+                queue.set_active(self.queue_active)
+                self.sinkhorn_queue.append(queue)
 
     def forward(
         self,
@@ -154,6 +218,12 @@ class DINOLossMRL(nn.Module):
 
         return total_loss
 
+    def set_queue_active(self, active: bool) -> None:
+        self.queue_active = active
+        if self.sinkhorn_queue is not None:
+            for queue in self.sinkhorn_queue:
+                queue.set_active(active)
+
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def sinkhorn_knopp_teacher(
         self, teacher_output: tuple[torch.Tensor, ...], teacher_temp: float, n_iterations: int = 3
@@ -161,9 +231,23 @@ class DINOLossMRL(nn.Module):
         world_size = training_utils.get_world_size()
 
         results = []
-        for t_out in teacher_output:
-            t_out = t_out.float()
-            q = torch.exp(t_out / teacher_temp).t()
+        for idx, t_out in enumerate(teacher_output):
+            current_output = t_out
+            if self.sinkhorn_queue is not None:
+                queue = self.sinkhorn_queue[idx].get()
+            else:
+                queue = None
+
+            if queue is not None:
+                # NOTE: Concat created a new tensor, can modify in-place
+                t_out = torch.concat([t_out, queue], dim=0)
+                t_out = t_out.float()
+
+            else:
+                t_out = t_out.float().clone()
+
+            t_out.div_(teacher_temp).exp_()
+            q = t_out.t()
             B = q.size(1) * world_size  # Number of samples to assign
             k = q.size(0)  # How many prototypes
 
@@ -178,16 +262,33 @@ class DINOLossMRL(nn.Module):
                 q /= B
 
             q *= B
-            results.append(q.t())
+            out = q.t()
+            if queue is not None:
+                out = out[: current_output.size(0)]
+
+            if self.sinkhorn_queue is not None:
+                self.sinkhorn_queue[idx](current_output.detach())
+
+            results.append(out)
 
         return tuple(results)
 
 
 # pylint: disable=invalid-name
 class iBOTPatchLossMRL(nn.Module):
-    def __init__(self, student_temp: float) -> None:
+    def __init__(self, student_temp: float, nesting_levels: int, queue_size: Optional[int] = None) -> None:
         super().__init__()
         self.student_temp = student_temp
+        self.queue_active = True
+        self.queue_size = queue_size
+        if queue_size is None:
+            self.sinkhorn_queue = None
+        else:
+            self.sinkhorn_queue = nn.ModuleList()
+            for _ in range(nesting_levels):
+                queue = SinkhornQueue(queue_size)
+                queue.set_active(self.queue_active)
+                self.sinkhorn_queue.append(queue)
 
     def forward(
         self,
@@ -214,6 +315,12 @@ class iBOTPatchLossMRL(nn.Module):
 
         return total_loss
 
+    def set_queue_active(self, active: bool) -> None:
+        self.queue_active = active
+        if self.sinkhorn_queue is not None:
+            for queue in self.sinkhorn_queue:
+                queue.set_active(active)
+
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def sinkhorn_knopp_teacher(
         self,
@@ -223,10 +330,28 @@ class iBOTPatchLossMRL(nn.Module):
         n_iterations: int = 3,
     ) -> tuple[torch.Tensor, ...]:
         result = []
-        for teacher_output in teacher_outputs:
-            teacher_output = teacher_output.float()
-            q = torch.exp(teacher_output / teacher_temp).t()
+        for idx, teacher_output in enumerate(teacher_outputs):
+            current_output = teacher_output
+            if self.sinkhorn_queue is not None:
+                queue = self.sinkhorn_queue[idx].get()
+            else:
+                queue = None
+
+            if queue is not None:
+                queue_len = queue.size(0)
+                # NOTE: Concat created a new tensor, can modify in-place
+                teacher_output = torch.concat([teacher_output, queue], dim=0)
+                teacher_output = teacher_output.float()
+            else:
+                queue_len = 0
+                teacher_output = teacher_output.float().clone()
+
+            teacher_output.div_(teacher_temp).exp_()
+            q = teacher_output.t()
             B = n_masked_patches_tensor
+            if queue_len > 0:
+                B = B + n_masked_patches_tensor.new_tensor([queue_len])
+
             if training_utils.is_dist_available_and_initialized() is True:
                 dist.all_reduce(B)
 
@@ -252,7 +377,14 @@ class iBOTPatchLossMRL(nn.Module):
                 q /= B
 
             q *= B
-            result.append(q.t())
+            out = q.t()
+            if queue is not None:
+                out = out[: current_output.size(0)]
+
+            if self.sinkhorn_queue is not None:
+                self.sinkhorn_queue[idx](current_output.detach())
+
+            result.append(out)
 
         return tuple(result)
 

@@ -117,14 +117,14 @@ class DeiT(BaseNet):
 
     def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
         for param in self.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
         if freeze_classifier is False:
             for param in self.classifier.parameters():
-                param.requires_grad = True
+                param.requires_grad_(True)
 
             for param in self.dist_classifier.parameters():
-                param.requires_grad = True
+                param.requires_grad_(True)
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
         self.encoder.set_causal_attention(is_causal)

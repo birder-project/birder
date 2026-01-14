@@ -24,7 +24,7 @@ def dummy(arg: Any) -> None:
 def prepare_model(net: torch.nn.Module) -> None:
     net.eval()
     for param in net.parameters():
-        param.requires_grad = False
+        param.requires_grad_(False)
 
 
 def throughput_benchmark(

@@ -633,11 +633,11 @@ class Deformable_DETR(DetectionBaseNet):
 
     def freeze(self, freeze_classifier: bool = True) -> None:
         for param in self.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
         if freeze_classifier is False:
             for param in self.class_embed.parameters():
-                param.requires_grad = True
+                param.requires_grad_(True)
 
     def _get_src_permutation_idx(self, indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         batch_idx = torch.concat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.1 - 2026-01-14
+
+### Added
+
+- **Detection Confusion Matrix**: Added detection confusion matrix (background class, score/IoU thresholds) with CLI flags in `det-results`.
+- **Fused Optimizer Flag**: Added `--opt-fused` CLI flag to request fused optimizer implementations when supported.
+- **Sinkhorn Queueing (SSL)**: Added optional Sinkhorn queueing for DINOv2, DINOv2 distillation, Franca and CAPI training.
+- **Pretrained Models**:
+    - `gc_vit_xxt_il-common`
+
+### Fixed
+
+- **CAPI Global Sinkhorn**: Fixed the non-position-wise Sinkhorn-Knopp path to keep assignments aligned with logits.
+
 ## 0.3.0 - 2026-01-11
 
 ### Added

@@ -565,7 +565,7 @@ def train(args: argparse.Namespace) -> None:
 
         epoch_start = time.time()
         start_time = epoch_start
-        last_idx = 0
+        last_idx = -1
         batch_iter: Iterator[tuple[int, Any]]
         if virtual_epoch_mode is True:
             batch_iter = ((i, next(train_iter)) for i in range(epoch_num_batches))
@@ -634,7 +634,7 @@ def train(args: argparse.Namespace) -> None:
                 loss_trackers[key].update(value.detach())
 
             # Write statistics
-            if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
+            if i % args.log_interval == 0 or i == last_batch_idx:
                 time_now = time.time()
                 time_cost = time_now - start_time
                 iters_processed_in_interval = i - last_idx
@@ -669,7 +669,7 @@ def train(args: argparse.Namespace) -> None:
                     summary_writer.add_scalars(
                         "loss",
                         loss_dict,
-                        ((epoch - 1) * epoch_samples) + (i * batch_size * args.world_size),
+                        ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                     )
 
             # Update progress bar
@@ -774,11 +774,6 @@ def train(args: argparse.Namespace) -> None:
         toc = time.time()
         logger.info(f"Total time: {lib.format_duration(toc - tic)}")
         logger.info("---")
-
-        # Reset counters
-        epoch_start = time.time()
-        start_time = epoch_start
-        last_idx = 0
 
     # Save model hyperparameters with metrics
     if training_utils.is_local_primary(args) is True:
@@ -939,16 +934,16 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_lr_wd_args(parser, backbone_lr=True)
     training_cli.add_lr_scheduler_args(parser)
     training_cli.add_training_schedule_args(parser)
+    training_cli.add_ema_args(parser, default_ema_steps=1, default_ema_decay=0.9998)
+    training_cli.add_batch_norm_args(parser, backbone_freeze=True)
     training_cli.add_detection_input_args(parser)
     training_cli.add_detection_data_aug_args(parser)
-    training_cli.add_ema_args(parser, default_ema_steps=1, default_ema_decay=0.9998)
     training_cli.add_dataloader_args(
         parser,
         no_img_loader=True,
         default_num_workers=min(8, max(os.cpu_count() // 8, 2)),  # type: ignore[operator]
         ra_sampler=True,
     )
-    training_cli.add_batch_norm_args(parser, backbone_freeze=True)
     training_cli.add_precision_args(parser)
     training_cli.add_compile_args(parser, backbone=True)
     training_cli.add_checkpoint_args(parser, pretrained=True)

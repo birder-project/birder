@@ -189,7 +189,7 @@ class iBOTHead(DINOHead):
             )
             self.last_layer2.parametrizations.weight.original0.data.fill_(1)
             if norm_last_layer is True:
-                self.last_layer2.parametrizations.weight.original0.requires_grad = False
+                self.last_layer2.parametrizations.weight.original0.requires_grad_(False)
 
         else:
             assert out_dim == patch_out_dim

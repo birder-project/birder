@@ -6,6 +6,8 @@ from typing import Literal
 from typing import Optional
 from typing import TypedDict
 
+import numpy as np
+import numpy.typing as npt
 import polars as pl
 import torch
 from rich.console import Console
@@ -41,6 +43,23 @@ MetricsType = TypedDict(
         "classes": list[int],
     },
 )
+
+
+def pairwise_iou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
+    area1 = (boxes1[:, 2] - boxes1[:, 0]) * (boxes1[:, 3] - boxes1[:, 1])
+    area2 = (boxes2[:, 2] - boxes2[:, 0]) * (boxes2[:, 3] - boxes2[:, 1])
+
+    width_height = torch.min(boxes1[:, None, 2:], boxes2[:, 2:]) - torch.max(boxes1[:, None, :2], boxes2[:, :2])
+
+    width_height.clamp_(min=0)
+    inter = width_height.prod(dim=2)
+    iou = torch.where(
+        inter > 0,
+        inter / (area1[:, None] + area2 - inter + 1e-8),
+        torch.zeros(1, dtype=inter.dtype, device=inter.device),
+    )
+
+    return iou
 
 
 class Results:
@@ -125,6 +144,91 @@ class Results:
     @property
     def map(self) -> float:
         return self.metrics_dict["map"]
+
+    def confusion_matrix(self, score_threshold: float = 0.5, iou_threshold: float = 0.5) -> npt.NDArray[np.int_]:
+        """
+        Compute the confusion matrix for detections using greedy IoU matching
+
+        Parameters
+        ----------
+        score_threshold
+            Detection score threshold to keep predictions.
+        iou_threshold
+            IoU threshold to consider a match as positive.
+        """
+
+        num_classes = len(self._label_names)
+        cnf_matrix = np.zeros((num_classes, num_classes), dtype=np.int_)
+
+        for detection, target in zip(self._detections, self._targets):
+            scores = detection["scores"]
+            keep = scores >= score_threshold
+            det_boxes = detection["boxes"][keep]
+            det_labels = detection["labels"][keep]
+
+            tgt_boxes = target["boxes"]
+            tgt_labels = target["labels"]
+
+            det_matched = torch.zeros(det_boxes.size(0), dtype=torch.bool)
+            tgt_matched = torch.zeros(tgt_boxes.size(0), dtype=torch.bool)
+
+            if det_boxes.numel() > 0 and tgt_boxes.numel() > 0:
+                iou = pairwise_iou(det_boxes, tgt_boxes)
+                iou_flat = iou.view(-1)
+                sorted_idx = torch.argsort(iou_flat, descending=True)
+                num_tgt = tgt_boxes.size(0)
+
+                for flat_idx in sorted_idx:
+                    if iou_flat[flat_idx].item() < iou_threshold:
+                        break
+
+                    det_idx = int(flat_idx // num_tgt)
+                    tgt_idx = int(flat_idx % num_tgt)
+                    if det_matched[det_idx].item() is True or tgt_matched[tgt_idx].item() is True:
+                        continue
+
+                    det_matched[det_idx] = True
+                    tgt_matched[tgt_idx] = True
+
+                    tgt_label = int(tgt_labels[tgt_idx].item())
+                    det_label = int(det_labels[det_idx].item())
+                    cnf_matrix[tgt_label, det_label] += 1
+
+            if tgt_boxes.numel() > 0:
+                for tgt_idx in torch.where(~tgt_matched)[0]:
+                    tgt_label = int(tgt_labels[tgt_idx].item())
+                    cnf_matrix[tgt_label, 0] += 1
+
+            if det_boxes.numel() > 0:
+                for det_idx in torch.where(~det_matched)[0]:
+                    det_label = int(det_labels[det_idx].item())
+                    cnf_matrix[0, det_label] += 1
+
+        return cnf_matrix
+
+    def most_confused_pairs(
+        self, n: int = 10, score_threshold: float = 0.5, iou_threshold: float = 0.5
+    ) -> pl.DataFrame:
+        cnf_matrix = self.confusion_matrix(score_threshold=score_threshold, iou_threshold=iou_threshold)
+        np.fill_diagonal(cnf_matrix, -1)
+        top_indices = np.argsort(cnf_matrix.ravel())[-n:][::-1]
+
+        data = []
+        for flat_idx in top_indices:
+            idx = np.unravel_index(flat_idx, cnf_matrix.shape)
+            if cnf_matrix[idx] == 0:
+                break
+
+            data.append(
+                {
+                    "predicted": self._label_names[idx[1]],
+                    "actual": self._label_names[idx[0]],
+                    "amount": cnf_matrix[idx],
+                    "reverse": cnf_matrix[idx[::-1]],
+                }
+            )
+
+        return pl.DataFrame(data)
 
     def detailed_report(self) -> pl.DataFrame:
         """

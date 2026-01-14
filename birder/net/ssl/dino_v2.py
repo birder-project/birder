@@ -3,6 +3,9 @@ DINO v2, adapted from
 https://github.com/facebookresearch/dinov2/tree/main/dinov2
 
 Paper "DINOv2: Learning Robust Visual Features without Supervision", https://arxiv.org/abs/2304.07193
+
+Changes from original:
+* Added optional SinkhornQueue to improve stability when using smaller batch sizes
 """
 
 # Reference license: Apache-2.0
@@ -35,13 +38,13 @@ class DINOHead(nn.Module):
         if num_layers == 1:
             self.mlp = nn.Linear(in_dim, bottleneck_dim)
         else:
-            layers = [nn.Linear(in_dim, hidden_dim)]
+            layers = [nn.Linear(in_dim, hidden_dim, bias=not use_bn)]
             if use_bn is True:
                 layers.append(nn.BatchNorm1d(hidden_dim))
 
             layers.append(nn.GELU())
             for _ in range(num_layers - 2):
-                layers.append(nn.Linear(hidden_dim, hidden_dim))
+                layers.append(nn.Linear(hidden_dim, hidden_dim, bias=not use_bn))
                 if use_bn is True:
                     layers.append(nn.BatchNorm1d(hidden_dim))
 
@@ -72,12 +75,71 @@ class DINOHead(nn.Module):
         self.last_layer.zero_grad()
 
 
+class SinkhornQueue(nn.Module):
+    def __init__(self, queue_size: int) -> None:
+        super().__init__()
+        self.queue_size = queue_size
+        self.active = True
+        self.queue = nn.Buffer(torch.empty(0), persistent=False)
+        self.queue_ptr: int = 0
+        self.queue_full: bool = False
+
+    def set_active(self, active: bool) -> None:
+        self.active = active
+
+    def get(self) -> Optional[torch.Tensor]:
+        if self.active is False:
+            return None
+        if self.queue_full is False:
+            return None
+
+        return self.queue
+
+    @torch.no_grad()  # type: ignore[untyped-decorator]
+    def forward(self, values: torch.Tensor) -> None:
+        if self.active is False:
+            return
+        if values.numel() == 0:
+            return
+        if values.dim() != 2:
+            raise ValueError("SinkhornQueue expects a 2D tensor")
+
+        if self.queue.numel() == 0:
+            self.queue = values.new_empty(self.queue_size, values.size(1))
+
+        values = values.detach()
+        if values.size(0) >= self.queue_size:
+            self.queue.copy_(values[-self.queue_size :])
+            self.queue_ptr = 0
+            self.queue_full = True
+            return
+
+        ptr = self.queue_ptr
+        end = ptr + values.size(0)
+        if end <= self.queue_size:
+            self.queue[ptr:end].copy_(values)
+        else:
+            first = self.queue_size - ptr
+            self.queue[ptr:].copy_(values[:first])
+            self.queue[: end - self.queue_size].copy_(values[first:])
+
+        self.queue_ptr = end % self.queue_size
+        if end >= self.queue_size:
+            self.queue_full = True
+
+
 class DINOLoss(nn.Module):
-    def __init__(self, out_dim: int, student_temp: float, center_momentum: float) -> None:
+    def __init__(
+        self, out_dim: int, student_temp: float, center_momentum: float, queue_size: Optional[int] = None
+    ) -> None:
         super().__init__()
         self.student_temp = student_temp
         self.center_momentum = center_momentum
         self.center = nn.Buffer(torch.zeros(1, out_dim))
+        if queue_size is None:
+            self.sinkhorn_queue = None
+        else:
+            self.sinkhorn_queue = SinkhornQueue(queue_size)
 
         self.updated = True
         self.reduce_handle: Any = None
@@ -96,6 +158,10 @@ class DINOLoss(nn.Module):
 
         return total_loss
 
+    def set_queue_active(self, active: bool) -> None:
+        if self.sinkhorn_queue is not None:
+            self.sinkhorn_queue.set_active(active)
+
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def softmax_center_teacher(self, teacher_output: torch.Tensor, teacher_temp: float) -> torch.Tensor:
         self.apply_center_update()
@@ -107,8 +173,21 @@ class DINOLoss(nn.Module):
     ) -> torch.Tensor:
         world_size = training_utils.get_world_size()
 
-        teacher_output = teacher_output.float()
-        q = torch.exp(teacher_output / teacher_temp).t()  # Q is K-by-B for consistency with notations from the paper
+        current_output = teacher_output
+        if self.sinkhorn_queue is not None:
+            queue = self.sinkhorn_queue.get()
+        else:
+            queue = None
+
+        if queue is not None:
+            # NOTE: Concat created a new tensor, can modify in-place
+            teacher_output = torch.concat([teacher_output, queue], dim=0)
+            teacher_output = teacher_output.float()
+        else:
+            teacher_output = teacher_output.float().clone()
+
+        teacher_output.div_(teacher_temp).exp_()
+        q = teacher_output.t()  # Q is K-by-B for consistency with notations from the paper
         B = q.size(1) * world_size  # Number of samples to assign
         k = q.size(0)  # How many prototypes
 
@@ -133,7 +212,14 @@ class DINOLoss(nn.Module):
 
         q *= B  # The columns must sum to 1 so that Q is an assignment
 
-        return q.t()
+        out = q.t()
+        if queue is not None:
+            out = out[: current_output.size(0)]
+
+        if self.sinkhorn_queue is not None:
+            self.sinkhorn_queue(current_output.detach())
+
+        return out
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def update_center(self, teacher_output: torch.Tensor) -> None:
@@ -161,25 +247,24 @@ class DINOLoss(nn.Module):
 
 # pylint: disable=invalid-name
 class iBOTPatchLoss(nn.Module):
-    def __init__(self, patch_out_dim: int, student_temp: float, center_momentum: float) -> None:
+    def __init__(
+        self, patch_out_dim: int, student_temp: float, center_momentum: float, queue_size: Optional[int] = None
+    ) -> None:
         super().__init__()
         self.student_temp = student_temp
         self.center_momentum = center_momentum
         self.center = nn.Buffer(torch.zeros(1, 1, patch_out_dim))
+        if queue_size is None:
+            self.sinkhorn_queue = None
+        else:
+            self.sinkhorn_queue = SinkhornQueue(queue_size)
+
         self.updated = True
         self.reduce_handle: Any = None
         self.len_teacher_patch_tokens: Optional[int] = None
         self.async_batch_center: Optional[torch.Tensor] = None
 
     def forward(
-        self, student_patch_tokens: torch.Tensor, teacher_patch_tokens: torch.Tensor, student_masks_flat: torch.Tensor
-    ) -> torch.Tensor:
-        loss = torch.sum(teacher_patch_tokens * F.log_softmax(student_patch_tokens / self.student_temp, dim=-1), dim=-1)
-        loss = torch.sum(loss * student_masks_flat.float(), dim=-1) / student_masks_flat.sum(dim=-1).clamp(min=1.0)
-
-        return -loss.mean()
-
-    def forward_masked(
         self,
         student_patch_tokens_masked: torch.Tensor,
         teacher_patch_tokens_masked: torch.Tensor,
@@ -197,6 +282,18 @@ class iBOTPatchLoss(nn.Module):
 
         return -loss.sum() / student_masks_flat.size(0)
 
+    def forward_no_masks(
+        self, student_patch_tokens: torch.Tensor, teacher_patch_tokens: torch.Tensor, student_masks_flat: torch.Tensor
+    ) -> torch.Tensor:
+        loss = torch.sum(teacher_patch_tokens * F.log_softmax(student_patch_tokens / self.student_temp, dim=-1), dim=-1)
+        loss = torch.sum(loss * student_masks_flat.float(), dim=-1) / student_masks_flat.sum(dim=-1).clamp(min=1.0)
+
+        return -loss.mean()
+
+    def set_queue_active(self, active: bool) -> None:
+        if self.sinkhorn_queue is not None:
+            self.sinkhorn_queue.set_active(active)
+
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def softmax_center_teacher(self, teacher_patch_tokens: torch.Tensor, teacher_temp: float) -> torch.Tensor:
         self.apply_center_update()
@@ -210,9 +307,27 @@ class iBOTPatchLoss(nn.Module):
         n_masked_patches_tensor: torch.Tensor,
         n_iterations: int = 3,
     ) -> torch.Tensor:
-        teacher_output = teacher_output.float()
-        q = torch.exp(teacher_output / teacher_temp).t()  # Q is K-by-B for consistency with notations from the paper
+        current_output = teacher_output
+        if self.sinkhorn_queue is not None:
+            queue = self.sinkhorn_queue.get()
+        else:
+            queue = None
+
+        if queue is not None:
+            queue_len = queue.size(0)
+            # NOTE: Concat created a new tensor, can modify in-place
+            teacher_output = torch.concat([teacher_output, queue], dim=0)
+            teacher_output = teacher_output.float()
+        else:
+            queue_len = 0
+            teacher_output = teacher_output.float().clone()
+
+        teacher_output.div_(teacher_temp).exp_()
+        q = teacher_output.t()  # Q is K-by-B for consistency with notations from the paper
         B = n_masked_patches_tensor
+        if queue_len > 0:
+            B = B + n_masked_patches_tensor.new_tensor([queue_len])
+
         if training_utils.is_dist_available_and_initialized() is True:
             dist.all_reduce(B)
 
@@ -239,7 +354,14 @@ class iBOTPatchLoss(nn.Module):
 
         q *= B  # The columns must sum to 1 so that Q is an assignment
 
-        return q.t()
+        out = q.t()
+        if queue is not None:
+            out = out[: current_output.size(0)]
+
+        if self.sinkhorn_queue is not None:
+            self.sinkhorn_queue(current_output.detach())
+
+        return out
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def update_center(self, teacher_patch_tokens: torch.Tensor) -> None:

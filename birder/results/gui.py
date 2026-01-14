@@ -139,8 +139,10 @@ def show_top_k(
 
 
 class ConfusionMatrix:
-    def __init__(self, results: Results):
-        self.results = results
+    def __init__(self, cnf_matrix: npt.NDArray[np.int_], label_names: list[str], title: Optional[str] = None) -> None:
+        self.cnf_matrix = cnf_matrix
+        self.label_names = label_names
+        self.title = title
 
     def save(self, path: str) -> None:
         """
@@ -149,8 +151,8 @@ class ConfusionMatrix:
 
         cnf_df = pl.DataFrame(
             {
-                "": self.results.label_names,
-                **{name: self.results.confusion_matrix[:, i] for i, name in enumerate(self.results.label_names)},
+                "": self.label_names,
+                **{name: self.cnf_matrix[:, i] for i, name in enumerate(self.label_names)},
             }
         )
         logger.info(f"Saving confusion matrix at {path}")
@@ -166,12 +168,12 @@ class ConfusionMatrix:
         ax = fig.add_subplot(1, 1, 1)
 
         # Plot confusion matrix
-        cnf_matrix = self.results.confusion_matrix
+        cnf_matrix = self.cnf_matrix
         cnf_ax = ax.imshow(cnf_matrix, interpolation="nearest", cmap=plt.get_cmap("Blues"))
-        ax.set_title(f"Confusion matrix, accuracy {self.results.accuracy:.4f} on {len(self.results)} samples")
+        ax.set_title(self.title or "Confusion matrix")
         plt.colorbar(cnf_ax)
-        tick_marks = np.arange(len(self.results.unique_labels))
-        class_names = [self.results.label_names[label_idx] for label_idx in self.results.unique_labels]
+        tick_marks = np.arange(len(self.label_names))
+        class_names = self.label_names
 
         # Set axis
         ax.set_xticks(tick_marks)

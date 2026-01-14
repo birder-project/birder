@@ -593,12 +593,14 @@ def get_optimizer(parameters: list[dict[str, Any]], l_rate: float, args: argpars
         kwargs["betas"] = args.opt_betas
     if getattr(args, "opt_alpha", None) is not None:
         kwargs["alpha"] = args.opt_alpha
+    if getattr(args, "opt_fused", False) is True:
+        kwargs["fused"] = True
 
     # For optimizer compilation
     # lr = torch.tensor(l_rate) - Causes weird LR scheduling bugs
     lr = l_rate
-    if getattr(args, "compile_opt", False) is not False:
-        if opt not in ("lamb", "lambw", "lars"):
+    if getattr(args, "compile_opt", False) is True:
+        if opt not in ("sgd", "lamb", "lambw", "lars"):
             logger.debug("Setting optimizer capturable to True")
             kwargs["capturable"] = True
 

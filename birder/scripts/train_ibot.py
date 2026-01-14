@@ -267,10 +267,10 @@ def train(args: argparse.Namespace) -> None:
         wds_path: str | list[str]
         if args.wds_info is not None:
             (wds_path, dataset_size) = wds_args_from_info(args.wds_info, args.wds_split)
-            if args.wds_train_size is not None:
-                dataset_size = args.wds_train_size
+            if args.wds_size is not None:
+                dataset_size = args.wds_size
         else:
-            (wds_path, dataset_size) = prepare_wds_args(args.data_path[0], args.wds_train_size, device)
+            (wds_path, dataset_size) = prepare_wds_args(args.data_path[0], args.wds_size, device)
 
         training_dataset = make_wds_dataset(
             wds_path,
@@ -424,7 +424,7 @@ def train(args: argparse.Namespace) -> None:
 
     # There is no backpropagation through the teacher
     for p in teacher.parameters():
-        p.requires_grad = False
+        p.requires_grad_(False)
 
     student_without_ddp = student
     if args.distributed is True:
@@ -531,7 +531,7 @@ def train(args: argparse.Namespace) -> None:
 
         epoch_start = time.time()
         start_time = epoch_start
-        last_idx = 0
+        last_idx = -1
         batch_iter: Iterator[tuple[int, Any]]
         if virtual_epoch_mode is True:
             batch_iter = ((i, next(train_iter)) for i in range(epoch_num_batches))
@@ -551,7 +551,9 @@ def train(args: argparse.Namespace) -> None:
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
                 # Global views
-                (teacher_embedding, teacher_features) = teacher(torch.concat(images[:2], dim=0), None)
+                with torch.no_grad():
+                    (teacher_embedding, teacher_features) = teacher(torch.concat(images[:2], dim=0), None)
+
                 (student_embedding, student_features) = student(torch.concat(images[:2], dim=0), masks)
 
                 # Local views
@@ -615,7 +617,7 @@ def train(args: argparse.Namespace) -> None:
             train_proto_agreement.update(training_utils.accuracy(pred_teacher, pred_student))
 
             # Write statistics
-            if (i == last_batch_idx) or (i + 1) % args.log_interval == 0:
+            if i % args.log_interval == 0 or i == last_batch_idx:
                 time_now = time.time()
                 time_cost = time_now - start_time
                 iters_processed_in_interval = i - last_idx
@@ -646,12 +648,12 @@ def train(args: argparse.Namespace) -> None:
                     summary_writer.add_scalars(
                         "loss",
                         {"training": running_loss.avg},
-                        ((epoch - 1) * epoch_samples) + (i * batch_size * args.world_size),
+                        ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                     )
                     summary_writer.add_scalars(
                         "performance",
                         {"prototype_agreement": train_proto_agreement.avg},
-                        ((epoch - 1) * epoch_samples) + (i * batch_size * args.world_size),
+                        ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                     )
 
             # Update progress bar
@@ -705,11 +707,6 @@ def train(args: argparse.Namespace) -> None:
         toc = time.time()
         logger.info(f"Total time: {format_duration(toc - tic)}")
         logger.info("---")
-
-        # Reset counters
-        epoch_start = time.time()
-        start_time = epoch_start
-        last_idx = 0
 
     summary_writer.close()
 
@@ -840,10 +837,10 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_lr_wd_args(parser, wd_end=True)
     training_cli.add_lr_scheduler_args(parser)
     training_cli.add_training_schedule_args(parser, default_epochs=800)
+    training_cli.add_batch_norm_args(parser)
     training_cli.add_input_args(parser)
     training_cli.add_data_aug_args(parser, default_level=1, default_min_scale=0.3, default_re_prob=0.0)
     training_cli.add_dataloader_args(parser, default_drop_last=True)
-    training_cli.add_batch_norm_args(parser)
     training_cli.add_precision_args(parser)
     training_cli.add_compile_args(parser, teacher=True)
     training_cli.add_checkpoint_args(parser)

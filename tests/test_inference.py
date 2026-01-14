@@ -156,7 +156,7 @@ class TestInferenceDataParallel(unittest.TestCase):
         self.model = net.GhostNet_v2(3, self.num_classes, config={"width": 1.0})
         self.model.eval()
         for param in self.model.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
     @unittest.skipUnless(torch.cuda.device_count() >= 2, "Requires at least 2 GPUs")
     def test_basic_forward(self) -> None:
@@ -196,7 +196,7 @@ class TestInferenceDataParallel(unittest.TestCase):
         model = OrderTestModel()
         model.eval()
         for param in model.parameters():
-            param.requires_grad = False
+            param.requires_grad_(False)
 
         model_parallel = InferenceDataParallel(model)
 
