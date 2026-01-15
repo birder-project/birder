@@ -254,19 +254,19 @@ torchrun --nproc_per_node=2 train.py --network conv2former_t --batch-size 256 --
 torchrun --nproc_per_node=2 train.py --network conv2former_s --batch-size 128 --opt adamw --lr 0.001 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network conv2former_s --tag intermediate --batch-size 128 --opt adamw --lr 0.001 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 90 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --compile-opt --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: linear probing
+Intermediate training training: linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network conv2former_s --tag intermediate --reset-head --freeze-body --unfreeze-features --batch-size 256 --opt adamw --lr 0.0002 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 256 --aug-level 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --resume-epoch 0
 ```
 
-Optional intermediate training: fine-tuning
+Intermediate training training: fine-tuning
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network conv2former_s --tag intermediate --batch-size 128 --opt adamw --lr 0.0001 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-8 --epochs 40 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --resume-epoch 10
@@ -368,25 +368,25 @@ At epoch 240 increase resolution again
 torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --batch-size 64 --opt adamw --lr 0.0008 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 40 --model-ema --size 448 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 240 --load-states
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag intermediate --batch-size 256 --opt adamw --lr 0.0008 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-8 --epochs 100 --warmup-epochs 10 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --compile-opt --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: increase resolution
+Intermediate training training: increase resolution
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag raw384px --batch-size 128 --opt adamw --lr 0.000025 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-8 --epochs 40 --size 384 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --compile-opt --resume-epoch 0 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: linear probing
+Intermediate training training: linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag intermediate --reset-head --freeze-body --unfreeze-features --batch-size 128 --opt adamw --lr 0.0002 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 448 --aug-level 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --resume-epoch 0
 ```
 
-Optional intermediate training: fine-tuning
+Intermediate training training: fine-tuning
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag intermediate --batch-size 64 --opt adamw --lr 0.0001 --wd 0.05 --norm-wd 0 --layer-decay 0.99 --lr-scheduler cosine --lr-cosine-min 1e-8 --epochs 80 --model-ema --size 448 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 10
@@ -398,25 +398,25 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag intermedia
 torchrun --nproc_per_node=2 train.py --network convnext_v2_base --batch-size 16 --opt adamw --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --model-ema --size 384 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag intermediate --batch-size 64 --opt adamw --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 10 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: at epoch 80 increase resolution
+Intermediate training training: at epoch 80 increase resolution
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag intermediate --batch-size 64 --opt adamw --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 10 --model-ema --size 384 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --resume-epoch 80 --load-states --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: linear probing
+Intermediate training training: linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag intermediate --reset-head --freeze-body --unfreeze-features --batch-size 128 --opt adamw --lr 0.0002 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --model-ema --size 384 --aug-level 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --resume-epoch 0
 ```
 
-Optional intermediate training: fine-tuning
+Intermediate training training: fine-tuning
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network convnext_v2_base --tag intermediate --batch-size 32 --opt adamw --grad-accum-steps 4 --lr 0.0001 --wd 0.05 --norm-wd 0 --layer-decay 0.99 --lr-scheduler cosine --lr-cosine-min 1e-8 --epochs 80 --model-ema --size 448 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 10
@@ -574,7 +574,7 @@ torchrun --nproc_per_node=2 train.py --network davit_tiny --batch-size 64 --opt 
 torchrun --nproc_per_node=2 train.py --network davit_small --batch-size 128 --opt adamw --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network davit_small --tag intermediate --batch-size 128 --opt adamw --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 90 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
@@ -606,7 +606,7 @@ At epoch 200 increase resolution
 torchrun --nproc_per_node=2 train.py --network deit_b16 --batch-size 64 --opt adamw --clip-grad-norm 1 --lr 0.00015 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --model-ema --size 384 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 200
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network deit_b16 --tag intermediate --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.0005 --wd 0.1 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
@@ -644,19 +644,19 @@ Fine-tuning, increase resolution
 torchrun --nproc_per_node=2 train.py --network deit3_m16 --model-config drop_path_rate=0.0 --batch-size 64 --opt adamw --clip-grad-norm 1 --lr 0.00001 --wd 0.1 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 20 --warmup-epochs 5 --model-ema --size 384 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --resume-epoch 0
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network deit3_m16 --tag intermediate --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.0005 --wd 0.02 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 240 --warmup-epochs 5 --model-ema --size 256 --aug-level 2 --smoothing-alpha 0.1 --cutmix --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: linear probing
+Intermediate training training: linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network deit3_m16 --tag intermediate --batch-size 512 --opt adamw --clip-grad-norm 5 --lr 1e-4 --wd 0.01 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 10 --size 256 --aug-level 6 --smoothing-alpha 0.1 --amp --compile --resume-epoch 0
 ```
 
-Optional intermediate training: fine-tuning
+Intermediate training training: fine-tuning
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network deit3_m16 --tag intermediate --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.0001 --wd 0.02 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 50 --warmup-epochs 5 --model-ema --size 256 --aug-level 2 --smoothing-alpha 0.1 --cutmix --amp --compile --resume-epoch 0
@@ -680,19 +680,19 @@ Fine-tuning, increase resolution again
 torchrun --nproc_per_node=2 train.py --network deit3_b16 --batch-size 32 --opt adamw --clip-grad-norm 1 --lr 0.00001 --wd 0.1 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 20 --warmup-epochs 5 --model-ema --size 384 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --resume-epoch 0
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network deit3_b16 --tag intermediate --batch-size 64 --opt adamw --clip-grad-norm 1 --lr 0.0005 --wd 0.02 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 240 --warmup-epochs 5 --model-ema --size 256 --aug-level 2 --smoothing-alpha 0.1 --cutmix --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: linear probing
+Intermediate training training: linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network deit3_b16 --tag intermediate --batch-size 512 --opt adamw --clip-grad-norm 5 --lr 1e-4 --wd 0.01 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 10 --size 256 --aug-level 6 --smoothing-alpha 0.1 --amp --compile --resume-epoch 0
 ```
 
-Optional intermediate training: fine-tuning
+Intermediate training training: fine-tuning
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network deit3_b16 --tag intermediate --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.0001 --wd 0.02 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 50 --warmup-epochs 5 --model-ema --size 256 --aug-level 2 --smoothing-alpha 0.1 --cutmix --amp --compile --resume-epoch 0
@@ -778,7 +778,7 @@ torchrun --nproc_per_node=2 train.py --network edgevit_xs --batch-size 256 --opt
 torchrun --nproc_per_node=2 train.py --network edgevit_s --batch-size 128 --opt adamw --lr 5e-4 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-5 --epochs 200 --warmup-epochs 5 --model-ema --size 288 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --ra-sampler --ra-reps 2 --amp
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network edgevit_s --tag intermediate --batch-size 256 --opt adamw --lr 5e-4 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-5 --epochs 100 --warmup-epochs 5 --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.8 --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
@@ -886,19 +886,19 @@ At epoch 260 increase resolution
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --batch-size 64 --lr 0.5 --wd 0.00002 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 10 --model-ema --size 448 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 260 --load-states
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag intermediate --batch-size 128 --lr 0.5 --wd 0.00002 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: linear probing
+Intermediate training training: linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag intermediate --reset-head --freeze-body --unfreeze-features --batch-size 128 --lr 0.1 --lr-scheduler cosine --epochs 10 --size 448 --aug-level 2 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --resume-epoch 0
 ```
 
-Optional intermediate training: fine-tuning
+Intermediate training training: fine-tuning
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag intermediate --batch-size 64 --lr 0.0025 --wd 0.00002 --norm-wd 0 --lr-scheduler cosine --epochs 100 --model-ema --size 448 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 10
@@ -910,19 +910,19 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag intermedi
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --batch-size 32 --lr 0.5 --wd 0.00002 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 10 --model-ema --size 320 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --tag intermediate --batch-size 64 --lr 0.5 --wd 0.00002 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: linear probing
+Intermediate training training: linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --tag intermediate --reset-head --freeze-body --unfreeze-features --batch-size 128 --lr 0.1 --lr-scheduler cosine --epochs 10 --size 448 --aug-level 2 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --resume-epoch 0
 ```
 
-Optional intermediate training: fine-tuning
+Intermediate training training: fine-tuning
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --tag intermediate --batch-size 32 --lr 0.0025 --wd 0.00002 --norm-wd 0 --lr-scheduler cosine --epochs 80 --model-ema --size 448 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 10
@@ -1106,13 +1106,13 @@ torchrun --nproc_per_node=2 train.py --network focalnet_s_lrf --batch-size 16 --
 torchrun --nproc_per_node=2 train.py --network focalnet_b_lrf --batch-size 128 --opt adamw --clip-grad-norm 5 --lr 1e-3 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network focalnet_b_lrf --model-config drop_path_rate=0.2 --tag intermediate --batch-size 128 --opt adamw --clip-grad-norm 5 --lr 1e-3 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 90 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
+torchrun --nproc_per_node=2 train.py --network focalnet_b_lrf --tag intermediate --model-config drop_path_rate=0.2 --batch-size 128 --opt adamw --clip-grad-norm 5 --lr 1e-3 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 90 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: linear probing
+Intermediate training training: linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network focalnet_b_lrf --tag intermediate --reset-head --freeze-body --batch-size 512 --opt adamw --clip-grad-norm 5 --lr 1e-4 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 10 --size 256 --aug-level 6 --smoothing-alpha 0.1 --rgb-mode none --amp --compile --resume-epoch 0
@@ -1288,13 +1288,13 @@ torchrun --nproc_per_node=2 train.py --network hornet_small_gf --batch-size 64 -
 torchrun --nproc_per_node=2 train.py --network hornet_base_gf --batch-size 64 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.002 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network hornet_base_gf --tag intermediate --batch-size 64 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.002 --wd 0.1 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile-opt --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: linear probing
+Intermediate training training: linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network hornet_base_gf --tag intermediate --reset-head --freeze-body --unfreeze-features --batch-size 128 --opt adamw --lr 0.0002 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 256 --aug-level 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --resume-epoch 0
@@ -1518,7 +1518,7 @@ At epoch 320 increase resolution
 torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large_1_5 --batch-size 128 --opt rmsprop --lr 0.064 --wd 0.00001 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --epochs 400 --size 384 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --amp --compile --resume-epoch 320 --load-states
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large_1_5 --tag intermediate --batch-size 256 --opt rmsprop --lr 0.064 --wd 0.00001 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --epochs 400 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
@@ -1626,7 +1626,7 @@ At epoch 260 increase resolution
 torchrun --nproc_per_node=2 train.py --network mobilevit_v2_1_5 --batch-size 64 --opt adamw --lr 0.002 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 2e-5 --epochs 300 --warmup-epochs 20 --model-ema --size 384 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 260 --load-states
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilevit_v2_1_5 --tag intermediate --batch-size 128 --opt adamw --lr 0.0003 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 2e-5 --epochs 80 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
@@ -1702,19 +1702,19 @@ torchrun --nproc_per_node=2 train.py --network mvit_v2_s --batch-size 128 --opt 
 torchrun --nproc_per_node=2 train.py --network mvit_v2_b --batch-size 64 --opt adamw --clip-grad-norm 1 --grad-accum-steps 2 --lr 0.002 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 70 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mvit_v2_b --tag intermediate --batch-size 64 --opt adamw --clip-grad-norm 1 --grad-accum-steps 2 --lr 0.0000675 --wd 0.01 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 90 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: linear probing
+Intermediate training training: linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mvit_v2_b --tag intermediate --reset-head --freeze-body --unfreeze-features --batch-size 256 --opt adamw --lr 0.001 --wd 0.01 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 256 --aug-level 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --fast-matmul --compile --resume-epoch 0
 ```
 
-Optional intermediate training: fine-tuning
+Intermediate training training: fine-tuning
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mvit_v2_b --batch-size 64 --opt adamw --clip-grad-norm 1 --grad-accum-steps 2 --lr 0.00007 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 40 --warmup-epochs 70 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile --resume-epoch 10
@@ -1920,19 +1920,19 @@ torchrun --nproc_per_node=2 train.py --network regionvit_s --batch-size 256 --op
 torchrun --nproc_per_node=2 train.py --network regionvit_m --batch-size 128 --opt adamw --grad-accum-steps 2 --lr 0.001 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 50 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 3 --amp --compile
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network regionvit_m --tag intermediate --batch-size 128 --opt adamw --grad-accum-steps 2 --lr 0.001 --wd 0.01 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 120 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: linear probing
+Intermediate training training: linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network regionvit_m --tag intermediate --batch-size 512 --opt adamw --lr 1e-4 --wd 0.01 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 10 --size 256 --aug-level 6 --smoothing-alpha 0.1 --amp --compile --resume-epoch 0
 ```
 
-Optional intermediate training: fine-tuning
+Intermediate training training: fine-tuning
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network regionvit_m --tag intermediate --batch-size 128 --opt adamw --grad-accum-steps 2 --lr 0.001 --wd 1e-8 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 30 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 3 --amp --compile --resume-epoch 0
@@ -2012,25 +2012,25 @@ At epoch 90 increase resolution again
 torchrun --nproc_per_node=2 train.py --network regnet_y_8g --batch-size 32 --lr 0.4 --wd 0.00005 --lr-scheduler cosine --epochs 100 --warmup-epochs 5 --model-ema --size 448 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 90 --load-states
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network regnet_y_8g --tag intermediate --batch-size 128 --lr 0.4 --wd 0.00005 --lr-scheduler cosine --epochs 100 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: at epoch 80 increase resolution
+Intermediate training training: at epoch 80 increase resolution
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network regnet_y_8g --tag intermediate --batch-size 64 --lr 0.4 --wd 0.00005 --lr-scheduler cosine --epochs 100 --warmup-epochs 5 --size 384 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --compile --resume-epoch 80 --load-states --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: linear probing
+Intermediate training training: linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network regnet_y_8g --tag intermediate --reset-head --freeze-body --batch-size 128 --lr 0.1 --lr-scheduler cosine --epochs 10 --size 384 --aug-level 2 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --compile --resume-epoch 0
 ```
 
-Optional intermediate training: fine-tuning
+Intermediate training training: fine-tuning
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network regnet_y_8g --tag intermediate --batch-size 32 --lr 0.04 --wd 0.00005 --lr-scheduler cosine --epochs 30 --model-ema --size 448 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 10
@@ -2042,7 +2042,7 @@ torchrun --nproc_per_node=2 train.py --network regnet_y_8g --tag intermediate --
 torchrun --nproc_per_node=2 train.py --network regnet_y_16g --batch-size 64 --lr 0.2 --wd 0.00005 --lr-scheduler cosine --epochs 100 --warmup-epochs 5 --size 288 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network regnet_y_16g --tag intermediate --batch-size 64 --lr 0.2 --wd 0.00005 --lr-scheduler cosine --epochs 100 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
@@ -2254,22 +2254,22 @@ torchrun --nproc_per_node=2 train.py --network smt_t --batch-size 256 --opt adam
 torchrun --nproc_per_node=2 train.py --network smt_s --batch-size 128 --opt adamw --clip-grad-norm 5 --grad-accum-steps 2 --lr 0.001 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --compile
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network smt_s --tag intermediate --batch-size 128 --opt adamw --clip-grad-norm 5 --grad-accum-steps 2 --lr 0.001 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 90 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --compile --save-frequency 1 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: linear probing
+Intermediate training training: linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network smt_s --tag intermediate --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.001 --wd 0.01 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 256 --aug-level 2 --smoothing-alpha 0.1 --amp --compile --resume-epoch 0
 ```
 
-Optional intermediate training: fine-tuning
+Intermediate training training: fine-tuning
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network smt_s --model-config drop_path_rate=0.1 --tag intermediate --batch-size 128 --opt adamw --clip-grad-norm 5 --grad-accum-steps 2 --lr 0.00002 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 40 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --amp --compile --resume-epoch 10
+torchrun --nproc_per_node=2 train.py --network smt_s --tag intermediate --model-config drop_path_rate=0.1 --batch-size 128 --opt adamw --clip-grad-norm 5 --grad-accum-steps 2 --lr 0.00002 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 40 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --amp --compile --resume-epoch 10
 ```
 
 ### SMT: Base
@@ -2382,13 +2382,13 @@ torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_t --batch-siz
 torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s --batch-size 64 --opt adamw --clip-grad-norm 5 --lr 0.0007 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s --tag intermediate --batch-size 256 --opt adamw --clip-grad-norm 5 --lr 0.0007 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --model-ema --size 224 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --drop-last --amp --compile --save-frequency 1 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: increase resolution
+Intermediate training training: increase resolution
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_s --tag intermediate --batch-size 128 --opt adamw --clip-grad-norm 5 --grad-accum-steps 2 --lr 0.0007 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --drop-last --amp --compile --save-frequency 1 --resume-epoch 120 --load-states --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
@@ -2414,25 +2414,25 @@ torchrun --nproc_per_node=2 train.py --network swin_transformer_v2_l --batch-siz
 torchrun --nproc_per_node=2 train.py --network tiny_vit_5m --batch-size 256 --opt adamw --clip-grad-norm 5 --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --size 256 --aug-level 8 --smoothing-alpha 0.1 --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-Optional intermediate training (suggested in the paper to use KD for this step)
+Intermediate training training (suggested in the paper to use KD for this step)
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network tiny_vit_5m --tag intermediate --batch-size 256 --opt adamw --clip-grad-norm 5 --lr 0.002 --wd 0.01 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 90 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: linear probing
+Intermediate training training: linear probing
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network tiny_vit_5m --tag intermediate --reset-head --freeze-body --unfreeze-features --batch-size 256 --opt adamw --lr 0.001 --wd 0.01 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 256 --aug-level 2 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --fast-matmul --compile --resume-epoch 0
 ```
 
-Optional intermediate training: fine-tuning
+Intermediate training training: fine-tuning
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network tiny_vit_5m --tag intermediate --batch-size 256 --opt adamw --clip-grad-norm 5 --lr 0.0005 --wd 1e-7 --norm-wd 0 --layer-decay 0.8 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 40 --warmup-epochs 5 --freeze-bn --size 256 --aug-level 8 --smoothing-alpha 0.1 --amp --compile --resume-epoch 10
 ```
 
-Optional intermediate training: increase resolution
+Intermediate training training: increase resolution
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network tiny_vit_5m --tag intermediate --batch-size 128 --opt adamw --clip-grad-norm 5 --grad-accum-steps 2 --lr 0.00004 --wd 1e-7 --norm-wd 0 --layer-decay 0.8 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 30 --warmup-epochs 5 --freeze-bn --size 384 --aug-level 8 --smoothing-alpha 0.1 --amp --compile --resume-epoch 0
@@ -2562,7 +2562,7 @@ Fine-tuning, increase resolution
 torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls --model-config drop_path_rate=0.0 --batch-size 64 --opt adamw --clip-grad-norm 1 --lr 0.00001 --wd 0.1 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 20 --warmup-epochs 5 --model-ema --size 384 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --resume-epoch 0
 ```
 
-Optional intermediate training
+Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls --tag intermediate --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.0005 --wd 0.02 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 240 --warmup-epochs 5 --model-ema --size 256 --aug-level 2 --smoothing-alpha 0.1 --cutmix --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt

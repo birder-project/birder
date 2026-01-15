@@ -87,14 +87,15 @@ class ModelRegistry:
         no further registration is needed.
         """
 
+        alias_key = alias.lower()
         if net_type.auto_register is False:
             # Register the model manually, as the base class doesn't take care of that for us
-            registry.register_model(alias, type(alias, (net_type,), {"config": config}))
+            self.register_model(alias_key, type(alias, (net_type,), {"config": config}))
 
         if alias in self.aliases:
             warnings.warn(f"Alias {alias} is already registered", UserWarning)
 
-        self.aliases[alias] = type(alias, (net_type,), {"config": config})
+        self.aliases[alias_key] = type(alias, (net_type,), {"config": config})
 
     def register_weights(self, name: str, weights_info: manifest.ModelMetadataType) -> None:
         if name in self._pretrained_nets:

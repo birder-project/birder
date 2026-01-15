@@ -582,22 +582,26 @@ def train(args: argparse.Namespace) -> None:
     #
     # Training loop
     #
-    track_agreement = not args.no_agreement_metrics
+    track_extended_metrics = not args.no_extended_metrics
     if virtual_epoch_mode is True:
         train_iter = iter(training_loader)
+
+    running_loss = training_utils.SmoothedValue()
+    running_loss_dino_local = training_utils.SmoothedValue()
+    running_loss_dino_global = training_utils.SmoothedValue()
+    running_loss_koleo = training_utils.SmoothedValue()
+    running_loss_ibot_patch = training_utils.SmoothedValue()
+    if track_extended_metrics is True:
+        train_proto_agreement = training_utils.SmoothedValue()
+        train_patch_agreement = training_utils.SmoothedValue()
+        running_target_entropy = training_utils.SmoothedValue()
+        running_dino_center_drift = training_utils.SmoothedValue()
+        running_ibot_center_drift = training_utils.SmoothedValue()
 
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
-        running_loss = training_utils.SmoothedValue()
-        running_loss_dino_local = training_utils.SmoothedValue()
-        running_loss_dino_global = training_utils.SmoothedValue()
-        running_loss_koleo = training_utils.SmoothedValue()
-        running_loss_ibot_patch = training_utils.SmoothedValue()
-        if track_agreement is True:
-            train_proto_agreement = training_utils.SmoothedValue()
-            train_patch_agreement = training_utils.SmoothedValue()
 
         if args.sinkhorn_queue_size is not None:
             queue_active = epoch > args.sinkhorn_queue_warmup_epochs
@@ -662,6 +666,11 @@ def train(args: argparse.Namespace) -> None:
                     )
                     teacher_patch_tokens_raw = teacher_masked_patch_tokens_after_head
                     if args.centering == "centering":
+                        # Track centers before update for drift computation
+                        if track_extended_metrics is True:
+                            prev_dino_center = dino_loss.center.clone()
+                            prev_ibot_center = ibot_patch_loss.center.clone()
+
                         teacher_dino_softmax_centered_list = dino_loss.softmax_center_teacher(
                             teacher_embedding_after_head, teacher_temp=teacher_temp
                         ).view(n_global_crops, -1, *teacher_embedding_after_head.shape[1:])
@@ -788,7 +797,7 @@ def train(args: argparse.Namespace) -> None:
             running_loss_koleo.update(loss_koleo.detach())
             running_loss_ibot_patch.update(loss_ibot_patch.detach())
 
-            if track_agreement is True:
+            if track_extended_metrics is True:
                 probs_teacher = teacher_embedding_after_head.chunk(n_global_crops)
                 probs_student = student_global_embedding_after_head.chunk(n_global_crops)
                 pred_teacher = probs_teacher[0].argmax(dim=1)
@@ -799,8 +808,27 @@ def train(args: argparse.Namespace) -> None:
                 pred_patch_student = student_global_masked_patch_tokens_after_head.argmax(dim=1)
                 train_patch_agreement.update(training_utils.accuracy(pred_patch_teacher, pred_patch_student))
 
+                with torch.no_grad():
+                    p = teacher_dino_softmax_centered_list.detach()
+                    p = p.reshape(-1, p.size(-1))  # (N, D)
+
+                    # Mean distribution over prototypes (marginal)
+                    m = p.mean(dim=0).clamp_min(1e-12)
+
+                    # Entropy of the marginal
+                    entropy = -(m * m.log()).sum()
+
+                running_target_entropy.update(entropy.detach())
+
+                # Compute center drift
+                if args.centering == "centering":
+                    dino_center_drift = torch.norm(dino_loss.center - prev_dino_center, p=2).detach()
+                    ibot_center_drift = torch.norm(ibot_patch_loss.center - prev_ibot_center, p=2).detach()
+                    running_dino_center_drift.update(dino_center_drift)
+                    running_ibot_center_drift.update(ibot_center_drift)
+
             # Write statistics
-            if i % args.log_interval == 0 or i == last_batch_idx:
+            if (i % args.log_interval == 0 and i > 0) or i == last_batch_idx:
                 time_now = time.time()
                 time_cost = time_now - start_time
                 iters_processed_in_interval = i - last_idx
@@ -819,9 +847,13 @@ def train(args: argparse.Namespace) -> None:
                 running_loss_dino_global.synchronize_between_processes(device)
                 running_loss_koleo.synchronize_between_processes(device)
                 running_loss_ibot_patch.synchronize_between_processes(device)
-                if track_agreement is True:
+                if track_extended_metrics is True:
                     train_proto_agreement.synchronize_between_processes(device)
                     train_patch_agreement.synchronize_between_processes(device)
+                    running_target_entropy.synchronize_between_processes(device)
+                    if args.centering == "centering":
+                        running_dino_center_drift.synchronize_between_processes(device)
+                        running_ibot_center_drift.synchronize_between_processes(device)
 
                 with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
                     log.info(
@@ -846,13 +878,19 @@ def train(args: argparse.Namespace) -> None:
                         },
                         ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                     )
-                    if track_agreement is True:
+                    if track_extended_metrics is True:
+                        metrics = {
+                            "prototype_agreement": train_proto_agreement.avg,
+                            "patch_agreement": train_patch_agreement.avg,
+                            "target_entropy": running_target_entropy.avg,
+                        }
+                        if args.centering == "centering":
+                            metrics["dino_center_drift"] = running_dino_center_drift.avg
+                            metrics["ibot_center_drift"] = running_ibot_center_drift.avg
+
                         summary_writer.add_scalars(
                             "performance",
-                            {
-                                "prototype_agreement": train_proto_agreement.avg,
-                                "patch_agreement": train_patch_agreement.avg,
-                            },
+                            metrics,
                             ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                         )
 
@@ -867,9 +905,17 @@ def train(args: argparse.Namespace) -> None:
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} dino_global_loss: {running_loss_dino_global.global_avg:.4f}")
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} koleo_loss: {running_loss_koleo.global_avg:.4f}")
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} ibot_patch_loss: {running_loss_ibot_patch.global_avg:.4f}")
-        if track_agreement is True:
+        if track_extended_metrics is True:
             logger.info(f"[Trn] Epoch {epoch}/{epochs-1} prototype_agreement: {train_proto_agreement.global_avg:.4f}")
             logger.info(f"[Trn] Epoch {epoch}/{epochs-1} patch_agreement: {train_patch_agreement.global_avg:.4f}")
+            logger.info(f"[Trn] Epoch {epoch}/{epochs-1} target_entropy: {running_target_entropy.global_avg:.4f}")
+            if args.centering == "centering":
+                logger.info(
+                    f"[Trn] Epoch {epoch}/{epochs-1} dino_center_drift: {running_dino_center_drift.global_avg:.4f}"
+                )
+                logger.info(
+                    f"[Trn] Epoch {epoch}/{epochs-1} ibot_center_drift: {running_ibot_center_drift.global_avg:.4f}"
+                )
 
         # Learning rate scheduler update
         if step_update is False:
@@ -976,6 +1022,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("-n", "--network", type=str, help="the neural network to use")
+    parser.add_argument("-t", "--tag", type=str, help="add model tag")
     parser.add_argument(
         "--model-config",
         action=cli.FlexibleDictAction,
@@ -1042,9 +1089,11 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="number of initial epochs to disable Sinkhorn queueing",
     )
     parser.add_argument(
-        "--no-agreement-metrics", default=False, action="store_true", help="disable prototype/patch agreement tracking"
+        "--no-extended-metrics",
+        default=False,
+        action="store_true",
+        help="disable extended metrics (prototype/patch agreement, target entropy, center drift)",
     )
-    parser.add_argument("-t", "--tag", type=str, help="add model tag")
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser, wd_end=True)
     training_cli.add_lr_scheduler_args(parser)

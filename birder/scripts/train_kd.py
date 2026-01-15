@@ -567,17 +567,17 @@ def train(args: argparse.Namespace) -> None:
     if virtual_epoch_mode is True:
         train_iter = iter(training_loader)
 
+    running_loss = training_utils.SmoothedValue(window_size=64)
+    running_val_loss = training_utils.SmoothedValue()
+    train_accuracy = training_utils.SmoothedValue(window_size=64)
+    val_accuracy = training_utils.SmoothedValue()
+
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         train_student.train()
         if embedding_projection is not None:
             embedding_projection.train()
-
-        running_loss = training_utils.SmoothedValue(window_size=64)
-        running_val_loss = training_utils.SmoothedValue()
-        train_accuracy = training_utils.SmoothedValue(window_size=64)
-        val_accuracy = training_utils.SmoothedValue()
 
         if args.distributed is True or virtual_epoch_mode is True:
             train_sampler.set_epoch(epoch)
@@ -695,7 +695,7 @@ def train(args: argparse.Namespace) -> None:
             train_accuracy.update(training_utils.accuracy(targets, outputs.detach()))
 
             # Write statistics
-            if i % args.log_interval == 0 or i == last_batch_idx:
+            if (i % args.log_interval == 0 and i > 0) or i == last_batch_idx:
                 time_now = time.time()
                 time_cost = time_now - start_time
                 iters_processed_in_interval = i - last_idx
@@ -944,6 +944,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--type", type=str, choices=typing.get_args(DistType), help="type of distillation")
     parser.add_argument("--teacher", type=str, help="the teacher network")
+    parser.add_argument("--teacher-tag", type=str, help="teacher training log tag (loading only)")
     parser.add_argument(
         "--teacher-model-config",
         action=cli.FlexibleDictAction,
@@ -952,11 +953,11 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
-    parser.add_argument("--teacher-tag", type=str, help="teacher training log tag (loading only)")
     parser.add_argument("--pts", default=False, action="store_true", help="load torchscript teacher")
     parser.add_argument("--pt2", default=False, action="store_true", help="load pt2 teacher")
     parser.add_argument("--teacher-epoch", type=int, help="load teacher weights from selected epoch")
     parser.add_argument("--student", type=str, help="the student network to train")
+    parser.add_argument("--student-tag", type=str, help="add student training logs tag")
     parser.add_argument(
         "--student-model-config",
         action=cli.FlexibleDictAction,
@@ -965,7 +966,6 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
-    parser.add_argument("--student-tag", type=str, help="add student training logs tag")
     parser.add_argument(
         "--temperature",
         type=float,

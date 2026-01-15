@@ -150,6 +150,10 @@ class RoPEAttention(nn.Module):
         attn_drop: float,
         proj_drop: float,
         num_special_tokens: int,
+        qkv_bias: bool = True,
+        qk_norm: bool = False,
+        norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
+        norm_layer_eps: float = 1e-6,
         rope_rot_type: str = "standard",
     ) -> None:
         super().__init__()
@@ -167,7 +171,14 @@ class RoPEAttention(nn.Module):
         else:
             raise ValueError(f"Unknown rope_rot_type, got '{rope_rot_type}'")
 
-        self.qkv = nn.Linear(dim, dim * 3)
+        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        if qk_norm is True:
+            self.q_norm = norm_layer(self.head_dim, eps=norm_layer_eps)
+            self.k_norm = norm_layer(self.head_dim, eps=norm_layer_eps)
+        else:
+            self.q_norm = nn.Identity()
+            self.k_norm = nn.Identity()
+
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
@@ -176,6 +187,8 @@ class RoPEAttention(nn.Module):
         (B, N, C) = x.size()
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
         (q, k, v) = qkv.unbind(0)
+        q = self.q_norm(q)
+        k = self.k_norm(k)
 
         n = self.num_special_tokens
         q = torch.concat([q[:, :, :n, :], self.apply_rot_fn(q[:, :, n:, :], rope)], dim=2)
@@ -207,6 +220,8 @@ class EncoderBlock(nn.Module):
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
         norm_layer_eps: float = 1e-6,
         mlp_layer: Callable[..., nn.Module] = FFN,
+        qkv_bias: bool = True,
+        qk_norm: bool = False,
         rope_rot_type: str = "standard",
     ) -> None:
         super().__init__()
@@ -222,6 +237,10 @@ class EncoderBlock(nn.Module):
             attn_drop=attention_dropout,
             proj_drop=dropout,
             num_special_tokens=num_special_tokens,
+            qkv_bias=qkv_bias,
+            qk_norm=qk_norm,
+            norm_layer=norm_layer,
+            norm_layer_eps=norm_layer_eps,
             rope_rot_type=rope_rot_type,
         )
         if layer_scale_init_value is not None:
@@ -249,7 +268,6 @@ class EncoderBlock(nn.Module):
 
 
 class Encoder(nn.Module):
-    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         num_layers: int,
@@ -261,6 +279,8 @@ class Encoder(nn.Module):
         attention_dropout: float,
         dpr: list[float],
         pre_norm: bool = False,
+        qkv_bias: bool = True,
+        qk_norm: bool = False,
         activation_layer: Callable[..., nn.Module] = nn.GELU,
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
@@ -293,6 +313,8 @@ class Encoder(nn.Module):
                     norm_layer=norm_layer,
                     norm_layer_eps=norm_layer_eps,
                     mlp_layer=mlp_layer,
+                    qkv_bias=qkv_bias,
+                    qk_norm=qk_norm,
                     rope_rot_type=rope_rot_type,
                 )
             )
@@ -331,6 +353,7 @@ class MAEDecoderBlock(nn.Module):
         rope_temperature: float,
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
+        norm_layer_eps: float = 1e-6,
         mlp_layer: Callable[..., nn.Module] = FFN,
         rope_rot_type: str = "standard",
     ) -> None:
@@ -346,7 +369,7 @@ class MAEDecoderBlock(nn.Module):
         )
 
         # Attention block
-        self.norm1 = norm_layer(hidden_dim, eps=1e-6)
+        self.norm1 = norm_layer(hidden_dim, eps=norm_layer_eps)
         self.attn = RoPEAttention(
             hidden_dim,
             num_heads,
@@ -361,7 +384,7 @@ class MAEDecoderBlock(nn.Module):
             self.layer_scale_1 = nn.Identity()
 
         # MLP block
-        self.norm2 = norm_layer(hidden_dim, eps=1e-6)
+        self.norm2 = norm_layer(hidden_dim, eps=norm_layer_eps)
         self.mlp = mlp_layer(hidden_dim, mlp_dim, act_layer=activation_layer, dropout=0.0)
         if layer_scale_init_value is not None:
             self.layer_scale_2 = LayerScale(hidden_dim, layer_scale_init_value)
@@ -403,6 +426,8 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", None)
         pre_norm: bool = self.config.get("pre_norm", False)
         post_norm: bool = self.config.get("post_norm", True)
+        qkv_bias: bool = self.config.get("qkv_bias", True)
+        qk_norm: bool = self.config.get("qk_norm", False)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
@@ -450,6 +475,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         self.num_reg_tokens = num_reg_tokens
         self.attn_pool_special_tokens = attn_pool_special_tokens
         self.norm_layer = norm_layer
+        self.norm_layer_eps = norm_layer_eps
         self.mlp_layer = mlp_layer
         self.act_layer = act_layer
         self.rope_rot_type = rope_rot_type
@@ -521,6 +547,8 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             attention_dropout,
             dpr,
             pre_norm=pre_norm,
+            qkv_bias=qkv_bias,
+            qk_norm=qk_norm,
             activation_layer=act_layer,
             layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
@@ -562,6 +590,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             rope_temperature=rope_temperature,
             layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
+            norm_layer_eps=norm_layer_eps,
             mlp_layer=mlp_layer,
             rope_rot_type=rope_rot_type,
         )
@@ -904,6 +933,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             rope_temperature=self.rope_temperature,
             layer_scale_init_value=self.layer_scale_init_value,
             norm_layer=self.norm_layer,
+            norm_layer_eps=self.norm_layer_eps,
             mlp_layer=self.mlp_layer,
             rope_rot_type=self.rope_rot_type,
         )
@@ -931,6 +961,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 #     - rms         : RMSNorm (instead of LayerNorm)
 #     - pn          : Pre-Norm (layer norm before the encoder) - implies different norm eps
 #     - npn         : No Post Norm (disables post-normalization layer)
+#     - qkn         : QK Norm
 #
 #     Feed-Forward Network:
 #     - swiglu      : SwiGLU FFN layer type (instead of standard FFN)
@@ -1065,6 +1096,20 @@ registry.register_model_config(
         "num_heads": 12,
         "hidden_dim": 768,
         "mlp_dim": 3072,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
+    "rope_vit_b16_qkn_ls",
+    RoPE_ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 12,
+        "hidden_dim": 768,
+        "mlp_dim": 3072,
+        "layer_scale_init_value": 1e-5,
+        "qk_norm": True,
         "drop_path_rate": 0.1,
     },
 )

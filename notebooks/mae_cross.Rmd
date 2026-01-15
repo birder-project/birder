@@ -52,8 +52,9 @@ def show_image(image, title=""):
 ```
 
 ```{python}
-network = "crossmae"
+network = "crossmae_dec512d12"
 encoder = "vit_reg4_so150m_p14_avg"
+tag = "bio"
 size = 224
 
 epoch_start = 1
@@ -79,8 +80,9 @@ for e in range(epoch_start, epoch_end + 1):
             device,
             network,
             encoder=encoder,
+            tag=tag,
             epoch=e,
-            min_mask_size=1,
+            min_mask_size=2,
         )
         net.eval()
 

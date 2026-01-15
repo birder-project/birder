@@ -275,7 +275,6 @@ class Stem(nn.Module):
 
 
 class SMTStage(nn.Module):
-    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         dim: int,

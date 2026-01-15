@@ -98,6 +98,8 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", None)
         pre_norm: bool = self.config.get("pre_norm", False)
         post_norm: bool = self.config.get("post_norm", True)
+        qkv_bias: bool = self.config.get("qkv_bias", True)
+        qk_norm: bool = self.config.get("qk_norm", False)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
@@ -186,6 +188,8 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             attention_dropout,
             dpr,
             pre_norm=pre_norm,
+            qkv_bias=qkv_bias,
+            qk_norm=qk_norm,
             activation_layer=act_layer,
             layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
@@ -224,6 +228,7 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             drop_path=0,
             activation_layer=act_layer,
             norm_layer=norm_layer,
+            norm_layer_eps=norm_layer_eps,
             mlp_layer=mlp_layer,
         )
 

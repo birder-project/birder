@@ -44,24 +44,12 @@ Use `--sync-bn` when batch size is 32 or below.
 torchrun --nproc_per_node=2 -m birder.scripts.train_byol --network regnet_x_4g --batch-size 128 --opt lars --lr 0.2 --wd 0.0000015 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --epochs 600 --warmup-epochs 10 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network regnet_x_4g --tag byol --reset-head --freeze-body --batch-size 256 --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 10 --size 256 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --resume-epoch 0
-```
-
 ### CAPI
 
 #### CAPI: Hiera AbsWin Small
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network hiera_abswin_small --decoder-layers 6 --decoder-dim 768 --mask-ratio 0.6 --kept-mask-ratio 0.2 --batch-size 512 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 16 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 600 --warmup-epochs 40 --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data
-```
-
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network hiera_abswin_small --tag capi --reset-head --freeze-body --unfreeze-features --batch-size 256 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 256 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --resume-epoch 0
 ```
 
 #### CAPI: Hiera AbsWin Base Plus
@@ -82,28 +70,10 @@ DGX A100 training
 torchrun --nproc_per_node=8 -m birder.scripts.train_capi --network hiera_abswin_large --mask-ratio 0.6 --kept-mask-ratio 0.2 --batch-size 512 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 4 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 40 --amp --amp-dtype bfloat16 --compile --keep-last 4 --wds --wds-info data/ssl_packed/_info.json
 ```
 
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network hiera_abswin_large --tag capi --reset-head --freeze-body --unfreeze-features --batch-size 256 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 256 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --resume-epoch 0
-```
-
-ImageNet 1K: fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network hiera_abswin_large --tag capi --reset-head --freeze-body --unfreeze-features --batch-size 256 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --resume-epoch 0 --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
-```
-
 #### CAPI: RoPE ViT reg4 m14 AVG
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg4_m14_avg --decoder-layers 6 --decoder-dim 512 --momentum-teacher 0.998 --sinkhorn-queue-size 256 --batch-size 256 --opt adamw --opt-fused --opt-betas 0.9 0.95 --grad-accum-steps 4 --lr 0.0015 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 600 --warmup-epochs 60 --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data
-```
-
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network rope_vit_reg4_m14_avg --tag capi --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 252 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --fast-matmul --compile --resume-epoch 0
 ```
 
 #### CAPI: RoPE ViT reg8 b14 AP
@@ -112,49 +82,25 @@ torchrun --nproc_per_node=2 train.py --network rope_vit_reg4_m14_avg --tag capi 
 torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg8_b14_ap --decoder-layers 8 --decoder-dim 768 --batch-size 192 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 32 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 40 --amp --amp-dtype bfloat16 --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
-Optional intermediate training: first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-intermediate --reset-head --freeze-body --unfreeze-features --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 252 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
-```
-
-Optional intermediate training: full fine-tuning with layer-wise learning rate decay
+Intermediate training: full fine-tuning with layer-wise learning rate decay
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-intermediate --batch-size 192 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0005 --wd 0.05 --norm-wd 0 --layer-decay 0.65 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 5 --model-ema --size 252 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --amp-dtype bfloat16 --compile --compile-opt --save-frequency 1 --resume-epoch 0 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi --reset-head --freeze-body --unfreeze-features --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --fast-matmul --compile --resume-epoch 0
-```
-
-ImageNet 1K fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-imagenet1k --reset-head --freeze-body --unfreeze-features --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-type ra --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
-```
-
-ImageNet 1K next, full fine-tuning with layer-wise learning rate decay
+ImageNet 1K, full fine-tuning with layer-wise learning rate decay
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-imagenet1k --batch-size 320 --opt adamw --clip-grad-norm 1 --grad-accum-steps 2 --lr 0.0005 --wd 0.05 --norm-wd 0 --layer-decay 0.65 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 5 --size 196 --aug-type 3aug --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --amp-dtype bfloat16 --compile --compile-opt --save-frequency 1 --resume-epoch 0 --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
 ```
 
-ImageNet 1K next, full fine-tuning with layer-wise learning rate decay
+Cont. ImageNet 1K, full fine-tuning with layer-wise learning rate decay
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-imagenet1k --batch-size 256 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0001 --wd 0.02 --layer-decay 0.65 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 150 --warmup-epochs 5 --model-ema --size 224 --aug-type ra --ra-magnitude 15 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --amp-dtype bfloat16 --compile --compile-opt --save-frequency 1 --resume-epoch 100 --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
 ```
 
-ImageNet 21K fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-imagenet21k --reset-head --freeze-body --unfreeze-features --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-type ra --smoothing-alpha 0.1 --mixup-alpha 0.2 --amp --compile --save-frequency 1 --resume-epoch 0 --wds --wds-info ~/Datasets/imagenet-w21-webp-wds/_info.json --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-training-split train
-```
-
-ImageNet 21K next, full fine-tuning with layer-wise learning rate decay
+ImageNet 21K, full fine-tuning with layer-wise learning rate decay
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-imagenet21k --batch-size 256 --opt adamw --clip-grad-norm 1 --lr 0.0005 --wd 0.05 --norm-wd 0 --layer-decay 0.65 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 50 --warmup-epochs 5 --model-ema --size 224 --aug-type ra --re-prob 0.25 --smoothing-alpha 0.1 --mixup-alpha 0.2 --amp --amp-dtype bfloat16 --compile --compile-opt --save-frequency 1 --resume-epoch 0 --wds --wds-info ~/Datasets/imagenet-w21-webp-wds/_info.json --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-training-split train
@@ -166,13 +112,7 @@ ImageNet 1K fine-tuning of ImageNet 21K (after linear probing)
 torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-imagenet21k-imagenet1k --batch-size 256 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0001 --wd 0.05 --layer-decay 0.6 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 50 --warmup-epochs 5 --model-ema --size 224 --aug-type ra --ra-magnitude 12 --re-prob 0.25 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --amp-dtype bfloat16 --compile --compile-opt --save-frequency 1 --resume-epoch 0 --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
 ```
 
-iNaturalist 2021 fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-inat21 --reset-head --freeze-body --unfreeze-features --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --data-path ~/Datasets/inat2021/train --val-path ~/Datasets/inat2021/val
-```
-
-iNaturalist 2021 next, full fine-tuning with layer-wise learning rate decay
+iNaturalist 2021, full fine-tuning with layer-wise learning rate decay
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-inat21 --batch-size 256 --opt adamw --clip-grad-norm 1 --grad-accum-steps 2 --lr 0.0005 --wd 0.05 --norm-wd 0 --layer-decay 0.65 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 5 --model-ema --size 224 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --amp-dtype bfloat16 --compile --compile-opt --save-frequency 1 --resume-epoch 0 --data-path ~/Datasets/inat2021/train --val-path ~/Datasets/inat2021/val
@@ -184,13 +124,7 @@ iNaturalist 2021 increase resolution
 torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-inat21 --batch-size 128 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0005 --wd 0.05 --norm-wd 0 --layer-decay 0.65 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 40 --warmup-epochs 5 --model-ema --size 336 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --amp-dtype bfloat16 --compile --compile-opt --save-frequency 1 --resume-epoch 0 --data-path ~/Datasets/inat2021/train --val-path ~/Datasets/inat2021/val
 ```
 
-Places 365 fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-places365 --reset-head --freeze-body --unfreeze-features --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --data-path ~/Datasets/Places365/training --val-path ~/Datasets/Places365/validation
-```
-
-Places 365 next, full fine-tuning with layer-wise learning rate decay
+Places 365, full fine-tuning with layer-wise learning rate decay
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-places365 --batch-size 256 --opt adamw --clip-grad-norm 1 --grad-accum-steps 2 --lr 0.0005 --wd 0.05 --norm-wd 0 --layer-decay 0.65 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 40 --warmup-epochs 5 --model-ema --size 224 --aug-level 8 --use-grayscale --resize-min-scale 0.3 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --amp-dtype bfloat16 --compile --compile-opt --save-frequency 1 --resume-epoch 0 --data-path ~/Datasets/Places365/training --val-path ~/Datasets/Places365/validation
@@ -211,19 +145,13 @@ torchrun --nproc_per_node=8 -m birder.scripts.train_capi --network rope_vit_reg8
 Optional: Train attention pooling head using DINO
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network rope_vit_reg8_so150m_p14_swiglu_rms_aps --out-dim 131072 --teacher-temp 0.07 --local-crops-number 8 --local-crop-size 98 --tag capi --backbone-epoch 0 --freeze-body --batch-size 512 --opt adamw --clip-grad-norm 0.5 --grad-accum-steps 4 --lr 0.0005 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --rgb-mode none --amp --amp-dtype bfloat16 --compile --non-strict-weights --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network rope_vit_reg8_so150m_p14_swiglu_rms_aps --tag capi --out-dim 131072 --teacher-temp 0.07 --local-crops-number 8 --local-crop-size 98 --backbone-epoch 0 --freeze-body --batch-size 512 --opt adamw --clip-grad-norm 0.5 --grad-accum-steps 4 --lr 0.0005 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --rgb-mode none --amp --amp-dtype bfloat16 --compile --non-strict-weights --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Optional: Linear probing (ImageNet 1K)
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_so150m_p14_swiglu_rms_aps --tag dino-v1-capi-imagenet1k --reset-head --freeze-body --batch-size 512 --lr 0.1 --wd 0.0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 90 --warmup-epochs 10 --size 224 --aug-level 1 --rgb-mode none --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
-```
-
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_so150m_p14_swiglu_rms_avg --tag capi --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile --resume-epoch 0
 ```
 
 Use as backbone for RotNet
@@ -240,40 +168,22 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_rotnet --network rope_vit_re
 torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec --network vit_parallel_s16_18x2_ls_avg --model-config drop_path_rate=0.25 --batch-size 192 --opt adamw --clip-grad-norm 3 --lr 0.001 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 20 --rgb-mode none --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_micro_packed/_info.json
 ```
 
-Optional intermediate training: first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls_avg --tag data2vec-intermediate --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 256 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile --resume-epoch 0 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
-```
-
-Optional intermediate training: full fine-tuning with layer-wise learning rate decay
+Intermediate training training: full fine-tuning with layer-wise learning rate decay
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls_avg --tag data2vec-intermediate --batch-size 192 --opt adamw --clip-grad-norm 1 --lr 0.0005 --wd 0.05 --norm-wd 0 --layer-decay 0.75 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile --compile-opt --save-frequency 1 --resume-epoch 0 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: full fine-tuning with layer-wise learning rate decay, increase resolution
+Intermediate training training: full fine-tuning with layer-wise learning rate decay, increase resolution
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls_avg --tag data2vec-intermediate --batch-size 96 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0001 --wd 0.05 --norm-wd 0 --layer-decay 0.75 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 50 --warmup-epochs 5 --model-ema --size 320 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile --compile-opt --save-frequency 1 --resume-epoch 0 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-Optional intermediate training: specific fine-tuning - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls_avg --tag data2vec-intermediate-il-all --reset-head --freeze-body --batch-size 256 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 384 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile --resume-epoch 0 --data-path data/training_il-all_packed --val-path data/validation_il-all_packed
-```
-
-Optional intermediate training: specific fine-tuning with layer-wise learning rate decay, increase resolution
+Intermediate training training: specific fine-tuning with layer-wise learning rate decay, increase resolution
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls_avg --tag data2vec-intermediate-il-all --batch-size 96 --opt adamw --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.000075 --wd 0.05 --norm-wd 0 --layer-decay 0.5 --layer-decay-no-opt-scale 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 50 --warmup-epochs 5 --model-ema --size 384 --aug-level 9 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile --compile-opt --save-frequency 1 --resume-epoch 0 --data-path data/training_il-all_packed --val-path data/validation_il-all_packed
-```
-
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls_avg --tag data2vec --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile --resume-epoch 0
 ```
 
 #### Data2Vec: ViT reg1 s16 LS
@@ -296,22 +206,10 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec --network vit_reg4_
 torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_reg4_m16 --batch-size 128 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 4 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode none --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training
 ```
 
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg4_m16 --tag data2vec2 --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --fast-matmul --compile --save-frequency 1 --resume-epoch 0
-```
-
 #### Data2Vec2: ViT b16
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_b16 --batch-size 96 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 4 --grad-accum-steps 16 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode none --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training
-```
-
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_b16 --tag data2vec2 --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile --resume-epoch 0
 ```
 
 #### Data2Vec2: SoViT reg8 150m p14 swiglu
@@ -324,12 +222,6 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_reg8
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_parallel_s16_18x2_ls --average-layers 12 --batch-size 96 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 4 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode none --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_micro_packed/_info.json
-```
-
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls --tag data2vec2 --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile --resume-epoch 0
 ```
 
 ### DINO v1
@@ -346,28 +238,16 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network convnext_v
 torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network efficientnet_v2_s --use-bn-in-head --norm-last-layer --teacher-temp 0.07 --local-crops-number 6 --batch-size 128 --opt lars --lr 0.3 --wd 0.000001 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 0.001 --epochs 800 --warmup-epochs 10 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag dino-v1 --reset-head --freeze-body --batch-size 256 --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 10 --size 256 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --resume-epoch 0
-```
-
 #### DINO v1: RoPE DeiT3 Reg4 m14
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network rope_deit3_reg4_m14 --norm-last-layer --local-crops-number 10 --local-crop-size 98 --teacher-temp 0.07 --batch-size 80 --opt adamw --clip-grad-norm 0.5 --lr 0.0005 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 600 --warmup-epochs 10 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network rope_deit3_reg4_m14 --norm-last-layer --teacher-temp 0.07 --local-crops-number 10 --local-crop-size 98 --batch-size 80 --opt adamw --clip-grad-norm 0.5 --lr 0.0005 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 600 --warmup-epochs 10 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 #### DINO v1: XCiT small-12 p16
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network xcit_small12_p16 --local-crops-number 10 --teacher-temp 0.07 --batch-size 96 --opt adamw --lr 0.00025 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 10 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
-```
-
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network xcit_small12_p16 --tag dino-v1 --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0005 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 256 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --resume-epoch 0
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network xcit_small12_p16 --teacher-temp 0.07 --local-crops-number 10 --batch-size 96 --opt adamw --lr 0.00025 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 10 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 ### DINO v2
@@ -376,12 +256,6 @@ torchrun --nproc_per_node=2 train.py --network xcit_small12_p16 --tag dino-v1 --
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network convnext_v1_nano --dino-out-dim 32768 --batch-size 128 --opt adamw --clip-grad-norm 3 --grad-accum-steps 4 --lr 0.0002 --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --amp --amp-dtype bfloat16 --compile --data-path data/training
-```
-
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v1_nano --tag dino-v2 --reset-head --freeze-body --batch-size 256 --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --resume-epoch 0
 ```
 
 #### DINO v2: DaViT Small
@@ -402,19 +276,7 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network davit_base
 torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network hieradet_small --ibot-separate-head --centering sinkhorn_knopp --batch-size 64 --opt adamw --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0002 --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
 ```
 
-ImageNet 1K fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-imagenet1k --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --amp --compile --save-frequency 1 --resume-epoch 0 --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
-```
-
-ImageNet 12K fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-imagenet12k --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --amp --compile --save-frequency 1 --resume-epoch 0 --wds --wds-info ~/Datasets/imagenet-12k-wds/_info.json --wds-class-file public_datasets_metadata/imagenet-12k-classes.txt --wds-training-split train
-```
-
-ImageNet 12K next, full fine-tuning with layer-wise learning rate decay
+ImageNet 12K, full fine-tuning with layer-wise learning rate decay
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-imagenet12k --batch-size 256 --opt adamw --lr 0.0005 --wd 0.05 --norm-wd 0 --layer-decay 0.65 --lr-scheduler cosine --lr-cosine-min 5e-7 --epochs 100 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --resize-min-scale 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --amp-dtype bfloat16 --compile --compile-opt --save-frequency 1 --resume-epoch 0 --wds --wds-info ~/Datasets/imagenet-12k-wds/_info.json --wds-class-file public_datasets_metadata/imagenet-12k-classes.txt --wds-training-split train
@@ -424,12 +286,6 @@ ImageNet 1K fine-tuning of ImageNet 12K (after linear probing)
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-imagenet12k-imagenet1k --batch-size 256 --opt adamw --grad-accum-steps 4 --lr 7.5e-5 --wd 0.05 --norm-wd 0 --layer-decay 0.6 --lr-scheduler cosine --lr-cosine-min 5e-7 --epochs 50 --warmup-epochs 10 --model-ema --model-ema-steps 1 --model-ema-decay 0.9998 --model-ema-warmup 0 --size 256 --aug-level 9 --resize-min-scale 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --amp --amp-dtype bfloat16 --compile --save-frequency 1 --resume-epoch 0 --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
-```
-
-iNaturalist 2021 fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-inat21 --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --fast-matmul --compile --resume-epoch 0 --data-path ~/Datasets/inat2021/train --val-path ~/Datasets/inat2021/val
 ```
 
 iNaturalist 2021 next, full fine-tuning with layer-wise learning rate decay
@@ -450,18 +306,6 @@ torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-inat
 torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network hieradet_base --ibot-separate-head --centering sinkhorn_knopp --batch-size 64 --opt adamw --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0002 --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
 ```
 
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network hieradet_base --tag dino-v2 --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --fast-matmul --compile --resume-epoch 0
-```
-
-ImageNet 1K fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network hieradet_base --tag dino-v2-imagenet1k --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-type ra --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
-```
-
 #### DINO v2: Next-ViT Base
 
 ```sh
@@ -474,25 +318,13 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network nextvit_b 
 torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network vit_s16_ls --dino-out-dim 49152 --warmup-teacher-temp-epochs 10 --centering sinkhorn_knopp --batch-size 96 --opt adamw --clip-grad-norm 3 --grad-accum-steps 16 --lr 0.0002 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 15 --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/intermediate_packed/_info.json
 ```
 
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_s16_ls --tag dino-v2 --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --resume-epoch 0
-```
-
 #### DINO v2: ViT reg1 s16 rms LS
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network vit_reg1_s16_rms_ls --dino-out-dim 32768 --batch-size 96 --opt adamw --clip-grad-norm 3 --grad-accum-steps 4 --lr 0.0002 --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 10 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_micro_packed/_info.json
 ```
 
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg1_s16_rms_ls --tag dino-v2 --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 240 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile --resume-epoch 0
-```
-
-Transform to FlexiViT
+Transform to FlexiViT (after linear probing)
 
 ```sh
 inv flexivit-from-vit vit_reg1_s16_rms_ls --tag dino-v2 --epoch 0
@@ -501,7 +333,7 @@ inv flexivit-from-vit vit_reg1_s16_rms_ls --tag dino-v2 --epoch 0
 Next, full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network flexivit_reg1_s16_rms_ls --model-config min_patch_size=10,max_patch_size=40 --tag dino-v2 --batch-size 192 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0004 --wd 0.05 --norm-wd 0 --layer-decay 0.7 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 10 --model-ema --size 240 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile --resume-epoch 0
+torchrun --nproc_per_node=2 train.py --network flexivit_reg1_s16_rms_ls --tag dino-v2 --model-config min_patch_size=10,max_patch_size=40 --batch-size 192 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0004 --wd 0.05 --norm-wd 0 --layer-decay 0.7 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 10 --model-ema --size 240 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile --resume-epoch 0
 ```
 
 #### DINO v2: ViT reg4 m16 rms AVG
@@ -515,13 +347,13 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network vit_reg4_m
 BIO, DGX A100 training
 
 ```sh
-torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --local-crop-size 98 --tag bio --batch-size 32 --opt adamw --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_bio_packed/_info.json
+torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --tag bio --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --local-crop-size 98 --batch-size 32 --opt adamw --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_bio_packed/_info.json
 ```
 
-iNat21 fine-tuning, first stage - linear probing
+(4000x8x8x32 = 8.2M epoch, 8.2Mx250 = 2B)
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg4_so150m_p14_ls --tag dino-v2-bio-inat21 --reset-head --freeze-body --batch-size 512 --lr 0.1 --wd 0.0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 90 --warmup-epochs 10 --size 224 --aug-level 1 --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --data-path ~/Datasets/inat2021/train --val-path ~/Datasets/inat2021/val
+torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --tag bio --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --warmup-teacher-temp-epochs 20 --local-crop-size 98 --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0002 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 250 --steps-per-epoch 4000 --warmup-epochs 40 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_bio_packed/_info.json
 ```
 
 #### DINO v2: RoPE SoViT reg8 150m p14 AP
@@ -557,13 +389,7 @@ torchrun --nproc_per_node=8 -m birder.scripts.train_franca --network vit_b16_ls 
 BIOSCAN-5M
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_franca --network vit_b16_ls --dino-out-dim 65536 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 65536 --nesting-levels 4 --sinkhorn-queue-size 1280 --tag bioscan5m --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 16 --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --steps-per-epoch 2000 --warmup-epochs 32 --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/BIOSCAN-5M/pretrain
-```
-
-BIOSCAN-5M (family) fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_b16_ls --tag franca-bioscan5m --reset-head --freeze-body --batch-size 512 --lr 0.1 --wd 0.0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 90 --warmup-epochs 10 --size 224 --aug-level 1 --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --data-path ~/Datasets/BIOSCAN-5M/family/training --val-path ~/Datasets/BIOSCAN-5M/family/validation
+torchrun --nproc_per_node=2 -m birder.scripts.train_franca --network vit_b16_ls --tag bioscan5m --dino-out-dim 65536 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 65536 --nesting-levels 4 --sinkhorn-queue-size 1280 --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 16 --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --steps-per-epoch 2000 --warmup-epochs 32 --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/BIOSCAN-5M/pretrain
 ```
 
 ### I-JEPA
@@ -584,48 +410,6 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_i_jepa --network simple_vit_
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_i_jepa --network vit_reg4_m16_rms_avg --predictor-depth 6 --batch-size 320 --opt adamw --lr 0.001 --wd 0.04 --wd-end 0.4 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 5 --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_packed/_info.json
-```
-
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --fast-matmul --compile --save-frequency 1 --resume-epoch 0
-```
-
-ImageNet 1K fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa-imagenet1k --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-type ra --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
-```
-
-ImageNet 21K fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa-imagenet21k --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 256 --aug-type ra --smoothing-alpha 0.1 --mixup-alpha 0.2 --amp --compile --save-frequency 1 --resume-epoch 0 --wds --wds-info ~/Datasets/imagenet-w21-webp-wds/_info.json --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-training-split train
-```
-
-ImageNet 21K next, full fine-tuning with layer-wise learning rate decay
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa-imagenet21k --batch-size 512 --opt adamw --clip-grad-norm 1 --lr 0.0005 --wd 0.05 --norm-wd 0 --layer-decay 0.65 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 50 --warmup-epochs 5 --model-ema --size 256 --aug-type ra --re-prob 0.25 --smoothing-alpha 0.1 --mixup-alpha 0.2 --amp --amp-dtype bfloat16 --compile --compile-opt --save-frequency 1 --resume-epoch 0 --wds --wds-info ~/Datasets/imagenet-w21-webp-wds/_info.json --wds-class-file public_datasets_metadata/imagenet-21k-classes.txt --wds-training-split train
-```
-
-ImageNet 1K fine-tuning of ImageNet 21K (after linear probing)
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa-imagenet21k-imagenet1k --batch-size 512 --opt adamw --clip-grad-norm 1 --lr 0.0001 --wd 0.05 --layer-decay 0.6 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 10 --model-ema --size 256 --aug-level 9 --use-grayscale --resize-min-scale 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --amp-dtype bfloat16 --compile --compile-opt --save-frequency 1 --resume-epoch 0 --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
-```
-
-iNaturalist 2021 fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa-inat21 --reset-head --freeze-body --batch-size 512 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --data-path ~/Datasets/inat2021/train --val-path ~/Datasets/inat2021/val
-```
-
-iNaturalist 2021 next, full fine-tuning with layer-wise learning rate decay
-
-```sh
-torchrun --nproc_per_node=2 train.py --network vit_reg4_m16_rms_avg --tag i-jepa-inat21 --batch-size 512 --opt adamw --clip-grad-norm 1 --lr 0.0005 --wd 0.05 --norm-wd 0 --layer-decay 0.65 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 5 --model-ema --size 224 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --amp-dtype bfloat16 --compile --compile-opt --save-frequency 1 --resume-epoch 0 --data-path ~/Datasets/inat2021/train --val-path ~/Datasets/inat2021/val
 ```
 
 #### I-JEPA: ViT reg8 b14 AP
@@ -654,25 +438,13 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network convnext_v2_s
 torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network rdnet_t --shared-head --local-crops-number 8 --teacher-temp 0.07 --warmup-teacher-temp-epochs 30 --freeze-last-layer-epochs 1 --tag bioscan5m --batch-size 96 --opt adamw --clip-grad-norm 3 --grad-accum-steps 16 --lr 0.0005 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 800 --warmup-epochs 10 --size 192 --amp --compile-teacher --data-path ~/Datasets/BIOSCAN-5M/pretrain
 ```
 
-BIOSCAN-5M (family) fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network rdnet_t --tag ibot-bioscan5m --reset-head --freeze-body --batch-size 512 --lr 0.1 --wd 0.0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 90 --warmup-epochs 10 --size 224 --aug-level 1 --fast-matmul --compile --resume-epoch 0 --data-path ~/Datasets/BIOSCAN-5M/family/training --val-path ~/Datasets/BIOSCAN-5M/family/validation
-```
-
 #### iBOT: RegNet Y 1.6 GF
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network regnet_y_1_6g --shared-head --local-crops-number 8 --teacher-temp 0.07 --warmup-teacher-temp-epochs 30 --freeze-last-layer-epochs 1 --batch-size 128 --opt adamw --clip-grad-norm 3 --lr 0.0005 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 800 --warmup-epochs 10 --sync-bn --amp --compile-teacher --data-path data/training
 ```
 
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network regnet_y_1_6g --tag ibot --reset-head --freeze-body --batch-size 256 --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 10 --size 256 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --fast-matmul --resume-epoch 0
-```
-
-Next, full fine-tuning with layer-wise learning rate decay
+Full fine-tuning with layer-wise learning rate decay
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network regnet_y_1_6g --tag ibot --batch-size 256 --opt adamw --lr 0.000125 --wd 0.05 --layer-decay 0.9 --lr-scheduler cosine --lr-cosine-min 1e-8 --epochs 60 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --amp --compile --resume-epoch 0
@@ -722,12 +494,6 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mmcr --network efficientnet_
 torchrun --nproc_per_node=2 -m birder.scripts.train_mmcr --network pvt_v2_b1 --batch-size 128 --opt adamw --opt-betas 0.9 0.95 --lr 0.0005 --wd 0.000001 --lr-scheduler-update step --lr-scheduler cosine --epochs 100 --warmup-epochs 10 --amp --amp-dtype bfloat16 --compile --data-path data/training
 ```
 
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network pvt_v2_b1 --tag mmcr --reset-head --freeze-body --batch-size 256 --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --resume-epoch 0
-```
-
 ### RotNet
 
 #### RotNet: RegNet Y 6.4 GF
@@ -758,26 +524,8 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_simclr --network resnet_v1_5
 torchrun --nproc_per_node=2 -m birder.scripts.train_vicreg --network convnext_v2_tiny --mlp-dim 4096 --opt adamw --lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 6 --batch-size 192 --epochs 60 --wd 0.000001 --amp --compile --wds --wds-info data/ssl_packed/_info.json
 ```
 
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v2_tiny --tag vicreg --reset-head --freeze-body --batch-size 256 --opt adamw --lr 0.0002 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --resume-epoch 0
-```
-
 #### VICReg: EfficientNet v2 Medium
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_vicreg --network efficientnet_v2_m --batch-size 128 --opt lars --lr 0.2 --lr-scale 256 --wd 0.000001 --lr-scheduler cosine --epochs 400 --warmup-epochs 10 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
-```
-
-Fine-tuning, first stage - linear probing
-
-```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --tag vicreg --reset-head --freeze-body --batch-size 256 --lr 0.1 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 10 --size 256 --aug-level 4 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --resume-epoch 0
-```
-
-Next, full fine-tuning with layer-wise learning rate decay
-
-```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_v2_m --tag vicreg --batch-size 128 --lr 0.1 --wd 0.00002 --layer-decay 0.9 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 10 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 0
 ```

@@ -25,7 +25,6 @@ from birder.net.ssl.dino_v1 import DINOHead
 
 # pylint: disable=invalid-name
 class iBOTLoss(nn.Module):
-    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         out_dim: int,

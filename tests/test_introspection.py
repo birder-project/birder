@@ -9,6 +9,7 @@ from torch import nn
 from birder.conf.settings import DEFAULT_NUM_CHANNELS
 from birder.introspection import base
 from birder.introspection.attention_rollout import AttentionRollout
+from birder.introspection.feature_pca import FeaturePCA
 from birder.introspection.gradcam import GradCAM
 from birder.introspection.guided_backprop import GuidedBackprop
 from birder.introspection.transformer_attribution import TransformerAttribution
@@ -26,9 +27,18 @@ class _TinyCNN(nn.Module):
         self.flatten = nn.Flatten()
         self.fc = nn.Linear(16 * 16 * 16, 2)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.relu(self.conv1(x))
         x = self.relu(self.conv2(x))
+        return x
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        stage1 = self.relu(self.conv1(x))
+        stage2 = self.relu(self.conv2(stage1))
+        return {"stage1": stage1, "stage2": stage2}
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.forward_features(x)
         x = self.flatten(x)
         return self.fc(x)
 
@@ -122,76 +132,6 @@ class TestInterpreters(unittest.TestCase):
 
         self.transform = simple_transform
 
-    def test_gradcam_result_structure(self) -> None:
-        net = _TinyCNN()
-        target_layer = net.conv2
-
-        interpreter = GradCAM(net, self.device, self.transform, target_layer)
-        result = interpreter(self.test_image, target_class=None)
-
-        # Check result structure
-        self.assertIsInstance(result.original_image, np.ndarray)
-        self.assertIsInstance(result.visualization, np.ndarray)
-        self.assertIsInstance(result.raw_output, np.ndarray)
-        self.assertIsInstance(result.logits, torch.Tensor)
-        self.assertIsInstance(result.predicted_class, int)
-
-        # Check shapes
-        self.assertEqual(len(result.original_image.shape), 3)
-        self.assertEqual(len(result.visualization.shape), 3)
-        self.assertEqual(result.logits.shape[-1], 2)  # type: ignore[union-attr]
-        self.assertIn(result.predicted_class, [0, 1])
-
-    def test_gradcam_with_target_class(self) -> None:
-        net = _TinyCNN()
-        target_layer = net.conv2
-
-        interpreter = GradCAM(net, self.device, self.transform, target_layer)
-        result = interpreter(self.test_image, target_class=1)
-
-        self.assertEqual(result.predicted_class, 1)
-
-    def test_gradcam_invalid_target_class(self) -> None:
-        net = _TinyCNN()
-        target_layer = net.conv2
-
-        interpreter = GradCAM(net, self.device, self.transform, target_layer)
-
-        with self.assertRaises(ValueError):
-            interpreter(self.test_image, target_class=5)
-
-        with self.assertRaises(ValueError):
-            interpreter(self.test_image, target_class=-1)
-
-    def test_guided_backprop_result_structure(self) -> None:
-        net = _TinyCNN()
-
-        interpreter = GuidedBackprop(net, self.device, self.transform)
-        result = interpreter(self.test_image, target_class=None)
-
-        # Check result structure
-        self.assertIsInstance(result.original_image, np.ndarray)
-        self.assertIsInstance(result.visualization, np.ndarray)
-        self.assertIsInstance(result.raw_output, np.ndarray)
-        self.assertIsInstance(result.logits, torch.Tensor)
-        self.assertIsInstance(result.predicted_class, int)
-
-        # Check visualization is uint8
-        self.assertEqual(result.visualization.dtype, np.uint8)
-        self.assertTrue(np.all(result.visualization >= 0))
-        self.assertTrue(np.all(result.visualization <= 255))
-
-    def test_guided_backprop_model_restoration(self) -> None:
-        net = _TinyCNN()
-        original_relu_count = sum(1 for m in net.modules() if isinstance(m, nn.ReLU))
-
-        interpreter = GuidedBackprop(net, self.device, self.transform)
-        _ = interpreter(self.test_image, target_class=0)
-
-        # Check model is restored
-        restored_relu_count = sum(1 for m in net.modules() if isinstance(m, nn.ReLU))
-        self.assertEqual(original_relu_count, restored_relu_count)
-
     def test_attention_rollout_result_structure(self) -> None:
         net = registry.net_factory("vit_t16", DEFAULT_NUM_CHANNELS, 2, size=(160, 160))
 
@@ -273,6 +213,109 @@ class TestInterpreters(unittest.TestCase):
             num_encoder_layers,
             f"Should have {num_encoder_layers} attention maps, one per encoder layer",
         )
+
+    def test_feature_pca_result_structure(self) -> None:
+        net = _TinyCNN()
+
+        interpreter = FeaturePCA(net, self.device, self.transform)
+        result = interpreter(self.test_image)
+
+        self.assertIsInstance(result.original_image, np.ndarray)
+        self.assertIsInstance(result.visualization, np.ndarray)
+        self.assertIsInstance(result.raw_output, np.ndarray)
+        self.assertIsNone(result.logits)
+        self.assertIsNone(result.predicted_class)
+
+        self.assertEqual(len(result.original_image.shape), 3)
+        self.assertEqual(len(result.visualization.shape), 3)
+        self.assertEqual(result.visualization.shape[-1], 3)  # RGB channels
+        self.assertEqual(result.visualization.dtype, np.uint8)
+
+        self.assertEqual(len(result.raw_output.shape), 3)
+        self.assertEqual(result.raw_output.shape[-1], 3)
+        self.assertEqual(result.raw_output.dtype, np.float32)
+
+    def test_feature_pca_values_normalized(self) -> None:
+        net = _TinyCNN()
+
+        interpreter = FeaturePCA(net, self.device, self.transform)
+        result = interpreter(self.test_image)
+
+        self.assertTrue(np.all(result.raw_output >= 0))
+        self.assertTrue(np.all(result.raw_output <= 1))
+
+        self.assertTrue(np.all(result.visualization >= 0))
+        self.assertTrue(np.all(result.visualization <= 255))
+
+    def test_gradcam_result_structure(self) -> None:
+        net = _TinyCNN()
+        target_layer = net.conv2
+
+        interpreter = GradCAM(net, self.device, self.transform, target_layer)
+        result = interpreter(self.test_image, target_class=None)
+
+        # Check result structure
+        self.assertIsInstance(result.original_image, np.ndarray)
+        self.assertIsInstance(result.visualization, np.ndarray)
+        self.assertIsInstance(result.raw_output, np.ndarray)
+        self.assertIsInstance(result.logits, torch.Tensor)
+        self.assertIsInstance(result.predicted_class, int)
+
+        # Check shapes
+        self.assertEqual(len(result.original_image.shape), 3)
+        self.assertEqual(len(result.visualization.shape), 3)
+        self.assertEqual(result.logits.shape[-1], 2)  # type: ignore[union-attr]
+        self.assertIn(result.predicted_class, [0, 1])
+
+    def test_gradcam_with_target_class(self) -> None:
+        net = _TinyCNN()
+        target_layer = net.conv2
+
+        interpreter = GradCAM(net, self.device, self.transform, target_layer)
+        result = interpreter(self.test_image, target_class=1)
+
+        self.assertEqual(result.predicted_class, 1)
+
+    def test_gradcam_invalid_target_class(self) -> None:
+        net = _TinyCNN()
+        target_layer = net.conv2
+
+        interpreter = GradCAM(net, self.device, self.transform, target_layer)
+
+        with self.assertRaises(ValueError):
+            interpreter(self.test_image, target_class=5)
+
+        with self.assertRaises(ValueError):
+            interpreter(self.test_image, target_class=-1)
+
+    def test_guided_backprop_result_structure(self) -> None:
+        net = _TinyCNN()
+
+        interpreter = GuidedBackprop(net, self.device, self.transform)
+        result = interpreter(self.test_image, target_class=None)
+
+        # Check result structure
+        self.assertIsInstance(result.original_image, np.ndarray)
+        self.assertIsInstance(result.visualization, np.ndarray)
+        self.assertIsInstance(result.raw_output, np.ndarray)
+        self.assertIsInstance(result.logits, torch.Tensor)
+        self.assertIsInstance(result.predicted_class, int)
+
+        # Check visualization is uint8
+        self.assertEqual(result.visualization.dtype, np.uint8)
+        self.assertTrue(np.all(result.visualization >= 0))
+        self.assertTrue(np.all(result.visualization <= 255))
+
+    def test_guided_backprop_model_restoration(self) -> None:
+        net = _TinyCNN()
+        original_relu_count = sum(1 for m in net.modules() if isinstance(m, nn.ReLU))
+
+        interpreter = GuidedBackprop(net, self.device, self.transform)
+        _ = interpreter(self.test_image, target_class=0)
+
+        # Check model is restored
+        restored_relu_count = sum(1 for m in net.modules() if isinstance(m, nn.ReLU))
+        self.assertEqual(original_relu_count, restored_relu_count)
 
     def test_transformer_attribution_result_structure(self) -> None:
         net = registry.net_factory("vit_t16", DEFAULT_NUM_CHANNELS, 2, size=(160, 160))

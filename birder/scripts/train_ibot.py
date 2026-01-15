@@ -499,12 +499,13 @@ def train(args: argparse.Namespace) -> None:
     if virtual_epoch_mode is True:
         train_iter = iter(training_loader)
 
+    running_loss = training_utils.SmoothedValue()
+    train_proto_agreement = training_utils.SmoothedValue()
+
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
-        running_loss = training_utils.SmoothedValue()
-        train_proto_agreement = training_utils.SmoothedValue()
 
         if args.distributed is True or virtual_epoch_mode is True:
             train_sampler.set_epoch(epoch)
@@ -617,7 +618,7 @@ def train(args: argparse.Namespace) -> None:
             train_proto_agreement.update(training_utils.accuracy(pred_teacher, pred_student))
 
             # Write statistics
-            if i % args.log_interval == 0 or i == last_batch_idx:
+            if (i % args.log_interval == 0 and i > 0) or i == last_batch_idx:
                 time_now = time.time()
                 time_cost = time_now - start_time
                 iters_processed_in_interval = i - last_idx
@@ -774,6 +775,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("-n", "--network", type=str, help="the neural network to use")
+    parser.add_argument("-t", "--tag", type=str, help="add model tag")
     parser.add_argument(
         "--model-config",
         action=cli.FlexibleDictAction,
@@ -832,7 +834,6 @@ def get_args_parser() -> argparse.ArgumentParser:
             "try increasing this value if the loss does not decrease"
         ),
     )
-    parser.add_argument("-t", "--tag", type=str, help="add model tag")
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser, wd_end=True)
     training_cli.add_lr_scheduler_args(parser)

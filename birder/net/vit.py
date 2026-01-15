@@ -91,6 +91,126 @@ class PatchEmbed(nn.Module):
         return x
 
 
+class Attention(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        attn_drop: float,
+        proj_drop: float,
+        qkv_bias: bool = True,
+        qk_norm: bool = False,
+        norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
+        norm_layer_eps: float = 1e-6,
+    ) -> None:
+        super().__init__()
+        assert dim % num_heads == 0, "dim should be divisible by num_heads"
+
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.scale = self.head_dim**-0.5
+
+        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        if qk_norm is True:
+            self.q_norm = norm_layer(self.head_dim, eps=norm_layer_eps)
+            self.k_norm = norm_layer(self.head_dim, eps=norm_layer_eps)
+        else:
+            self.q_norm = nn.Identity()
+            self.k_norm = nn.Identity()
+
+        self.attn_drop = nn.Dropout(attn_drop)
+        self.proj = nn.Linear(dim, dim)
+        self.proj_drop = nn.Dropout(proj_drop)
+
+    # Make the same interface as nn.MultiheadAttention forward for TorchScript compatibility
+    def forward(
+        self,
+        x: torch.Tensor,
+        key: Optional[torch.Tensor] = None,  # pylint: disable=unused-argument
+        value: Optional[torch.Tensor] = None,  # pylint: disable=unused-argument
+        need_weights: bool = False,
+        attn_mask: Optional[torch.Tensor] = None,  # pylint: disable=unused-argument
+        average_attn_weights: bool = False,
+        is_causal: bool = False,
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """
+        Apply multi-head self-attention to the input sequence
+
+        This module implements scaled dot-product attention over x and returns the
+        projected output. The method signature intentionally matches
+        torch.nn.MultiheadAttention.forward for TorchScript compatibility.
+
+        Compatibility notes
+        -------------------
+        The following parameters are accepted for API compatibility but are ignored by this implementation:
+        - key: ignored (keys are computed from x)
+        - value: ignored (values are computed from x)
+        - attn_mask: ignored (no external attention mask is applied)
+
+        Parameters
+        ----------
+        x
+            Input tensor of shape (B, N, C) where B is batch size, N is sequence length,
+            and C is embedding dimension.
+        key
+            Unused. Present for nn.MultiheadAttention-compatible signature.
+        value
+            Unused. Present for nn.MultiheadAttention-compatible signature.
+        need_weights
+            If True, also return attention weights computed explicitly. If False, uses
+            torch.nn.functional.scaled_dot_product_attention and returns None for attention weights.
+        attn_mask
+            Unused. Present for nn.MultiheadAttention-compatible signature.
+        average_attn_weights
+            If True and need_weights is True, average attention weights across heads
+            to shape (B, N, N). If False, return per-head weights of shape (B, num_heads, N, N).
+        is_causal
+            If True, apply a causal (upper-triangular) mask so positions cannot attend to future tokens.
+
+        Returns
+        -------
+        A tuple containing two elements:
+            - output: Tensor of shape (B, N, C)
+            - attn_weights: If need_weights is True attention weights, otherwise, None.
+        """
+
+        (B, N, C) = x.size()
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
+        (q, k, v) = qkv.unbind(0)
+        q = self.q_norm(q)
+        k = self.k_norm(k)
+
+        attn_weights: Optional[torch.Tensor] = None
+        if need_weights is True:
+            # Compute attention manually to get weights
+            attn = (q @ k.transpose(-2, -1)) * self.scale
+            if is_causal is True:
+                causal_mask = torch.triu(
+                    torch.full((N, N), float("-inf"), dtype=attn.dtype, device=attn.device),
+                    diagonal=1,
+                )
+                attn = attn + causal_mask
+
+            attn = attn.softmax(dim=-1)
+            attn_weights = attn
+            attn = self.attn_drop(attn)
+            x = attn @ v
+
+            if average_attn_weights is True:
+                # Average across heads: (B, num_heads, N, N) -> (B, N, N)
+                attn_weights = attn_weights.mean(dim=1)
+        else:
+            x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
+                q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, is_causal=is_causal, scale=self.scale
+            )
+
+        x = x.transpose(1, 2).reshape(B, N, C)
+        x = self.proj(x)
+        x = self.proj_drop(x)
+
+        return (x, attn_weights)
+
+
 class EncoderBlock(nn.Module):
     def __init__(
         self,
@@ -105,17 +225,37 @@ class EncoderBlock(nn.Module):
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
         norm_layer_eps: float = 1e-6,
         mlp_layer: Callable[..., nn.Module] = FFN,
+        qkv_bias: bool = True,
+        qk_norm: bool = False,
     ) -> None:
         super().__init__()
         self.need_attn = False
         self.is_causal = False
+        self.use_custom_attn = qk_norm is True
 
         if mlp_dim is None:
             mlp_dim = hidden_dim * 4
 
         # Attention block
         self.ln1 = norm_layer(hidden_dim, eps=norm_layer_eps)
-        self.self_attention = nn.MultiheadAttention(hidden_dim, num_heads, dropout=attention_dropout, batch_first=True)
+
+        if self.use_custom_attn is False:
+            # Prefer PyTorch's built-in MultiheadAttention for the "standard" case
+            self.self_attention = nn.MultiheadAttention(
+                hidden_dim, num_heads, dropout=attention_dropout, bias=qkv_bias, batch_first=True
+            )
+        else:
+            self.self_attention = Attention(
+                hidden_dim,
+                num_heads=num_heads,
+                attn_drop=attention_dropout,
+                proj_drop=0.0,
+                qkv_bias=qkv_bias,
+                qk_norm=qk_norm,
+                norm_layer=norm_layer,
+                norm_layer_eps=norm_layer_eps,
+            )
+
         self.drop_path1 = StochasticDepth(drop_path, mode="row")
         if layer_scale_init_value is not None:
             self.layer_scale_1 = LayerScale(hidden_dim, layer_scale_init_value)
@@ -148,10 +288,11 @@ class EncoderBlock(nn.Module):
             branch1,
             branch1,
             need_weights=self.need_attn,
-            attn_mask=attn_mask,
+            attn_mask=attn_mask,  # Ignored on the custom attention
             average_attn_weights=False,
             is_causal=self.is_causal,
         )
+
         branch1 = self.layer_scale_1(branch1)
         branch1 = self.drop_path1(branch1) + x
 
@@ -181,6 +322,8 @@ class Encoder(nn.Module):
         attention_dropout: float,
         dpr: list[float],
         pre_norm: bool = False,
+        qkv_bias: bool = True,
+        qk_norm: bool = False,
         activation_layer: Callable[..., nn.Module] = nn.GELU,
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
@@ -211,6 +354,8 @@ class Encoder(nn.Module):
                     norm_layer=norm_layer,
                     norm_layer_eps=norm_layer_eps,
                     mlp_layer=mlp_layer,
+                    qkv_bias=qkv_bias,
+                    qk_norm=qk_norm,
                 )
             )
 
@@ -267,6 +412,8 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", None)
         pre_norm: bool = self.config.get("pre_norm", False)
         post_norm: bool = self.config.get("post_norm", True)
+        qkv_bias: bool = self.config.get("qkv_bias", True)
+        qk_norm: bool = self.config.get("qk_norm", False)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
@@ -351,6 +498,8 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             attention_dropout,
             dpr,
             pre_norm=pre_norm,
+            qkv_bias=qkv_bias,
+            qk_norm=qk_norm,
             activation_layer=act_layer,
             layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
@@ -389,6 +538,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             drop_path=0,
             activation_layer=act_layer,
             norm_layer=norm_layer,
+            norm_layer_eps=norm_layer_eps,
             mlp_layer=mlp_layer,
         )
 
@@ -843,6 +993,20 @@ registry.register_model_config(
         "hidden_dim": 768,
         "mlp_dim": 3072,
         "layer_scale_init_value": 1e-5,
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
+    "vit_b16_qkn_ls",
+    ViT,
+    config={
+        "patch_size": 16,
+        "num_layers": 12,
+        "num_heads": 12,
+        "hidden_dim": 768,
+        "mlp_dim": 3072,
+        "layer_scale_init_value": 1e-5,
+        "qk_norm": True,
         "drop_path_rate": 0.1,
     },
 )

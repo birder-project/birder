@@ -4,6 +4,9 @@
 * Taken from:
 * https://github.com/MrParosk/soft_nms
 * Licensed under the MIT License
+*
+* Modified by:
+* Ofer Hasson — 2026-01-10
 **************************************************************************************************
 */
 
@@ -40,8 +43,8 @@ torch::Tensor calculate_iou(const torch::Tensor& boxes, const torch::Tensor& are
     auto xx2 = torch::minimum(boxes.index({idx, 2}), boxes.index({Slice(idx + 1, None), 2}));
     auto yy2 = torch::minimum(boxes.index({idx, 3}), boxes.index({Slice(idx + 1, None), 3}));
 
-    auto w = torch::maximum(torch::zeros_like(xx1), xx2 - xx1);
-    auto h = torch::maximum(torch::zeros_like(yy1), yy2 - yy1);
+    auto w = (xx2 - xx1).clamp_min(0);
+    auto h = (yy2 - yy1).clamp_min(0);
 
     auto intersection = w * h;
     auto union_ = areas.index({idx}) + areas.index({Slice(idx + 1, None)}) - intersection;

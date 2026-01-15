@@ -109,6 +109,7 @@ class TestKernels(unittest.TestCase):
         self.assertIsInstance(updated_scores, torch.Tensor)
         self.assertIsInstance(keep, torch.Tensor)
         self.assertEqual(keep.dtype, torch.int64)
+        self.assertTrue(torch.isfinite(updated_scores).all().item())
 
         # All boxes should be kept (threshold is very low)
         self.assertEqual(len(keep), 3)
@@ -140,3 +141,23 @@ class TestKernels(unittest.TestCase):
         # Only the first box should survive with high threshold
         self.assertEqual(len(keep), 1)
         self.assertEqual(keep[0].item(), 0)  # First box index
+        self.assertTrue(torch.isfinite(updated_scores).all().item())
+
+        # Non-contiguous inputs
+        base = torch.tensor(
+            [
+                [10.0, 10.0, 20.0, 20.0],
+                [15.0, 15.0, 25.0, 25.0],
+                [30.0, 30.0, 40.0, 40.0],
+            ],
+            device=device,
+        )
+        base2 = torch.concat([base, base], dim=0)
+        boxes = base2[::2]
+        self.assertFalse(boxes.is_contiguous())
+
+        scores = torch.tensor([0.9, 0.8, 0.7], device=device)
+
+        (updated_scores, keep) = soft_nms.soft_nms(boxes, scores, sigma, score_threshold)  # type: ignore
+        self.assertEqual(len(keep), 3)
+        self.assertTrue(torch.isfinite(updated_scores).all().item())

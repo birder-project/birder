@@ -2,7 +2,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
-from typing import Protocol
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -25,12 +24,6 @@ class InterpretabilityResult:
         ax1.imshow(self.visualization)
         ax2.imshow(self.original_image)
         plt.show()
-
-
-class Interpreter(Protocol):
-    def __call__(
-        self, image: str | Path | Image.Image, target_class: Optional[int] = None
-    ) -> InterpretabilityResult: ...
 
 
 def load_image(image: str | Path | Image.Image) -> Image.Image:

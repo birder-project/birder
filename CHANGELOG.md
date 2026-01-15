@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.1 - 2026-01-15
+
+### Added
+
+- **ViT QK Normalization**: Added optional QK normalization support (`qk_norm` config option) to all ViT variants (ViT, FlexiViT, RoPE ViT, RoPE FlexiViT).
+- **Extended DINOv2 Metrics**: Added target entropy and center drift tracking to training and distillation (`--no-extended-metrics` to disable).
+- **Feature PCA Visualization**: Added Feature PCA method for visualizing feature maps using Principal Component Analysis.
+
+### Fixed
+
+- **Avg Model Tool**: Avoid averaging non-floating `state_dict` entries (e.g. `num_batches_tracked`, `relative_position_index`).
+- **Model Registry**: Fixed model config registration to consistently register on the active registry instance.
+
 ## 0.3.1 - 2026-01-14
 
 ### Added
@@ -179,7 +192,7 @@
 ### Fixed
 
 - **DINOv2 iBOT Center Update**: Fixed incorrect tensor slicing in the iBOT patch loss center update when using the "centering" strategy.
-- **Freeze Last Layer Gradient Handling**: Fixed `--freeze-last-layer-epochs` to cancel gradients after the backward pass (previously applied before backward and ineffective). Affects DINO v1, DINO v2, and iBOT training.
+- **Freeze Last Layer Gradient Handling**: Fixed `--freeze-last-layer-epochs` to cancel gradients after the backward pass (previously applied before backward and ineffective). Affects DINOv1, DINOv2, and iBOT training.
 - **DINOv2 Freeze Last Layer**: Implemented the missing `--freeze-last-layer-epochs` functionality for standard DINOv2 training.
 - **CAPI Loss Precision**: Updated CAPI loss computation to use double precision, matching the original implementation.
 

@@ -607,7 +607,6 @@ class AttentionBlock(nn.Module):
 
 
 class FastVitStage(nn.Module):
-    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         dim: int,

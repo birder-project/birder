@@ -84,8 +84,8 @@ def mask_tensor(
 
     (B, H, W, _) = x.size()
 
-    shaped_mask = mask.reshape(-1, H // patch_factor, W // patch_factor)
-    shaped_mask = shaped_mask.repeat_interleave(patch_factor, axis=1).repeat_interleave(patch_factor, axis=2)
+    shaped_mask = mask.reshape(B, H // patch_factor, W // patch_factor)
+    shaped_mask = shaped_mask.repeat_interleave(patch_factor, dim=1).repeat_interleave(patch_factor, dim=2)
     shaped_mask = shaped_mask.unsqueeze(3).type_as(x)
 
     if mask_token is not None:
@@ -228,14 +228,23 @@ class Masking:
 
 
 class UniformMasking(Masking):
-    def __init__(self, input_size: tuple[int, int], mask_ratio: float, device: Optional[torch.device] = None) -> None:
+    def __init__(
+        self,
+        input_size: tuple[int, int],
+        mask_ratio: float,
+        min_mask_size: int = 1,
+        device: Optional[torch.device] = None,
+    ) -> None:
         self.h = input_size[0]
         self.w = input_size[1]
         self.mask_ratio = mask_ratio
+        self.min_mask_size = min_mask_size
         self.device = device
 
     def __call__(self, batch_size: int) -> torch.Tensor:
-        return uniform_mask(batch_size, self.h, self.w, self.mask_ratio, device=self.device)[0]
+        return uniform_mask(
+            batch_size, self.h, self.w, self.mask_ratio, min_mask_size=self.min_mask_size, device=self.device
+        )[0]
 
 
 class BlockMasking(Masking):

@@ -187,7 +187,7 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools show-iterator --mode training --size 224 --batch --wds "
             "--wds-class-file ~/Datasets/imagenet-1k-wds/classes.txt --wds-size 50000 "
             "--data-path ~/Datasets/imagenet-1k-wds/validation\n"
-            "python -m birder.tools show-iterator --mode training --batch --size 224 --aug-level 6 --masking uniform\n"
+            "python -m birder.tools show-iterator --mode training --batch --size 224 --aug-level 1 --masking uniform\n"
             "python -m birder.tools show-iterator --mode training --size 224 --batch --wds "
             "--data-path data/training_packed\n"
             "python -m birder.tools show-iterator --mode training --batch --mixup-alpha 0.8 --cutmix "

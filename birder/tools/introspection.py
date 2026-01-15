@@ -10,6 +10,7 @@ from birder.common import fs_ops
 from birder.common import lib
 from birder.data.transforms.classification import inference_preset
 from birder.introspection import AttentionRollout
+from birder.introspection import FeaturePCA
 from birder.introspection import GradCAM
 from birder.introspection import GuidedBackprop
 from birder.introspection import TransformerAttribution
@@ -23,10 +24,7 @@ def _nhwc_reshape_transform(tensor: torch.Tensor) -> torch.Tensor:
 
 
 def _show_attn_rollout(
-    args: argparse.Namespace,
-    net: BaseNet,
-    transform: Callable[..., torch.Tensor],
-    device: torch.device,
+    args: argparse.Namespace, net: BaseNet, transform: Callable[..., torch.Tensor], device: torch.device
 ) -> None:
     ar = AttentionRollout(net, device, transform, args.attn_layer_name, args.discard_ratio, args.head_fusion)
     result = ar(args.image_path)
@@ -92,6 +90,16 @@ def _show_grad_cam(
     result.show()
 
 
+def _show_feature_pca(
+    args: argparse.Namespace, net: BaseNet, transform: Callable[..., torch.Tensor], device: torch.device
+) -> None:
+    feature_pca = FeaturePCA(
+        net, device, transform, args.normalize_features, channels_last=args.channels_last, stage=args.stage
+    )
+    result = feature_pca(args.image_path)
+    result.show()
+
+
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "introspection",
@@ -102,6 +110,8 @@ def set_parser(subparsers: Any) -> None:
             "Usage examples:\n"
             "python -m birder.tools introspection --network efficientnet_v2_m -e 200 --method gradcam "
             "'data/training/European goldfinch/000300.jpeg'\n"
+            "python -m birder.tools introspection -n convnext_v2_tiny -t vicreg --method feature-pca "
+            "--normalize-features --stage stage2 data/validation/Mallard/000015.jpeg\n"
             "python -m birder.tools introspection -n resnest_50 --epoch 300 --method gradcam "
             "data/index5.jpeg --target 'Grey heron'\n"
             "python -m birder.tools introspection -n efficientnet_v2_s --method guided-backprop "
@@ -126,7 +136,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--method",
         type=str,
-        choices=["gradcam", "guided-backprop", "attn-rollout", "transformer-attribution"],
+        choices=["attn-rollout", "feature-pca", "gradcam", "guided-backprop", "transformer-attribution"],
         help="introspection method",
     )
     subparser.add_argument(
@@ -142,7 +152,21 @@ def set_parser(subparsers: Any) -> None:
         "--layer-num", type=int, default=-1, help="target layer, index for target block (gradcam only)"
     )
     subparser.add_argument(
-        "--channels-last", default=False, action="store_true", help="channels last model, like swin (gradcam only)"
+        "--channels-last",
+        default=False,
+        action="store_true",
+        help="channels last model, like swin (gradcam and feature-pca)",
+    )
+    subparser.add_argument(
+        "--normalize-features",
+        default=False,
+        action="store_true",
+        help="normalize feature vectors before PCA (feature-pca only)",
+    )
+    subparser.add_argument(
+        "--stage",
+        type=str,
+        help="stage to visualize, e.g., 'stage1', 'neck', etc. (feature-pca only, defaults to last stage)",
     )
     subparser.add_argument(
         "--attn-layer-name",
@@ -193,11 +217,13 @@ def main(args: argparse.Namespace) -> None:
 
     transform = inference_preset(args.size, model_info.rgb_stats, 1.0)
 
-    if args.method == "gradcam":
+    if args.method == "attn-rollout":
+        _show_attn_rollout(args, net, transform, device)
+    elif args.method == "feature-pca":
+        _show_feature_pca(args, net, transform, device)
+    elif args.method == "gradcam":
         _show_grad_cam(args, net, model_info.class_to_idx, transform, device)
     elif args.method == "guided-backprop":
         _show_guided_backprop(args, net, model_info.class_to_idx, transform, device)
-    elif args.method == "attn-rollout":
-        _show_attn_rollout(args, net, transform, device)
     elif args.method == "transformer-attribution":
         _show_transformer_attribution(args, net, model_info.class_to_idx, transform, device)

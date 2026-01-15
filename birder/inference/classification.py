@@ -85,7 +85,7 @@ def infer_batch(
             logits = net(t(tta_input), **kwargs)
             outs.append(logits if return_logits is True else F.softmax(logits, dim=1))
 
-        out = torch.stack(outs).mean(axis=0)
+        out = torch.stack(outs).mean(dim=0)
 
     else:
         logits = net(inputs, **kwargs)

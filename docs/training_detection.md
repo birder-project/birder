@@ -26,7 +26,7 @@ Examples use repo-root script names (e.g., `train_detection.py`). If you install
 
 #### Deformable DETR: RegNet Y 4 GF
 
-Optional intermediate training (COCO)
+Intermediate training training (COCO)
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network deformable_detr --tag coco --backbone regnet_y_4g --backbone-tag imagenet21k --backbone-pretrained --batch-size 4 --opt adamw --clip-grad-norm 0.1 --grad-accum-steps 2 --lr 0.0002 --backbone-lr 0.00002 --wd 0.0001 --lr-scheduler step --lr-step-size 40 --lr-step-gamma 0.1 --epochs 50 --freeze-backbone-bn --amp --amp-dtype bfloat16 --compile --compile-opt --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
@@ -36,19 +36,19 @@ torchrun --nproc_per_node=2 train_detection.py --network deformable_detr --tag c
 
 #### Deformable DETR BoxRef: RDNet Small
 
-Optional intermediate training (COCO)
+Intermediate training training (COCO)
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network deformable_detr_boxref --tag coco --backbone rdnet_s --backbone-tag vicreg --backbone-pretrained --batch-size 4 --opt adamw --clip-grad-norm 0.1 --grad-accum-steps 8 --lr 0.0002 --backbone-lr 0.00002 --wd 0.0001 --lr-scheduler step --lr-step-size 40 --lr-step-gamma 0.1 --epochs 50 --amp --amp-dtype bfloat16 --compile --compile-opt --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
-Optional intermediate multiscale training (COCO)
+Intermediate training multiscale training (COCO)
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network deformable_detr_boxref --tag coco --backbone rdnet_s --backbone-tag vicreg --backbone-pretrained --batch-size 2 --opt adamw --clip-grad-norm 0.1 --grad-accum-steps 16 --lr 0.0002 --backbone-lr 0.00002 --wd 0.0001 --lr-scheduler step --lr-step-size 40 --lr-step-gamma 0.1 --epochs 50 --multiscale --amp --amp-dtype bfloat16 --compile-backbone --compile-opt --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
-Optional intermediate multiscale training: linear probing
+Intermediate training multiscale training: head only
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network deformable_detr_boxref --tag coco --backbone rdnet_s --backbone-tag vicreg --reset-head --freeze-body --batch-size 2 --opt adamw --clip-grad-norm 0.1 --grad-accum-steps 16 --lr 0.0001 --wd 0.0001 --epochs 10 --multiscale --amp --amp-dtype bfloat16 --compile-backbone --compile-opt --resume-epoch 0
@@ -58,7 +58,7 @@ torchrun --nproc_per_node=2 train_detection.py --network deformable_detr_boxref 
 
 #### DETR: CSP ResNet 50
 
-Optional intermediate multiscale training (COCO)
+Intermediate training multiscale training (COCO)
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network detr --tag coco --backbone csp_resnet_50 --backbone-tag imagenet1k --backbone-pretrained --batch-size 2 --opt adamw --clip-grad-norm 0.1 --grad-accum-steps 16 --lr 0.0001 --backbone-lr 0.00001 --wd 0.0001 --lr-scheduler step --lr-step-size 200 --lr-step-gamma 0.1 --epochs 300 --freeze-backbone-bn --aug-type detr --rgb-mode imagenet --amp --amp-dtype bfloat16 --compile --compile-opt --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
@@ -66,7 +66,7 @@ torchrun --nproc_per_node=2 train_detection.py --network detr --tag coco --backb
 
 #### DETR: Tiny ViT 11M
 
-Optional intermediate training (COCO)
+Intermediate training training (COCO)
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network detr --tag coco --backbone tiny_vit_11m --batch-size 64 --opt adamw --clip-grad-norm 0.1 --lr 0.0001 --backbone-lr 0.00001 --wd 0.0001 --lr-scheduler step --lr-step-size 200 --lr-step-gamma 0.1 --epochs 300 --aug-level 3 --amp --amp-dtype bfloat16 --compile --compile-opt --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
@@ -80,7 +80,7 @@ torchrun --nproc_per_node=2 train_detection.py --network detr --tag coco --backb
 
 #### DETR: RoPEi ViT reg1 s16 pn c1
 
-Optional intermediate training (COCO), warmup
+Intermediate training training (COCO), warmup
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network detr --tag coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-pretrained --freeze-backbone --batch-size 16 --opt adamw --clip-grad-norm 0.1 --grad-accum-steps 8 --lr 0.0001 --wd 0.0001 --lr-scheduler step --lr-step-size 200 --lr-step-gamma 0.1 --epochs 300 --size 640 --aug-level 5 --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
@@ -96,7 +96,7 @@ torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d0 --backb
 
 #### EfficientDet D3: EfficientNet v1 B3
 
-Optional intermediate training (COCO)
+Intermediate training training (COCO)
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d3 --tag coco --backbone efficientnet_v1_b3 --batch-size 24 --clip-grad-norm 10 --lr 0.08 --wd 0.00004 --lr-scheduler cosine --epochs 300 --warmup-epochs 10 --model-ema --sync-bn --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
@@ -104,7 +104,7 @@ torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d3 --tag c
 
 #### EfficientDet D4: RegNet Y 4 GF
 
-Optional intermediate training (COCO)
+Intermediate training training (COCO)
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network efficientdet_d4 --tag coco --backbone regnet_y_4g --batch-size 24 --clip-grad-norm 10 --lr 0.08 --wd 0.00004 --lr-scheduler cosine --epochs 300 --warmup-epochs 10 --model-ema --size 640 --batch-multiscale --multiscale-min-size 512 --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
@@ -120,13 +120,13 @@ torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --backbone 
 
 #### Faster R-CNN: Hiera AbsWin Base
 
-Optional intermediate training (COCO) - warmup
+Intermediate training training (COCO) - warmup
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --tag coco --backbone hieradet_base --backbone-tag mim --backbone-pretrained --freeze-backbone --batch-size 32 --lr 0.01 --wd 0.0001 --epochs 2 --sync-bn --size 768 --amp --amp-dtype bfloat16 --compile-backbone --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
-Optional intermediate training (COCO)
+Intermediate training training (COCO)
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network faster_rcnn --tag coco --backbone hieradet_base --backbone-tag mim --backbone-pretrained --batch-size 16 --grad-accum-steps 2 --lr 0.02 --backbone-lr 0.01 --wd 0.0001 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --epochs 26 --size 768 --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
@@ -160,7 +160,7 @@ torchrun --nproc_per_node=2 train_detection.py --network fcos --backbone efficie
 
 #### RetinaNet: ConvNeXt v2 Tiny
 
-Optional intermediate training (COCO)
+Intermediate training training (COCO)
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network retinanet --tag coco --backbone convnext_v2_tiny --backbone-tag vicreg --batch-size 2 --opt adamw --lr 0.0001 --wd 0.05 --norm-wd 0 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --epochs 26 --sync-bn --aug-type multiscale --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
@@ -176,7 +176,7 @@ torchrun --nproc_per_node=2 train_detection.py --network retinanet --backbone cs
 
 #### RT-DETR v1: HieraDet Small
 
-Optional intermediate training (COCO)
+Intermediate training training (COCO)
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network rt_detr_v1 --tag coco --backbone hieradet_small --backbone-tag dino-v2 --backbone-pretrained --batch-size 16 --opt adamw --clip-grad-norm 0.1 --grad-accum-steps 2 --lr 0.0001 --backbone-lr 0.00001 --wd 0.0001 --lr-scheduler step --lr-step-size 40 --lr-step-gamma 0.1 --epochs 60 --warmup-epochs 4 --model-ema --model-ema-decay 0.9999 --model-ema-warmup 1 --aug-level 5 --amp --amp-dtype bfloat16 --compile-backbone --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
@@ -206,13 +206,13 @@ torchrun --nproc_per_node=2 train_detection.py --network ssdlite --backbone mobi
 
 #### SSDLite: RoPEi ViT reg1 s16 pn c1
 
-Optional intermediate training (COCO), warmup
+Intermediate training training (COCO), warmup
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network ssdlite --tag coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-pretrained --freeze-backbone --batch-size 64 --opt adamw --lr 0.001 --wd 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 20 --rgb-mode none --fast-matmul --compile-backbone --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
-Optional intermediate training (COCO)
+Intermediate training training (COCO)
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network ssdlite --tag coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-pretrained --batch-size 64 --opt adamw --lr 0.0005 --backbone-lr 1e-5 --wd 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 10 --aug-type ssdlite --rgb-mode none --fast-matmul --compile-backbone --resume-epoch 0 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
@@ -226,13 +226,13 @@ torchrun --nproc_per_node=2 train_detection.py --network ssdlite --tag coco --ba
 torchrun --nproc_per_node=2 train_detection.py --network vitdet --backbone vit_det_m16_rms --backbone-tag i-jepa-imagenet21k --backbone-pretrained --batch-size 16 --opt adamw --clip-grad-norm 1 --lr 0.0001 --wd 0.1 --norm-wd 0 --layer-decay 0.9 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 2 --size 672 --amp --amp-dtype bfloat16 --compile-backbone
 ```
 
-Optional intermediate training (Objects365-2020)
+Intermediate training training (Objects365-2020)
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network vitdet --tag objects365 --backbone vit_det_m16_rms --backbone-tag i-jepa --backbone-pretrained --batch-size 16 --opt adamw --clip-grad-norm 1 --lr 0.0001 --wd 0.1 --norm-wd 0 --layer-decay 0.9 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 20 --warmup-epochs 2 --size 672 --amp --amp-dtype bfloat16 --compile-backbone --data-path ~/Datasets/Objects365-2020/train --val-path ~/Datasets/Objects365-2020/val --coco-json-path ~/Datasets/Objects365-2020/train/zhiyuan_objv2_train.json --coco-val-json-path ~/Datasets/Objects365-2020/val/zhiyuan_objv2_val.json --ignore-file public_datasets_metadata/objects365_ignore.txt
 ```
 
-Optional intermediate training (COCO)
+Intermediate training training (COCO)
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network vitdet --tag coco --backbone vit_det_m16_rms --backbone-tag i-jepa-imagenet21k --backbone-pretrained --batch-size 16 --opt adamw --clip-grad-norm 1 --lr 0.0001 --wd 0.1 --norm-wd 0 --layer-decay 0.9 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 2 --size 672 --amp --amp-dtype bfloat16 --compile-backbone --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json
@@ -248,7 +248,7 @@ torchrun --nproc_per_node=2 train_detection.py --network vitdet --backbone vit_s
 
 #### YOLO v2: Darknet 17
 
-Optional intermediate training (COCO)
+Intermediate training training (COCO)
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network yolo_v2 --tag coco --backbone darknet_17 --batch-size 64 --lr 0.001 --wd 0.0005 --lr-scheduler multistep --lr-steps 60 90 --lr-step-gamma 0.1 --epochs 160 --warmup-epochs 3 --size 416 --aug-type ssdlite --fast-matmul --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
@@ -258,7 +258,7 @@ torchrun --nproc_per_node=2 train_detection.py --network yolo_v2 --tag coco --ba
 
 #### YOLO v3: Darknet 53
 
-Optional intermediate training (COCO)
+Intermediate training training (COCO)
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network yolo_v3 --tag coco --backbone darknet_53 --batch-size 64 --lr 0.001 --wd 0.0005 --lr-scheduler multistep --lr-steps 200 250 --lr-step-gamma 0.1 --epochs 300 --warmup-epochs 5 --size 416 --aug-type yolo --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
@@ -268,7 +268,7 @@ torchrun --nproc_per_node=2 train_detection.py --network yolo_v3 --tag coco --ba
 
 #### YOLO v4: CSP Darknet 53
 
-Optional intermediate training (COCO)
+Intermediate training training (COCO)
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network yolo_v4 --tag coco --backbone csp_darknet_53 --backbone-model-config drop_block=0.1 --batch-size 32 --grad-accum-steps 2 --lr 0.001 --wd 0.0005 --lr-scheduler multistep --lr-steps 300 350 --lr-step-gamma 0.1 --epochs 400 --warmup-epochs 5 --size 608 --batch-multiscale --multiscale-min-size 384 --aug-level 5 --mosaic-prob 0.5 --mosaic-stop-epoch 360 --amp --amp-dtype float16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
@@ -278,7 +278,7 @@ torchrun --nproc_per_node=2 train_detection.py --network yolo_v4 --tag coco --ba
 
 #### YOLO v4 Tiny: VoVNet v2 19
 
-Optional intermediate training (COCO)
+Intermediate training training (COCO)
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network yolo_v4_tiny --tag coco --backbone vovnet_v2_19 --batch-size 128 --lr 0.001 --wd 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 600 --warmup-epochs 5 --size 416 --batch-multiscale --multiscale-min-size 320 --aug-type yolo --mosaic-prob 0.5 --mosaic-stop-epoch 540 --amp --amp-dtype float16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt

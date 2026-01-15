@@ -58,7 +58,7 @@ class TestTrainEvaluateFlow(unittest.TestCase):
         self.assertEqual(len(class_to_idx), signature["outputs"][0]["data_shape"][1])
 
         # Average checkpoints
-        avg_models(network, tag, reparameterized=False, epochs=[1, 2], force=True)
+        avg_models(network, tag, reparameterized=False, epochs=[1, 2], accum_dtype=torch.float32, force=True)
 
         # Check average checkpoint is valid
         device = torch.device("cpu")
