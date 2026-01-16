@@ -71,6 +71,7 @@ NET_TEST_CASES = [
     ("hiera_abswin_tiny"),  # No bfloat16 support
     ("hiera_abswin_base_plus_ap"),  # No bfloat16 support
     ("hieradet_tiny"),
+    ("hieradet_d_tiny"),
     ("hornet_tiny_7x7"),
     ("hornet_tiny_gf"),  # PT2 fails, no bfloat16 support
     ("iformer_s"),
@@ -400,6 +401,7 @@ class TestNet(unittest.TestCase):
             ("hiera_abswin_tiny"),
             ("hiera_abswin_base_plus_ap"),
             ("hieradet_tiny"),
+            ("hieradet_d_tiny"),
             ("hornet_tiny_7x7"),
             ("hornet_tiny_gf"),
             ("iformer_s"),
@@ -575,6 +577,7 @@ class TestNet(unittest.TestCase):
             ("focalnet_t_srf"),
             ("gc_vit_xxt"),
             ("hieradet_tiny"),
+            ("hieradet_d_tiny"),
             ("iformer_s"),
             ("maxvit_t"),
             ("poolformer_v1_s12"),
@@ -793,6 +796,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("hiera_abswin_tiny"),
             ("hiera_abswin_base_plus_ap"),
             ("hieradet_tiny"),
+            ("hieradet_d_tiny"),
             ("hornet_tiny_7x7"),
             ("hornet_tiny_gf"),
             ("iformer_s"),

@@ -356,7 +356,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Distillation
     if distillation_type == "soft":
-        distillation_criterion = torch.nn.KLDivLoss(reduction="batchmean", log_target=False)
+        distillation_criterion = torch.nn.KLDivLoss(reduction="batchmean", log_target=True)
     elif distillation_type == "hard":
         distillation_criterion = torch.nn.CrossEntropyLoss()
     elif distillation_type == "deit":
@@ -625,7 +625,7 @@ def train(args: argparse.Namespace) -> None:
                     with torch.no_grad():
                         teacher_outputs = teacher(inputs)
                         if distillation_type == "soft":
-                            teacher_targets = F.softmax(teacher_outputs / args.temperature, dim=-1)
+                            teacher_targets = F.log_softmax(teacher_outputs / args.temperature, dim=-1)
                         else:
                             teacher_targets = teacher_outputs.argmax(dim=-1)
 
@@ -900,43 +900,44 @@ def get_args_parser() -> argparse.ArgumentParser:
             "A typical 'soft' distillation:\n"
             "torchrun --nproc_per_node=2 train_kd.py \\\n"
             "    --type soft \\\n"
-            "    --temperature 1 \\\n"
             "    --teacher vit_l16 \\\n"
             "    --student tiny_vit_5m \\\n"
+            "    --temperature 3.5 \\\n"
+            "    --batch-size 32 \\\n"
             "    --opt adamw \\\n"
+            "    --clip-grad-norm 5 \\\n"
             "    --lr 0.002 \\\n"
-            "    --lr-scheduler cosine \\\n"
-            "    --lr-cosine-min 1e-7 \\\n"
-            "    --batch-size 64 \\\n"
-            "    --warmup-epochs 5 \\\n"
             "    --wd 0.01 \\\n"
             "    --norm-wd 0 \\\n"
+            "    --lr-scheduler cosine \\\n"
+            "    --lr-cosine-min 1e-7 \\\n"
+            "    --warmup-epochs 5 \\\n"
             "    --smoothing-alpha 0.1 \\\n"
-            "    --clip-grad-norm 5 \\\n"
-            "    --amp \\\n"
+            "    --amp --amp-dtype bfloat16 \\\n"
             "    --compile \\\n"
             "    --wds \\\n"
-            "    --wds-class-file data/intermediate_packed/classes.txt \\\n"
-            "    --wds-info data/intermediate_packed/_info.json\n"
+            "    --wds-info data/intermediate_packed/_info.json \\\n"
+            "    --wds-class-file data/intermediate_packed/classes.txt\n"
             "\n"
-            "DeiT style distillation:\n"
+            "DeiT-style distillation:\n"
             "torchrun --nproc_per_node=2 train_kd.py \\\n"
             "    --type deit \\\n"
             "    --teacher regnet_y_8g \\\n"
             "    --student deit_s16 \\\n"
+            "    --batch-size 64 \\\n"
             "    --opt adamw \\\n"
+            "    --clip-grad-norm 1 \\\n"
             "    --lr 0.0005 \\\n"
-            "    --lr-scheduler cosine \\\n"
-            "    --warmup-epochs 5 \\\n"
-            "    --epochs 300 \\\n"
             "    --wd 0.05 \\\n"
             "    --norm-wd 0 \\\n"
+            "    --lr-scheduler cosine \\\n"
+            "    --epochs 300 \\\n"
+            "    --warmup-epochs 5 \\\n"
+            "    --aug-level 8 \\\n"
             "    --smoothing-alpha 0.1 \\\n"
             "    --mixup-alpha 0.8 \\\n"
-            "    --aug-level 8 \\\n"
             "    --model-ema \\\n"
             "    --ra-sampler --ra-reps 2 \\\n"
-            "    --clip-grad-norm 1 \\\n"
             "    --amp \\\n"
             "    --compile\n"
         ),

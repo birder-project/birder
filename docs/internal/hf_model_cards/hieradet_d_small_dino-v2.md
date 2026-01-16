@@ -1,27 +1,53 @@
 ---
 tags:
-- image-classification
+- image-feature-extraction
 - birder
 - pytorch
 library_name: birder
 license: apache-2.0
-base_model:
-- birder-project/hieradet_small_dino-v2
-datasets:
-- timm/imagenet-12k-wds
 ---
 
-# Model Card for hieradet_small_dino-v2-imagenet12k
+# Model Card for hieradet_d_small_dino-v2
 
-HieraDet small image classification model. The model follows a two-stage training process: first, DINOv2 pretraining, then fine-tuned on the `ImageNet-12K` dataset.
+HieraDet (dynamic window size) small image encoder pre-trained using DINOv2. This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
 
 ## Model Details
 
 - **Model Type:** Image classification and detection backbone
 - **Model Stats:**
-    - Params (M): 43.0
-    - Input image size: 256 x 256
-- **Dataset:** ImageNet-12K (11821 classes)
+    - Params (M): 33.9
+    - Input image size: 224 x 224
+- **Dataset:** Trained on a diverse dataset of approximately 21M images, including:
+    - iNaturalist 2021 (~2.7M)
+    - imagenet-w21-webp-wds (~2.4M random subset)
+    - Objects365-2020 (~1.8M)
+    - WebVision-2.0 (~1.5M random subset)
+    - imagenet-1k-webp (~1.3M)
+    - BIOSCAN-1M (~1.1M)
+    - GLDv2 (~820K random subset of 100 chunks)
+    - VMMR (~285K)
+    - SA-1B (~220K random subset of 20 chunks)
+    - TreeOfLife-10M (~200K random subset)
+    - Places365 (~170K random subset)
+    - Open Images V4 (~160K random subset)
+    - COCO (~120K) x2
+    - SUN397 (~100K)
+    - Food-101 (~100K)
+    - IP102 v1.1 (~75K)
+    - NABirds (~48K)
+    - Birdsnap v1.1 (~44K)
+    - Country211 (~31K)
+    - ADE20K 2016 (~22K) x2
+    - VOC2012 (~17K)
+    - IndoorCVPR 2009 (~15K)
+    - VisDrone2019-DET (~10K) x4
+    - BLIP3o-Pretrain-Short-Caption (~10K random subset)
+    - comma10k (~10K) x2
+    - FGVC-Aircraft 2013 (~10K) x2
+    - Oxford-IIIT Pet (~7K) x4
+    - CUB-200 2011 (~6K)
+    - Flowers102 (~1K) x16
+    - The Birder dataset (~8M, private dataset)
 
 - **Papers:**
     - Hiera: A Hierarchical Vision Transformer without the Bells-and-Whistles: <https://arxiv.org/abs/2306.00989>
@@ -30,32 +56,13 @@ HieraDet small image classification model. The model follows a two-stage trainin
 
 ## Model Usage
 
-### Image Classification
-
-```python
-import birder
-from birder.inference.classification import infer_image
-
-(net, model_info) = birder.load_pretrained_model("hieradet_small_dino-v2-imagenet12k", inference=True)
-
-# Get the image size the model was trained on
-size = birder.get_size_from_signature(model_info.signature)
-
-# Create an inference transform
-transform = birder.classification_transform(size, model_info.rgb_stats)
-
-image = "path/to/image.jpeg"  # or a PIL image, must be loaded in RGB format
-(out, _) = infer_image(net, image, transform)
-# out is a NumPy array with shape of (1, 11821), representing class probabilities.
-```
-
 ### Image Embeddings
 
 ```python
 import birder
 from birder.inference.classification import infer_image
 
-(net, model_info) = birder.load_pretrained_model("hieradet_small_dino-v2-imagenet12k", inference=True)
+(net, model_info) = birder.load_pretrained_model("hieradet_d_small_dino-v2", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -74,7 +81,7 @@ image = "path/to/image.jpeg"  # or a PIL image
 from PIL import Image
 import birder
 
-(net, model_info) = birder.load_pretrained_model("hieradet_small_dino-v2-imagenet12k", inference=True)
+(net, model_info) = birder.load_pretrained_model("hieradet_d_small_dino-v2", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -87,10 +94,10 @@ features = net.detection_features(transform(image).unsqueeze(0))
 # features is a dict (stage name -> torch.Tensor)
 print([(k, v.size()) for k, v in features.items()])
 # Output example:
-# [('stage1', torch.Size([1, 96, 64, 64])),
-#  ('stage2', torch.Size([1, 192, 32, 32])),
-#  ('stage3', torch.Size([1, 384, 16, 16])),
-#  ('stage4', torch.Size([1, 768, 8, 8]))]
+# [('stage1', torch.Size([1, 96, 56, 56])),
+#  ('stage2', torch.Size([1, 192, 28, 28])),
+#  ('stage3', torch.Size([1, 384, 14, 14])),
+#  ('stage4', torch.Size([1, 768, 7, 7]))]
 ```
 
 ## Citation

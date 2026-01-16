@@ -301,14 +301,14 @@ class HieraBlock(nn.Module):
         self.dim = dim
         self.dim_out = dim_out
 
-        self.norm1 = nn.LayerNorm(dim)
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
         if dim != dim_out:
             self.proj = nn.Linear(dim, dim_out)
         else:
             self.proj = None
 
         self.attn = MaskUnitAttention(dim, dim_out, heads, q_stride, window_size, use_mask_unit_attn)
-        self.norm2 = nn.LayerNorm(dim_out)
+        self.norm2 = nn.LayerNorm(dim_out, eps=1e-6)
         self.mlp = MLP(dim_out, [int(dim_out * mlp_ratio), dim_out], activation_layer=nn.GELU)
         self.drop_path = StochasticDepth(drop_path, mode="row")
 
@@ -450,7 +450,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             attn_pool if attn_pool is not None else AvgTokens(),
-            nn.LayerNorm(embed_dim),
+            nn.LayerNorm(embed_dim, eps=1e-6),
             nn.Flatten(1),
         )
         self.return_channels = return_channels

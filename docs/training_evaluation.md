@@ -17,19 +17,19 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 Intermediate training: first stage - linear probing (quick)
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-intermediate --reset-head --freeze-body --batch-size 384 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 5 --size 224 --aug-level 1 --smoothing-alpha 0.1 --rgb-mode birder --amp --amp-dtype bfloat16 --compile --save-frequency 1 --resume-epoch 0 --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
+torchrun --nproc_per_node=2 train.py --network hieradet_d_small --tag dino-v2-intermediate --reset-head --freeze-body --batch-size 384 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 5 --size 224 --aug-level 1 --smoothing-alpha 0.1 --rgb-mode birder --amp --amp-dtype bfloat16 --compile --save-frequency 1 --resume-epoch 0 --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
 Fine-tuning, first stage - linear probing, region (quick)
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-eu-common --reset-head --freeze-body --batch-size 384 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 5 --size 224 --aug-level 1 --smoothing-alpha 0.1 --rgb-mode birder --amp --amp-dtype bfloat16 --compile --resume-epoch 0 --data-path data/training_eu-common_packed --val-path data/validation_eu-common_packed
+torchrun --nproc_per_node=2 train.py --network hieradet_d_small --tag dino-v2-eu-common --reset-head --freeze-body --batch-size 384 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 5 --size 224 --aug-level 1 --smoothing-alpha 0.1 --rgb-mode birder --amp --amp-dtype bfloat16 --compile --resume-epoch 0 --data-path data/training_eu-common_packed --val-path data/validation_eu-common_packed
 ```
 
 Fine-tuning, first stage - linear probing, region (full)
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network hieradet_small --tag dino-v2-eu-common --reset-head --freeze-body --batch-size 512 --lr 0.1 --wd 0.0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 90 --warmup-epochs 10 --size 224 --aug-level 1 --rgb-mode birder --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --data-path data/training_eu-common_packed --val-path data/validation_eu-common_packed
+torchrun --nproc_per_node=2 train.py --network hieradet_d_small --tag dino-v2-eu-common --reset-head --freeze-body --batch-size 512 --lr 0.1 --wd 0.0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 90 --warmup-epochs 10 --size 224 --aug-level 1 --rgb-mode birder --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --data-path data/training_eu-common_packed --val-path data/validation_eu-common_packed
 ```
 
 #### Birder - Attentive Probing (AVG -> APS)

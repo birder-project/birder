@@ -140,10 +140,16 @@ def show_iterator(args: argparse.Namespace) -> None:
         mask_size = (args.size[0] // args.patch_size, args.size[1] // args.patch_size)
         mask_generator: Optional[masking.Masking]
         if args.masking == "uniform":
-            mask_generator = masking.UniformMasking(mask_size, args.mask_ratio)
+            mask_generator = masking.UniformMasking(mask_size, args.mask_ratio, min_mask_size=args.min_mask_size)
         elif args.masking == "block":
             max_patches = int(args.mask_ratio * mask_size[0] * mask_size[1])
             mask_generator = masking.BlockMasking(mask_size, 4, max_patches, 0.33, 3.33)
+        elif args.masking == "roll-block":
+            num_masking_patches = int(args.mask_ratio * mask_size[0] * mask_size[1])
+            mask_generator = masking.RollBlockMasking(mask_size, num_masking_patches=num_masking_patches)
+        elif args.masking == "inverse-roll":
+            num_masking_patches = int(args.mask_ratio * mask_size[0] * mask_size[1])
+            mask_generator = masking.InverseRollBlockMasking(mask_size, num_masking_patches=num_masking_patches)
         else:
             mask_generator = None
 
@@ -206,8 +212,16 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--mixup-alpha", type=float, help="mixup alpha")
     subparser.add_argument("--cutmix", default=False, action="store_true", help="enable cutmix")
-    subparser.add_argument("--masking", type=str, choices=["uniform", "block"], help="enable masking")
+    subparser.add_argument(
+        "--masking",
+        type=str,
+        choices=["uniform", "block", "roll-block", "inverse-roll"],
+        help="masking strategy to apply",
+    )
     subparser.add_argument("--mask-ratio", type=float, default=0.5, help="mask ratio")
+    subparser.add_argument(
+        "--min-mask-size", type=int, default=1, help="minimum mask unit size in patches (uniform only)"
+    )
     subparser.add_argument("--patch-size", type=int, default=16, help="mask base patch size")
     subparser.add_argument(
         "--data-path", type=str, default=str(settings.TRAINING_DATA_PATH), help="image directory path"

@@ -6,17 +6,17 @@ tags:
 library_name: birder
 license: apache-2.0
 base_model:
-- birder-project/hieradet_small_dino-v2
+- birder-project/hieradet_d_small_dino-v2
 ---
 
-# Model Card for hieradet_small_dino-v2-inat21
+# Model Card for hieradet_d_small_dino-v2-inat21
 
-HieraDet small image classification model. The model follows a two-stage training process: first, DINOv2 pretraining, then fine-tuned on the `iNaturalist 2021` dataset - <https://github.com/visipedia/inat_comp/tree/master/2021>.
+HieraDet (dynamic window size) small image classification model. The model follows a two-stage training process: first, DINOv2 pretraining, then fine-tuned on the `iNaturalist 2021` dataset - <https://github.com/visipedia/inat_comp/tree/master/2021>.
 
 The model's class-to-index mapping uses original scientific names with full taxonomic rank,
 a partial mapping to common names can be found here: <https://gitlab.com/birder/birder/-/blob/main/public_datasets_metadata/inat21-mapping.json>
 
-Note: A 256 x 256 variant of this model is available as `hieradet_small_dino-v2-inat21-256px`.
+Note: A 256 x 256 variant of this model is available as `hieradet_d_small_dino-v2-inat21-256px`.
 
 ## Model Details
 
@@ -44,8 +44,8 @@ Note: A 256 x 256 variant of this model is available as `hieradet_small_dino-v2-
 import birder
 from birder.inference.classification import infer_image
 
-(net, model_info) = birder.load_pretrained_model("hieradet_small_dino-v2-inat21", inference=True)
-# Note: A 256x256 variant is available as "hieradet_small_dino-v2-inat21-256px"
+(net, model_info) = birder.load_pretrained_model("hieradet_d_small_dino-v2-inat21", inference=True)
+# Note: A 256x256 variant is available as "hieradet_d_small_dino-v2-inat21-256px"
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -64,7 +64,7 @@ image = "path/to/image.jpeg"  # or a PIL image, must be loaded in RGB format
 import birder
 from birder.inference.classification import infer_image
 
-(net, model_info) = birder.load_pretrained_model("hieradet_small_dino-v2-inat21", inference=True)
+(net, model_info) = birder.load_pretrained_model("hieradet_d_small_dino-v2-inat21", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -83,7 +83,7 @@ image = "path/to/image.jpeg"  # or a PIL image
 from PIL import Image
 import birder
 
-(net, model_info) = birder.load_pretrained_model("hieradet_small_dino-v2-inat21", inference=True)
+(net, model_info) = birder.load_pretrained_model("hieradet_d_small_dino-v2-inat21", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)

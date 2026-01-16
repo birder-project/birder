@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.2 - 2026-01-16
+
+### Added
+
+- **Pretrained Models**:
+    - `hieradet_small_sam2_1`: Added Meta SAM 2.1 HieraDet small pretrained weights.
+
+### Changed
+
+- **HieraDet Dynamic Window Naming (Breaking)**: Renamed HieraDet models using dynamic window sizes from `hieradet_*` to `hieradet_d_*`.
+    - Affected models:
+        - `hieradet_d_small_dino-v2` (previously `hieradet_small_dino-v2`)
+        - `hieradet_d_small_dino-v2-imagenet12k` (previously `hieradet_small_dino-v2-imagenet12k`)
+        - `hieradet_d_small_dino-v2-inat21` (previously `hieradet_small_dino-v2-inat21`)
+
+### Fixed
+
+- **Hieradet Forward Padding**: Fixed an incorrect padding in the HieraDet forward pass.
+
 ## 0.3.1 - 2026-01-15
 
 ### Added
@@ -66,7 +85,7 @@
 - **Pretrained Models**:
     - `vovnet_v2_19_il-common`
     - `vovnet_v2_39_il-common`
-    - Breaking: Dropped `vit_l16_eu-common`
+    - **Breaking**: Dropped `vit_l16_eu-common`
 
 ### Fixed
 

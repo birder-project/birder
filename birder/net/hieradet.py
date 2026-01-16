@@ -125,7 +125,7 @@ class MultiScaleBlock(nn.Module):
         self.dim = dim
         self.dim_out = dim_out
 
-        self.norm1 = nn.LayerNorm(dim)
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
         if dim != dim_out:
             self.proj = nn.Linear(dim, dim_out)
         else:
@@ -144,7 +144,7 @@ class MultiScaleBlock(nn.Module):
             num_heads=num_heads,
             q_pool=copy.deepcopy(self.pool),
         )
-        self.norm2 = nn.LayerNorm(dim_out)
+        self.norm2 = nn.LayerNorm(dim_out, eps=1e-6)
         self.mlp = MLP(dim_out, [int(dim_out * mlp_ratio), dim_out], activation_layer=nn.GELU)
         self.drop_path = StochasticDepth(drop_path, mode="row")
 
@@ -173,11 +173,9 @@ class MultiScaleBlock(nn.Module):
         if self.q_stride is not None:
             # Shapes have changed due to Q pooling
             window_size = self.window_size // self.q_stride[0]
-            (H, W) = (shortcut.size(1), shortcut.size(2))
+            pad_hw = (pad_hw[0] // self.q_stride[0], pad_hw[1] // self.q_stride[1])
 
-            pad_h = (window_size - H % window_size) % window_size
-            pad_w = (window_size - W % window_size) % window_size
-            pad_hw = (H + pad_h, W + pad_w)
+            (H, W) = (shortcut.size(1), shortcut.size(2))
 
         # Reverse window partition
         if self.window_size > 0:
@@ -271,7 +269,7 @@ class HieraDet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
-            nn.LayerNorm(embed_dim),
+            nn.LayerNorm(embed_dim, eps=1e-6),
             Permute([0, 3, 1, 2]),  # B H W C -> B C H W
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
@@ -415,7 +413,7 @@ registry.register_model_config(
         "num_heads": 1,
         "global_pos_size": (7, 7),
         "global_att_blocks": [5, 7, 9],
-        "window_spec": [8, 4, -16, -32],
+        "window_spec": [8, 4, 14, 7],
         "drop_path_rate": 0.1,
     },
 )
@@ -428,7 +426,7 @@ registry.register_model_config(
         "num_heads": 1,
         "global_pos_size": (7, 7),
         "global_att_blocks": [7, 10, 13],
-        "window_spec": [8, 4, -16, -32],
+        "window_spec": [8, 4, 14, 7],
         "drop_path_rate": 0.1,
     },
 )
@@ -441,7 +439,7 @@ registry.register_model_config(
         "num_heads": 1,
         "global_pos_size": (14, 14),
         "global_att_blocks": [12, 16, 20],
-        "window_spec": [8, 4, -16, -32],
+        "window_spec": [8, 4, 14, 7],
         "drop_path_rate": 0.1,
     },
 )
@@ -454,7 +452,7 @@ registry.register_model_config(
         "num_heads": 2,
         "global_pos_size": (14, 14),
         "global_att_blocks": [12, 16, 20],
-        "window_spec": [8, 4, -16, -32],
+        "window_spec": [8, 4, 14, 7],
         "drop_path_rate": 0.1,
     },
 )
@@ -467,17 +465,84 @@ registry.register_model_config(
         "num_heads": 2,
         "global_pos_size": (7, 7),
         "global_att_blocks": [23, 33, 43],
-        "window_spec": [8, 4, -16, -32],
+        "window_spec": [8, 4, 14, 7],
+        "drop_path_rate": 0.2,
+    },
+)
+
+# Dynamic window size
+registry.register_model_config(
+    "hieradet_d_tiny",
+    HieraDet,
+    config={
+        "depths": [1, 2, 7, 2],
+        "embed_dim": 96,
+        "num_heads": 1,
+        "global_pos_size": (7, 7),
+        "global_att_blocks": [5, 7, 9],
+        "window_spec": [8, 4, 0, 0],
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
+    "hieradet_d_small",
+    HieraDet,
+    config={
+        "depths": [1, 2, 11, 2],
+        "embed_dim": 96,
+        "num_heads": 1,
+        "global_pos_size": (7, 7),
+        "global_att_blocks": [7, 10, 13],
+        "window_spec": [8, 4, 0, 0],
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
+    "hieradet_d_base",
+    HieraDet,
+    config={
+        "depths": [2, 3, 16, 3],
+        "embed_dim": 96,
+        "num_heads": 1,
+        "global_pos_size": (14, 14),
+        "global_att_blocks": [12, 16, 20],
+        "window_spec": [8, 4, 0, 0],
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
+    "hieradet_d_base_plus",
+    HieraDet,
+    config={
+        "depths": [2, 3, 16, 3],
+        "embed_dim": 112,
+        "num_heads": 2,
+        "global_pos_size": (14, 14),
+        "global_att_blocks": [12, 16, 20],
+        "window_spec": [8, 4, 0, 0],
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
+    "hieradet_d_large",
+    HieraDet,
+    config={
+        "depths": [2, 6, 36, 4],
+        "embed_dim": 144,
+        "num_heads": 2,
+        "global_pos_size": (7, 7),
+        "global_att_blocks": [23, 33, 43],
+        "window_spec": [8, 4, 0, 0],
         "drop_path_rate": 0.2,
     },
 )
 
 registry.register_weights(
-    "hieradet_small_dino-v2",
+    "hieradet_d_small_dino-v2",
     {
-        "url": "https://huggingface.co/birder-project/hieradet_small_dino-v2/resolve/main",
+        "url": "https://huggingface.co/birder-project/hieradet_d_small_dino-v2/resolve/main",
         "description": (
-            "HieraDet small image encoder pre-trained using DINOv2. "
+            "HieraDet (d) small image encoder pre-trained using DINOv2. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -487,14 +552,16 @@ registry.register_weights(
                 "sha256": "eb41b8a35445e7f350797094d5e365306b29351e64edd4a316420c23d1e17073",
             }
         },
-        "net": {"network": "hieradet_small", "tag": "dino-v2"},
+        "net": {"network": "hieradet_d_small", "tag": "dino-v2"},
     },
 )
 registry.register_weights(
-    "hieradet_small_dino-v2-inat21-256px",
+    "hieradet_d_small_dino-v2-inat21-256px",
     {
-        "url": "https://huggingface.co/birder-project/hieradet_small_dino-v2-inat21/resolve/main",
-        "description": "HieraDet small model pre-trained using DINOv2, then fine-tuned on the iNaturalist 2021 dataset",
+        "url": "https://huggingface.co/birder-project/hieradet_d_small_dino-v2-inat21/resolve/main",
+        "description": (
+            "HieraDet (d) small model pre-trained using DINOv2, then fine-tuned on the iNaturalist 2021 dataset"
+        ),
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -502,14 +569,16 @@ registry.register_weights(
                 "sha256": "e1bdeba97eae816ec3ab9b3238d97decf2c34d29b70f9291116ce962b9a4f9df",
             }
         },
-        "net": {"network": "hieradet_small", "tag": "dino-v2-inat21-256px"},
+        "net": {"network": "hieradet_d_small", "tag": "dino-v2-inat21-256px"},
     },
 )
 registry.register_weights(
-    "hieradet_small_dino-v2-inat21",
+    "hieradet_d_small_dino-v2-inat21",
     {
-        "url": "https://huggingface.co/birder-project/hieradet_small_dino-v2-inat21/resolve/main",
-        "description": "HieraDet small model pre-trained using DINOv2, then fine-tuned on the iNaturalist 2021 dataset",
+        "url": "https://huggingface.co/birder-project/hieradet_d_small_dino-v2-inat21/resolve/main",
+        "description": (
+            "HieraDet (d) small model pre-trained using DINOv2, then fine-tuned on the iNaturalist 2021 dataset"
+        ),
         "resolution": (384, 384),
         "formats": {
             "pt": {
@@ -517,14 +586,14 @@ registry.register_weights(
                 "sha256": "271fa9ed6a9aa1f4d1fc8bbb4c4cac9d15b264f2ac544efb5cd971412691880d",
             }
         },
-        "net": {"network": "hieradet_small", "tag": "dino-v2-inat21"},
+        "net": {"network": "hieradet_d_small", "tag": "dino-v2-inat21"},
     },
 )
 registry.register_weights(
-    "hieradet_small_dino-v2-imagenet12k",
+    "hieradet_d_small_dino-v2-imagenet12k",
     {
-        "url": "https://huggingface.co/birder-project/hieradet_small_dino-v2-imagenet12k/resolve/main",
-        "description": "HieraDet small model pre-trained using DINOv2, then fine-tuned on the ImageNet-12K dataset",
+        "url": "https://huggingface.co/birder-project/hieradet_d_small_dino-v2-imagenet12k/resolve/main",
+        "description": "HieraDet (d) small model pre-trained using DINOv2, then fine-tuned on the ImageNet-12K dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -532,6 +601,25 @@ registry.register_weights(
                 "sha256": "b89dd6c13d061fe8a09d051bb3d76e632e650067ca71578e37b02033107c9963",
             }
         },
-        "net": {"network": "hieradet_small", "tag": "dino-v2-imagenet12k"},
+        "net": {"network": "hieradet_d_small", "tag": "dino-v2-imagenet12k"},
+    },
+)
+
+registry.register_weights(  # SAM v2: https://arxiv.org/abs/2408.00714
+    "hieradet_small_sam2_1",
+    {
+        "url": "https://huggingface.co/birder-project/hieradet_small_sam2_1/resolve/main",
+        "description": (
+            "HieraDet small image encoder pre-trained by Meta AI using SAM v2. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 129.6,
+                "sha256": "79b6ffdfd4ea9f3b1489ce5a229fe9756b215fc3b52640d01d64136560c1d341",
+            }
+        },
+        "net": {"network": "hieradet_small", "tag": "sam2_1"},
     },
 )
