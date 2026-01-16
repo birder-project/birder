@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.2 - 2026-01-16
+## 0.3.3 - 2026-01-16
 
 ### Added
 
@@ -19,7 +19,7 @@
 
 - **Hieradet Forward Padding**: Fixed an incorrect padding in the HieraDet forward pass.
 
-## 0.3.1 - 2026-01-15
+## 0.3.2 - 2026-01-15
 
 ### Added
 
