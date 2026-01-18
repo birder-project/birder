@@ -37,36 +37,44 @@ class InvertedResidual(nn.Module):
         num_expfilter = int(round(in_channels * expansion_factor))
 
         self.shortcut = shortcut
-        self.block = nn.Sequential(
-            Conv2dNormActivation(
-                in_channels,
-                num_expfilter,
-                kernel_size=(1, 1),
-                stride=(1, 1),
-                padding=(0, 0),
-                bias=False,
-                activation_layer=activation_layer,
-            ),
-            Conv2dNormActivation(
-                num_expfilter,
-                num_expfilter,
-                kernel_size=kernel_size,
-                stride=stride,
-                padding=padding,
-                groups=num_expfilter,
-                bias=False,
-                activation_layer=activation_layer,
-            ),
-            Conv2dNormActivation(
-                num_expfilter,
-                out_channels,
-                kernel_size=(1, 1),
-                stride=(1, 1),
-                padding=(0, 0),
-                bias=False,
-                activation_layer=None,
-            ),
+        layers = []
+        if expansion_factor != 1.0:
+            layers.append(
+                Conv2dNormActivation(
+                    in_channels,
+                    num_expfilter,
+                    kernel_size=(1, 1),
+                    stride=(1, 1),
+                    padding=(0, 0),
+                    bias=False,
+                    activation_layer=activation_layer,
+                )
+            )
+
+        layers.extend(
+            [
+                Conv2dNormActivation(
+                    num_expfilter,
+                    num_expfilter,
+                    kernel_size=kernel_size,
+                    stride=stride,
+                    padding=padding,
+                    groups=num_expfilter,
+                    bias=False,
+                    activation_layer=activation_layer,
+                ),
+                Conv2dNormActivation(
+                    num_expfilter,
+                    out_channels,
+                    kernel_size=(1, 1),
+                    stride=(1, 1),
+                    padding=(0, 0),
+                    bias=False,
+                    activation_layer=None,
+                ),
+            ]
         )
+        self.block = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.shortcut is True:
@@ -171,6 +179,7 @@ class MobileNet_v2(DetectorBackbone):
             ),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
+            nn.Dropout(0.2),
         )
         self.return_channels = return_channels[1:5]
         self.embedding_size = last_channels
@@ -230,18 +239,3 @@ registry.register_model_config("mobilenet_v2_1_25", MobileNet_v2, config={"alpha
 registry.register_model_config("mobilenet_v2_1_5", MobileNet_v2, config={"alpha": 1.5})
 registry.register_model_config("mobilenet_v2_1_75", MobileNet_v2, config={"alpha": 1.75})
 registry.register_model_config("mobilenet_v2_2_0", MobileNet_v2, config={"alpha": 2.0})
-
-registry.register_weights(
-    "mobilenet_v2_1_0_il-common",
-    {
-        "description": "MobileNet v2 (1.0 multiplier) model trained on the il-common dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 10.6,
-                "sha256": "d6182293e98c102026f7cdc0d446aaf0e511232173c4b98c1a882c9f147be6e7",
-            }
-        },
-        "net": {"network": "mobilenet_v2_1_0", "tag": "il-common"},
-    },
-)

@@ -21,7 +21,7 @@ from birder.net.base import DetectorBackbone
 
 
 def insert_cls(x: torch.Tensor, cls_token: torch.Tensor) -> torch.Tensor:
-    cls_tokens = cls_token.expand(x.shape[0], -1, -1)
+    cls_tokens = cls_token.expand(x.size(0), -1, -1)
     x = torch.concat((cls_tokens, x), dim=1)
 
     return x
@@ -170,7 +170,7 @@ class SerialBlock(nn.Module):
 
         # Conv-attention
         self.cpe = shared_cpe
-        self.norm1 = nn.LayerNorm(dim)
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
         self.factor_attn_crpe = FactorAttnConvRelPosEnc(
             dim,
             num_heads=num_heads,
@@ -181,7 +181,7 @@ class SerialBlock(nn.Module):
         self.drop_path = StochasticDepth(drop_path, mode="row")
 
         # MLP
-        self.norm2 = nn.LayerNorm(dim)
+        self.norm2 = nn.LayerNorm(dim, eps=1e-6)
         self.mlp = MLP(dim, [int(dim * mlp_ratio), dim], activation_layer=nn.GELU, dropout=proj_drop)
 
     def forward(self, x: torch.Tensor, size: tuple[int, int]) -> torch.Tensor:
@@ -213,9 +213,9 @@ class ParallelBlock(nn.Module):
         super().__init__()
 
         # Conv-attention
-        self.norm12 = nn.LayerNorm(dims[1])
-        self.norm13 = nn.LayerNorm(dims[2])
-        self.norm14 = nn.LayerNorm(dims[3])
+        self.norm12 = nn.LayerNorm(dims[1], eps=1e-6)
+        self.norm13 = nn.LayerNorm(dims[2], eps=1e-6)
+        self.norm14 = nn.LayerNorm(dims[3], eps=1e-6)
         self.factor_attn_crpe2 = FactorAttnConvRelPosEnc(
             dims[1], num_heads=num_heads, qkv_bias=qkv_bias, proj_drop=proj_drop, shared_crpe=shared_crpes[1]
         )
@@ -228,9 +228,9 @@ class ParallelBlock(nn.Module):
         self.drop_path = StochasticDepth(drop_path, mode="row")
 
         # MLP
-        self.norm22 = nn.LayerNorm(dims[1])
-        self.norm23 = nn.LayerNorm(dims[2])
-        self.norm24 = nn.LayerNorm(dims[3])
+        self.norm22 = nn.LayerNorm(dims[1], eps=1e-6)
+        self.norm23 = nn.LayerNorm(dims[2], eps=1e-6)
+        self.norm24 = nn.LayerNorm(dims[3], eps=1e-6)
 
         # In the parallel block, we assume dimensions are the same and share the linear transformation
         assert dims[1] == dims[2] == dims[3]
@@ -447,13 +447,13 @@ class CoaT(DetectorBackbone):
 
         # Norms
         if self.parallel_blocks is not None:
-            self.norm2 = nn.LayerNorm(embed_dims[1])
-            self.norm3 = nn.LayerNorm(embed_dims[2])
+            self.norm2 = nn.LayerNorm(embed_dims[1], eps=1e-6)
+            self.norm3 = nn.LayerNorm(embed_dims[2], eps=1e-6)
         else:
             self.norm2 = None
             self.norm3 = None
 
-        self.norm4 = nn.LayerNorm(embed_dims[3])
+        self.norm4 = nn.LayerNorm(embed_dims[3], eps=1e-6)
 
         # Head
         if parallel_depth > 0:

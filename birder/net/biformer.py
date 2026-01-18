@@ -8,6 +8,7 @@ Changes from original:
 * All attention types are in (B, C, H, W)
 * Using the newer Bi-Level Routing Attention implementation
 * Dynamic n_win size (image size // 32)
+* Stem bias term removed
 """
 
 # Reference license: Apache-2.0

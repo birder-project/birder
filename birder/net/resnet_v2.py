@@ -3,6 +3,8 @@ ResNet v2, adapted from
 https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/resnetv2.py
 
 Paper "Identity Mappings in Deep Residual Networks", https://arxiv.org/abs/1603.05027
+and
+Paper "Squeeze-and-Excitation Networks", https://arxiv.org/abs/1709.01507
 """
 
 # Reference license: Apache-2.0
@@ -98,7 +100,6 @@ class ResNet_v2(DetectorBackbone):
         *,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
-        squeeze_excitation: bool = False,
     ) -> None:
         super().__init__(input_channels, num_classes, config=config, size=size)
         assert self.config is not None, "must set config"
@@ -106,6 +107,7 @@ class ResNet_v2(DetectorBackbone):
         bottle_neck: bool = self.config["bottle_neck"]
         filter_list: list[int] = self.config["filter_list"]
         units: list[int] = self.config["units"]
+        squeeze_excitation: bool = self.config.get("squeeze_excitation", False)
 
         assert len(units) + 1 == len(filter_list)
         num_unit = len(units)
@@ -230,4 +232,76 @@ registry.register_model_config(
     "resnet_v2_269",
     ResNet_v2,
     config={"bottle_neck": True, "filter_list": [64, 256, 512, 1024, 2048], "units": [3, 30, 48, 8]},
+)
+
+# Squeeze-and-Excitation Networks
+registry.register_model_config(
+    "se_resnet_v2_18",
+    ResNet_v2,
+    config={
+        "bottle_neck": False,
+        "filter_list": [64, 64, 128, 256, 512],
+        "units": [2, 2, 2, 2],
+        "squeeze_excitation": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_v2_34",
+    ResNet_v2,
+    config={
+        "bottle_neck": False,
+        "filter_list": [64, 64, 128, 256, 512],
+        "units": [3, 4, 6, 3],
+        "squeeze_excitation": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_v2_50",
+    ResNet_v2,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 4, 6, 3],
+        "squeeze_excitation": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_v2_101",
+    ResNet_v2,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 4, 23, 3],
+        "squeeze_excitation": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_v2_152",
+    ResNet_v2,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 8, 36, 3],
+        "squeeze_excitation": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_v2_200",
+    ResNet_v2,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 24, 36, 3],
+        "squeeze_excitation": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_v2_269",
+    ResNet_v2,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 30, 48, 8],
+        "squeeze_excitation": True,
+    },
 )

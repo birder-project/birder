@@ -6,7 +6,7 @@ Paper "End-to-End Object Detection with Transformers", https://arxiv.org/abs/200
 
 Changes from original:
 * Move background index to first from last (to be inline with the rest of Birder detectors)
-* Zero cost matrix elements on overflow (HungarianMatcher)
+* Penalize cost matrix elements on overflow (HungarianMatcher)
 """
 
 # Reference license: Apache-2.0
@@ -78,7 +78,10 @@ class HungarianMatcher(nn.Module):
             # Final cost matrix
             C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
             C = C.view(B, num_queries, -1).cpu()
-            C[C.isnan() | C.isinf()] = 0.0
+            finite = torch.isfinite(C)
+            if not torch.all(finite):
+                penalty = C[finite].max().item() + 1.0 if finite.any().item() else 1.0
+                C.nan_to_num_(nan=penalty, posinf=penalty, neginf=penalty)
 
             sizes = [len(v["boxes"]) for v in targets]
             indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]

@@ -50,10 +50,10 @@ class MLPBlock(nn.Module):
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.spatial_mixing = PartialConv(dim, n_div)
         self.mlp = nn.Sequential(
-            nn.Conv2d(dim, mlp_hidden_dim, 1, bias=False),
+            nn.Conv2d(dim, mlp_hidden_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
             nn.BatchNorm2d(mlp_hidden_dim),
             act_layer(),
-            nn.Conv2d(mlp_hidden_dim, dim, 1, bias=False),
+            nn.Conv2d(mlp_hidden_dim, dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
         )
         self.drop_path = StochasticDepth(drop_path, mode="row")
 

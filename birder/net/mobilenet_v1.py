@@ -107,15 +107,6 @@ class MobileNet_v1(DetectorBackbone):
 
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
-            Conv2dNormActivation(
-                base * 32,
-                base * 32,
-                kernel_size=(1, 1),
-                stride=(1, 1),
-                padding=(0, 0),
-                bias=False,
-                activation_layer=None,
-            ),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )

@@ -433,7 +433,7 @@ class FrancaStudent(SSLBaseNet):
                 nesting_list=nesting_list,
             )
 
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width), requires_grad=True)
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width))
 
     # pylint: disable=arguments-differ
     def forward(  # type: ignore[override]
@@ -523,7 +523,7 @@ class FrancaTeacher(SSLBaseNet):
             )
 
         # Unused, Makes for an easier EMA update
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width), requires_grad=True)
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width))
 
     # pylint: disable=arguments-differ
     def forward(  # type: ignore[override]

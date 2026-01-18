@@ -1504,9 +1504,15 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v1_1_0 --batch-size 256
 torchrun --nproc_per_node=2 train.py --network mobilenet_v2_2_0 --batch-size 128 --opt rmsprop --lr 0.045 --wd 0.00004 --lr-scheduler step --lr-step-size 1 --lr-step-gamma 0.98 --epochs 300 --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --fast-matmul --compile
 ```
 
-### Mobilenet v3 Large
+### Mobilenet v3
 
-#### Mobilenet v3 Large: 1.5
+#### Mobilenet v3: Small 1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3_small_1_0 --batch-size 256 --opt rmsprop --lr 0.064 --wd 0.00001 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --epochs 400 --stop-epoch 320 --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --fast-matmul --compile
+```
+
+#### Mobilenet v3: Large 1.5
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large_1_5 --batch-size 256 --opt rmsprop --lr 0.064 --wd 0.00001 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --epochs 400 --stop-epoch 320 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --amp --compile
@@ -1522,14 +1528,6 @@ Intermediate training training
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large_1_5 --tag intermediate --batch-size 256 --opt rmsprop --lr 0.064 --wd 0.00001 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --epochs 400 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
-```
-
-### Mobilenet v3 Small
-
-#### Mobilenet v3 Small: 1
-
-```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3_small_1_0 --batch-size 256 --opt rmsprop --lr 0.064 --wd 0.00001 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --epochs 400 --stop-epoch 320 --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --fast-matmul --compile
 ```
 
 ### Mobilenet v4

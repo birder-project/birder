@@ -254,7 +254,7 @@ class iBOT(SSLBaseNet):
             shared_head=shared_head,
         )
 
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width), requires_grad=True)
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width))
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ
         self, x: torch.Tensor, masks: Optional[torch.Tensor], return_keys: Literal["all", "embedding"] = "all"

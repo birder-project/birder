@@ -51,7 +51,7 @@ class Data2Vec(SSLBaseNet):
         self.ema_backbone = copy.deepcopy(self.backbone)
         self.head = nn.Linear(self.backbone.embedding_size, self.backbone.embedding_size)
 
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width), requires_grad=True)
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width))
 
         # Weights initialization
         self.ema_backbone.load_state_dict(self.backbone.state_dict())

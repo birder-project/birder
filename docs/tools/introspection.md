@@ -39,6 +39,6 @@ Key features include:
 - These tools are not production-quality implementations for all Birder networks and may need adaptation for specific architectures
 - Some methods have limitations with certain implementation patterns (for example, guided backpropagation works with activations defined as `nn.Module` objects but may not affect functional calls like `F.relu`)
 - For GradCAM, you may need to specify the target block and layer number depending on your network architecture, and use the `--channels-last` flag for models using NHWC layout
-- For transformer methods, ensure the attention layer name matches your model's architecture (default is "self_attention")
+- For transformer methods, ensure the attention layer name matches your model's architecture (default is "attn")
 
 For more detailed information about each option and its usage, refer to the help output of the tool.

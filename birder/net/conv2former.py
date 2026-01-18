@@ -64,7 +64,7 @@ class SpatialAttention(nn.Module):
                 dim,
                 kernel_size=kernel_size,
                 stride=(1, 1),
-                padding=(kernel_size[0] // 2, kernel_size[1] // 2),
+                padding=((kernel_size[0] - 1) // 2, (kernel_size[1] - 1) // 2),
                 groups=dim,
             ),
         )
@@ -87,8 +87,8 @@ class Conv2FormerBlock(nn.Module):
         self.mlp = MLP(dim, mlp_ratio)
 
         layer_scale_init_value = 1e-6
-        self.layer_scale_1 = nn.Parameter(layer_scale_init_value * torch.ones((1, dim, 1, 1)), requires_grad=True)
-        self.layer_scale_2 = nn.Parameter(layer_scale_init_value * torch.ones((1, dim, 1, 1)), requires_grad=True)
+        self.layer_scale_1 = nn.Parameter(layer_scale_init_value * torch.ones((1, dim, 1, 1)))
+        self.layer_scale_2 = nn.Parameter(layer_scale_init_value * torch.ones((1, dim, 1, 1)))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x + self.drop_path(self.layer_scale_1 * self.attn(x))

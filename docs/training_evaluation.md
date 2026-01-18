@@ -51,7 +51,7 @@ torchrun --nproc_per_node=2 train.py --network vit_reg4_so150m_p14_aps --tag mim
 Fine-tuning, first stage - linear probing (quick)
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_b16_ls --tag franca-bioscan5m --reset-head --freeze-body --batch-size 384 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 5 --size 224 --aug-level 1 --smoothing-alpha 0.1 --rgb-mode none --amp --amp-dtype bfloat16 --compile --resume-epoch 0 --data-path ~/Datasets/BIOSCAN-5M/family/training --val-path ~/Datasets/BIOSCAN-5M/family/validation
+torchrun --nproc_per_node=2 train.py --network vit_b16_ls --tag franca-bioscan5m --reset-head --freeze-body --batch-size 384 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 1 --smoothing-alpha 0.1 --rgb-mode none --amp --amp-dtype bfloat16 --compile --resume-epoch 0 --data-path ~/Datasets/BIOSCAN-5M/family/training --val-path ~/Datasets/BIOSCAN-5M/family/validation
 ```
 
 Fine-tuning (family), first stage - linear probing (full)

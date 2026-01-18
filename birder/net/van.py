@@ -116,8 +116,8 @@ class VANBlock(nn.Module):
         self.mlp = DWConvMLP(in_features=dim, hidden_features=int(dim * mlp_ratio), drop=drop)
 
         layer_scale_init_value = 1e-2
-        self.layer_scale_1 = nn.Parameter(layer_scale_init_value * torch.ones((1, dim, 1, 1)), requires_grad=True)
-        self.layer_scale_2 = nn.Parameter(layer_scale_init_value * torch.ones((1, dim, 1, 1)), requires_grad=True)
+        self.layer_scale_1 = nn.Parameter(layer_scale_init_value * torch.ones((1, dim, 1, 1)))
+        self.layer_scale_2 = nn.Parameter(layer_scale_init_value * torch.ones((1, dim, 1, 1)))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x + self.drop_path(self.layer_scale_1 * self.attn(self.norm1(x)))

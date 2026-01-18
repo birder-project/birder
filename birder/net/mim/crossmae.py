@@ -113,7 +113,7 @@ class CrossMAE(MIMBaseNet):
             dim=decoder_embed_dim,
             num_special_tokens=0,
         ).unsqueeze(0)
-        self.decoder_pos_embed = nn.Parameter(pos_embedding, requires_grad=False)
+        self.decoder_pos_embed = nn.Buffer(pos_embedding)
 
         self.decoder_layers = nn.ModuleList()
         for _ in range(decoder_depth):

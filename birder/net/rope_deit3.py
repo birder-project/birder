@@ -23,6 +23,11 @@ from torch import nn
 
 from birder.common.masking import mask_tensor
 from birder.model_registry import registry
+from birder.net._vit_configs import BASE
+from birder.net._vit_configs import LARGE
+from birder.net._vit_configs import MEDIUM
+from birder.net._vit_configs import SMALL
+from birder.net._vit_configs import TINY
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import MaskedTokenRetentionMixin
@@ -462,204 +467,96 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
 registry.register_model_config(
     "rope_deit3_t16",
     RoPE_DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 3,
-        "hidden_dim": 192,
-        "mlp_dim": 768,
-        "drop_path_rate": 0.0,
-    },
+    config={"patch_size": 16, **TINY},
 )
 registry.register_model_config(
     "rope_deit3_s16",
     RoPE_DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "drop_path_rate": 0.05,
-    },
+    config={"patch_size": 16, **SMALL, "drop_path_rate": 0.05},
 )
 registry.register_model_config(
     "rope_deit3_s14",
     RoPE_DeiT3,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "drop_path_rate": 0.05,
-    },
+    config={"patch_size": 14, **SMALL, "drop_path_rate": 0.05},
 )
 registry.register_model_config(
     "rope_deit3_m16",
     RoPE_DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 8,
-        "hidden_dim": 512,
-        "mlp_dim": 2048,
-        "drop_path_rate": 0.1,
-    },
+    config={"patch_size": 16, **MEDIUM, "drop_path_rate": 0.1},
 )
 registry.register_model_config(
     "rope_deit3_m14",
     RoPE_DeiT3,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 8,
-        "hidden_dim": 512,
-        "mlp_dim": 2048,
-        "drop_path_rate": 0.1,
-    },
+    config={"patch_size": 14, **MEDIUM, "drop_path_rate": 0.1},
 )
 registry.register_model_config(
     "rope_deit3_b16",
     RoPE_DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "drop_path_rate": 0.2,
-    },
+    config={"patch_size": 16, **BASE, "drop_path_rate": 0.2},
 )
 registry.register_model_config(
     "rope_deit3_b14",
     RoPE_DeiT3,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "drop_path_rate": 0.2,
-    },
+    config={"patch_size": 14, **BASE, "drop_path_rate": 0.2},
 )
 registry.register_model_config(
     "rope_deit3_l16",
     RoPE_DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "drop_path_rate": 0.45,
-    },
+    config={"patch_size": 16, **LARGE, "drop_path_rate": 0.45},
+)
+registry.register_model_config(
+    "rope_deit3_l14",
+    RoPE_DeiT3,
+    config={"patch_size": 14, **LARGE, "drop_path_rate": 0.45},
 )
 
 # With registers
+####################
+
 registry.register_model_config(
     "rope_deit3_reg4_t16",
     RoPE_DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 3,
-        "hidden_dim": 192,
-        "mlp_dim": 768,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.0,
-    },
+    config={"patch_size": 16, **TINY, "num_reg_tokens": 4},
 )
 registry.register_model_config(
     "rope_deit3_reg4_s16",
     RoPE_DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.05,
-    },
+    config={"patch_size": 16, **SMALL, "num_reg_tokens": 4, "drop_path_rate": 0.05},
 )
 registry.register_model_config(
     "rope_deit3_reg4_s14",
     RoPE_DeiT3,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.05,
-    },
+    config={"patch_size": 14, **SMALL, "num_reg_tokens": 4, "drop_path_rate": 0.05},
 )
 registry.register_model_config(
     "rope_deit3_reg4_m16",
     RoPE_DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 8,
-        "hidden_dim": 512,
-        "mlp_dim": 2048,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.1,
-    },
+    config={"patch_size": 16, **MEDIUM, "num_reg_tokens": 4, "drop_path_rate": 0.1},
 )
 registry.register_model_config(
     "rope_deit3_reg4_m14",
     RoPE_DeiT3,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 8,
-        "hidden_dim": 512,
-        "mlp_dim": 2048,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.1,
-    },
+    config={"patch_size": 14, **MEDIUM, "num_reg_tokens": 4, "drop_path_rate": 0.1},
 )
 registry.register_model_config(
     "rope_deit3_reg4_b16",
     RoPE_DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.2,
-    },
+    config={"patch_size": 16, **BASE, "num_reg_tokens": 4, "drop_path_rate": 0.2},
 )
 registry.register_model_config(
     "rope_deit3_reg4_b14",
     RoPE_DeiT3,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.2,
-    },
+    config={"patch_size": 14, **BASE, "num_reg_tokens": 4, "drop_path_rate": 0.2},
 )
 registry.register_model_config(
     "rope_deit3_reg4_l16",
     RoPE_DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.45,
-    },
+    config={"patch_size": 16, **LARGE, "num_reg_tokens": 4, "drop_path_rate": 0.45},
+)
+registry.register_model_config(
+    "rope_deit3_reg4_l14",
+    RoPE_DeiT3,
+    config={"patch_size": 14, **LARGE, "num_reg_tokens": 4, "drop_path_rate": 0.45},
 )
 
 registry.register_weights(

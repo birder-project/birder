@@ -48,7 +48,12 @@ class ConvEncoder(nn.Module):
     ) -> None:
         super().__init__()
         self.dw_conv = nn.Conv2d(
-            dim, dim, kernel_size, stride=(1, 1), padding=(kernel_size[0] // 2, kernel_size[1] // 2), groups=dim
+            dim,
+            dim,
+            kernel_size,
+            stride=(1, 1),
+            padding=((kernel_size[0] - 1) // 2, (kernel_size[1] - 1) // 2),
+            groups=dim,
         )
         self.norm = nn.BatchNorm2d(dim)
         self.pw_conv1 = nn.Conv2d(dim, hidden_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
@@ -125,7 +130,12 @@ class LocalRepresentation(nn.Module):
     def __init__(self, dim: int, kernel_size: tuple[int, int], drop_path: float, use_layer_scale: bool) -> None:
         super().__init__()
         self.dw_conv = nn.Conv2d(
-            dim, dim, kernel_size, stride=(1, 1), padding=(kernel_size[0] // 2, kernel_size[1] // 2), groups=dim
+            dim,
+            dim,
+            kernel_size,
+            stride=(1, 1),
+            padding=((kernel_size[0] - 1) // 2, (kernel_size[1] - 1) // 2),
+            groups=dim,
         )
         self.norm = nn.BatchNorm2d(dim)
         self.pw_conv1 = nn.Conv2d(dim, dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))

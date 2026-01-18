@@ -6,6 +6,7 @@ https://github.com/facebookresearch/xcit/blob/main/xcit.py
 
 Changes from original:
 * No FPN layers (detection version of XCiT)
+* Removed biases before norms
 """
 
 # Reference license: Apache-2.0
@@ -160,12 +161,12 @@ class ClassAttentionBlock(nn.Module):
         self, dim: int, num_heads: int, mlp_ratio: float, qkv_bias: bool, proj_drop: float, drop_path: float, eta: float
     ) -> None:
         super().__init__()
-        self.norm1 = nn.LayerNorm(dim)
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
 
         self.attn = ClassAttention(dim, num_heads=num_heads, qkv_bias=qkv_bias, proj_drop=proj_drop)
 
         self.drop_path = StochasticDepth(drop_path, mode="row")
-        self.norm2 = nn.LayerNorm(dim)
+        self.norm2 = nn.LayerNorm(dim, eps=1e-6)
         self.mlp = MLP(dim, [int(dim * mlp_ratio), dim], activation_layer=nn.GELU, dropout=proj_drop)
 
         self.gamma1 = nn.Parameter(eta * torch.ones(dim))
@@ -256,14 +257,14 @@ class XCABlock(nn.Module):
         self, dim: int, num_heads: int, mlp_ratio: float, qkv_bias: bool, proj_drop: float, drop_path: float, eta: float
     ) -> None:
         super().__init__()
-        self.norm1 = nn.LayerNorm(dim)
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
         self.attn = XCA(dim, num_heads=num_heads, qkv_bias=qkv_bias, proj_drop=proj_drop)
         self.drop_path = StochasticDepth(drop_path, mode="row")
 
-        self.norm2 = nn.LayerNorm(dim)
+        self.norm2 = nn.LayerNorm(dim, eps=1e-6)
         self.local_mp = LPI(in_features=dim, out_features=dim, kernel_size=(3, 3))
 
-        self.norm3 = nn.LayerNorm(dim)
+        self.norm3 = nn.LayerNorm(dim, eps=1e-6)
         self.mlp = MLP(dim, [int(dim * mlp_ratio), dim], activation_layer=nn.GELU, dropout=proj_drop)
 
         self.gamma1 = nn.Parameter(eta * torch.ones(dim))
@@ -350,7 +351,7 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                 )
             )
 
-        layers2.append(nn.LayerNorm(embed_dim))
+        layers2.append(nn.LayerNorm(embed_dim, eps=1e-6))
         self.block2 = nn.Sequential(*layers2)
         self.pos_embed = PositionalEncodingFourier(hidden_dim=32, dim=embed_dim)
 

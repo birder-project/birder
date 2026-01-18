@@ -20,11 +20,11 @@ from birder.net.base import BaseNet
 class Fire(nn.Module):
     def __init__(self, in_planes: int, squeeze: int, expand: int) -> None:
         super().__init__()
-        self.squeeze = nn.Conv2d(in_planes, squeeze, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False)
+        self.squeeze = nn.Conv2d(in_planes, squeeze, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.squeeze_activation = nn.ReLU(inplace=True)
-        self.left = nn.Conv2d(squeeze, expand, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False)
+        self.left = nn.Conv2d(squeeze, expand, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.left_activation = nn.ReLU(inplace=True)
-        self.right = nn.Conv2d(squeeze, expand, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+        self.right = nn.Conv2d(squeeze, expand, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
         self.right_activation = nn.ReLU(inplace=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -53,7 +53,7 @@ class SqueezeNet(BaseNet):
         assert self.config is None, "config not supported"
 
         self.stem = nn.Sequential(
-            nn.Conv2d(self.input_channels, 64, kernel_size=(3, 3), stride=(2, 2), padding=(0, 0), bias=False),
+            nn.Conv2d(self.input_channels, 64, kernel_size=(3, 3), stride=(2, 2), padding=(0, 0)),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(0, 0), ceil_mode=True),
         )
@@ -94,14 +94,7 @@ class SqueezeNet(BaseNet):
 
         return nn.Sequential(
             nn.Dropout(p=0.5, inplace=True),
-            nn.Conv2d(
-                embed_dim,
-                self.num_classes,
-                kernel_size=(1, 1),
-                stride=(1, 1),
-                padding=(0, 0),
-                bias=False,
-            ),
+            nn.Conv2d(embed_dim, self.num_classes, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)),
             nn.ReLU(inplace=True),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),

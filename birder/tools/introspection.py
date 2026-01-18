@@ -171,7 +171,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--attn-layer-name",
         type=str,
-        default="self_attention",
+        default="attn",
         help="attention layer name (attn-rollout and transformer-attribution)",
     )
     subparser.add_argument(

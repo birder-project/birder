@@ -15,6 +15,12 @@ from torch import nn
 
 from birder.common.masking import mask_tensor
 from birder.model_registry import registry
+from birder.net._vit_configs import BASE
+from birder.net._vit_configs import HUGE
+from birder.net._vit_configs import LARGE
+from birder.net._vit_configs import MEDIUM
+from birder.net._vit_configs import SMALL
+from birder.net._vit_configs import TINY
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import MaskedTokenRetentionMixin
@@ -368,279 +374,126 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
 registry.register_model_config(
     "deit3_t16",
     DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 3,
-        "hidden_dim": 192,
-        "mlp_dim": 768,
-        "drop_path_rate": 0.0,
-    },
+    config={"patch_size": 16, **TINY},
+)
+registry.register_model_config(
+    "deit3_t14",
+    DeiT3,
+    config={"patch_size": 14, **TINY},
 )
 registry.register_model_config(
     "deit3_s16",
     DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "drop_path_rate": 0.05,
-    },
+    config={"patch_size": 16, **SMALL, "drop_path_rate": 0.05},
 )
 registry.register_model_config(
     "deit3_s14",
     DeiT3,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "drop_path_rate": 0.05,
-    },
+    config={"patch_size": 14, **SMALL, "drop_path_rate": 0.05},
 )
 registry.register_model_config(
     "deit3_m16",
     DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 8,
-        "hidden_dim": 512,
-        "mlp_dim": 2048,
-        "drop_path_rate": 0.1,
-    },
+    config={"patch_size": 16, **MEDIUM, "drop_path_rate": 0.1},
 )
 registry.register_model_config(
     "deit3_m14",
     DeiT3,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 8,
-        "hidden_dim": 512,
-        "mlp_dim": 2048,
-        "drop_path_rate": 0.1,
-    },
+    config={"patch_size": 14, **MEDIUM, "drop_path_rate": 0.1},
 )
 registry.register_model_config(
     "deit3_b16",
     DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "drop_path_rate": 0.2,
-    },
+    config={"patch_size": 16, **BASE, "drop_path_rate": 0.2},
 )
 registry.register_model_config(
     "deit3_b14",
     DeiT3,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "drop_path_rate": 0.2,
-    },
+    config={"patch_size": 14, **BASE, "drop_path_rate": 0.2},
 )
 registry.register_model_config(
     "deit3_l16",
     DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "drop_path_rate": 0.45,
-    },
+    config={"patch_size": 16, **LARGE, "drop_path_rate": 0.45},
 )
 registry.register_model_config(
     "deit3_l14",
     DeiT3,
-    config={
-        "patch_size": 14,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "drop_path_rate": 0.45,
-    },
+    config={"patch_size": 14, **LARGE, "drop_path_rate": 0.45},
 )
 registry.register_model_config(
     "deit3_h16",
     DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 32,
-        "num_heads": 16,
-        "hidden_dim": 1280,
-        "mlp_dim": 5120,
-        "drop_path_rate": 0.55,
-    },
+    config={"patch_size": 16, **HUGE, "drop_path_rate": 0.55},
 )
 registry.register_model_config(
     "deit3_h14",
     DeiT3,
-    config={
-        "patch_size": 14,
-        "num_layers": 32,
-        "num_heads": 16,
-        "hidden_dim": 1280,
-        "mlp_dim": 5120,
-        "drop_path_rate": 0.55,
-    },
+    config={"patch_size": 14, **HUGE, "drop_path_rate": 0.55},
 )
 
 # With registers
+####################
+
 registry.register_model_config(
     "deit3_reg4_t16",
     DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 3,
-        "hidden_dim": 192,
-        "mlp_dim": 768,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.0,
-    },
+    config={"patch_size": 16, **TINY, "num_reg_tokens": 4},
+)
+registry.register_model_config(
+    "deit3_reg4_t14",
+    DeiT3,
+    config={"patch_size": 14, **TINY, "num_reg_tokens": 4},
 )
 registry.register_model_config(
     "deit3_reg4_s16",
     DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.05,
-    },
+    config={"patch_size": 16, **SMALL, "num_reg_tokens": 4, "drop_path_rate": 0.05},
 )
 registry.register_model_config(
     "deit3_reg4_s14",
     DeiT3,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.05,
-    },
+    config={"patch_size": 14, **SMALL, "num_reg_tokens": 4, "drop_path_rate": 0.05},
 )
 registry.register_model_config(
     "deit3_reg4_m16",
     DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 8,
-        "hidden_dim": 512,
-        "mlp_dim": 2048,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.1,
-    },
+    config={"patch_size": 16, **MEDIUM, "num_reg_tokens": 4, "drop_path_rate": 0.1},
 )
 registry.register_model_config(
     "deit3_reg4_m14",
     DeiT3,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 8,
-        "hidden_dim": 512,
-        "mlp_dim": 2048,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.1,
-    },
+    config={"patch_size": 14, **MEDIUM, "num_reg_tokens": 4, "drop_path_rate": 0.1},
 )
 registry.register_model_config(
     "deit3_reg4_b16",
     DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.2,
-    },
+    config={"patch_size": 16, **BASE, "num_reg_tokens": 4, "drop_path_rate": 0.2},
 )
 registry.register_model_config(
     "deit3_reg4_b14",
     DeiT3,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.2,
-    },
+    config={"patch_size": 14, **BASE, "num_reg_tokens": 4, "drop_path_rate": 0.2},
 )
 registry.register_model_config(
     "deit3_reg4_l16",
     DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.45,
-    },
+    config={"patch_size": 16, **LARGE, "num_reg_tokens": 4, "drop_path_rate": 0.45},
 )
 registry.register_model_config(
     "deit3_reg4_l14",
     DeiT3,
-    config={
-        "patch_size": 14,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.45,
-    },
+    config={"patch_size": 14, **LARGE, "num_reg_tokens": 4, "drop_path_rate": 0.45},
 )
 registry.register_model_config(
     "deit3_reg4_h16",
     DeiT3,
-    config={
-        "patch_size": 16,
-        "num_layers": 32,
-        "num_heads": 16,
-        "hidden_dim": 1280,
-        "mlp_dim": 5120,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.55,
-    },
+    config={"patch_size": 16, **HUGE, "num_reg_tokens": 4, "drop_path_rate": 0.55},
 )
 registry.register_model_config(
     "deit3_reg4_h14",
     DeiT3,
-    config={
-        "patch_size": 14,
-        "num_layers": 32,
-        "num_heads": 16,
-        "hidden_dim": 1280,
-        "mlp_dim": 5120,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.55,
-    },
+    config={"patch_size": 14, **HUGE, "num_reg_tokens": 4, "drop_path_rate": 0.55},
 )
 
 registry.register_weights(
@@ -651,7 +504,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 21.5,
-                "sha256": "6cd9749a9522f8ff61088e38702553fb1c4d2547b417c499652e3bfa6a81e77a",
+                "sha256": "a04141c7f6c459ae075a48ccdee5b82d191bbaa82337673140c06ef82f0a8dc5",
             }
         },
         "net": {"network": "deit3_t16", "tag": "il-common"},
@@ -665,7 +518,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 21.5,
-                "sha256": "6806a5ae7d45f1c84b25e9869a9cbc7de94368fe9573dc3777acf2da8c83dc4e",
+                "sha256": "d26320462da64df6d62b307f7fb35d09c86a5f073002dfb24a51f014074e65c3",
             }
         },
         "net": {"network": "deit3_reg4_t16", "tag": "il-common"},

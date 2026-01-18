@@ -158,7 +158,7 @@ def model_path(
         file_name = f"{file_name}_quantized"
 
     if states is True:
-        file_name = f"{file_name}_states"
+        file_name = f"{file_name}_states.pt"
     elif lite is True:
         file_name = f"{file_name}.ptl"
     elif pt2 is True:
@@ -254,7 +254,7 @@ def clean_checkpoints(network_name: str, keep_last: int) -> None:
     models_glob = str(model_path(network_name, epoch=epoch))
     states_glob = str(model_path(network_name, epoch=epoch, states=True))
     model_pattern = re.compile(r".*_([1-9][0-9]*)\.pt$")
-    states_pattern = re.compile(r".*_([1-9][0-9]*)_states$")
+    states_pattern = re.compile(r".*_([1-9][0-9]*)_states\.pt$")
 
     model_paths = list(settings.BASE_DIR.glob(models_glob))
     for p in sorted(model_paths, key=lambda p: p.stat().st_mtime)[:-keep_last]:

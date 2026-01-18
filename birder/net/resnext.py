@@ -3,6 +3,11 @@ ResNeXt, adapted from
 https://github.com/pytorch/vision/blob/main/torchvision/models/resnet.py
 
 Paper "Aggregated Residual Transformations for Deep Neural Networks", https://arxiv.org/abs/1611.05431
+and
+Paper "Squeeze-and-Excitation Networks", https://arxiv.org/abs/1709.01507
+and
+Paper "Bag of Tricks for Image Classification with Convolutional Neural Networks",
+https://arxiv.org/abs/1812.01187
 """
 
 # Reference license: BSD 3-Clause
@@ -117,7 +122,6 @@ class ResNeXt(DetectorBackbone):
         *,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
-        squeeze_excitation: bool = False,
     ) -> None:
         super().__init__(input_channels, num_classes, config=config, size=size)
         assert self.config is not None, "must set config"
@@ -127,6 +131,7 @@ class ResNeXt(DetectorBackbone):
         base_width: int = self.config.get("base_width", 4)
         filter_list = [64, 128, 256, 512]
         units: list[int] = self.config["units"]
+        squeeze_excitation: bool = self.config.get("squeeze_excitation", False)
         deep_stem: bool = self.config.get("deep_stem", False)
         avg_down: bool = self.config.get("avg_down", False)
 
@@ -250,4 +255,33 @@ registry.register_model_config(
 )
 registry.register_model_config(
     "resnext_d_152", ResNeXt, config={"units": [3, 8, 36, 3], "deep_stem": True, "avg_down": True}
+)
+
+# Squeeze-and-Excitation Networks
+registry.register_model_config("se_resnext_50", ResNeXt, config={"units": [3, 4, 6, 3], "squeeze_excitation": True})
+registry.register_model_config("se_resnext_101", ResNeXt, config={"units": [3, 4, 23, 3], "squeeze_excitation": True})
+registry.register_model_config("se_resnext_152", ResNeXt, config={"units": [3, 8, 36, 3], "squeeze_excitation": True})
+
+registry.register_model_config(
+    "se_resnext_101_32x8", ResNeXt, config={"units": [3, 4, 23, 3], "base_width": 8, "squeeze_excitation": True}
+)
+registry.register_model_config(
+    "se_resnext_101_64x4", ResNeXt, config={"units": [3, 4, 23, 3], "groups": 64, "squeeze_excitation": True}
+)
+
+# SE-ResNeXt-D variants with SE
+registry.register_model_config(
+    "se_resnext_d_50",
+    ResNeXt,
+    config={"units": [3, 4, 6, 3], "squeeze_excitation": True, "deep_stem": True, "avg_down": True},
+)
+registry.register_model_config(
+    "se_resnext_d_101",
+    ResNeXt,
+    config={"units": [3, 4, 23, 3], "squeeze_excitation": True, "deep_stem": True, "avg_down": True},
+)
+registry.register_model_config(
+    "se_resnext_d_152",
+    ResNeXt,
+    config={"units": [3, 8, 36, 3], "squeeze_excitation": True, "deep_stem": True, "avg_down": True},
 )

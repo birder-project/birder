@@ -9,6 +9,7 @@ https://arxiv.org/abs/2206.01191
 
 Changes from original:
 * Removed attention bias cache
+* Stem bias term removed
 """
 
 # Reference license: Apache-2.0 (both)
@@ -76,7 +77,7 @@ class Downsample(nn.Module):
         stride: tuple[int, int],
     ) -> None:
         super().__init__()
-        padding = (kernel_size[0] // 2, kernel_size[1] // 2)
+        padding = ((kernel_size[0] - 1) // 2, (kernel_size[1] - 1) // 2)
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding)
         self.norm = nn.BatchNorm2d(out_channels)
 

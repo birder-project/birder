@@ -10,8 +10,6 @@ and
 Paper "Vision Transformers Need Registers", https://arxiv.org/abs/2309.16588
 and
 Paper "Getting ViT in Shape: Scaling Laws for Compute-Optimal Model Design", https://arxiv.org/abs/2305.13035
-and
-Paper "Scaling Vision Transformers", https://arxiv.org/abs/2106.04560
 """
 
 # Reference license: BSD 3-Clause and Apache-2.0
@@ -35,6 +33,7 @@ from birder.layers import MultiHeadAttentionPool
 from birder.layers import SwiGLU_FFN
 from birder.layers.activations import get_activation_module
 from birder.model_registry import registry
+from birder.net._vit_configs import register_vit_configs
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import MaskedTokenRetentionMixin
@@ -122,14 +121,10 @@ class Attention(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
-    # Make the same interface as nn.MultiheadAttention forward for TorchScript compatibility
     def forward(
         self,
         x: torch.Tensor,
-        key: Optional[torch.Tensor] = None,  # pylint: disable=unused-argument
-        value: Optional[torch.Tensor] = None,  # pylint: disable=unused-argument
         need_weights: bool = False,
-        attn_mask: Optional[torch.Tensor] = None,  # pylint: disable=unused-argument
         average_attn_weights: bool = False,
         is_causal: bool = False,
     ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
@@ -137,30 +132,16 @@ class Attention(nn.Module):
         Apply multi-head self-attention to the input sequence
 
         This module implements scaled dot-product attention over x and returns the
-        projected output. The method signature intentionally matches
-        torch.nn.MultiheadAttention.forward for TorchScript compatibility.
-
-        Compatibility notes
-        -------------------
-        The following parameters are accepted for API compatibility but are ignored by this implementation:
-        - key: ignored (keys are computed from x)
-        - value: ignored (values are computed from x)
-        - attn_mask: ignored (no external attention mask is applied)
+        projected output.
 
         Parameters
         ----------
         x
             Input tensor of shape (B, N, C) where B is batch size, N is sequence length,
             and C is embedding dimension.
-        key
-            Unused. Present for nn.MultiheadAttention-compatible signature.
-        value
-            Unused. Present for nn.MultiheadAttention-compatible signature.
         need_weights
             If True, also return attention weights computed explicitly. If False, uses
             torch.nn.functional.scaled_dot_product_attention and returns None for attention weights.
-        attn_mask
-            Unused. Present for nn.MultiheadAttention-compatible signature.
         average_attn_weights
             If True and need_weights is True, average attention weights across heads
             to shape (B, N, N). If False, return per-head weights of shape (B, num_heads, N, N).
@@ -231,41 +212,32 @@ class EncoderBlock(nn.Module):
         super().__init__()
         self.need_attn = False
         self.is_causal = False
-        self.use_custom_attn = qk_norm is True
 
         if mlp_dim is None:
             mlp_dim = hidden_dim * 4
 
         # Attention block
-        self.ln1 = norm_layer(hidden_dim, eps=norm_layer_eps)
+        self.norm1 = norm_layer(hidden_dim, eps=norm_layer_eps)
+        self.attn = Attention(
+            hidden_dim,
+            num_heads=num_heads,
+            attn_drop=attention_dropout,
+            proj_drop=0.0,
+            qkv_bias=qkv_bias,
+            qk_norm=qk_norm,
+            norm_layer=norm_layer,
+            norm_layer_eps=norm_layer_eps,
+        )
 
-        if self.use_custom_attn is False:
-            # Prefer PyTorch's built-in MultiheadAttention for the "standard" case
-            self.self_attention = nn.MultiheadAttention(
-                hidden_dim, num_heads, dropout=attention_dropout, bias=qkv_bias, batch_first=True
-            )
-        else:
-            self.self_attention = Attention(
-                hidden_dim,
-                num_heads=num_heads,
-                attn_drop=attention_dropout,
-                proj_drop=0.0,
-                qkv_bias=qkv_bias,
-                qk_norm=qk_norm,
-                norm_layer=norm_layer,
-                norm_layer_eps=norm_layer_eps,
-            )
-
-        self.drop_path1 = StochasticDepth(drop_path, mode="row")
+        self.drop_path = StochasticDepth(drop_path, mode="row")
         if layer_scale_init_value is not None:
             self.layer_scale_1 = LayerScale(hidden_dim, layer_scale_init_value)
         else:
             self.layer_scale_1 = nn.Identity()
 
         # MLP block
-        self.ln2 = norm_layer(hidden_dim, eps=norm_layer_eps)
+        self.norm2 = norm_layer(hidden_dim, eps=norm_layer_eps)
         self.mlp = mlp_layer(hidden_dim, mlp_dim, act_layer=activation_layer, dropout=dropout)
-        self.drop_path2 = StochasticDepth(drop_path, mode="row")
         if layer_scale_init_value is not None:
             self.layer_scale_2 = LayerScale(hidden_dim, layer_scale_init_value)
         else:
@@ -273,34 +245,14 @@ class EncoderBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # torch._assert(x.dim() == 3, f"Expected (batch_size, seq_length, hidden_dim) got {x.size()}")
-        branch1 = self.ln1(x)
-        if self.is_causal is True:
-            seq_len = x.size(1)
-            attn_mask = torch.triu(
-                torch.full((seq_len, seq_len), float("-inf"), dtype=x.dtype, device=x.device),
-                diagonal=1,
-            )
-        else:
-            attn_mask = None
-
-        (branch1, _) = self.self_attention(
-            branch1,
-            branch1,
-            branch1,
+        (attn_out, _) = self.attn(
+            self.norm1(x),
             need_weights=self.need_attn,
-            attn_mask=attn_mask,  # Ignored on the custom attention
             average_attn_weights=False,
             is_causal=self.is_causal,
         )
-
-        branch1 = self.layer_scale_1(branch1)
-        branch1 = self.drop_path1(branch1) + x
-
-        branch2 = self.ln2(branch1)
-        branch2 = self.mlp(branch2)
-        branch2 = self.layer_scale_2(branch2)
-
-        x = self.drop_path2(branch2) + branch1
+        x = x + self.drop_path(self.layer_scale_1(attn_out))
+        x = x + self.drop_path(self.layer_scale_2(self.mlp(self.norm2(x))))
 
         return x
 
@@ -834,888 +786,8 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         self.pos_embedding = nn.Parameter(pos_embedding)
 
 
-# For the model naming convention see rope_vit.py
-
-registry.register_model_config(
-    "vit_t32",
-    ViT,
-    config={
-        "patch_size": 32,
-        "num_layers": 12,
-        "num_heads": 3,
-        "hidden_dim": 192,
-        "mlp_dim": 768,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_t16",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 3,
-        "hidden_dim": 192,
-        "mlp_dim": 768,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_s32",
-    ViT,
-    config={
-        "patch_size": 32,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_s16",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_s16_ls",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "layer_scale_init_value": 1e-5,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_s16_pn",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "pre_norm": True,
-        "norm_layer_eps": 1e-5,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_s14",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_m32",
-    ViT,
-    config={
-        "patch_size": 32,
-        "num_layers": 12,
-        "num_heads": 8,
-        "hidden_dim": 512,
-        "mlp_dim": 2048,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_m16",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 8,
-        "hidden_dim": 512,
-        "mlp_dim": 2048,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_m14",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 8,
-        "hidden_dim": 512,
-        "mlp_dim": 2048,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_b32",
-    ViT,
-    config={
-        "patch_size": 32,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_b16",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_b16_ls",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "layer_scale_init_value": 1e-5,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_b16_qkn_ls",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "layer_scale_init_value": 1e-5,
-        "qk_norm": True,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_b16_pn_quick_gelu",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "pre_norm": True,
-        "norm_layer_eps": 1e-5,
-        "act_layer_type": "quick_gelu",
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_b14",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_l32",
-    ViT,
-    config={
-        "patch_size": 32,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_l16",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_l14",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_l14_pn",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "pre_norm": True,
-        "norm_layer_eps": 1e-5,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_l14_pn_quick_gelu",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "pre_norm": True,
-        "norm_layer_eps": 1e-5,
-        "act_layer_type": "quick_gelu",
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_h16",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 32,
-        "num_heads": 16,
-        "hidden_dim": 1280,
-        "mlp_dim": 5120,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_h14",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 32,
-        "num_heads": 16,
-        "hidden_dim": 1280,
-        "mlp_dim": 5120,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(  # From "Scaling Vision Transformers"
-    "vit_g14",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 40,
-        "num_heads": 16,
-        "hidden_dim": 1408,
-        "mlp_dim": 6144,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(  # From "Scaling Vision Transformers"
-    "vit_gigantic14",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 48,
-        "num_heads": 16,
-        "hidden_dim": 1664,
-        "mlp_dim": 8192,
-        "drop_path_rate": 0.1,
-    },
-)
-
-# With registers
-registry.register_model_config(
-    "vit_reg1_t16",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 3,
-        "hidden_dim": 192,
-        "mlp_dim": 768,
-        "num_reg_tokens": 1,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_reg1_s32",
-    ViT,
-    config={
-        "patch_size": 32,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "num_reg_tokens": 1,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_reg1_s16",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "num_reg_tokens": 1,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_reg1_s16_ls",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "layer_scale_init_value": 1e-5,
-        "num_reg_tokens": 1,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_reg1_s16_rms_ls",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "layer_scale_init_value": 1e-5,
-        "num_reg_tokens": 1,
-        "norm_layer_type": "RMSNorm",
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_reg1_s14",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "num_reg_tokens": 1,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_m32",
-    ViT,
-    config={
-        "patch_size": 32,
-        "num_layers": 12,
-        "num_heads": 8,
-        "hidden_dim": 512,
-        "mlp_dim": 2048,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_m16",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 8,
-        "hidden_dim": 512,
-        "mlp_dim": 2048,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_m16_rms_avg",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 8,
-        "hidden_dim": 512,
-        "mlp_dim": 2048,
-        "num_reg_tokens": 4,
-        "class_token": False,
-        "norm_layer_type": "RMSNorm",
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_m14",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 8,
-        "hidden_dim": 512,
-        "mlp_dim": 2048,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_b32",
-    ViT,
-    config={
-        "patch_size": 32,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.0,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_b16",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_b16_avg",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "num_reg_tokens": 4,
-        "class_token": False,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_b14",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg8_b14_ap",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "num_reg_tokens": 8,
-        "class_token": False,
-        "attn_pool_head": True,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_l32",
-    ViT,
-    config={
-        "patch_size": 32,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_l16",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg8_l16_avg",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "num_reg_tokens": 8,
-        "class_token": False,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg8_l16_aps",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "num_reg_tokens": 8,
-        "class_token": False,
-        "attn_pool_head": True,
-        "attn_pool_special_tokens": True,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_l14",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(  # DeiT III style
-    "vit_reg4_l14_nps_ls",
-    ViT,
-    config={
-        "pos_embed_special_tokens": False,
-        "patch_size": 14,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "layer_scale_init_value": 1e-5,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg8_l14_ap",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "num_reg_tokens": 8,
-        "class_token": False,
-        "attn_pool_head": True,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg8_l14_rms_ap",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_dim": 4096,
-        "num_reg_tokens": 8,
-        "class_token": False,
-        "attn_pool_head": True,
-        "norm_layer_type": "RMSNorm",
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_h16",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 32,
-        "num_heads": 16,
-        "hidden_dim": 1280,
-        "mlp_dim": 5120,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_h14",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 32,
-        "num_heads": 16,
-        "hidden_dim": 1280,
-        "mlp_dim": 5120,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(  # From "Scaling Vision Transformers"
-    "vit_reg4_g14",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 40,
-        "num_heads": 16,
-        "hidden_dim": 1408,
-        "mlp_dim": 6144,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.1,
-    },
-)
-
-# Shape-optimized vision transformer (SoViT)
-registry.register_model_config(
-    "vit_so150m_p14_ap",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 18,
-        "num_heads": 16,
-        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
-        "mlp_dim": 2320,
-        "class_token": False,
-        "attn_pool_head": True,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_so400m_p14_ap",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 27,
-        "num_heads": 16,
-        "hidden_dim": 1152,
-        "mlp_dim": 4304,
-        "class_token": False,
-        "attn_pool_head": True,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_so150m_p16_avg",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 18,
-        "num_heads": 16,
-        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
-        "mlp_dim": 2320,
-        "num_reg_tokens": 4,
-        "class_token": False,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg8_so150m_p16_swiglu_ap",
-    ViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 18,
-        "num_heads": 16,
-        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
-        "mlp_dim": 2320,
-        "num_reg_tokens": 8,
-        "class_token": False,
-        "attn_pool_head": True,
-        "mlp_layer_type": "SwiGLU_FFN",
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_so150m_p14_avg",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 18,
-        "num_heads": 16,
-        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
-        "mlp_dim": 2320,
-        "num_reg_tokens": 4,
-        "class_token": False,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_so150m_p14_ls",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 18,
-        "num_heads": 16,
-        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
-        "mlp_dim": 2320,
-        "layer_scale_init_value": 1e-5,
-        "num_reg_tokens": 4,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_so150m_p14_ap",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 18,
-        "num_heads": 16,
-        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
-        "mlp_dim": 2320,
-        "num_reg_tokens": 4,
-        "class_token": False,
-        "attn_pool_head": True,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_so150m_p14_aps",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 18,
-        "num_heads": 16,
-        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
-        "mlp_dim": 2320,
-        "num_reg_tokens": 4,
-        "class_token": False,
-        "attn_pool_head": True,
-        "attn_pool_special_tokens": True,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg8_so150m_p14_avg",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 18,
-        "num_heads": 16,
-        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
-        "mlp_dim": 2320,
-        "num_reg_tokens": 8,
-        "class_token": False,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg8_so150m_p14_swiglu",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 18,
-        "num_heads": 16,
-        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
-        "mlp_dim": 2320,
-        "num_reg_tokens": 8,
-        "mlp_layer_type": "SwiGLU_FFN",
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg8_so150m_p14_swiglu_avg",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 18,
-        "num_heads": 16,
-        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
-        "mlp_dim": 2320,
-        "num_reg_tokens": 8,
-        "class_token": False,
-        "mlp_layer_type": "SwiGLU_FFN",
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg8_so150m_p14_ap",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 18,
-        "num_heads": 16,
-        "hidden_dim": 896,  # Changed from 880 for RoPE divisibility
-        "mlp_dim": 2320,
-        "num_reg_tokens": 8,
-        "class_token": False,
-        "attn_pool_head": True,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg4_so400m_p14_ap",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 27,
-        "num_heads": 16,
-        "hidden_dim": 1152,
-        "mlp_dim": 4304,
-        "num_reg_tokens": 4,
-        "class_token": False,
-        "attn_pool_head": True,
-        "drop_path_rate": 0.1,
-    },
-)
-registry.register_model_config(
-    "vit_reg8_so400m_p14_ap",
-    ViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 27,
-        "num_heads": 16,
-        "hidden_dim": 1152,
-        "mlp_dim": 4304,
-        "num_reg_tokens": 8,
-        "class_token": False,
-        "attn_pool_head": True,
-        "drop_path_rate": 0.1,
-    },
-)
+# Register model configs (side effects)
+register_vit_configs(ViT)
 
 registry.register_weights(
     "vit_l16_mim_200",
@@ -1729,7 +801,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 1157.1,
-                "sha256": "003b15a79cd528339de1b19304bbd04fd5885df36b80e19202cd6ef6f8ffbed1",
+                "sha256": "7fc5b342347d8349aaf5f069a47efd441b646f8542821ed2e30b47a7da72917a",
             },
         },
         "net": {"network": "vit_l16", "tag": "mim"},
@@ -1747,7 +819,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 1157.1,
-                "sha256": "c6083c6532996addaf4efe29276aa55f9a3c77984f862f720c6131f86b847994",
+                "sha256": "9b5c4e2538ea40edd60d8831d3807b543290dc2db44d537e60e44a341b47e54e",
             },
         },
         "net": {"network": "vit_l16", "tag": "mim"},
@@ -1765,7 +837,7 @@ registry.register_weights(  # BioCLIP v2: https://arxiv.org/abs/2505.23883
         "formats": {
             "pt": {
                 "file_size": 1156.6,
-                "sha256": "cfb998d762cd2ba883964026ddfc8f2f84cf1e6ad6f7264ab33da52f57d25fab",
+                "sha256": "6cd7bd6993762590891fe2b41db1649cde5a0c4de5a7f341672f8856ed529d07",
             },
         },
         "net": {"network": "vit_l14_pn", "tag": "bioclip-v2"},
@@ -1783,7 +855,7 @@ registry.register_weights(  # OpenAI CLIP: https://arxiv.org/abs/2103.00020
         "formats": {
             "pt": {
                 "file_size": 1159.7,
-                "sha256": "e4c6ff7467608c412d35f9a4e2df18f3b8f05fc9eca3803c8fcc01558921378d",
+                "sha256": "2c7462390956d8942de0df21d9d1a43cf53fdbe3a3570a1add64d859313a0bee",
             },
         },
         "net": {"network": "vit_l14_pn_quick_gelu", "tag": "openai-clip"},
@@ -1801,7 +873,7 @@ registry.register_weights(  # SigLIP 2: https://arxiv.org/abs/2502.14786
         "formats": {
             "pt": {
                 "file_size": 1631.6,
-                "sha256": "1f9f659a7b1bdf8a6a2977140be9bb3f876f7f756bf6e13d54bf00f3b6db0b0f",
+                "sha256": "f8ac3bdf028d17a2ee2673f58b51cffa5c696edef44c92092299d970607c7be6",
             },
         },
         "net": {"network": "vit_so400m_p14_ap", "tag": "siglip-v2-webli"},
@@ -1821,7 +893,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 146.2,
-                "sha256": "bc4c9e600e93322440fb68c1001216d49c54c7587cdf61544f363f9537152f4a",
+                "sha256": "0f5cd4e0acb44d1e429bbed342c60bf22087ecd1d7112363c3ceb909dcd9d547",
             },
         },
         "net": {"network": "vit_reg4_m16_rms_avg", "tag": "i-jepa"},
@@ -1839,7 +911,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 166.8,
-                "sha256": "9ff659be9826bbbafbcfa85d79d0fa9d5ac383fd2442ffa36db6c4f7ab09b86a",
+                "sha256": "e9b83e90c284877c859e92a05a35ff25884a06d3fd006d90ee576d58f71d3251",
             },
         },
         "net": {"network": "vit_reg4_m16_rms_avg", "tag": "i-jepa-inat21-256px"},
@@ -1857,7 +929,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 167.4,
-                "sha256": "1cfa7ebea3db95363bf9e35fc24be94e419debe5db58746fe3320fbcb8bda6dd",
+                "sha256": "7fde7375f5f9165114561f6288cdf086ba8b6635251304de08bd01883bb7a2da",
             },
         },
         "net": {"network": "vit_reg4_m16_rms_avg", "tag": "i-jepa-inat21"},
@@ -1874,7 +946,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 184.2,
-                "sha256": "d6d9fc47ecbad04a83b178bcd2eeecbd77569cc2a17fbdf52e02feda54523c3f",
+                "sha256": "da47dc6bd4f41c347235beba92657b66148180141d0bd629169e84449b629fbb",
             },
         },
         "net": {"network": "vit_reg4_m16_rms_avg", "tag": "i-jepa-imagenet21k"},
@@ -1892,7 +964,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 327.4,
-                "sha256": "6b044cd7834293e344309f809070db3fe9ede489478e7549ad96255f9d76b329",
+                "sha256": "c7ec433c01e1dc0d6100cafc29fa88155a0d65f4b42afa9cc252b77485a566a7",
             },
         },
         "net": {"network": "vit_reg4_b16", "tag": "mim"},
@@ -1910,7 +982,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 327.4,
-                "sha256": "e0df2e79f8ed0612d12c736cc6317be1b9b354e468715a5077366f7676fdd2ce",
+                "sha256": "b0e5e2b24ea7a8d2be246df43c9d8092354f6ee81e88c6cdd7c52d8e38ed44a4",
             },
         },
         "net": {"network": "vit_reg4_b16", "tag": "mim"},
@@ -1928,7 +1000,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 328.7,
-                "sha256": "3d1564be46b23081c76aa87c7e90324214b6ced899d4b38d59d1a4154b13f01c",
+                "sha256": "3a15b95285cd4435b601ef058839f422cdce8f68cca50de9353e1ac2bcb65f9a",
             },
         },
         "net": {"network": "vit_reg4_b16", "tag": "mim-intermediate-il-common"},
@@ -1946,7 +1018,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 330.7,
-                "sha256": "e011f931a5a4d96ef21283d70911a55ea649eadfefa9c163a48b996797f0d9da",
+                "sha256": "78dbf578ebe7d5761705231e16fef280b14905a94f18879167c96df3e59d13a5",
             },
         },
         "net": {"network": "vit_reg4_b16", "tag": "mim-intermediate-arabian-peninsula"},
@@ -1964,7 +1036,7 @@ registry.register_weights(  # DINO v2: https://arxiv.org/abs/2304.07193
         "formats": {
             "pt": {
                 "file_size": 1161.2,
-                "sha256": "56d39cbaed8b7da72175b7b3a0c9419e71aabc1e9516567703a39ba05244a44f",
+                "sha256": "441721029ca0ef85582bc8822ec91d780ee442eb3d06b04fb5e4662c9317b52d",
             },
         },
         "net": {"network": "vit_reg4_l14_nps_ls", "tag": "dino-v2-lvd142m"},

@@ -10,6 +10,7 @@ https://arxiv.org/abs/2206.10589
 
 import math
 from collections import OrderedDict
+from functools import partial
 from typing import Any
 from typing import Optional
 
@@ -277,7 +278,7 @@ class EdgeNeXt(DetectorBackbone):
             stride=(4, 4),
             padding=(0, 0),
             bias=True,
-            norm_layer=LayerNorm2d,
+            norm_layer=partial(LayerNorm2d, eps=1e-6),
             activation_layer=None,
         )
 

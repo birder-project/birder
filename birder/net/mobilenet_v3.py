@@ -3,6 +3,9 @@ MobileNet v3, adapted from
 https://github.com/pytorch/vision/blob/main/torchvision/models/mobilenetv3.py
 
 Paper "Searching for MobileNetV3", https://arxiv.org/abs/1905.02244
+
+Changes from original:
+* Using nn.BatchNorm2d with eps 1e-5 instead of 1e-3
 """
 
 # Reference license: BSD 3-Clause
@@ -113,7 +116,7 @@ class InvertedResidual(nn.Module):
 
 
 # pylint: disable=invalid-name
-class MobileNet_v3_Large(DetectorBackbone):
+class MobileNet_v3(DetectorBackbone):
     def __init__(
         self,
         input_channels: int,
@@ -121,12 +124,12 @@ class MobileNet_v3_Large(DetectorBackbone):
         *,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
-        large: bool = True,
     ) -> None:
         super().__init__(input_channels, num_classes, config=config, size=size)
         assert self.config is not None, "must set config"
 
         alpha: float = self.config["alpha"]
+        large: bool = self.config["large"]
 
         if large is True:
             last_channels = int(round(1280 * max(1.0, alpha)))
@@ -268,15 +271,39 @@ class MobileNet_v3_Large(DetectorBackbone):
         )
 
 
-registry.register_model_config("mobilenet_v3_large_0_25", MobileNet_v3_Large, config={"alpha": 0.25})
-registry.register_model_config("mobilenet_v3_large_0_5", MobileNet_v3_Large, config={"alpha": 0.5})
-registry.register_model_config("mobilenet_v3_large_0_75", MobileNet_v3_Large, config={"alpha": 0.75})
-registry.register_model_config("mobilenet_v3_large_1_0", MobileNet_v3_Large, config={"alpha": 1.0})
-registry.register_model_config("mobilenet_v3_large_1_25", MobileNet_v3_Large, config={"alpha": 1.25})
-registry.register_model_config("mobilenet_v3_large_1_5", MobileNet_v3_Large, config={"alpha": 1.5})
-registry.register_model_config("mobilenet_v3_large_1_75", MobileNet_v3_Large, config={"alpha": 1.75})
-registry.register_model_config("mobilenet_v3_large_2_0", MobileNet_v3_Large, config={"alpha": 2.0})
+registry.register_model_config("mobilenet_v3_small_0_25", MobileNet_v3, config={"alpha": 0.25, "large": False})
+registry.register_model_config("mobilenet_v3_small_0_5", MobileNet_v3, config={"alpha": 0.5, "large": False})
+registry.register_model_config("mobilenet_v3_small_0_75", MobileNet_v3, config={"alpha": 0.75, "large": False})
+registry.register_model_config("mobilenet_v3_small_1_0", MobileNet_v3, config={"alpha": 1.0, "large": False})
+registry.register_model_config("mobilenet_v3_small_1_25", MobileNet_v3, config={"alpha": 1.25, "large": False})
+registry.register_model_config("mobilenet_v3_small_1_5", MobileNet_v3, config={"alpha": 1.5, "large": False})
+registry.register_model_config("mobilenet_v3_small_1_75", MobileNet_v3, config={"alpha": 1.75, "large": False})
+registry.register_model_config("mobilenet_v3_small_2_0", MobileNet_v3, config={"alpha": 2.0, "large": False})
 
+registry.register_model_config("mobilenet_v3_large_0_25", MobileNet_v3, config={"alpha": 0.25, "large": True})
+registry.register_model_config("mobilenet_v3_large_0_5", MobileNet_v3, config={"alpha": 0.5, "large": True})
+registry.register_model_config("mobilenet_v3_large_0_75", MobileNet_v3, config={"alpha": 0.75, "large": True})
+registry.register_model_config("mobilenet_v3_large_1_0", MobileNet_v3, config={"alpha": 1.0, "large": True})
+registry.register_model_config("mobilenet_v3_large_1_25", MobileNet_v3, config={"alpha": 1.25, "large": True})
+registry.register_model_config("mobilenet_v3_large_1_5", MobileNet_v3, config={"alpha": 1.5, "large": True})
+registry.register_model_config("mobilenet_v3_large_1_75", MobileNet_v3, config={"alpha": 1.75, "large": True})
+registry.register_model_config("mobilenet_v3_large_2_0", MobileNet_v3, config={"alpha": 2.0, "large": True})
+
+
+registry.register_weights(
+    "mobilenet_v3_small_1_0_il-common",
+    {
+        "description": "MobileNet v3 small (1.0 multiplier) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 7.4,
+                "sha256": "ac53227f7513fd0c0b5204ee57403de2ab6c74c4e4d1061b9168596c6b5cea48",
+            }
+        },
+        "net": {"network": "mobilenet_v3_small_1_0", "tag": "il-common"},
+    },
+)
 registry.register_weights(
     "mobilenet_v3_large_0_75_il-common",
     {

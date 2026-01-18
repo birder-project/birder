@@ -4,6 +4,9 @@ https://github.com/saic-fi/edgevit/blob/master/src/edgevit.py
 
 Paper "EdgeViTs: Competing Light-weight CNNs on Mobile Devices with Vision Transformers",
 https://arxiv.org/abs/2205.03436
+
+Changes from original:
+* Removed classifier bias
 """
 
 # Reference license: Apache-2.0

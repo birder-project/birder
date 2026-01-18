@@ -4,6 +4,8 @@ https://github.com/pytorch/vision/blob/main/torchvision/models/resnet.py
 
 Paper "Deep Residual Learning for Image Recognition", https://arxiv.org/abs/1512.03385
 and
+Paper "Squeeze-and-Excitation Networks", https://arxiv.org/abs/1709.01507
+and
 Paper "Bag of Tricks for Image Classification with Convolutional Neural Networks",
 https://arxiv.org/abs/1812.01187
 """
@@ -101,7 +103,6 @@ class ResNet_v1(DetectorBackbone):
         *,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
-        squeeze_excitation: bool = False,
     ) -> None:
         super().__init__(input_channels, num_classes, config=config, size=size)
         assert self.config is not None, "must set config"
@@ -110,6 +111,7 @@ class ResNet_v1(DetectorBackbone):
         filter_list: list[int] = self.config["filter_list"]
         units: list[int] = self.config["units"]
         pooling_param: Optional[float] = self.config.get("pooling_param", None)
+        squeeze_excitation: bool = self.config.get("squeeze_excitation", False)
         deep_stem: bool = self.config.get("deep_stem", False)
         avg_down: bool = self.config.get("avg_down", False)
 
@@ -297,6 +299,128 @@ registry.register_model_config(
         "bottle_neck": True,
         "filter_list": [64, 256, 512, 1024, 2048],
         "units": [3, 24, 36, 3],
+        "deep_stem": True,
+        "avg_down": True,
+    },
+)
+
+# Squeeze-and-Excitation Networks
+registry.register_model_config(
+    "se_resnet_v1_18",
+    ResNet_v1,
+    config={
+        "bottle_neck": False,
+        "filter_list": [64, 64, 128, 256, 512],
+        "units": [2, 2, 2, 2],
+        "squeeze_excitation": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_v1_34",
+    ResNet_v1,
+    config={
+        "bottle_neck": False,
+        "filter_list": [64, 64, 128, 256, 512],
+        "units": [3, 4, 6, 3],
+        "squeeze_excitation": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_v1_50",
+    ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 4, 6, 3],
+        "squeeze_excitation": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_v1_101",
+    ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 4, 23, 3],
+        "squeeze_excitation": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_v1_152",
+    ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 8, 36, 3],
+        "squeeze_excitation": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_v1_200",
+    ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 24, 36, 3],
+        "squeeze_excitation": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_v1_269",
+    ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 30, 48, 8],
+        "squeeze_excitation": True,
+    },
+)
+
+# SE-ResNet-D variants with SE
+registry.register_model_config(
+    "se_resnet_d_50",
+    ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 4, 6, 3],
+        "squeeze_excitation": True,
+        "deep_stem": True,
+        "avg_down": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_d_101",
+    ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 4, 23, 3],
+        "squeeze_excitation": True,
+        "deep_stem": True,
+        "avg_down": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_d_152",
+    ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 8, 36, 3],
+        "squeeze_excitation": True,
+        "deep_stem": True,
+        "avg_down": True,
+    },
+)
+registry.register_model_config(
+    "se_resnet_d_200",
+    ResNet_v1,
+    config={
+        "bottle_neck": True,
+        "filter_list": [64, 256, 512, 1024, 2048],
+        "units": [3, 24, 36, 3],
+        "squeeze_excitation": True,
         "deep_stem": True,
         "avg_down": True,
     },

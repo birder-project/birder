@@ -22,6 +22,8 @@ from birder.layers import MultiHeadAttentionPool
 from birder.layers import SwiGLU_FFN
 from birder.layers.activations import get_activation_module
 from birder.model_registry import registry
+from birder.net._vit_configs import BASE
+from birder.net._vit_configs import SMALL
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import MaskedTokenRetentionMixin
@@ -583,70 +585,47 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 registry.register_model_config(
     "flexivit_s16",
     FlexiViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "drop_path_rate": 0.0,
-    },
+    config={"patch_size": 16, **SMALL},
 )
 registry.register_model_config(
     "flexivit_s16_ls",
     FlexiViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "layer_scale_init_value": 1e-5,
-        "drop_path_rate": 0.0,
-    },
+    config={"patch_size": 16, **SMALL, "layer_scale_init_value": 1e-5},
 )
+registry.register_model_config(
+    "flexivit_b16",
+    FlexiViT,
+    config={"patch_size": 16, **BASE},
+)
+
+# With registers
+####################
+
 registry.register_model_config(
     "flexivit_reg1_s16",
     FlexiViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "num_reg_tokens": 1,
-        "drop_path_rate": 0.0,
-    },
+    config={"patch_size": 16, **SMALL, "num_reg_tokens": 1},
 )
 registry.register_model_config(
     "flexivit_reg1_s16_rms_ls",
     FlexiViT,
     config={
         "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
+        **SMALL,
         "layer_scale_init_value": 1e-5,
         "num_reg_tokens": 1,
         "norm_layer_type": "RMSNorm",
-        "drop_path_rate": 0.0,
     },
+)
+registry.register_model_config(
+    "flexivit_reg4_b16",
+    FlexiViT,
+    config={"patch_size": 16, **BASE, "num_reg_tokens": 4},
 )
 registry.register_model_config(
     "flexivit_reg8_b14_ap",
     FlexiViT,
-    config={
-        "patch_size": 14,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "num_reg_tokens": 8,
-        "class_token": False,
-        "attn_pool_head": True,
-        "drop_path_rate": 0.1,
-    },
+    config={"patch_size": 14, **BASE, "num_reg_tokens": 8, "class_token": False, "attn_pool_head": True},
 )
 
 registry.register_weights(
@@ -661,7 +640,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 83.6,
-                "sha256": "8d11fb14630f2a54632aeebd09c5a9c2b3b7de1099e09de5e91f433ed915b784",
+                "sha256": "8285f4fe56401f169491cb2399d2a7c82f3a0cfbe8a5a8d3c27163024a274800",
             },
         },
         "net": {"network": "flexivit_reg1_s16_rms_ls", "tag": "dino-v2-il-all"},

@@ -23,8 +23,8 @@ from birder.net.base import DetectorBackbone
 class LearnableAffineBlock(nn.Module):
     def __init__(self, scale_value: float, bias_value: float) -> None:
         super().__init__()
-        self.scale = nn.Parameter(torch.tensor([scale_value]), requires_grad=True)
-        self.bias = nn.Parameter(torch.tensor([bias_value]), requires_grad=True)
+        self.scale = nn.Parameter(torch.tensor([scale_value]))
+        self.bias = nn.Parameter(torch.tensor([bias_value]))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.scale * x + self.bias
@@ -90,7 +90,7 @@ class LightConvBNAct(nn.Module):
             out_channels,
             kernel_size=kernel_size,
             stride=(1, 1),
-            padding=(kernel_size[0] // 2, kernel_size[1] // 2),
+            padding=((kernel_size[0] - 1) // 2, (kernel_size[1] - 1) // 2),
             groups=out_channels,
             use_act=True,
             use_lab=use_lab,
@@ -180,7 +180,7 @@ class HighPerfGPUBlock(nn.Module):
                         mid_channels,
                         kernel_size=kernel_size,
                         stride=(1, 1),
-                        padding=(kernel_size[0] // 2, kernel_size[1] // 2),
+                        padding=((kernel_size[0] - 1) // 2, (kernel_size[1] - 1) // 2),
                         groups=1,
                         use_act=True,
                         use_lab=use_lab,
@@ -267,7 +267,7 @@ class HighPerfGPUStage(nn.Module):
                 in_channels,
                 kernel_size=(3, 3),
                 stride=stride,
-                padding=(kernel_size[0] // 2, kernel_size[1] // 2),
+                padding=(1, 1),
                 groups=in_channels,
                 use_act=False,
                 use_lab=False,

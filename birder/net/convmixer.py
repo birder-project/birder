@@ -58,7 +58,7 @@ class ConvMixer(BaseNet):
             inplace=None,
         )
 
-        padding = (kernel_size[0] // 2, kernel_size[1] // 2)
+        padding = ((kernel_size[0] - 1) // 2, (kernel_size[1] - 1) // 2)
         self.body = nn.Sequential(
             *[
                 nn.Sequential(

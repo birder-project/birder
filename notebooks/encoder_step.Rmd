@@ -120,15 +120,15 @@ x.size()
 
 ```{python}
 (B, N, L) = x.size()  # N = H*W
-b1 = net.encoder.block[0].ln1(x)
+b1 = net.encoder.block[0].norm1(x)
 show(b1)
 ```
 
 ```{python}
-num_heads = net.encoder.block[0].self_attention.num_heads
-head_dim = net.encoder.block[0].self_attention.head_dim
+num_heads = net.encoder.block[0].attn.num_heads
+head_dim = net.encoder.block[0].attn.head_dim
 
-z = b1 @ net.encoder.block[0].self_attention.in_proj_weight.T + net.encoder.block[0].self_attention.in_proj_bias
+z = b1 @ net.encoder.block[0].attn.qkv.weight.T + net.encoder.block[0].attn.qkv.bias
 qkv = z.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
 (q, k, v) = qkv.unbind(0)
 show(v.transpose(1, 2).reshape(B, N, L))
@@ -144,7 +144,7 @@ show(z)
 ```
 
 ```{python}
-z = net.encoder.block[0].self_attention.out_proj(z)
+z = net.encoder.block[0].attn.proj(z)
 show(z)
 ```
 
@@ -154,7 +154,7 @@ show(b1)
 ```
 
 ```{python}
-b2 = net.encoder.block[0].ln2(b1)
+b2 = net.encoder.block[0].norm2(b1)
 show(b2)
 ```
 

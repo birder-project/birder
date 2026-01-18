@@ -4,6 +4,9 @@ https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/incept
 
 Paper "Inception-v4, Inception-ResNet and the Impact of Residual Connections on Learning",
 https://arxiv.org/abs/1602.07261
+
+Changes from original:
+* Using nn.BatchNorm2d with eps 1e-5 instead of 1e-3
 """
 
 # Reference license: Apache-2.0

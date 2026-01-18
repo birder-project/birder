@@ -110,7 +110,7 @@ class InceptionNeXtBlock(nn.Module):
             nn.BatchNorm2d(channels),
             ConvMLP(channels, hidden_features=int(mlp_ratio * channels), out_features=channels),
         )
-        self.layer_scale = nn.Parameter(torch.ones(channels, 1, 1) * layer_scale, requires_grad=True)
+        self.layer_scale = nn.Parameter(torch.ones(channels, 1, 1) * layer_scale)
         self.stochastic_depth = StochasticDepth(stochastic_depth_prob, mode="row")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

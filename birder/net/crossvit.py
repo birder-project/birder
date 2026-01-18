@@ -97,7 +97,7 @@ class CrossAttentionBlock(nn.Module):
         self, dim: int, num_heads: int, qkv_bias: bool, proj_drop: float, attn_drop: float, drop_path: float
     ) -> None:
         super().__init__()
-        self.norm1 = nn.LayerNorm(dim)
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
         self.attn = CrossAttention(
             dim, num_heads=num_heads, qkv_bias=qkv_bias, attn_drop=attn_drop, proj_drop=proj_drop
         )
@@ -146,7 +146,7 @@ class MultiScaleBlock(nn.Module):
         for d in range(num_branches):
             self.projs.append(
                 nn.Sequential(
-                    nn.LayerNorm(dim[d]),
+                    nn.LayerNorm(dim[d], eps=1e-6),
                     nn.GELU(),
                     nn.Linear(dim[d], dim[(d + 1) % num_branches]),
                 )
@@ -187,7 +187,7 @@ class MultiScaleBlock(nn.Module):
         for d in range(num_branches):
             self.revert_projs.append(
                 nn.Sequential(
-                    nn.LayerNorm(dim[(d + 1) % num_branches]),
+                    nn.LayerNorm(dim[(d + 1) % num_branches], eps=1e-6),
                     nn.GELU(),
                     nn.Linear(dim[(d + 1) % num_branches], dim[d]),
                 )
@@ -290,7 +290,7 @@ class CrossViT(BaseNet):
             dpr_ptr += curr_depth
             self.blocks.append(block)
 
-        self.norm = nn.ModuleList([nn.LayerNorm(embed_dim[i]) for i in range(self.num_branches)])
+        self.norm = nn.ModuleList([nn.LayerNorm(embed_dim[i], eps=1e-6) for i in range(self.num_branches)])
         self.embedding_size = sum(self.embed_dim)
         self.classifier = nn.ModuleList()
         for i in range(self.num_branches):
@@ -482,7 +482,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 32.7,
-                "sha256": "515265ed725adce09464bfd23ce612b1d1178bc22a57960db089d7148556149a",
+                "sha256": "08f674d8165dc97cc535f8188a5c5361751a8d0bb85061454986a21541a6fe8e",
             }
         },
         "net": {"network": "crossvit_9d", "tag": "il-common"},

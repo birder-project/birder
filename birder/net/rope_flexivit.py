@@ -21,6 +21,8 @@ from birder.layers import MultiHeadAttentionPool
 from birder.layers import SwiGLU_FFN
 from birder.layers.activations import get_activation_module
 from birder.model_registry import registry
+from birder.net._vit_configs import BASE
+from birder.net._vit_configs import SMALL
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import MaskedTokenRetentionMixin
@@ -661,26 +663,24 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
 registry.register_model_config(
     "rope_flexivit_s16",
     RoPE_FlexiViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "drop_path_rate": 0.0,
-    },
+    config={"patch_size": 16, **SMALL},
+)
+registry.register_model_config(
+    "rope_flexivit_b16",
+    RoPE_FlexiViT,
+    config={"patch_size": 16, **BASE},
+)
+
+# With registers
+####################
+
+registry.register_model_config(
+    "rope_flexivit_reg1_s16",
+    RoPE_FlexiViT,
+    config={"patch_size": 16, **SMALL, "num_reg_tokens": 1},
 )
 registry.register_model_config(
     "rope_flexivit_reg4_b16_avg",
     RoPE_FlexiViT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "num_reg_tokens": 4,
-        "class_token": False,
-        "drop_path_rate": 0.1,
-    },
+    config={"patch_size": 16, **BASE, "num_reg_tokens": 4, "class_token": False},
 )

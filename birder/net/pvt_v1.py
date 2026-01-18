@@ -50,7 +50,7 @@ class Attention(nn.Module):
 
         if sr_ratio > 1:
             self.sr = nn.Conv2d(dim, dim, kernel_size=(sr_ratio, sr_ratio), stride=(sr_ratio, sr_ratio), padding=(0, 0))
-            self.norm = nn.LayerNorm(dim)
+            self.norm = nn.LayerNorm(dim, eps=1e-6)
         else:
             self.sr = None
             self.norm = None
@@ -90,7 +90,7 @@ class PyramidVisionTransformerBlock(nn.Module):
         drop_path: float,
     ) -> None:
         super().__init__()
-        self.norm1 = nn.LayerNorm(dim)
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
         self.attn = Attention(
             dim,
             num_heads=num_heads,
@@ -100,7 +100,7 @@ class PyramidVisionTransformerBlock(nn.Module):
             proj_drop=proj_drop,
         )
 
-        self.norm2 = nn.LayerNorm(dim)
+        self.norm2 = nn.LayerNorm(dim, eps=1e-6)
         self.mlp = MLP(dim, [int(dim * mlp_ratio), dim], activation_layer=nn.GELU, dropout=proj_drop)
         self.drop_path = StochasticDepth(drop_path, mode="row")
 
@@ -115,7 +115,7 @@ class PatchEmbed(nn.Module):
     def __init__(self, patch_size: tuple[int, int], in_channels: int, embed_dim: int) -> None:
         super().__init__()
         self.proj = nn.Conv2d(in_channels, embed_dim, kernel_size=patch_size, stride=patch_size, padding=(0, 0))
-        self.norm = nn.LayerNorm(embed_dim)
+        self.norm = nn.LayerNorm(embed_dim, eps=1e-6)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.proj(x)
@@ -169,7 +169,7 @@ class PyramidVisionTransformerStage(nn.Module):
             ]
         )
 
-        self.norm = nn.LayerNorm(dim_out)
+        self.norm = nn.LayerNorm(dim_out, eps=1e-6)
         if cls_token is True:
             self.cls_token = nn.Parameter(torch.zeros(1, 1, dim_out))
         else:

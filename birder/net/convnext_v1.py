@@ -53,7 +53,7 @@ class ConvNeXtBlock(nn.Module):
             nn.Linear(4 * channels, channels),  # Same as 1x1 conv
             Permute([0, 3, 1, 2]),
         )
-        self.layer_scale = nn.Parameter(torch.ones(channels, 1, 1) * layer_scale, requires_grad=True)
+        self.layer_scale = nn.Parameter(torch.ones(channels, 1, 1) * layer_scale)
         self.stochastic_depth = StochasticDepth(stochastic_depth_prob, mode="row")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

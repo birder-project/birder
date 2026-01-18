@@ -16,6 +16,9 @@ import torch
 from torch import nn
 
 from birder.model_registry import registry
+from birder.net._vit_configs import BASE
+from birder.net._vit_configs import SMALL
+from birder.net._vit_configs import TINY
 from birder.net.base import BaseNet
 from birder.net.vit import Encoder
 from birder.net.vit import PatchEmbed
@@ -93,6 +96,10 @@ class DeiT(BaseNet):
         self.dist_classifier = self.create_classifier()
         self.classifier = self.create_classifier()
         self.distillation_output = False
+
+        self.max_stride = patch_size
+        self.stem_stride = patch_size
+        self.stem_width = hidden_dim
 
         # Weight initialization
         if isinstance(self.conv_proj, nn.Conv2d):
@@ -200,38 +207,17 @@ class DeiT(BaseNet):
 registry.register_model_config(
     "deit_t16",
     DeiT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 3,
-        "hidden_dim": 192,
-        "mlp_dim": 768,
-        "drop_path_rate": 0.0,
-    },
+    config={"patch_size": 16, **TINY},
 )
 registry.register_model_config(
     "deit_s16",
     DeiT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 6,
-        "hidden_dim": 384,
-        "mlp_dim": 1536,
-        "drop_path_rate": 0.1,
-    },
+    config={"patch_size": 16, **SMALL, "drop_path_rate": 0.1},  # Override the SMALL definition
 )
 registry.register_model_config(
     "deit_b16",
     DeiT,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_dim": 3072,
-        "drop_path_rate": 0.1,
-    },
+    config={"patch_size": 16, **BASE},
 )
 
 registry.register_weights(
@@ -242,7 +228,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 21.7,
-                "sha256": "ac124122dec9f1bceff383a6a555ca375ca1b613caf486dac3f29d87afac03b3",
+                "sha256": "68b33aba0c1be5e78d4a33e74a7c1ea72b6abb232d59f0048ff9b8342e43246e",
             }
         },
         "net": {"network": "deit_t16", "tag": "il-common"},
@@ -258,7 +244,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 21.7,
-                "sha256": "fafd0c3c65f9c35318f449f60485f640917736ee7b44056be55c2226909ffdb8",
+                "sha256": "f693e89fc350341141c55152bec9f499df63738e8423071f3b8e71801c3e5415",
             }
         },
         "net": {"network": "deit_t16", "tag": "dist-il-common"},

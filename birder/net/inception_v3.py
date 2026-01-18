@@ -3,6 +3,9 @@ Inception v3, adapted from
 https://github.com/pytorch/vision/blob/main/torchvision/models/inception.py
 
 Paper "Rethinking the Inception Architecture for Computer Vision", https://arxiv.org/abs/1512.00567
+
+Changes from original:
+* Using nn.BatchNorm2d with eps 1e-5 instead of 1e-3
 """
 
 # Reference license: BSD 3-Clause

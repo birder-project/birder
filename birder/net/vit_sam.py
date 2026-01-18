@@ -25,6 +25,10 @@ from birder.layers import LayerNorm2d
 from birder.layers import LayerScale
 from birder.layers import SwiGLU_FFN
 from birder.model_registry import registry
+from birder.net._vit_configs import BASE
+from birder.net._vit_configs import HUGE
+from birder.net._vit_configs import LARGE
+from birder.net._vit_configs import MEDIUM
 from birder.net.base import DetectorBackbone
 from birder.net.vit import EncoderBlock as MAEDecoderBlock
 
@@ -173,7 +177,7 @@ class EncoderBlock(nn.Module):
         self,
         dim: int,
         num_heads: int,
-        mlp_ratio: float,
+        mlp_dim: int,
         qkv_bias: bool,
         drop_path: float,
         use_rel_pos: bool,
@@ -204,7 +208,7 @@ class EncoderBlock(nn.Module):
 
         # MLP block
         self.norm2 = norm_layer(dim, eps=1e-6)
-        self.mlp = mlp_layer(dim, int(dim * mlp_ratio), act_layer=activation_layer, dropout=0.0)
+        self.mlp = mlp_layer(dim, mlp_dim, act_layer=activation_layer, dropout=0.0)
         self.drop_path2 = StochasticDepth(drop_path, mode="row")
         if layer_scale_init_value is not None:
             self.layer_scale_2 = LayerScale(dim, layer_scale_init_value)
@@ -255,7 +259,7 @@ class ViT_SAM(DetectorBackbone):
         num_layers: int = self.config["num_layers"]
         num_heads: int = self.config["num_heads"]
         hidden_dim: int = self.config["hidden_dim"]
-        mlp_ratio: float = self.config["mlp_ratio"]
+        mlp_dim: int = self.config["mlp_dim"]
         layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", None)
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
         mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
@@ -308,7 +312,7 @@ class ViT_SAM(DetectorBackbone):
                 EncoderBlock(
                     dim=hidden_dim,
                     num_heads=num_heads,
-                    mlp_ratio=mlp_ratio,
+                    mlp_dim=mlp_dim,
                     qkv_bias=True,
                     drop_path=dpr[i],
                     use_rel_pos=use_rel_pos,
@@ -531,57 +535,31 @@ registry.register_model_config(
     ViT_SAM,
     config={
         "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 8,
-        "hidden_dim": 512,
-        "mlp_ratio": 4.0,
+        **MEDIUM,
         "norm_layer_type": "RMSNorm",
         "window_size": 14,
         "global_attn_indexes": [2, 5, 8, 11],
-        "drop_path_rate": 0.0,
     },
 )
 
 registry.register_model_config(
     "vit_det_b16",
     ViT_SAM,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_ratio": 4.0,
-        "window_size": 14,
-        "global_attn_indexes": [2, 5, 8, 11],
-        "drop_path_rate": 0.1,
-    },
+    config={"patch_size": 16, **BASE, "window_size": 14, "global_attn_indexes": [2, 5, 8, 11]},
 )
 
 # ViT SAM (with neck)
 registry.register_model_config(
     "vit_sam_b16",
     ViT_SAM,
-    config={
-        "patch_size": 16,
-        "num_layers": 12,
-        "num_heads": 12,
-        "hidden_dim": 768,
-        "mlp_ratio": 4.0,
-        "window_size": 14,
-        "global_attn_indexes": [2, 5, 8, 11],
-        "neck_channels": 256,
-        "drop_path_rate": 0.1,
-    },
+    config={"patch_size": 16, **BASE, "window_size": 14, "global_attn_indexes": [2, 5, 8, 11], "neck_channels": 256},
 )
 registry.register_model_config(
     "vit_sam_l16",
     ViT_SAM,
     config={
         "patch_size": 16,
-        "num_layers": 24,
-        "num_heads": 16,
-        "hidden_dim": 1024,
-        "mlp_ratio": 4.0,
+        **LARGE,
         "window_size": 14,
         "global_attn_indexes": [5, 11, 17, 23],
         "neck_channels": 256,
@@ -593,10 +571,7 @@ registry.register_model_config(
     ViT_SAM,
     config={
         "patch_size": 16,
-        "num_layers": 32,
-        "num_heads": 16,
-        "hidden_dim": 1280,
-        "mlp_ratio": 4.0,
+        **HUGE,
         "window_size": 14,
         "global_attn_indexes": [7, 15, 23, 31],
         "neck_channels": 256,

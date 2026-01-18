@@ -4,6 +4,9 @@ https://github.com/pytorch/vision/blob/main/torchvision/models/efficientnet.py
 
 Paper "EfficientNetV2: Smaller Models and Faster Training",
 https://arxiv.org/abs/2104.00298
+
+Changes from original:
+* Using nn.BatchNorm2d with eps 1e-5 instead of 1e-3
 """
 
 # Reference license: BSD 3-Clause

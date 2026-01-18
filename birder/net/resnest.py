@@ -3,6 +3,9 @@ ResNeSt, adapted from
 https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/resnest.py
 
 Paper "ResNeSt: Split-Attention Networks", https://arxiv.org/abs/2004.08955
+
+Changes from original:
+* Removed bias from fc1 (SplitAttn)
 """
 
 # Reference license: Apache-2.0

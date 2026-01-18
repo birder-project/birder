@@ -376,26 +376,24 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v1_0_5 --tag il-common 
 torchrun --nproc_per_node=2 train.py --network mobilenet_v2_1_0 --tag il-common --batch-size 128 --opt rmsprop --lr 0.045 --wd 0.00004 --lr-scheduler step --lr-step-size 1 --lr-step-gamma 0.98 --epochs 300 --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
-### Mobilenet v3 Large
+### Mobilenet v3
 
-#### Mobilenet v3 Large: 0.75
+#### Mobilenet v3: Small 1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mobilenet_v3_small_1_0 --tag il-common --batch-size 256 --opt rmsprop --lr 0.064 --wd 0.00001 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --epochs 400 --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+#### Mobilenet v3: Large 0.75
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large_0_75 --tag il-common --batch-size 256 --opt rmsprop --lr 0.064 --wd 0.00001 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --epochs 400 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
-#### Mobilenet v3 Large: 1
+#### Mobilenet v3: Large 1
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large_1_0 --tag il-common --batch-size 256 --opt rmsprop --lr 0.064 --wd 0.00001 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --epochs 400 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
-```
-
-### Mobilenet v3 Small
-
-#### Mobilenet v3 Small: 1
-
-```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v3_small_1_0 --tag il-common --batch-size 256 --opt rmsprop --lr 0.064 --wd 0.00001 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --epochs 400 --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### Mobilenet v4

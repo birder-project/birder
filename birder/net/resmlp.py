@@ -40,8 +40,8 @@ class LayerScaleMLP(nn.Module):
         self.drop_path = StochasticDepth(drop_path, mode="row")
         self.norm2 = Affine(dim)
         self.mlp = MLP(dim, [int(dim * 4.0), dim], activation_layer=nn.GELU, dropout=drop)
-        self.gamma_1 = nn.Parameter(init_value * torch.ones((dim)), requires_grad=True)
-        self.gamma_2 = nn.Parameter(init_value * torch.ones((dim)), requires_grad=True)
+        self.gamma_1 = nn.Parameter(init_value * torch.ones((dim)))
+        self.gamma_2 = nn.Parameter(init_value * torch.ones((dim)))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x + self.drop_path(self.gamma_1 * self.attn(self.norm1(x).transpose(1, 2)).transpose(1, 2))

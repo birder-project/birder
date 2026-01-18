@@ -66,12 +66,12 @@ class ClassAttentionBlock(nn.Module):
         self, dim: int, num_heads: int, mlp_ratio: float, qkv_bias: bool, proj_drop: float, drop_path: float, eta: float
     ) -> None:
         super().__init__()
-        self.norm1 = nn.LayerNorm(dim)
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
 
         self.attn = ClassAttention(dim, num_heads=num_heads, qkv_bias=qkv_bias, proj_drop=proj_drop)
 
         self.drop_path = StochasticDepth(drop_path, mode="row")
-        self.norm2 = nn.LayerNorm(dim)
+        self.norm2 = nn.LayerNorm(dim, eps=1e-6)
         self.mlp = MLP(dim, [int(dim * mlp_ratio), dim], activation_layer=nn.GELU, dropout=proj_drop)
 
         self.gamma1 = nn.Parameter(eta * torch.ones(dim))
@@ -135,7 +135,7 @@ class LayerScaleBlock(nn.Module):
         init_values: float,
     ) -> None:
         super().__init__()
-        self.norm1 = nn.LayerNorm(dim)
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
         self.attn = TalkingHeadAttn(
             dim,
             num_heads=num_heads,
@@ -144,7 +144,7 @@ class LayerScaleBlock(nn.Module):
             proj_drop=proj_drop,
         )
         self.drop_path = StochasticDepth(drop_path, mode="row")
-        self.norm2 = nn.LayerNorm(dim)
+        self.norm2 = nn.LayerNorm(dim, eps=1e-6)
         self.mlp = MLP(dim, [int(dim * mlp_ratio), dim], activation_layer=nn.GELU, dropout=proj_drop)
         self.gamma_1 = nn.Parameter(init_values * torch.ones(dim))
         self.gamma_2 = nn.Parameter(init_values * torch.ones(dim))
@@ -221,7 +221,7 @@ class CaiT(BaseNet):
                 )
             )
 
-        self.norm = nn.LayerNorm(embed_dim)
+        self.norm = nn.LayerNorm(embed_dim, eps=1e-6)
 
         self.embedding_size = embed_dim
         self.classifier = self.create_classifier()

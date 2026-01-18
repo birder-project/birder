@@ -27,7 +27,6 @@ class SqnxtUnit(nn.Module):
                 kernel_size=(1, 1),
                 stride=(stride, stride),
                 padding=(0, 0),
-                bias=False,
             )
 
         elif in_channels > out_channels:
@@ -38,7 +37,6 @@ class SqnxtUnit(nn.Module):
                 kernel_size=(1, 1),
                 stride=(stride, stride),
                 padding=(0, 0),
-                bias=False,
             )
 
         else:
@@ -52,7 +50,6 @@ class SqnxtUnit(nn.Module):
                 kernel_size=(1, 1),
                 stride=(stride, stride),
                 padding=(0, 0),
-                bias=False,
             ),
             Conv2dNormActivation(
                 in_channels // reduction,
@@ -60,7 +57,6 @@ class SqnxtUnit(nn.Module):
                 kernel_size=(1, 1),
                 stride=(1, 1),
                 padding=(0, 0),
-                bias=False,
             ),
             Conv2dNormActivation(
                 in_channels // (2 * reduction),
@@ -68,7 +64,6 @@ class SqnxtUnit(nn.Module):
                 kernel_size=(1, 3),
                 stride=(1, 1),
                 padding=(0, 1),
-                bias=False,
             ),
             Conv2dNormActivation(
                 in_channels // reduction,
@@ -76,7 +71,6 @@ class SqnxtUnit(nn.Module):
                 kernel_size=(3, 1),
                 stride=(1, 1),
                 padding=(1, 0),
-                bias=False,
             ),
             Conv2dNormActivation(
                 in_channels // reduction,
@@ -84,7 +78,6 @@ class SqnxtUnit(nn.Module):
                 kernel_size=(1, 1),
                 stride=(1, 1),
                 padding=(0, 0),
-                bias=False,
             ),
         )
         self.relu = nn.ReLU(inplace=True)
@@ -124,7 +117,6 @@ class SqueezeNext(DetectorBackbone):
                 kernel_size=(7, 7),
                 stride=(2, 2),
                 padding=(1, 1),
-                bias=False,
             ),
             nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(0, 0), ceil_mode=True),
         )
@@ -155,7 +147,6 @@ class SqueezeNext(DetectorBackbone):
                 kernel_size=(1, 1),
                 stride=(1, 1),
                 padding=(0, 0),
-                bias=False,
             ),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
@@ -199,18 +190,3 @@ registry.register_model_config("squeezenext_0_5", SqueezeNext, config={"width_sc
 registry.register_model_config("squeezenext_1_0", SqueezeNext, config={"width_scale": 1.0})
 registry.register_model_config("squeezenext_1_5", SqueezeNext, config={"width_scale": 1.5})
 registry.register_model_config("squeezenext_2_0", SqueezeNext, config={"width_scale": 2.0})
-
-registry.register_weights(
-    "squeezenext_1_0_il-common",
-    {
-        "description": "SqueezeNext v2 1.0x output channels model trained on the il-common dataset",
-        "resolution": (259, 259),
-        "formats": {
-            "pt": {
-                "file_size": 3.5,
-                "sha256": "da01d1cd05c71b80b5e4e6ca66400f64fa3f6179d0e90834c4f6942c8095557a",
-            }
-        },
-        "net": {"network": "squeezenext_1_0", "tag": "il-common"},
-    },
-)

@@ -178,7 +178,7 @@ class MultiScaleAttention(nn.Module):
                 groups=dim_conv,
                 bias=False,
             )
-            self.norm_q = nn.LayerNorm(dim_conv)
+            self.norm_q = nn.LayerNorm(dim_conv, eps=1e-6)
         else:
             self.pool_q = None
             self.norm_q = None
@@ -193,7 +193,7 @@ class MultiScaleAttention(nn.Module):
                 groups=dim_conv,
                 bias=False,
             )
-            self.norm_k = nn.LayerNorm(dim_conv)
+            self.norm_k = nn.LayerNorm(dim_conv, eps=1e-6)
 
             self.pool_v = nn.Conv2d(
                 dim_conv,
@@ -204,7 +204,7 @@ class MultiScaleAttention(nn.Module):
                 groups=dim_conv,
                 bias=False,
             )
-            self.norm_v = nn.LayerNorm(dim_conv)
+            self.norm_v = nn.LayerNorm(dim_conv, eps=1e-6)
         else:
             self.pool_k = None
             self.norm_k = None
@@ -291,7 +291,7 @@ class MultiScaleBlock(nn.Module):
         self.dim = dim
         self.dim_out = dim_out
         self.num_heads = num_heads
-        self.norm1 = nn.LayerNorm(dim)
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
         self.has_cls_token = has_cls_token
         self.dim_mul_in_att = dim_mul_in_att
 
@@ -309,7 +309,7 @@ class MultiScaleBlock(nn.Module):
             has_cls_token=has_cls_token,
         )
         self.drop_path = StochasticDepth(drop_path, mode="row")
-        self.norm2 = nn.LayerNorm(att_dim)
+        self.norm2 = nn.LayerNorm(att_dim, eps=1e-6)
         self.mlp = MLP(att_dim, [int(att_dim * mlp_ratio), dim_out], activation_layer=nn.GELU, inplace=None)
 
         if self.dim_mul_in_att is True and self.dim != self.dim_out:
@@ -506,7 +506,7 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             input_size = (input_size[0] // stride_q[i][0], input_size[1] // stride_q[i][1])
 
         self.body = SequentialWithShape(stages)
-        self.norm = nn.LayerNorm(embed_dim)
+        self.norm = nn.LayerNorm(embed_dim, eps=1e-6)
         self.return_channels = return_channels
         self.embedding_size = embed_dim
         self.classifier = self.create_classifier()

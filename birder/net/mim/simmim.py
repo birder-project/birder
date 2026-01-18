@@ -83,7 +83,7 @@ class SimMIM(MIMBaseNet):
             bias=True,
         )
 
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.encoder.stem_width), requires_grad=True)
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.encoder.stem_width))
 
         # Weights initialization
         nn.init.trunc_normal_(self.mask_token, mean=0.0, std=0.02)

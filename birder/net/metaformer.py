@@ -81,7 +81,7 @@ class ConvMLP(nn.Module):
 class Scale(nn.Module):
     def __init__(self, dim: int, init_value: float) -> None:
         super().__init__()
-        self.scale = nn.Parameter(init_value * torch.ones(dim, 1, 1), requires_grad=True)
+        self.scale = nn.Parameter(init_value * torch.ones(dim, 1, 1))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x * self.scale
@@ -104,8 +104,8 @@ class StarReLU(nn.Module):
     def __init__(self, scale_value: float = 1.0, bias_value: float = 0.0, inplace: bool = False) -> None:
         super().__init__()
         self.relu = nn.ReLU(inplace=inplace)
-        self.scale = nn.Parameter(scale_value * torch.ones(1), requires_grad=True)
-        self.bias = nn.Parameter(bias_value * torch.ones(1), requires_grad=True)
+        self.scale = nn.Parameter(scale_value * torch.ones(1))
+        self.bias = nn.Parameter(bias_value * torch.ones(1))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.scale * self.relu(x) ** 2 + self.bias

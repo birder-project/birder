@@ -4,6 +4,9 @@ https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/incept
 
 Paper "Inception-v4, Inception-ResNet and the Impact of Residual Connections on Learning",
 https://arxiv.org/abs/1602.07261
+
+Changes from original:
+* Using nn.BatchNorm2d with eps 1e-5 instead of 1e-3
 """
 
 # Reference license: Apache-2.0
@@ -35,7 +38,7 @@ class StemBlock(nn.Module):
             Conv2dNormActivation(96, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
         )
         self.branch_pool = nn.Sequential(
-            nn.AvgPool2d(kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.AvgPool2d(kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), count_include_pad=False),
             Conv2dNormActivation(in_channels, 64, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
         )
 
@@ -66,7 +69,7 @@ class InceptionBlockA(nn.Module):
             Conv2dNormActivation(48, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
         )
 
-        self.conv2d = nn.Conv2d(128, 320, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False)
+        self.conv2d = nn.Conv2d(128, 320, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -117,7 +120,7 @@ class InceptionBlockB(nn.Module):
             Conv2dNormActivation(160, 192, kernel_size=(7, 1), stride=(1, 1), padding=(3, 0), bias=False),
         )
 
-        self.conv2d = nn.Conv2d(384, 1088, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False)
+        self.conv2d = nn.Conv2d(384, 1088, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -174,7 +177,7 @@ class InceptionBlockC(nn.Module):
             Conv2dNormActivation(224, 256, kernel_size=(3, 1), stride=(1, 1), padding=(1, 0), bias=False),
         )
 
-        self.conv2d = nn.Conv2d(448, 2080, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False)
+        self.conv2d = nn.Conv2d(448, 2080, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

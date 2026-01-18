@@ -85,7 +85,7 @@ class Attention(nn.Module):
                 self.sr = nn.Conv2d(
                     dim, dim, kernel_size=(sr_ratio, sr_ratio), stride=(sr_ratio, sr_ratio), padding=(0, 0)
                 )
-                self.norm = nn.LayerNorm(dim)
+                self.norm = nn.LayerNorm(dim, eps=1e-6)
             else:
                 self.sr = None
                 self.norm = None
@@ -93,7 +93,7 @@ class Attention(nn.Module):
             self.pool = nn.AdaptiveAvgPool2d(7)
             self.act = nn.GELU()
             self.sr = nn.Conv2d(dim, dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
-            self.norm = nn.LayerNorm(dim)
+            self.norm = nn.LayerNorm(dim, eps=1e-6)
 
         assert (self.pool is None and self.act is None) or (self.pool is not None and self.act is not None)
 
@@ -140,7 +140,7 @@ class PyramidVisionTransformerBlock(nn.Module):
         drop_path: float,
     ) -> None:
         super().__init__()
-        self.norm1 = nn.LayerNorm(dim)
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
         self.attn = Attention(
             dim,
             num_heads=num_heads,
@@ -151,7 +151,7 @@ class PyramidVisionTransformerBlock(nn.Module):
             proj_drop=proj_drop,
         )
 
-        self.norm2 = nn.LayerNorm(dim)
+        self.norm2 = nn.LayerNorm(dim, eps=1e-6)
         self.mlp = MLP(
             in_features=dim,
             hidden_features=int(dim * mlp_ratio),
@@ -179,7 +179,7 @@ class OverlapPatchEmbed(nn.Module):
             stride=stride,
             padding=(patch_size[0] // 2, patch_size[1] // 2),
         )
-        self.norm = nn.LayerNorm(embed_dim)
+        self.norm = nn.LayerNorm(embed_dim, eps=1e-6)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.proj(x)

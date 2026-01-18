@@ -159,12 +159,7 @@ class MobileVitBlock(nn.Module):
         self.norm = nn.GroupNorm(num_groups=1, num_channels=transformer_dim)
 
         self.conv_proj = Conv2dNormActivation(
-            transformer_dim,
-            channels,
-            kernel_size=(1, 1),
-            stride=(1, 1),
-            padding=(0, 0),
-            activation_layer=nn.SiLU,
+            transformer_dim, channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), activation_layer=None
         )
 
         self.patch_size = patch_size
@@ -236,7 +231,6 @@ class MobileViT_v2(DetectorBackbone):
             stride=(2, 2),
             padding=(1, 1),
             activation_layer=nn.SiLU,
-            bias=True,
         )
 
         stages: OrderedDict[str, nn.Module] = OrderedDict()
@@ -340,15 +334,6 @@ class MobileViT_v2(DetectorBackbone):
         x = self.forward_features(x)
         return self.features(x)
 
-    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
-        if self.num_classes == 0:
-            return nn.Identity()
-
-        if embed_dim is None:
-            embed_dim = self.embedding_size
-
-        return nn.Linear(embed_dim, self.num_classes, bias=False)
-
 
 registry.register_model_config("mobilevit_v2_0_25", MobileViT_v2, config={"width_factor": 0.25})
 registry.register_model_config("mobilevit_v2_0_5", MobileViT_v2, config={"width_factor": 0.5})
@@ -358,32 +343,3 @@ registry.register_model_config("mobilevit_v2_1_25", MobileViT_v2, config={"width
 registry.register_model_config("mobilevit_v2_1_5", MobileViT_v2, config={"width_factor": 1.5})
 registry.register_model_config("mobilevit_v2_1_75", MobileViT_v2, config={"width_factor": 1.75})
 registry.register_model_config("mobilevit_v2_2_0", MobileViT_v2, config={"width_factor": 2.0})
-
-registry.register_weights(
-    "mobilevit_v2_1_0_il-common",
-    {
-        "description": "MobileViT v2 with width multiplier of 1.0 trained on the il-common dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 17.6,
-                "sha256": "2b45b7f2ffe3dd129d9a7e9690d2dfd0f93ac60f24d118b920a51bcb950fd95e",
-            }
-        },
-        "net": {"network": "mobilevit_v2_1_0", "tag": "il-common"},
-    },
-)
-registry.register_weights(
-    "mobilevit_v2_1_5_il-common",
-    {
-        "description": "MobileViT v2 with width multiplier of 1.5 trained on the il-common dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 38.8,
-                "sha256": "acd28c3ee653b62c69ad765c1d99827cea5051deb6dbdd7b9c8d7612782c86a3",
-            }
-        },
-        "net": {"network": "mobilevit_v2_1_5", "tag": "il-common"},
-    },
-)

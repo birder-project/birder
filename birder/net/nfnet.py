@@ -3,6 +3,9 @@ Normalizer-Free Networks, adapted from
 https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/nfnet.py
 
 Paper "High-Performance Large-Scale Image Recognition Without Normalization", https://arxiv.org/abs/2102.06171
+
+Changes from original:
+* Removed dynamic padding
 """
 
 # Reference license: Apache-2.0
@@ -262,6 +265,7 @@ class NFNet(DetectorBackbone):
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             ScaledStdConv2d(prev_channels, prev_channels * 2, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)),
+            act_layer(),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )

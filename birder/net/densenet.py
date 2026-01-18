@@ -104,19 +104,20 @@ class DenseNet(DetectorBackbone):
         num_features = num_init_features
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
-        layers = []
         for i, num_layers in enumerate(layer_list):
-
-            layers.append(DenseBlock(num_features, num_layers=num_layers, growth_rate=growth_rate))
-            num_features = num_features + (num_layers * growth_rate)
-
-            stages[f"stage{i+1}"] = nn.Sequential(*layers)
-            return_channels.append(num_features)
-            layers = []
-
-            if i != len(layer_list) - 1:
-                layers.append(TransitionBlock(num_features, num_features // 2))
+            stage_layers = []
+            if i != 0:
+                stage_layers.append(TransitionBlock(num_features, num_features // 2))
                 num_features = num_features // 2
+
+            stage_layers.append(DenseBlock(num_features, num_layers=num_layers, growth_rate=growth_rate))
+            num_features = num_features + (num_layers * growth_rate)
+            if i == len(layer_list) - 1:
+                stage_layers.append(nn.BatchNorm2d(num_features))
+                stage_layers.append(nn.ReLU(inplace=True))
+
+            stages[f"stage{i+1}"] = nn.Sequential(*stage_layers)
+            return_channels.append(num_features)
 
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(

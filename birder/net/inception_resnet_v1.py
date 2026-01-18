@@ -33,7 +33,7 @@ class InceptionBlockA(nn.Module):
             Conv2dNormActivation(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
         )
 
-        self.conv2d = nn.Conv2d(96, 256, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False)
+        self.conv2d = nn.Conv2d(96, 256, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -84,7 +84,7 @@ class InceptionBlockB(nn.Module):
             Conv2dNormActivation(128, 128, kernel_size=(7, 1), stride=(1, 1), padding=(3, 0), bias=False),
         )
 
-        self.conv2d = nn.Conv2d(256, 896, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False)
+        self.conv2d = nn.Conv2d(256, 896, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -140,7 +140,7 @@ class InceptionBlockC(nn.Module):
             Conv2dNormActivation(192, 192, kernel_size=(3, 1), stride=(1, 1), padding=(1, 0), bias=False),
         )
 
-        self.conv2d = nn.Conv2d(384, 1792, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False)
+        self.conv2d = nn.Conv2d(384, 1792, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

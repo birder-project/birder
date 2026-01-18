@@ -181,9 +181,8 @@ class DPN(BaseNet):
                 layers.append(DualPathBlock(num_features, r, r, bw, inc, groups, "normal"))
                 num_features += inc
 
-        self.norm_act = nn.Sequential(nn.BatchNorm2d(num_features), nn.ELU())
-
         self.body = nn.Sequential(*layers)
+        self.norm_act = nn.Sequential(nn.BatchNorm2d(num_features), nn.ReLU())
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),

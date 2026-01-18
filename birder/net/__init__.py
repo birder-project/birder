@@ -55,8 +55,7 @@ from birder.net.metaformer import MetaFormer
 from birder.net.mnasnet import MNASNet
 from birder.net.mobilenet_v1 import MobileNet_v1
 from birder.net.mobilenet_v2 import MobileNet_v2
-from birder.net.mobilenet_v3_large import MobileNet_v3_Large
-from birder.net.mobilenet_v3_small import MobileNet_v3_Small
+from birder.net.mobilenet_v3 import MobileNet_v3
 from birder.net.mobilenet_v4 import MobileNet_v4
 from birder.net.mobilenet_v4_hybrid import MobileNet_v4_Hybrid
 from birder.net.mobileone import MobileOne
@@ -84,9 +83,6 @@ from birder.net.resnext import ResNeXt
 from birder.net.rope_deit3 import RoPE_DeiT3
 from birder.net.rope_flexivit import RoPE_FlexiViT
 from birder.net.rope_vit import RoPE_ViT
-from birder.net.se_resnet_v1 import SE_ResNet_v1
-from birder.net.se_resnet_v2 import SE_ResNet_v2
-from birder.net.se_resnext import SE_ResNeXt
 from birder.net.sequencer2d import Sequencer2d
 from birder.net.shufflenet_v1 import ShuffleNet_v1
 from birder.net.shufflenet_v2 import ShuffleNet_v2
@@ -171,8 +167,7 @@ __all__ = [
     "MNASNet",
     "MobileNet_v1",
     "MobileNet_v2",
-    "MobileNet_v3_Large",
-    "MobileNet_v3_Small",
+    "MobileNet_v3",
     "MobileNet_v4",
     "MobileNet_v4_Hybrid",
     "MobileOne",
@@ -200,9 +195,6 @@ __all__ = [
     "RoPE_DeiT3",
     "RoPE_FlexiViT",
     "RoPE_ViT",
-    "SE_ResNet_v1",
-    "SE_ResNet_v2",
-    "SE_ResNeXt",
     "Sequencer2d",
     "ShuffleNet_v1",
     "ShuffleNet_v2",

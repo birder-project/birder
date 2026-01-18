@@ -72,7 +72,7 @@ class ShiftedWindowAttention(nn.Module):
         self.define_relative_position_bias_table()
         self.define_relative_position_index()
 
-        self.logit_scale = nn.Parameter(torch.log(10 * torch.ones((num_heads, 1, 1))), requires_grad=True)
+        self.logit_scale = nn.Parameter(torch.log(10 * torch.ones((num_heads, 1, 1))))
 
         # MLP to generate continuous relative position bias
         self.cpb_mlp = nn.Sequential(

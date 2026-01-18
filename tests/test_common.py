@@ -122,7 +122,7 @@ class TestFSOps(unittest.TestCase):
     def test_fs_ops(self) -> None:
         # Test model paths
         path = fs_ops.model_path("net", states=True)
-        self.assertEqual(path, settings.MODELS_DIR.joinpath("net_states"))
+        self.assertEqual(path, settings.MODELS_DIR.joinpath("net_states.pt"))
 
         path = fs_ops.model_path("net")
         self.assertEqual(path, settings.MODELS_DIR.joinpath("net.pt"))

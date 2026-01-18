@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.4.0 - 2026-01-18
+
+### Changed
+
+- **ViT Attention Consolidation (Breaking)**:
+    - Dropped the `nn.MultiheadAttention` path; ViT now always uses the custom attention implementation.
+    - Renamed ViT block attributes `self_attention` → `attn` and `ln1/ln2` → `norm1/norm2` (affects hooks, tooling, and checkpoint key names).
+- **Checkpoint States Filenames (Breaking)**: Training state checkpoints now use a `.pt` extension (e.g., `_states.pt`).
+- **Network Architecture Consolidation (Breaking)**:
+    - Merged `MobileNet_v3_Large` and `MobileNet_v3_Small` into a unified `MobileNet_v3` class. Use model configs (`mobilenet_v3_large_*` and `mobilenet_v3_small_*`) instead of separate classes.
+    - Merged `SE_ResNet_v1`, `SE_ResNet_v2`, and `SE_ResNeXt` into their respective base classes (`ResNet_v1`, `ResNet_v2`, `ResNeXt`). SE variants are now configured via the `squeeze_excitation` config parameter rather than separate classes.
+- **Pretrained Models**:
+    - **Breaking**: Dropped `tiny_vit_5m_il-common`
+    - **Breaking**: Dropped `efficientformer_v2_s0_il-common` and `efficientformer_v2_s1_il-common`
+    - **Breaking**: Dropped `mobilenet_v2_1_0_il-common`
+    - **Breaking**: Dropped `mobilevit_v1_xxs_il-common` and `mobilevit_v1_xs_il-common`
+    - **Breaking**: Dropped `mobilevit_v2_1_0_il-common` and `mobilevit_v2_1_5_il-common`
+    - **Breaking**: Dropped `repghost_1_0_il-common`
+    - **Breaking**: Dropped `squeezenext_1_0_il-common`
+
+### Fixed
+
+- **CaiT LayerNorm eps**: Fixed an incorrect LayerNorm `eps` in the CaiT init.
+- **MaxViT Downsampling Projection**: Fixed an incorrect AvgPool kernel size.
+- **HGNet v1/v2**: Fixed an incorrect padding.
+- **TinyViT MBConv Activation**: Fixed incorrect activation order at MBConv.
+- **DenseNet Final Normalization**: Added the missing terminal BatchNorm + ReLU to the final DenseNet stage.
+- **DPN Activation**: Fixed incorrect activation function in DPN norm_act (ELU -> ReLU).
+- **EfficientFormer v2 ConvMLP Activation**: Fixed incorrect activation function in ConvMLP (ReLU -> GELU).
+- **MobileNet v2**: Restored upstream parity by removing the redundant 1×1 expand conv in `t=1` inverted residual blocks.
+- **MobileViT v1**: Removed stem and final convolutional layers biases.
+- **MobileViT v2**: Removed stem bias and removed the extra SiLU activation after the `conv_proj` to match upstream.
+- **NFNet Final Activation**: Added missing terminal `GammaAct`.
+- **RepGhostNet Squeeze-Excite Activation**: Fixed incorrect SE activation configuration to match original.
+- **DETR Matchers**: Penalize non-finite costs in Hungarian matching to avoid invalid assignments.
+
 ## 0.3.3 - 2026-01-16
 
 ### Added

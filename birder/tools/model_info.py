@@ -15,6 +15,7 @@ from birder.net.detection.base import DetectionSignatureType
 
 def get_model_info(net: torch.nn.Module) -> dict[str, float]:
     num_params = 0
+    num_buffers = 0
     param_size = 0
     buffer_size = 0
     for param in net.parameters():
@@ -22,9 +23,10 @@ def get_model_info(net: torch.nn.Module) -> dict[str, float]:
         param_size += param.numel() * param.element_size()
 
     for buffer in net.buffers():
+        num_buffers += buffer.numel()
         buffer_size += buffer.numel() * buffer.element_size()
 
-    return {"num_params": num_params, "model_size": param_size + buffer_size}
+    return {"num_params": num_params, "num_buffers": num_buffers, "model_size": param_size + buffer_size}
 
 
 def set_parser(subparsers: Any) -> None:

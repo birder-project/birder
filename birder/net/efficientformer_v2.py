@@ -9,6 +9,7 @@ https://arxiv.org/abs/2212.08059
 
 Changes from original:
 * Removed attention bias cache
+* Removed biases before norms
 """
 
 # Reference license: Apache-2.0 (both)
@@ -244,9 +245,24 @@ class ConvMLP(nn.Module):
         drop: float,
     ) -> None:
         super().__init__()
-        self.fc1 = Conv2dNormActivation(in_features, hidden_features, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
+        self.fc1 = Conv2dNormActivation(
+            in_features,
+            hidden_features,
+            kernel_size=(1, 1),
+            stride=(1, 1),
+            padding=(0, 0),
+            activation_layer=nn.GELU,
+            inplace=None,
+        )
         self.mid = Conv2dNormActivation(
-            hidden_features, hidden_features, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=hidden_features
+            hidden_features,
+            hidden_features,
+            kernel_size=(3, 3),
+            stride=(1, 1),
+            padding=(1, 1),
+            groups=hidden_features,
+            activation_layer=nn.GELU,
+            inplace=None,
         )
         self.drop1 = nn.Dropout(drop)
         self.fc2 = Conv2dNormActivation(
@@ -674,34 +690,5 @@ registry.register_model_config(
             [4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4],
             [4, 4, 4, 3, 3, 3, 3, 4, 4, 4],
         ],
-    },
-)
-
-registry.register_weights(
-    "efficientformer_v2_s0_il-common",
-    {
-        "description": "EfficientFormer v2 S0 model trained on the il-common dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 13.2,
-                "sha256": "b5ba923d351d45a04686b5bda037438719e0f442a41a34207a7f19737a8edb45",
-            }
-        },
-        "net": {"network": "efficientformer_v2_s0", "tag": "il-common"},
-    },
-)
-registry.register_weights(
-    "efficientformer_v2_s1_il-common",
-    {
-        "description": "EfficientFormer v2 S1 model trained on the il-common dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 22.9,
-                "sha256": "6b7ce6bbf5aa83e222cd16d8f07e749cdbb703fd383f99e88362ec8401d81401",
-            }
-        },
-        "net": {"network": "efficientformer_v2_s1", "tag": "il-common"},
     },
 )

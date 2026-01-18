@@ -132,7 +132,7 @@ class TransformerAttribution:
         net: nn.Module,
         device: torch.device,
         transform: Callable[..., torch.Tensor],
-        attention_layer_name: str = "self_attention",
+        attention_layer_name: str = "attn",
     ) -> None:
         self.net = net.eval()
         self.device = device

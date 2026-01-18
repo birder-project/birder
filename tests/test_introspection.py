@@ -142,7 +142,7 @@ class TestInterpreters(unittest.TestCase):
             return torch.from_numpy(arr).permute(2, 0, 1)
 
         interpreter = AttentionRollout(
-            net, self.device, vit_transform, attention_layer_name="self_attention", discard_ratio=0.9, head_fusion="max"
+            net, self.device, vit_transform, attention_layer_name="attn", discard_ratio=0.9, head_fusion="max"
         )
         result = interpreter(self.test_image, target_class=None)
 
@@ -179,7 +179,7 @@ class TestInterpreters(unittest.TestCase):
         net.forward = counting_forward  # type: ignore[method-assign]
 
         interpreter = AttentionRollout(
-            net, self.device, vit_transform, attention_layer_name="self_attention", discard_ratio=0.9, head_fusion="max"
+            net, self.device, vit_transform, attention_layer_name="attn", discard_ratio=0.9, head_fusion="max"
         )
 
         # Track attention list length during execution
@@ -207,7 +207,7 @@ class TestInterpreters(unittest.TestCase):
 
         # Verify attention list wasn't polluted
         self.assertEqual(len(attention_lengths), 1, "Attention gatherer should be called exactly once")
-        num_encoder_layers = len([m for m in net.modules() if hasattr(m, "self_attention")])
+        num_encoder_layers = len([m for m in net.modules() if hasattr(m, "attn")])
         self.assertEqual(
             attention_lengths[0],
             num_encoder_layers,
@@ -325,7 +325,7 @@ class TestInterpreters(unittest.TestCase):
             arr = np.array(x).astype(np.float32) / 255.0
             return torch.from_numpy(arr).permute(2, 0, 1)
 
-        interpreter = TransformerAttribution(net, self.device, vit_transform, attention_layer_name="self_attention")
+        interpreter = TransformerAttribution(net, self.device, vit_transform, attention_layer_name="attn")
         result = interpreter(self.test_image, target_class=None)
 
         self.assertIsInstance(result.original_image, np.ndarray)
@@ -347,7 +347,7 @@ class TestInterpreters(unittest.TestCase):
             arr = np.array(x).astype(np.float32) / 255.0
             return torch.from_numpy(arr).permute(2, 0, 1)
 
-        interpreter = TransformerAttribution(net, self.device, vit_transform, attention_layer_name="self_attention")
+        interpreter = TransformerAttribution(net, self.device, vit_transform, attention_layer_name="attn")
         result = interpreter(self.test_image, target_class=1)
 
         self.assertEqual(result.predicted_class, 1)

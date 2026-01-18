@@ -200,7 +200,7 @@ class VisionTransformerPredictor(nn.Module):
         self.mask_token = nn.Parameter(torch.zeros(1, 1, predictor_embed_dim))
 
         pos_embedding = pos_embedding_sin_cos_2d(h=size[0], w=size[1], dim=predictor_embed_dim, num_special_tokens=0)
-        self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=False)
+        self.pos_embedding = nn.Buffer(pos_embedding)
 
         self.encoder = Encoder(
             depth, num_heads, predictor_embed_dim, mlp_dim, dropout=0.0, attention_dropout=0.0, dpr=dpr

@@ -259,7 +259,7 @@ class Stem(nn.Module):
                 embed_dim,
                 kernel_size=kernel_size,
                 stride=stride,
-                padding=(kernel_size[0] // 2, kernel_size[1] // 2),
+                padding=((kernel_size[0] - 1) // 2, (kernel_size[1] - 1) // 2),
             ),
             nn.Conv2d(embed_dim, embed_dim, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0)),
         )

@@ -77,10 +77,11 @@ class MBConv(nn.Module):
             kernel_size=(1, 1),
             stride=(1, 1),
             padding=(0, 0),
-            activation_layer=nn.GELU,
+            activation_layer=None,
             inplace=None,
         )
         self.drop_path = StochasticDepth(drop_path, mode="row")
+        self.act = nn.GELU()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         shortcut = x
@@ -89,6 +90,7 @@ class MBConv(nn.Module):
         x = self.conv3(x)
         x = self.drop_path(x)
         x += shortcut
+        x = self.act(x)
 
         return x
 
@@ -506,20 +508,5 @@ registry.register_model_config(
         "depths": [2, 2, 6, 2],
         "num_heads": [3, 6, 12, 18],
         "drop_path_rate": 0.2,
-    },
-)
-
-registry.register_weights(
-    "tiny_vit_5m_il-common",
-    {
-        "description": "TinyViT 5M model trained on the il-common dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 20.0,
-                "sha256": "57f84dc3144fc4e3ca39328d3a1446ca9e26ddb54e4c4d84301b7638bee2ec21",
-            },
-        },
-        "net": {"network": "tiny_vit_5m", "tag": "il-common"},
     },
 )

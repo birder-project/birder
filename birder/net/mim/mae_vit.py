@@ -67,7 +67,7 @@ class MAE_ViT(MIMBaseNet):
                 dim=decoder_embed_dim,
                 num_special_tokens=self.encoder.num_special_tokens,
             )
-            self.decoder_pos_embed = nn.Parameter(pos_embedding, requires_grad=False)
+            self.decoder_pos_embed = nn.Buffer(pos_embedding)
 
         layers = []
         for _ in range(decoder_depth):

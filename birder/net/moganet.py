@@ -4,6 +4,9 @@ https://github.com/Westlake-AI/MogaNet/blob/main/models/moganet.py
 
 Paper "MogaNet: Multi-order Gated Aggregation Network",
 https://arxiv.org/abs/2211.03295
+
+Changes from original:
+* Removed biases before norms
 """
 
 # Reference license: Apache-2.0
@@ -30,7 +33,7 @@ from birder.net.base import TokenRetentionResultType
 class ElementScale(nn.Module):
     def __init__(self, embed_dims: int, init_value: float) -> None:
         super().__init__()
-        self.scale = nn.Parameter(init_value * torch.ones((1, embed_dims, 1, 1)), requires_grad=True)
+        self.scale = nn.Parameter(init_value * torch.ones((1, embed_dims, 1, 1)))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x * self.scale
@@ -179,14 +182,14 @@ class MogaBlock(nn.Module):
         super().__init__()
 
         # Spatial attention
-        self.norm1 = nn.BatchNorm2d(embed_dims, eps=1e-5)
+        self.norm1 = nn.BatchNorm2d(embed_dims)
         self.attn = MultiOrderGatedAggregation(
             embed_dims, attn_dw_dilation=attn_dw_dilation, attn_channel_split=attn_channel_split
         )
-        self.layer_scale_1 = nn.Parameter(init_value * torch.ones((1, embed_dims, 1, 1)), requires_grad=True)
+        self.layer_scale_1 = nn.Parameter(init_value * torch.ones((1, embed_dims, 1, 1)))
 
         # Channel MLP
-        self.norm2 = nn.BatchNorm2d(embed_dims, eps=1e-5)
+        self.norm2 = nn.BatchNorm2d(embed_dims)
         mlp_hidden_dim = int(embed_dims * ffn_ratio)
         self.mlp = ChannelAggregationFFN(
             embed_dims=embed_dims,
@@ -194,7 +197,7 @@ class MogaBlock(nn.Module):
             kernel_size=3,
             ffn_drop=drop_rate,
         )
-        self.layer_scale_2 = nn.Parameter(init_value * torch.ones((1, embed_dims, 1, 1)), requires_grad=True)
+        self.layer_scale_2 = nn.Parameter(init_value * torch.ones((1, embed_dims, 1, 1)))
 
         self.drop_path = StochasticDepth(drop_path_rate, mode="row")
 

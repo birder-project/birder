@@ -20,6 +20,12 @@ import torch
 from torch import nn
 
 from birder.model_registry import registry
+from birder.net._vit_configs import BASE
+from birder.net._vit_configs import GIANT
+from birder.net._vit_configs import HUGE
+from birder.net._vit_configs import LARGE
+from birder.net._vit_configs import MEDIUM
+from birder.net._vit_configs import SMALL
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenOmissionResultType
@@ -45,12 +51,12 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
         assert self.config is not None, "must set config"
 
         image_size = self.size
-        drop_path_rate = 0.0
         patch_size: int = self.config["patch_size"]
         num_layers: int = self.config["num_layers"]
         num_heads: int = self.config["num_heads"]
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
+        drop_path_rate: float = self.config["drop_path_rate"]
 
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
@@ -215,75 +221,75 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
 registry.register_model_config(
     "simple_vit_s32",
     Simple_ViT,
-    config={"patch_size": 32, "num_layers": 12, "num_heads": 6, "hidden_dim": 384, "mlp_dim": 1536},
+    config={"patch_size": 32, **SMALL},
 )
 registry.register_model_config(
     "simple_vit_s16",
     Simple_ViT,
-    config={"patch_size": 16, "num_layers": 12, "num_heads": 6, "hidden_dim": 384, "mlp_dim": 1536},
+    config={"patch_size": 16, **SMALL},
 )
 registry.register_model_config(
     "simple_vit_s14",
     Simple_ViT,
-    config={"patch_size": 14, "num_layers": 12, "num_heads": 6, "hidden_dim": 384, "mlp_dim": 1536},
+    config={"patch_size": 14, **SMALL},
 )
 registry.register_model_config(
     "simple_vit_m32",
     Simple_ViT,
-    config={"patch_size": 32, "num_layers": 12, "num_heads": 8, "hidden_dim": 512, "mlp_dim": 2048},
+    config={"patch_size": 32, **MEDIUM},
 )
 registry.register_model_config(
     "simple_vit_m16",
     Simple_ViT,
-    config={"patch_size": 16, "num_layers": 12, "num_heads": 8, "hidden_dim": 512, "mlp_dim": 2048},
+    config={"patch_size": 16, **MEDIUM},
 )
 registry.register_model_config(
     "simple_vit_m14",
     Simple_ViT,
-    config={"patch_size": 14, "num_layers": 12, "num_heads": 8, "hidden_dim": 512, "mlp_dim": 2048},
+    config={"patch_size": 14, **MEDIUM},
 )
 registry.register_model_config(
     "simple_vit_b32",
     Simple_ViT,
-    config={"patch_size": 32, "num_layers": 12, "num_heads": 12, "hidden_dim": 768, "mlp_dim": 3072},
+    config={"patch_size": 32, **BASE},  # Override the BASE definition
 )
 registry.register_model_config(
     "simple_vit_b16",
     Simple_ViT,
-    config={"patch_size": 16, "num_layers": 12, "num_heads": 12, "hidden_dim": 768, "mlp_dim": 3072},
+    config={"patch_size": 16, **BASE},
 )
 registry.register_model_config(
     "simple_vit_b14",
     Simple_ViT,
-    config={"patch_size": 14, "num_layers": 12, "num_heads": 12, "hidden_dim": 768, "mlp_dim": 3072},
+    config={"patch_size": 14, **BASE},
 )
 registry.register_model_config(
     "simple_vit_l32",
     Simple_ViT,
-    config={"patch_size": 32, "num_layers": 24, "num_heads": 16, "hidden_dim": 1024, "mlp_dim": 4096},
+    config={"patch_size": 32, **LARGE},
 )
 registry.register_model_config(
     "simple_vit_l16",
     Simple_ViT,
-    config={"patch_size": 16, "num_layers": 24, "num_heads": 16, "hidden_dim": 1024, "mlp_dim": 4096},
+    config={"patch_size": 16, **LARGE},
 )
 registry.register_model_config(
     "simple_vit_l14",
     Simple_ViT,
-    config={"patch_size": 14, "num_layers": 24, "num_heads": 16, "hidden_dim": 1024, "mlp_dim": 4096},
+    config={"patch_size": 14, **LARGE},
 )
 registry.register_model_config(
     "simple_vit_h16",
     Simple_ViT,
-    config={"patch_size": 16, "num_layers": 32, "num_heads": 16, "hidden_dim": 1280, "mlp_dim": 5120},
+    config={"patch_size": 16, **HUGE},
 )
 registry.register_model_config(
     "simple_vit_h14",
     Simple_ViT,
-    config={"patch_size": 14, "num_layers": 32, "num_heads": 16, "hidden_dim": 1280, "mlp_dim": 5120},
+    config={"patch_size": 14, **HUGE},
 )
 registry.register_model_config(  # From "Scaling Vision Transformers"
     "simple_vit_g14",
     Simple_ViT,
-    config={"patch_size": 14, "num_layers": 40, "num_heads": 16, "hidden_dim": 1408, "mlp_dim": 6144},
+    config={"patch_size": 14, **GIANT},
 )

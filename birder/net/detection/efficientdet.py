@@ -195,7 +195,7 @@ class FpnCombine(nn.Module):
             )
 
         if weight_method in {"attn", "fastattn"}:
-            self.edge_weights = nn.Parameter(torch.ones(len(inputs_offsets)), requires_grad=True)  # WSM
+            self.edge_weights = nn.Parameter(torch.ones(len(inputs_offsets)))  # WSM
         else:
             self.edge_weights = None
 
