@@ -105,7 +105,7 @@ class GlobalSparseAttn(nn.Module):
             self.norm = nn.Identity()
 
     def forward(self, x: torch.Tensor, H: int, W: int) -> torch.Tensor:
-        (B, _, C) = x.size()  # B, N, C
+        B, _, C = x.size()  # B, N, C
         if self.sr > 1:
             x = x.transpose(1, 2).reshape(B, C, H, W)
             x = self.sampler(x)
@@ -180,7 +180,7 @@ class SelfAttn(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x + self.pos_embed(x)
-        (B, N, H, W) = x.size()
+        B, N, H, W = x.size()
         x = x.flatten(2).transpose(1, 2)
         x = x + self.drop_path(self.attn(self.norm1(x), H, W))
         x = x + self.drop_path(self.mlp(self.norm2(x)))
@@ -231,7 +231,7 @@ class PatchEmbed(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.proj(x)
-        (B, _, H, W) = x.size()
+        B, _, H, W = x.size()
         x = x.flatten(2).transpose(1, 2)
         x = self.norm(x)
         x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()

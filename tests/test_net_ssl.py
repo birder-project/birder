@@ -89,7 +89,7 @@ class TestNetSSL(unittest.TestCase):
         #
 
         # Teacher
-        (selected_assignments, clustering_loss) = teacher(x, None, predict_indices)
+        selected_assignments, clustering_loss = teacher(x, None, predict_indices)
         self.assertFalse(torch.isnan(clustering_loss).any())
         self.assertFalse(torch.isnan(selected_assignments).any())
         self.assertEqual(selected_assignments.size(), (batch_size * n_predict, num_clusters))
@@ -136,7 +136,7 @@ class TestNetSSL(unittest.TestCase):
         x = torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size)
 
         # Teacher
-        (selected_assignments, clustering_loss) = teacher(x, None, predict_indices)
+        selected_assignments, clustering_loss = teacher(x, None, predict_indices)
         self.assertFalse(torch.isnan(clustering_loss).any())
         self.assertFalse(torch.isnan(selected_assignments).any())
         self.assertEqual(selected_assignments.size(), (batch_size * n_predict, num_clusters))
@@ -178,7 +178,7 @@ class TestNetSSL(unittest.TestCase):
         x = torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size)
 
         # Teacher
-        (selected_assignments, clustering_loss) = teacher(x, None, predict_indices)
+        selected_assignments, clustering_loss = teacher(x, None, predict_indices)
         self.assertFalse(torch.isnan(clustering_loss).any())
         self.assertFalse(torch.isnan(selected_assignments).any())
         self.assertEqual(selected_assignments.size(), (batch_size * n_predict, num_clusters))
@@ -227,13 +227,13 @@ class TestNetSSL(unittest.TestCase):
         # Simulate a few full steps
         #
 
-        (selected_assignments, clustering_loss) = teacher(x, None, predict_indices)
+        selected_assignments, clustering_loss = teacher(x, None, predict_indices)
         pred = student(x, ids_keep, predict_indices)
-        (selected_assignments, clustering_loss) = teacher(x, None, predict_indices)
+        selected_assignments, clustering_loss = teacher(x, None, predict_indices)
         pred = student(x, ids_keep, predict_indices)
 
         # Teacher
-        (selected_assignments, clustering_loss) = teacher(x, None, predict_indices)
+        selected_assignments, clustering_loss = teacher(x, None, predict_indices)
         self.assertFalse(torch.isnan(clustering_loss).any())
         self.assertFalse(torch.isnan(selected_assignments).any())
         self.assertEqual(selected_assignments.size(), (batch_size * n_predict, num_clusters))
@@ -284,13 +284,13 @@ class TestNetSSL(unittest.TestCase):
         # Simulate a few full steps
         #
 
-        (selected_assignments, clustering_loss) = teacher(x, None, predict_indices)
+        selected_assignments, clustering_loss = teacher(x, None, predict_indices)
         pred = student(x, ids_keep, predict_indices)
-        (selected_assignments, clustering_loss) = teacher(x, None, predict_indices)
+        selected_assignments, clustering_loss = teacher(x, None, predict_indices)
         pred = student(x, ids_keep, predict_indices)
 
         # Teacher
-        (selected_assignments, clustering_loss) = teacher(x, None, predict_indices)
+        selected_assignments, clustering_loss = teacher(x, None, predict_indices)
         self.assertFalse(torch.isnan(clustering_loss).any())
         self.assertFalse(torch.isnan(selected_assignments).any())
         self.assertEqual(selected_assignments.size(), (batch_size * n_predict, num_clusters))
@@ -478,7 +478,7 @@ class TestNetSSL(unittest.TestCase):
         upper_bound = len(mask_indices_list) + 16
 
         with torch.no_grad():
-            (teacher_embedding_after_head, teacher_masked_patch_tokens_after_head) = teacher(
+            teacher_embedding_after_head, teacher_masked_patch_tokens_after_head = teacher(
                 x, 2, upper_bound=upper_bound, mask_indices_list=mask_indices_list
             )
 
@@ -540,7 +540,7 @@ class TestNetSSL(unittest.TestCase):
         upper_bound = len(mask_indices_list) + 16
 
         with torch.no_grad():
-            (teacher_embedding_after_head, teacher_masked_patch_tokens_after_head) = teacher(
+            teacher_embedding_after_head, teacher_masked_patch_tokens_after_head = teacher(
                 x, 2, upper_bound=upper_bound, mask_indices_list=mask_indices_list
             )
 
@@ -678,7 +678,7 @@ class TestNetSSL(unittest.TestCase):
         teacher_embedding_after_head_list = []
         for _ in range(3):
             with torch.no_grad():
-                (teacher_embedding_after_head, teacher_masked_patch_tokens_after_head) = teacher(
+                teacher_embedding_after_head, teacher_masked_patch_tokens_after_head = teacher(
                     x, 2, upper_bound=upper_bound, mask_indices_list=mask_indices_list
                 )
 
@@ -840,7 +840,7 @@ class TestNetSSL(unittest.TestCase):
         upper_bound = len(mask_indices_list) + 16
 
         with torch.no_grad():
-            (teacher_embedding_after_head, teacher_masked_patch_tokens_after_head) = teacher(
+            teacher_embedding_after_head, teacher_masked_patch_tokens_after_head = teacher(
                 x, 2, upper_bound=upper_bound, mask_indices_list=mask_indices_list
             )
 
@@ -921,7 +921,7 @@ class TestNetSSL(unittest.TestCase):
         upper_bound = len(mask_indices_list) + 16
 
         with torch.no_grad():
-            (teacher_embedding_after_head, teacher_masked_patch_tokens_after_head) = teacher(
+            teacher_embedding_after_head, teacher_masked_patch_tokens_after_head = teacher(
                 x, 2, upper_bound=upper_bound, mask_indices_list=mask_indices_list
             )
 
@@ -1046,7 +1046,7 @@ class TestNetSSL(unittest.TestCase):
         teacher_embedding_after_head_list = []
         for _ in range(3):
             with torch.no_grad():
-                (teacher_embedding_after_head, teacher_masked_patch_tokens_after_head) = teacher(
+                teacher_embedding_after_head, teacher_masked_patch_tokens_after_head = teacher(
                     x, 2, upper_bound=upper_bound, mask_indices_list=mask_indices_list
                 )
 
@@ -1286,13 +1286,13 @@ class TestNetSSL(unittest.TestCase):
         )
         masks = mask_generator(batch_size * 2)
 
-        (embedding_g, features_g) = net(torch.concat(images[:2], dim=0), masks=masks)
+        embedding_g, features_g = net(torch.concat(images[:2], dim=0), masks=masks)
         self.assertFalse(torch.isnan(embedding_g).any())
         self.assertFalse(torch.isnan(features_g).any())
         self.assertEqual(features_g.size(), (batch_size * 2, (128 // 32) ** 2, 192))
         self.assertEqual(embedding_g.size(), (batch_size * 2, 128))
 
-        (embedding_l, features_l) = net(torch.concat(images[2:], dim=0), masks=None)
+        embedding_l, features_l = net(torch.concat(images[2:], dim=0), masks=None)
         self.assertFalse(torch.isnan(embedding_l).any())
         self.assertFalse(torch.isnan(features_l).any())
         self.assertEqual(features_l.size(), (batch_size * 4, (96 // 32) ** 2, 192))
@@ -1342,7 +1342,7 @@ class TestNetSSL(unittest.TestCase):
         mmcr_loss = mmcr.MMCRMomentumLoss(0.0, 2)
 
         # Test network
-        (out, out_m) = net(torch.rand((batch_size, 2, DEFAULT_NUM_CHANNELS, 128, 128)))
+        out, out_m = net(torch.rand((batch_size, 2, DEFAULT_NUM_CHANNELS, 128, 128)))
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 2)
         self.assertFalse(torch.isnan(out_m).any())

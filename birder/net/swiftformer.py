@@ -111,7 +111,7 @@ class EfficientAdditiveAttention(nn.Module):
         self.final = nn.Linear(token_dim * num_heads, token_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, _, H, W) = x.size()
+        B, _, H, W = x.size()
         x = x.flatten(2).permute(0, 2, 1)
 
         query = F.normalize(self.to_query(x), dim=-1)

@@ -125,7 +125,7 @@ class FCOSClassificationHead(nn.Module):
             cls_logits = self.cls_logits(cls_logits)
 
             # Permute classification output from (N, A * K, H, W) to (N, HWA, K).
-            (N, _, H, W) = cls_logits.size()
+            N, _, H, W = cls_logits.size()
             cls_logits = cls_logits.view(N, -1, self.num_classes, H, W)
             cls_logits = cls_logits.permute(0, 3, 4, 1, 2)
             cls_logits = cls_logits.reshape(N, -1, self.num_classes)  # (N, HWA, 4)
@@ -165,7 +165,7 @@ class FCOSRegressionHead(nn.Module):
             bbox_ctrness = self.bbox_ctrness(bbox_feature)
 
             # Permute bbox regression output from (N, 4 * A, H, W) to (N, HWA, 4).
-            (N, _, H, W) = bbox_regression.size()
+            N, _, H, W = bbox_regression.size()
             bbox_regression = bbox_regression.view(N, -1, 4, H, W)
             bbox_regression = bbox_regression.permute(0, 3, 4, 1, 2)
             bbox_regression = bbox_regression.reshape(N, -1, 4)  # (N, HWA, 4)
@@ -262,7 +262,7 @@ class FCOSHead(nn.Module):
 
     def forward(self, x: list[torch.Tensor]) -> dict[str, torch.Tensor]:
         cls_logits = self.classification_head(x)
-        (bbox_regression, bbox_ctrness) = self.regression_head(x)
+        bbox_regression, bbox_ctrness = self.regression_head(x)
 
         return {
             "cls_logits": cls_logits,
@@ -370,8 +370,8 @@ class FCOS(DetectionBaseNet):
             ).values < self.center_sampling_radius * anchor_sizes[:, None]
 
             # Compute pairwise distance between N points and M boxes
-            (x, y) = anchor_centers.unsqueeze(dim=2).unbind(dim=1)  # (N, 1)
-            (x0, y0, x1, y1) = gt_boxes.unsqueeze(dim=0).unbind(dim=2)  # (1, M)
+            x, y = anchor_centers.unsqueeze(dim=2).unbind(dim=1)  # (N, 1)
+            x0, y0, x1, y1 = gt_boxes.unsqueeze(dim=0).unbind(dim=2)  # (1, M)
             pairwise_dist = torch.stack([x - x0, y - y0, x1 - x, y1 - y], dim=2)  # (N, M)
 
             # Anchor point must be inside gt
@@ -388,7 +388,7 @@ class FCOS(DetectionBaseNet):
             # Match the GT box with minimum area, if there are multiple GT matches
             gt_areas = (gt_boxes[:, 2] - gt_boxes[:, 0]) * (gt_boxes[:, 3] - gt_boxes[:, 1])  # N
             pairwise_match = pairwise_match.to(torch.float32) * (1e8 - gt_areas[None, :])
-            (min_values, matched_idx) = pairwise_match.max(dim=1)  # R, per-anchor match
+            min_values, matched_idx = pairwise_match.max(dim=1)  # R, per-anchor match
             matched_idx[min_values < 1e-5] = -1  # Unmatched anchors are assigned -1
 
             matched_idxs.append(matched_idx)
@@ -433,7 +433,7 @@ class FCOS(DetectionBaseNet):
 
                 # Keep only topk scoring predictions
                 num_topk = min(self.topk_candidates, int(topk_idxs.size(0)))
-                (scores_per_level, idxs) = scores_per_level.topk(num_topk)
+                scores_per_level, idxs = scores_per_level.topk(num_topk)
                 topk_idxs = topk_idxs[idxs]
 
                 anchor_idxs = torch.div(topk_idxs, num_classes, rounding_mode="floor")
@@ -455,7 +455,7 @@ class FCOS(DetectionBaseNet):
 
             # Non-maximum suppression
             if self.soft_nms is not None:
-                (soft_scores, keep) = self.soft_nms(image_boxes, image_scores, image_labels, score_threshold=0.001)
+                soft_scores, keep = self.soft_nms(image_boxes, image_scores, image_labels, score_threshold=0.001)
                 image_scores[keep] = soft_scores
             else:
                 keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)

@@ -100,7 +100,7 @@ class BlockParams:
         group_widths = [group_width] * num_stages
 
         # Adjust the compatibility of stage widths and group widths
-        (stage_widths, group_widths) = cls._adjust_widths_groups_compatibility(
+        stage_widths, group_widths = cls._adjust_widths_groups_compatibility(
             stage_widths, bottleneck_multipliers, group_widths
         )
 

@@ -68,7 +68,7 @@ class Decoder2d(nn.Module):
         self.proj = nn.Linear(embed_dim, in_channels)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, _, C) = x.size()  # B, N, C
+        B, _, C = x.size()  # B, N, C
 
         x = x.transpose(1, 2).reshape(B, C, self.H, self.W)
 

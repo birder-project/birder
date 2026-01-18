@@ -10,7 +10,7 @@ logging.disable(logging.CRITICAL)
 
 class TestTransforms(unittest.TestCase):
     def test_detection(self) -> None:
-        (images, masks, size_list) = detection.batch_images(
+        images, masks, size_list = detection.batch_images(
             [
                 torch.ones((3, 10, 10)),
                 torch.ones((3, 12, 12)),
@@ -39,7 +39,7 @@ class TestTransforms(unittest.TestCase):
         labels = torch.tensor([1], dtype=torch.int64)
         batch = [(image, {"boxes": boxes, "labels": labels})]
 
-        (images, targets, masks, size_list) = collator(batch)
+        images, targets, masks, size_list = collator(batch)
 
         # Collator pads to size_divisible=32
         self.assertSequenceEqual(images.size(), (1, 3, 32, 32))

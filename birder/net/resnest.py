@@ -85,7 +85,7 @@ class SplitAttn(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.conv(x)
 
-        (B, RC, H, W) = x.size()  # pylint: disable=invalid-name
+        B, RC, H, W = x.size()  # pylint: disable=invalid-name
         if self.radix > 1:
             x = x.reshape((B, self.radix, RC // self.radix, H, W))
             x_gap = x.sum(dim=1)

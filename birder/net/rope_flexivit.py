@@ -308,7 +308,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         self.encoder.set_causal_attention(is_causal)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
@@ -333,7 +333,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
 
         x = x[:, self.num_special_tokens :]
         x = x.permute(0, 2, 1)
-        (B, C, _) = x.size()
+        B, C, _ = x.size()
         x = x.reshape(B, C, H // self.patch_size, W // self.patch_size)
 
         return {self.return_stages[0]: x}
@@ -359,7 +359,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         return_all_features: bool = False,
         return_keys: Literal["all", "tokens", "embedding"] = "tokens",
     ) -> TokenOmissionResultType:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
@@ -439,7 +439,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         mask_token: Optional[torch.Tensor] = None,
         return_keys: Literal["all", "features", "embedding"] = "features",
     ) -> TokenRetentionResultType:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
 
         x = self.conv_proj(x)
         x = mask_tensor(x, mask, mask_token=mask_token, patch_factor=self.max_stride // self.stem_stride)
@@ -470,7 +470,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         if return_keys in ("all", "features"):
             features = x[:, self.num_special_tokens :]
             features = features.permute(0, 2, 1)
-            (B, C, _) = features.size()
+            B, C, _ = features.size()
             features = features.reshape(B, C, H // self.patch_size, W // self.patch_size)
             result["features"] = features
 
@@ -490,7 +490,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         return result
 
     def forward_features(self, x: torch.Tensor, patch_size: Optional[int] = None) -> torch.Tensor:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
         x = flex_proj(x, self.conv_proj.weight, self.conv_proj.bias, patch_size)

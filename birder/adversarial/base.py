@@ -56,7 +56,7 @@ def pixel_eps_to_normalized(
 
 
 def clamp_normalized(inputs: torch.Tensor, rgb_stats: RGBType) -> torch.Tensor:
-    (min_val, max_val) = normalized_bounds(rgb_stats, device=inputs.device, dtype=inputs.dtype)
+    min_val, max_val = normalized_bounds(rgb_stats, device=inputs.device, dtype=inputs.dtype)
     return torch.clamp(inputs, min=min_val, max=max_val)
 
 

@@ -30,8 +30,8 @@ def convert_to_flatten_layout(
     cls_tokens: torch.Tensor, patch_tokens: torch.Tensor, ws: int
 ) -> tuple[torch.Tensor, Optional[torch.Tensor], int, int, int, int, int, int]:
     # Padding if added will be at the bottom right
-    (B, C, H, W) = patch_tokens.size()
-    (_, _, h_ks, w_ks) = cls_tokens.size()
+    B, C, H, W = patch_tokens.size()
+    _, _, h_ks, w_ks = cls_tokens.size()
     need_mask = False
     p_l = 0
     p_r = 0
@@ -43,13 +43,13 @@ def convert_to_flatten_layout(
         patch_tokens = F.pad(patch_tokens, (p_l, p_r, p_t, p_b))
         need_mask = True
 
-    (B, C, H, W) = patch_tokens.size()
+    B, C, H, W = patch_tokens.size()
     kernel_size = (H // h_ks, W // w_ks)
     tmp = F.unfold(patch_tokens, kernel_size=kernel_size, dilation=(1, 1), padding=(0, 0), stride=kernel_size)
     patch_tokens = tmp.transpose(1, 2).reshape(-1, C, kernel_size[0] * kernel_size[1]).transpose(-2, -1)
 
     if need_mask is True:
-        (bh_sk_s, ksks, C) = patch_tokens.size()
+        bh_sk_s, ksks, C = patch_tokens.size()
         h_s = H // ws
         w_s = W // ws
         mask = torch.ones(bh_sk_s // B, 1 + ksks, 1 + ksks, device=patch_tokens.device, dtype=torch.float)
@@ -116,7 +116,7 @@ class SequentialWithTwo(nn.Sequential):
         self, cls_tokens: torch.Tensor, patch_tokens: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         for module in self:
-            (cls_tokens, patch_tokens) = module(cls_tokens, patch_tokens)
+            cls_tokens, patch_tokens = module(cls_tokens, patch_tokens)
 
         return (cls_tokens, patch_tokens)
 
@@ -178,9 +178,9 @@ class AttentionWithRelPos(nn.Module):
         nn.init.trunc_normal_(self.rel_pos, std=0.02)
 
     def forward(self, x: torch.Tensor, patch_attn: bool = False, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
-        (B, N, C) = x.size()
+        B, N, C = x.size()
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.unbind(0)
+        q, k, v = qkv.unbind(0)
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
 
@@ -242,7 +242,7 @@ class PatchEmbed(nn.Module):
             raise ValueError("Unknown patch_conv_type")
 
     def forward(self, x: torch.Tensor, extra_padding: bool = False) -> torch.Tensor:
-        (_, _, H, W) = x.size()
+        _, _, H, W = x.size()
         if extra_padding and (H % self.patch_size[0] != 0 or W % self.patch_size[1] != 0):
             p_l = (self.patch_size[1] - W % self.patch_size[1]) // 2
             p_r = (self.patch_size[1] - W % self.patch_size[1]) - p_l
@@ -384,12 +384,12 @@ class ConvAttStage(nn.Module):
         self.ws = window_size
 
     def forward(self, cls_tokens: torch.Tensor, patch_tokens: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        (cls_tokens, patch_tokens) = self.proj(cls_tokens, patch_tokens)
-        (out, mask, p_r, p_b, B, C, H, W) = convert_to_flatten_layout(cls_tokens, patch_tokens, self.ws[0])
+        cls_tokens, patch_tokens = self.proj(cls_tokens, patch_tokens)
+        out, mask, p_r, p_b, B, C, H, W = convert_to_flatten_layout(cls_tokens, patch_tokens, self.ws[0])
         for blk in self.blocks:
             out = blk(out, mask, B)
 
-        (cls_tokens, patch_tokens) = convert_to_spatial_layout(out, B, C, H, W, self.ws, mask, p_r, p_b)
+        cls_tokens, patch_tokens = convert_to_spatial_layout(out, B, C, H, W, self.ws, mask, p_r, p_b)
 
         return (cls_tokens, patch_tokens)
 
@@ -480,7 +480,7 @@ class RegionViT(DetectorBackbone):
 
         out = {}
         for name, module in self.body.named_children():
-            (cls_tokens, x) = module(cls_tokens, x)
+            cls_tokens, x = module(cls_tokens, x)
             if name in self.return_stages:
                 out[name] = x
 
@@ -503,14 +503,14 @@ class RegionViT(DetectorBackbone):
         o_x = x
         x = self.patch_embed(x)
         cls_tokens = self.cls_token(o_x, extra_padding=True)
-        (cls_tokens, x) = self.body(cls_tokens, x)
+        cls_tokens, x = self.body(cls_tokens, x)
 
         return (cls_tokens, x)
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        (cls_tokens, _) = self.forward_features(x)
+        cls_tokens, _ = self.forward_features(x)
 
-        (N, C, _, _) = cls_tokens.size()
+        N, C, _, _ = cls_tokens.size()
         cls_tokens = cls_tokens.reshape(N, C, -1).transpose(1, 2)
         cls_tokens = self.norm(cls_tokens)
         out = torch.mean(cls_tokens, dim=1)

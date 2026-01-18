@@ -39,13 +39,13 @@ class MultiHeadAttentionPool(nn.Module):
         nn.init.trunc_normal_(self.latent, std=dim**-0.5)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, N, C) = x.size()
+        B, N, C = x.size()
 
         q_latent = self.latent.expand(B, self.latent_len, -1)
         q = self.q(q_latent).reshape(B, self.latent_len, self.num_heads, self.head_dim).transpose(1, 2)
 
         kv = self.kv(x).reshape(B, N, 2, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-        (k, v) = kv.unbind(0)
+        k, v = kv.unbind(0)
 
         x = F.scaled_dot_product_attention(q, k, v, scale=self.scale)  # pylint: disable=not-callable
         x = x.transpose(1, 2).reshape(B, self.latent_len, C)

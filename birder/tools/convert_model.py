@@ -238,7 +238,7 @@ def main(args: argparse.Namespace) -> None:
     signature: SignatureType | DetectionSignatureType
     backbone_custom_config = None
     if args.backbone is None:
-        (net, (class_to_idx, signature, rgb_stats, custom_config)) = fs_ops.load_model(
+        net, (class_to_idx, signature, rgb_stats, custom_config) = fs_ops.load_model(
             device,
             args.network,
             config=args.model_config,
@@ -251,22 +251,20 @@ def main(args: argparse.Namespace) -> None:
         network_name = lib.get_network_name(args.network, tag=args.tag)
 
     else:
-        (net, (class_to_idx, signature, rgb_stats, custom_config, backbone_custom_config)) = (
-            fs_ops.load_detection_model(
-                device,
-                args.network,
-                config=args.model_config,
-                tag=args.tag,
-                reparameterized=args.reparameterized,
-                backbone=args.backbone,
-                backbone_config=args.backbone_model_config,
-                backbone_tag=args.backbone_tag,
-                backbone_reparameterized=args.backbone_reparameterized,
-                epoch=args.epoch,
-                new_size=args.resize,
-                inference=True,
-                export_mode=True,
-            )
+        net, (class_to_idx, signature, rgb_stats, custom_config, backbone_custom_config) = fs_ops.load_detection_model(
+            device,
+            args.network,
+            config=args.model_config,
+            tag=args.tag,
+            reparameterized=args.reparameterized,
+            backbone=args.backbone,
+            backbone_config=args.backbone_model_config,
+            backbone_tag=args.backbone_tag,
+            backbone_reparameterized=args.backbone_reparameterized,
+            epoch=args.epoch,
+            new_size=args.resize,
+            inference=True,
+            export_mode=True,
         )
         network_name = lib.get_detection_network_name(
             args.network, tag=args.tag, backbone=args.backbone, backbone_tag=args.backbone_tag

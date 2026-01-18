@@ -152,7 +152,7 @@ class FocalModulation(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Pre linear projection
         x = self.f(x)
-        (q, ctx, gates) = torch.split(x, self.input_split, 1)
+        q, ctx, gates = torch.split(x, self.input_split, 1)
 
         # Context aggregation
         ctx_all = 0.0

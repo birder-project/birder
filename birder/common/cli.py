@@ -49,7 +49,7 @@ class FlexibleDictAction(argparse.Action):
             new_dict = {}
             for pair in pairs:
                 # Split each pair into key and value
-                (key, value) = pair.split("=", 1)
+                key, value = pair.split("=", 1)
                 key = key.strip()
 
                 # Try to safely evaluate the value (handles ints and strings mostly)

@@ -43,7 +43,7 @@ class TestAdversarialBase(unittest.TestCase):
 
     def test_clamp_normalized(self) -> None:
         rgb_stats: RGBType = {"mean": (0.5, 0.5, 0.5), "std": (0.25, 0.5, 1.0)}
-        (min_val, max_val) = base.normalized_bounds(rgb_stats)
+        min_val, max_val = base.normalized_bounds(rgb_stats)
 
         inputs = torch.zeros((1, 3, 2, 2))
         inputs[0, :, 0, 0] = (min_val - 1.0).view(3)
@@ -119,7 +119,7 @@ class TestAdversarialAttacks(unittest.TestCase):
         result = attack(self.inputs, target=None)
 
         # Check pixel bounds
-        (min_val, max_val) = base.normalized_bounds(_RGB_STATS)
+        min_val, max_val = base.normalized_bounds(_RGB_STATS)
         self.assertTrue(torch.all(result.adv_inputs >= min_val))
         self.assertTrue(torch.all(result.adv_inputs <= max_val))
 
@@ -138,7 +138,7 @@ class TestAdversarialAttacks(unittest.TestCase):
         result = attack(self.inputs, target=None)
 
         # Check pixel bounds
-        (min_val, max_val) = base.normalized_bounds(_RGB_STATS)
+        min_val, max_val = base.normalized_bounds(_RGB_STATS)
         self.assertTrue(torch.all(result.adv_inputs >= min_val))
         self.assertTrue(torch.all(result.adv_inputs <= max_val))
 
@@ -161,7 +161,7 @@ class TestAdversarialAttacks(unittest.TestCase):
         result = attack(self.inputs, target=None)
 
         # Check pixel bounds
-        (min_val, max_val) = base.normalized_bounds(_RGB_STATS)
+        min_val, max_val = base.normalized_bounds(_RGB_STATS)
         self.assertTrue(torch.all(result.adv_inputs >= min_val))
         self.assertTrue(torch.all(result.adv_inputs <= max_val))
 
@@ -185,7 +185,7 @@ class TestAdversarialAttacks(unittest.TestCase):
         attack = SimBA(self.net, step_size=0.1, max_iter=10, rgb_stats=_RGB_STATS)
         result = attack(self.inputs, target=None)
 
-        (min_val, max_val) = base.normalized_bounds(_RGB_STATS)
+        min_val, max_val = base.normalized_bounds(_RGB_STATS)
         self.assertTrue(torch.all(result.adv_inputs >= min_val))
         self.assertTrue(torch.all(result.adv_inputs <= max_val))
 

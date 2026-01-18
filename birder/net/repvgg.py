@@ -113,7 +113,7 @@ class RepVggBlock(nn.Module):
         if self.reparameterized is True:
             return
 
-        (kernel, bias) = self._get_kernel_bias()
+        kernel, bias = self._get_kernel_bias()
         self.reparam_conv = nn.Conv2d(
             in_channels=self.conv_kxk.conv.in_channels,
             out_channels=self.conv_kxk.conv.out_channels,
@@ -151,10 +151,10 @@ class RepVggBlock(nn.Module):
         kernel_identity = 0
         bias_identity = 0
         if self.rbr_identity is not None:
-            (kernel_identity, bias_identity) = self._fuse_bn_tensor(self.rbr_identity)
+            kernel_identity, bias_identity = self._fuse_bn_tensor(self.rbr_identity)
 
         # Get weights and bias of conv branches
-        (kernel_conv, bias_conv) = self._fuse_bn_tensor(self.conv_kxk)
+        kernel_conv, bias_conv = self._fuse_bn_tensor(self.conv_kxk)
 
         kernel_final = kernel_conv + kernel_1x1 + kernel_identity
         bias_final = bias_conv + bias_1x1 + bias_identity

@@ -25,8 +25,8 @@ def _create_annotation(
     annotation["image_id"] = image_id
 
     # Bounding box in (x, y, w, h) format
-    (x0, y0) = points[0]
-    (x1, y1) = points[1]
+    x0, y0 = points[0]
+    x1, y1 = points[1]
     x = min(x0, x1)
     y = min(y0, y1)
     w = abs(x0 - x1)

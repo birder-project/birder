@@ -125,7 +125,7 @@ class MMCR(SSLBaseNet):
         self.momentum_encoder.load_state_dict(self.encoder.state_dict())
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        (C, H, W) = x.shape[-3:]  # B, num_views, C, H, W
+        C, H, W = x.shape[-3:]  # B, num_views, C, H, W
         x = x.reshape(-1, C, H, W)
         z = self.encoder(x)
 

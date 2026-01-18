@@ -112,7 +112,7 @@ class SimMIM(MIMBaseNet):
         """
 
         if x.ndim == 4:
-            (n, c, _, _) = x.shape
+            n, c, _, _ = x.shape
             x = x.reshape(n, c, -1)
             x = torch.einsum("ncl->nlc", x)
 
@@ -135,7 +135,7 @@ class SimMIM(MIMBaseNet):
         mask: 0 is keep, 1 is remove
         """
 
-        (N, C, _, _) = pred.shape
+        N, C, _, _ = pred.shape
         pred = pred.reshape(N, C, -1)
         pred = torch.einsum("ncl->nlc", pred)
 

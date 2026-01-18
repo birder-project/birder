@@ -169,7 +169,7 @@ class CascadedGroupAttention(nn.Module):
         self.attention_bias_idxs = nn.Buffer(torch.LongTensor(idxs).view(N, N), persistent=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, _, H, W) = x.size()
+        B, _, H, W = x.size()
         feats_in = x.chunk(len(self.qkvs), dim=1)
         feats_out = []
         feat = feats_in[0]
@@ -179,7 +179,7 @@ class CascadedGroupAttention(nn.Module):
                 feat = feat + feats_in[head_idx]
 
             feat = qkv(feat)
-            (q, k, v) = feat.view(B, -1, H, W).split([self.key_dim, self.key_dim, self.d], dim=1)
+            q, k, v = feat.view(B, -1, H, W).split([self.key_dim, self.key_dim, self.d], dim=1)
             q = dws(q)
             q = q.flatten(2)
             k = k.flatten(2)
@@ -229,7 +229,7 @@ class LocalWindowAttention(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         H = self.resolution[0]
         W = self.resolution[1]
-        (B, C, _, _) = x.size()
+        B, C, _, _ = x.size()
 
         if H <= self.window_resolution[0] and W <= self.window_resolution[1]:
             x = self.attn(x)

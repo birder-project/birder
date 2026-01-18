@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.17.2
+      jupytext_version: 1.19.0
   kernelspec:
     display_name: birder
     language: python

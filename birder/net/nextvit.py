@@ -165,7 +165,7 @@ class E_MHSA(nn.Module):
             self.norm = nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, N, C) = x.size()
+        B, N, C = x.size()
         q = self.q(x)
         q = q.reshape(B, N, self.num_heads, int(C // self.num_heads)).permute(0, 2, 1, 3)
 
@@ -226,7 +226,7 @@ class NTB(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)
-        (B, C, H, W) = x.size()
+        B, C, H, W = x.size()
         out = self.norm1(x)
 
         out = out.reshape(B, C, H * W).permute(0, 2, 1)

@@ -20,7 +20,7 @@ def _normalize_image_sizes(inputs: torch.Tensor, image_sizes: Optional[list[list
     if image_sizes is not None:
         return image_sizes
 
-    (_, _, height, width) = inputs.shape
+    _, _, height, width = inputs.shape
     return [[height, width] for _ in range(inputs.size(0))]
 
 
@@ -149,20 +149,20 @@ def infer_batch(
     **kwargs: Any,
 ) -> list[dict[str, torch.Tensor]]:
     if tta is False:
-        (detections, _) = net(inputs, masks=masks, image_sizes=image_sizes, **kwargs)
+        detections, _ = net(inputs, masks=masks, image_sizes=image_sizes, **kwargs)
         return detections  # type: ignore[no-any-return]
 
     normalized_sizes = _normalize_image_sizes(inputs, image_sizes)
     detections_list: list[list[dict[str, torch.Tensor]]] = []
 
     for scale in (0.8, 1.0, 1.2):
-        (scaled_inputs, scaled_masks, scaled_sizes) = _resize_batch(inputs, normalized_sizes, scale, size_divisible=32)
-        (detections, _) = net(scaled_inputs, masks=scaled_masks, image_sizes=scaled_sizes, **kwargs)
+        scaled_inputs, scaled_masks, scaled_sizes = _resize_batch(inputs, normalized_sizes, scale, size_divisible=32)
+        detections, _ = net(scaled_inputs, masks=scaled_masks, image_sizes=scaled_sizes, **kwargs)
         detections = _rescale_detections(detections, scaled_sizes, normalized_sizes)
         detections_list.append(detections)
 
         flipped_inputs = _hflip_inputs(scaled_inputs, scaled_sizes)
-        (flipped_detections, _) = net(flipped_inputs, masks=scaled_masks, image_sizes=scaled_sizes, **kwargs)
+        flipped_detections, _ = net(flipped_inputs, masks=scaled_masks, image_sizes=scaled_sizes, **kwargs)
         flipped_detections = _invert_detections(flipped_detections, scaled_sizes)
         flipped_detections = _rescale_detections(flipped_detections, scaled_sizes, normalized_sizes)
         detections_list.append(flipped_detections)

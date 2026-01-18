@@ -36,7 +36,7 @@ from birder.net.base import TokenRetentionResultType
 def pre_pool(
     x: torch.Tensor, hw_shape: tuple[int, int], has_cls_token: bool
 ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
-    (H, W) = hw_shape
+    H, W = hw_shape
     if has_cls_token is True:
         cls_tok = x[:, :, :1, :]
         x = x[:, :, 1:, :]
@@ -68,8 +68,8 @@ def cal_rel_pos_spatial(
     rel_pos_w: torch.Tensor,
 ) -> torch.Tensor:
     sp_idx = 1 if has_cls_token is True else 0
-    (q_h, q_w) = q_shape
-    (k_h, k_w) = k_shape
+    q_h, q_w = q_shape
+    k_h, k_w = k_shape
 
     # Scale up rel pos if shapes for q and k are different.
     q_h_ratio = max(k_h / q_h, 1.0)
@@ -90,7 +90,7 @@ def cal_rel_pos_spatial(
     rel_h = rel_pos_h[dist_h.long()]
     rel_w = rel_pos_w[dist_w.long()]
 
-    (B, n_head, _, dim) = q.shape
+    B, n_head, _, dim = q.shape
 
     r_q = q[:, :, sp_idx:].reshape(B, n_head, q_h, q_w, dim)
     rel_h = torch.einsum("byhwc,hkc->byhwk", r_q, rel_h)
@@ -108,7 +108,7 @@ class SequentialWithShape(nn.Sequential):
         self, x: torch.Tensor, hw_shape: tuple[int, int]
     ) -> tuple[torch.Tensor, tuple[int, int]]:
         for module in self:
-            (x, hw_shape) = module(x, hw_shape)
+            x, hw_shape = module(x, hw_shape)
 
         return (x, hw_shape)
 
@@ -129,7 +129,7 @@ class PatchEmbed(nn.Module):
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, tuple[int, int]]:
         x = self.proj(x)
-        (H, W) = x.shape[2:4]
+        H, W = x.shape[2:4]
 
         x = x.flatten(2).transpose(1, 2)
 
@@ -227,31 +227,31 @@ class MultiScaleAttention(nn.Module):
         nn.init.trunc_normal_(self.rel_pos_w, std=0.02)
 
     def forward(self, x: torch.Tensor, hw_shape: tuple[int, int]) -> tuple[torch.Tensor, tuple[int, int]]:
-        (B, N, _) = x.size()
+        B, N, _ = x.size()
 
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.unbind(dim=0)
+        q, k, v = qkv.unbind(dim=0)
 
         if self.pool_q is not None:
-            (q, q_tok) = pre_pool(q, hw_shape, self.has_cls_token)
+            q, q_tok = pre_pool(q, hw_shape, self.has_cls_token)
             q = self.pool_q(q)
-            (q, q_shape) = post_pool(q, self.num_heads, q_tok)
+            q, q_shape = post_pool(q, self.num_heads, q_tok)
             q = self.norm_q(q)
         else:
             q_shape = hw_shape
 
         if self.pool_k is not None:
-            (k, k_tok) = pre_pool(k, hw_shape, self.has_cls_token)
+            k, k_tok = pre_pool(k, hw_shape, self.has_cls_token)
             k = self.pool_k(k)
-            (k, k_shape) = post_pool(k, self.num_heads, k_tok)
+            k, k_shape = post_pool(k, self.num_heads, k_tok)
             k = self.norm_k(k)
         else:
             k_shape = hw_shape
 
         if self.pool_v is not None:
-            (v, v_tok) = pre_pool(v, hw_shape, self.has_cls_token)
+            v, v_tok = pre_pool(v, hw_shape, self.has_cls_token)
             v = self.pool_v(v)
-            (v, _) = post_pool(v, self.num_heads, v_tok)
+            v, _ = post_pool(v, self.num_heads, v_tok)
             v = self.norm_v(v)
 
         attn = (q * self.scale) @ k.transpose(-2, -1)
@@ -337,8 +337,8 @@ class MultiScaleBlock(nn.Module):
         else:
             cls_tok = None
 
-        (B, _, C) = x.size()
-        (H, W) = hw_shape
+        B, _, C = x.size()
+        H, W = hw_shape
         x = x.reshape(B, H, W, C).permute(0, 3, 1, 2).contiguous()
         x = self.pool_skip(x)
         x = x.reshape(B, C, -1).transpose(1, 2)
@@ -349,7 +349,7 @@ class MultiScaleBlock(nn.Module):
 
     def forward(self, x: torch.Tensor, hw_shape: tuple[int, int]) -> tuple[torch.Tensor, tuple[int, int]]:
         x_norm = self.norm1(x)
-        (x_block, hw_shape_new) = self.attn(x_norm, hw_shape)
+        x_block, hw_shape_new = self.attn(x_norm, hw_shape)
 
         if self.proj_attn is not None:
             x = self.proj_attn(x_norm)
@@ -421,7 +421,7 @@ class MultiScaleVitStage(nn.Module):
 
     def forward(self, x: torch.Tensor, hw_shape: tuple[int, int]) -> tuple[torch.Tensor, tuple[int, int]]:
         for blk in self.blocks:
-            (x, hw_shape) = blk(x, hw_shape)
+            x, hw_shape = blk(x, hw_shape)
 
         return (x, hw_shape)
 
@@ -523,14 +523,14 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                     nn.init.zeros_(m.bias)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        (x, hw_shape) = self.patch_embed(x)
+        x, hw_shape = self.patch_embed(x)
         if self.cls_token is not None:
             cls_tokens = self.cls_token.expand(x.size(0), -1, -1)
             x = torch.concat((cls_tokens, x), dim=1)
 
         out = {}
         for name, module in self.body.named_children():
-            (x, hw_shape) = module(x, hw_shape)
+            x, hw_shape = module(x, hw_shape)
             if name in self.return_stages:
                 x_inter = x
                 if self.cls_token is not None:
@@ -561,7 +561,7 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     ) -> TokenRetentionResultType:
         B = x.size(0)
 
-        (x, hw_shape) = self.patch_embed(x)
+        x, hw_shape = self.patch_embed(x)
         x = mask_tensor(
             x.permute(0, 2, 1).reshape(B, -1, hw_shape[0], hw_shape[1]),
             mask,
@@ -574,7 +574,7 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             cls_tokens = self.cls_token.expand(B, -1, -1)
             x = torch.concat((cls_tokens, x), dim=1)
 
-        (x, _) = self.body(x, hw_shape)
+        x, _ = self.body(x, hw_shape)
         x = self.norm(x)
 
         result: TokenRetentionResultType = {}
@@ -596,12 +596,12 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         return result
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
-        (x, hw_shape) = self.patch_embed(x)
+        x, hw_shape = self.patch_embed(x)
         if self.cls_token is not None:
             cls_tokens = self.cls_token.expand(x.size(0), -1, -1)
             x = torch.concat((cls_tokens, x), dim=1)
 
-        (x, _) = self.body(x, hw_shape)
+        x, _ = self.body(x, hw_shape)
         x = self.norm(x)
 
         return x

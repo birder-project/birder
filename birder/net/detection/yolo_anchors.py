@@ -71,7 +71,7 @@ def scale_anchors(anchors: AnchorGroups, from_size: tuple[int, int], to_size: tu
 
 
 def scale_anchors(anchors: AnchorLike, from_size: tuple[int, int], to_size: tuple[int, int]) -> AnchorLike:
-    (anchor_groups, single) = _normalize_anchor_groups(anchors)
+    anchor_groups, single = _normalize_anchor_groups(anchors)
 
     if from_size == to_size:
         # Avoid aliasing default anchors in case they are mutated later
@@ -100,7 +100,7 @@ def pixels_to_grid(anchors: AnchorGroups, strides: Sequence[int]) -> AnchorGroup
 
 
 def pixels_to_grid(anchors: AnchorLike, strides: Sequence[int]) -> AnchorLike:
-    (anchor_groups, single) = _normalize_anchor_groups(anchors)
+    anchor_groups, single = _normalize_anchor_groups(anchors)
     if len(anchor_groups) != len(strides):
         raise ValueError("strides must provide one value per anchor scale")
 
@@ -123,7 +123,7 @@ def grid_to_pixels(anchors: AnchorGroups, strides: Sequence[int]) -> AnchorGroup
 
 
 def grid_to_pixels(anchors: AnchorLike, strides: Sequence[int]) -> AnchorLike:
-    (anchor_groups, single) = _normalize_anchor_groups(anchors)
+    anchor_groups, single = _normalize_anchor_groups(anchors)
     if len(anchor_groups) != len(strides):
         raise ValueError("strides must provide one value per anchor scale")
 
@@ -187,7 +187,7 @@ def resolve_anchor_group(
     preset: str, *, anchor_format: str, model_size: tuple[int, int], model_strides: Sequence[int]
 ) -> AnchorGroup:
     anchors = _resolve_anchors(preset, anchor_format=anchor_format, model_size=model_size, model_strides=model_strides)
-    (anchor_groups, single) = _normalize_anchor_groups(anchors)
+    anchor_groups, single = _normalize_anchor_groups(anchors)
     if single is False:
         raise ValueError("Expected a single anchor group for this model")
 
@@ -198,7 +198,7 @@ def resolve_anchor_groups(
     preset: str, *, anchor_format: str, model_size: tuple[int, int], model_strides: Sequence[int]
 ) -> AnchorGroups:
     anchors = _resolve_anchors(preset, anchor_format=anchor_format, model_size=model_size, model_strides=model_strides)
-    (anchor_groups, single) = _normalize_anchor_groups(anchors)
+    anchor_groups, single = _normalize_anchor_groups(anchors)
     if single is True:
         raise ValueError("Expected multiple anchor groups for this model")
 

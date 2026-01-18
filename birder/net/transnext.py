@@ -32,8 +32,8 @@ def get_relative_position_cpb(
     axis_kh = F.adaptive_avg_pool1d(axis_qh.unsqueeze(0), key_size[0]).squeeze(0)  # pylint: disable=not-callable
     axis_qw = torch.arange(query_size[1], dtype=torch.float32, device=device)
     axis_kw = F.adaptive_avg_pool1d(axis_qw.unsqueeze(0), key_size[1]).squeeze(0)  # pylint: disable=not-callable
-    (axis_kh, axis_kw) = torch.meshgrid(axis_kh, axis_kw, indexing="ij")
-    (axis_qh, axis_qw) = torch.meshgrid(axis_qh, axis_qw, indexing="ij")
+    axis_kh, axis_kw = torch.meshgrid(axis_kh, axis_kw, indexing="ij")
+    axis_qh, axis_qw = torch.meshgrid(axis_qh, axis_qw, indexing="ij")
 
     axis_kh = torch.reshape(axis_kh, [-1])
     axis_kw = torch.reshape(axis_kw, [-1])
@@ -44,7 +44,7 @@ def get_relative_position_cpb(
     relative_w = (axis_qw[:, None] - axis_kw[None, :]) / (pretrain_size[1] - 1) * 8
     relative_hw = torch.stack([relative_h, relative_w], dim=-1).view(-1, 2)
 
-    (relative_coords_table, idx_map) = torch.unique(relative_hw, return_inverse=True, dim=0)
+    relative_coords_table, idx_map = torch.unique(relative_hw, return_inverse=True, dim=0)
 
     relative_coords_table = (
         torch.sign(relative_coords_table)
@@ -86,9 +86,9 @@ class ConvolutionalGLU(nn.Module):
         self.drop = nn.Dropout(drop)
 
     def forward(self, x: torch.Tensor, H: int, W: int) -> torch.Tensor:
-        (x, v) = self.fc1(x).chunk(2, dim=-1)
+        x, v = self.fc1(x).chunk(2, dim=-1)
 
-        (B, _, C) = x.size()
+        B, _, C = x.size()
         x = x.transpose(1, 2).view(B, C, H, W).contiguous()
         x = self.dwconv(x)
         x = x.flatten(2).transpose(1, 2)
@@ -143,9 +143,9 @@ class Attention(nn.Module):
     def forward(
         self, x: torch.Tensor, _h: int, _w: int, relative_pos_index: torch.Tensor, relative_coords_table: torch.Tensor
     ) -> torch.Tensor:
-        (B, N, C) = x.size()
+        B, N, C = x.size()
         qkv = self.qkv(x).reshape(B, -1, 3 * self.num_heads, self.head_dim).permute(0, 2, 1, 3)
-        (q, k, v) = qkv.chunk(3, dim=1)
+        q, k, v = qkv.chunk(3, dim=1)
 
         # Use MLP to generate continuous relative positional bias
         rel_bias = (
@@ -227,7 +227,7 @@ class AggregatedAttention(nn.Module):
         )
 
         # Generate padding_mask and sequence length scale
-        (local_seq_length, padding_mask) = get_seqlen_and_mask(input_resolution, self.window_size)
+        local_seq_length, padding_mask = get_seqlen_and_mask(input_resolution, self.window_size)
         self.seq_length_scale = nn.Buffer(torch.log(local_seq_length + self.pool_len), persistent=False)
         self.padding_mask = nn.Buffer(padding_mask, persistent=False)
 
@@ -240,7 +240,7 @@ class AggregatedAttention(nn.Module):
     def forward(
         self, x: torch.Tensor, H: int, W: int, relative_pos_index: torch.Tensor, relative_coords_table: torch.Tensor
     ) -> torch.Tensor:
-        (B, N, C) = x.size()
+        B, N, C = x.size()
 
         # Generate queries, normalize them with L2, add query embedding,
         # and then magnify with sequence length scale and temperature.
@@ -252,7 +252,7 @@ class AggregatedAttention(nn.Module):
             * self.seq_length_scale
         )
 
-        (attn_local, v_local) = self.swa_qk_rpb(
+        attn_local, v_local = self.swa_qk_rpb(
             self.kv(x),
             q_norm_scaled.contiguous(),
             self.relative_pos_bias_local,
@@ -272,7 +272,7 @@ class AggregatedAttention(nn.Module):
 
         # Generate pooled keys and values
         kv_pool = self.kv(x_).reshape(B, self.pool_len, 2 * self.num_heads, self.head_dim).permute(0, 2, 1, 3)
-        (k_pool, v_pool) = kv_pool.chunk(2, dim=1)
+        k_pool, v_pool = kv_pool.chunk(2, dim=1)
 
         # Use MLP to generate continuous relative positional bias for pooled features.
         pool_bias = (
@@ -288,7 +288,7 @@ class AggregatedAttention(nn.Module):
         attn = self.attn_drop(attn)
 
         # Split the attention weights and separately aggregate the values of local & pooled features
-        (attn_local, attn_pool) = torch.split(attn, [self.local_len, self.pool_len], dim=-1)
+        attn_local, attn_pool = torch.split(attn, [self.local_len, self.pool_len], dim=-1)
 
         x_local = self.swa_av(
             q_norm, attn_local, v_local.contiguous(), self.learnable_tokens, self.learnable_bias, self.window_size, H, W
@@ -367,7 +367,7 @@ class OverlapPatchEmbed(nn.Module):
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, int, int]:
         x = self.proj(x)
-        (_, _, H, W) = x.size()
+        _, _, H, W = x.size()
         x = x.flatten(2).transpose(1, 2)
         x = self.norm(x)
 
@@ -396,7 +396,7 @@ class TransNeXtStage(nn.Module):
 
         # Generate relative positional coordinate table and index for each stage
         # to compute continuous relative positional bias
-        (relative_pos_index, relative_coords_table) = get_relative_position_cpb(
+        relative_pos_index, relative_coords_table = get_relative_position_cpb(
             query_size=input_resolution, key_size=(input_resolution[0] // sr_ratio, input_resolution[1] // sr_ratio)
         )
         self.relative_pos_index = nn.Buffer(relative_pos_index, persistent=False)
@@ -430,7 +430,7 @@ class TransNeXtStage(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B = x.size(0)
-        (x, H, W) = self.patch_embed(x)
+        x, H, W = self.patch_embed(x)
         for blk in self.blocks:
             x = blk(x, H, W, self.relative_pos_index, self.relative_coords_table)
 
@@ -553,7 +553,7 @@ class TransNeXt(DetectorBackbone):
                 sr_ratio = self.sr_ratio[i]
                 with torch.no_grad():
                     device = next(m.parameters()).device
-                    (relative_pos_index, relative_coords_table) = get_relative_position_cpb(
+                    relative_pos_index, relative_coords_table = get_relative_position_cpb(
                         query_size=input_resolution,
                         key_size=(input_resolution[0] // sr_ratio, input_resolution[1] // sr_ratio),
                         device=device,
@@ -574,7 +574,7 @@ class TransNeXt(DetectorBackbone):
                             blk.pool_len = pool_h * pool_w
                             blk.pool = nn.AdaptiveAvgPool2d((pool_h, pool_w))
 
-                            (local_seq_length, padding_mask) = get_seqlen_and_mask(
+                            local_seq_length, padding_mask = get_seqlen_and_mask(
                                 input_resolution, blk.window_size, device=device
                             )
                             blk.seq_length_scale = nn.Buffer(

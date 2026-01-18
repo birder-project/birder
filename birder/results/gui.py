@@ -212,7 +212,7 @@ class ConfusionMatrix:
             )
 
         offset = 0.5
-        (height, width) = cnf_matrix.shape
+        height, width = cnf_matrix.shape
         ax.hlines(
             y=np.arange(height + 1) - offset,
             xmin=-offset,
@@ -261,7 +261,7 @@ class ROC:
             roc_auc = {}
             for i in results.unique_labels:
                 binary_labels = results.labels == i
-                (fpr[i], tpr[i], _) = roc_curve(binary_labels, results.output[:, i])
+                fpr[i], tpr[i], _ = roc_curve(binary_labels, results.output[:, i])
                 if np.sum(binary_labels) == 0:
                     tpr[i] = np.zeros_like(fpr[i])
 
@@ -324,7 +324,7 @@ class PrecisionRecall:
             labels = label_binarize(results.labels, classes=range(len(results.label_names)))
 
             # A "micro-average" quantifying score on all classes jointly
-            (precision, recall, _) = precision_recall_curve(labels.ravel(), results.output.ravel())
+            precision, recall, _ = precision_recall_curve(labels.ravel(), results.output.ravel())
             average_precision = average_precision_score(labels.ravel(), results.output.ravel(), average="micro")
 
             line = ax.step(recall, precision, linestyle=":", where="post")
@@ -334,7 +334,7 @@ class PrecisionRecall:
             # Per selected class
             for cls in pr_classes:
                 i = results.label_names.index(cls)
-                (precision, recall, _) = precision_recall_curve(labels[:, i], results.output[:, i])
+                precision, recall, _ = precision_recall_curve(labels[:, i], results.output[:, i])
                 average_precision = average_precision_score(labels[:, i], results.output[:, i])
                 line = ax.plot(recall, precision, lw=2)
                 legend_lines.append(line[0])
@@ -372,8 +372,8 @@ class ProbabilityHistogram:
         cls_a_df = results_df.filter(pl.col("label_name") == cls_a)
         cls_b_df = results_df.filter(pl.col("label_name") == cls_b)
 
-        (cls_a_prob_a_counts, cls_a_prob_a_bins) = hist(cls_a_df[str(self.results.label_names.index(cls_a))])
-        (cls_a_prob_b_counts, cls_a_prob_b_bins) = hist(cls_b_df[str(self.results.label_names.index(cls_a))])
+        cls_a_prob_a_counts, cls_a_prob_a_bins = hist(cls_a_df[str(self.results.label_names.index(cls_a))])
+        cls_a_prob_b_counts, cls_a_prob_b_bins = hist(cls_b_df[str(self.results.label_names.index(cls_a))])
         plt.subplot(2, 1, 1)
         plt.stairs(
             cls_a_prob_a_counts,
@@ -391,8 +391,8 @@ class ProbabilityHistogram:
         )
         plt.legend(loc="upper center")
 
-        (cls_b_prob_a_counts, cls_b_prob_a_bins) = hist(cls_a_df[str(self.results.label_names.index(cls_b))])
-        (cls_b_prob_b_counts, cls_b_prob_b_bins) = hist(cls_b_df[str(self.results.label_names.index(cls_b))])
+        cls_b_prob_a_counts, cls_b_prob_a_bins = hist(cls_a_df[str(self.results.label_names.index(cls_b))])
+        cls_b_prob_b_counts, cls_b_prob_b_bins = hist(cls_b_df[str(self.results.label_names.index(cls_b))])
         plt.subplot(2, 1, 2)
         plt.stairs(
             cls_b_prob_b_counts,

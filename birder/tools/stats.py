@@ -55,12 +55,12 @@ def directory_label_count(directory: str | Path) -> Counter[str]:
 
 def class_graph(args: argparse.Namespace) -> None:
     if args.detection_class_graph is True:
-        (label_count, _) = detection_object_count(Path(args.data_path))
+        label_count, _ = detection_object_count(Path(args.data_path))
     else:
         label_count = directory_label_count(args.data_path)
 
     total_count = sum(label_count.values())
-    (sorted_classes, sorted_count) = list(zip(*label_count.most_common()))
+    sorted_classes, sorted_count = list(zip(*label_count.most_common()))
 
     fig = plt.figure()
     ax = fig.add_subplot()
@@ -106,9 +106,7 @@ def set_size(_args: argparse.Namespace) -> None:
     )
 
     logger.info("---")
-    (training_detection_count, training_file_count) = detection_object_count(
-        settings.TRAINING_DETECTION_ANNOTATIONS_PATH
-    )
+    training_detection_count, training_file_count = detection_object_count(settings.TRAINING_DETECTION_ANNOTATIONS_PATH)
     if training_file_count > 0:
         logger.info(
             f"Detection training:   {training_file_count:,} samples containing "
@@ -117,7 +115,7 @@ def set_size(_args: argparse.Namespace) -> None:
             f"{sum(training_detection_count.values()) / training_file_count:.1f} objects per sample)"
         )
 
-    (validation_detection_count, validation_file_count) = detection_object_count(
+    validation_detection_count, validation_file_count = detection_object_count(
         settings.VALIDATION_DETECTION_ANNOTATIONS_PATH
     )
     if validation_file_count > 0:

@@ -1019,7 +1019,7 @@ def download_model_by_weights(
             f"Requested format '{file_format}' not available for {weights}, available formats are: {available_formats}"
         )
 
-    (model_file, url) = get_pretrained_model_url(weights, file_format)
+    model_file, url = get_pretrained_model_url(weights, file_format)
     if dst is None:
         dst = settings.MODELS_DIR.joinpath(model_file)
 

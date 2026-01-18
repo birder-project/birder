@@ -201,12 +201,12 @@ class Attention(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         attn_bias = self.attention_biases[:, self.attention_bias_idxs]
-        (B, N, _) = x.shape
+        B, N, _ = x.shape
 
         # Normalization
         x = self.norm(x)
         qkv = self.qkv(x)
-        (q, k, v) = qkv.view(B, N, self.num_heads, -1).split([self.key_dim, self.key_dim, self.val_dim], dim=3)
+        q, k, v = qkv.view(B, N, self.num_heads, -1).split([self.key_dim, self.key_dim, self.val_dim], dim=3)
 
         q = q.permute(0, 2, 1, 3)
         k = k.permute(0, 2, 1, 3)
@@ -252,7 +252,7 @@ class TinyVitBlock(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, H, W, C) = x.shape
+        B, H, W, C = x.shape
         L = H * W
 
         shortcut = x

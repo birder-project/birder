@@ -51,7 +51,7 @@ class HungarianMatcher(nn.Module):
         self, class_logits: torch.Tensor, box_regression: torch.Tensor, targets: list[dict[str, torch.Tensor]]
     ) -> list[torch.Tensor]:
         with torch.no_grad():
-            (B, num_queries) = class_logits.shape[:2]
+            B, num_queries = class_logits.shape[:2]
 
             # We flatten to compute the cost matrices in a batch
             out_prob = class_logits.flatten(0, 1).softmax(-1)  # [batch_size * num_queries, num_classes]
@@ -111,7 +111,7 @@ class TransformerEncoderLayer(nn.Module):
         q = src + pos
         k = src + pos
 
-        (src2, _) = self.self_attn(q, k, value=src, key_padding_mask=src_key_padding_mask, need_weights=False)
+        src2, _ = self.self_attn(q, k, value=src, key_padding_mask=src_key_padding_mask, need_weights=False)
         src = src + self.dropout1(src2)
         src = self.norm1(src)
         src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
@@ -151,10 +151,10 @@ class TransformerDecoderLayer(nn.Module):
         q = tgt + query_pos
         k = tgt + query_pos
 
-        (tgt2, _) = self.self_attn(q, k, value=tgt, need_weights=False)
+        tgt2, _ = self.self_attn(q, k, value=tgt, need_weights=False)
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
-        (tgt2, _) = self.multihead_attn(
+        tgt2, _ = self.multihead_attn(
             query=tgt + query_pos,
             key=memory + pos,
             value=memory,
@@ -270,7 +270,7 @@ class PositionEmbeddingSine(nn.Module):
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         if mask is None:
-            (B, _, H, W) = x.size()
+            B, _, H, W = x.size()
             mask = torch.zeros(B, H, W, dtype=torch.bool, device=x.device)
 
         not_mask = ~mask
@@ -430,7 +430,7 @@ class DETR(DetectionBaseNet):
         for idx in range(cls_logits.size(0)):
             indices = self.matcher(cls_logits[idx], box_output[idx], targets)
             loss_ce_i = self._class_loss(cls_logits[idx], targets, indices)
-            (loss_bbox_i, loss_giou_i) = self._box_loss(box_output[idx], targets, indices, num_boxes)
+            loss_bbox_i, loss_giou_i = self._box_loss(box_output[idx], targets, indices, num_boxes)
             loss_ce_list.append(loss_ce_i)
             loss_bbox_list.append(loss_bbox_i)
             loss_giou_list.append(loss_giou_i)
@@ -450,7 +450,7 @@ class DETR(DetectionBaseNet):
         self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_shapes: list[tuple[int, int]]
     ) -> list[dict[str, torch.Tensor]]:
         prob = F.softmax(class_logits, -1)
-        (scores, labels) = prob[..., 1:].max(-1)
+        scores, labels = prob[..., 1:].max(-1)
         labels = labels + 1
 
         # TorchScript doesn't support creating tensor from tuples, convert everything to lists
@@ -460,7 +460,7 @@ class DETR(DetectionBaseNet):
         boxes = box_ops.box_convert(box_regression, in_fmt="cxcywh", out_fmt="xyxy")
 
         # Convert from relative [0, 1] to absolute [0, height] coordinates
-        (img_h, img_w) = target_sizes.unbind(1)
+        img_h, img_w = target_sizes.unbind(1)
         scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
         boxes = boxes * scale_fct[:, None, :]
 
@@ -468,7 +468,7 @@ class DETR(DetectionBaseNet):
         for s, l, b in zip(scores, labels, boxes):
             # Non-maximum suppression
             if self.soft_nms is not None:
-                (soft_scores, keep) = self.soft_nms(b, s, l, score_threshold=0.001)
+                soft_scores, keep = self.soft_nms(b, s, l, score_threshold=0.001)
                 s[keep] = soft_scores
 
                 b = b[keep]

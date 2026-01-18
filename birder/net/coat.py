@@ -57,8 +57,8 @@ class ConvRelPosEnc(nn.Module):
         self.channel_splits = [x * head_channels for x in head_splits]
 
     def forward(self, q: torch.Tensor, v: torch.Tensor, size: tuple[int, int]) -> torch.Tensor:
-        (B, num_heads, N, C) = q.size()
-        (H, W) = size
+        B, num_heads, N, C = q.size()
+        H, W = size
         torch._assert(N == 1 + H * W, "size mismatch")  # pylint: disable=protected-access
 
         # Convolutional relative position encoding.
@@ -102,11 +102,11 @@ class FactorAttnConvRelPosEnc(nn.Module):
         self.crpe = shared_crpe
 
     def forward(self, x: torch.Tensor, size: tuple[int, int]) -> torch.Tensor:
-        (B, N, C) = x.size()
+        B, N, C = x.size()
 
         # Generate Q, K, V
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.unbind(0)  # [B, h, N, Ch]
+        q, k, v = qkv.unbind(0)  # [B, h, N, Ch]
 
         # Factorized attention
         k_softmax = k.softmax(dim=2)
@@ -135,8 +135,8 @@ class ConvPosEnc(nn.Module):
         )
 
     def forward(self, x: torch.Tensor, size: tuple[int, int]) -> torch.Tensor:
-        (B, N, C) = x.size()
-        (H, W) = size
+        B, N, C = x.size()
+        H, W = size
         torch._assert(N == 1 + H * W, "size mismatch")  # pylint: disable=protected-access
 
         # Extract CLS token and image tokens
@@ -244,8 +244,8 @@ class ParallelBlock(nn.Module):
         return self.interpolate(x, scale_factor=1.0 / factor, size=size)
 
     def interpolate(self, x: torch.Tensor, scale_factor: float, size: tuple[int, int]) -> torch.Tensor:
-        (B, N, C) = x.size()
-        (H, W) = size
+        B, N, C = x.size()
+        H, W = size
         torch._assert(N == 1 + H * W, "size mismatch")  # pylint: disable=protected-access
 
         cls_token = x[:, :1, :]
@@ -268,7 +268,7 @@ class ParallelBlock(nn.Module):
     def forward(
         self, x1: torch.Tensor, x2: torch.Tensor, x3: torch.Tensor, x4: torch.Tensor, sizes: list[tuple[int, int]]
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        (_, s2, s3, s4) = sizes
+        _, s2, s3, s4 = sizes
         cur2 = self.norm12(x2)
         cur3 = self.norm13(x3)
         cur4 = self.norm14(x4)
@@ -310,7 +310,7 @@ class PatchEmbed(nn.Module):
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, tuple[int, int]]:
         x = self.proj(x)
-        (H, W) = x.shape[2:4]
+        H, W = x.shape[2:4]
 
         x = x.flatten(2).transpose(1, 2)
         x = self.norm(x)
@@ -500,7 +500,7 @@ class CoaT(DetectorBackbone):
         B = x.shape[0]
 
         # Serial blocks 1
-        (x1, (h1, w1)) = self.patch_embed1(x)
+        x1, (h1, w1) = self.patch_embed1(x)
         x1 = insert_cls(x1, self.cls_token1)
         for blk in self.serial_blocks1:
             x1 = blk(x1, size=(h1, w1))
@@ -508,7 +508,7 @@ class CoaT(DetectorBackbone):
         x1_no_cls = remove_cls(x1).reshape(B, h1, w1, -1).permute(0, 3, 1, 2).contiguous()
 
         # Serial blocks 2
-        (x2, (h2, w2)) = self.patch_embed2(x1_no_cls)
+        x2, (h2, w2) = self.patch_embed2(x1_no_cls)
         x2 = insert_cls(x2, self.cls_token2)
         for blk in self.serial_blocks2:
             x2 = blk(x2, size=(h2, w2))
@@ -516,7 +516,7 @@ class CoaT(DetectorBackbone):
         x2_no_cls = remove_cls(x2).reshape(B, h2, w2, -1).permute(0, 3, 1, 2).contiguous()
 
         # Serial blocks 3
-        (x3, (h3, w3)) = self.patch_embed3(x2_no_cls)
+        x3, (h3, w3) = self.patch_embed3(x2_no_cls)
         x3 = insert_cls(x3, self.cls_token3)
         for blk in self.serial_blocks3:
             x3 = blk(x3, size=(h3, w3))
@@ -524,7 +524,7 @@ class CoaT(DetectorBackbone):
         x3_no_cls = remove_cls(x3).reshape(B, h3, w3, -1).permute(0, 3, 1, 2).contiguous()
 
         # Serial blocks 4
-        (x4, (h4, w4)) = self.patch_embed4(x3_no_cls)
+        x4, (h4, w4) = self.patch_embed4(x3_no_cls)
         x4 = insert_cls(x4, self.cls_token4)
         for blk in self.serial_blocks4:
             x4 = blk(x4, size=(h4, w4))
@@ -537,7 +537,7 @@ class CoaT(DetectorBackbone):
                 x2 = self.cpe2(x2, (h2, w2))
                 x3 = self.cpe3(x3, (h3, w3))
                 x4 = self.cpe4(x4, (h4, w4))
-                (x1, x2, x3, x4) = blk(x1, x2, x3, x4, sizes=[(h1, w1), (h2, w2), (h3, w3), (h4, w4)])
+                x1, x2, x3, x4 = blk(x1, x2, x3, x4, sizes=[(h1, w1), (h2, w2), (h3, w3), (h4, w4)])
 
             x1_no_cls = remove_cls(x1).reshape(B, h1, w1, -1).permute(0, 3, 1, 2).contiguous()
             x2_no_cls = remove_cls(x2).reshape(B, h2, w2, -1).permute(0, 3, 1, 2).contiguous()

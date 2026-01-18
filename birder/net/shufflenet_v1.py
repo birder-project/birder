@@ -22,7 +22,7 @@ from birder.net.base import DetectorBackbone
 
 
 def channel_shuffle(x: torch.Tensor, groups: int) -> torch.Tensor:
-    (batch_size, num_channels, height, width) = x.size()
+    batch_size, num_channels, height, width = x.size()
     channels_per_group = num_channels // groups
 
     # Reshape

@@ -71,9 +71,9 @@ class Attention(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, N, C) = x.shape
+        B, N, C = x.shape
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.unbind(0)
+        q, k, v = qkv.unbind(0)
 
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
@@ -137,7 +137,7 @@ class AttentionBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x + self.pos_embed(x)
-        (B, N, H, W) = x.shape
+        B, N, H, W = x.shape
         x = x.flatten(2).transpose(1, 2)
         x = x + self.drop_path(self.layer_scale_1(self.attn(self.norm1(x))))
         x = x + self.drop_path(self.layer_scale_2(self.mlp(self.norm2(x))))
@@ -155,7 +155,7 @@ class PatchEmbed(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.proj(x)
-        (B, _, H, W) = x.size()  # B, C, H, W
+        B, _, H, W = x.size()  # B, C, H, W
         x = x.flatten(2).transpose(1, 2)
         x = self.norm(x)
         x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()

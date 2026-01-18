@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.17.0
+      jupytext_version: 1.19.0
   kernelspec:
     display_name: birder
     language: python
@@ -50,7 +50,7 @@ torch.set_float32_matmul_precision("high")
 
 ```{python}
 device = torch.device("cuda:1")
-(net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
+net, (class_to_idx, signature, rgb_stats, *_) = fs_ops.load_model(
     device, "hiera_abswin_base", tag="mim-raw384px", epoch=0, inference=True
 )
 ```
@@ -83,6 +83,7 @@ inference_loader = DataLoader(
 ```{python}
 idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
 suspected_mistakes = []
+
 
 def batch_callback(file_paths: list[str], out: npt.NDArray[np.float32], batch_labels: list[int]) -> None:
     for img_path, prob, label in zip(file_paths, out, batch_labels):

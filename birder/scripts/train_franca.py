@@ -205,7 +205,7 @@ def train(args: argparse.Namespace) -> None:
     #
     # Initialize
     #
-    (device, device_id, disable_tqdm) = training_utils.init_training(args, logger)
+    device, device_id, disable_tqdm = training_utils.init_training(args, logger)
 
     if args.size is None:
         args.size = registry.get_default_size(args.network)
@@ -296,7 +296,7 @@ def train(args: argparse.Namespace) -> None:
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
-        (net, training_states) = fs_ops.load_simple_checkpoint(
+        net, training_states = fs_ops.load_simple_checkpoint(
             device, net, network_name, epoch=args.resume_epoch, strict=not args.non_strict_weights
         )
         student = net["student"]
@@ -363,11 +363,11 @@ def train(args: argparse.Namespace) -> None:
     elif args.wds is True:
         wds_path: str | list[str]
         if args.wds_info is not None:
-            (wds_path, dataset_size) = wds_args_from_info(args.wds_info, args.wds_split)
+            wds_path, dataset_size = wds_args_from_info(args.wds_info, args.wds_split)
             if args.wds_size is not None:
                 dataset_size = args.wds_size
         else:
-            (wds_path, dataset_size) = prepare_wds_args(args.data_path[0], args.wds_size, device)
+            wds_path, dataset_size = prepare_wds_args(args.data_path[0], args.wds_size, device)
 
         training_dataset = make_wds_dataset(
             wds_path,
@@ -393,7 +393,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Data loaders and samplers
     virtual_epoch_mode = args.steps_per_epoch is not None
-    (train_sampler, _) = training_utils.get_samplers(
+    train_sampler, _ = training_utils.get_samplers(
         args, training_dataset, validation_dataset=None, infinite=virtual_epoch_mode
     )
 
@@ -493,7 +493,7 @@ def train(args: argparse.Namespace) -> None:
         wd_schedule = None
 
     # Gradient scaler and AMP related tasks
-    (scaler, amp_dtype) = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
+    scaler, amp_dtype = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
 
     # Load states
     if args.load_states is True:
@@ -681,7 +681,7 @@ def train(args: argparse.Namespace) -> None:
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
                 with torch.no_grad():
                     # Teacher
-                    (teacher_embedding_after_head, teacher_masked_patch_tokens_after_head) = teacher(
+                    teacher_embedding_after_head, teacher_masked_patch_tokens_after_head = teacher(
                         global_crops, n_global_crops, upper_bound, mask_indices_list
                     )
 

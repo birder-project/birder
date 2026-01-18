@@ -30,7 +30,7 @@ def top_k_accuracy_score(y_true: npt.NDArray[Any], y_pred: npt.NDArray[np.float6
     if len(y_true.shape) == 2:
         y_true = np.argmax(y_true, axis=1)
 
-    (num_samples, _num_labels) = y_pred.shape
+    num_samples, _num_labels = y_pred.shape
     indices: list[int] = []
     arg_sorted = np.argpartition(y_pred, -top_k, axis=1)[:, -top_k:]
     for i in range(num_samples):
@@ -693,7 +693,7 @@ class SparseResults(Results):
             For sparse files, this value is ignored.
         """
 
-        (label_names, detected_sparse_k) = detect_file_format(path)
+        label_names, detected_sparse_k = detect_file_format(path)
 
         if detected_sparse_k is not None:
             schema_overrides = {
@@ -817,7 +817,7 @@ def load_results(path: str, lazy: bool = True) -> Results | SparseResults:
     <class 'birder.results.classification.SparseResults'>
     """
 
-    (_, sparse_k) = detect_file_format(path)
+    _, sparse_k = detect_file_format(path)
 
     # Load using appropriate class
     if sparse_k is not None:

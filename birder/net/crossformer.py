@@ -120,9 +120,9 @@ class Attention(nn.Module):
         self.relative_position_index = nn.Buffer(relative_position_index)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, N, C) = x.size()
+        B, N, C = x.size()
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.unbind(0)
+        q, k, v = qkv.unbind(0)
 
         q = q * self.scale
         attn = q @ k.transpose(-2, -1)
@@ -188,15 +188,15 @@ class CrossFormerBlock(nn.Module):
         self.drop_path = StochasticDepth(drop_path, mode="row")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (H, W) = self.input_resolution
-        (B, _, C) = x.size()
+        H, W = self.input_resolution
+        B, _, C = x.size()
 
         shortcut = x
         x = self.norm1(x)
         x = x.view(B, H, W, C)
 
         # Group embeddings
-        (GH, GW) = self.group_size  # pylint: disable=invalid-name
+        GH, GW = self.group_size  # pylint: disable=invalid-name
         if self.use_lda is False:
             x = x.reshape(B, H // GH, GH, W // GW, GW, C).permute(0, 1, 3, 2, 4, 5)
         else:
@@ -244,8 +244,8 @@ class PatchMerging(nn.Module):
             )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (H, W) = self.input_resolution
-        (B, _, C) = x.shape
+        H, W = self.input_resolution
+        B, _, C = x.shape
 
         x = self.norm(x)
         x = x.view(B, H, W, C).permute(0, 3, 1, 2)
@@ -396,8 +396,8 @@ class CrossFormer(DetectorBackbone):
         for name, module in self.body.named_children():
             x = module(x)
             if name in self.return_stages:
-                (H, W) = module.resolution
-                (B, _, C) = x.size()
+                H, W = module.resolution
+                B, _, C = x.size()
                 out[name] = x.view(B, H, W, C).permute(0, 3, 1, 2).contiguous()
 
         return out

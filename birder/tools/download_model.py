@@ -52,7 +52,7 @@ def main(args: argparse.Namespace) -> None:
         )
         raise SystemExit(1)
 
-    (model_file, url) = get_pretrained_model_url(args.model_name, args.format)
+    model_file, url = get_pretrained_model_url(args.model_name, args.format)
     dst = settings.MODELS_DIR.joinpath(model_file)
     if dst.exists() is True and args.force is False:
         logger.warning(f"File {model_file} already exists... aborting")

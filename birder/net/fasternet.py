@@ -35,7 +35,7 @@ class PartialConv(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (x1, x2) = torch.split(x, [self.dim_conv3, self.dim_untouched], dim=1)
+        x1, x2 = torch.split(x, [self.dim_conv3, self.dim_untouched], dim=1)
         x1 = self.partial_conv3(x1)
         x = torch.concat((x1, x2), dim=1)
 

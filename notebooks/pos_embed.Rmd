@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.18.1
+      jupytext_version: 1.19.0
   kernelspec:
     display_name: birder
     language: python
@@ -54,7 +54,7 @@ plt.matshow(similarity.numpy())
 ## ViT
 
 ```{python}
-(net, model_info) = fs_ops.load_model(device, "vit_reg4_b16", path="models/vit_reg4_b16_mim_300.pt", inference=True)
+net, model_info = fs_ops.load_model(device, "vit_reg4_b16", path="models/vit_reg4_b16_mim_300.pt", inference=True)
 # (net, model_info) = fs_ops.load_model(
 #     device, "vit_l16", path="models/vit_l16_mim_362.pt", inference=True
 # )
@@ -90,9 +90,7 @@ plt.matshow(similarity.detach().numpy())
 ## Hiera
 
 ```{python}
-(net, model_info) = fs_ops.load_model(
-    device, "hiera_abswin_base", path="models/hiera_abswin_base_mim.pt", inference=True
-)
+net, model_info = fs_ops.load_model(device, "hiera_abswin_base", path="models/hiera_abswin_base_mim.pt", inference=True)
 ```
 
 ```{python}
@@ -122,7 +120,7 @@ plt.matshow(similarity.detach().numpy())
 ## CaiT
 
 ```{python}
-(net, model_info) = fs_ops.load_model(device, "cait_xxs24", path="models/cait_xxs24_il-common.pt", inference=True)
+net, model_info = fs_ops.load_model(device, "cait_xxs24", path="models/cait_xxs24_il-common.pt", inference=True)
 ```
 
 ```{python}
@@ -152,7 +150,7 @@ plt.matshow(similarity.detach().numpy())
 ## Swin Transformer v2
 
 ```{python}
-(net, model_info) = fs_ops.load_model(
+net, model_info = fs_ops.load_model(
     device,
     "swin_transformer_v2_s",
     path="models/swin_transformer_v2_s_intermediate-arabian-peninsula.pt",
@@ -211,7 +209,7 @@ plt.matshow(similarity.detach().numpy())
 ## iFormer
 
 ```{python}
-(net, model_info) = fs_ops.load_model(device, "iformer_s", path="models/iformer_s_arabian-peninsula.pt", inference=True)
+net, model_info = fs_ops.load_model(device, "iformer_s", path="models/iformer_s_arabian-peninsula.pt", inference=True)
 ```
 
 ```{python}
@@ -246,7 +244,7 @@ rope = RoPE(768, temperature=100.0, grid_size=(16, 16), grid_indexing="ij", grid
 
 ```{python}
 pos_embedding = rope.pos_embed
-(sin_emb, cos_emb) = pos_embedding.tensor_split(2, -1)
+sin_emb, cos_emb = pos_embedding.tensor_split(2, -1)
 ```
 
 ```{python}

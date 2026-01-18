@@ -117,7 +117,7 @@ def memory_benchmark(
         prepare_model(net)
 
     else:
-        (net, _) = birder.load_pretrained_model(model_name, inference=True, device=device)
+        net, _ = birder.load_pretrained_model(model_name, inference=True, device=device)
         if args.size is not None:
             size = (sample_shape[2], sample_shape[3])
             net.adjust_size(size)
@@ -238,7 +238,7 @@ def benchmark(args: argparse.Namespace) -> None:
                 net.to(device)
                 prepare_model(net)
             else:
-                (net, _) = birder.load_pretrained_model(model_name, inference=True, device=device)
+                net, _ = birder.load_pretrained_model(model_name, inference=True, device=device)
                 if args.size is not None:
                     net.adjust_size(size)
 
@@ -247,7 +247,7 @@ def benchmark(args: argparse.Namespace) -> None:
                 net = torch.compile(net)
 
             peak_memory = None
-            (t_elapsed, batch_size) = throughput_benchmark(net, device, sample_shape, model_name, args)
+            t_elapsed, batch_size = throughput_benchmark(net, device, sample_shape, model_name, args)
             if t_elapsed < 0.0:
                 continue
 

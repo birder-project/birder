@@ -52,9 +52,9 @@ class TestTrainEvaluateFlow(unittest.TestCase):
 
         # Check checkpoints are valid
         device = torch.device("cpu")
-        (net, (class_to_idx, signature, rgb_stats, *_)) = load_model(device, network, tag=tag, epoch=1, inference=True)
+        net, (class_to_idx, signature, rgb_stats, *_) = load_model(device, network, tag=tag, epoch=1, inference=True)
         self.assertEqual(len(class_to_idx), signature["outputs"][0]["data_shape"][1])
-        (net, (class_to_idx, signature, rgb_stats, *_)) = load_model(device, network, tag=tag, epoch=2, inference=True)
+        net, (class_to_idx, signature, rgb_stats, *_) = load_model(device, network, tag=tag, epoch=2, inference=True)
         self.assertEqual(len(class_to_idx), signature["outputs"][0]["data_shape"][1])
 
         # Average checkpoints
@@ -62,7 +62,7 @@ class TestTrainEvaluateFlow(unittest.TestCase):
 
         # Check average checkpoint is valid
         device = torch.device("cpu")
-        (net, (class_to_idx, signature, rgb_stats, *_)) = load_model(device, network, tag=tag, epoch=0, inference=True)
+        net, (class_to_idx, signature, rgb_stats, *_) = load_model(device, network, tag=tag, epoch=0, inference=True)
 
         # Check valid config
         network_name = get_network_name(network, tag)

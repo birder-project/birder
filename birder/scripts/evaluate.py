@@ -37,7 +37,7 @@ def evaluate(args: argparse.Namespace) -> None:
     amp_dtype: torch.dtype = getattr(torch, args.amp_dtype)
     model_list = birder.list_pretrained_models(args.filter)
     for model_name in model_list:
-        (net, (class_to_idx, signature, rgb_stats, *_)) = birder.load_pretrained_model(
+        net, (class_to_idx, signature, rgb_stats, *_) = birder.load_pretrained_model(
             model_name, inference=True, device=device, dtype=model_dtype
         )
         if args.parallel is True and torch.cuda.device_count() > 1:

@@ -30,7 +30,7 @@ from birder.net.base import DetectorBackbone
 
 
 def patch_merging_pad(x: torch.Tensor) -> torch.Tensor:
-    (H, W, _) = x.shape[-3:]
+    H, W, _ = x.shape[-3:]
     x = F.pad(x, (0, 0, 0, W % 2, 0, H % 2))
     x0 = x[..., 0::2, 0::2, :]  # ... H/2 W/2 C
     x1 = x[..., 1::2, 0::2, :]  # ... H/2 W/2 C
@@ -73,13 +73,13 @@ def shifted_window_attention(
     proj_bias: Optional[torch.Tensor] = None,
     logit_scale: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
-    (B, H, W, C) = x.size()
+    B, H, W, C = x.size()
 
     # Pad feature maps to multiples of window size
     pad_b = (window_size[0] - H % window_size[0]) % window_size[0]
     pad_r = (window_size[1] - W % window_size[1]) % window_size[1]
     x = F.pad(x, (0, 0, 0, pad_r, 0, pad_b))
-    (_, pad_h, pad_w, _) = x.size()
+    _, pad_h, pad_w, _ = x.size()
 
     # If window size is larger than feature size, there is no need to shift window
     shift_size_w = shift_size[0]
@@ -434,7 +434,7 @@ class Swin_Transformer_v1(DetectorBackbone):
                     num_attn_heads = rel_pos_bias.size(1)
 
                     def _calc(src: int, dst: int) -> list[float]:
-                        (left, right) = 1.01, 1.5
+                        left, right = 1.01, 1.5
                         while right - left > 1e-6:
                             q = (left + right) / 2.0
                             gp = (1.0 - q ** (src // 2)) / (1.0 - q)  # Geometric progression

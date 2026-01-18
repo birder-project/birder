@@ -60,7 +60,7 @@ def predict(args: argparse.Namespace) -> None:
     network_name = lib.get_detection_network_name(
         args.network, tag=args.tag, backbone=args.backbone, backbone_tag=args.backbone_tag
     )
-    (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_detection_model(
+    net, (class_to_idx, signature, rgb_stats, *_) = fs_ops.load_detection_model(
         device,
         args.network,
         config=args.model_config,
@@ -197,7 +197,7 @@ def predict(args: argparse.Namespace) -> None:
     # Inference
     tic = time.time()
     with torch.inference_mode():
-        (sample_paths, detections, targets) = infer_dataloader(
+        sample_paths, detections, targets = infer_dataloader(
             device,
             net,
             inference_loader,

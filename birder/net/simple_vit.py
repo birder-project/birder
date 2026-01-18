@@ -144,7 +144,7 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
         return_all_features: bool = False,
         return_keys: Literal["all", "tokens", "embedding"] = "tokens",
     ) -> TokenOmissionResultType:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
@@ -179,7 +179,7 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
         return result
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
         x = self.conv_proj(x)
         x = self.patch_embed(x)
         x = x + self._get_pos_embed(H, W)

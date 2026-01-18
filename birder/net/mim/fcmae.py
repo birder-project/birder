@@ -106,7 +106,7 @@ class FCMAE(MIMBaseNet):
         """
 
         if x.ndim == 4:
-            (n, c, _, _) = x.shape
+            n, c, _, _ = x.shape
             x = x.reshape(n, c, -1)
             x = torch.einsum("ncl->nlc", x)
 
@@ -125,7 +125,7 @@ class FCMAE(MIMBaseNet):
         x = self.proj(x)
 
         # Append mask token
-        (B, _, H, W) = x.shape
+        B, _, H, W = x.shape
         mask = mask.reshape(-1, H, W).unsqueeze(1).type_as(x)
         mask_token = self.mask_token.repeat(B, 1, H, W)
         x = x * (1.0 - mask) + (mask_token * mask)
@@ -141,7 +141,7 @@ class FCMAE(MIMBaseNet):
         mask: 0 is keep, 1 is remove
         """
 
-        (n, c, _, _) = pred.shape
+        n, c, _, _ = pred.shape
         pred = pred.reshape(n, c, -1)
         pred = torch.einsum("ncl->nlc", pred)
 

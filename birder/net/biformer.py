@@ -30,7 +30,7 @@ from birder.net.base import DetectorBackbone
 
 
 def _grid2seq(x: torch.Tensor, region_size: tuple[int, int], num_heads: int) -> tuple[torch.Tensor, int, int]:
-    (B, C, H, W) = x.size()
+    B, C, H, W = x.size()
     region_h = H // region_size[0]
     region_w = W // region_size[1]
     x = x.view(B, num_heads, C // num_heads, region_h, region_size[0], region_w, region_size[1])
@@ -40,7 +40,7 @@ def _grid2seq(x: torch.Tensor, region_size: tuple[int, int], num_heads: int) -> 
 
 
 def _seq2grid(x: torch.Tensor, region_h: int, region_w: int, region_size: tuple[int, int]) -> torch.Tensor:
-    (bs, n_head, _, _, head_dim) = x.size()
+    bs, n_head, _, _, head_dim = x.size()
     x = x.view(bs, n_head, region_h, region_w, region_size[0], region_size[1], head_dim)
     x = torch.einsum("bmhwpqd->bmdhpwq", x).reshape(
         bs, n_head * head_dim, region_h * region_size[0], region_w * region_size[1]
@@ -60,7 +60,7 @@ def regional_routing_attention_torch(
     auto_pad: bool,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     kv_region_size = region_size
-    (bs, n_head, q_nregion, topk) = region_graph.size()
+    bs, n_head, q_nregion, topk = region_graph.size()
 
     # Pad to deal with any input size
     q_pad_b = 0
@@ -68,13 +68,13 @@ def regional_routing_attention_torch(
     kv_pad_b = 0
     kv_pad_r = 0
     if auto_pad is True:
-        (_, _, h_q, w_q) = query.size()
+        _, _, h_q, w_q = query.size()
         q_pad_b = (region_size[0] - h_q % region_size[0]) % region_size[0]
         q_pad_r = (region_size[1] - w_q % region_size[1]) % region_size[1]
         if q_pad_b > 0 or q_pad_r > 0:
             query = F.pad(query, (0, q_pad_r, 0, q_pad_b))
 
-        (_, _, h_k, w_k) = key.size()
+        _, _, h_k, w_k = key.size()
         kv_pad_b = (kv_region_size[0] - h_k % kv_region_size[0]) % kv_region_size[0]
         kv_pad_r = (kv_region_size[1] - w_k % kv_region_size[1]) % kv_region_size[1]
         if kv_pad_r > 0 or kv_pad_b > 0:
@@ -87,12 +87,12 @@ def regional_routing_attention_torch(
         w_k = None
 
     # To sequence format
-    (query, q_region_h, q_region_w) = _grid2seq(query, region_size=region_size, num_heads=n_head)
-    (key, _, _) = _grid2seq(key, region_size=kv_region_size, num_heads=n_head)
-    (value, _, _) = _grid2seq(value, region_size=kv_region_size, num_heads=n_head)
+    query, q_region_h, q_region_w = _grid2seq(query, region_size=region_size, num_heads=n_head)
+    key, _, _ = _grid2seq(key, region_size=kv_region_size, num_heads=n_head)
+    value, _, _ = _grid2seq(value, region_size=kv_region_size, num_heads=n_head)
 
     # Gather key and values
-    (bs, n_head, kv_nregion, kv_region_size, head_dim) = key.size()
+    bs, n_head, kv_nregion, kv_region_size, head_dim = key.size()
     broadcasted_region_graph = region_graph.view(bs, n_head, q_nregion, topk, 1, 1).expand(
         -1, -1, -1, -1, kv_region_size, head_dim
     )
@@ -146,12 +146,12 @@ class BiLevelRoutingAttention(nn.Module):
         self.output_linear = nn.Conv2d(dim, dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (_, _, H, W) = x.size()
+        _, _, H, W = x.size()
         region_size = (H // self.n_win_h, W // self.n_win_w)
 
         # Linear projection
         qkv = self.qkv_linear(x)
-        (q, k, v) = qkv.chunk(3, dim=1)
+        q, k, v = qkv.chunk(3, dim=1)
 
         # Region-to-region routing
         q_r = F.avg_pool2d(  # pylint: disable=not-callable
@@ -163,11 +163,11 @@ class BiLevelRoutingAttention(nn.Module):
         q_r = q_r.permute(0, 2, 3, 1).flatten(1, 2)  # (n, (hw), c)
         k_r = k_r.flatten(2, 3)  # (n, c, (hw))
         a_r = q_r @ k_r
-        (_, idx_r) = torch.topk(a_r, k=self.topk, dim=-1)
+        _, idx_r = torch.topk(a_r, k=self.topk, dim=-1)
         idx_r = idx_r.unsqueeze_(1).expand(-1, self.num_heads, -1, -1)
 
         # Token to token attention
-        (output, _) = regional_routing_attention_torch(
+        output, _ = regional_routing_attention_torch(
             q, k, v, scale=self.scale, region_graph=idx_r, region_size=region_size, auto_pad=True
         )
 
@@ -190,12 +190,12 @@ class Attention(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, C, H, W) = x.size()
+        B, C, H, W = x.size()
         x = x.permute(0, 2, 3, 1).reshape(B, H * W, C)
 
         N = H * W
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.unbind(0)
+        q, k, v = qkv.unbind(0)
 
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
@@ -237,8 +237,8 @@ class AttentionLePE(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, C, H, W) = x.size()
-        (q, k, v) = self.qkv(x).chunk(3, dim=1)
+        B, C, H, W = x.size()
+        q, k, v = self.qkv(x).chunk(3, dim=1)
 
         attn = q.view(B, self.num_heads, self.head_dim, H * W).transpose(-1, -2) @ k.view(
             B, self.num_heads, self.head_dim, H * W

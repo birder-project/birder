@@ -76,13 +76,13 @@ def train(args: argparse.Namespace) -> None:
     #
     # Initialize
     #
-    (device, device_id, disable_tqdm) = training_utils.init_training(args, logger)
+    device, device_id, disable_tqdm = training_utils.init_training(args, logger)
 
     if args.type != "soft":
         args.temperature = 1.0
 
     # Using the teacher rgb values for the student
-    (teacher, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
+    teacher, (class_to_idx, signature, rgb_stats, *_) = fs_ops.load_model(
         device,
         args.teacher,
         config=args.teacher_model_config,
@@ -113,15 +113,15 @@ def train(args: argparse.Namespace) -> None:
         training_wds_path: str | list[str]
         val_wds_path: str | list[str]
         if args.wds_info is not None:
-            (training_wds_path, training_size) = wds_args_from_info(args.wds_info, args.wds_training_split)
-            (val_wds_path, val_size) = wds_args_from_info(args.wds_info, args.wds_val_split)
+            training_wds_path, training_size = wds_args_from_info(args.wds_info, args.wds_training_split)
+            val_wds_path, val_size = wds_args_from_info(args.wds_info, args.wds_val_split)
             if args.wds_train_size is not None:
                 training_size = args.wds_train_size
             if args.wds_val_size is not None:
                 val_size = args.wds_val_size
         else:
-            (training_wds_path, training_size) = prepare_wds_args(args.data_path, args.wds_train_size, device)
-            (val_wds_path, val_size) = prepare_wds_args(args.val_path, args.wds_val_size, device)
+            training_wds_path, training_size = prepare_wds_args(args.data_path, args.wds_train_size, device)
+            val_wds_path, val_size = prepare_wds_args(args.val_path, args.wds_val_size, device)
 
         training_dataset = make_wds_dataset(
             training_wds_path,
@@ -187,7 +187,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Data loaders and samplers
     virtual_epoch_mode = args.steps_per_epoch is not None
-    (train_sampler, validation_sampler) = training_utils.get_samplers(
+    train_sampler, validation_sampler = training_utils.get_samplers(
         args, training_dataset, validation_dataset, infinite=virtual_epoch_mode
     )
 
@@ -269,7 +269,7 @@ def train(args: argparse.Namespace) -> None:
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
-        (student, class_to_idx_saved, training_states) = fs_ops.load_checkpoint(
+        student, class_to_idx_saved, training_states = fs_ops.load_checkpoint(
             device,
             args.student,
             config=args.student_model_config,
@@ -383,7 +383,7 @@ def train(args: argparse.Namespace) -> None:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
 
     # Gradient scaler and AMP related tasks
-    (scaler, amp_dtype) = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
+    scaler, amp_dtype = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
 
     # Load states
     if args.load_states is True:
@@ -616,7 +616,7 @@ def train(args: argparse.Namespace) -> None:
                         teacher_embedding = teacher.embedding(inputs)
                         teacher_embedding = F.normalize(teacher_embedding, dim=-1)
 
-                    (outputs, student_embedding) = train_student(inputs)
+                    outputs, student_embedding = train_student(inputs)
                     student_embedding = embedding_projection(student_embedding)  # type: ignore[misc]
                     student_embedding = F.normalize(student_embedding, dim=-1)
                     dist_loss = distillation_criterion(student_embedding, teacher_embedding)
@@ -637,7 +637,7 @@ def train(args: argparse.Namespace) -> None:
                         outputs = train_student(inputs)
                         dist_loss = distillation_criterion(outputs, teacher_targets)
                     elif distillation_type == "deit":
-                        (outputs, dist_output) = torch.unbind(train_student(inputs), dim=1)
+                        outputs, dist_output = torch.unbind(train_student(inputs), dim=1)
                         dist_loss = distillation_criterion(dist_output, teacher_targets)
                     else:
                         raise RuntimeError

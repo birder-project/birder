@@ -542,7 +542,7 @@ class TestNet(unittest.TestCase):
         x = torch.rand((1, DEFAULT_NUM_CHANNELS, *size))
 
         mask = uniform_mask(1, n.mask_spatial_shape[0], n.mask_spatial_shape[1], mask_ratio=0.6, device=x.device)[0]
-        (outs, mask) = n.masked_encoding(x, mask)
+        outs, mask = n.masked_encoding(x, mask)
 
         for out in outs:
             self.assertFalse(torch.isnan(out).any())

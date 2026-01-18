@@ -57,11 +57,11 @@ class GlobalLocalFilter(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.pre_norm(x)
-        (x1, x2) = torch.chunk(x, 2, dim=1)
+        x1, x2 = torch.chunk(x, 2, dim=1)
         x1 = self.dw(x1)
 
         x2 = x2.to(torch.float32)
-        (B, C, a, b) = x2.size()
+        B, C, a, b = x2.size()
         x2 = torch.fft.rfft2(x2, dim=(2, 3), norm="ortho")  # pylint: disable=not-callable
 
         weight = torch.view_as_complex(self.complex_weight.contiguous())
@@ -103,7 +103,7 @@ class gnConv(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         fused_x = self.proj_in(x)
-        (pwa, abc) = torch.split(fused_x, (self.dims[0], sum(self.dims)), dim=1)
+        pwa, abc = torch.split(fused_x, (self.dims[0], sum(self.dims)), dim=1)
         dw_abc = self.dwconv(abc) * self.scale
         dw_list = torch.split(dw_abc, self.dims, dim=1)
         x = pwa * dw_list[0]

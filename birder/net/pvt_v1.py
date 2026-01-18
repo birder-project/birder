@@ -56,7 +56,7 @@ class Attention(nn.Module):
             self.norm = None
 
     def forward(self, x: torch.Tensor, H: int, W: int) -> torch.Tensor:
-        (B, N, C) = x.shape
+        B, N, C = x.shape
         q = self.q(x).reshape(B, N, self.num_heads, -1).permute(0, 2, 1, 3)
 
         if self.sr is not None:
@@ -65,7 +65,7 @@ class Attention(nn.Module):
             x = self.norm(x)
 
         kv = self.kv(x).reshape(B, -1, 2, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-        (k, v) = kv.unbind(0)
+        k, v = kv.unbind(0)
 
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
@@ -177,7 +177,7 @@ class PyramidVisionTransformerStage(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.downsample(x)  # B, C, H, W -> B, H, W, C
-        (B, H, W, C) = x.size()
+        B, H, W, C = x.size()
         x = x.reshape(B, -1, C)
         x = x + self.pos_embed
         if self.cls_token is not None:
@@ -264,7 +264,7 @@ class PVT_v1(DetectorBackbone):
 
         out = {}
         for name, module in self.body.named_children():
-            (B, _, H, W) = x.size()
+            B, _, H, W = x.size()
             x = module(x)
             if name in self.return_stages:
                 if name == "stage4":

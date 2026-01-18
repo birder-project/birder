@@ -51,9 +51,9 @@ class Attention(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, N, C) = x.size()
+        B, N, C = x.size()
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.unbind(0)
+        q, k, v = qkv.unbind(0)
 
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, is_causal=self.is_causal, scale=self.scale
@@ -339,7 +339,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         self.encoder.set_causal_attention(is_causal)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
@@ -359,7 +359,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
 
         x = x[:, self.num_special_tokens :]
         x = x.permute(0, 2, 1)
-        (B, C, _) = x.size()
+        B, C, _ = x.size()
         x = x.reshape(B, C, H // self.patch_size, W // self.patch_size)
 
         return {self.return_stages[0]: x}
@@ -384,7 +384,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         return_all_features: bool = False,
         return_keys: Literal["all", "tokens", "embedding"] = "tokens",
     ) -> TokenOmissionResultType:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
@@ -441,7 +441,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         mask_token: Optional[torch.Tensor] = None,
         return_keys: Literal["all", "features", "embedding"] = "features",
     ) -> TokenRetentionResultType:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
 
         x = self.conv_proj(x)
         x = mask_tensor(x, mask, mask_token=mask_token, patch_factor=self.max_stride // self.stem_stride)
@@ -467,7 +467,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         if return_keys in ("all", "features"):
             features = x[:, self.num_special_tokens :]
             features = features.permute(0, 2, 1)
-            (B, C, _) = features.size()
+            B, C, _ = features.size()
             features = features.reshape(B, C, H // self.patch_size, W // self.patch_size)
             result["features"] = features
 
@@ -481,7 +481,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         return result
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
         x = self.conv_proj(x)

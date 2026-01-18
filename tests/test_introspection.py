@@ -110,7 +110,7 @@ class TestIntrospectionBase(unittest.TestCase):
             return torch.rand(3, 16, 16)
 
         device = torch.device("cpu")
-        (input_tensor, rgb_img) = base.preprocess_image(img, simple_transform, device)
+        input_tensor, rgb_img = base.preprocess_image(img, simple_transform, device)
 
         self.assertEqual(input_tensor.shape, (1, 3, 16, 16))
         self.assertEqual(rgb_img.shape, (16, 16, 3))

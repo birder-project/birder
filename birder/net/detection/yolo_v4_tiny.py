@@ -29,7 +29,7 @@ DEFAULT_SCALE_XY = [1.05, 1.05]  # [medium, large]
 class YOLOTinyNeck(nn.Module):
     def __init__(self, in_channels: list[int]) -> None:
         super().__init__()
-        (c4, c5) = in_channels
+        c4, c5 = in_channels
 
         self.conv_c5 = Conv2dNormActivation(
             c5,
@@ -71,7 +71,7 @@ class YOLOTinyNeck(nn.Module):
 
     def forward(self, features: dict[str, torch.Tensor]) -> list[torch.Tensor]:
         feature_list = list(features.values())
-        (c4, c5) = feature_list[-2:]
+        c4, c5 = feature_list[-2:]
 
         p5 = self.conv_c5(c5)
         out_large = self.conv_c5_out(p5)

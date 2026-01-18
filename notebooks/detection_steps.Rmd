@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.16.4
+      jupytext_version: 1.19.0
   kernelspec:
     display_name: birder
     language: python
@@ -35,7 +35,8 @@ from birder.common.lib import get_label_from_path
 from birder.conf import settings
 from birder.net.detection.base import ImageList
 from birder.net.detection.faster_rcnn import concat_box_prediction_layers
-from birder.transforms.classification import get_rgb_stats, reverse_preset
+from birder.transforms.classification import get_rgb_stats
+from birder.transforms.classification import reverse_preset
 from birder.transforms.detection import inference_preset
 from torchvision.ops import boxes as box_ops
 ```
@@ -55,7 +56,7 @@ reverse_transform = reverse_preset(get_rgb_stats("birder"))
 
 ```{python}
 device = torch.device("cpu")
-(net, class_to_idx, _, _, _) = fs_ops.load_detection_checkpoint(
+net, class_to_idx, _, _, _ = fs_ops.load_detection_checkpoint(
     device,
     "faster_rcnn",
     tag=None,
@@ -135,12 +136,10 @@ images = ImageList(input_tensor, image_sizes)
 ```{python}
 # RPN - Region Proposal Network
 features_list = list(fpn_output.values())
-(objectness, pred_bbox_deltas) = net.rpn.head(features_list)
+objectness, pred_bbox_deltas = net.rpn.head(features_list)
 
 num_anchors_per_level_shape_tensors = [o[0].shape for o in objectness]
-num_anchors_per_level = [
-    s[0] * s[1] * s[2] for s in num_anchors_per_level_shape_tensors
-]
+num_anchors_per_level = [s[0] * s[1] * s[2] for s in num_anchors_per_level_shape_tensors]
 
 # Pred box per feature map
 (
@@ -155,9 +154,7 @@ num_anchors_per_level = [
 ```
 
 ```{python}
-(objectness, pred_bbox_deltas) = concat_box_prediction_layers(
-    objectness, pred_bbox_deltas
-)
+objectness, pred_bbox_deltas = concat_box_prediction_layers(objectness, pred_bbox_deltas)
 objectness.size(), pred_bbox_deltas.size()
 ```
 
@@ -177,9 +174,7 @@ proposals.size()
 ```
 
 ```{python}
-(boxes, scores) = net.rpn.filter_proposals(
-    proposals, objectness, images.image_sizes, num_anchors_per_level
-)
+boxes, scores = net.rpn.filter_proposals(proposals, objectness, images.image_sizes, num_anchors_per_level)
 (boxes[0].size(), scores[0].size())
 ```
 
@@ -190,7 +185,7 @@ transformed_img
 ```
 
 ```{python}
-(proposals, proposal_losses) = net.rpn(images, fpn_output, targets=None)
+proposals, proposal_losses = net.rpn(images, fpn_output, targets=None)
 len(proposals), len(proposal_losses)
 ```
 
@@ -221,7 +216,7 @@ box_features.size()
 ```
 
 ```{python}
-(class_logits, box_regression) = net.roi_heads.box_predictor(box_features)
+class_logits, box_regression = net.roi_heads.box_predictor(box_features)
 (class_logits.size(), box_regression.size())
 ```
 
@@ -283,7 +278,7 @@ idxs.size()
 ```
 
 ```{python}
-(boxes, pred_scores, labels) = boxes[idxs], pred_scores[idxs], labels[idxs]
+boxes, pred_scores, labels = boxes[idxs], pred_scores[idxs], labels[idxs]
 (boxes.size(), pred_scores.size(), labels.size())
 ```
 
@@ -309,7 +304,7 @@ keep.size()
 ```{python}
 # Keep only topk scoring predictions
 keep = keep[:100]
-(boxes, pred_scores, labels) = boxes[keep], pred_scores[keep], labels[keep]
+boxes, pred_scores, labels = boxes[keep], pred_scores[keep], labels[keep]
 (boxes.size(), pred_scores.size(), labels.size())
 ```
 
@@ -340,7 +335,7 @@ pred_scores
 ```
 
 ```{python}
-(detections, _) = net(input_tensor)
+detections, _ = net(input_tensor)
 detections = detections[0]
 ```
 
@@ -352,9 +347,7 @@ boxes = detections["boxes"]
 labels = detections["labels"]
 labels = [class_list[i] for i in labels]
 img_tensor = reverse_transform(input_tensor)[0]
-annotated_img = draw_bounding_boxes(
-    img_tensor, boxes=boxes[0:idx].detach(), labels=labels[0:idx]
-)
+annotated_img = draw_bounding_boxes(img_tensor, boxes=boxes[0:idx].detach(), labels=labels[0:idx])
 transformed_img = F.to_pil_image(annotated_img)
 print(idx, labels[0:idx])
 print(idx, scores[0:idx])

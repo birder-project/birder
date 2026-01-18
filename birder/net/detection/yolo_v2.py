@@ -52,7 +52,7 @@ def decode_predictions(
     Decoded predictions (N, H*W*num_anchors, 5 + num_classes).
     """
 
-    (N, _, H, W) = predictions.size()
+    N, _, H, W = predictions.size()
     num_anchors = anchors.shape[0]
     stride_h = stride[0]
     stride_w = stride[1]
@@ -113,13 +113,13 @@ class YOLOAnchorGenerator(nn.Module):
         device = feature_map.device
         dtype = feature_map.dtype
         image_size = image_list.tensors.shape[-2:]
-        (_, _, H, W) = feature_map.size()
+        _, _, H, W = feature_map.size()
 
         stride_h = image_size[0] / H
         stride_w = image_size[1] / W
 
         # Create grid
-        (grid_y, grid_x) = torch.meshgrid(
+        grid_y, grid_x = torch.meshgrid(
             torch.arange(H, device=device, dtype=dtype),
             torch.arange(W, device=device, dtype=dtype),
             indexing="ij",
@@ -316,7 +316,7 @@ class YOLO_v2(DetectionBaseNet):
 
         device = predictions.device
         dtype = predictions.dtype
-        (batch_size, _, H, W) = predictions.size()
+        batch_size, _, H, W = predictions.size()
         num_anchors = self.anchor_generator.num_anchors
 
         stride_h = stride[0]
@@ -377,7 +377,7 @@ class YOLO_v2(DetectionBaseNet):
             noobj_mask[batch_indices, best_anchors, gj, gi] = False
 
             # Compute ignore mask: anchors with IoU > ignore_thresh
-            (grid_y_all, grid_x_all) = torch.meshgrid(
+            grid_y_all, grid_x_all = torch.meshgrid(
                 torch.arange(H, device=device, dtype=dtype),
                 torch.arange(W, device=device, dtype=dtype),
                 indexing="ij",
@@ -417,10 +417,10 @@ class YOLO_v2(DetectionBaseNet):
         anchors: torch.Tensor,
         stride: torch.Tensor,
     ) -> dict[str, torch.Tensor]:
-        (target_tensor, obj_mask, noobj_mask) = self._build_targets(predictions, targets, anchors, stride)
+        target_tensor, obj_mask, noobj_mask = self._build_targets(predictions, targets, anchors, stride)
 
         device = predictions.device
-        (N, _, H, W) = predictions.size()
+        N, _, H, W = predictions.size()
         num_anchors = self.anchor_generator.num_anchors
 
         predictions = predictions.view(N, num_anchors, 5 + self.num_classes, H, W)
@@ -491,7 +491,7 @@ class YOLO_v2(DetectionBaseNet):
 
             # Combine objectness and class scores
             scores = objectness.unsqueeze(-1) * class_scores
-            (scores, labels) = scores.max(dim=-1)
+            scores, labels = scores.max(dim=-1)
             labels = labels + 1  # Add background offset
 
             # Filter by score threshold
@@ -537,7 +537,7 @@ class YOLO_v2(DetectionBaseNet):
         features = self.backbone.detection_features(x)
         neck_features = self.neck(features)
         predictions = self.head(neck_features)
-        (anchors, grid, stride) = self.anchor_generator(images, neck_features)
+        anchors, grid, stride = self.anchor_generator(images, neck_features)
 
         losses: dict[str, torch.Tensor] = {}
         detections: list[dict[str, torch.Tensor]] = []

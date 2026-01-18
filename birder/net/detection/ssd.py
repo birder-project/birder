@@ -40,7 +40,7 @@ class SSDMatcher(Matcher):
         matches = super().__call__(match_quality_matrix)
 
         # For each gt, find the prediction with which it has the highest quality
-        (_, highest_quality_pred_foreach_gt) = match_quality_matrix.max(dim=1)
+        _, highest_quality_pred_foreach_gt = match_quality_matrix.max(dim=1)
         matches[highest_quality_pred_foreach_gt] = torch.arange(
             highest_quality_pred_foreach_gt.size(0),
             dtype=torch.int64,
@@ -122,7 +122,7 @@ class DefaultBoxGenerator(nn.Module):
                 x_f_k = image_size[1] / self.steps[k]
                 y_f_k = image_size[0] / self.steps[k]
             else:
-                (y_f_k, x_f_k) = f_k
+                y_f_k, x_f_k = f_k
 
             shifts_x = ((torch.arange(0, f_k[1]) + 0.5) / x_f_k).to(dtype=dtype)
             shifts_y = ((torch.arange(0, f_k[0]) + 0.5) / y_f_k).to(dtype=dtype)
@@ -204,7 +204,7 @@ class SSDScoringHead(nn.Module):
             results = self._get_result_from_module_list(features, i)
 
             # Permute output from (N, A * K, H, W) to (N, HWA, K).
-            (N, _, H, W) = results.size()
+            N, _, H, W = results.size()
             results = results.view(N, -1, self.num_columns, H, W)
             results = results.permute(0, 3, 4, 1, 2)
             results = results.reshape(N, -1, self.num_columns)  # Size=(N, HWA, K)
@@ -408,7 +408,7 @@ class SSD(DetectionBaseNet):
         negative_loss = cls_loss.clone()
         negative_loss[foreground_idxs] = -float("inf")  # Use -inf to detect positive values that creeped in the sample
 
-        (_values, idx) = negative_loss.sort(1, descending=True)
+        _values, idx = negative_loss.sort(1, descending=True)
         # background_idxs = torch.logical_and(idx.sort(1)[1] < num_negative, torch.isfinite(values))
         background_idxs = idx.sort(1)[1] < num_negative
 
@@ -448,7 +448,7 @@ class SSD(DetectionBaseNet):
 
                 # Keep only topk scoring predictions
                 num_topk = min(self.topk_candidates, int(score.size(0)))
-                (score, idxs) = score.topk(num_topk)
+                score, idxs = score.topk(num_topk)
                 box = box[idxs]
                 if len(box) == 0 and list_empty is False:
                     continue

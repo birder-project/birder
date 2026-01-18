@@ -150,7 +150,7 @@ def concat_box_prediction_layers(
     # all feature levels concatenated, so we keep the same representation
     # for the objectness and the box_regression
     for box_cls_per_level, box_regression_per_level in zip(box_cls, box_regression):
-        (N, AxC, H, W) = box_cls_per_level.shape  # pylint: disable=invalid-name
+        N, AxC, H, W = box_cls_per_level.shape  # pylint: disable=invalid-name
         Ax4 = box_regression_per_level.shape[1]  # pylint: disable=invalid-name
         A = Ax4 // 4
         C = AxC // A
@@ -265,7 +265,7 @@ class RegionProposalNetwork(nn.Module):
         for ob in objectness.split(num_anchors_per_level, 1):
             num_anchors = ob.shape[1]
             pre_nms_top_n = min(self.pre_nms_top_n(), int(ob.size(1)))
-            (_, top_n_idx) = ob.topk(pre_nms_top_n, dim=1)
+            _, top_n_idx = ob.topk(pre_nms_top_n, dim=1)
             r.append(top_n_idx + offset)
             offset += num_anchors
 
@@ -310,19 +310,19 @@ class RegionProposalNetwork(nn.Module):
 
             # Remove small boxes
             keep = box_ops.remove_small_boxes(boxes, self.min_size)
-            (boxes, scores, lvl) = boxes[keep], scores[keep], lvl[keep]
+            boxes, scores, lvl = boxes[keep], scores[keep], lvl[keep]
 
             # Remove low scoring boxes
             # use >= for Backwards compatibility
             keep = torch.where(scores >= self.score_thresh)[0]
-            (boxes, scores, lvl) = boxes[keep], scores[keep], lvl[keep]
+            boxes, scores, lvl = boxes[keep], scores[keep], lvl[keep]
 
             # Non-maximum suppression, independently done per level
             keep = box_ops.batched_nms(boxes, scores, lvl, self.nms_thresh)
 
             # Keep only topk scoring predictions
             keep = keep[: self.post_nms_top_n()]
-            (boxes, scores) = boxes[keep], scores[keep]
+            boxes, scores = boxes[keep], scores[keep]
 
             final_boxes.append(boxes)
             final_scores.append(scores)
@@ -336,7 +336,7 @@ class RegionProposalNetwork(nn.Module):
         labels: list[torch.Tensor],
         regression_targets: list[torch.Tensor],
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        (sampled_pos_idxs, sampled_neg_idxs) = self.fg_bg_sampler(labels)
+        sampled_pos_idxs, sampled_neg_idxs = self.fg_bg_sampler(labels)
         sampled_pos_idxs = torch.where(torch.concat(sampled_pos_idxs, dim=0))[0]
         sampled_neg_idxs = torch.where(torch.concat(sampled_neg_idxs, dim=0))[0]
 
@@ -364,29 +364,29 @@ class RegionProposalNetwork(nn.Module):
     ) -> tuple[list[torch.Tensor], dict[str, torch.Tensor]]:
         # RPN uses all feature maps that are available
         features_list = list(features.values())
-        (objectness, pred_bbox_deltas) = self.head(features_list)
+        objectness, pred_bbox_deltas = self.head(features_list)
         anchors = self.anchor_generator(images, features_list)
 
         num_images = len(anchors)
         num_anchors_per_level_shape_tensors = [o[0].shape for o in objectness]
         num_anchors_per_level = [s[0] * s[1] * s[2] for s in num_anchors_per_level_shape_tensors]
-        (objectness, pred_bbox_deltas) = concat_box_prediction_layers(objectness, pred_bbox_deltas)
+        objectness, pred_bbox_deltas = concat_box_prediction_layers(objectness, pred_bbox_deltas)
 
         # Apply pred_bbox_deltas to anchors to obtain the decoded proposals
         # note that we detach the deltas because Faster R-CNN do not backprop through
         # the proposals
         proposals = self.box_coder.decode(pred_bbox_deltas.detach(), anchors)
         proposals = proposals.view(num_images, -1, 4)
-        (boxes, _scores) = self.filter_proposals(proposals, objectness, images.image_sizes, num_anchors_per_level)
+        boxes, _scores = self.filter_proposals(proposals, objectness, images.image_sizes, num_anchors_per_level)
 
         losses: dict[str, torch.Tensor] = {}
         if self.training is True:
             if targets is None:
                 raise ValueError("targets should not be None")
 
-            (labels, matched_gt_boxes) = self.assign_targets_to_anchors(anchors, targets)
+            labels, matched_gt_boxes = self.assign_targets_to_anchors(anchors, targets)
             regression_targets = self.box_coder.encode(matched_gt_boxes, anchors)
-            (loss_objectness, loss_rpn_box_reg) = self.compute_loss(
+            loss_objectness, loss_rpn_box_reg = self.compute_loss(
                 objectness, pred_bbox_deltas, labels, regression_targets
             )
             losses = {
@@ -405,7 +405,7 @@ class FastRCNNConvFCHead(nn.Sequential):
         fc_layers: list[int],
         norm_layer: Optional[Callable[..., nn.Module]] = None,
     ):
-        (in_channels, in_height, in_width) = input_size
+        in_channels, in_height, in_width = input_size
 
         blocks = []
         previous_channels = in_channels
@@ -481,7 +481,7 @@ def faster_rcnn_loss(
     # advanced indexing
     sampled_pos_idxs_subset = torch.where(labels > 0)[0]
     labels_pos = labels[sampled_pos_idxs_subset]
-    (N, _num_classes) = class_logits.shape
+    N, _num_classes = class_logits.shape
     box_regression = box_regression.reshape(N, box_regression.size(-1) // 4, 4)
 
     box_loss = F.smooth_l1_loss(
@@ -573,7 +573,7 @@ class RoIHeads(nn.Module):
         return (matched_idxs, labels)
 
     def subsample(self, labels: list[torch.Tensor]) -> list[torch.Tensor]:
-        (sampled_pos_idxs, sampled_neg_idxs) = self.fg_bg_sampler(labels)
+        sampled_pos_idxs, sampled_neg_idxs = self.fg_bg_sampler(labels)
         sampled_idxs = []
         for pos_idxs_img, neg_idxs_img in zip(sampled_pos_idxs, sampled_neg_idxs):
             img_sampled_idxs = torch.where(pos_idxs_img | neg_idxs_img)[0]
@@ -610,7 +610,7 @@ class RoIHeads(nn.Module):
         proposals = self.add_gt_proposals(proposals, gt_boxes)
 
         # Get matching gt indices for each proposal
-        (matched_idxs, labels) = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels)
+        matched_idxs, labels = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels)
 
         # Sample a fixed proportion of positive-negative proposals
         sampled_idxs = self.subsample(labels)
@@ -713,7 +713,7 @@ class RoIHeads(nn.Module):
                     raise TypeError(f"target labels must of int64 type, instead got {t['labels'].dtype}")
 
         if self.training is True:
-            (proposals, _matched_idxs, labels, regression_targets) = self.select_training_samples(proposals, targets)
+            proposals, _matched_idxs, labels, regression_targets = self.select_training_samples(proposals, targets)
         else:
             labels = None
             regression_targets = None
@@ -721,7 +721,7 @@ class RoIHeads(nn.Module):
 
         box_features = self.box_roi_pool(features, proposals, image_shapes)
         box_features = self.box_head(box_features)
-        (class_logits, box_regression) = self.box_predictor(box_features)
+        class_logits, box_regression = self.box_predictor(box_features)
 
         losses = {}
         result: list[dict[str, torch.Tensor]] = []
@@ -731,11 +731,11 @@ class RoIHeads(nn.Module):
             if regression_targets is None:
                 raise ValueError("regression_targets cannot be None")
 
-            (loss_classifier, loss_box_reg) = faster_rcnn_loss(class_logits, box_regression, labels, regression_targets)
+            loss_classifier, loss_box_reg = faster_rcnn_loss(class_logits, box_regression, labels, regression_targets)
             losses = {"loss_classifier": loss_classifier, "loss_box_reg": loss_box_reg}
 
         else:
-            (boxes, scores, labels) = self.postprocess_detections(class_logits, box_regression, proposals, image_shapes)
+            boxes, scores, labels = self.postprocess_detections(class_logits, box_regression, proposals, image_shapes)
             num_images = len(boxes)
             for i in range(num_images):
                 result.append(
@@ -868,8 +868,8 @@ class Faster_RCNN(DetectionBaseNet):
         images = self._to_img_list(x, image_sizes)
 
         features = self.backbone_with_fpn(x)
-        (proposals, proposal_losses) = self.rpn(images, features, targets)
-        (detections, detector_losses) = self.roi_heads(features, proposals, images.image_sizes, targets)
+        proposals, proposal_losses = self.rpn(images, features, targets)
+        detections, detector_losses = self.roi_heads(features, proposals, images.image_sizes, targets)
 
         losses = {}
         losses.update(detector_losses)

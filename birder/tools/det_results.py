@@ -239,7 +239,7 @@ def main(args: argparse.Namespace) -> None:
             logger.warning("Cannot compare confusion matrix, processing only the first file")
 
         results = next(iter(results_dict.values()))
-        (cnf_matrix, label_names) = confusion_matrix_data(
+        cnf_matrix, label_names = confusion_matrix_data(
             results, args.cnf_score_threshold, args.cnf_iou_threshold, args.classes, args.cnf_errors_only
         )
         title = f"Confusion matrix (score >= {args.cnf_score_threshold:.2f}, IoU >= {args.cnf_iou_threshold:.2f})"

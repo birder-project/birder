@@ -58,7 +58,7 @@ class Agg0(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.conv(x)
-        (B, C, _, _) = x.size()
+        B, C, _, _ = x.size()
         x = self.act(self.norm(x.reshape(B, C, -1).permute(0, 2, 1)))
 
         return x
@@ -89,8 +89,8 @@ class Aggregator(nn.Module):
         self.agg0 = Agg0(self.seg_dim)
 
     def forward(self, x: torch.Tensor, size: tuple[int, int], num_head: int) -> tuple[torch.Tensor, torch.Tensor]:
-        (B, _, C) = x.size()
-        (H, W) = size
+        B, _, C = x.size()
+        H, W = size
         # assert N == H * W
 
         x = x.transpose(1, 2).view(B, C, H, W)
@@ -136,8 +136,8 @@ class ConvRelPosEnc(nn.Module):
         self.channel_splits = [x * channels for x in head_splits]
 
     def forward(self, q: torch.Tensor, v: torch.Tensor, size: tuple[int, int]) -> torch.Tensor:
-        (B, L, _, C) = q.size()
-        (H, W) = size
+        B, L, _, C = q.size()
+        H, W = size
         # assert N == H * W
 
         v = v.reshape(B, L, H, W, C).permute(0, 1, 4, 2, 3).reshape(B, -1, H, W).contiguous()
@@ -165,8 +165,8 @@ class ConvPosEnc(nn.Module):
         )
 
     def forward(self, x: torch.Tensor, size: tuple[int, int]) -> torch.Tensor:
-        (B, _, C) = x.size()
-        (H, W) = size
+        B, _, C = x.size()
+        H, W = size
         # assert N == H * W
 
         x = x.transpose(1, 2).view(B, C, H, W)
@@ -193,11 +193,11 @@ class EfficientAtt(nn.Module):
         self.crpe = ConvRelPosEnc(t_dim // num_heads, window={3: 2, 5: 3, 7: 3})
 
     def forward(self, x: torch.Tensor, size: tuple[int, int]) -> torch.Tensor:
-        (B, N, C) = x.size()
+        B, N, C = x.size()
         qkv = self.qkv(x).reshape(B, N, 3, C).permute(2, 0, 1, 3).reshape(3 * B, N, C)
 
-        (qkv, x_agg0) = self.aggregator(qkv, size, self.num_heads)
-        (q, k, v) = qkv.unbind(0)
+        qkv, x_agg0 = self.aggregator(qkv, size, self.num_heads)
+        q, k, v = qkv.unbind(0)
 
         k_softmax = k.softmax(dim=2)
         k_softmax_t_dot_v = torch.einsum("b h n k, b h n v -> b h k v", k_softmax, v)
@@ -224,7 +224,7 @@ class PatchEmbed(nn.Module):
         self.act = nn.Hardswish()
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, tuple[int, int]]:
-        (_, _, H, W) = x.size()
+        _, _, H, W = x.size()
         x = self.act(self.norm(self.proj(x)))
         x = x.flatten(2).transpose(1, 2)
 
@@ -286,7 +286,7 @@ class GroupMixFormerStage(nn.Module):
             )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (x, size) = self.patch_embed(x)
+        x, size = self.patch_embed(x)
         for block in self.gma_blocks:
             x = block(x, size)
 

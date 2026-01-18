@@ -212,7 +212,7 @@ class LPI(nn.Module):
         )
 
     def forward(self, x: torch.Tensor, H: int, W: int) -> torch.Tensor:
-        (B, N, C) = x.shape
+        B, N, C = x.shape
         x = x.permute(0, 2, 1).reshape(B, C, H, W)
         x = self.conv_bn_act(x)
         x = self.conv(x)
@@ -236,10 +236,10 @@ class XCA(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, N, C) = x.shape
+        B, N, C = x.shape
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads)
         qkv = qkv.permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.unbind(0)
+        q, k, v = qkv.unbind(0)
 
         q = F.normalize(q, dim=-1) * self.temperature
         k = F.normalize(k, dim=-1)
@@ -381,7 +381,7 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         B = x.size(0)
 
-        (x, H, W) = self.patch_embed(x)
+        x, H, W = self.patch_embed(x)
 
         pos_encoding = self.pos_embed(B, H, W).reshape(B, -1, x.size(1)).permute(0, 2, 1)
         x = x + pos_encoding
@@ -414,7 +414,7 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     ) -> TokenRetentionResultType:
         B = x.size(0)
 
-        (x, H, W) = self.patch_embed(x)
+        x, H, W = self.patch_embed(x)
         x = mask_tensor(
             x.permute(0, 2, 1).reshape(B, -1, H, W),
             mask,
@@ -435,7 +435,7 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         if return_keys in ("all", "features"):
             features = x[:, 1:]
             features = features.permute(0, 2, 1)
-            (B, C, _) = features.size()
+            B, C, _ = features.size()
             features = features.reshape(B, C, H, W)
             result["features"] = features
 
@@ -447,7 +447,7 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         B = x.size(0)
 
-        (x, H, W) = self.patch_embed(x)
+        x, H, W = self.patch_embed(x)
 
         pos_encoding = self.pos_embed(B, H, W).reshape(B, -1, x.size(1)).permute(0, 2, 1)
         x = x + pos_encoding

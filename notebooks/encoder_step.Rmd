@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.16.7
+      jupytext_version: 1.19.0
   kernelspec:
     display_name: birder
     language: python
@@ -35,7 +35,7 @@ from PIL import Image
 
 ```{python}
 device = torch.device("cpu")
-(net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
+net, (class_to_idx, signature, rgb_stats, *_) = fs_ops.load_model(
     device, "vit_reg4_b16", tag="mim-intermediate", epoch=75, inference=True
 )
 idx_to_class = {v: k for k, v in class_to_idx.items()}
@@ -87,15 +87,16 @@ plt.matshow(kernels[17])
 
 ```{python}
 def show(x: torch.Tensor) -> None:
-    (B, HW, L) = x.size()
+    B, HW, L = x.size()
     x = x[:, net.num_special_tokens :]
     x = x.permute(0, 2, 1)
     x = x.reshape(B, L, size[0] // 16, size[1] // 16)
     x = x.squeeze()
     plt.matshow(x.mean(axis=0))
 
+
 def show_plane(x: torch.Tensor, channel: int) -> None:
-    (B, HW, L) = x.size()
+    B, HW, L = x.size()
     x = x[:, net.num_special_tokens :]
     x = x.permute(0, 2, 1)
     x = x.reshape(B, L, size[0] // 16, size[1] // 16)
@@ -119,7 +120,7 @@ x.size()
 ```
 
 ```{python}
-(B, N, L) = x.size()  # N = H*W
+B, N, L = x.size()  # N = H*W
 b1 = net.encoder.block[0].norm1(x)
 show(b1)
 ```
@@ -130,7 +131,7 @@ head_dim = net.encoder.block[0].attn.head_dim
 
 z = b1 @ net.encoder.block[0].attn.qkv.weight.T + net.encoder.block[0].attn.qkv.bias
 qkv = z.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
-(q, k, v) = qkv.unbind(0)
+q, k, v = qkv.unbind(0)
 show(v.transpose(1, 2).reshape(B, N, L))
 ```
 

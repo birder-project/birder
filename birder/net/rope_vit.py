@@ -76,7 +76,7 @@ def build_rotary_pos_embed(
 
 def rotate_half(x: torch.Tensor) -> torch.Tensor:
     # Taken from: https://github.com/facebookresearch/capi/blob/main/model.py
-    (x1, x2) = x.chunk(2, dim=-1)
+    x1, x2 = x.chunk(2, dim=-1)
     return torch.concat((-x2, x1), dim=-1)
 
 
@@ -85,7 +85,7 @@ def rotate_half_interleaved(x: torch.Tensor) -> torch.Tensor:
 
 
 def apply_rotary_pos_embed(x: torch.Tensor, embed: torch.Tensor) -> torch.Tensor:
-    (sin_emb, cos_emb) = embed.tensor_split(2, dim=-1)
+    sin_emb, cos_emb = embed.tensor_split(2, dim=-1)
     if cos_emb.ndim == 3:
         return x * cos_emb.unsqueeze(1).expand_as(x) + rotate_half(x) * sin_emb.unsqueeze(1).expand_as(x)
 
@@ -93,7 +93,7 @@ def apply_rotary_pos_embed(x: torch.Tensor, embed: torch.Tensor) -> torch.Tensor
 
 
 def apply_interleaved_rotary_pos_embed(x: torch.Tensor, embed: torch.Tensor) -> torch.Tensor:
-    (sin_emb, cos_emb) = embed.tensor_split(2, dim=-1)
+    sin_emb, cos_emb = embed.tensor_split(2, dim=-1)
     if cos_emb.ndim == 3:
         return x * cos_emb.unsqueeze(1).expand_as(x) + rotate_half_interleaved(x) * sin_emb.unsqueeze(1).expand_as(x)
 
@@ -128,7 +128,7 @@ class RoPE(nn.Module):
         else:
             raise ValueError(f"Unknown rope_rot_type, got '{rope_rot_type}'")
 
-        (sin_emb, cos_emb) = build_rotary_pos_embed(
+        sin_emb, cos_emb = build_rotary_pos_embed(
             dim,
             temperature,
             grid_size=grid_size,
@@ -185,9 +185,9 @@ class RoPEAttention(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x: torch.Tensor, rope: torch.Tensor) -> torch.Tensor:
-        (B, N, C) = x.size()
+        B, N, C = x.size()
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.unbind(0)
+        q, k, v = qkv.unbind(0)
         q = self.q_norm(q)
         k = self.k_norm(k)
 
@@ -659,7 +659,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         self.encoder.set_causal_attention(is_causal)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
@@ -684,7 +684,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
         x = x[:, self.num_special_tokens :]
         x = x.permute(0, 2, 1)
-        (B, C, _) = x.size()
+        B, C, _ = x.size()
         x = x.reshape(B, C, H // self.patch_size, W // self.patch_size)
 
         return {self.return_stages[0]: x}
@@ -709,7 +709,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         return_all_features: bool = False,
         return_keys: Literal["all", "tokens", "embedding"] = "tokens",
     ) -> TokenOmissionResultType:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
@@ -789,7 +789,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         mask_token: Optional[torch.Tensor] = None,
         return_keys: Literal["all", "features", "embedding"] = "features",
     ) -> TokenRetentionResultType:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
 
         x = self.conv_proj(x)
         x = mask_tensor(x, mask, mask_token=mask_token, patch_factor=self.max_stride // self.stem_stride)
@@ -820,7 +820,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         if return_keys in ("all", "features"):
             features = x[:, self.num_special_tokens :]
             features = features.permute(0, 2, 1)
-            (B, C, _) = features.size()
+            B, C, _ = features.size()
             features = features.reshape(B, C, H // self.patch_size, W // self.patch_size)
             result["features"] = features
 
@@ -840,7 +840,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         return result
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
         x = self.conv_proj(x)

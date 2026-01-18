@@ -169,12 +169,12 @@ class RelativePositionalMultiHeadAttention(nn.Module):
 
     # pylint: disable=invalid-name
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, G, P, D) = x.size()
+        B, G, P, D = x.size()
         H = self.n_heads
         DH = self.head_dim
 
         qkv = self.to_qkv(x)
-        (q, k, v) = torch.chunk(qkv, 3, dim=-1)
+        q, k, v = torch.chunk(qkv, 3, dim=-1)
 
         q = q.reshape(B, G, P, H, DH).permute(0, 1, 3, 2, 4)
         k = k.reshape(B, G, P, H, DH).permute(0, 1, 3, 2, 4)
@@ -206,8 +206,8 @@ class SwapAxes(nn.Module):
 
 class WindowPartition(nn.Module):
     def forward(self, x: torch.Tensor, p: tuple[int, int]) -> torch.Tensor:
-        (B, C, H, W) = x.size()
-        (PH, PW) = p  # pylint: disable=invalid-name
+        B, C, H, W = x.size()
+        PH, PW = p  # pylint: disable=invalid-name
 
         # Chunk up H and W dimensions
         x = x.reshape(B, C, H // PH, PH, W // PW, PW)
@@ -222,8 +222,8 @@ class WindowPartition(nn.Module):
 class WindowDepartition(nn.Module):
     # pylint: disable=invalid-name
     def forward(self, x: torch.Tensor, p: tuple[int, int], h_partitions: int, w_partitions: int) -> torch.Tensor:
-        (B, _G, _PP, C) = x.size()
-        (PH, PW) = p  # pylint: disable=invalid-name
+        B, _G, _PP, C = x.size()
+        PH, PW = p  # pylint: disable=invalid-name
         HP = h_partitions
         WP = w_partitions
 
@@ -706,7 +706,7 @@ class MaxViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                             src_size = (2 * old_attn_size[0] - 1, 2 * old_attn_size[1] - 1)
 
                             def _calc(src: int, dst: int) -> list[float]:
-                                (left, right) = 1.01, 1.5
+                                left, right = 1.01, 1.5
                                 while right - left > 1e-6:
                                     q = (left + right) / 2.0
                                     gp = (1.0 - q ** (src // 2)) / (1.0 - q)  # Geometric progression

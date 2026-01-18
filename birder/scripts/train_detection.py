@@ -63,7 +63,7 @@ def train(args: argparse.Namespace) -> None:
     )
     model_dynamic_size = transform_dynamic_size or args.batch_multiscale is True
 
-    (device, device_id, disable_tqdm) = training_utils.init_training(
+    device, device_id, disable_tqdm = training_utils.init_training(
         args, logger, cudnn_dynamic_size=transform_dynamic_size
     )
 
@@ -177,7 +177,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Data loaders and samplers
     virtual_epoch_mode = args.steps_per_epoch is not None
-    (train_sampler, validation_sampler) = training_utils.get_samplers(
+    train_sampler, validation_sampler = training_utils.get_samplers(
         args, training_dataset, validation_dataset, infinite=virtual_epoch_mode
     )
 
@@ -243,7 +243,7 @@ def train(args: argparse.Namespace) -> None:
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
-        (net, class_to_idx_saved, training_states) = fs_ops.load_detection_checkpoint(
+        net, class_to_idx_saved, training_states = fs_ops.load_detection_checkpoint(
             device,
             args.network,
             config=args.model_config,
@@ -262,7 +262,7 @@ def train(args: argparse.Namespace) -> None:
 
     elif args.pretrained is True:
         fs_ops.download_model_by_weights(network_name, progress_bar=training_utils.is_local_primary(args))
-        (net, class_to_idx_saved, training_states) = fs_ops.load_detection_checkpoint(
+        net, class_to_idx_saved, training_states = fs_ops.load_detection_checkpoint(
             device,
             args.network,
             config=args.model_config,
@@ -282,7 +282,7 @@ def train(args: argparse.Namespace) -> None:
     else:
         if args.backbone_epoch is not None:
             backbone: DetectorBackbone
-            (backbone, class_to_idx_saved, _) = fs_ops.load_checkpoint(
+            backbone, class_to_idx_saved, _ = fs_ops.load_checkpoint(
                 device,
                 args.backbone,
                 config=args.backbone_model_config,
@@ -297,7 +297,7 @@ def train(args: argparse.Namespace) -> None:
                 lib.get_network_name(args.backbone, tag=args.backbone_tag),
                 progress_bar=training_utils.is_local_primary(args),
             )
-            (backbone, class_to_idx_saved, _) = fs_ops.load_checkpoint(
+            backbone, class_to_idx_saved, _ = fs_ops.load_checkpoint(
                 device,
                 args.backbone,
                 config=args.backbone_model_config,
@@ -386,7 +386,7 @@ def train(args: argparse.Namespace) -> None:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
 
     # Gradient scaler and AMP related tasks
-    (scaler, amp_dtype) = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
+    scaler, amp_dtype = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
 
     # Load states
     if args.load_states is True:
@@ -586,7 +586,7 @@ def train(args: argparse.Namespace) -> None:
 
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                (_detections, losses) = net(inputs, targets, masks, image_sizes)
+                _detections, losses = net(inputs, targets, masks, image_sizes)
                 loss = sum(v for v in losses.values())
 
             if scaler is not None:
@@ -708,7 +708,7 @@ def train(args: argparse.Namespace) -> None:
                 masks = masks.to(device, non_blocking=True)
 
                 with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                    (detections, losses) = eval_model(inputs, masks=masks, image_sizes=image_sizes)
+                    detections, losses = eval_model(inputs, masks=masks, image_sizes=image_sizes)
 
                 for target in targets:
                     # TorchMetrics can't handle "empty" images

@@ -55,7 +55,7 @@ class TestRegistry(unittest.TestCase):
     def test_manifest(self) -> None:
         for model_name, model_metadata in registry._pretrained_nets.items():
             for model_format in model_metadata["formats"]:
-                (_, url) = get_pretrained_model_url(model_name, model_format)
+                _, url = get_pretrained_model_url(model_name, model_format)
 
                 for _ in range(3):
                     try:

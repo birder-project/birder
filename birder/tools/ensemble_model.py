@@ -58,7 +58,7 @@ def main(args: argparse.Namespace) -> None:
     signature_list = []
     rgb_stats_list = []
     for network in args.networks:
-        (net, model_info) = fs_ops.load_model(device, network, inference=True, pts=args.pts, pt2=args.pt2)
+        net, model_info = fs_ops.load_model(device, network, inference=True, pts=args.pts, pt2=args.pt2)
         nets.append(net)
         class_to_idx_list.append(model_info.class_to_idx)
         signature_list.append(model_info.signature)

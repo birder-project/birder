@@ -39,7 +39,7 @@ class DepthwiseMLP(nn.Module):
     def forward(self, x: torch.Tensor, H: int, W: int) -> torch.Tensor:
         x = self.fc1(x)
 
-        (B, N, C) = x.size()
+        B, N, C = x.size()
         x = x.reshape(B, H, W, C).permute(0, 3, 1, 2).contiguous()
         x = self.dwconv(x)
         x = x.permute(0, 2, 3, 1).reshape(B, N, C)
@@ -57,7 +57,7 @@ class DepthwiseMLPBlock(nn.Module):
         self.drop_path = StochasticDepth(drop_path, mode="row")
 
     def forward(self, x: torch.Tensor, resolution: tuple[int, int]) -> torch.Tensor:
-        (H, W) = resolution
+        H, W = resolution
         return x + self.drop_path(self.mlp(self.norm(x), H, W))
 
 
@@ -121,7 +121,7 @@ class HiLoAttention(nn.Module):
             self.h_proj = nn.Identity()
 
     def _lofi(self, x: torch.Tensor) -> torch.Tensor:
-        (B, H, W, C) = x.size()
+        B, H, W, C = x.size()
 
         q = self.l_q(x).reshape(B, H * W, self.l_heads, self.head_dim).permute(0, 2, 1, 3)
 
@@ -133,7 +133,7 @@ class HiLoAttention(nn.Module):
         else:
             kv = self.l_kv(x).reshape(B, -1, 2, self.l_heads, self.head_dim).permute(2, 0, 3, 1, 4)
 
-        (k, v) = kv.unbind(0)
+        k, v = kv.unbind(0)
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = F.softmax(attn, dim=-1)
@@ -144,7 +144,7 @@ class HiLoAttention(nn.Module):
         return x
 
     def _hifi(self, x: torch.Tensor) -> torch.Tensor:
-        (B, H, W, _) = x.size()
+        B, H, W, _ = x.size()
         ws = self.window_size
 
         # Pad if needed
@@ -153,7 +153,7 @@ class HiLoAttention(nn.Module):
         if pad_h > 0 or pad_w > 0:
             x = F.pad(x, (0, 0, 0, pad_w, 0, pad_h))
 
-        (_, h_pad, w_pad, _) = x.size()
+        _, h_pad, w_pad, _ = x.size()
         h_groups = h_pad // ws
         w_groups = w_pad // ws
         total_groups = h_groups * w_groups
@@ -161,7 +161,7 @@ class HiLoAttention(nn.Module):
         x = x.reshape(B, h_groups, ws, w_groups, ws, -1).transpose(2, 3)
 
         qkv = self.h_qkv(x).reshape(B, total_groups, -1, 3, self.h_heads, self.head_dim).permute(3, 0, 1, 4, 2, 5)
-        (q, k, v) = qkv.unbind(0)
+        q, k, v = qkv.unbind(0)
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = F.softmax(attn, dim=-1)
@@ -177,7 +177,7 @@ class HiLoAttention(nn.Module):
         return x
 
     def forward(self, x: torch.Tensor, H: int, W: int) -> torch.Tensor:
-        (B, N, C) = x.size()
+        B, N, C = x.size()
         x = x.reshape(B, H, W, C)
 
         if self.h_heads == 0:
@@ -215,7 +215,7 @@ class HiLoBlock(nn.Module):
         self.drop_path2 = StochasticDepth(drop_path, mode="row")
 
     def forward(self, x: torch.Tensor, resolution: tuple[int, int]) -> torch.Tensor:
-        (H, W) = resolution
+        H, W = resolution
         x = x + self.drop_path1(self.attn(self.norm1(x), H, W))
         x = x + self.drop_path2(self.mlp(self.norm2(x), H, W))
         return x
@@ -252,7 +252,7 @@ class LITStage(nn.Module):
         self.blocks = nn.ModuleList(blocks)
 
     def forward(self, x: torch.Tensor, input_resolution: tuple[int, int]) -> tuple[torch.Tensor, int, int]:
-        (x, H, W) = self.downsample(x, input_resolution)
+        x, H, W = self.downsample(x, input_resolution)
         for block in self.blocks:
             x = block(x, (H, W))
 
@@ -361,12 +361,12 @@ class LIT_v2(DetectorBackbone):
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)
-        (B, H, W, C) = x.size()
+        B, H, W, C = x.size()
         x = x.reshape(B, H * W, C)
 
         out = {}
         for name, stage in self.body.items():
-            (x, H, W) = stage(x, (H, W))
+            x, H, W = stage(x, (H, W))
             if name in self.return_stages:
                 features = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
                 out[name] = features
@@ -386,10 +386,10 @@ class LIT_v2(DetectorBackbone):
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
-        (B, H, W, C) = x.size()
+        B, H, W, C = x.size()
         x = x.reshape(B, H * W, C)
         for stage in self.body.values():
-            (x, H, W) = stage(x, (H, W))
+            x, H, W = stage(x, (H, W))
 
         return x
 

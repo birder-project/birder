@@ -46,11 +46,11 @@ class CrossAttention(nn.Module):
         self.proj = nn.Linear(decoder_dim, decoder_dim)
 
     def forward(self, tgt: torch.Tensor, memory: torch.Tensor) -> torch.Tensor:
-        (B, N, C) = tgt.size()
+        B, N, C = tgt.size()
         n_kv = memory.size(1)
         q = self.q(tgt).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
         kv = self.kv(memory).reshape(B, n_kv, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        (k, v) = kv.unbind(0)
+        k, v = kv.unbind(0)
 
         attn = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0)  # pylint: disable=not-callable
         x = attn.transpose(1, 2).reshape(B, N, C)
@@ -170,7 +170,7 @@ class CrossMAE(MIMBaseNet):
         return imgs
 
     def fill_pred(self, mask: torch.Tensor, pred: torch.Tensor) -> torch.Tensor:
-        (N, L) = mask.shape[0:2]
+        N, L = mask.shape[0:2]
         combined = torch.zeros(N, L, pred.shape[2], device=pred.device, dtype=pred.dtype)
         combined[mask.bool()] = pred.view(-1, pred.shape[2])
 
@@ -213,7 +213,7 @@ class CrossMAE(MIMBaseNet):
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         h = self.size[0] // self.encoder.stem_stride
         w = self.size[1] // self.encoder.stem_stride
-        (mask, ids_keep, _) = uniform_mask(
+        mask, ids_keep, _ = uniform_mask(
             x.size(0), h, w, self.mask_ratio, self.kept_mask_ratio, min_mask_size=self.min_mask_size, device=x.device
         )
 

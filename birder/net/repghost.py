@@ -79,7 +79,7 @@ class RepGhostModule(nn.Module):
         if self.reparameterized is True:
             return
 
-        (kernel, bias) = self._get_kernel_bias()
+        kernel, bias = self._get_kernel_bias()
         self.cheap_operation = nn.Conv2d(
             in_channels=self.cheap_operation[0].in_channels,
             out_channels=self.cheap_operation[0].out_channels,
@@ -98,9 +98,9 @@ class RepGhostModule(nn.Module):
         self.reparameterized = True
 
     def _get_kernel_bias(self) -> tuple[torch.Tensor, torch.Tensor]:
-        (kernel, bias) = self._fuse_bn_tensor(self.cheap_operation[0], self.cheap_operation[1])
+        kernel, bias = self._fuse_bn_tensor(self.cheap_operation[0], self.cheap_operation[1])
         if self.fusion_bn is not None:
-            (kernel1x1, bias_bn) = self._fuse_bn_tensor(nn.Identity(), self.fusion_bn, kernel.shape[0])
+            kernel1x1, bias_bn = self._fuse_bn_tensor(nn.Identity(), self.fusion_bn, kernel.shape[0])
             kernel += F.pad(kernel1x1, [1, 1, 1, 1])
             bias += bias_bn
 

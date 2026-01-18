@@ -30,7 +30,7 @@ from birder.net.base import TokenRetentionResultType
 
 
 def window_partition(x: torch.Tensor, window_size: tuple[int, int]) -> torch.Tensor:
-    (B, H, W, C) = x.size()
+    B, H, W, C = x.size()
     x = x.view(B, H // window_size[0], window_size[0], W // window_size[1], window_size[1], C)
     windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, window_size[0], window_size[1], C)
 
@@ -65,7 +65,7 @@ def interpolate_rel_pos_bias_table(
     if new_window_size == base_window_size:
         return rel_pos_bias_table
 
-    (base_h, base_w) = base_window_size
+    base_h, base_w = base_window_size
     num_heads = rel_pos_bias_table.size(1)
     orig_dtype = rel_pos_bias_table.dtype
     bias_table = rel_pos_bias_table.float()
@@ -243,18 +243,18 @@ class WindowAttentionGlobal(nn.Module):
     def forward(
         self, x: torch.Tensor, q_global: torch.Tensor, window_size: tuple[int, int], dynamic_size: bool
     ) -> torch.Tensor:
-        (B, N, C) = x.size()
+        B, N, C = x.size()
         if self.use_global is True:
             kv = self.qkv(x)
             kv = kv.reshape(B, N, 2, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-            (k, v) = kv.unbind(0)
+            k, v = kv.unbind(0)
 
             q_global = q_global.repeat(B // q_global.size(0), 1, 1, 1)
             q = q_global.reshape(B, N, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
 
         else:
             qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-            (q, k, v) = qkv.unbind(0)
+            q, k, v = qkv.unbind(0)
 
         q = q * self.scale
         attn = q @ k.transpose(-2, -1)
@@ -302,7 +302,7 @@ class GlobalContextVitBlock(nn.Module):
         self.dynamic_size = dynamic_size
 
     def _window_attn(self, x: torch.Tensor, q_global: torch.Tensor, window_size: tuple[int, int]) -> torch.Tensor:
-        (_, H, W, C) = x.size()
+        _, H, W, C = x.size()
 
         # Pad feature maps to multiples of window size for dynamic size support
         pad_b = (window_size[0] - H % window_size[0]) % window_size[0]
@@ -310,13 +310,13 @@ class GlobalContextVitBlock(nn.Module):
         x = F.pad(x, (0, 0, 0, pad_r, 0, pad_b))
 
         # Resize global query to match window size if needed
-        (_, h_g, w_g, _) = q_global.size()
+        _, h_g, w_g, _ = q_global.size()
         if h_g != window_size[0] or w_g != window_size[1]:
             q_global = q_global.permute(0, 3, 1, 2)
             q_global = F.interpolate(q_global, size=window_size, mode="bilinear", align_corners=False)
             q_global = q_global.permute(0, 2, 3, 1)
 
-        (_, pad_h, pad_w, _) = x.size()
+        _, pad_h, pad_w, _ = x.size()
         x_win = window_partition(x, window_size)
         x_win = x_win.view(-1, window_size[0] * window_size[1], C)
         attn_win = self.attn(x_win, q_global, window_size, self.dynamic_size)

@@ -31,7 +31,7 @@ from birder.net.base import TokenRetentionResultType
 
 
 def window_partition(x: torch.Tensor, window_size: tuple[int, int]) -> torch.Tensor:
-    (B, H, W, C) = x.shape
+    B, H, W, C = x.shape
     x = x.view(B, H // window_size[0], window_size[0], W // window_size[1], window_size[1], C)
     windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, window_size[0], window_size[1], C)
 
@@ -92,10 +92,10 @@ class Downsample(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (_, _, H, W) = x.shape
+        _, _, H, W = x.shape
         x = self.norm(x)
         if self.even_k is True:
-            (k_h, k_w) = self.conv.kernel_size
+            k_h, k_w = self.conv.kernel_size
             pad_r = (k_w - W % k_w) % k_w
             pad_b = (k_h - H % k_h) % k_h
             x = F.pad(x, (0, pad_r, 0, pad_b))
@@ -115,10 +115,10 @@ class ChannelAttention(nn.Module):
         self.proj = nn.Linear(dim, dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, N, C) = x.shape
+        B, N, C = x.shape
 
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.unbind(0)
+        q, k, v = qkv.unbind(0)
 
         k = k * self.scale
         attn = k.transpose(-1, -2) @ v
@@ -151,7 +151,7 @@ class ChannelBlock(nn.Module):
         self.drop_path = StochasticDepth(drop_path, mode="row")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, C, H, W) = x.shape
+        B, C, H, W = x.shape
         x = self.cpe1(x).flatten(2).transpose(1, 2)
 
         cur = self.norm1(x)
@@ -177,10 +177,10 @@ class WindowAttention(nn.Module):
         self.proj = nn.Linear(dim, dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, N, C) = x.shape
+        B, N, C = x.shape
 
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.unbind(0)
+        q, k, v = qkv.unbind(0)
 
         x = F.scaled_dot_product_attention(q, k, v, scale=self.scale)  # pylint: disable=not-callable
         x = x.transpose(1, 2).reshape(B, N, C)
@@ -215,7 +215,7 @@ class SpatialBlock(nn.Module):
 
     # pylint: disable=invalid-name
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, C, H, W) = x.shape
+        B, C, H, W = x.shape
 
         shortcut = self.cpe1(x).flatten(2).transpose(1, 2)
 
@@ -226,7 +226,7 @@ class SpatialBlock(nn.Module):
         pad_r = (self.window_size[1] - W % self.window_size[1]) % self.window_size[1]
         pad_b = (self.window_size[0] - H % self.window_size[0]) % self.window_size[0]
         x = F.pad(x, (0, 0, pad_l, pad_r, pad_t, pad_b))
-        (_, Hp, Wp, _) = x.shape
+        _, Hp, Wp, _ = x.shape
 
         x_windows = window_partition(x, self.window_size)
         x_windows = x_windows.view(-1, self.window_size[0] * self.window_size[1], C)

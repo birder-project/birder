@@ -159,7 +159,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
         )
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
 
         x = self.conv_proj(x)
         x = self.patch_embed(x)
@@ -181,7 +181,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
 
         x = x[:, self.num_special_tokens :]
         x = x.permute(0, 2, 1)
-        (B, C, _) = x.size()
+        B, C, _ = x.size()
         x = x.reshape(B, C, H // self.patch_size, W // self.patch_size)
 
         return {self.return_stages[0]: x}
@@ -209,7 +209,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
         return_all_features: bool = False,
         return_keys: Literal["all", "tokens", "embedding"] = "tokens",
     ) -> TokenOmissionResultType:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
@@ -272,7 +272,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
         mask_token: Optional[torch.Tensor] = None,
         return_keys: Literal["all", "features", "embedding"] = "features",
     ) -> TokenRetentionResultType:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
 
         x = self.conv_proj(x)
         x = mask_tensor(x, mask, mask_token=mask_token, patch_factor=self.max_stride // self.stem_stride)
@@ -302,7 +302,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
         if return_keys in ("all", "features"):
             features = x[:, self.num_special_tokens :]
             features = features.permute(0, 2, 1)
-            (B, C, _) = features.size()
+            B, C, _ = features.size()
             features = features.reshape(B, C, H // self.patch_size, W // self.patch_size)
             result["features"] = features
 
@@ -312,7 +312,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
         return result
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
         x = self.conv_proj(x)

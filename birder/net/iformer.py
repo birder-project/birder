@@ -113,12 +113,12 @@ class LowMixer(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.pool(x)
-        (B, _, H, W) = x.size()
+        B, _, H, W = x.size()
         x = x.permute(0, 2, 3, 1).view(B, -1, self.dim)
 
-        (B, N, C) = x.size()
+        B, N, C = x.size()
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.unbind(0)
+        q, k, v = qkv.unbind(0)
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q, k, v, dropout_p=self.attn_drop if self.training else 0.0, scale=self.scale
         )
@@ -301,7 +301,7 @@ class InceptionTransformerStage(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.downsample(x)
-        (H, W) = x.shape[1:3]
+        H, W = x.shape[1:3]
 
         x = x + self._get_pos_embed(H, W)
         x = self.blocks(x)

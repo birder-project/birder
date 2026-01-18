@@ -60,12 +60,12 @@ class Transformer(nn.Module):
         )
 
     def forward(self, xt: tuple[torch.Tensor, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
-        (x, cls_tokens) = xt
+        x, cls_tokens = xt
         token_length = cls_tokens.shape[1]
         if self.pool is not None:
-            (x, cls_tokens) = self.pool(x, cls_tokens)
+            x, cls_tokens = self.pool(x, cls_tokens)
 
-        (B, C, H, W) = x.size()
+        B, C, H, W = x.size()
         x = x.flatten(2).transpose(1, 2)
         x = torch.concat((cls_tokens, x), dim=1)
         x = self.encoder(x)
@@ -197,7 +197,7 @@ class PiT(DetectorBackbone):
 
         out = {}
         for name, module in self.body.named_children():
-            (x, cls_tokens) = module((x, cls_tokens))
+            x, cls_tokens = module((x, cls_tokens))
             if name in self.return_stages:
                 out[name] = x
 
@@ -218,12 +218,12 @@ class PiT(DetectorBackbone):
         x = self.stem(x)
         x = x + self.pos_embed
         cls_tokens = self.cls_token.expand(x.shape[0], -1, -1)
-        (x, cls_tokens) = self.body((x, cls_tokens))
+        x, cls_tokens = self.body((x, cls_tokens))
 
         return (x, cls_tokens)
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        (_, cls_tokens) = self.forward_features(x)
+        _, cls_tokens = self.forward_features(x)
         cls_tokens = self.norm(cls_tokens)
 
         return cls_tokens

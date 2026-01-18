@@ -182,7 +182,7 @@ def fuse_detections_wbf_single(
     scores_list = [detection["scores"] for detection in detections]
     labels_list = [detection["labels"] for detection in detections]
 
-    (boxes, scores, labels) = weighted_boxes_fusion(
+    boxes, scores, labels = weighted_boxes_fusion(
         boxes_list,
         scores_list,
         labels_list,

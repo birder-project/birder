@@ -234,7 +234,7 @@ class TransformerEncoderLayer(nn.Module):
         q = src + pos
         k = src + pos
 
-        (src2, _) = self.self_attn(q, k, value=src, key_padding_mask=key_padding_mask, need_weights=False)
+        src2, _ = self.self_attn(q, k, value=src, key_padding_mask=key_padding_mask, need_weights=False)
         src = src + self.dropout1(src2)
         src = self.norm1(src)
 
@@ -268,7 +268,7 @@ class AIFI(nn.Module):
         self._pos_cache.clear()
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
-        (B, C, H, W) = x.size()
+        B, C, H, W = x.size()
         x = x.flatten(2).permute(0, 2, 1)
 
         use_cache = self.use_cache is True and torch.jit.is_tracing() is False and torch.jit.is_scripting() is False
@@ -522,7 +522,7 @@ class RT_DETRDecoder(nn.Module):
         spatial_shapes: list[list[int]],
         memory_padding_mask: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        (anchors, valid_mask) = self._generate_anchors(spatial_shapes, device=memory.device, dtype=memory.dtype)
+        anchors, valid_mask = self._generate_anchors(spatial_shapes, device=memory.device, dtype=memory.dtype)
         if memory_padding_mask is not None:
             valid_mask = valid_mask & ~memory_padding_mask.unsqueeze(-1)
 
@@ -535,7 +535,7 @@ class RT_DETRDecoder(nn.Module):
         enc_outputs_coord_unact = self.enc_bbox_head(output_memory) + anchors
 
         # Select top-k queries based on classification confidence
-        (_, topk_ind) = torch.topk(enc_outputs_class.max(dim=-1).values, self.num_queries, dim=1)
+        _, topk_ind = torch.topk(enc_outputs_class.max(dim=-1).values, self.num_queries, dim=1)
 
         # Gather reference points
         reference_points_unact = enc_outputs_coord_unact.gather(
@@ -577,7 +577,7 @@ class RT_DETRDecoder(nn.Module):
         memory_padding_mask = torch.concat(mask_flatten, dim=1) if mask_flatten else None
 
         # Get decoder input (query selection)
-        (target, init_ref_points_unact, enc_topk_bboxes, enc_topk_logits) = self._get_decoder_input(
+        target, init_ref_points_unact, enc_topk_bboxes, enc_topk_logits = self._get_decoder_input(
             memory, spatial_shapes, memory_padding_mask
         )
 
@@ -858,7 +858,7 @@ class RT_DETR_v1(DetectionBaseNet):
             loss_ce = self._class_loss(
                 dn_out_logits[layer_idx], dn_out_bboxes[layer_idx], targets, indices, dn_num_boxes
             )
-            (loss_bbox, loss_giou) = self._box_loss(dn_out_bboxes[layer_idx], targets, indices, dn_num_boxes)
+            loss_bbox, loss_giou = self._box_loss(dn_out_bboxes[layer_idx], targets, indices, dn_num_boxes)
 
             loss_ce_list.append(loss_ce)
             loss_bbox_list.append(loss_bbox)
@@ -899,7 +899,7 @@ class RT_DETR_v1(DetectionBaseNet):
         for layer_idx in range(out_logits.shape[0]):
             indices = self.matcher(out_logits[layer_idx], out_bboxes[layer_idx], targets)
             loss_ce = self._class_loss(out_logits[layer_idx], out_bboxes[layer_idx], targets, indices, num_boxes)
-            (loss_bbox, loss_giou) = self._box_loss(out_bboxes[layer_idx], targets, indices, num_boxes)
+            loss_bbox, loss_giou = self._box_loss(out_bboxes[layer_idx], targets, indices, num_boxes)
             loss_ce_list.append(loss_ce)
             loss_bbox_list.append(loss_bbox)
             loss_giou_list.append(loss_giou)
@@ -907,7 +907,7 @@ class RT_DETR_v1(DetectionBaseNet):
         # Encoder auxiliary loss
         enc_indices = self.matcher(enc_topk_logits, enc_topk_bboxes, targets)
         loss_ce_enc = self._class_loss(enc_topk_logits, enc_topk_bboxes, targets, enc_indices, num_boxes)
-        (loss_bbox_enc, loss_giou_enc) = self._box_loss(enc_topk_bboxes, targets, enc_indices, num_boxes)
+        loss_bbox_enc, loss_giou_enc = self._box_loss(enc_topk_bboxes, targets, enc_indices, num_boxes)
         loss_ce_list.append(loss_ce_enc)
         loss_bbox_list.append(loss_bbox_enc)
         loss_giou_list.append(loss_giou_enc)
@@ -918,7 +918,7 @@ class RT_DETR_v1(DetectionBaseNet):
 
         # Add denoising loss if available
         if dn_out_bboxes is not None and dn_out_logits is not None and dn_meta is not None:
-            (loss_ce_dn, loss_bbox_dn, loss_giou_dn) = self._compute_denoising_loss(
+            loss_ce_dn, loss_bbox_dn, loss_giou_dn = self._compute_denoising_loss(
                 dn_out_bboxes, dn_out_logits, targets, dn_meta, num_boxes
             )
             loss_ce = loss_ce + loss_ce_dn
@@ -952,9 +952,9 @@ class RT_DETR_v1(DetectionBaseNet):
             targets[idx]["boxes"] = boxes
             targets[idx]["labels"] = target["labels"] - 1  # No background
 
-        (denoising_class, denoising_bbox_unact, attn_mask, dn_meta) = self._prepare_cdn_queries(targets)
+        denoising_class, denoising_bbox_unact, attn_mask, dn_meta = self._prepare_cdn_queries(targets)
 
-        (out_bboxes, out_logits, enc_topk_bboxes, enc_topk_logits) = self.decoder(
+        out_bboxes, out_logits, enc_topk_bboxes, enc_topk_logits = self.decoder(
             encoder_features,
             spatial_shapes,
             level_start_index,
@@ -965,7 +965,7 @@ class RT_DETR_v1(DetectionBaseNet):
         )
 
         if dn_meta is not None:
-            (dn_num_split, _num_queries) = dn_meta["dn_num_split"]
+            dn_num_split, _num_queries = dn_meta["dn_num_split"]
             dn_out_bboxes = out_bboxes[:, :, :dn_num_split]
             dn_out_logits = out_logits[:, :, :dn_num_split]
             out_bboxes = out_bboxes[:, :, dn_num_split:]
@@ -984,9 +984,7 @@ class RT_DETR_v1(DetectionBaseNet):
         self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_shapes: list[tuple[int, int]]
     ) -> list[dict[str, torch.Tensor]]:
         prob = class_logits.sigmoid()
-        (topk_values, topk_indexes) = torch.topk(
-            prob.view(class_logits.shape[0], -1), k=self.decoder.num_queries, dim=1
-        )
+        topk_values, topk_indexes = torch.topk(prob.view(class_logits.shape[0], -1), k=self.decoder.num_queries, dim=1)
         scores = topk_values
         topk_boxes = topk_indexes // class_logits.shape[2]
         labels = topk_indexes % class_logits.shape[2]
@@ -999,7 +997,7 @@ class RT_DETR_v1(DetectionBaseNet):
         boxes = torch.gather(boxes, 1, topk_boxes.unsqueeze(-1).repeat(1, 1, 4))
 
         # Convert from relative [0, 1] to absolute [0, height] coordinates
-        (img_h, img_w) = target_sizes.unbind(1)
+        img_h, img_w = target_sizes.unbind(1)
         scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
         boxes = boxes * scale_fct[:, None, :]
 
@@ -1056,7 +1054,7 @@ class RT_DETR_v1(DetectionBaseNet):
                 mask_size = feat.shape[-2:]
                 m = F.interpolate(masks[None].float(), size=mask_size, mode="nearest").to(torch.bool)[0]
             else:
-                (B, _, H, W) = feat.size()
+                B, _, H, W = feat.size()
                 m = torch.zeros(B, H, W, dtype=torch.bool, device=x.device)
             mask_list.append(m)
 
@@ -1080,7 +1078,7 @@ class RT_DETR_v1(DetectionBaseNet):
             losses = self.compute_loss(encoder_features, spatial_shapes, level_start_index, targets, images, mask_list)
         else:
             # Inference path - no CDN
-            (out_bboxes, out_logits, _, _) = self.decoder(
+            out_bboxes, out_logits, _, _ = self.decoder(
                 encoder_features, spatial_shapes, level_start_index, padding_mask=mask_list
             )
             detections = self.postprocess_detections(out_logits[-1], out_bboxes[-1], images.image_sizes)

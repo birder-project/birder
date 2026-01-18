@@ -144,7 +144,7 @@ class MobileOneBlock(nn.Module):
         if self.reparameterized is True:
             return
 
-        (kernel, bias) = self._get_kernel_bias()
+        kernel, bias = self._get_kernel_bias()
         self.reparam_conv = nn.Conv2d(
             in_channels=self.in_channels,
             out_channels=self.out_channels,
@@ -178,7 +178,7 @@ class MobileOneBlock(nn.Module):
         kernel_scale = 0
         bias_scale = 0
         if self.rbr_scale is not None:
-            (kernel_scale, bias_scale) = self._fuse_bn_tensor(self.rbr_scale)
+            kernel_scale, bias_scale = self._fuse_bn_tensor(self.rbr_scale)
             pad = self.kernel_size // 2
             kernel_scale = F.pad(kernel_scale, [pad, pad, pad, pad])
 
@@ -186,13 +186,13 @@ class MobileOneBlock(nn.Module):
         kernel_identity = 0
         bias_identity = 0
         if self.rbr_skip is not None:
-            (kernel_identity, bias_identity) = self._fuse_bn_tensor(self.rbr_skip)
+            kernel_identity, bias_identity = self._fuse_bn_tensor(self.rbr_skip)
 
         # Get weights and bias of conv branches
         kernel_conv = 0
         bias_conv = 0
         for ix in range(self.num_conv_branches):
-            (_kernel, _bias) = self._fuse_bn_tensor(self.rbr_conv[ix])
+            _kernel, _bias = self._fuse_bn_tensor(self.rbr_conv[ix])
             kernel_conv += _kernel
             bias_conv += _bias
 

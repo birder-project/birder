@@ -59,7 +59,7 @@ def decode_predictions(
     Decoded predictions (N, H*W*num_anchors, 5 + num_classes).
     """
 
-    (N, _, H, W) = predictions.size()
+    N, _, H, W = predictions.size()
     num_anchors = anchors.shape[0]
     stride_h = strides[0]
     stride_w = strides[1]
@@ -124,8 +124,8 @@ def compute_ciou_loss(pred_boxes: torch.Tensor, target_boxes: torch.Tensor, eps:
     """
 
     # Extract coordinates
-    (pred_x1, pred_y1, pred_x2, pred_y2) = pred_boxes.unbind(dim=-1)
-    (target_x1, target_y1, target_x2, target_y2) = target_boxes.unbind(dim=-1)
+    pred_x1, pred_y1, pred_x2, pred_y2 = pred_boxes.unbind(dim=-1)
+    target_x1, target_y1, target_x2, target_y2 = target_boxes.unbind(dim=-1)
 
     # Calculate box dimensions (clamped for stability)
     pred_w = torch.clamp(pred_x2 - pred_x1, min=eps)
@@ -247,7 +247,7 @@ class YOLONeck(nn.Module):
 
     def __init__(self, in_channels: list[int]) -> None:
         super().__init__()
-        (c3, c4, c5) = in_channels
+        c3, c4, c5 = in_channels
 
         # Top-down pathway (FPN-like) with SPP
         self.p5_pre_spp = YOLONeckBlock(c5, c5 // 2, num_layers=3)
@@ -339,7 +339,7 @@ class YOLONeck(nn.Module):
 
     def forward(self, features: dict[str, torch.Tensor]) -> list[torch.Tensor]:
         feature_list = list(features.values())
-        (c3, c4, c5) = feature_list[-3:]
+        c3, c4, c5 = feature_list[-3:]
 
         # Top-down pathway with SPP
         p5 = self.p5_pre_spp(c5)
@@ -505,7 +505,7 @@ class YOLO_v4(DetectionBaseNet):
         grid_sizes: list[tuple[int, int]] = []
         stride_tensors: list[torch.Tensor] = []
         for scale_idx in range(num_scales):
-            (_, _, H, W) = predictions[scale_idx].size()
+            _, _, H, W = predictions[scale_idx].size()
             grid_sizes.append((H, W))
             stride_tensors.append(strides[scale_idx])
 
@@ -514,7 +514,7 @@ class YOLO_v4(DetectionBaseNet):
         obj_masks: list[torch.Tensor] = []
         noobj_masks: list[torch.Tensor] = []
         for scale_idx in range(num_scales):
-            (H, W) = grid_sizes[scale_idx]
+            H, W = grid_sizes[scale_idx]
             num_anchors_scale = anchors_per_scale[scale_idx]
             target_tensors.append(
                 torch.zeros((batch_size, num_anchors_scale, H, W, 5 + self.num_classes), device=device, dtype=dtype)
@@ -551,7 +551,7 @@ class YOLO_v4(DetectionBaseNet):
                 if not mask.any():
                     continue
 
-                (H, W) = grid_sizes[scale_idx]
+                H, W = grid_sizes[scale_idx]
                 stride_h, stride_w = stride_tensors[scale_idx][0], stride_tensors[scale_idx][1]
                 anchors_scale = anchors[scale_idx]
 
@@ -600,13 +600,13 @@ class YOLO_v4(DetectionBaseNet):
 
             # Compute ignore mask: anchors with IoU > ignore_thresh should not contribute to noobj_loss
             for scale_idx in range(num_scales):
-                (H, W) = grid_sizes[scale_idx]
+                H, W = grid_sizes[scale_idx]
                 stride_h, stride_w = stride_tensors[scale_idx][0], stride_tensors[scale_idx][1]
                 anchors_scale = anchors[scale_idx]
                 num_anchors_scale = anchors_per_scale[scale_idx]
 
                 # Create grid of anchor box centers
-                (grid_y, grid_x) = torch.meshgrid(
+                grid_y, grid_x = torch.meshgrid(
                     torch.arange(H, device=device, dtype=dtype),
                     torch.arange(W, device=device, dtype=dtype),
                     indexing="ij",
@@ -646,7 +646,7 @@ class YOLO_v4(DetectionBaseNet):
         anchors: list[torch.Tensor],
         strides: list[torch.Tensor],
     ) -> dict[str, torch.Tensor]:
-        (target_tensors, obj_masks, noobj_masks) = self._build_targets(predictions, targets, anchors, strides)
+        target_tensors, obj_masks, noobj_masks = self._build_targets(predictions, targets, anchors, strides)
 
         device = predictions[0].device
         anchors_per_scale = self.anchor_generator.num_anchors_per_location()
@@ -657,7 +657,7 @@ class YOLO_v4(DetectionBaseNet):
 
         num_obj = 0
         for scale_idx, pred in enumerate(predictions):
-            (N, _, H, W) = pred.size()
+            N, _, H, W = pred.size()
             num_anchors_scale = anchors_per_scale[scale_idx]
             stride_h = strides[scale_idx][0]
             stride_w = strides[scale_idx][1]
@@ -757,7 +757,7 @@ class YOLO_v4(DetectionBaseNet):
 
             # Combine objectness and class scores
             scores = objectness.unsqueeze(-1) * class_scores
-            (scores, labels) = scores.max(dim=-1)
+            scores, labels = scores.max(dim=-1)
             labels = labels + 1  # Add background offset
 
             # Filter by score threshold
@@ -803,7 +803,7 @@ class YOLO_v4(DetectionBaseNet):
         features = self.backbone.detection_features(x)
         neck_features = self.neck(features)
         predictions = self.head(neck_features)
-        (anchors, grids, strides) = self.anchor_generator(images, neck_features)
+        anchors, grids, strides = self.anchor_generator(images, neck_features)
 
         losses: dict[str, torch.Tensor] = {}
         detections: list[dict[str, torch.Tensor]] = []

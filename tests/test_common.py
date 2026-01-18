@@ -978,10 +978,10 @@ class TestMasking(unittest.TestCase):
         x = torch.arange(1, 65)
         x = x.reshape(1, -1, 1).expand(2, -1, 80)
 
-        (N, L, D) = x.size()  # batch, length, dim
+        N, L, D = x.size()  # batch, length, dim
         h = int(math.sqrt(L))
         w = h
-        (mask, ids_keep, ids_restore) = masking.uniform_mask(N, h, w, mask_ratio=0.75, device=x.device)
+        mask, ids_keep, ids_restore = masking.uniform_mask(N, h, w, mask_ratio=0.75, device=x.device)
         x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
 
         # Test x masked
@@ -1090,7 +1090,7 @@ class TestMasking(unittest.TestCase):
         min_mask_size = 2
         mask_ratio = 0.75
 
-        (mask, ids_keep, ids_restore) = masking.uniform_mask(
+        mask, ids_keep, ids_restore = masking.uniform_mask(
             batch_size, h, w, mask_ratio=mask_ratio, min_mask_size=min_mask_size
         )
 

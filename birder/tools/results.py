@@ -125,7 +125,7 @@ def print_most_confused_pairs(most_confused_df: pl.DataFrame) -> None:
 
 def convert_to_sparse(results_file: str, sparse_k: int) -> None:
     logger.info(f"Converting {results_file} to sparse format (k={sparse_k})...")
-    (_, detected_sparse_k) = detect_file_format(results_file)
+    _, detected_sparse_k = detect_file_format(results_file)
 
     if detected_sparse_k is not None:
         logger.info(f"File is already in sparse format (with k={detected_sparse_k}). Skipping conversion.")
@@ -233,7 +233,7 @@ def main(args: argparse.Namespace) -> None:
             logger.warning("Cannot print mistakes in compare mode. processing only the first file")
 
         if args.imperfect_only is True:
-            (result_name, results) = next(iter(results_dict.items()))
+            result_name, results = next(iter(results_dict.items()))
             mistake_prediction_indices = results.mistakes["prediction"].unique().to_numpy().tolist()
             mistake_label_indices = results.mistakes["label"].unique().to_numpy().tolist()
             imperfect_class_indices = np.unique(mistake_prediction_indices + mistake_label_indices).tolist()

@@ -308,7 +308,7 @@ class SimpleFeaturePyramidNetwork(nn.Module):
             names.append(f"stage{idx+1}")
 
         if self.extra_blocks is not None:
-            (results, names) = self.extra_blocks(results, [x], names)
+            results, names = self.extra_blocks(results, [x], names)
 
         out = OrderedDict(list(zip(names, results)))
 
@@ -432,7 +432,7 @@ class BoxCoder:
         ctr_x = boxes[:, 0] + 0.5 * widths
         ctr_y = boxes[:, 1] + 0.5 * heights
 
-        (wx, wy, ww, wh) = self.weights
+        wx, wy, ww, wh = self.weights
         dx = rel_codes[:, 0::4] / wx
         dy = rel_codes[:, 1::4] / wy
         dw = rel_codes[:, 2::4] / ww
@@ -510,8 +510,8 @@ class AnchorGenerator(nn.Module):
         )
 
         for size, stride, base_anchors in zip(grid_sizes, strides, cell_anchors):
-            (grid_height, grid_width) = size
-            (stride_height, stride_width) = stride
+            grid_height, grid_width = size
+            stride_height, stride_width = stride
             device = base_anchors.device
 
             # For output anchor, compute [x_center, y_center, x_center, y_center]

@@ -43,7 +43,7 @@ def interpolate_rel_pos_bias_table(
     if new_resolution == base_resolution:
         return rel_pos_bias_table
 
-    (base_h, base_w) = base_resolution
+    base_h, base_w = base_resolution
     num_heads = rel_pos_bias_table.size(1)
     orig_dtype = rel_pos_bias_table.dtype
     bias_table = rel_pos_bias_table.float()
@@ -130,9 +130,9 @@ class RelPosAttention(nn.Module):
         return relative_position_bias.unsqueeze(0)
 
     def forward(self, x: torch.Tensor, resolution: tuple[int, int]) -> torch.Tensor:
-        (B, N, C) = x.size()
+        B, N, C = x.size()
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.unbind(0)
+        q, k, v = qkv.unbind(0)
 
         attn = (q * self.scale) @ k.transpose(-2, -1)
         attn = attn + self._get_rel_pos_bias(resolution)
@@ -195,8 +195,8 @@ class DeformablePatchMerging(nn.Module):
         nn.init.zeros_(self.offset_conv.bias)
 
     def forward(self, x: torch.Tensor, resolution: tuple[int, int]) -> tuple[torch.Tensor, int, int]:
-        (H, W) = resolution
-        (B, _, C) = x.size()
+        H, W = resolution
+        B, _, C = x.size()
 
         x = x.reshape(B, H, W, C).permute(0, 3, 1, 2).contiguous()
 
@@ -206,7 +206,7 @@ class DeformablePatchMerging(nn.Module):
         x = self.norm(x)
         x = self.act(x)
 
-        (B, C, H, W) = x.size()
+        B, C, H, W = x.size()
         x = x.permute(0, 2, 3, 1).reshape(B, H * W, C)
 
         return (x, H, W)
@@ -252,7 +252,7 @@ class LITStage(nn.Module):
                 block.set_dynamic_size(dynamic_size)
 
     def forward(self, x: torch.Tensor, input_resolution: tuple[int, int]) -> tuple[torch.Tensor, int, int]:
-        (x, H, W) = self.downsample(x, input_resolution)
+        x, H, W = self.downsample(x, input_resolution)
         for block in self.blocks:
             x = block(x, (H, W))
 
@@ -361,12 +361,12 @@ class LIT_v1(DetectorBackbone):
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)
-        (B, H, W, C) = x.size()
+        B, H, W, C = x.size()
         x = x.reshape(B, H * W, C)
 
         out = {}
         for name, stage in self.body.items():
-            (x, H, W) = stage(x, (H, W))
+            x, H, W = stage(x, (H, W))
             if name in self.return_stages:
                 features = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
                 out[name] = features
@@ -386,10 +386,10 @@ class LIT_v1(DetectorBackbone):
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
-        (B, H, W, C) = x.size()
+        B, H, W, C = x.size()
         x = x.reshape(B, H * W, C)
         for stage in self.body.values():
-            (x, H, W) = stage(x, (H, W))
+            x, H, W = stage(x, (H, W))
 
         return x
 
@@ -410,7 +410,7 @@ class LIT_v1(DetectorBackbone):
 
         new_patches_resolution = (new_size[0] // self.patch_size, new_size[1] // self.patch_size)
 
-        (h, w) = new_patches_resolution
+        h, w = new_patches_resolution
         for stage in self.body.values():
             if not isinstance(stage.downsample, IdentityDownsample):
                 h = h // 2

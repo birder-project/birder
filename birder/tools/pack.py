@@ -114,7 +114,7 @@ def read_worker(q_in: Any, q_out: Any, error_event: Any, size: Optional[int], fi
             break
 
         try:
-            (idx, path, target) = deq
+            idx, path, target = deq
             if size is None:
                 suffix = Path(path).suffix[1:]
                 if file_format != suffix:
@@ -172,7 +172,7 @@ def wds_write_worker(
             while more:
                 deq: Optional[tuple[int, bytes, str, int]] = q_out.get()
                 if deq is not None:
-                    (idx, sample, suffix, target) = deq
+                    idx, sample, suffix, target = deq
                     buf[idx] = (sample, suffix, target)
 
                 else:
@@ -180,7 +180,7 @@ def wds_write_worker(
 
                 # Ensures ordered write
                 while count in buf:
-                    (sample, suffix, target) = buf[count]
+                    sample, suffix, target = buf[count]
                     del buf[count]
 
                     if args.no_cls is True:
@@ -238,7 +238,7 @@ def directory_write_worker(
             while more:
                 deq: Optional[tuple[int, bytes, str, int]] = q_out.get()
                 if deq is not None:
-                    (idx, sample, suffix, target) = deq
+                    idx, sample, suffix, target = deq
                     buf[idx] = (sample, suffix, target)
 
                 else:
@@ -246,7 +246,7 @@ def directory_write_worker(
 
                 # Ensures ordered write
                 while count in buf:
-                    (sample, suffix, target) = buf[count]
+                    sample, suffix, target = buf[count]
                     del buf[count]
                     with open(
                         pack_path.joinpath(idx_to_class[target]).joinpath(f"{count:06d}.{suffix}"), "wb"
@@ -274,7 +274,7 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
             if len(line.strip()) == 0 or line.strip().startswith("#") is True:
                 continue
 
-            (data_path, r) = line.split()
+            data_path, r = line.split()
             data_path = os.path.expanduser(data_path)
             repeats = int(r)
             for _ in range(repeats):
@@ -391,7 +391,7 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
                     cleanup_processes()
                     raise RuntimeError()
 
-            (path, target) = dataset[sample_idx]
+            path, target = dataset[sample_idx]
 
             while True:
                 try:
@@ -430,7 +430,7 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
             raise RuntimeError()
 
         if args.type == "wds":
-            (wds_path, num_shards) = fs_ops.wds_braces_from_path(pack_path, prefix=f"{args.suffix}-{args.split}")
+            wds_path, num_shards = fs_ops.wds_braces_from_path(pack_path, prefix=f"{args.suffix}-{args.split}")
             logger.info(f"Packed {len(dataset):,} samples into {num_shards} shards at {wds_path}")
         elif args.type == "directory":
             logger.info(f"Packed {len(dataset):,} samples")

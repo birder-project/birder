@@ -227,8 +227,8 @@ def update_annotation_table(_ctx):
     Add new classes to the annotations status table
     """
 
-    (training_detection_count, _) = detection_object_count(settings.TRAINING_DETECTION_ANNOTATIONS_PATH)
-    (validation_detection_count, _) = detection_object_count(settings.VALIDATION_DETECTION_ANNOTATIONS_PATH)
+    training_detection_count, _ = detection_object_count(settings.TRAINING_DETECTION_ANNOTATIONS_PATH)
+    validation_detection_count, _ = detection_object_count(settings.VALIDATION_DETECTION_ANNOTATIONS_PATH)
 
     class_list = _class_list()
     column_class = "class"
@@ -589,7 +589,7 @@ def model_pre_publish(  # pylint: disable=too-many-locals
 
     if backbone is not None:
         network_name = fs_ops.get_detection_network_name(model, tag, backbone, backbone_tag)
-        (net, model_info) = fs_ops.load_detection_model(
+        net, model_info = fs_ops.load_detection_model(
             torch.device("cpu"),
             model,
             tag=tag,
@@ -603,7 +603,7 @@ def model_pre_publish(  # pylint: disable=too-many-locals
 
     else:
         network_name = fs_ops.get_network_name(model, tag)
-        (net, model_info) = fs_ops.load_model(
+        net, model_info = fs_ops.load_model(
             torch.device("cpu"),
             model,
             tag=tag,
@@ -717,7 +717,7 @@ def sam_from_vit(_ctx, network, tag=None, epoch=None, det=False):
 
     # Load model
     device = torch.device("cpu")
-    (net, model_info) = fs_ops.load_model(device, network, tag=tag, epoch=epoch, inference=False)
+    net, model_info = fs_ops.load_model(device, network, tag=tag, epoch=epoch, inference=False)
     size = lib.get_size_from_signature(model_info.signature)
     channels = lib.get_channels_from_signature(model_info.signature)
 
@@ -762,7 +762,7 @@ def hieradet_from_hiera(_ctx, network, tag=None, epoch=None):
 
     # Load model
     device = torch.device("cpu")
-    (net, model_info) = fs_ops.load_model(device, network, tag=tag, epoch=epoch, inference=False)
+    net, model_info = fs_ops.load_model(device, network, tag=tag, epoch=epoch, inference=False)
     size = lib.get_size_from_signature(model_info.signature)
     channels = lib.get_channels_from_signature(model_info.signature)
 
@@ -804,7 +804,7 @@ def flexivit_from_vit(_ctx, network, tag=None, epoch=None):
 
     # Load model
     device = torch.device("cpu")
-    (net, model_info) = fs_ops.load_model(device, network, tag=tag, epoch=epoch, inference=False)
+    net, model_info = fs_ops.load_model(device, network, tag=tag, epoch=epoch, inference=False)
     size = lib.get_size_from_signature(model_info.signature)
     channels = lib.get_channels_from_signature(model_info.signature)
 

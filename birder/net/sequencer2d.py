@@ -57,16 +57,16 @@ class LSTM2d(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, H, W, C) = x.shape
+        B, H, W, C = x.shape
 
         v = x.permute(0, 2, 1, 3)
         v = v.reshape(-1, H, C)
-        (v, _) = self.rnn_v(v)
+        v, _ = self.rnn_v(v)
         v = v.reshape(B, W, H, -1)
         v = v.permute(0, 2, 1, 3)
 
         h = x.reshape(-1, W, C)
-        (h, _) = self.rnn_h(h)
+        h, _ = self.rnn_h(h)
         h = h.reshape(B, H, W, -1)
 
         x = torch.concat([v, h], dim=-1)

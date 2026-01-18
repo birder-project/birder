@@ -32,7 +32,7 @@ def similarity(args: argparse.Namespace) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device {device}")
 
-    (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
+    net, (class_to_idx, signature, rgb_stats, *_) = fs_ops.load_model(
         device, args.network, tag=args.tag, epoch=args.epoch, inference=True, reparameterized=args.reparameterized
     )
 
@@ -53,7 +53,7 @@ def similarity(args: argparse.Namespace) -> None:
         for file_paths, inputs, _targets in inference_loader:
             # Predict
             inputs = inputs.to(device)
-            (_out, embedding) = classification.infer_batch(net, inputs, return_embedding=True)
+            _out, embedding = classification.infer_batch(net, inputs, return_embedding=True)
             embedding_list.append(embedding)  # type: ignore[arg-type]
             sample_paths.extend(file_paths)
 
@@ -64,7 +64,7 @@ def similarity(args: argparse.Namespace) -> None:
 
     toc = time.time()
     rate = len(dataset) / (toc - tic)
-    (minutes, seconds) = divmod(toc - tic, 60)
+    minutes, seconds = divmod(toc - tic, 60)
     logger.info(f"{int(minutes):0>2}m{seconds:04.1f}s to classify {len(dataset)} samples ({rate:.2f} samples/sec)")
 
     logger.info("Processing similarity...")
@@ -82,7 +82,7 @@ def similarity(args: argparse.Namespace) -> None:
         distance_arr = distance_matrix(tsne_embeddings_arr, tsne_embeddings_arr)
         distance_arr = squareform(distance_arr)
 
-    (sample_1, sample_2) = list(zip(*combinations(sample_paths, 2)))
+    sample_1, sample_2 = list(zip(*combinations(sample_paths, 2)))
     distance_df = pl.DataFrame(
         {
             "sample_1": sample_1,
@@ -97,7 +97,7 @@ def similarity(args: argparse.Namespace) -> None:
         args.limit = len(distance_df)
 
     for idx, pair in enumerate(distance_df[: args.limit].iter_rows(named=True)):
-        (fig, (ax1, ax2)) = plt.subplots(2, 1)
+        fig, (ax1, ax2) = plt.subplots(2, 1)
         ax1.imshow(Image.open(pair["sample_1"]))
         ax1.set_title(pair["sample_1"])
         ax2.imshow(Image.open(pair["sample_2"]))

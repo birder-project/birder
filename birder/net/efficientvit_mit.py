@@ -293,7 +293,7 @@ class LiteMLA(nn.Module):
         return out.to(dtype)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, _, H, W) = x.size()
+        B, _, H, W = x.size()
 
         # Generate multi-scale q, k, v
         qkv = self.qkv(x)
@@ -303,7 +303,7 @@ class LiteMLA(nn.Module):
 
         multi_scale_qkv = torch.concat(multi_scale_qkv_list, dim=1)
         multi_scale_qkv = multi_scale_qkv.reshape(B, -1, 3 * self.dim, H * W).transpose(-1, -2)
-        (q, k, v) = multi_scale_qkv.chunk(3, dim=-1)
+        q, k, v = multi_scale_qkv.chunk(3, dim=-1)
 
         # Lightweight global attention
         q = self.kernel_func(q)

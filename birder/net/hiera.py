@@ -67,7 +67,7 @@ def undo_windowing(x: torch.Tensor, shape: tuple[int, int], mu_shape: list[int])
     """
 
     D = len(shape)
-    (B, C) = x.shape[0], x.shape[-1]
+    B, C = x.shape[0], x.shape[-1]
     # [B, #MUy*#MUx, MUy, MUx, C] -> [B, #MUy, #MUx, MUy, MUx, C]
     num_mu = [s // mu for s, mu in zip(shape, mu_shape)]
     x = x.view(B, *num_mu, *mu_shape, C)
@@ -138,7 +138,7 @@ class Unroll(nn.Module):
         Output: patch embeddings [B, N, C] permuted such that [B, 4, N//4, C].max(1) etc. performs MaxPoolNd
         """
 
-        (B, _, C) = x.shape
+        B, _, C = x.shape
         cur_size = self.size
         x = x.view(B, *cur_size, C)
 
@@ -205,8 +205,8 @@ class Reroll(nn.Module):
             - Returns [B, #MUs, MUy, MUx, C] for 2d, etc.
         """
 
-        (schedule, size) = self.schedule[block_idx]
-        (B, N, C) = x.size()
+        schedule, size = self.schedule[block_idx]
+        B, N, C = x.size()
 
         D = len(size)
         cur_mu_shape = [1] * D
@@ -264,14 +264,14 @@ class MaskUnitAttention(nn.Module):
         self.proj = nn.Linear(dim_out, dim_out)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, N, _) = x.shape
+        B, N, _ = x.shape
         if self.use_mask_unit_attn is True:
             num_windows = N // (self.q_stride * self.window_size)
         else:
             num_windows = 1
 
         qkv = self.qkv(x).reshape(B, -1, num_windows, 3, self.heads, self.head_dim).permute(3, 0, 4, 2, 1, 5)
-        (q, k, v) = qkv.unbind(0)
+        q, k, v = qkv.unbind(0)
 
         if self.q_stride > 1:
             # Refer to Unroll to see how this performs a maxpool-Nd

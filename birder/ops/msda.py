@@ -91,8 +91,8 @@ def _ms_deform_attn_setup_context(  # type: ignore[no-untyped-def] # pylint: dis
 
 
 def _ms_deform_attn_backward(ctx, grad_output):  # type: ignore[no-untyped-def]
-    (value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights) = ctx.saved_tensors
-    (grad_value, grad_sampling_loc, grad_attn_weight) = ms_deform_attn_backward_op(
+    value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights = ctx.saved_tensors
+    grad_value, grad_sampling_loc, grad_attn_weight = ms_deform_attn_backward_op(
         value,
         value_spatial_shapes,
         value_level_start_index,
@@ -160,8 +160,8 @@ def multi_scale_deformable_attention(
     attention_weights: torch.Tensor,
     im2col_step: int,  # pylint: disable=unused-argument
 ) -> torch.Tensor:
-    (batch_size, _, num_heads, hidden_dim) = value.size()
-    (_, num_queries, num_heads, num_levels, num_points, _) = sampling_locations.size()
+    batch_size, _, num_heads, hidden_dim = value.size()
+    _, num_queries, num_heads, num_levels, num_points, _ = sampling_locations.size()
     areas: list[int] = value_spatial_shapes.prod(dim=1).tolist()
     value_list = value.split(areas, dim=1)
     sampling_grids = 2 * sampling_locations - 1

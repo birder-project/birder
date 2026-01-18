@@ -38,7 +38,7 @@ def _swattention_qk_rpb_fake(  # pylint: disable=unused-argument
 def _swattention_qk_rpb_setup_context(  # type: ignore[no-untyped-def] # pylint: disable=unused-argument
     ctx, inputs, output
 ) -> None:
-    (query, key, _rpb, height, width, kernel_size) = inputs
+    query, key, _rpb, height, width, kernel_size = inputs
     ctx.save_for_backward(query, key)
     ctx.height = height
     ctx.width = width
@@ -46,8 +46,8 @@ def _swattention_qk_rpb_setup_context(  # type: ignore[no-untyped-def] # pylint:
 
 
 def _swattention_qk_rpb_backward(ctx, grad_output):  # type: ignore[no-untyped-def]
-    (query, key) = ctx.saved_tensors
-    (d_query, d_key, d_rpb) = swattention_qk_rpb_backward_op(
+    query, key = ctx.saved_tensors
+    d_query, d_key, d_rpb = swattention_qk_rpb_backward_op(
         grad_output.contiguous(), query, key, ctx.height, ctx.width, ctx.kernel_size
     )
     return (d_query, d_key, d_rpb, None, None, None)
@@ -107,8 +107,8 @@ def _swattention_av_setup_context(  # type: ignore[no-untyped-def] # pylint: dis
 
 
 def _swattention_av_backward(ctx, grad_output):  # type: ignore[no-untyped-def]
-    (attn_weight, value) = ctx.saved_tensors
-    (d_attn_weight, d_value) = swattention_av_backward_op(
+    attn_weight, value = ctx.saved_tensors
+    d_attn_weight, d_value = swattention_av_backward_op(
         grad_output.contiguous(), attn_weight, value, ctx.height, ctx.width, ctx.kernel_size
     )
     return (d_attn_weight, d_value, None, None, None)
@@ -184,10 +184,10 @@ class SWAttention_QK_RPB(nn.Module):
             )
 
         # Custom kernel
-        (B, N, _) = kv.size()
+        B, N, _ = kv.size()
 
         # Generate unfolded keys and values and l2-normalize them
-        (k_local, v_local) = kv.reshape(B, N, 2 * num_heads, head_dim).permute(0, 2, 1, 3).chunk(2, dim=1)
+        k_local, v_local = kv.reshape(B, N, 2 * num_heads, head_dim).permute(0, 2, 1, 3).chunk(2, dim=1)
 
         # Compute local similarity
         attn_local = swattention_qk_rpb_op(
@@ -254,14 +254,14 @@ def swattention_qk_rpb(
     H: int,
     W: int,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    (B, N, _) = kv.size()
+    B, N, _ = kv.size()
 
     # Generate unfolded keys and values and l2-normalize them
-    (k_local, v_local) = kv.chunk(2, dim=-1)
+    k_local, v_local = kv.chunk(2, dim=-1)
     k_local = F.normalize(k_local.reshape(B, N, num_heads, head_dim), dim=-1).reshape(B, N, -1)
     kv_local = torch.concat([k_local, v_local], dim=-1).permute(0, 2, 1).reshape(B, -1, H, W)
 
-    (k_local, v_local) = (
+    k_local, v_local = (
         F.unfold(kv_local, kernel_size=window_size, padding=window_size // 2, stride=1)
         .reshape(B, 2 * num_heads, head_dim, local_len, N)
         .permute(0, 1, 4, 2, 3)

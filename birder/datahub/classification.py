@@ -63,7 +63,7 @@ class TestDataset(ImageFolder):
         super().__init__(self._root.joinpath(split), transform, target_transform, loader, is_valid_file)
 
     def __getitem__(self, index: int) -> tuple[str, torch.Tensor, Any]:
-        (path, target) = self.samples[index]
+        path, target = self.samples[index]
         sample = self.loader(path)
         if self.transform is not None:
             sample = self.transform(sample)
@@ -122,7 +122,7 @@ class Flowers102(ImageFolder):
         super().__init__(self._root.joinpath(split), transform, target_transform, loader, is_valid_file)
 
     def __getitem__(self, index: int) -> tuple[str, torch.Tensor, Any]:
-        (path, target) = self.samples[index]
+        path, target = self.samples[index]
         sample = self.loader(path)
         if self.transform is not None:
             sample = self.transform(sample)
@@ -182,7 +182,7 @@ class CUB_200_2011(ImageFolder):
         super().__init__(self._root.joinpath(split), transform, target_transform, loader, is_valid_file)
 
     def __getitem__(self, index: int) -> tuple[str, torch.Tensor, Any]:
-        (path, target) = self.samples[index]
+        path, target = self.samples[index]
         sample = self.loader(path)
         if self.transform is not None:
             sample = self.transform(sample)

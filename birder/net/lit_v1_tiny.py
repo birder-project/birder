@@ -48,9 +48,9 @@ class Attention(nn.Module):
         self.proj = nn.Linear(dim, dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, N, C) = x.size()
+        B, N, C = x.size()
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.unbind(0)
+        q, k, v = qkv.unbind(0)
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = F.softmax(attn, dim=-1)
@@ -139,7 +139,7 @@ class LITStage(nn.Module):
         )
 
     def forward(self, x: torch.Tensor, input_resolution: tuple[int, int]) -> tuple[torch.Tensor, int, int]:
-        (x, H, W) = self.downsample(x, input_resolution)
+        x, H, W = self.downsample(x, input_resolution)
 
         if self.cls_token is not None:
             cls_tokens = self.cls_token.expand(x.size(0), -1, -1)
@@ -247,12 +247,12 @@ class LIT_v1_Tiny(DetectorBackbone):
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)
-        (B, H, W, C) = x.size()
+        B, H, W, C = x.size()
         x = x.reshape(B, H * W, C)
 
         out = {}
         for name, stage in self.body.items():
-            (x, H, W) = stage(x, (H, W))
+            x, H, W = stage(x, (H, W))
             if name in self.return_stages:
                 if stage.cls_token is not None:
                     spatial_x = x[:, 1:]
@@ -276,10 +276,10 @@ class LIT_v1_Tiny(DetectorBackbone):
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
-        (B, H, W, C) = x.size()
+        B, H, W, C = x.size()
         x = x.reshape(B, H * W, C)
         for stage in self.body.values():
-            (x, H, W) = stage(x, (H, W))
+            x, H, W = stage(x, (H, W))
 
         return x
 
@@ -301,7 +301,7 @@ class LIT_v1_Tiny(DetectorBackbone):
 
         new_patches_resolution = (new_size[0] // self.patch_size, new_size[1] // self.patch_size)
 
-        (h, w) = new_patches_resolution
+        h, w = new_patches_resolution
         for stage in self.body.values():
             if not isinstance(stage.downsample, IdentityDownsample):
                 h = h // 2

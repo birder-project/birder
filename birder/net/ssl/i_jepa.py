@@ -69,11 +69,11 @@ class MultiBlockMasking:
     ) -> tuple[int, int]:
         _rand = torch.rand(1).item()
 
-        (min_s, max_s) = scale
+        min_s, max_s = scale
         mask_scale = min_s + _rand * (max_s - min_s)
         max_keep = int(self.height * self.width * mask_scale)
 
-        (min_ar, max_ar) = aspect_ratio_scale
+        min_ar, max_ar = aspect_ratio_scale
         aspect_ratio = min_ar + _rand * (max_ar - min_ar)
 
         # Compute block height and width (given scale and aspect-ratio)
@@ -154,7 +154,7 @@ class MultiBlockMasking:
             masks_p = []
             masks_c = []
             for _ in range(self.n_pred):
-                (mask, mask_c) = self._sample_block_mask(p_size)
+                mask, mask_c = self._sample_block_mask(p_size)
                 masks_p.append(mask)
                 masks_c.append(mask_c)
                 min_keep_pred = min(min_keep_pred, len(mask))
@@ -167,7 +167,7 @@ class MultiBlockMasking:
 
             masks_e = []
             for _ in range(self.n_enc):
-                (mask, _) = self._sample_block_mask(e_size, acceptable_regions=acceptable_regions)
+                mask, _ = self._sample_block_mask(e_size, acceptable_regions=acceptable_regions)
                 masks_e.append(mask)
                 min_keep_enc = min(min_keep_enc, len(mask))
 

@@ -29,7 +29,7 @@ from birder.net.vit import PatchEmbed
 
 
 def img2windows(img: torch.Tensor, h_sp: int, w_sp: int) -> torch.Tensor:
-    (B, C, H, W) = img.size()
+    B, C, H, W = img.size()
     img_reshape = img.view(B, C, H // h_sp, h_sp, W // w_sp, w_sp)
     img_perm = img_reshape.permute(0, 2, 4, 3, 5, 1).contiguous().reshape(-1, h_sp * w_sp, C)
 
@@ -81,7 +81,7 @@ class LePEAttention(nn.Module):
             raise ValueError("unsupported idx")
 
     def im2cswin(self, x: torch.Tensor) -> torch.Tensor:
-        (B, _, C) = x.size()
+        B, _, C = x.size()
         x = x.transpose(-2, -1).contiguous().view(B, C, self.resolution[0], self.resolution[1])
         x = img2windows(x, self.h_sp, self.w_sp)
         x = x.reshape(-1, self.h_sp * self.w_sp, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3).contiguous()
@@ -89,7 +89,7 @@ class LePEAttention(nn.Module):
         return x
 
     def get_lepe(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        (B, _, C) = x.size()
+        B, _, C = x.size()
         H = self.resolution[0]
         W = self.resolution[1]
         x = x.transpose(-2, -1).contiguous().view(B, C, H, W)
@@ -107,13 +107,13 @@ class LePEAttention(nn.Module):
         return (x, lepe)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (q, k, v) = x.unbind(0)
+        q, k, v = x.unbind(0)
 
-        (B, _, C) = q.shape
+        B, _, C = q.shape
 
         q = self.im2cswin(q)
         k = self.im2cswin(k)
-        (v, lepe) = self.get_lepe(v)
+        v, lepe = self.get_lepe(v)
 
         q = q * self.scale
         attn = q @ k.transpose(-2, -1)  # B head N C @ B head C N --> B head N N
@@ -136,12 +136,12 @@ class MergeBlock(nn.Module):
         self.resolution = resolution
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, _, C) = x.size()
+        B, _, C = x.size()
         H = self.resolution[0]
         W = self.resolution[1]
         x = x.transpose(-2, -1).contiguous().view(B, C, H, W)
         x = self.conv(x)
-        (B, C) = x.shape[:2]
+        B, C = x.shape[:2]
         x = x.view(B, C, -1).transpose(-2, -1).contiguous()
         x = self.norm(x)
 
@@ -206,7 +206,7 @@ class CSWinBlock(nn.Module):
         self.drop_path = StochasticDepth(drop_path, mode="row")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, _, C) = x.shape
+        B, _, C = x.shape
 
         qkv = self.qkv(self.norm1(x)).reshape(B, -1, 3, C).permute(2, 0, 1, 3)
         if self.branch_num == 2:
@@ -350,7 +350,7 @@ class CSWin_Transformer(DetectorBackbone):
         for name, module in self.body.named_children():
             x = module(x)
             if name in self.return_stages:
-                (B, L, C) = x.size()
+                B, L, C = x.size()
                 H = int(math.sqrt(L))
                 W = H
                 out[name] = x.transpose(-2, -1).contiguous().view(B, C, H, W)

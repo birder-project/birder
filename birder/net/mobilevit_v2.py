@@ -63,7 +63,7 @@ class LinearSelfAttention(nn.Module):
         # Project x into query, key and value
         # Query --> [B, 1, P, N]
         # value, key --> [B, d, P, N]
-        (query, key, value) = qkv.split([1, self.embed_dim, self.embed_dim], dim=1)
+        query, key, value = qkv.split([1, self.embed_dim, self.embed_dim], dim=1)
 
         # apply softmax along N dimension
         context_scores = F.softmax(query, dim=-1)
@@ -166,8 +166,8 @@ class MobileVitBlock(nn.Module):
         self.patch_area = self.patch_size[0] * self.patch_size[1]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, C, H, W) = x.shape
-        (patch_h, patch_w) = self.patch_size
+        B, C, H, W = x.shape
+        patch_h, patch_w = self.patch_size
         new_h = math.ceil(H / patch_h) * patch_h
         new_w = math.ceil(W / patch_w) * patch_w
         num_patch_h, num_patch_w = new_h // patch_h, new_w // patch_w  # n_h, n_w

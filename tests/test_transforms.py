@@ -39,7 +39,7 @@ class TestTransforms(unittest.TestCase):
 
         # Mixup module
         mixup = classification.RandomMixup(5, 0.2, 1.0)
-        (samples, targets) = mixup(torch.rand((2, 3, 96, 96)), torch.tensor([0, 1], dtype=torch.int64))
+        samples, targets = mixup(torch.rand((2, 3, 96, 96)), torch.tensor([0, 1], dtype=torch.int64))
         self.assertSequenceEqual(targets.size(), (2, 5))
         self.assertSequenceEqual(samples.size(), (2, 3, 96, 96))
         repr(mixup)
@@ -89,10 +89,10 @@ class TestMosaic(unittest.TestCase):
         return (images, targets)
 
     def test_mosaic_random_center(self) -> None:
-        (images, targets) = self._create_dummy_data()
+        images, targets = self._create_dummy_data()
         output_size = (300, 300)
 
-        (out_img, out_target) = mosaic.mosaic_random_center(images, targets, output_size, fill_value=(114, 114, 114))
+        out_img, out_target = mosaic.mosaic_random_center(images, targets, output_size, fill_value=(114, 114, 114))
 
         self.assertEqual(out_img.size, output_size)
         self.assertIsInstance(out_target["boxes"], tv_tensors.BoundingBoxes)
@@ -107,16 +107,16 @@ class TestMosaic(unittest.TestCase):
 
         # Empty targets
         empty_targets = [{"boxes": torch.zeros((0, 4)), "labels": torch.zeros((0,))} for _ in range(4)]
-        (_, out_target_empty) = mosaic.mosaic_random_center(images, empty_targets, output_size, fill_value=0)
+        _, out_target_empty = mosaic.mosaic_random_center(images, empty_targets, output_size, fill_value=0)
         self.assertEqual(len(out_target_empty["boxes"]), 0)
         self.assertEqual(len(out_target_empty["labels"]), 0)
 
     def test_mosaic_fixed_grid(self) -> None:
-        (images, targets) = self._create_dummy_data()
+        images, targets = self._create_dummy_data()
         output_size = (300, 300)
 
         # Crop to square
-        (out_img, out_target) = mosaic.mosaic_fixed_grid(
+        out_img, out_target = mosaic.mosaic_fixed_grid(
             images, targets, output_size, fill_value=114, crop_to_square=True
         )
 
@@ -124,12 +124,12 @@ class TestMosaic(unittest.TestCase):
         self.assertIsInstance(out_target["boxes"], tv_tensors.BoundingBoxes)
 
         # Aspect ratio limit
-        (out_img_ar, _) = mosaic.mosaic_fixed_grid(
+        out_img_ar, _ = mosaic.mosaic_fixed_grid(
             images, targets, output_size, fill_value=114, crop_to_square=False, max_aspect_ratio=1.5
         )
         self.assertEqual(out_img_ar.size, output_size)
 
         # Missing keys handling
         empty_targets: list[dict[str, Any]] = [{} for _ in range(4)]
-        (_, out_target_empty) = mosaic.mosaic_fixed_grid(images, empty_targets, output_size, fill_value=0)
+        _, out_target_empty = mosaic.mosaic_fixed_grid(images, empty_targets, output_size, fill_value=0)
         self.assertEqual(out_target_empty["boxes"].shape, (0, 4))

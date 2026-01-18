@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.18.1
+      jupytext_version: 1.19.0
   kernelspec:
     display_name: birder
     language: python
@@ -187,7 +187,7 @@ mim = []
 dist = []
 ssl = []
 for file_name in compare_results_df["File name"]:
-    (model_name, model_type, count, intermediate_trn, mim_trn, dist_trn, ssl_trn) = get_model_name_and_num_parameters(
+    model_name, model_type, count, intermediate_trn, mim_trn, dist_trn, ssl_trn = get_model_name_and_num_parameters(
         file_name
     )
     num_param.append(count / 1e6)

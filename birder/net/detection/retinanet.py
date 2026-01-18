@@ -120,7 +120,7 @@ class RetinaNetClassificationHead(nn.Module):
             cls_logits = self.cls_logits(cls_logits)
 
             # Permute classification output from (N, A * K, H, W) to (N, HWA, K).
-            (N, _, H, W) = cls_logits.shape
+            N, _, H, W = cls_logits.shape
             cls_logits = cls_logits.view(N, -1, self.num_classes, H, W)
             cls_logits = cls_logits.permute(0, 3, 4, 1, 2)
             cls_logits = cls_logits.reshape(N, -1, self.num_classes)  # Size=(N, HWA, K)
@@ -202,7 +202,7 @@ class RetinaNetRegressionHead(nn.Module):
             bbox_regression = self.bbox_reg(bbox_regression)
 
             # Permute bbox regression output from (N, 4 * A, H, W) to (N, HWA, 4).
-            (N, _, H, W) = bbox_regression.size()
+            N, _, H, W = bbox_regression.size()
             bbox_regression = bbox_regression.view(N, -1, 4, H, W)
             bbox_regression = bbox_regression.permute(0, 3, 4, 1, 2)
             bbox_regression = bbox_regression.reshape(N, -1, 4)  # Size=(N, HWA, 4)
@@ -395,7 +395,7 @@ class RetinaNet(DetectionBaseNet):
 
                 # Keep only topk scoring predictions
                 num_topk = min(self.topk_candidates, int(topk_idxs.size(0)))
-                (scores_per_level, idxs) = scores_per_level.topk(num_topk)
+                scores_per_level, idxs = scores_per_level.topk(num_topk)
                 topk_idxs = topk_idxs[idxs]
 
                 anchor_idxs = torch.div(topk_idxs, num_classes, rounding_mode="floor")
@@ -417,7 +417,7 @@ class RetinaNet(DetectionBaseNet):
 
             # Non-maximum suppression
             if self.soft_nms is not None:
-                (soft_scores, keep) = self.soft_nms(image_boxes, image_scores, image_labels, score_threshold=0.001)
+                soft_scores, keep = self.soft_nms(image_boxes, image_scores, image_labels, score_threshold=0.001)
                 image_scores[keep] = soft_scores
             else:
                 keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)

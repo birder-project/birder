@@ -142,24 +142,24 @@ class MultiQueryAttention(nn.Module):
         self.output = nn.Sequential(*output_layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, C, H, W) = x.size()
+        B, C, H, W = x.size()
         q = self.query(x)
         q = q.reshape(B, self.num_heads, self.key_dim, -1)
         q = q.transpose(-1, -2).contiguous()
 
         k = self.key(x)
-        (B, C, _, _) = k.size()
+        B, C, _, _ = k.size()
         k = k.reshape(B, C, -1).transpose(1, 2)
         k = k.unsqueeze(1).contiguous()
 
         v = self.value(x)
-        (B, C, _, _) = v.size()
+        B, C, _, _ = v.size()
         v = v.reshape(B, C, -1).transpose(1, 2)
         v = v.unsqueeze(1).contiguous()
 
         # Calculate attention score
         attn_score = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0)  # pylint: disable=not-callable
-        (B, _, _, C) = attn_score.size()
+        B, _, _, C = attn_score.size()
         feat_dim = C * self.num_heads
         attn_score = attn_score.transpose(1, 2)
         attn_score = (

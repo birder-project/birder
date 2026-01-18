@@ -75,7 +75,7 @@ def infer_batch(
         embedding = embedding_tensor.cpu().float().numpy()
 
     elif tta is True:
-        (_, _, H, W) = inputs.size()
+        _, _, H, W = inputs.size()
         crop_h = int(H * 0.8)
         crop_w = int(W * 0.8)
         tta_inputs = five_crop(inputs, size=[crop_h, crop_w])
@@ -137,7 +137,7 @@ def infer_dataloader_iter(
             inputs = inputs.to(device, dtype=model_dtype)
 
             with torch.amp.autocast(device.type, enabled=amp, dtype=amp_dtype):
-                (out, embedding) = infer_batch(
+                out, embedding = infer_batch(
                     net, inputs, return_embedding=return_embedding, tta=tta, return_logits=return_logits, **kwargs
                 )
 
@@ -394,7 +394,7 @@ def evaluate(
     num_samples: Optional[int] = None,
     sparse: bool = False,
 ) -> Results | SparseResults:
-    (sample_paths, outs, labels, _) = infer_dataloader(
+    sample_paths, outs, labels, _ = infer_dataloader(
         device, net, dataloader, tta=tta, model_dtype=model_dtype, amp=amp, amp_dtype=amp_dtype, num_samples=num_samples
     )
     if sparse is True:

@@ -40,7 +40,7 @@ class FeaturePCA:
         self.stage = stage
 
     def __call__(self, image: str | Path | Image.Image) -> InterpretabilityResult:
-        (input_tensor, rgb_img) = preprocess_image(image, self.transform, self.device)
+        input_tensor, rgb_img = preprocess_image(image, self.transform, self.device)
 
         with torch.inference_mode():
             features_dict = self.net.detection_features(input_tensor)
@@ -54,11 +54,11 @@ class FeaturePCA:
 
         # Handle channels_last format (B, H, W, C) vs channels_first (B, C, H, W)
         if self.channels_last is True:
-            (B, H, W, C) = features_np.shape
+            B, H, W, C = features_np.shape
             # Already in (B, H, W, C), just reshape to (B*H*W, C)
             features_reshaped = features_np.reshape(-1, C)
         else:
-            (B, C, H, W) = features_np.shape
+            B, C, H, W = features_np.shape
             # Reshape to (spatial_points, channels) for PCA
             features_reshaped = features_np.reshape(B, C, -1)
             features_reshaped = features_reshaped.transpose(0, 2, 1)  # (B, H*W, C)

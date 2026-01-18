@@ -195,13 +195,13 @@ class HSMSSD(nn.Module):
         batch_size = x.size(0)
 
         bc_dt = self.dw(self.bc_dt_proj(x).view(batch_size, -1, H, W)).flatten(2)
-        (B, C, dt) = torch.split(bc_dt, [self.state_dim, self.state_dim, self.state_dim], dim=1)
+        B, C, dt = torch.split(bc_dt, [self.state_dim, self.state_dim, self.state_dim], dim=1)
         A = F.softmax(dt + self.A.view(1, -1, 1), dim=-1)
 
         AB = A * B
         h = x @ AB.transpose(-2, -1)
 
-        (h, z) = torch.split(self.hz_proj(h), [self.d_inner, self.d_inner], dim=1)
+        h, z = torch.split(self.hz_proj(h), [self.d_inner, self.d_inner], dim=1)
         h = self.out_proj(h * self.act(z) + h * self.D)
         y = h @ C
 
@@ -240,9 +240,9 @@ class EfficientViMBlock(nn.Module):
         x = (1 - alpha[0]) * x + alpha[0] * self.dwconv1(x)
 
         # HSM-SSD
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
         x_prev = x
-        (x, h) = self.mixer(self.norm(x.flatten(2)), H, W)
+        x, h = self.mixer(self.norm(x.flatten(2)), H, W)
         x = (1 - alpha[1]) * x_prev + alpha[1] * x
 
         # DWConv2
@@ -289,7 +289,7 @@ class EfficientViMStage(nn.Module):
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         x = self.downsample(x)
         for blk in self.blocks:
-            (x, h) = blk(x)
+            x, h = blk(x)
 
         return (x, h)
 
@@ -410,7 +410,7 @@ class EfficientViM(DetectorBackbone):
         x = self.stem(x)
         out = {}
         for name, module in self.body.named_children():
-            (x, _) = module(x)
+            x, _ = module(x)
             if name in self.return_stages:
                 out[name] = x
 
@@ -438,13 +438,13 @@ class EfficientViM(DetectorBackbone):
         x = self.stem(x)
         hs = []
         for stage in self.body:
-            (x, h) = stage(x)
+            x, h = stage(x)
             hs.append(h)
 
         return (x, hs)
 
     def embedding(self, x: torch.Tensor) -> tuple[torch.Tensor, list[torch.Tensor]]:
-        (x, hs) = self.forward_features(x)
+        x, hs = self.forward_features(x)
         x = self.norm(x)
         x = F.adaptive_avg_pool2d(x, 1).flatten(1)
 
@@ -464,7 +464,7 @@ class EfficientViM(DetectorBackbone):
         return z
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (x, hs) = self.embedding(x)
+        x, hs = self.embedding(x)
         return self.classify(x, hs)
 
 

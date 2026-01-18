@@ -76,7 +76,7 @@ class PatchEmbed(nn.Module):
         The entire forward is equivalent to x.flatten(2).transpose(1, 2)
         """
 
-        (n, hidden_dim, h, w) = x.size()
+        n, hidden_dim, h, w = x.size()
 
         # (n, hidden_dim, h, w) -> (n, hidden_dim, (h * w))
         x = x.reshape(n, hidden_dim, h * w)
@@ -155,9 +155,9 @@ class Attention(nn.Module):
             - attn_weights: If need_weights is True attention weights, otherwise, None.
         """
 
-        (B, N, C) = x.size()
+        B, N, C = x.size()
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.unbind(0)
+        q, k, v = qkv.unbind(0)
         q = self.q_norm(q)
         k = self.k_norm(k)
 
@@ -245,7 +245,7 @@ class EncoderBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # torch._assert(x.dim() == 3, f"Expected (batch_size, seq_length, hidden_dim) got {x.size()}")
-        (attn_out, _) = self.attn(
+        attn_out, _ = self.attn(
             self.norm1(x),
             need_weights=self.need_attn,
             average_attn_weights=False,
@@ -538,7 +538,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         self.encoder.set_causal_attention(is_causal)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
@@ -563,7 +563,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
 
         x = x[:, self.num_special_tokens :]
         x = x.permute(0, 2, 1)
-        (B, C, _) = x.size()
+        B, C, _ = x.size()
         x = x.reshape(B, C, H // self.patch_size, W // self.patch_size)
 
         return {self.return_stages[0]: x}
@@ -589,7 +589,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         return_all_features: bool = False,
         return_keys: Literal["all", "tokens", "embedding"] = "tokens",
     ) -> TokenOmissionResultType:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
@@ -663,7 +663,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         mask_token: Optional[torch.Tensor] = None,
         return_keys: Literal["all", "features", "embedding"] = "features",
     ) -> TokenRetentionResultType:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
 
         x = self.conv_proj(x)
         x = mask_tensor(x, mask, mask_token=mask_token, patch_factor=self.max_stride // self.stem_stride)
@@ -694,7 +694,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         if return_keys in ("all", "features"):
             features = x[:, self.num_special_tokens :]
             features = features.permute(0, 2, 1)
-            (B, C, _) = features.size()
+            B, C, _ = features.size()
             features = features.reshape(B, C, H // self.patch_size, W // self.patch_size)
             result["features"] = features
 
@@ -714,7 +714,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         return result
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
-        (H, W) = x.shape[-2:]
+        H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
         x = self.conv_proj(x)

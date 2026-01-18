@@ -92,7 +92,7 @@ def _load_coco_boxes(
             stats["missing_images"] += 1
             continue
 
-        (img_w, img_h, file_name) = images[image_id]
+        img_w, img_h, file_name = images[image_id]
         if file_name in ignore_list:
             stats["ignored_images"] += 1
             continue
@@ -244,10 +244,10 @@ def _validate_args(
 
 # pylint: disable=too-many-locals
 def auto_anchors(args: argparse.Namespace) -> None:
-    (size, num_scales, num_anchors, output_format, strides) = _validate_args(args)
+    size, num_scales, num_anchors, output_format, strides = _validate_args(args)
 
     ignore_list = _load_ignore_list(args.ignore_file)
-    (boxes, stats) = _load_coco_boxes(
+    boxes, stats = _load_coco_boxes(
         args.coco_json_path, size, ignore_list, args.min_size, ignore_crowd=not args.include_crowd
     )
 
@@ -262,7 +262,7 @@ def auto_anchors(args: argparse.Namespace) -> None:
         f"missing_size={stats['missing_size']}, too_small={stats['too_small']}"
     )
 
-    (anchors, _assignments) = _kmeans_anchors(boxes, num_anchors, args.seed, args.max_iter)
+    anchors, _assignments = _kmeans_anchors(boxes, num_anchors, args.seed, args.max_iter)
     areas = anchors.prod(dim=1)
     anchors = anchors[torch.argsort(areas)]
     anchors_per_scale = num_anchors // num_scales

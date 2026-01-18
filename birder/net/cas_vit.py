@@ -122,7 +122,7 @@ class AdditiveTokenMixer(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (q, k, v) = self.qkv(x).chunk(3, dim=1)
+        q, k, v = self.qkv(x).chunk(3, dim=1)
         q = self.op_q(q)
         k = self.op_k(k)
 

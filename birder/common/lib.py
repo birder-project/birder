@@ -157,6 +157,6 @@ def get_pretrained_model_url(weights: str, file_format: str) -> tuple[str, str]:
 
 def format_duration(seconds: float) -> str:
     s = int(seconds)
-    (mm, ss) = divmod(s, 60)
-    (hh, mm) = divmod(mm, 60)
+    mm, ss = divmod(s, 60)
+    hh, mm = divmod(mm, 60)
     return f"{hh:d}:{mm:02d}:{ss:02d}"

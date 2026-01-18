@@ -45,7 +45,7 @@ class Subsample(nn.Module):
         self.resolution = resolution
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, _, C) = x.shape
+        B, _, C = x.shape
         x = x.view(B, self.resolution[0], self.resolution[1], C)
         x = x[:, :: self.stride, :: self.stride]
         return x.reshape(B, -1, C)
@@ -84,7 +84,7 @@ class Attention(nn.Module):
         self.attention_bias_idxs = nn.Buffer(rel_pos, persistent=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, N, _) = x.shape
+        B, N, _ = x.shape
         q, k, v = self.qkv(x).view(B, N, self.num_heads, -1).split([self.key_dim, self.key_dim, self.val_dim], dim=3)
         q = q.permute(0, 2, 1, 3)
         k = k.permute(0, 2, 3, 1)
@@ -144,7 +144,7 @@ class AttentionSubsample(nn.Module):
         self.attention_bias_idxs = nn.Buffer(rel_pos, persistent=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, N, _) = x.shape
+        B, N, _ = x.shape
         k, v = self.kv(x).view(B, N, self.num_heads, -1).split([self.key_dim, self.val_dim], dim=3)
         k = k.permute(0, 2, 3, 1)  # BHCN
         v = v.permute(0, 2, 1, 3)  # BHNC

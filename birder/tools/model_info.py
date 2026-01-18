@@ -73,7 +73,7 @@ def main(args: argparse.Namespace) -> None:
     signature: SignatureType | DetectionSignatureType
     backbone_custom_config = None
     if args.backbone is None:
-        (net, (class_to_idx, signature, rgb_stats, custom_config)) = fs_ops.load_model(
+        net, (class_to_idx, signature, rgb_stats, custom_config) = fs_ops.load_model(
             device,
             args.network,
             tag=args.tag,
@@ -86,19 +86,17 @@ def main(args: argparse.Namespace) -> None:
         )
 
     else:
-        (net, (class_to_idx, signature, rgb_stats, custom_config, backbone_custom_config)) = (
-            fs_ops.load_detection_model(
-                device,
-                args.network,
-                tag=args.tag,
-                backbone=args.backbone,
-                backbone_tag=args.backbone_tag,
-                epoch=args.epoch,
-                inference=True,
-                pts=args.pts,
-                pt2=args.pt2,
-                st=args.st,
-            )
+        net, (class_to_idx, signature, rgb_stats, custom_config, backbone_custom_config) = fs_ops.load_detection_model(
+            device,
+            args.network,
+            tag=args.tag,
+            backbone=args.backbone,
+            backbone_tag=args.backbone_tag,
+            epoch=args.epoch,
+            inference=True,
+            pts=args.pts,
+            pt2=args.pt2,
+            st=args.st,
         )
 
     model_info = get_model_info(net)

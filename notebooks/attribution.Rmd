@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.17.2
+      jupytext_version: 1.19.0
   kernelspec:
     display_name: birder
     language: python
@@ -56,9 +56,7 @@ tag = "raw384px"
 
 ```{python}
 device = torch.device("cpu")
-(net, (class_to_idx, signature, rgb_stats, _)) = fs_ops.load_model(
-    device, network, epoch=epoch, tag=tag, inference=True
-)
+net, (class_to_idx, signature, rgb_stats, _) = fs_ops.load_model(device, network, epoch=epoch, tag=tag, inference=True)
 idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
 size = lib.get_size_from_signature(signature)
 transform = inference_preset(size, rgb_stats, 1.0)
@@ -75,7 +73,7 @@ input_tensor = transform(img).unsqueeze(dim=0).to(device)
 
 ```{python}
 output = F.softmax(net(input_tensor), dim=1)
-(prob, class_idx) = torch.topk(output, k=1)
+prob, class_idx = torch.topk(output, k=1)
 class_idx.squeeze_()
 prob.squeeze_()
 

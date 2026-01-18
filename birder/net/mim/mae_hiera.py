@@ -26,7 +26,7 @@ def apply_fusion_head(head: nn.Module, x: torch.Tensor) -> torch.Tensor:
     if isinstance(head, nn.Identity):
         return x
 
-    (B, num_mask_units) = x.shape[0:2]
+    B, num_mask_units = x.shape[0:2]
 
     # Apply head, e.g [B, #MUs, My, Mx, C] -> head([B * #MUs, C, My, Mx])
     permute = [0] + [len(x.shape) - 2] + list(range(1, len(x.shape) - 2))
@@ -169,7 +169,7 @@ class MAE_Hiera(MIMBaseNet):
 
     def forward_encoder(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         # Tokens selected for masking at mask unit level
-        (mask, _, _) = uniform_mask(
+        mask, _, _ = uniform_mask(
             x.size(0),
             self.encoder.mask_spatial_shape[0],
             self.encoder.mask_spatial_shape[1],
@@ -179,7 +179,7 @@ class MAE_Hiera(MIMBaseNet):
         )
 
         # Get multi-scale representations from encoder
-        (intermediates, mask) = self.encoder.masked_encoding(x, mask)
+        intermediates, mask = self.encoder.masked_encoding(x, mask)
 
         # Resolution unchanged after q_pool stages, so skip those features
         intermediates = intermediates[: self.encoder.q_pool] + intermediates[-1:]
@@ -206,12 +206,12 @@ class MAE_Hiera(MIMBaseNet):
         # Get back spatial order
         x = undo_windowing(
             x_dec,
-            self.tokens_spatial_shape_final,  # type:ignore[arg-type]
+            self.tokens_spatial_shape_final,  # type: ignore[arg-type]
             self.mask_unit_spatial_shape_final,
         )
         mask = undo_windowing(
             mask[..., 0:1],
-            self.tokens_spatial_shape_final,  # type:ignore[arg-type]
+            self.tokens_spatial_shape_final,  # type: ignore[arg-type]
             self.mask_unit_spatial_shape_final,
         )
 
@@ -240,8 +240,8 @@ class MAE_Hiera(MIMBaseNet):
         return loss.mean()
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        (latent, mask) = self.forward_encoder(x)
-        (pred, pred_mask) = self.forward_decoder(latent, mask)
+        latent, mask = self.forward_encoder(x)
+        pred, pred_mask = self.forward_decoder(latent, mask)
         loss = self.forward_loss(x, pred, ~pred_mask)
 
         return {"loss": loss, "pred": pred, "mask": mask}

@@ -263,11 +263,11 @@ class CrossAttention(nn.Module):
         self.proj = nn.Linear(decoder_dim, decoder_dim)
 
     def forward(self, tgt: torch.Tensor, memory: torch.Tensor) -> torch.Tensor:
-        (B, N, C) = tgt.size()
+        B, N, C = tgt.size()
         n_kv = memory.size(1)
         q = self.q(tgt).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
         kv = self.kv(memory).reshape(B, n_kv, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        (k, v) = kv.unbind(0)
+        k, v = kv.unbind(0)
 
         attn = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0)  # pylint: disable=not-callable
         x = attn.transpose(1, 2).reshape(B, N, C)
@@ -419,7 +419,7 @@ class CAPITeacher(SSLBaseNet):
             x = self.backbone.masked_encoding_omission(x, ids_keep)["tokens"]
 
         x = x[:, self.backbone.num_special_tokens :, :]
-        (assignments, clustering_loss) = self.head(x.transpose(0, 1))
+        assignments, clustering_loss = self.head(x.transpose(0, 1))
 
         assignments = assignments.detach().transpose(0, 1)
         row_indices = torch.arange(B).unsqueeze(1).expand_as(ids_predict)

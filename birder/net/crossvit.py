@@ -74,7 +74,7 @@ class CrossAttention(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, N, C) = x.shape
+        B, N, C = x.shape
         # B1C -> B1H(C/H) -> BH1(C/H)
         q = self.wq(x[:, 0:1, ...]).reshape(B, 1, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
         # BNC -> BNH(C/H) -> BHN(C/H)

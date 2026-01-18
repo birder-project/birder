@@ -335,7 +335,7 @@ class HGNet_v1(DetectorBackbone):
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
         for i, stage_config in enumerate(stages_cfg):
-            (in_ch, mid_ch, out_ch, blocks, downsample, light_block, k, num_layers) = stage_config
+            in_ch, mid_ch, out_ch, blocks, downsample, light_block, k, num_layers = stage_config
             stages[f"stage{i+1}"] = HighPerfGPUStage(
                 in_channels=in_ch,
                 mid_channels=mid_ch,

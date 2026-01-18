@@ -53,7 +53,7 @@ class Attention(nn.Module):
         self.attention_bias_idxs = nn.Buffer(rel_pos)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, N, _) = x.shape
+        B, N, _ = x.shape
         qkv = self.qkv(x)
         qkv = qkv.reshape(B, N, self.num_heads, -1).permute(0, 2, 1, 3)
         q, k, v = qkv.split([self.key_dim, self.key_dim, self.val_dim], dim=3)

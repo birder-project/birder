@@ -21,7 +21,7 @@ from birder.net.ssl.base import SSLBaseNet
 
 def off_diagonal(x: torch.Tensor) -> torch.Tensor:
     # Return a flattened view of the off-diagonal elements of a square matrix
-    (n, _) = x.size()
+    n, _ = x.size()
     # assert n == m
     return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
 

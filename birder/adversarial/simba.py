@@ -87,7 +87,7 @@ class SimBA:
         if self._is_successful(current_logits, label, target_label):
             return adv_inputs.detach(), num_queries
 
-        (_, channels, height, width) = adv_inputs.shape
+        _, channels, height, width = adv_inputs.shape
         num_dims = channels * height * width
         step = pixel_eps_to_normalized(self.step_size, self.rgb_stats, device=adv_inputs.device, dtype=adv_inputs.dtype)
         step_vals = step.view(-1)  # Per-channel steps
@@ -98,11 +98,11 @@ class SimBA:
 
         # Coordinate-wise search in random order
         for flat_idx in perm[:num_steps]:
-            (c, rem) = divmod(int(flat_idx.item()), stride)
-            (h, w) = divmod(rem, width)
+            c, rem = divmod(int(flat_idx.item()), stride)
+            h, w = divmod(rem, width)
             step_val = step_vals[c]
 
-            (candidate_inputs, candidate_logits, candidate_objective) = self._best_candidate(
+            candidate_inputs, candidate_logits, candidate_objective = self._best_candidate(
                 adv_inputs, c, h, w, step_val, label, target_label
             )
             num_queries += 2

@@ -32,7 +32,7 @@ def _create_annotation(
     annotation["image_id"] = image_id
 
     # Bounding box in (x, y, w, h) format
-    (xmin, ymin, xmax, ymax) = points
+    xmin, ymin, xmax, ymax = points
     assert xmax > xmin and ymax > ymin
     w = xmax - xmin
     h = ymax - ymin

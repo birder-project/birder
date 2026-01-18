@@ -66,7 +66,7 @@ def compute_attribution_rollout(
 
     mask = mask / (mask.max() + 1e-8)
 
-    (grid_h, grid_w) = patch_grid_shape
+    grid_h, grid_w = patch_grid_shape
     mask = mask.reshape(grid_h, grid_w)
 
     return mask
@@ -140,7 +140,7 @@ class TransformerAttribution:
         self.gatherer = AttributionGatherer(net, attention_layer_name)
 
     def __call__(self, image: str | Path | Image.Image, target_class: Optional[int] = None) -> InterpretabilityResult:
-        (input_tensor, rgb_img) = preprocess_image(image, self.transform, self.device)
+        input_tensor, rgb_img = preprocess_image(image, self.transform, self.device)
         input_tensor.requires_grad_(True)
 
         self.net.zero_grad()
@@ -156,7 +156,7 @@ class TransformerAttribution:
 
         attribution_data = self.gatherer.get_captured_data()
 
-        (_, _, H, W) = input_tensor.shape
+        _, _, H, W = input_tensor.shape
         patch_grid_shape = (H // self.net.stem_stride, W // self.net.stem_stride)
 
         attribution_map = compute_attribution_rollout(

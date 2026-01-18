@@ -58,8 +58,8 @@ class TestOps(unittest.TestCase):
         scores = torch.tensor([0.9, 0.8, 0.7, 0.85])
         class_ids = torch.tensor([0, 0, 1, 0])
 
-        (op_scores, op_keep) = soft_nms(boxes, scores.clone(), class_ids)
-        (fb_scores, fb_keep) = batched_soft_nms(boxes, scores.clone(), class_ids)
+        op_scores, op_keep = soft_nms(boxes, scores.clone(), class_ids)
+        fb_scores, fb_keep = batched_soft_nms(boxes, scores.clone(), class_ids)
 
         torch.testing.assert_close(op_scores, fb_scores, rtol=1e-5, atol=1e-6)
         torch.testing.assert_close(op_keep, fb_keep, rtol=0, atol=0)
@@ -69,8 +69,8 @@ class TestOps(unittest.TestCase):
         empty_scores = torch.empty(0)
         empty_ids = torch.empty(0, dtype=torch.int64)
 
-        (op_scores, op_keep) = soft_nms(empty_boxes, empty_scores, empty_ids)
-        (fb_scores, fb_keep) = batched_soft_nms(empty_boxes, empty_scores, empty_ids)
+        op_scores, op_keep = soft_nms(empty_boxes, empty_scores, empty_ids)
+        fb_scores, fb_keep = batched_soft_nms(empty_boxes, empty_scores, empty_ids)
 
         self.assertEqual(len(op_keep), 0)
         self.assertEqual(len(fb_keep), 0)
@@ -95,10 +95,10 @@ class TestOps(unittest.TestCase):
         window_size = 3
         local_len = 9
 
-        (op_attn_local, op_v_local) = swa_qk_rpb(
+        op_attn_local, op_v_local = swa_qk_rpb(
             kv, q_norm_scaled, relative_pos_bias_local, padding_mask, num_heads, head_dim, window_size, local_len, H, W
         )
-        (fb_attn_local, fb_v_local) = swattention_qk_rpb(
+        fb_attn_local, fb_v_local = swattention_qk_rpb(
             kv, q_norm_scaled, relative_pos_bias_local, padding_mask, num_heads, head_dim, window_size, local_len, H, W
         )
         self.assertEqual(op_attn_local.size(), fb_attn_local.size())

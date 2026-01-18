@@ -226,7 +226,7 @@ class CrossStage(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.conv_down(x)
         x = self.conv_exp(x)
-        (xs, xb) = x.split(self.expand_channels // 2, dim=1)
+        xs, xb = x.split(self.expand_channels // 2, dim=1)
         xb = self.blocks(xb)
         xb = self.conv_transition_b(xb).contiguous()
         out = self.conv_transition(torch.concat([xs, xb], dim=1))

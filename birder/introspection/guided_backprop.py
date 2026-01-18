@@ -38,7 +38,7 @@ class GuidedBackpropReLU(Function):
 
     @staticmethod
     def backward(ctx: Any, grad_output: torch.Tensor) -> torch.Tensor:
-        (input_img, _output) = ctx.saved_tensors
+        input_img, _output = ctx.saved_tensors
 
         positive_mask_1 = (input_img > 0).type_as(grad_output)
         positive_mask_2 = (grad_output > 0).type_as(grad_output)
@@ -190,7 +190,7 @@ class GuidedBackprop:
         self.transform = transform
 
     def __call__(self, image: str | Path | Image.Image, target_class: Optional[int] = None) -> InterpretabilityResult:
-        (input_tensor, rgb_img) = preprocess_image(image, self.transform, self.device)
+        input_tensor, rgb_img = preprocess_image(image, self.transform, self.device)
 
         # Get prediction
         with torch.inference_mode():

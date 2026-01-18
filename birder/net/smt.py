@@ -36,7 +36,7 @@ class DWConv(nn.Module):
         self.dwconv = nn.Conv2d(dim, dim, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=dim)
 
     def forward(self, x: torch.Tensor, H: int, W: int) -> torch.Tensor:
-        (B, _, C) = x.size()
+        B, _, C = x.size()
         x = x.transpose(1, 2).view(B, C, H, W)
         x = self.dwconv(x)
         x = x.flatten(2).transpose(1, 2)
@@ -94,7 +94,7 @@ class CAAttention(nn.Module):
         self.proj1 = nn.Conv2d(dim * expand_ratio, dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
 
     def forward(self, x: torch.Tensor, H: int, W: int) -> torch.Tensor:
-        (B, N, C) = x.size()
+        B, N, C = x.size()
 
         v = self.v(x)
         s = self.s(x).reshape(B, H, W, self.ca_num_heads, C // self.ca_num_heads).permute(3, 0, 4, 1, 2)
@@ -140,11 +140,11 @@ class SAAttention(nn.Module):
         self.conv = nn.Conv2d(dim, dim, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=dim)
 
     def forward(self, x: torch.Tensor, H: int, W: int) -> torch.Tensor:
-        (B, N, C) = x.size()
+        B, N, C = x.size()
 
         q = self.q(x).reshape(B, N, self.sa_num_heads, C // self.sa_num_heads).permute(0, 2, 1, 3)
         kv = self.kv(x).reshape(B, -1, 2, self.sa_num_heads, C // self.sa_num_heads).permute(2, 0, 3, 1, 4)
-        (k, v) = kv.unbind(0)
+        k, v = kv.unbind(0)
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
@@ -243,7 +243,7 @@ class OverlapPatchEmbed(nn.Module):
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, int, int]:
         x = self.proj(x)
-        (_, _, H, W) = x.size()
+        _, _, H, W = x.size()
         x = x.flatten(2).transpose(1, 2)
         x = self.norm(x)
 
@@ -267,7 +267,7 @@ class Stem(nn.Module):
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, int, int]:
         x = self.conv(x)
-        (_, _, H, W) = x.size()
+        _, _, H, W = x.size()
         x = x.flatten(2).transpose(1, 2)
         x = self.norm(x)
 
@@ -329,7 +329,7 @@ class SMTStage(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B = x.size(0)
-        (x, H, W) = self.downsample_block(x)
+        x, H, W = self.downsample_block(x)
         x = self.blocks(x, H, W)
         x = self.norm(x)
         x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()

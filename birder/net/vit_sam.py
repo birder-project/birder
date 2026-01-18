@@ -35,7 +35,7 @@ from birder.net.vit import EncoderBlock as MAEDecoderBlock
 
 # pylint: disable=invalid-name
 def window_partition(x: torch.Tensor, window_size: int) -> tuple[torch.Tensor, tuple[int, int]]:
-    (B, H, W, C) = x.shape
+    B, H, W, C = x.shape
 
     pad_h = (window_size - H % window_size) % window_size
     pad_w = (window_size - W % window_size) % window_size
@@ -55,8 +55,8 @@ def window_partition(x: torch.Tensor, window_size: int) -> tuple[torch.Tensor, t
 def window_unpartition(
     windows: torch.Tensor, window_size: int, pad_hw: tuple[int, int], hw: tuple[int, int]
 ) -> torch.Tensor:
-    (Hp, Wp) = pad_hw
-    (H, W) = hw
+    Hp, Wp = pad_hw
+    H, W = hw
     B = windows.shape[0] // (Hp * Wp // window_size // window_size)
     x = windows.view(B, Hp // window_size, Wp // window_size, window_size, window_size, -1)
     x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(B, Hp, Wp, -1)
@@ -91,12 +91,12 @@ def get_rel_pos(q_size: int, k_size: int, rel_pos: torch.Tensor) -> torch.Tensor
 def get_decomposed_rel_pos_bias(
     q: torch.Tensor, rel_pos_h: torch.Tensor, rel_pos_w: torch.Tensor, q_size: tuple[int, int], k_size: tuple[int, int]
 ) -> torch.Tensor:
-    (q_h, q_w) = q_size
-    (k_h, k_w) = k_size
+    q_h, q_w = q_size
+    k_h, k_w = k_size
     Rh = get_rel_pos(q_h, k_h, rel_pos_h)
     Rw = get_rel_pos(q_w, k_w, rel_pos_w)
 
-    (B, _, dim) = q.shape
+    B, _, dim = q.shape
     r_q = q.reshape(B, q_h, q_w, dim)
     rel_h = torch.einsum("bhwc,hkc->bhwk", r_q, Rh)
     rel_w = torch.einsum("bhwc,wkc->bhwk", r_q, Rw)
@@ -139,9 +139,9 @@ class Attention(nn.Module):
             self.rel_pos_w = nn.Parameter(torch.zeros(2 * input_size[1] - 1, head_dim))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, H, W, _) = x.shape
+        B, H, W, _ = x.shape
         qkv = self.qkv(x).reshape(B, H * W, 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.reshape(3, B * self.num_heads, H * W, -1).unbind(0)
+        q, k, v = qkv.reshape(3, B * self.num_heads, H * W, -1).unbind(0)
 
         if self.use_rel_pos is True:
             attn_bias = get_decomposed_rel_pos_bias(q, self.rel_pos_h, self.rel_pos_w, (H, W), (H, W))
@@ -216,13 +216,13 @@ class EncoderBlock(nn.Module):
             self.layer_scale_2 = nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (_, H, W, _) = x.shape
+        _, H, W, _ = x.shape
         shortcut = x
 
         x = self.norm1(x)
         pad_hw = (0, 0)
         if self.window_size > 0:
-            (x, pad_hw) = window_partition(x, self.window_size)
+            x, pad_hw = window_partition(x, self.window_size)
 
         x = self.attn(x)
         if self.window_size > 0:

@@ -85,14 +85,14 @@ class TestNetDetection(unittest.TestCase):
         # Test network
         n.eval()
         out = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
-        (detections, losses) = out
+        detections, losses = out
         self.assertEqual(len(losses), 0)
         for detection in detections:
             for key in ["boxes", "labels", "scores"]:
                 self.assertFalse(torch.isnan(detection[key]).any())
 
         # Again in "dynamic size" mode
-        (images, masks, image_sizes) = batch_images(
+        images, masks, image_sizes = batch_images(
             [torch.rand((DEFAULT_NUM_CHANNELS, *size)), torch.rand((DEFAULT_NUM_CHANNELS, size[0] - 12, size[1] - 24))],
             size_divisible=4,
         )
@@ -112,7 +112,7 @@ class TestNetDetection(unittest.TestCase):
                 }
             ],
         )
-        (detections, losses) = out
+        detections, losses = out
         self.assertGreater(len(losses), 0)
         for loss in losses.values():
             self.assertFalse(torch.isnan(loss).any())
@@ -139,7 +139,7 @@ class TestNetDetection(unittest.TestCase):
         # Reparameterize
         if reparameterize_available(n) is True:
             n.reparameterize_model()
-            (detections, losses) = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+            detections, losses = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
             self.assertEqual(len(losses), 0)
             for detection in detections:
                 for key in ["boxes", "labels", "scores"]:
@@ -157,14 +157,14 @@ class TestNetDetection(unittest.TestCase):
         n.eval()
         n.set_dynamic_size()
 
-        (detections, losses) = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+        detections, losses = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
         self.assertEqual(len(losses), 0)
         for detection in detections:
             for key in ["boxes", "labels", "scores"]:
                 self.assertFalse(torch.isnan(detection[key]).any())
 
         size = (size[0] + 32, size[1] + 64)
-        (detections, losses) = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+        detections, losses = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
         self.assertEqual(len(losses), 0)
         for detection in detections:
             for key in ["boxes", "labels", "scores"]:
@@ -189,7 +189,7 @@ class TestNetDetection(unittest.TestCase):
             self.assertIsNone(param.grad_fn, msg=f"{network_name} adjust_size tracked grad for {name}")
 
         n.train()
-        (_, losses) = n(
+        _, losses = n(
             torch.rand((1, DEFAULT_NUM_CHANNELS, *size)),
             targets=[
                 {
@@ -231,7 +231,7 @@ class TestNetDetection(unittest.TestCase):
         n.set_dynamic_size()
 
         size = (size[0] + size_step, size[1] + size_step)
-        (_, losses) = n(
+        _, losses = n(
             torch.rand((1, DEFAULT_NUM_CHANNELS, *size)),
             targets=[
                 {

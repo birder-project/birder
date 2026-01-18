@@ -203,7 +203,7 @@ def main(args: argparse.Namespace) -> None:
 
     logger.info(f"Using device {device}")
 
-    (net, model_info) = fs_ops.load_model(
+    net, model_info = fs_ops.load_model(
         device,
         args.network,
         tag=args.tag,

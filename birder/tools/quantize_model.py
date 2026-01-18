@@ -105,7 +105,7 @@ def main(args: argparse.Namespace) -> None:
     device = torch.device("cpu")
 
     # Load model
-    (net, (class_to_idx, signature, rgb_stats, *_)) = fs_ops.load_model(
+    net, (class_to_idx, signature, rgb_stats, *_) = fs_ops.load_model(
         device, args.network, tag=args.tag, epoch=args.epoch, inference=True, reparameterized=args.reparameterized
     )
     net.eval()
@@ -154,7 +154,7 @@ def main(args: argparse.Namespace) -> None:
         exported_quantized_net = torch.export.export(quantized_net, example_inputs)
 
     toc = time.time()
-    (minutes, seconds) = divmod(toc - tic, 60)
+    minutes, seconds = divmod(toc - tic, 60)
     logger.info(f"{int(minutes):0>2}m{seconds:04.1f}s to quantize model")
 
     model_path = fs_ops.model_path(network_name, epoch=args.epoch, quantized=True, pt2=True)

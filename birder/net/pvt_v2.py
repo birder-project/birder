@@ -44,7 +44,7 @@ class MLP(nn.Module):
     def forward(self, x: torch.Tensor, H: int, W: int) -> torch.Tensor:
         x = self.fc1(x)
         x = self.relu(x)
-        (B, _, C) = x.shape
+        B, _, C = x.shape
         x = x.transpose(1, 2).view(B, C, H, W)
         x = self.dwconv(x)
         x = x.flatten(2).transpose(1, 2)
@@ -98,7 +98,7 @@ class Attention(nn.Module):
         assert (self.pool is None and self.act is None) or (self.pool is not None and self.act is not None)
 
     def forward(self, x: torch.Tensor, H: int, W: int) -> torch.Tensor:
-        (B, N, C) = x.shape
+        B, N, C = x.shape
         q = self.q(x).reshape(B, N, self.num_heads, -1).permute(0, 2, 1, 3)
 
         if self.pool is not None and self.act is not None:
@@ -114,7 +114,7 @@ class Attention(nn.Module):
                 x = self.norm(x)
 
         kv = self.kv(x).reshape(B, -1, 2, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-        (k, v) = kv.unbind(0)
+        k, v = kv.unbind(0)
 
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
@@ -238,7 +238,7 @@ class PyramidVisionTransformerStage(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.downsample(x)  # B, C, H, W -> B, H, W, C
-        (B, H, W, C) = x.shape
+        B, H, W, C = x.shape
         x = x.reshape(B, -1, C)
         for blk in self.blocks:
             x = blk(x, H, W)

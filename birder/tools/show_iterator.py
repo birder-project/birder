@@ -57,11 +57,11 @@ def show_iterator(args: argparse.Namespace) -> None:
     if args.wds is True:
         wds_path: str | list[str]
         if args.wds_info is not None:
-            (wds_path, dataset_size) = wds_args_from_info(args.wds_info, args.wds_split)
+            wds_path, dataset_size = wds_args_from_info(args.wds_info, args.wds_split)
             if args.wds_size is not None:
                 dataset_size = args.wds_size
         else:
-            (wds_path, dataset_size) = prepare_wds_args(args.data_path, args.wds_size, torch.device("cpu"))
+            wds_path, dataset_size = prepare_wds_args(args.data_path, args.wds_size, torch.device("cpu"))
 
         dataset = make_wds_dataset(
             wds_path,

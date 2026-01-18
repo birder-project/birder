@@ -30,7 +30,7 @@ class TestInference(unittest.TestCase):
 
     def test_infer_batch_default_behavior(self) -> None:
         with torch.inference_mode():
-            (out, embed) = classification.infer_batch(self.model, torch.rand((1, 3, *self.size)))
+            out, embed = classification.infer_batch(self.model, torch.rand((1, 3, *self.size)))
 
         self.assertIsNone(embed)
         self.assertEqual(len(out), 1)
@@ -39,7 +39,7 @@ class TestInference(unittest.TestCase):
 
     def test_infer_batch_return_embedding(self) -> None:
         with torch.inference_mode():
-            (out, embed) = classification.infer_batch(self.model, torch.rand((1, 3, *self.size)), return_embedding=True)
+            out, embed = classification.infer_batch(self.model, torch.rand((1, 3, *self.size)), return_embedding=True)
 
         self.assertIsNotNone(embed)
         self.assertEqual(embed.shape[0], 1)  # type: ignore[union-attr]
@@ -50,7 +50,7 @@ class TestInference(unittest.TestCase):
 
     def test_infer_batch_tta(self) -> None:
         with torch.inference_mode():
-            (out, embed) = classification.infer_batch(self.model, torch.rand((1, 3, *self.size)), tta=True)
+            out, embed = classification.infer_batch(self.model, torch.rand((1, 3, *self.size)), tta=True)
 
         self.assertIsNone(embed)
         self.assertEqual(len(out), 1)
@@ -60,7 +60,7 @@ class TestInference(unittest.TestCase):
     def test_infer_batch_return_logits(self) -> None:
         dummy_input = torch.rand((1, 3, *self.size))
         with torch.inference_mode():
-            (out, embed) = classification.infer_batch(self.model, dummy_input, return_logits=True)
+            out, embed = classification.infer_batch(self.model, dummy_input, return_logits=True)
 
         self.assertIsNone(embed)
         self.assertEqual(len(out), 1)
@@ -85,7 +85,7 @@ class TestWBF(unittest.TestCase):
         scores_list = [torch.tensor([0.9]), torch.tensor([0.7])]
         labels_list = [torch.tensor([1]), torch.tensor([1])]
 
-        (boxes, scores, labels) = wbf.weighted_boxes_fusion(
+        boxes, scores, labels = wbf.weighted_boxes_fusion(
             boxes_list, scores_list, labels_list, weights=[1.0, 1.0], iou_thr=0.5
         )
 
@@ -102,7 +102,7 @@ class TestWBF(unittest.TestCase):
         scores_list = [torch.tensor([0.9]), torch.tensor([0.7])]
         labels_list = [torch.tensor([1]), torch.tensor([2])]
 
-        (boxes, scores, labels) = wbf.weighted_boxes_fusion(boxes_list, scores_list, labels_list, iou_thr=0.5)
+        boxes, scores, labels = wbf.weighted_boxes_fusion(boxes_list, scores_list, labels_list, iou_thr=0.5)
 
         self.assertEqual(boxes.shape, (2, 4))
         self.assertEqual(labels.tolist(), [1, 2])
@@ -242,21 +242,21 @@ class TestInferenceDataParallel(unittest.TestCase):
         batch_size = 4
         x = torch.randn(batch_size, 3, *self.size)
         with torch.inference_mode():
-            (out, embed) = classification.infer_batch(model_parallel, x)
+            out, embed = classification.infer_batch(model_parallel, x)
             self.assertIsNone(embed)
             self.assertEqual(out.shape, (batch_size, self.num_classes))
 
             # Test with embeddings
-            (out, embed) = classification.infer_batch(model_parallel, x, return_embedding=True)
+            out, embed = classification.infer_batch(model_parallel, x, return_embedding=True)
             self.assertIsNotNone(embed)
             self.assertEqual(embed.shape, (batch_size, self.model.embedding_size))  # type: ignore[union-attr]
 
             # Test with TTA
-            (out, embed) = classification.infer_batch(model_parallel, x, tta=True)
+            out, embed = classification.infer_batch(model_parallel, x, tta=True)
             self.assertEqual(out.shape, (batch_size, self.num_classes))
 
             # Test with logits
-            (out, embed) = classification.infer_batch(model_parallel, x, return_logits=True)
+            out, embed = classification.infer_batch(model_parallel, x, return_logits=True)
             self.assertEqual(out.shape, (batch_size, self.num_classes))
 
     def test_single_gpu_fallback(self) -> None:

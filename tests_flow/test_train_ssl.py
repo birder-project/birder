@@ -31,6 +31,6 @@ class TestSSLTrainFlow(unittest.TestCase):
 
         # Load trained backbone
         device = torch.device("cpu")
-        (_, model_info) = load_model(device, "convnext_v2_atto", tag="mim", epoch=1, inference=False)
+        _, model_info = load_model(device, "convnext_v2_atto", tag="mim", epoch=1, inference=False)
         self.assertEqual(len(model_info.class_to_idx), 0)
         self.assertEqual(len(model_info.class_to_idx), model_info.signature["outputs"][0]["data_shape"][1])

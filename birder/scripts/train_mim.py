@@ -49,7 +49,7 @@ def train(args: argparse.Namespace) -> None:
     #
     # Initialize
     #
-    (device, device_id, disable_tqdm) = training_utils.init_training(args, logger)
+    device, device_id, disable_tqdm = training_utils.init_training(args, logger)
 
     if args.size is None:
         # Prefer mim size over encoder default size
@@ -73,11 +73,11 @@ def train(args: argparse.Namespace) -> None:
     elif args.wds is True:
         wds_path: str | list[str]
         if args.wds_info is not None:
-            (wds_path, dataset_size) = wds_args_from_info(args.wds_info, args.wds_split)
+            wds_path, dataset_size = wds_args_from_info(args.wds_info, args.wds_split)
             if args.wds_size is not None:
                 dataset_size = args.wds_size
         else:
-            (wds_path, dataset_size) = prepare_wds_args(args.data_path[0], args.wds_size, device)
+            wds_path, dataset_size = prepare_wds_args(args.data_path[0], args.wds_size, device)
 
         training_dataset = make_wds_dataset(
             wds_path,
@@ -107,7 +107,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Data loaders and samplers
     virtual_epoch_mode = args.steps_per_epoch is not None
-    (train_sampler, _) = training_utils.get_samplers(
+    train_sampler, _ = training_utils.get_samplers(
         args, training_dataset, validation_dataset=None, infinite=virtual_epoch_mode
     )
 
@@ -172,7 +172,7 @@ def train(args: argparse.Namespace) -> None:
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
-        (net, training_states) = fs_ops.load_mim_checkpoint(
+        net, training_states = fs_ops.load_mim_checkpoint(
             device,
             args.network,
             config=args.model_config,
@@ -187,7 +187,7 @@ def train(args: argparse.Namespace) -> None:
 
     elif args.pretrained is True:
         fs_ops.download_model_by_weights(network_name, progress_bar=training_utils.is_local_primary(args))
-        (net, training_states) = fs_ops.load_mim_checkpoint(
+        net, training_states = fs_ops.load_mim_checkpoint(
             device,
             args.network,
             config=args.model_config,
@@ -263,7 +263,7 @@ def train(args: argparse.Namespace) -> None:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
 
     # Gradient scaler and AMP related tasks
-    (scaler, amp_dtype) = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
+    scaler, amp_dtype = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
 
     # Load states
     if args.load_states is True:

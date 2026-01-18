@@ -80,11 +80,11 @@ class BYOL(SSLBaseNet):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         projection = self.online_encoder(x)
         online_predictions = self.online_predictor(projection)
-        (online_pred_one, online_pred_two) = online_predictions.chunk(2, dim=0)
+        online_pred_one, online_pred_two = online_predictions.chunk(2, dim=0)
 
         with torch.no_grad():
             target_projections = self.target_encoder(x)
-            (target_proj_one, target_proj_two) = target_projections.chunk(2, dim=0)
+            target_proj_one, target_proj_two = target_projections.chunk(2, dim=0)
 
         loss_one = loss_fn(online_pred_one, target_proj_two.detach())
         loss_two = loss_fn(online_pred_two, target_proj_one.detach())

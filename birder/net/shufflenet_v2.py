@@ -85,7 +85,7 @@ class ShuffleUnit(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.dw_conv_stride == 1:
-            (branch1, branch2) = x.chunk(2, dim=1)
+            branch1, branch2 = x.chunk(2, dim=1)
             x = torch.concat((branch1, self.branch2(branch2)), dim=1)
         else:
             x = torch.concat((self.branch1(x), self.branch2(x)), dim=1)

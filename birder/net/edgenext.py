@@ -79,10 +79,10 @@ class CrossCovarianceAttn(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, N, C) = x.shape
+        B, N, C = x.shape
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, -1)
         qkv = qkv.permute(2, 0, 3, 4, 1)
-        (q, k, v) = qkv.unbind(0)
+        q, k, v = qkv.unbind(0)
 
         q = F.normalize(q, dim=-1) * self.temperature
         k = F.normalize(k, dim=-1)
@@ -156,7 +156,7 @@ class SDTA(nn.Module):
         x = torch.concat(sp_out, 1)
 
         # XCA
-        (B, C, H, W) = x.shape
+        B, C, H, W = x.shape
         x = x.reshape(B, C, H * W).permute(0, 2, 1)
         if self.pos_embed is not None:
             pos_encoding = self.pos_embed(B, H, W).reshape(B, -1, x.shape[1]).permute(0, 2, 1)

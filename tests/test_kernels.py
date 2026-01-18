@@ -103,7 +103,7 @@ class TestKernels(unittest.TestCase):
         sigma = 0.5
         score_threshold = 0.001
 
-        (updated_scores, keep) = soft_nms.soft_nms(boxes, scores, sigma, score_threshold)  # type: ignore
+        updated_scores, keep = soft_nms.soft_nms(boxes, scores, sigma, score_threshold)  # type: ignore
 
         # Check outputs
         self.assertIsInstance(updated_scores, torch.Tensor)
@@ -136,7 +136,7 @@ class TestKernels(unittest.TestCase):
         scores = torch.tensor([0.9, 0.8, 0.7], device=device)
         sigma = 0.25
         score_threshold = 0.1
-        (updated_scores, keep) = soft_nms.soft_nms(boxes, scores, sigma, score_threshold)  # type: ignore
+        updated_scores, keep = soft_nms.soft_nms(boxes, scores, sigma, score_threshold)  # type: ignore
 
         # Only the first box should survive with high threshold
         self.assertEqual(len(keep), 1)
@@ -158,6 +158,6 @@ class TestKernels(unittest.TestCase):
 
         scores = torch.tensor([0.9, 0.8, 0.7], device=device)
 
-        (updated_scores, keep) = soft_nms.soft_nms(boxes, scores, sigma, score_threshold)  # type: ignore
+        updated_scores, keep = soft_nms.soft_nms(boxes, scores, sigma, score_threshold)  # type: ignore
         self.assertEqual(len(keep), 3)
         self.assertTrue(torch.isfinite(updated_scores).all().item())

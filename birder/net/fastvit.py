@@ -144,7 +144,7 @@ class ReparamLargeKernelConv(nn.Module):
         if self.reparameterized is True:
             return
 
-        (eq_k, eq_b) = self._get_kernel_bias()
+        eq_k, eq_b = self._get_kernel_bias()
         self.lkb_reparam = nn.Conv2d(
             self.in_channels,
             self.out_channels,
@@ -168,9 +168,9 @@ class ReparamLargeKernelConv(nn.Module):
         self.reparameterized = True
 
     def _get_kernel_bias(self) -> tuple[torch.Tensor, torch.Tensor]:
-        (eq_k, eq_b) = self._fuse_bn_tensor(self.lkb_origin.conv, self.lkb_origin.bn)
+        eq_k, eq_b = self._fuse_bn_tensor(self.lkb_origin.conv, self.lkb_origin.bn)
 
-        (small_k, small_b) = self._fuse_bn_tensor(self.small_conv.conv, self.small_conv.bn)
+        small_k, small_b = self._fuse_bn_tensor(self.small_conv.conv, self.small_conv.bn)
         eq_b += small_b
         eq_k += F.pad(small_k, [(self.kernel_size - self.small_kernel) // 2] * 4)
 
@@ -213,11 +213,11 @@ class MHSA(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, C, H, W) = x.shape
+        B, C, H, W = x.shape
         N = H * W
         x = x.flatten(2).transpose(-2, -1)  # (B, N, C)
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-        (q, k, v) = qkv.unbind(0)
+        q, k, v = qkv.unbind(0)
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
         )

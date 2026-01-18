@@ -48,7 +48,7 @@ def _mask_token_omission(
     # Masking: length -> length * mask_ratio
     # Perform per-sample random masking by per-sample shuffling.
     # Per-sample shuffling is done by argsort random noise.
-    (N, L, D) = x.size()  # batch, length, dim
+    N, L, D = x.size()  # batch, length, dim
     len_keep = int(L * (1 - mask_ratio))
     len_masked = int(L * (mask_ratio - kept_mask_ratio))
 
@@ -82,7 +82,7 @@ def mask_tensor(
     if channels_last is False:
         x = x.permute(0, 2, 3, 1)
 
-    (B, H, W, _) = x.size()
+    B, H, W, _ = x.size()
 
     shaped_mask = mask.reshape(B, H // patch_factor, W // patch_factor)
     shaped_mask = shaped_mask.repeat_interleave(patch_factor, dim=1).repeat_interleave(patch_factor, dim=2)

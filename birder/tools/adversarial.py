@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 def _load_model_and_transform(
     args: argparse.Namespace, device: torch.device
 ) -> tuple[torch.nn.Module, dict[str, int], RGBType, Callable[..., torch.Tensor], Callable[..., torch.Tensor]]:
-    (net, model_info) = fs_ops.load_model(
+    net, model_info = fs_ops.load_model(
         device, args.network, tag=args.tag, epoch=args.epoch, inference=True, reparameterized=args.reparameterized
     )
 
@@ -105,8 +105,8 @@ def _display_results(
     success: Optional[bool],
     result: AttackResult,
 ) -> None:
-    (orig_label, orig_prob) = original_pred
-    (adv_label, adv_prob) = adv_pred
+    orig_label, orig_prob = original_pred
+    adv_label, adv_prob = adv_pred
 
     # Log results
     logger.info(f"Original: {orig_label} ({orig_prob * 100:.2f}%)")
@@ -139,7 +139,7 @@ def run_attack(args: argparse.Namespace) -> None:
 
     logger.info(f"Using device {device}")
 
-    (net, class_to_idx, rgb_stats, transform, reverse_transform) = _load_model_and_transform(args, device)
+    net, class_to_idx, rgb_stats, transform, reverse_transform = _load_model_and_transform(args, device)
     label_names = [name for name, _idx in sorted(class_to_idx.items(), key=lambda item: item[1])]
     img = Image.open(args.image_path)
     input_tensor = transform(img).unsqueeze(dim=0).to(device)

@@ -70,7 +70,7 @@ def compute_rollout(
                     num_to_discard = int(num_allowed * discard_ratio)
                     if num_to_discard > 0:
                         # Drop the smallest allowed values
-                        (_, low_idx) = torch.topk(allowed_values, num_to_discard, largest=False)
+                        _, low_idx = torch.topk(allowed_values, num_to_discard, largest=False)
                         allowed_values[low_idx] = 0
                         attn[allow] = allowed_values
                         attention_heads_fused[0] = attn
@@ -97,7 +97,7 @@ def compute_rollout(
 
     # Normalize and reshape to 2D map using actual patch grid dimensions
     mask = mask / (mask.max() + 1e-8)
-    (grid_h, grid_w) = patch_grid_shape
+    grid_h, grid_w = patch_grid_shape
     mask = mask.reshape(grid_h, grid_w)
 
     return mask
@@ -156,11 +156,11 @@ class AttentionRollout:
         self.attention_gatherer = AttentionGatherer(net, attention_layer_name)
 
     def __call__(self, image: str | Path | Image.Image, target_class: Optional[int] = None) -> InterpretabilityResult:
-        (input_tensor, rgb_img) = preprocess_image(image, self.transform, self.device)
+        input_tensor, rgb_img = preprocess_image(image, self.transform, self.device)
 
-        (attentions, logits) = self.attention_gatherer(input_tensor)
+        attentions, logits = self.attention_gatherer(input_tensor)
 
-        (_, _, H, W) = input_tensor.shape
+        _, _, H, W = input_tensor.shape
         patch_grid_shape = (H // self.net.stem_stride, W // self.net.stem_stride)
 
         attention_map = compute_rollout(

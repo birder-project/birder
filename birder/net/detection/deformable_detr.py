@@ -58,7 +58,7 @@ class HungarianMatcher(nn.Module):
         self, class_logits: torch.Tensor, box_regression: torch.Tensor, targets: list[dict[str, torch.Tensor]]
     ) -> list[torch.Tensor]:
         with torch.no_grad():
-            (B, num_queries) = class_logits.shape[:2]
+            B, num_queries = class_logits.shape[:2]
 
             # We flatten to compute the cost matrices in a batch
             out_prob = class_logits.flatten(0, 1).sigmoid()  # [batch_size * num_queries, num_classes]
@@ -166,8 +166,8 @@ class MultiScaleDeformableAttention(nn.Module):
         input_level_start_index: torch.Tensor,
         input_padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        (N, num_queries, _) = query.size()
-        (N, sequence_length, _) = input_flatten.size()
+        N, num_queries, _ = query.size()
+        N, sequence_length, _ = input_flatten.size()
         assert (input_spatial_shapes[:, 0] * input_spatial_shapes[:, 1]).sum() == sequence_length
 
         value = self.value_proj(input_flatten)
@@ -283,7 +283,7 @@ class DeformableTransformerDecoderLayer(nn.Module):
         q = tgt + query_pos
         k = tgt + query_pos
 
-        (tgt2, _) = self.self_attn(
+        tgt2, _ = self.self_attn(
             q.transpose(0, 1), k.transpose(0, 1), tgt.transpose(0, 1), need_weights=False, attn_mask=self_attn_mask
         )
         tgt2 = tgt2.transpose(0, 1)
@@ -318,7 +318,7 @@ class DeformableTransformerEncoder(nn.Module):
         for lvl, spatial_shape in enumerate(spatial_shapes):
             H = spatial_shape[0]
             W = spatial_shape[1]
-            (ref_y, ref_x) = torch.meshgrid(
+            ref_y, ref_x = torch.meshgrid(
                 torch.linspace(0.5, H - 0.5, H, dtype=torch.float32, device=device),
                 torch.linspace(0.5, W - 0.5, W, dtype=torch.float32, device=device),
                 indexing="ij",
@@ -462,7 +462,7 @@ class DeformableTransformer(nn.Module):
         nn.init.normal_(self.level_embed)
 
     def get_valid_ratio(self, mask: torch.Tensor) -> torch.Tensor:
-        (_, H, W) = mask.size()
+        _, H, W = mask.size()
         valid_h = torch.sum(~mask[:, :, 0], 1)
         valid_w = torch.sum(~mask[:, 0, :], 1)
         valid_ratio_h = valid_h.float() / H
@@ -485,7 +485,7 @@ class DeformableTransformer(nn.Module):
         mask_list = []
         spatial_shape_list: list[list[int]] = []  # list[tuple[int, int]] not supported on TorchScript
         for lvl, (src, pos_embed, mask) in enumerate(zip(srcs, pos_embeds, masks)):
-            (_, _, H, W) = src.size()
+            _, _, H, W = src.size()
             spatial_shape_list.append([H, W])
             src = src.flatten(2).transpose(1, 2)
             pos_embed = pos_embed.flatten(2).transpose(1, 2)
@@ -508,14 +508,14 @@ class DeformableTransformer(nn.Module):
         )
 
         # Prepare input for decoder
-        (B, _, C) = memory.size()
+        B, _, C = memory.size()
         query_embed, tgt = torch.split(query_embed, C, dim=1)
         query_embed = query_embed.unsqueeze(0).expand(B, -1, -1)
         tgt = tgt.unsqueeze(0).expand(B, -1, -1)
         reference_points = self.reference_points(query_embed).sigmoid()
 
         # Decoder
-        (hs, inter_references) = self.decoder(
+        hs, inter_references = self.decoder(
             tgt, reference_points, memory, spatial_shapes, level_start_index, query_embed, valid_ratios, mask_flatten
         )
 
@@ -719,7 +719,7 @@ class Deformable_DETR(DetectionBaseNet):
         for idx in range(cls_logits.size(0)):
             indices = self.matcher(cls_logits[idx], box_output[idx], targets)
             loss_ce_i = self._class_loss(cls_logits[idx], targets, indices, num_boxes)
-            (loss_bbox_i, loss_giou_i) = self._box_loss(box_output[idx], targets, indices, num_boxes)
+            loss_bbox_i, loss_giou_i = self._box_loss(box_output[idx], targets, indices, num_boxes)
             loss_ce_list.append(loss_ce_i)
             loss_bbox_list.append(loss_bbox_i)
             loss_giou_list.append(loss_giou_i)
@@ -739,7 +739,7 @@ class Deformable_DETR(DetectionBaseNet):
         self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_shapes: list[tuple[int, int]]
     ) -> list[dict[str, torch.Tensor]]:
         prob = class_logits.sigmoid()
-        (topk_values, topk_indexes) = torch.topk(prob.view(class_logits.shape[0], -1), k=100, dim=1)
+        topk_values, topk_indexes = torch.topk(prob.view(class_logits.shape[0], -1), k=100, dim=1)
         scores = topk_values
         topk_boxes = topk_indexes // class_logits.shape[2]
         labels = topk_indexes % class_logits.shape[2]
@@ -752,7 +752,7 @@ class Deformable_DETR(DetectionBaseNet):
         boxes = torch.gather(boxes, 1, topk_boxes.unsqueeze(-1).repeat(1, 1, 4))
 
         # Convert from relative [0, 1] to absolute [0, height] coordinates
-        (img_h, img_w) = target_sizes.unbind(1)
+        img_h, img_w = target_sizes.unbind(1)
         scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
         boxes = boxes * scale_fct[:, None, :]
 
@@ -760,7 +760,7 @@ class Deformable_DETR(DetectionBaseNet):
         for s, l, b in zip(scores, labels, boxes):
             # Non-maximum suppression
             if self.soft_nms is not None:
-                (soft_scores, keep) = self.soft_nms(b, s, l, score_threshold=0.001)
+                soft_scores, keep = self.soft_nms(b, s, l, score_threshold=0.001)
                 s[keep] = soft_scores
 
                 b = b[keep]
@@ -797,14 +797,14 @@ class Deformable_DETR(DetectionBaseNet):
                 mask_size = feature_list[idx].shape[-2:]
                 m = F.interpolate(masks[None].float(), size=mask_size, mode="nearest").to(torch.bool)[0]
             else:
-                (B, _, H, W) = feature_list[idx].size()
+                B, _, H, W = feature_list[idx].size()
                 m = torch.zeros(B, H, W, dtype=torch.bool, device=x.device)
 
             feature_list[idx] = proj(feature_list[idx])
             mask_list.append(m)
             pos_list.append(self.pos_enc(feature_list[idx], m))
 
-        (hs, init_reference, inter_references) = self.transformer(
+        hs, init_reference, inter_references = self.transformer(
             feature_list, pos_list, self.query_embed.weight, mask_list
         )
         outputs_classes = []

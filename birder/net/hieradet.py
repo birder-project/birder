@@ -33,7 +33,7 @@ from birder.net.base import TokenRetentionResultType
 
 
 def window_partition(x: torch.Tensor, window_size: int) -> tuple[torch.Tensor, tuple[int, int]]:
-    (B, H, W, C) = x.size()
+    B, H, W, C = x.size()
 
     pad_h = (window_size - H % window_size) % window_size
     pad_w = (window_size - W % window_size) % window_size
@@ -52,8 +52,8 @@ def window_partition(x: torch.Tensor, window_size: int) -> tuple[torch.Tensor, t
 def window_unpartition(
     windows: torch.Tensor, window_size: int, pad_hw: tuple[int, int], hw: tuple[int, int]
 ) -> torch.Tensor:
-    (h_p, w_p) = pad_hw
-    (H, W) = hw
+    h_p, w_p = pad_hw
+    H, W = hw
     B = windows.shape[0] // (h_p * w_p // window_size // window_size)
     x = windows.view(B, h_p // window_size, w_p // window_size, window_size, window_size, -1)
     x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(B, h_p, w_p, -1)
@@ -87,15 +87,15 @@ class MultiScaleAttention(nn.Module):
         self.proj = nn.Linear(dim_out, dim_out)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (B, H, W, _) = x.size()
+        B, H, W, _ = x.size()
         qkv = self.qkv(x).reshape(B, H * W, 3, self.num_heads, -1)
-        (q, k, v) = qkv.unbind(dim=2)
+        q, k, v = qkv.unbind(dim=2)
 
         # Q pooling (for downsample at stage changes)
         if self.q_pool is not None:
             q = q.reshape(B, H, W, -1).permute(0, 3, 1, 2)
             q = self.q_pool(q).permute(0, 2, 3, 1)
-            (H, W) = q.shape[1:3]  # Downsampled shape
+            H, W = q.shape[1:3]  # Downsampled shape
             q = q.reshape(B, H * W, self.num_heads, -1)
 
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
@@ -162,11 +162,11 @@ class MultiScaleBlock(nn.Module):
         # Window partition
         window_size = self.window_size
         pad_hw = (shortcut.size(1), shortcut.size(2))
-        (H, W) = pad_hw
+        H, W = pad_hw
         if self.window_size > 0:
             H = x.shape[1]
             W = x.shape[2]
-            (x, pad_hw) = window_partition(x, window_size)
+            x, pad_hw = window_partition(x, window_size)
 
         # Window Attention + Q Pooling (if stage change)
         x = self.attn(x)
@@ -175,7 +175,7 @@ class MultiScaleBlock(nn.Module):
             window_size = self.window_size // self.q_stride[0]
             pad_hw = (pad_hw[0] // self.q_stride[0], pad_hw[1] // self.q_stride[1])
 
-            (H, W) = (shortcut.size(1), shortcut.size(2))
+            H, W = (shortcut.size(1), shortcut.size(2))
 
         # Reverse window partition
         if self.window_size > 0:

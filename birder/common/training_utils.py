@@ -450,7 +450,7 @@ def optimizer_parameter_groups(
     visited_modules = []
     while len(module_stack_with_prefix) > 0:  # pylint: disable=too-many-nested-blocks
         skip_module = False
-        (module, prefix) = module_stack_with_prefix.pop()
+        module, prefix = module_stack_with_prefix.pop()
         if id(module) in visited_modules:
             skip_module = True
 

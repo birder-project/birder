@@ -153,7 +153,7 @@ class MAE_ViT(MIMBaseNet):
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         h = self.size[0] // self.encoder.max_stride
         w = self.size[1] // self.encoder.max_stride
-        (mask, ids_keep, ids_restore) = uniform_mask(
+        mask, ids_keep, ids_restore = uniform_mask(
             x.size(0), h, w, self.mask_ratio, min_mask_size=self.min_mask_size, device=x.device
         )
 

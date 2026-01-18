@@ -98,7 +98,7 @@ class GradCAM:
         self.activation_capture = ActivationCapture(net, target_layer, reshape_transform)
 
     def __call__(self, image: str | Path | Image.Image, target_class: Optional[int] = None) -> InterpretabilityResult:
-        (input_tensor, rgb_img) = preprocess_image(image, self.transform, self.device)
+        input_tensor, rgb_img = preprocess_image(image, self.transform, self.device)
         input_tensor.requires_grad_(True)
 
         # Forward pass

@@ -101,8 +101,8 @@ class MobileVitBlock(nn.Module):
         x = self.conv_1x1(x)
 
         # Unfold (feature map -> patches)
-        (patch_h, patch_w) = self.patch_size
-        (B, C, H, W) = x.shape
+        patch_h, patch_w = self.patch_size
+        B, C, H, W = x.shape
         new_h, new_w = math.ceil(H / patch_h) * patch_h, math.ceil(W / patch_w) * patch_w
         num_patch_h = new_h // patch_h  # n_h, n_w
         num_patch_w = new_w // patch_w

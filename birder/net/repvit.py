@@ -60,7 +60,7 @@ class RepConvBN(nn.Sequential):
         if self.reparameterized is True:
             return
 
-        (c, bn) = self._modules.values()
+        c, bn = self._modules.values()
         w = bn.weight / (bn.running_var + bn.eps) ** 0.5
         w = c.weight * w[:, None, None, None]
         b = bn.bias - bn.running_mean * bn.weight / (bn.running_var + bn.eps) ** 0.5
@@ -101,7 +101,7 @@ class RepNormLinear(nn.Sequential):
         if self.reparameterized is True:
             return
 
-        (bn, li) = self._modules.values()
+        bn, li = self._modules.values()
         w = bn.weight / (bn.running_var + bn.eps) ** 0.5
         b = bn.bias - self.bn.running_mean * self.bn.weight / (bn.running_var + bn.eps) ** 0.5
         w = li.weight * w[None, :]

@@ -274,7 +274,7 @@ def pos_embedding_sin_cos_2d(
 ) -> torch.Tensor:
     # assert (dim % 4) == 0, "feature dimension must be multiple of 4 for sin-cos emb"
 
-    (y, x) = torch.meshgrid(torch.arange(h, device=device), torch.arange(w, device=device), indexing="ij")
+    y, x = torch.meshgrid(torch.arange(h, device=device), torch.arange(w, device=device), indexing="ij")
     omega = torch.arange(dim // 4, device=device) / (dim // 4 - 1)
     omega = 1.0 / (temperature**omega)
 
@@ -294,7 +294,7 @@ def interpolate_attention_bias(
     new_resolution: tuple[int, int],
     mode: Literal["bilinear", "bicubic"] = "bicubic",
 ) -> torch.Tensor:
-    (H, _) = attention_bias.size()
+    H, _ = attention_bias.size()
 
     # Interpolate
     orig_dtype = attention_bias.dtype

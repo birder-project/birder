@@ -61,7 +61,7 @@ class InceptionDWConv2d(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        (x_id, x_hw, x_w, x_h) = torch.split(x, self.split_indexes, dim=1)
+        x_id, x_hw, x_w, x_h = torch.split(x, self.split_indexes, dim=1)
         x_hw = self.dwconv_hw(x_hw)
         x_w = self.dwconv_w(x_w)
         x_h = self.dwconv_h(x_h)
