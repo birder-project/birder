@@ -120,7 +120,7 @@ class CrossMAE(MIMBaseNet):
             self.decoder_layers.append(CrossAttentionBlock(encoder_dim, decoder_embed_dim, num_heads=16, mlp_ratio=4.0))
 
         self.decoder_norm = nn.LayerNorm(decoder_embed_dim, eps=1e-6)
-        self.pred = nn.Linear(decoder_embed_dim, self.patch_size**2 * self.input_channels, bias=True)
+        self.pred = nn.Linear(decoder_embed_dim, self.patch_size**2 * self.input_channels)
 
         # Weight initialization
         for m in self.modules():

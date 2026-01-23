@@ -202,7 +202,7 @@ def train(args: argparse.Namespace) -> None:
 
     else:
         encoder = registry.net_factory(
-            args.encoder, sample_shape[1], 0, config=args.encoder_model_config, size=args.size
+            args.encoder, 0, sample_shape[1], config=args.encoder_model_config, size=args.size
         )
         net = registry.mim_net_factory(
             args.network,
@@ -374,6 +374,9 @@ def train(args: argparse.Namespace) -> None:
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
+
+        # Clear metrics
+        running_loss.clear()
 
         if args.distributed is True or virtual_epoch_mode is True:
             train_sampler.set_epoch(epoch)

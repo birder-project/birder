@@ -6,7 +6,6 @@ import torch
 from PIL import Image
 from torch import nn
 
-from birder.conf.settings import DEFAULT_NUM_CHANNELS
 from birder.introspection import base
 from birder.introspection.attention_rollout import AttentionRollout
 from birder.introspection.feature_pca import FeaturePCA
@@ -133,7 +132,7 @@ class TestInterpreters(unittest.TestCase):
         self.transform = simple_transform
 
     def test_attention_rollout_result_structure(self) -> None:
-        net = registry.net_factory("vit_t16", DEFAULT_NUM_CHANNELS, 2, size=(160, 160))
+        net = registry.net_factory("vit_t16", 2, size=(160, 160))
 
         # Create transform that resizes to match model input
         def vit_transform(x: Image.Image) -> torch.Tensor:
@@ -160,7 +159,7 @@ class TestInterpreters(unittest.TestCase):
         self.assertIn(result.predicted_class, [0, 1])
 
     def test_attention_rollout_no_duplicate_attentions(self) -> None:
-        net = registry.net_factory("vit_t16", DEFAULT_NUM_CHANNELS, 2, size=(160, 160))
+        net = registry.net_factory("vit_t16", 2, size=(160, 160))
 
         # Create transform that resizes to match model input
         def vit_transform(x: Image.Image) -> torch.Tensor:
@@ -318,7 +317,7 @@ class TestInterpreters(unittest.TestCase):
         self.assertEqual(original_relu_count, restored_relu_count)
 
     def test_transformer_attribution_result_structure(self) -> None:
-        net = registry.net_factory("vit_t16", DEFAULT_NUM_CHANNELS, 2, size=(160, 160))
+        net = registry.net_factory("vit_t16", 2, size=(160, 160))
 
         def vit_transform(x: Image.Image) -> torch.Tensor:
             x = x.resize((160, 160))
@@ -340,7 +339,7 @@ class TestInterpreters(unittest.TestCase):
         self.assertIn(result.predicted_class, [0, 1])
 
     def test_transformer_attribution_with_target_class(self) -> None:
-        net = registry.net_factory("vit_t16", DEFAULT_NUM_CHANNELS, 2, size=(160, 160))
+        net = registry.net_factory("vit_t16", 2, size=(160, 160))
 
         def vit_transform(x: Image.Image) -> torch.Tensor:
             x = x.resize((160, 160))

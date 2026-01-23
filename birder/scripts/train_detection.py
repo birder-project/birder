@@ -27,7 +27,7 @@ from birder.common import training_cli
 from birder.common import training_utils
 from birder.conf import settings
 from birder.data.collators.detection import BatchRandomResizeCollator
-from birder.data.collators.detection import training_collate_fn
+from birder.data.collators.detection import DetectionCollator
 from birder.data.datasets.coco import CocoMosaicTraining
 from birder.data.datasets.coco import CocoTraining
 from birder.data.transforms.classification import get_rgb_stats
@@ -92,6 +92,7 @@ def train(args: argparse.Namespace) -> None:
         args.multiscale,
         args.max_size,
         args.multiscale_min_size,
+        args.multiscale_step,
     )
     mosaic_dataset = None
     if args.mosaic_prob > 0.0:
@@ -104,6 +105,7 @@ def train(args: argparse.Namespace) -> None:
             args.multiscale,
             args.max_size,
             args.multiscale_min_size,
+            args.multiscale_step,
             post_mosaic=True,
         )
         if args.dynamic_size is True or args.multiscale is True:
@@ -182,9 +184,17 @@ def train(args: argparse.Namespace) -> None:
     )
 
     if args.batch_multiscale is True:
-        train_collate_fn: Any = BatchRandomResizeCollator(0, args.size, multiscale_min_size=args.multiscale_min_size)
+        train_collate_fn: Any = BatchRandomResizeCollator(
+            0,
+            args.size,
+            size_divisible=args.multiscale_step,
+            multiscale_min_size=args.multiscale_min_size,
+            multiscale_step=args.multiscale_step,
+        )
     else:
-        train_collate_fn = training_collate_fn
+        train_collate_fn = DetectionCollator(0, size_divisible=args.multiscale_step)
+
+    validation_collate_fn = DetectionCollator(0, size_divisible=args.multiscale_step)
 
     training_loader = DataLoader(
         training_dataset,
@@ -202,7 +212,7 @@ def train(args: argparse.Namespace) -> None:
         sampler=validation_sampler,
         num_workers=args.num_workers,
         prefetch_factor=args.prefetch_factor,
-        collate_fn=training_collate_fn,
+        collate_fn=validation_collate_fn,
         pin_memory=True,
         drop_last=args.drop_last,
     )
@@ -309,7 +319,7 @@ def train(args: argparse.Namespace) -> None:
 
         else:
             backbone = registry.net_factory(
-                args.backbone, sample_shape[1], num_outputs, config=args.backbone_model_config, size=args.size
+                args.backbone, num_outputs, sample_shape[1], config=args.backbone_model_config, size=args.size
             )
 
         net = registry.detection_net_factory(
@@ -545,6 +555,11 @@ def train(args: argparse.Namespace) -> None:
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
+
+        # Clear metrics
+        running_loss.clear()
+        for tracker in loss_trackers.values():
+            tracker.clear()
 
         validation_metrics.reset()
 

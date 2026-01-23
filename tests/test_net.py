@@ -28,6 +28,7 @@ NET_TEST_CASES = [
     ("conv2former_n"),
     ("convmixer_768_32"),
     ("convnext_v1_atto"),
+    ("convnext_v1_iso_small"),
     ("convnext_v2_atto"),
     ("crossformer_t"),
     ("crossvit_9d", True, True, 1, 48),
@@ -255,7 +256,7 @@ class TestNet(unittest.TestCase):
         batch_size: int = 1,
         size_step: int = 2**5,
     ) -> None:
-        n = registry.net_factory(network_name, DEFAULT_NUM_CHANNELS, 100)
+        n = registry.net_factory(network_name, 100)
         size = n.default_size
 
         # Ensure config is serializable
@@ -327,7 +328,7 @@ class TestNet(unittest.TestCase):
         batch_size: int = 1,
         size_step: int = 2**5,
     ) -> None:
-        n = registry.net_factory(network_name, DEFAULT_NUM_CHANNELS, 100)
+        n = registry.net_factory(network_name, 100)
         size = n.default_size
 
         # Make sure adjust_size doesn't set any gradients
@@ -363,6 +364,7 @@ class TestNet(unittest.TestCase):
             ("coat_lite_tiny"),
             ("conv2former_n"),
             ("convnext_v1_atto"),
+            ("convnext_v1_iso_small"),
             ("convnext_v2_atto"),
             ("crossformer_t"),
             ("csp_resnet_50"),
@@ -498,7 +500,7 @@ class TestNet(unittest.TestCase):
         batch_size: int = 1,
         allow_equal_stages: bool = False,
     ) -> None:
-        n = registry.net_factory(network_name, DEFAULT_NUM_CHANNELS, 100)
+        n = registry.net_factory(network_name, 100)
         size = n.default_size
 
         self.assertEqual(len(n.return_channels), len(n.return_stages))
@@ -533,7 +535,7 @@ class TestNet(unittest.TestCase):
         ]
     )
     def test_pre_training_encoder_hiera(self, network_name: str) -> None:
-        n = registry.net_factory(network_name, DEFAULT_NUM_CHANNELS, 100)
+        n = registry.net_factory(network_name, 100)
         size = n.default_size
 
         # self.assertIsInstance(n, Hiera)
@@ -562,6 +564,7 @@ class TestNet(unittest.TestCase):
         [
             ("conv2former_n"),
             ("convnext_v1_atto"),
+            ("convnext_v1_iso_small"),
             ("convnext_v2_atto"),
             ("davit_tiny"),
             ("deit3_t16"),
@@ -619,7 +622,7 @@ class TestNet(unittest.TestCase):
         ]
     )
     def test_pre_training_encoder_retention(self, network_name: str, batch_size: int = 1) -> None:
-        n = registry.net_factory(network_name, DEFAULT_NUM_CHANNELS, 100)
+        n = registry.net_factory(network_name, 100)
         size = n.default_size
 
         # self.assertIsInstance(n, MaskedTokenRetentionMixin)
@@ -695,7 +698,7 @@ class TestNet(unittest.TestCase):
         ]
     )
     def test_pre_training_encoder_omission(self, network_name: str, test_all_features: bool = True) -> None:
-        n = registry.net_factory(network_name, DEFAULT_NUM_CHANNELS, 100)
+        n = registry.net_factory(network_name, 100)
         size = n.default_size
 
         # self.assertIsInstance(n, MaskedTokenOmissionMixin)
@@ -754,6 +757,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("conv2former_n"),
             ("convmixer_768_32"),
             ("convnext_v1_atto"),
+            ("convnext_v1_iso_small"),
             ("convnext_v2_atto"),
             ("crossformer_t"),
             ("crossvit_9d", 1, 48, 48),
@@ -903,7 +907,7 @@ class TestNonSquareNet(unittest.TestCase):
         size_offset: int = 2**5,
     ) -> None:
         # Test resize
-        n = registry.net_factory(network_name, DEFAULT_NUM_CHANNELS, 100)
+        n = registry.net_factory(network_name, 100)
         default_size = n.default_size
         if n.square_only is True:
             return
@@ -920,7 +924,7 @@ class TestNonSquareNet(unittest.TestCase):
 
         # Test initialization
         size = (default_size[0], default_size[1] + size_offset)
-        n = registry.net_factory(network_name, DEFAULT_NUM_CHANNELS, 100, size=size)
+        n = registry.net_factory(network_name, 100, size=size)
         out = n(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
         self.assertEqual(out.numel(), 100 * batch_size)
 
@@ -933,7 +937,7 @@ class TestDynamicSize(unittest.TestCase):
         batch_size: int = 1,
         size_step: int = 2**5,
     ) -> None:
-        n = registry.net_factory(network_name, DEFAULT_NUM_CHANNELS, 100)
+        n = registry.net_factory(network_name, 100)
         default_size = n.default_size
         n.set_dynamic_size()
 
@@ -955,7 +959,7 @@ class TestDynamicSize(unittest.TestCase):
         batch_size: int = 1,
         size_step: int = 2**5,
     ) -> None:
-        n = registry.net_factory(network_name, DEFAULT_NUM_CHANNELS, 100)
+        n = registry.net_factory(network_name, 100)
         default_size = n.default_size
         n.set_dynamic_size()
 
@@ -980,7 +984,7 @@ class TestCudaAdjustSize(unittest.TestCase):
         size_step: int = 2**5,
     ) -> None:
         device = torch.device("cuda", torch.cuda.current_device())
-        n = registry.net_factory(network_name, DEFAULT_NUM_CHANNELS, 10).to(device)
+        n = registry.net_factory(network_name, 10).to(device)
         size = (n.default_size[0] + size_step, n.default_size[1] + size_step)
         n.adjust_size(size)
 
@@ -991,50 +995,89 @@ class TestCudaAdjustSize(unittest.TestCase):
 
 
 class TestSpecialFunctions(unittest.TestCase):
+    def test_vit_encoder_out_indices(self) -> None:
+        n = registry.net_factory("vit_s16", 10)
+        n.eval()
+        tokens = torch.rand([1, 64, n.embedding_size])
+
+        all_features = n.encoder.forward_features(tokens)
+        self.assertEqual(len(all_features), len(n.encoder.block))
+
+        num_layers = len(n.encoder.block)
+        out_indices = [0, num_layers // 2, num_layers - 1]
+
+        subset_features = n.encoder.forward_features(tokens, out_indices=out_indices)
+        self.assertEqual(len(subset_features), len(out_indices))
+        for i, out_idx in enumerate(out_indices):
+            self.assertTrue(torch.allclose(subset_features[i], all_features[out_idx]))
+
+        empty_features = n.encoder.forward_features(tokens, out_indices=[])
+        self.assertEqual(len(empty_features), 0)
+
+    def test_rope_vit_encoder_out_indices(self) -> None:
+        n = registry.net_factory("rope_vit_s16_avg", 10, size=(128, 128))
+        n.eval()
+        tokens = torch.rand([1, 64, n.embedding_size])
+        rope = n.rope.pos_embed
+
+        all_features = n.encoder.forward_features(tokens, rope)
+        self.assertEqual(len(all_features), len(n.encoder.block))
+
+        num_layers = len(n.encoder.block)
+        out_indices = [0, num_layers // 2, num_layers - 1]
+
+        subset_features = n.encoder.forward_features(tokens, rope, out_indices=out_indices)
+        self.assertEqual(len(subset_features), len(out_indices))
+        for i, out_idx in enumerate(out_indices):
+            self.assertTrue(torch.allclose(subset_features[i], all_features[out_idx]))
+
+        empty_features = n.encoder.forward_features(tokens, rope, out_indices=[])
+        self.assertEqual(len(empty_features), 0)
+
     def test_vit_sam_weight_import(self) -> None:
         # ViTDet
 
         # ViT
-        vit_det_b16 = registry.net_factory("vit_det_b16", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
-        vit_b16 = registry.net_factory("vit_b16", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
+        vit_det_b16 = registry.net_factory("vit_det_b16", 100, size=(192, 192))
+        vit_b16 = registry.net_factory("vit_b16", 100, size=(192, 192))
         vit_det_b16.load_vit_weights(vit_b16.state_dict())
 
         # DeiT3
         vit_det_b16_ls = registry.net_factory(
-            "vit_det_b16", DEFAULT_NUM_CHANNELS, 100, size=(192, 192), config={"layer_scale_init_value": 1e-5}
+            "vit_det_b16", 100, size=(192, 192), config={"layer_scale_init_value": 1e-5}
         )
-        deit3_reg4_b16 = registry.net_factory("deit3_reg4_b16", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
+        deit3_reg4_b16 = registry.net_factory("deit3_reg4_b16", 100, size=(192, 192))
         vit_det_b16_ls.load_vit_weights(deit3_reg4_b16.state_dict())
 
         # SAM
-        vit_sam_b16 = registry.net_factory("vit_sam_b16", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
+        vit_sam_b16 = registry.net_factory("vit_sam_b16", 100, size=(192, 192))
 
         # ViT
-        vit_b16 = registry.net_factory("vit_b16", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
+        vit_b16 = registry.net_factory("vit_b16", 100, size=(192, 192))
         vit_sam_b16.load_vit_weights(vit_b16.state_dict())
 
         # Simple ViT
-        simple_vit_b16 = registry.net_factory("simple_vit_b16", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
+        simple_vit_b16 = registry.net_factory("simple_vit_b16", 100, size=(192, 192))
         vit_sam_b16.load_vit_weights(simple_vit_b16.state_dict())
 
         # ViT with register tokens
-        vit_reg4_b16 = registry.net_factory("vit_reg4_b16", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
+        vit_reg4_b16 = registry.net_factory("vit_reg4_b16", 100, size=(192, 192))
         vit_sam_b16.load_vit_weights(vit_reg4_b16.state_dict())
 
     def test_hieradet_weight_import(self) -> None:
-        hiera_abswin_tiny = registry.net_factory("hiera_abswin_tiny", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
-        hieradet_tiny = registry.net_factory("hieradet_tiny", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
+        hiera_abswin_tiny = registry.net_factory("hiera_abswin_tiny", 100, size=(192, 192))
+        hieradet_tiny = registry.net_factory("hieradet_tiny", 100, size=(192, 192))
 
         hieradet_tiny.load_hiera_weights(hiera_abswin_tiny.state_dict())
 
     def test_flexivit_proj(self) -> None:
-        flexivit_s16 = registry.net_factory("flexivit_s16", DEFAULT_NUM_CHANNELS, 100, size=(160, 160))
+        flexivit_s16 = registry.net_factory("flexivit_s16", 100, size=(160, 160))
 
         out = flexivit_s16(torch.rand((1, DEFAULT_NUM_CHANNELS, 160, 160)), patch_size=20)
         self.assertEqual(out.numel(), 100)
 
     def test_flexivit_adjust_patch_size(self) -> None:
-        flexivit_s16 = registry.net_factory("flexivit_s16", DEFAULT_NUM_CHANNELS, 100, size=(160, 160))
+        flexivit_s16 = registry.net_factory("flexivit_s16", 100, size=(160, 160))
 
         flexivit_s16.adjust_patch_size(20)
         self.assertEqual(flexivit_s16.conv_proj.weight.shape[-2:], (20, 20))
@@ -1043,38 +1086,38 @@ class TestSpecialFunctions(unittest.TestCase):
 
     def test_flexivit_weight_import(self) -> None:
         # ViT
-        flexivit = registry.net_factory("flexivit_s16", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
-        vit = registry.net_factory("vit_s16", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
+        flexivit = registry.net_factory("flexivit_s16", 100, size=(192, 192))
+        vit = registry.net_factory("vit_s16", 100, size=(192, 192))
         flexivit.load_vit_weights(vit.state_dict())
 
         # ViT with register tokens
-        flexivit = registry.net_factory("flexivit_reg1_s16", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
-        vit = registry.net_factory("vit_reg1_s16", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
+        flexivit = registry.net_factory("flexivit_reg1_s16", 100, size=(192, 192))
+        vit = registry.net_factory("vit_reg1_s16", 100, size=(192, 192))
         flexivit.load_vit_weights(vit.state_dict())
 
         # ViT with AP
-        flexivit = registry.net_factory("flexivit_reg8_b14_ap", DEFAULT_NUM_CHANNELS, 100, size=(196, 196))
-        vit = registry.net_factory("vit_reg8_b14_ap", DEFAULT_NUM_CHANNELS, 100, size=(196, 196))
+        flexivit = registry.net_factory("flexivit_reg8_b14_ap", 100, size=(196, 196))
+        vit = registry.net_factory("vit_reg8_b14_ap", 100, size=(196, 196))
         flexivit.load_vit_weights(vit.state_dict())
 
         # ViT with RMS and LS
-        flexivit = registry.net_factory("flexivit_reg1_s16_rms_ls", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
-        vit = registry.net_factory("vit_reg1_s16_rms_ls", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
+        flexivit = registry.net_factory("flexivit_reg1_s16_rms_ls", 100, size=(192, 192))
+        vit = registry.net_factory("vit_reg1_s16_rms_ls", 100, size=(192, 192))
         flexivit.load_vit_weights(vit.state_dict())
 
         # DeiT3
-        flexivit = registry.net_factory("flexivit_s16_ls", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
-        vit = registry.net_factory("deit3_s16", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
+        flexivit = registry.net_factory("flexivit_s16_ls", 100, size=(192, 192))
+        vit = registry.net_factory("deit3_s16", 100, size=(192, 192))
         flexivit.load_vit_weights(vit.state_dict())
 
     def test_rope_flexivit_proj(self) -> None:
-        rope_flexivit_s16 = registry.net_factory("rope_flexivit_s16", DEFAULT_NUM_CHANNELS, 100, size=(160, 160))
+        rope_flexivit_s16 = registry.net_factory("rope_flexivit_s16", 100, size=(160, 160))
 
         out = rope_flexivit_s16(torch.rand((1, DEFAULT_NUM_CHANNELS, 160, 160)), patch_size=20)
         self.assertEqual(out.numel(), 100)
 
     def test_rope_flexivit_adjust_patch_size(self) -> None:
-        rope_flexivit_s16 = registry.net_factory("rope_flexivit_s16", DEFAULT_NUM_CHANNELS, 100, size=(160, 160))
+        rope_flexivit_s16 = registry.net_factory("rope_flexivit_s16", 100, size=(160, 160))
 
         rope_flexivit_s16.adjust_patch_size(20)
         self.assertEqual(rope_flexivit_s16.conv_proj.weight.shape[-2:], (20, 20))
@@ -1084,8 +1127,8 @@ class TestSpecialFunctions(unittest.TestCase):
 
     def test_rope_flexivit_weight_import(self) -> None:
         # ViT
-        flexivit = registry.net_factory("rope_flexivit_s16", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
-        vit = registry.net_factory("rope_vit_s16", DEFAULT_NUM_CHANNELS, 100, size=(192, 192))
+        flexivit = registry.net_factory("rope_flexivit_s16", 100, size=(192, 192))
+        vit = registry.net_factory("rope_vit_s16", 100, size=(192, 192))
         flexivit.load_rope_vit_weights(vit.state_dict())
 
     @parameterized.expand(  # type: ignore[untyped-decorator]
@@ -1104,7 +1147,7 @@ class TestSpecialFunctions(unittest.TestCase):
         ]
     )
     def test_set_causal_attention(self, network_name: str) -> None:
-        n = registry.net_factory(network_name, DEFAULT_NUM_CHANNELS, 10)
+        n = registry.net_factory(network_name, 10)
         size = n.default_size
         x = torch.rand((1, DEFAULT_NUM_CHANNELS, *size))
 

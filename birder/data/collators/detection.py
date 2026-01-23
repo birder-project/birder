@@ -70,13 +70,21 @@ class BatchRandomResizeCollator(DetectionCollator):
         size: tuple[int, int],
         size_divisible: int = 32,
         multiscale_min_size: Optional[int] = None,
+        multiscale_step: Optional[int] = None,
     ) -> None:
         super().__init__(input_offset, size_divisible=size_divisible)
         if size is None:
             raise ValueError("size must be provided for batch multiscale")
 
         max_side = max(size)
-        sizes = [side for side in build_multiscale_sizes(multiscale_min_size) if side <= max_side]
+        if multiscale_step is None:
+            multiscale_step = size_divisible
+
+        sizes = []
+        for side in build_multiscale_sizes(multiscale_min_size, multiscale_step=multiscale_step):
+            if side <= max_side:
+                sizes.append(side)
+
         if len(sizes) == 0:
             sizes = [max_side]
 

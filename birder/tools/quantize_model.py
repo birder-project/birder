@@ -1,7 +1,9 @@
 import argparse
 import itertools
+import json
 import logging
 import time
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -15,7 +17,11 @@ from birder.common import fs_ops
 from birder.common import lib
 from birder.common.lib import get_network_name
 from birder.conf import settings
+from birder.data.transforms.classification import RGBType
 from birder.data.transforms.classification import inference_preset
+from birder.net.base import SignatureType
+from birder.net.detection.base import DetectionSignatureType
+from birder.version import __version__
 
 try:
     from torchao.quantization.pt2e.quantize_pt2e import convert_pt2e
@@ -28,8 +34,10 @@ except ImportError:
     _HAS_TORCHAO = False
 
 try:
+    from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
     from executorch.backends.xnnpack.quantizer.xnnpack_quantizer import XNNPACKQuantizer
     from executorch.backends.xnnpack.quantizer.xnnpack_quantizer import get_symmetric_quantization_config
+    from executorch.exir import to_edge_transform_and_lower
 
     _HAS_EXECUTORCH = True
 except ImportError:
@@ -54,6 +62,33 @@ def _build_quantizer(backend: str) -> Any:
     raise ValueError(f"Unsupported backend: {backend}")
 
 
+def _save_pte(
+    exported_net: torch.export.ExportedProgram,
+    dst: str | Path,
+    task: str,
+    class_to_idx: dict[str, int],
+    signature: SignatureType | DetectionSignatureType,
+    rgb_stats: RGBType,
+) -> None:
+    edge_program = to_edge_transform_and_lower(exported_net, partitioner=[XnnpackPartitioner()])
+    executorch_program = edge_program.to_executorch()
+    with open(dst, "wb") as f:
+        f.write(executorch_program.buffer)
+
+    with open(f"{dst}_data.json", "w", encoding="utf-8") as handle:
+        json.dump(
+            {
+                "birder_version": __version__,
+                "task": task,
+                "class_to_idx": class_to_idx,
+                "signature": signature,
+                "rgb_stats": rgb_stats,
+            },
+            handle,
+            indent=2,
+        )
+
+
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "quantize-model",
@@ -65,6 +100,7 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools quantize-model -n convnext_v2_tiny -t eu-common\n"
             "python -m birder.tools quantize-model --network densenet_121 -e 100 --num-calibration-batches 256\n"
             "python -m birder.tools quantize-model -n efficientnet_v2_s -e 200 --qbackend xnnpack --batch-size 1\n"
+            "python -m birder.tools quantize-model -n hgnet_v2_b4 --qbackend xnnpack --pte\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -81,6 +117,9 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--qbackend", type=str, choices=["x86", "xnnpack"], default="x86", help="quantization backend"
     )
+    subparser.add_argument(
+        "--pte", default=False, action="store_true", help="lower quantized model to ExecuTorch PTE format"
+    )
     subparser.add_argument("--batch-size", type=int, default=1, metavar="N", help="the batch size")
     subparser.add_argument(
         "--num-calibration-batches",
@@ -96,8 +135,13 @@ def set_parser(subparsers: Any) -> None:
 
 # pylint: disable=too-many-locals
 def main(args: argparse.Namespace) -> None:
+    if args.pte is True and args.qbackend != "xnnpack":
+        raise cli.ValidationError("--pte requires --qbackend xnnpack")
+
     network_name = get_network_name(args.network, tag=args.tag)
     model_path = fs_ops.model_path(network_name, epoch=args.epoch, quantized=True, pt2=True)
+    if args.pte is True:
+        model_path = model_path.with_suffix(".pte")
     if model_path.exists() is True and args.force is False:
         logger.warning("Quantized model already exists... aborting")
         raise SystemExit(1)
@@ -158,5 +202,10 @@ def main(args: argparse.Namespace) -> None:
     logger.info(f"{int(minutes):0>2}m{seconds:04.1f}s to quantize model")
 
     model_path = fs_ops.model_path(network_name, epoch=args.epoch, quantized=True, pt2=True)
-    logger.info(f"Saving quantized PT2 model {model_path}...")
-    fs_ops.save_pt2(exported_quantized_net, model_path, task, class_to_idx, signature, rgb_stats)
+    if args.pte is True:
+        model_path = model_path.with_suffix(".pte")
+        logger.info(f"Lowering quantized model to PTE {model_path}...")
+        _save_pte(exported_quantized_net, model_path, task, class_to_idx, signature, rgb_stats)
+    else:
+        logger.info(f"Saving quantized PT2 model {model_path}...")
+        fs_ops.save_pt2(exported_quantized_net, model_path, task, class_to_idx, signature, rgb_stats)

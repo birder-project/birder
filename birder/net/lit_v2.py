@@ -292,7 +292,6 @@ class LIT_v2(DetectorBackbone):
                 kernel_size=(patch_size, patch_size),
                 stride=(patch_size, patch_size),
                 padding=(0, 0),
-                bias=True,
             ),
             Permute([0, 2, 3, 1]),
             nn.LayerNorm(embed_dim),

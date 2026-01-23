@@ -26,6 +26,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [Conv2Former](#conv2former)
 - [ConvMixer](#convmixer)
 - [ConvNeXt v1](#convnext-v1)
+- [ConvNeXt v1 Isotropic](#convnext-v1-isotropic)
 - [ConvNeXt v2](#convnext-v2)
 - [CrossFormer](#crossformer)
 - [CrossViT](#crossvit)
@@ -74,8 +75,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [MnasNet](#mnasnet)
 - [Mobilenet v1](#mobilenet-v1)
 - [Mobilenet v2](#mobilenet-v2)
-- [Mobilenet v3 Large](#mobilenet-v3-large)
-- [Mobilenet v3 Small](#mobilenet-v3-small)
+- [Mobilenet v3](#mobilenet-v3)
 - [Mobilenet v4](#mobilenet-v4)
 - [Mobilenet v4 Hybrid](#mobilenet-v4-hybrid)
 - [MobileOne](#mobileone)
@@ -303,25 +303,33 @@ torchrun --nproc_per_node=2 train.py --network convmixer_1536_20 --batch-size 64
 #### ConvNeXt v1: Tiny
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v1_tiny --batch-size 128 --opt adamw --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 10 --model-ema --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --rgb-mode none --ra-sampler --ra-reps 2 --amp
+torchrun --nproc_per_node=2 train.py --network convnext_v1_tiny --batch-size 128 --opt adamw --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --rgb-mode none --ra-sampler --ra-reps 2 --amp
 ```
 
 #### ConvNeXt v1: Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v1_small --batch-size 32 --opt adamw --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 10 --model-ema --size 320 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --rgb-mode none --ra-sampler --ra-reps 2 --amp
+torchrun --nproc_per_node=2 train.py --network convnext_v1_small --batch-size 32 --opt adamw --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --rgb-mode none --ra-sampler --ra-reps 2 --amp
 ```
 
 #### ConvNeXt v1: Base
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v1_base --batch-size 16 --opt adamw --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 10 --model-ema --size 384 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --rgb-mode none --ra-sampler --ra-reps 2 --amp
+torchrun --nproc_per_node=2 train.py --network convnext_v1_base --batch-size 16 --opt adamw --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --rgb-mode none --ra-sampler --ra-reps 2 --amp
 ```
 
 #### ConvNeXt v1: Large
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v1_large --batch-size 16 --opt adamw --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 10 --model-ema --size 448 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --rgb-mode none --ra-sampler --ra-reps 2 --amp
+torchrun --nproc_per_node=2 train.py --network convnext_v1_large --batch-size 16 --opt adamw --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --rgb-mode none --ra-sampler --ra-reps 2 --amp
+```
+
+### ConvNeXt v1 Isotropic
+
+#### ConvNeXt v1 Isotropic: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network convnext_v1_small --batch-size 32 --opt adamw --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 50 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --rgb-mode none --ra-sampler --ra-reps 2 --amp
 ```
 
 ### ConvNeXt v2

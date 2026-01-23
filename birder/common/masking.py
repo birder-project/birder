@@ -16,7 +16,7 @@ def _mask_token_omission(
     Parameters
     ----------
     x
-        Tensor of shape (N, L, D), where N is the batch size, L is the sequence length, and D is the feature dimension.
+        Tensor of shape (N, L, D), where N is the batch size, L is the sequence length and D is the feature dimension.
     mask_ratio
         The ratio of the sequence length to be masked. This value should be between 0 and 1.
     kept_mask_ratio

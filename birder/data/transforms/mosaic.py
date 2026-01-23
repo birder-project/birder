@@ -19,7 +19,7 @@ def mosaic_random_center(
     Create a mosaic augmentation by combining 4 images into a single image.
 
     This augmentation places 4 images on a canvas, meeting at a randomly selected
-    center point. Each image is scaled to fit, cropped as needed, and their bounding
+    center point. Each image is scaled to fit, cropped as needed and their bounding
     boxes are transformed accordingly.
 
     Parameters

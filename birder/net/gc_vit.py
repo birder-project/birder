@@ -212,7 +212,7 @@ class Downsample2d(nn.Module):
 class Stem(nn.Module):
     def __init__(self, in_channels: int, out_channels: int) -> None:
         super().__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=True)
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
         self.downsample = Downsample2d(out_channels, out_channels)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -234,9 +234,9 @@ class WindowAttentionGlobal(nn.Module):
 
         self.rel_pos = RelPosBias(window_size=window_size, num_heads=num_heads)
         if self.use_global is True:
-            self.qkv = nn.Linear(dim, dim * 2, bias=True)
+            self.qkv = nn.Linear(dim, dim * 2)
         else:
-            self.qkv = nn.Linear(dim, dim * 3, bias=True)
+            self.qkv = nn.Linear(dim, dim * 3)
 
         self.proj = nn.Linear(dim, dim)
 

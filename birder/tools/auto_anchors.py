@@ -219,7 +219,7 @@ def _validate_args(
     output_format = args.format if args.format is not None else (preset["format"] if preset else None)
     if num_scales is None or num_anchors is None or output_format is None:
         raise cli.ValidationError(
-            "Missing configuration. Provide --num-scales, --num-anchors, and --format or use a --preset"
+            "Missing configuration. Provide --num-scales, --num-anchors and --format or use a --preset"
         )
     if num_scales < 1:
         raise cli.ValidationError("--num-scales must be >= 1")

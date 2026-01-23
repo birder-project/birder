@@ -61,13 +61,7 @@ class MobileOneBlock(nn.Module):
 
         if reparameterized is True:
             self.reparam_conv = nn.Conv2d(
-                in_channels,
-                out_channels,
-                kernel_size=kernel_size,
-                stride=stride,
-                padding=padding,
-                groups=groups,
-                bias=True,
+                in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, groups=groups
             )
         else:
             self.reparam_conv = None
@@ -152,7 +146,6 @@ class MobileOneBlock(nn.Module):
             stride=self.stride,
             padding=self.padding,
             groups=self.groups,
-            bias=True,
         )
         self.reparam_conv.weight.data = kernel
         self.reparam_conv.bias.data = bias

@@ -17,7 +17,7 @@ from torchvision.ops import Conv2dNormActivation
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.detection.yolo_anchors import resolve_anchor_groups
+from birder.net.detection._yolo_anchors import resolve_anchor_groups
 from birder.net.detection.yolo_v3 import YOLOAnchorGenerator
 from birder.net.detection.yolo_v3 import YOLOHead
 from birder.net.detection.yolo_v4 import YOLO_v4

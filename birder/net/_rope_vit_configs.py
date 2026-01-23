@@ -89,6 +89,11 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         config={"patch_size": 16, **SMALL},
     )
     registry.register_model_config(
+        "rope_vit_s16_avg",
+        rope_vit,
+        config={"patch_size": 16, **SMALL, "class_token": False},
+    )
+    registry.register_model_config(
         "rope_i_vit_s16_pn_aps_c1",  # For PE Core - https://arxiv.org/abs/2504.13181
         rope_vit,
         config={

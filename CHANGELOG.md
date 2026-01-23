@@ -1,16 +1,37 @@
 # Changelog
 
+## 0.4.1 - 2026-01-23
+
+### Added
+
+- **Plain DETR Detection**: Added [Plain DETR](https://arxiv.org/abs/2308.01904) object detection model with Box-to-Pixel Relative Position Bias (BoxRPB).
+- **RT-DETR v2 Detection**: Added [RT-DETR v2](https://arxiv.org/abs/2407.17140) object detection model.
+- **Detection Multiscale Step**: Added `--multiscale-step` to control multiscale size increments and collator `size_divisible` padding for detection training.
+- **ConvNeXt v1 Isotropic**: Added isotropic ConvNeXt v1 variants.
+- **Training Top-K Accuracy**: Added optional top-k accuracy tracking during classification training.
+
+### Changed
+
+- **ViT-family Detection Outputs**: ViT, Simple ViT, DeiT, DeiT3, FlexiViT, ViT_Parallel and RoPE variants now support `out_indices` for multi-stage detection features.
+- **DINOv2 Loss Vectorization**: Vectorized `DINOLoss.forward` using einsum, improving training throughput.
+- **Franca Loss Vectorization**: Vectorized `DINOLossMRL.forward` using einsum, improving training throughput.
+- **Benchmark CLI**: `benchmark.py` can now benchmark detection networks.
+
+### Fixed
+
+- **Training Metrics Per-Epoch Reset**: Updated all training scripts to reset metrics at the beginning of each epoch, ensuring per-epoch statistics are independent.
+
 ## 0.4.0 - 2026-01-18
 
 ### Changed
 
 - **ViT Attention Consolidation (Breaking)**:
     - Dropped the `nn.MultiheadAttention` path; ViT now always uses the custom attention implementation.
-    - Renamed ViT block attributes `self_attention` → `attn` and `ln1/ln2` → `norm1/norm2` (affects hooks, tooling, and checkpoint key names).
+    - Renamed ViT block attributes `self_attention` → `attn` and `ln1/ln2` → `norm1/norm2` (affects hooks, tooling and checkpoint key names).
 - **Checkpoint States Filenames (Breaking)**: Training state checkpoints now use a `.pt` extension (e.g., `_states.pt`).
 - **Network Architecture Consolidation (Breaking)**:
     - Merged `MobileNet_v3_Large` and `MobileNet_v3_Small` into a unified `MobileNet_v3` class. Use model configs (`mobilenet_v3_large_*` and `mobilenet_v3_small_*`) instead of separate classes.
-    - Merged `SE_ResNet_v1`, `SE_ResNet_v2`, and `SE_ResNeXt` into their respective base classes (`ResNet_v1`, `ResNet_v2`, `ResNeXt`). SE variants are now configured via the `squeeze_excitation` config parameter rather than separate classes.
+    - Merged `SE_ResNet_v1`, `SE_ResNet_v2` and `SE_ResNeXt` into their respective base classes (`ResNet_v1`, `ResNet_v2`, `ResNeXt`). SE variants are now configured via the `squeeze_excitation` config parameter rather than separate classes.
 - **Pretrained Models**:
     - **Breaking**: Dropped `tiny_vit_5m_il-common`
     - **Breaking**: Dropped `efficientformer_v2_s0_il-common` and `efficientformer_v2_s1_il-common`
@@ -247,7 +268,7 @@
 ### Fixed
 
 - **DINOv2 iBOT Center Update**: Fixed incorrect tensor slicing in the iBOT patch loss center update when using the "centering" strategy.
-- **Freeze Last Layer Gradient Handling**: Fixed `--freeze-last-layer-epochs` to cancel gradients after the backward pass (previously applied before backward and ineffective). Affects DINOv1, DINOv2, and iBOT training.
+- **Freeze Last Layer Gradient Handling**: Fixed `--freeze-last-layer-epochs` to cancel gradients after the backward pass (previously applied before backward and ineffective). Affects DINOv1, DINOv2 and iBOT training.
 - **DINOv2 Freeze Last Layer**: Implemented the missing `--freeze-last-layer-epochs` functionality for standard DINOv2 training.
 - **CAPI Loss Precision**: Updated CAPI loss computation to use double precision, matching the original implementation.
 

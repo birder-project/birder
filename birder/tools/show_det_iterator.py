@@ -24,6 +24,7 @@ from birder.data.datasets.coco import MosaicType
 from birder.data.datasets.directory import tv_loader
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.classification import reverse_preset
+from birder.data.transforms.detection import MULTISCALE_STEP
 from birder.data.transforms.detection import AugType
 from birder.data.transforms.detection import InferenceTransform
 from birder.data.transforms.detection import training_preset
@@ -44,6 +45,7 @@ def show_det_iterator(args: argparse.Namespace) -> None:
             args.multiscale,
             args.max_size,
             args.multiscale_min_size,
+            args.multiscale_step,
         )
         mosaic_transforms = training_preset(
             args.size,
@@ -54,6 +56,7 @@ def show_det_iterator(args: argparse.Namespace) -> None:
             args.multiscale,
             args.max_size,
             args.multiscale_min_size,
+            args.multiscale_step,
             post_mosaic=True,
         )
         if args.mosaic_prob > 0.0:
@@ -163,7 +166,11 @@ def show_det_iterator(args: argparse.Namespace) -> None:
     else:
         if args.batch_multiscale is True:
             data_collate_fn: Any = BatchRandomResizeCollator(
-                offset, args.size, multiscale_min_size=args.multiscale_min_size
+                offset,
+                args.size,
+                size_divisible=args.multiscale_step,
+                multiscale_min_size=args.multiscale_min_size,
+                multiscale_step=args.multiscale_step,
             )
         else:
             data_collate_fn = collate_fn
@@ -264,15 +271,21 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--multiscale", default=False, action="store_true", help="enable random scale per image")
     subparser.add_argument(
-        "--multiscale-min-size",
-        type=int,
-        help="minimum short-edge size for multiscale lists (rounded up to nearest multiple of 32)",
-    )
-    subparser.add_argument(
         "--batch-multiscale",
         default=False,
         action="store_true",
         help="enable random square resize once per batch (batch mode only, capped by max(--size))",
+    )
+    subparser.add_argument(
+        "--multiscale-step",
+        type=int,
+        default=MULTISCALE_STEP,
+        help="step size for multiscale size lists and collator padding divisibility (size_divisible)",
+    )
+    subparser.add_argument(
+        "--multiscale-min-size",
+        type=int,
+        help="minimum short-edge size for multiscale lists (rounded up to nearest multiple of --multiscale-step)",
     )
     subparser.add_argument(
         "--aug-type",

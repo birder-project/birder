@@ -34,6 +34,7 @@ from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenOmissionResultType
 from birder.net.base import TokenRetentionResultType
+from birder.net.base import normalize_out_indices
 from birder.net.rope_vit import Encoder
 from birder.net.rope_vit import MAEDecoderBlock
 from birder.net.rope_vit import RoPE
@@ -46,6 +47,7 @@ from birder.net.vit import adjust_position_embedding
 class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
+    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,
@@ -68,6 +70,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
         mlp_dim: int = self.config["mlp_dim"]
         layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", 1e-5)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
+        out_indices: Optional[list[int]] = self.config.get("out_indices", None)
         rope_rot_type: Literal["standard", "interleaved"] = self.config.get("rope_rot_type", "standard")
         rope_grid_indexing: Literal["ij", "xy"] = self.config.get("rope_grid_indexing", "ij")
         rope_grid_offset: int = self.config.get("rope_grid_offset", 0)
@@ -86,6 +89,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
         self.num_reg_tokens = num_reg_tokens
         self.num_special_tokens = 1 + self.num_reg_tokens
         self.pos_embed_special_tokens = pos_embed_special_tokens
+        self.out_indices = normalize_out_indices(out_indices, num_layers)
         self.rope_rot_type = rope_rot_type
         self.rope_grid_indexing = rope_grid_indexing
         self.rope_grid_offset = rope_grid_offset
@@ -105,7 +109,6 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             kernel_size=(patch_size, patch_size),
             stride=(patch_size, patch_size),
             padding=(0, 0),
-            bias=True,
         )
         self.patch_embed = PatchEmbed()
 
@@ -153,8 +156,9 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
         )
         self.norm = nn.LayerNorm(hidden_dim, eps=1e-6)
 
-        self.return_stages = ["neck"]  # Actually meaningless, but for completeness
-        self.return_channels = [hidden_dim]
+        num_return_stages = len(self.out_indices) if self.out_indices is not None else 1
+        self.return_stages = [f"stage{stage_idx + 1}" for stage_idx in range(num_return_stages)]
+        self.return_channels = [hidden_dim] * num_return_stages
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
 
@@ -238,15 +242,21 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             x = x + self._get_pos_embed(H, W)
             x = torch.concat([batch_special_tokens, x], dim=1)
 
-        x = self.encoder(x, self._get_rope_embed(H, W))
-        x = self.norm(x)
+        rope = self._get_rope_embed(H, W)
+        if self.out_indices is None:
+            xs = [self.encoder(x, rope)]
+        else:
+            xs = self.encoder.forward_features(x, rope, out_indices=self.out_indices)
 
-        x = x[:, self.num_special_tokens :]
-        x = x.permute(0, 2, 1)
-        B, C, _ = x.size()
-        x = x.reshape(B, C, H // self.patch_size, W // self.patch_size)
+        out: dict[str, torch.Tensor] = {}
+        for stage_name, stage_x in zip(self.return_stages, xs):
+            stage_x = stage_x[:, self.num_special_tokens :]
+            stage_x = stage_x.permute(0, 2, 1)
+            B, C, _ = stage_x.size()
+            stage_x = stage_x.reshape(B, C, H // self.patch_size, W // self.patch_size)
+            out[stage_name] = stage_x
 
-        return {self.return_stages[0]: x}
+        return out
 
     def freeze_stages(self, up_to_stage: int) -> None:
         for param in self.conv_proj.parameters():
@@ -260,6 +270,10 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
 
             for param in module.parameters():
                 param.requires_grad_(False)
+
+    def transform_to_backbone(self) -> None:
+        super().transform_to_backbone()
+        self.norm = nn.Identity()
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
         self.encoder.set_causal_attention(is_causal)

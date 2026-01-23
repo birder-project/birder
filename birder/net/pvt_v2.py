@@ -29,13 +29,7 @@ class MLP(nn.Module):
         self.fc1 = nn.Linear(in_features, hidden_features)
         self.relu = nn.ReLU() if extra_relu else nn.Identity()
         self.dwconv = nn.Conv2d(
-            hidden_features,
-            hidden_features,
-            kernel_size=(3, 3),
-            stride=(1, 1),
-            padding=(1, 1),
-            groups=hidden_features,
-            bias=True,
+            hidden_features, hidden_features, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=hidden_features
         )
         self.act = nn.GELU()
         self.fc2 = nn.Linear(hidden_features, in_features)

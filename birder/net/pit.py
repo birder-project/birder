@@ -29,12 +29,12 @@ class SequentialTuple(nn.Sequential):
         self, x: tuple[torch.Tensor, torch.Tensor]
     ) -> tuple[torch.Tensor, torch.Tensor]:
         for module in self:
-            x = module(x)
+            x = module(*x)
 
         return x
 
 
-class Transformer(nn.Module):
+class PiTStage(nn.Module):
     def __init__(
         self,
         base_dim: int,
@@ -59,8 +59,7 @@ class Transformer(nn.Module):
             dpr=drop_path_prob,
         )
 
-    def forward(self, xt: tuple[torch.Tensor, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
-        x, cls_tokens = xt
+    def forward(self, x: torch.Tensor, cls_tokens: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         token_length = cls_tokens.shape[1]
         if self.pool is not None:
             x, cls_tokens = self.pool(x, cls_tokens)
@@ -142,7 +141,7 @@ class PiT(DetectorBackbone):
             if i > 0:
                 pool = Pooling(prev_dim, embed_dim)
 
-            stages[f"stage{i+1}"] = Transformer(
+            stages[f"stage{i+1}"] = PiTStage(
                 base_dims[i],
                 depth,
                 heads=heads[i],
@@ -158,7 +157,7 @@ class PiT(DetectorBackbone):
         self.body = SequentialTuple(stages)
         self.norm = nn.LayerNorm(embed_dim, eps=1e-6)
 
-        self.return_stages = self.return_stages[: len(depths)]
+        self.return_stages = [f"stage{idx + 1}" for idx in range(len(depths))]
         self.return_channels = return_channels
         self.embedding_size = embed_dim
         self.dist_classifier = self.create_classifier()
@@ -197,7 +196,7 @@ class PiT(DetectorBackbone):
 
         out = {}
         for name, module in self.body.named_children():
-            x, cls_tokens = module((x, cls_tokens))
+            x, cls_tokens = module(x, cls_tokens)
             if name in self.return_stages:
                 out[name] = x
 
@@ -218,7 +217,8 @@ class PiT(DetectorBackbone):
         x = self.stem(x)
         x = x + self.pos_embed
         cls_tokens = self.cls_token.expand(x.shape[0], -1, -1)
-        x, cls_tokens = self.body((x, cls_tokens))
+        for stage in self.body.children():
+            x, cls_tokens = stage(x, cls_tokens)
 
         return (x, cls_tokens)
 
@@ -310,20 +310,5 @@ registry.register_model_config(
         "base_dims": [64, 64, 64],
         "heads": [4, 8, 16],
         "drop_path_rate": 0.1,
-    },
-)
-
-registry.register_weights(
-    "pit_t_il-common",
-    {
-        "description": "PiT tiny model trained on the il-common dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 18.4,
-                "sha256": "5f6bd74b09c1ee541ee2ddae4844ce501b4b3218201ea6381fce0b8fc30257f2",
-            }
-        },
-        "net": {"network": "pit_t", "tag": "il-common"},
     },
 )

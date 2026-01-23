@@ -80,7 +80,6 @@ class SimMIM(MIMBaseNet):
             kernel_size=(1, 1),
             stride=(1, 1),
             padding=(0, 0),
-            bias=True,
         )
 
         self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.encoder.stem_width))

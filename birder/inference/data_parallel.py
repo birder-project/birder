@@ -253,7 +253,7 @@ class InferenceDataParallel(nn.Module):
 
         This allows custom methods (e.g., model.embedding()) to be called
         on the InferenceDataParallel instance, which then scatters inputs,
-        calls the method on each replica, and gathers the results.
+        calls the method on each replica and gathers the results.
 
         Parameters
         ----------

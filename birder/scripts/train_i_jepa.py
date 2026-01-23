@@ -119,9 +119,9 @@ def train(args: argparse.Namespace) -> None:
     else:
         model_config = {"drop_path_rate": 0.0}
 
-    backbone = registry.net_factory(args.network, sample_shape[1], 0, config=model_config, size=args.size)
+    backbone = registry.net_factory(args.network, 0, sample_shape[1], config=model_config, size=args.size)
     num_special_tokens = backbone.num_special_tokens
-    target_backbone = registry.net_factory(args.network, sample_shape[1], 0, config=model_config, size=args.size)
+    target_backbone = registry.net_factory(args.network, 0, sample_shape[1], config=model_config, size=args.size)
     encoder = I_JEPA(backbone)
     target_encoder = I_JEPA(target_backbone)
     target_encoder.load_state_dict(encoder.state_dict())
@@ -439,6 +439,9 @@ def train(args: argparse.Namespace) -> None:
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
+
+        # Clear metrics
+        running_loss.clear()
 
         if args.distributed is True or virtual_epoch_mode is True:
             train_sampler.set_epoch(epoch)

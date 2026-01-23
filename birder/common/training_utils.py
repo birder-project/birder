@@ -11,6 +11,7 @@ from collections import deque
 from collections.abc import Callable
 from collections.abc import Generator
 from collections.abc import Iterator
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -361,7 +362,7 @@ def optimizer_parameter_groups(
     Return parameter groups for optimizers with per-parameter group weight decay.
 
     This function creates parameter groups with customizable weight decay, layer-wise
-    learning rate scaling, and special handling for different parameter types. It supports
+    learning rate scaling and special handling for different parameter types. It supports
     advanced optimization techniques like layer decay and custom weight decay rules.
 
     Referenced from https://github.com/pytorch/vision/blob/main/references/classification/utils.py and from
@@ -884,6 +885,11 @@ class SmoothedValue:
         self.total: torch.Tensor | float = 0.0
         self.count: int = 0
 
+    def clear(self) -> None:
+        self.deque.clear()
+        self.total = 0.0
+        self.count = 0
+
     def update(self, value: torch.Tensor | float, n: int = 1) -> None:
         self.deque.append(value)
         self.count += n
@@ -927,14 +933,32 @@ class SmoothedValue:
         return to_tensor(v, torch.device("cpu")).item()  # type: ignore[no-any-return]
 
 
-def accuracy(y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
+@torch.no_grad()  # type: ignore[untyped-decorator]
+def accuracy(y_true: torch.Tensor, y_pred: torch.Tensor) -> torch.Tensor:
     if y_pred.dim() > 1 and y_pred.size(1) > 1:
         y_pred = y_pred.argmax(dim=1)
 
     y_true = y_true.flatten()
     y_pred = y_pred.flatten()
 
-    return (y_true == y_pred).float().mean().item()  # type: ignore[no-any-return]
+    return (y_true == y_pred).sum() / y_true.numel()
+
+
+@torch.no_grad()  # type: ignore[untyped-decorator]
+def topk_accuracy(y_true: torch.Tensor, y_pred: torch.Tensor, topk: Sequence[int]) -> list[torch.Tensor]:
+    maxk = min(max(topk), y_pred.size(1))
+    batch_size = y_true.size(0)
+
+    _, pred = y_pred.topk(maxk, dim=1, largest=True, sorted=True)
+    correct = pred.eq(y_true.unsqueeze(1))
+
+    res: list[torch.Tensor] = []
+    for k in topk:
+        k = min(k, maxk)
+        correct_k = correct[:, :k].any(dim=1).sum(dtype=torch.float32)
+        res.append((correct_k / batch_size))
+
+    return res
 
 
 ###############################################################################

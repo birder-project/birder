@@ -6,6 +6,7 @@ from typing import Any
 from typing import Literal
 from typing import Optional
 
+from birder.conf.settings import DEFAULT_NUM_CHANNELS
 from birder.model_registry import manifest
 
 if TYPE_CHECKING is True:
@@ -229,8 +230,8 @@ class ModelRegistry:
     def net_factory(
         self,
         name: str,
-        input_channels: int,
         num_classes: int,
+        input_channels: int = DEFAULT_NUM_CHANNELS,
         *,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,

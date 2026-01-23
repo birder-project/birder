@@ -83,7 +83,7 @@ class MBConv(nn.Module):
         if stride[0] != 1 or stride[1] != 1 or in_channels != out_channels:
             self.proj = nn.Sequential(
                 nn.AvgPool2d(kernel_size=(3, 3), stride=stride, padding=(1, 1)),
-                nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=True),
+                nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)),
             )
         else:
             self.proj = nn.Identity()
@@ -119,12 +119,7 @@ class MBConv(nn.Module):
             ),
             SqueezeExcitation(mid_channels, sqz_channels, activation=nn.SiLU),
             nn.Conv2d(
-                in_channels=mid_channels,
-                out_channels=out_channels,
-                kernel_size=(1, 1),
-                stride=(1, 1),
-                padding=(0, 0),
-                bias=True,
+                in_channels=mid_channels, out_channels=out_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)
             ),
         )
 
@@ -500,14 +495,7 @@ class MaxViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                 activation_layer=nn.GELU,
                 inplace=None,
             ),
-            nn.Conv2d(
-                stem_channels,
-                stem_channels,
-                kernel_size=(3, 3),
-                stride=(1, 1),
-                padding=(1, 1),
-                bias=True,
-            ),
+            nn.Conv2d(stem_channels, stem_channels, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
         )
 
         # Account for stem stride

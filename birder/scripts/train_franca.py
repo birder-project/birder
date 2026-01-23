@@ -234,7 +234,7 @@ def train(args: argparse.Namespace) -> None:
 
     network_name = get_mim_network_name("franca", encoder=args.network, tag=args.tag)
 
-    student_backbone = registry.net_factory(args.network, sample_shape[1], 0, config=args.model_config, size=args.size)
+    student_backbone = registry.net_factory(args.network, 0, sample_shape[1], config=args.model_config, size=args.size)
     if args.model_config is not None:
         teacher_model_config = args.model_config.copy()
         teacher_model_config.update({"drop_path_rate": 0.0})
@@ -242,7 +242,7 @@ def train(args: argparse.Namespace) -> None:
         teacher_model_config = {"drop_path_rate": 0.0}
 
     teacher_backbone = registry.net_factory(
-        args.network, sample_shape[1], 0, config=teacher_model_config, size=args.size
+        args.network, 0, sample_shape[1], config=teacher_model_config, size=args.size
     )
     student_backbone.set_dynamic_size()
     if args.ibot_separate_head is False:
@@ -622,6 +622,13 @@ def train(args: argparse.Namespace) -> None:
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
+
+        # Clear metrics
+        running_loss.clear()
+        running_loss_dino_local.clear()
+        running_loss_dino_global.clear()
+        running_loss_koleo.clear()
+        running_loss_ibot_patch.clear()
 
         if args.sinkhorn_queue_size is not None:
             queue_active = epoch > args.sinkhorn_queue_warmup_epochs

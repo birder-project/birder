@@ -38,12 +38,10 @@ class MLP(nn.Module):
         drop: float,
     ) -> None:
         super().__init__()
-        self.fc1 = nn.Conv2d(in_features, hidden_features, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=True)
+        self.fc1 = nn.Conv2d(in_features, hidden_features, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.act = act_layer()
         self.drop1 = nn.Dropout(drop)
-        self.fc2 = nn.Conv2d(
-            hidden_features, out_features, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=True
-        )
+        self.fc2 = nn.Conv2d(hidden_features, out_features, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.drop2 = nn.Dropout(drop)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -78,9 +76,7 @@ class Downsample(nn.Module):
                 kernel_size = (3, 3)
                 padding = (1, 1)
 
-        self.proj = nn.Conv2d(
-            in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=True
-        )
+        self.proj = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding)
         self.norm = norm_layer(out_channels) if norm_layer is not None else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -124,7 +120,7 @@ class FocalModulation(nn.Module):
         self.h = nn.Conv2d(dim, dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=bias)
 
         self.act = nn.GELU()
-        self.proj = nn.Conv2d(dim, dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=True)
+        self.proj = nn.Conv2d(dim, dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.proj_drop = nn.Dropout(proj_drop)
         self.focal_layers = nn.ModuleList()
 

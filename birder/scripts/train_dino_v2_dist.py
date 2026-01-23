@@ -208,17 +208,17 @@ def train(args: argparse.Namespace) -> None:
 
     network_name = get_mim_network_name("dino_v2_dist", encoder=args.network, tag=args.tag)
 
-    student_backbone = registry.net_factory(args.network, sample_shape[1], 0, config=args.model_config, size=args.size)
+    student_backbone = registry.net_factory(args.network, 0, sample_shape[1], config=args.model_config, size=args.size)
     student_backbone_ema = registry.net_factory(
-        args.network, sample_shape[1], 0, config=args.model_config, size=args.size
+        args.network, 0, sample_shape[1], config=args.model_config, size=args.size
     )
     student_backbone_ema.load_state_dict(student_backbone.state_dict())
     student_backbone_ema.requires_grad_(False)
 
     teacher_backbone = registry.net_factory(
         args.teacher,
-        sample_shape[1],
         0,
+        sample_shape[1],
         config=args.teacher_model_config,
         size=args.size,
     )
@@ -625,6 +625,19 @@ def train(args: argparse.Namespace) -> None:
         net.train()
         teacher.eval()
 
+        # Clear metrics
+        running_loss.clear()
+        running_loss_dino_local.clear()
+        running_loss_dino_global.clear()
+        running_loss_koleo.clear()
+        running_loss_ibot_patch.clear()
+        if track_extended_metrics is True:
+            train_proto_agreement.clear()
+            train_patch_agreement.clear()
+            running_target_entropy.clear()
+            running_dino_center_drift.clear()
+            running_ibot_center_drift.clear()
+
         if args.sinkhorn_queue_size is not None:
             queue_active = epoch > args.sinkhorn_queue_warmup_epochs
             dino_loss.set_queue_active(queue_active)
@@ -692,7 +705,7 @@ def train(args: argparse.Namespace) -> None:
                             prev_dino_center = dino_loss.center.clone()
                             prev_ibot_center = ibot_patch_loss.center.clone()
 
-                        teacher_dino_softmax_centered_list = dino_loss.softmax_center_teacher(
+                        teacher_dino_softmax_centered = dino_loss.softmax_center_teacher(
                             teacher_embedding_after_head, teacher_temp=teacher_temp
                         ).view(n_global_crops, -1, *teacher_embedding_after_head.shape[1:])
                         dino_loss.update_center(teacher_embedding_after_head)
@@ -705,7 +718,7 @@ def train(args: argparse.Namespace) -> None:
                         ibot_patch_loss.update_center(teacher_masked_patch_tokens_after_head[:, :n_masked_patches])
 
                     else:  # sinkhorn_knopp
-                        teacher_dino_softmax_centered_list = dino_loss.sinkhorn_knopp_teacher(
+                        teacher_dino_softmax_centered = dino_loss.sinkhorn_knopp_teacher(
                             teacher_embedding_after_head, teacher_temp=teacher_temp
                         ).view(n_global_crops, -1, *teacher_embedding_after_head.shape[1:])
 
@@ -726,7 +739,7 @@ def train(args: argparse.Namespace) -> None:
                 # Local DINO loss
                 loss_dino_local_crops = dino_loss(
                     student_local_embedding_after_head.chunk(n_local_crops),
-                    teacher_dino_softmax_centered_list,
+                    teacher_dino_softmax_centered.unbind(0),
                 ) / (n_global_crops_loss_terms + n_local_crops_loss_terms)
                 loss = args.dino_loss_weight * loss_dino_local_crops
 
@@ -736,7 +749,7 @@ def train(args: argparse.Namespace) -> None:
                     dino_loss(
                         [student_global_embedding_after_head],
                         [
-                            teacher_dino_softmax_centered_list.flatten(0, 1)
+                            teacher_dino_softmax_centered.flatten(0, 1)
                         ],  # These were chunked and stacked in reverse so A is matched to B
                     )
                     * loss_scales
@@ -830,7 +843,7 @@ def train(args: argparse.Namespace) -> None:
                 train_patch_agreement.update(training_utils.accuracy(pred_patch_teacher, pred_patch_student))
 
                 with torch.no_grad():
-                    p = teacher_dino_softmax_centered_list.detach()
+                    p = teacher_dino_softmax_centered.detach()
                     p = p.reshape(-1, p.size(-1))  # (N, D)
 
                     # Mean distribution over prototypes (marginal)

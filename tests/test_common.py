@@ -335,7 +335,7 @@ class TestTrainingUtils(unittest.TestCase):
     # pylint: disable=too-many-branches
     def test_optimizer_parameter_groups(self) -> None:
         model = torch.nn.Sequential(
-            torch.nn.Linear(1, 2, bias=True),
+            torch.nn.Linear(1, 2),
             torch.nn.BatchNorm1d(2),
             torch.nn.Linear(2, 1, bias=False),
         )
@@ -468,7 +468,7 @@ class TestTrainingUtils(unittest.TestCase):
                     "backbone": torch.nn.Sequential(
                         OrderedDict(
                             {
-                                "linear": torch.nn.Linear(1, 2, bias=True),
+                                "linear": torch.nn.Linear(1, 2),
                                 "norm": torch.nn.BatchNorm1d(2),
                             }
                         )
@@ -483,9 +483,17 @@ class TestTrainingUtils(unittest.TestCase):
         for param in params[4:]:
             self.assertNotIn("lr", param)
 
+        # Test backbone with layer decay (backbone_lr should NOT be affected by lr_scale)
+        params = training_utils.optimizer_parameter_groups(model, 0, 0.1, backbone_lr=0.01, layer_decay=0.1)
+        self.assertAlmostEqual(params[0]["lr"], 0.01)
+        self.assertAlmostEqual(params[1]["lr"], 0.01)
+        self.assertAlmostEqual(params[2]["lr"], 0.01)
+        self.assertAlmostEqual(params[3]["lr"], 0.01)
+        self.assertNotIn("lr", params[4])  # classifier (lr_scale=1.0, no backbone_lr)
+
         # Test bias
         model = torch.nn.Sequential(
-            torch.nn.Linear(1, 2, bias=True),
+            torch.nn.Linear(1, 2),
             torch.nn.BatchNorm1d(2),
             torch.nn.Linear(2, 1, bias=False),
         )
@@ -541,7 +549,7 @@ class TestTrainingUtils(unittest.TestCase):
     # pylint: disable=too-many-branches
     def test_lr_scale_with_optimizer_and_scheduler(self) -> None:
         model = torch.nn.Sequential(
-            torch.nn.Linear(10, 20, bias=True),
+            torch.nn.Linear(10, 20),
             torch.nn.BatchNorm1d(20),
             torch.nn.Linear(20, 10, bias=False),
         )
@@ -675,7 +683,7 @@ class TestTrainingUtils(unittest.TestCase):
         args = argparse.Namespace(opt="adamw", lr=0.1, wd=0.1, opt_eps=1e-6, opt_betas=[0.1, 0.2])
         opt = training_utils.get_optimizer([{"params": []}], args.lr, args)
         self.assertEqual(opt.defaults["eps"], 1e-6)
-        self.assertEqual(opt.defaults["betas"], [0.1, 0.2])
+        self.assertSequenceEqual(opt.defaults["betas"], (0.1, 0.2))
 
     def test_get_scheduler(self) -> None:
         args = argparse.Namespace(opt="sgd", lr=0.1, momentum=0.9, wd=0, nesterov=False)
@@ -889,11 +897,42 @@ class TestTrainingUtils(unittest.TestCase):
     def test_accuracy(self) -> None:
         y_true = torch.tensor([0, 1, 2, 0])
         y_pred = torch.tensor([[0.9, 0.1, 0.0], [0.8, 0.1, 0.1], [0.0, 0.1, 0.9], [0.1, 0.4, 0.5]])
-        self.assertAlmostEqual(training_utils.accuracy(y_true, y_pred), 2 / 4, places=6)
+        self.assertAlmostEqual(training_utils.accuracy(y_true, y_pred).item(), 2 / 4, places=6)
+
+        y_true = torch.tensor([0, 1, 2, 0])
+        y_pred = torch.tensor([0, 2, 2, 1])
+        self.assertAlmostEqual(training_utils.accuracy(y_true, y_pred).item(), 2 / 4, places=6)
+
+    # pylint: disable=unbalanced-tuple-unpacking
+    def test_topk_accuracy(self) -> None:
+        y_true = torch.tensor([0, 1, 2, 0])
+        y_pred = torch.tensor(
+            [
+                [0.9, 0.1, 0.0],  # Top-1
+                [0.8, 0.2, 0.1],  # Top-2
+                [0.0, 0.1, 0.9],  # Top-1
+                [0.1, 0.4, 0.5],  # None
+            ]
+        )
+        acc1, acc2 = training_utils.topk_accuracy(y_true, y_pred, topk=(1, 2))
+        self.assertAlmostEqual(acc1.item(), 2 / 4, places=6)
+        self.assertAlmostEqual(acc2.item(), 3 / 4, places=6)
+
+        y_true = torch.tensor([0, 1, 2, 0])
+        y_pred = torch.tensor(
+            [
+                [0.9, 0.1, 0.0],
+                [0.8, 0.2, 0.1],
+                [0.0, 0.1, 0.9],
+                [0.1, 0.4, 0.5],
+            ]
+        )
+        (acc10,) = training_utils.topk_accuracy(y_true, y_pred, topk=(10,))
+        self.assertAlmostEqual(acc10.item(), 1.0, places=6)
 
     def test_get_grad_norm(self) -> None:
         model = torch.nn.Sequential(
-            torch.nn.Linear(1, 2, bias=True),
+            torch.nn.Linear(1, 2),
             torch.nn.BatchNorm1d(2),
             torch.nn.Linear(2, 1, bias=False),
         )
@@ -941,7 +980,7 @@ class TestTrainingUtils(unittest.TestCase):
 
     def test_freeze_batchnorm2d(self) -> None:
         model = torch.nn.Sequential(
-            torch.nn.Linear(1, 2, bias=True),
+            torch.nn.Linear(1, 2),
             torch.nn.BatchNorm1d(2),
             torch.nn.Linear(2, 1, bias=False),
         )
@@ -955,10 +994,10 @@ class TestTrainingUtils(unittest.TestCase):
 
     def test_replace_module(self) -> None:
         model = torch.nn.Sequential(
-            torch.nn.Linear(1, 2, bias=True),
+            torch.nn.Linear(1, 2),
             torch.nn.BatchNorm1d(2),
             torch.nn.Sequential(
-                torch.nn.Linear(1, 2, bias=True),
+                torch.nn.Linear(1, 2),
                 torch.nn.ReLU(),
             ),
             torch.nn.Linear(2, 1, bias=False),

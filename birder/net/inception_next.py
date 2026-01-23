@@ -33,7 +33,6 @@ class InceptionDWConv2d(nn.Module):
             stride=(1, 1),
             padding=square_kernel_size // 2,
             groups=branch_channels,
-            bias=True,
         )
         self.dwconv_w = nn.Conv2d(
             branch_channels,
@@ -42,7 +41,6 @@ class InceptionDWConv2d(nn.Module):
             stride=(1, 1),
             padding=(0, band_kernel_size // 2),
             groups=branch_channels,
-            bias=True,
         )
         self.dwconv_h = nn.Conv2d(
             branch_channels,
@@ -51,7 +49,6 @@ class InceptionDWConv2d(nn.Module):
             stride=(1, 1),
             padding=(band_kernel_size // 2, 0),
             groups=branch_channels,
-            bias=True,
         )
         self.split_indexes = (
             in_channels - (3 * branch_channels),
@@ -78,11 +75,9 @@ class ConvMLP(nn.Module):
         act_layer: Callable[..., nn.Module] = nn.GELU,
     ) -> None:
         super().__init__()
-        self.fc1 = nn.Conv2d(in_features, hidden_features, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=True)
+        self.fc1 = nn.Conv2d(in_features, hidden_features, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.act = act_layer()
-        self.fc2 = nn.Conv2d(
-            hidden_features, out_features, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=True
-        )
+        self.fc2 = nn.Conv2d(hidden_features, out_features, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.fc1(x)
@@ -139,12 +134,7 @@ class InceptionNeXtStage(nn.Module):
             self.downsample = nn.Sequential(
                 nn.BatchNorm2d(in_channels),
                 nn.Conv2d(
-                    in_channels,
-                    out_channels,
-                    kernel_size=(stride, stride),
-                    stride=(stride, stride),
-                    padding=(0, 0),
-                    bias=True,
+                    in_channels, out_channels, kernel_size=(stride, stride), stride=(stride, stride), padding=(0, 0)
                 ),
             )
 

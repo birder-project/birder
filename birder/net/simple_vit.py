@@ -26,17 +26,19 @@ from birder.net._vit_configs import HUGE
 from birder.net._vit_configs import LARGE
 from birder.net._vit_configs import MEDIUM
 from birder.net._vit_configs import SMALL
+from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenOmissionResultType
+from birder.net.base import normalize_out_indices
 from birder.net.base import pos_embedding_sin_cos_2d
 from birder.net.vit import Encoder
 from birder.net.vit import EncoderBlock
 from birder.net.vit import PatchEmbed
 
 
-# pylint: disable=invalid-name
-class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
+# pylint: disable=invalid-name,too-many-instance-attributes
+class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -56,6 +58,7 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
         num_heads: int = self.config["num_heads"]
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
+        out_indices: Optional[list[int]] = self.config.get("out_indices", None)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
@@ -66,6 +69,7 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
         self.hidden_dim = hidden_dim
         self.mlp_dim = mlp_dim
         self.num_special_tokens = 0
+        self.out_indices = normalize_out_indices(out_indices, num_layers)
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
         self.conv_proj = nn.Conv2d(
@@ -74,7 +78,6 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
             kernel_size=(patch_size, patch_size),
             stride=(patch_size, patch_size),
             padding=(0, 0),
-            bias=True,
         )
         self.patch_embed = PatchEmbed()
 
@@ -94,6 +97,9 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
             nn.Flatten(1),
         )
 
+        num_return_stages = len(self.out_indices) if self.out_indices is not None else 1
+        self.return_stages = [f"stage{stage_idx + 1}" for stage_idx in range(num_return_stages)]
+        self.return_channels = [hidden_dim] * num_return_stages
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
 
@@ -192,6 +198,42 @@ class Simple_ViT(PreTrainEncoder, MaskedTokenOmissionMixin):
         x = self.forward_features(x)
         x = x.permute(0, 2, 1)
         return self.features(x)
+
+    def transform_to_backbone(self) -> None:
+        super().transform_to_backbone()
+        self.norm = nn.Identity()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        H, W = x.shape[-2:]
+        x = self.conv_proj(x)
+        x = self.patch_embed(x)
+        x = x + self._get_pos_embed(H, W)
+
+        if self.out_indices is None:
+            xs = [self.encoder(x)]
+        else:
+            xs = self.encoder.forward_features(x, out_indices=self.out_indices)
+
+        out: dict[str, torch.Tensor] = {}
+        for stage_name, stage_x in zip(self.return_stages, xs):
+            stage_x = stage_x[:, self.num_special_tokens :]
+            stage_x = stage_x.permute(0, 2, 1)
+            B, C, _ = stage_x.size()
+            stage_x = stage_x.reshape(B, C, H // self.patch_size, W // self.patch_size)
+            out[stage_name] = stage_x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.conv_proj.parameters():
+            param.requires_grad_(False)
+
+        for idx, module in enumerate(self.encoder.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad_(False)
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:

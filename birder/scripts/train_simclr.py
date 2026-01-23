@@ -187,7 +187,7 @@ def train(args: argparse.Namespace) -> None:
 
     network_name = get_mim_network_name("simclr", encoder=args.network, tag=args.tag)
 
-    backbone = registry.net_factory(args.network, sample_shape[1], 0, config=args.model_config, size=args.size)
+    backbone = registry.net_factory(args.network, 0, sample_shape[1], config=args.model_config, size=args.size)
     net = SimCLR(
         backbone,
         config={
@@ -369,6 +369,9 @@ def train(args: argparse.Namespace) -> None:
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
+
+        # Clear metrics
+        running_loss.clear()
 
         if args.distributed is True or virtual_epoch_mode is True:
             train_sampler.set_epoch(epoch)

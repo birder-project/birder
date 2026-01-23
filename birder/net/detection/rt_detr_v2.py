@@ -1,11 +1,9 @@
 """
-RT-DETR v1 (Real-Time DEtection TRansformer), adapted from
-https://github.com/lyuwenyu/RT-DETR/tree/main/rtdetr_pytorch
+RT-DETR v2 (Real-Time DEtection TRansformer), adapted from
+https://github.com/lyuwenyu/RT-DETR/tree/main/rtdetrv2_pytorch
 
-Paper "DETRs Beat YOLOs on Real-time Object Detection", https://arxiv.org/abs/2304.08069
-
-Note: The paper describes uncertainty-minimal query selection, but the upstream repo
-selects top-K queries by classification confidence. We follow the repo behavior here.
+Paper "RT-DETRv2: Improved Baseline with Bag-of-Freebies for Real-Time Detection Transformer",
+https://arxiv.org/abs/2407.17140
 """
 
 # Reference license: Apache-2.0
@@ -13,203 +11,29 @@ selects top-K queries by classification confidence. We follow the repo behavior 
 import copy
 import math
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
 import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import MLP
-from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import boxes as box_ops
 
 from birder.common import training_utils
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.base import pos_embedding_sin_cos_2d
 from birder.net.detection.base import DetectionBaseNet
-from birder.net.detection.deformable_detr import DeformableTransformerDecoderLayer
 from birder.net.detection.deformable_detr import HungarianMatcher
 from birder.net.detection.deformable_detr import inverse_sigmoid
-from birder.net.repvgg import RepVggBlock
+from birder.net.detection.rt_detr_v1 import HybridEncoder
+from birder.net.detection.rt_detr_v1 import get_contrastive_denoising_training_group
+from birder.net.detection.rt_detr_v1 import varifocal_loss
+from birder.ops.msda import MultiScaleDeformableAttention as MSDA
 
 
 def _get_clones(module: nn.Module, N: int) -> nn.ModuleList:
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
-
-
-@torch.jit.unused  # type: ignore[untyped-decorator]
-def get_contrastive_denoising_training_group(  # pylint: disable=too-many-locals
-    targets: list[dict[str, torch.Tensor]],
-    num_classes: int,
-    num_queries: int,
-    class_embed: nn.Embedding,
-    num_denoising_queries: int,
-    label_noise_ratio: float,
-    box_noise_scale: float,
-) -> tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor], Optional[dict[str, Any]]]:
-    if num_denoising_queries <= 0:
-        return (None, None, None, None)
-
-    num_ground_truths = [len(t["labels"]) for t in targets]
-    device = targets[0]["labels"].device
-
-    max_gt_num = max(num_ground_truths)
-    if max_gt_num == 0:
-        return (None, None, None, None)
-
-    num_groups = num_denoising_queries // max_gt_num
-    num_groups = 1 if num_groups == 0 else num_groups
-
-    # Pad ground truth to max_num of a batch
-    batch_size = len(num_ground_truths)
-
-    input_query_class = torch.full([batch_size, max_gt_num], num_classes, dtype=torch.long, device=device)
-    input_query_bbox = torch.zeros([batch_size, max_gt_num, 4], dtype=targets[0]["boxes"].dtype, device=device)
-    pad_gt_mask = torch.zeros([batch_size, max_gt_num], dtype=torch.bool, device=device)
-
-    for i in range(batch_size):
-        num_gt = num_ground_truths[i]
-        if num_gt > 0:
-            input_query_class[i, :num_gt] = targets[i]["labels"].long()
-            input_query_bbox[i, :num_gt] = targets[i]["boxes"]
-            pad_gt_mask[i, :num_gt] = True
-
-    input_query_class = input_query_class.tile([1, 2 * num_groups])
-    input_query_bbox = input_query_bbox.tile([1, 2 * num_groups, 1])
-    pad_gt_mask = pad_gt_mask.tile([1, 2 * num_groups])
-
-    # Positive and negative mask
-    negative_gt_mask = torch.zeros([batch_size, max_gt_num * 2, 1], device=device)
-    negative_gt_mask[:, max_gt_num:] = 1
-    negative_gt_mask = negative_gt_mask.tile([1, num_groups, 1])
-    positive_gt_mask = 1 - negative_gt_mask
-
-    # Contrastive denoising training positive index
-    positive_gt_mask_squeezed = positive_gt_mask.squeeze(-1) * pad_gt_mask
-    denoise_positive_idx = torch.nonzero(positive_gt_mask_squeezed)[:, 1]
-    denoise_positive_idx = torch.split(denoise_positive_idx, [n * num_groups for n in num_ground_truths])
-
-    # Total denoising queries
-    total_denoising_queries = int(max_gt_num * 2 * num_groups)
-
-    # Apply label noise
-    if label_noise_ratio > 0:
-        mask = torch.rand_like(input_query_class, dtype=torch.float) < (label_noise_ratio * 0.5)
-        new_label = torch.randint(0, num_classes, input_query_class.shape, dtype=torch.long, device=device)
-        input_query_class = torch.where(mask & pad_gt_mask, new_label, input_query_class)
-
-    # Apply box noise
-    if box_noise_scale > 0:
-        known_bbox = box_ops.box_convert(input_query_bbox, in_fmt="cxcywh", out_fmt="xyxy")
-        diff = torch.tile(input_query_bbox[..., 2:] * 0.5, [1, 1, 2]) * box_noise_scale
-        rand_sign = torch.randint_like(input_query_bbox, 0, 2) * 2.0 - 1.0
-        rand_part = torch.rand_like(input_query_bbox)
-        rand_part = (rand_part + 1.0) * negative_gt_mask + rand_part * (1 - negative_gt_mask)
-        rand_part *= rand_sign
-        known_bbox = known_bbox + rand_part * diff
-        known_bbox.clip_(min=0.0, max=1.0)
-        input_query_bbox = box_ops.box_convert(known_bbox, in_fmt="xyxy", out_fmt="cxcywh")
-        input_query_bbox = inverse_sigmoid(input_query_bbox)
-
-    # Embed class labels
-    input_query_class = class_embed(input_query_class)
-
-    # Create attention mask (True = masked)
-    target_size = total_denoising_queries + num_queries
-    attn_mask = torch.zeros([target_size, target_size], dtype=torch.bool, device=device)
-    attn_mask[total_denoising_queries:, :total_denoising_queries] = True
-    for i in range(num_groups):
-        idx_block_start = max_gt_num * 2 * i
-        idx_block_end = max_gt_num * 2 * (i + 1)
-        attn_mask[idx_block_start:idx_block_end, :idx_block_start] = True
-        attn_mask[idx_block_start:idx_block_end, idx_block_end:total_denoising_queries] = True
-
-    denoising_meta_values = {
-        "dn_positive_idx": denoise_positive_idx,
-        "dn_num_group": num_groups,
-        "dn_num_split": [total_denoising_queries, num_queries],
-    }
-
-    return (input_query_class, input_query_bbox, attn_mask, denoising_meta_values)
-
-
-def varifocal_loss(
-    pred_logits: torch.Tensor,
-    target_score: torch.Tensor,
-    target_onehot: torch.Tensor,
-    alpha: float = 0.75,
-    gamma: float = 2.0,
-) -> torch.Tensor:
-    """
-    VariFocal Loss - uses IoU as soft target for positives, focal-like weighting for negatives
-    """
-
-    pred_score = pred_logits.sigmoid().detach()
-    weight = alpha * pred_score.pow(gamma) * (1 - target_onehot) + target_score
-    loss = F.binary_cross_entropy_with_logits(pred_logits, target_score, weight=weight, reduction="none")
-
-    return loss
-
-
-class CSPRepLayer(nn.Module):
-    """
-    Cross Stage Partial layer with RepVGG blocks
-    """
-
-    def __init__(self, in_channels: int, out_channels: int, num_blocks: int, expansion: float) -> None:
-        super().__init__()
-        hidden_channels = int(out_channels * expansion)
-
-        self.conv1 = Conv2dNormActivation(
-            in_channels,
-            hidden_channels,
-            kernel_size=(1, 1),
-            stride=(1, 1),
-            padding=(0, 0),
-            activation_layer=nn.SiLU,
-        )
-        self.conv2 = Conv2dNormActivation(
-            in_channels,
-            hidden_channels,
-            kernel_size=(1, 1),
-            stride=(1, 1),
-            padding=(0, 0),
-            activation_layer=nn.SiLU,
-        )
-        self.bottlenecks = nn.Sequential(
-            *[
-                RepVggBlock(
-                    in_channels=hidden_channels,
-                    out_channels=hidden_channels,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1,
-                    groups=1,
-                    use_se=False,
-                    reparameterized=False,
-                    act_layer=nn.SiLU,
-                    skip_identity=True,
-                )
-                for _ in range(num_blocks)
-            ]
-        )
-
-        if hidden_channels != out_channels:
-            self.conv3: nn.Module = Conv2dNormActivation(
-                hidden_channels,
-                out_channels,
-                kernel_size=(1, 1),
-                stride=(1, 1),
-                padding=(0, 0),
-                activation_layer=nn.SiLU,
-            )
-        else:
-            self.conv3 = nn.Identity()
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x1 = self.bottlenecks(self.conv1(x))
-        x2 = self.conv2(x)
-        return self.conv3(x1 + x2)
 
 
 class MultiheadAttention(nn.Module):
@@ -246,22 +70,22 @@ class MultiheadAttention(nn.Module):
         query: torch.Tensor,
         key: torch.Tensor,
         value: torch.Tensor,
-        key_padding_mask: Optional[torch.Tensor] = None,
+        attn_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         B, l_q, C = query.shape
         q = self.q_proj(query).reshape(B, l_q, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.k_proj(key).reshape(B, key.size(1), self.num_heads, self.head_dim).transpose(1, 2)
         v = self.v_proj(value).reshape(B, value.size(1), self.num_heads, self.head_dim).transpose(1, 2)
 
-        if key_padding_mask is not None:
-            # key_padding_mask is expected to be boolean (True = masked)
+        if attn_mask is not None:
+            # attn_mask is (L, S) boolean where True = masked
             # SDPA expects True = attend, so we invert
-            attn_mask = ~key_padding_mask[:, None, None, :]
+            mask = ~attn_mask
         else:
-            attn_mask = None
+            mask = None
 
         attn = F.scaled_dot_product_attention(  # pylint: disable=not-callable
-            q, k, v, attn_mask=attn_mask, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
+            q, k, v, attn_mask=mask, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
         )
 
         attn = attn.transpose(1, 2).reshape(B, l_q, C)
@@ -271,207 +95,303 @@ class MultiheadAttention(nn.Module):
         return x
 
 
-class TransformerEncoderLayer(nn.Module):
-    def __init__(self, d_model: int, num_heads: int, dim_feedforward: int, dropout: float) -> None:
-        super().__init__()
-        self.self_attn = MultiheadAttention(d_model, num_heads, attn_drop=dropout)
-
-        self.linear1 = nn.Linear(d_model, dim_feedforward)
-        self.dropout = nn.Dropout(dropout)
-        self.linear2 = nn.Linear(dim_feedforward, d_model)
-
-        self.norm1 = nn.LayerNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model)
-        self.dropout1 = nn.Dropout(dropout)
-        self.dropout2 = nn.Dropout(dropout)
-
-        self.activation = nn.GELU()
-
-    def forward(
-        self, src: torch.Tensor, pos: torch.Tensor, key_padding_mask: Optional[torch.Tensor] = None
-    ) -> torch.Tensor:
-        qk = src + pos
-        src2 = self.self_attn(qk, qk, value=src, key_padding_mask=key_padding_mask)
-        src = src + self.dropout1(src2)
-        src = self.norm1(src)
-
-        src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
-        src = src + self.dropout2(src2)
-        src = self.norm2(src)
-
-        return src
-
-
-class AIFI(nn.Module):
+class MultiScaleDeformableAttention(nn.Module):
     """
-    Attention-based Intra-scale Feature Interaction.
-    Applies transformer encoder to a single feature scale.
-    """
-
-    def __init__(self, d_model: int, num_heads: int, dim_feedforward: int, dropout: float, num_layers: int) -> None:
-        super().__init__()
-        self.d_model = d_model
-        encoder_layer = TransformerEncoderLayer(d_model, num_heads, dim_feedforward, dropout)
-        self.layers = _get_clones(encoder_layer, num_layers)
-        self.use_cache = True
-        self._pos_cache: dict[str, torch.Tensor] = {}
-
-    def set_cache_enabled(self, enabled: bool) -> None:
-        self.use_cache = enabled
-        if enabled is False:
-            self.clear_cache()
-
-    def clear_cache(self) -> None:
-        self._pos_cache.clear()
-
-    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
-        B, C, H, W = x.size()
-        x = x.flatten(2).permute(0, 2, 1)
-
-        use_cache = self.use_cache is True and torch.jit.is_tracing() is False and torch.jit.is_scripting() is False
-        if use_cache is True:
-            cache_key = f"{H}x{W}x{C}_{x.device}_{x.dtype}"
-            pos = self._pos_cache.get(cache_key)
-            if pos is None:
-                pos = pos_embedding_sin_cos_2d(H, W, C, num_special_tokens=0, device=x.device).unsqueeze(0)
-                self._pos_cache[cache_key] = pos
-        else:
-            pos = pos_embedding_sin_cos_2d(H, W, C, num_special_tokens=0, device=x.device).unsqueeze(0)
-
-        key_padding_mask = mask.flatten(1) if mask is not None else None
-        for layer in self.layers:
-            x = layer(x, pos, key_padding_mask=key_padding_mask)
-
-        x = x.permute(0, 2, 1).reshape(B, C, H, W)
-
-        return x
-
-
-class HybridEncoder(nn.Module):
-    """
-    RT-DETR Hybrid Encoder: AIFI + CCFM (CNN-based Cross-scale Feature-fusion Module).
-
-    Architecture:
-    1. Input projection for each scale
-    2. AIFI (transformer) on the highest resolution feature
-    3. Top-down FPN path with CSPRepLayers
-    4. Bottom-up PAN path with CSPRepLayers
+    Multi-Scale Deformable Attention with per-level point counts
     """
 
     def __init__(
         self,
-        in_channels: list[int],
-        hidden_dim: int,
-        num_encoder_layers: int,
-        dim_feedforward: int,
-        dropout: float,
-        num_heads: int,
-        expansion: float,
-        depth_multiplier: float,
+        d_model: int,
+        n_levels: int,
+        n_heads: int,
+        n_points: list[int],
+        method: Literal["default", "discrete"] = "default",
+        offset_scale: float = 0.5,
     ) -> None:
         super().__init__()
-        self.num_levels = len(in_channels)
+        assert d_model % n_heads == 0, "d_model must be divisible by n_heads"
+        assert len(n_points) == n_levels, f"n_points list length must equal n_levels ({n_levels})"
+        assert method in ("default", "discrete"), "method must be 'default' or 'discrete'"
 
-        # Input projection layers
-        self.input_proj = nn.ModuleList()
-        for ch in in_channels:
-            self.input_proj.append(
-                nn.Sequential(
-                    nn.Conv2d(ch, hidden_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
-                    nn.BatchNorm2d(hidden_dim),
-                )
+        dim_per_head = d_model // n_heads
+        if ((dim_per_head & (dim_per_head - 1) == 0) and dim_per_head != 0) is False:
+            raise ValueError(
+                "Set d_model in MultiScaleDeformableAttention to make the dimension of each attention head a power of 2"
             )
 
-        # AIFI encoder
-        self.encoder = AIFI(
-            hidden_dim,
-            num_heads=num_heads,
-            dim_feedforward=dim_feedforward,
-            dropout=dropout,
-            num_layers=num_encoder_layers,
+        self.im2col_step = 64
+        self.d_model = d_model
+        self.n_levels = n_levels
+        self.n_heads = n_heads
+        self.method = method
+        self.offset_scale = offset_scale
+
+        self.num_points = n_points
+        num_points_scale = [1.0 / n for n in self.num_points for _ in range(n)]
+        self.num_points_scale = nn.Buffer(torch.tensor(num_points_scale, dtype=torch.float32))
+        self.total_points = sum(self.num_points)
+        self.uniform_points = len(set(self.num_points)) == 1
+
+        self.msda = MSDA()
+
+        self.sampling_offsets = nn.Linear(d_model, n_heads * self.total_points * 2)
+        self.attention_weights = nn.Linear(d_model, n_heads * self.total_points)
+        self.value_proj = nn.Linear(d_model, d_model)
+        self.output_proj = nn.Linear(d_model, d_model)
+
+        self.reset_parameters()
+
+        if method == "discrete":
+            for param in self.sampling_offsets.parameters():
+                param.requires_grad_(False)
+
+    def reset_parameters(self) -> None:
+        nn.init.constant_(self.sampling_offsets.weight, 0.0)
+        thetas = torch.arange(self.n_heads, dtype=torch.float32) * (2.0 * math.pi / self.n_heads)
+        grid_init = torch.stack([thetas.cos(), thetas.sin()], -1)
+        grid_init = grid_init / grid_init.abs().max(-1, keepdim=True)[0]
+        grid_init = grid_init.view(self.n_heads, 1, 2).repeat(1, self.total_points, 1)
+        scaling = torch.concat([torch.arange(1, n + 1, dtype=torch.float32) for n in self.num_points]).view(1, -1, 1)
+        grid_init = grid_init * scaling
+
+        with torch.no_grad():
+            self.sampling_offsets.bias = nn.Parameter(grid_init.view(-1))
+
+        nn.init.constant_(self.attention_weights.weight, 0.0)
+        nn.init.constant_(self.attention_weights.bias, 0.0)
+        nn.init.xavier_uniform_(self.value_proj.weight)
+        nn.init.constant_(self.value_proj.bias, 0.0)
+        nn.init.xavier_uniform_(self.output_proj.weight)
+        nn.init.constant_(self.output_proj.bias, 0.0)
+
+    def forward(
+        self,
+        query: torch.Tensor,
+        reference_points: torch.Tensor,
+        input_flatten: torch.Tensor,
+        input_spatial_shapes: torch.Tensor,
+        input_level_start_index: torch.Tensor,
+        input_padding_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        N, num_queries, _ = query.size()
+        N, sequence_length, _ = input_flatten.size()
+        assert (input_spatial_shapes[:, 0] * input_spatial_shapes[:, 1]).sum() == sequence_length
+
+        value = self.value_proj(input_flatten)
+        if input_padding_mask is not None:
+            value = value.masked_fill(input_padding_mask[..., None], float(0))
+
+        value = value.view(N, sequence_length, self.n_heads, self.d_model // self.n_heads)
+
+        sampling_offsets = self.sampling_offsets(query).view(N, num_queries, self.n_heads, self.total_points, 2)
+        attention_weights = self.attention_weights(query).view(N, num_queries, self.n_heads, self.total_points)
+        attention_weights = F.softmax(attention_weights, dim=-1)
+
+        if reference_points.shape[2] != self.n_levels:
+            if reference_points.shape[2] == 1:
+                reference_points = reference_points.expand(-1, -1, self.n_levels, -1)
+            else:
+                raise ValueError(
+                    f"reference_points must have {self.n_levels} levels, but got {reference_points.shape[2]}"
+                )
+
+        if reference_points.shape[-1] == 2:
+            offset_normalizer = torch.stack([input_spatial_shapes[..., 1], input_spatial_shapes[..., 0]], -1)
+            sampling_locations_list = []
+            offset_idx = 0
+            for lvl in range(self.n_levels):
+                n_pts = self.num_points[lvl]
+                ref = reference_points[:, :, None, lvl : lvl + 1, :].expand(-1, -1, self.n_heads, n_pts, -1)
+                off = sampling_offsets[:, :, :, offset_idx : offset_idx + n_pts, :]
+                norm = offset_normalizer[lvl : lvl + 1].view(1, 1, 1, 1, 2)
+                sampling_locations_list.append(ref + off / norm)
+                offset_idx += n_pts
+
+            sampling_locations = torch.concat(sampling_locations_list, dim=3)
+
+        elif reference_points.shape[-1] == 4:
+            sampling_locations_list = []
+            offset_idx = 0
+            num_points_scale = self.num_points_scale.to(dtype=query.dtype)
+            for lvl in range(self.n_levels):
+                n_pts = self.num_points[lvl]
+                ref = reference_points[:, :, None, lvl : lvl + 1, :].expand(-1, -1, self.n_heads, n_pts, -1)
+                off = sampling_offsets[:, :, :, offset_idx : offset_idx + n_pts, :]
+                scale = num_points_scale[offset_idx : offset_idx + n_pts].view(1, 1, 1, n_pts, 1)
+                sampling_locations_list.append(ref[..., :2] + off * scale * ref[..., 2:] * self.offset_scale)
+                offset_idx += n_pts
+
+            sampling_locations = torch.concat(sampling_locations_list, dim=3)
+
+        else:
+            raise ValueError(
+                f"Last dim of reference_points must be 2 or 4, but get {reference_points.shape[-1]} instead"
+            )
+
+        if self.method == "discrete":
+            output = self._forward_fallback(
+                value, input_spatial_shapes, sampling_locations, attention_weights, method="discrete"
+            )
+        else:
+            if self.uniform_points is True:
+                n_pts = self.num_points[0]
+                sampling_locations = sampling_locations.view(N, num_queries, self.n_heads, self.n_levels, n_pts, 2)
+                attention_weights = attention_weights.view(N, num_queries, self.n_heads, self.n_levels, n_pts)
+                output = self.msda(
+                    value,
+                    input_spatial_shapes,
+                    input_level_start_index,
+                    sampling_locations,
+                    attention_weights,
+                    self.im2col_step,
+                )
+            else:
+                output = self._forward_fallback(
+                    value, input_spatial_shapes, sampling_locations, attention_weights, method="default"
+                )
+
+        output = self.output_proj(output)
+        return output
+
+    def _forward_fallback(
+        self,
+        value: torch.Tensor,
+        spatial_shapes: torch.Tensor,
+        sampling_locations: torch.Tensor,
+        attention_weights: torch.Tensor,
+        method: str = "default",
+    ) -> torch.Tensor:
+        B, _, n_heads, head_dim = value.size()
+        num_queries = sampling_locations.size(1)
+
+        sampling_grids = 2 * sampling_locations - 1
+        split_shape: list[int] = (spatial_shapes[:, 0] * spatial_shapes[:, 1]).tolist()
+        value_list = value.permute(0, 2, 3, 1).flatten(0, 1).split(split_shape, dim=-1)
+        sampling_grids = sampling_grids.permute(0, 2, 1, 3, 4).flatten(0, 1)
+        sampling_locations_list = sampling_grids.split(self.num_points, dim=-2)
+
+        sampling_value_list = []
+        spatial_shapes_list: list[list[int]] = spatial_shapes.tolist()
+        for level, (H, W) in enumerate(spatial_shapes_list):
+            value_l = value_list[level].reshape(B * n_heads, head_dim, H, W)
+            sampling_grid_l = sampling_locations_list[level]
+
+            if method == "default":
+                sampling_value_l = F.grid_sample(
+                    value_l,
+                    sampling_grid_l,
+                    mode="bilinear",
+                    padding_mode="zeros",
+                    align_corners=False,
+                )
+            else:
+                sampling_grid_l = sampling_grid_l.clone()
+                sampling_grid_l[..., 0] += 1.0 / W
+                sampling_grid_l[..., 1] += 1.0 / H
+                sampling_value_l = F.grid_sample(
+                    value_l,
+                    sampling_grid_l,
+                    mode="nearest",
+                    padding_mode="border",
+                    align_corners=False,
+                )
+
+                # Original upstream code (expected grid of [0, 1])
+                # e.g. without the 'sampling_grids = 2 * sampling_locations - 1'
+                #
+                # n_pts = self.num_points[level]
+                # sampling_coord = (sampling_grid_l * torch.tensor([[W, H]], device=value.device) + 0.5).to(torch.int64)
+                # sampling_coord[..., 0] = sampling_coord[..., 0].clamp(0, W - 1)
+                # sampling_coord[..., 1] = sampling_coord[..., 1].clamp(0, H - 1)
+                # sampling_coord = sampling_coord.reshape(B * n_heads, num_queries * n_pts, 2)
+                # s_idx = (
+                #     torch.arange(sampling_coord.shape[0], device=value.device)
+                #     .unsqueeze(-1)
+                #     .repeat(1, sampling_coord.shape[1])
+                # )
+                # sampling_value_l = value_l[s_idx, :, sampling_coord[..., 1], sampling_coord[..., 0]]
+                # ... = sampling_value_l.permute(0, 2, 1).reshape(B * n_heads, head_dim, num_queries, n_pts)
+
+            sampling_value_list.append(sampling_value_l)
+
+        attn_weights = attention_weights.permute(0, 2, 1, 3).reshape(B * n_heads, 1, num_queries, sum(self.num_points))
+        output = torch.concat(sampling_value_list, dim=-1) * attn_weights
+        output = output.sum(-1).reshape(B, n_heads * head_dim, num_queries)
+
+        return output.permute(0, 2, 1)
+
+
+class TransformerDecoderLayer(nn.Module):
+    def __init__(
+        self,
+        d_model: int,
+        d_ffn: int,
+        dropout: float,
+        n_levels: int,
+        n_heads: int,
+        n_points: list[int],
+        method: Literal["default", "discrete"] = "default",
+        offset_scale: float = 0.5,
+    ) -> None:
+        super().__init__()
+
+        # Self attention
+        self.self_attn = MultiheadAttention(d_model, n_heads, attn_drop=dropout)
+        self.norm1 = nn.LayerNorm(d_model)
+
+        # Cross attention
+        self.cross_attn = MultiScaleDeformableAttention(
+            d_model, n_levels, n_heads, n_points, method=method, offset_scale=offset_scale
         )
+        self.norm2 = nn.LayerNorm(d_model)
 
-        # CCFM: Top-down FPN path
-        num_blocks = max(round(3 * depth_multiplier), 1)
-        self.lateral_convs = nn.ModuleList()
-        self.fpn_blocks = nn.ModuleList()
-        for _ in range(self.num_levels - 1, 0, -1):
-            self.lateral_convs.append(
-                Conv2dNormActivation(
-                    hidden_dim,
-                    hidden_dim,
-                    kernel_size=(1, 1),
-                    stride=(1, 1),
-                    padding=(0, 0),
-                    activation_layer=nn.SiLU,
-                )
-            )
-            self.fpn_blocks.append(CSPRepLayer(hidden_dim * 2, hidden_dim, num_blocks=num_blocks, expansion=expansion))
+        # FFN
+        self.linear1 = nn.Linear(d_model, d_ffn)
+        self.linear2 = nn.Linear(d_ffn, d_model)
+        self.norm3 = nn.LayerNorm(d_model)
 
-        # CCFM: Bottom-up PAN path
-        self.downsample_convs = nn.ModuleList()
-        self.pan_blocks = nn.ModuleList()
-        for _ in range(self.num_levels - 1):
-            self.downsample_convs.append(
-                Conv2dNormActivation(
-                    hidden_dim,
-                    hidden_dim,
-                    kernel_size=(3, 3),
-                    stride=(2, 2),
-                    padding=(1, 1),
-                    activation_layer=nn.SiLU,
-                )
-            )
-            self.pan_blocks.append(CSPRepLayer(hidden_dim * 2, hidden_dim, num_blocks=num_blocks, expansion=expansion))
+        self.activation = nn.ReLU()
+        self.dropout = nn.Dropout(dropout)
 
-    def forward(self, feats: list[torch.Tensor], masks: Optional[list[torch.Tensor]] = None) -> list[torch.Tensor]:
-        # Project all features to hidden_dim
-        proj_feats = []
-        for idx, proj in enumerate(self.input_proj):
-            proj_feats.append(proj(feats[idx]))
+    def forward(
+        self,
+        tgt: torch.Tensor,
+        query_pos: torch.Tensor,
+        reference_points: torch.Tensor,
+        src: torch.Tensor,
+        src_spatial_shapes: torch.Tensor,
+        level_start_index: torch.Tensor,
+        src_padding_mask: Optional[torch.Tensor],
+        self_attn_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        # Self attention
+        q = tgt + query_pos
+        k = tgt + query_pos
 
-        # Apply AIFI to highest scale feature
-        encoder_mask = masks[-1] if masks is not None else None
-        proj_feats[-1] = self.encoder(proj_feats[-1], mask=encoder_mask)
+        tgt2 = self.self_attn(q, k, tgt, attn_mask=self_attn_mask)
+        tgt = tgt + self.dropout(tgt2)
+        tgt = self.norm1(tgt)
 
-        # Top-down FPN path
-        inner_outs = [proj_feats[-1]]
-        for idx, (lateral_conv, fpn_block) in enumerate(zip(self.lateral_convs, self.fpn_blocks)):
-            feat_high = inner_outs[0]
-            feat_low = proj_feats[self.num_levels - 2 - idx]
+        # Cross attention
+        tgt2 = self.cross_attn(
+            tgt + query_pos, reference_points, src, src_spatial_shapes, level_start_index, src_padding_mask
+        )
+        tgt = tgt + self.dropout(tgt2)
+        tgt = self.norm2(tgt)
 
-            feat_high = lateral_conv(feat_high)
-            inner_outs[0] = feat_high
-            feat_high = F.interpolate(feat_high, size=feat_low.shape[-2:], mode="nearest")
+        # FFN
+        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
+        tgt = tgt + self.dropout(tgt2)
+        tgt = self.norm3(tgt)
 
-            inner_out = fpn_block(torch.concat([feat_high, feat_low], dim=1))
-            inner_outs.insert(0, inner_out)
-
-        # Bottom-up PAN path
-        outs = [inner_outs[0]]
-        for idx, (downsample_conv, pan_block) in enumerate(zip(self.downsample_convs, self.pan_blocks)):
-            feat_low = outs[-1]
-            feat_high = inner_outs[idx + 1]
-            feat_low = downsample_conv(feat_low)
-            out = pan_block(torch.concat([feat_low, feat_high], dim=1))
-            outs.append(out)
-
-        return outs
-
-    def set_cache_enabled(self, enabled: bool) -> None:
-        self.encoder.set_cache_enabled(enabled)
-
-    def clear_cache(self) -> None:
-        self.encoder.clear_cache()
+        return tgt
 
 
 # pylint: disable=invalid-name
 class RT_DETRDecoder(nn.Module):
     """
-    RT-DETR Decoder with uncertainty-minimal query selection.
-
-    Key difference from Deformable DETR: queries are selected from encoder output
-    based on classification confidence, rather than using learned query embeddings.
+    RT-DETR v2 Decoder with top-k query selection
     """
 
     def __init__(
@@ -484,11 +404,14 @@ class RT_DETRDecoder(nn.Module):
         num_heads: int,
         dim_feedforward: int,
         dropout: float,
-        num_decoder_points: int,
+        num_decoder_points: list[int],
+        method: Literal["default", "discrete"] = "default",
+        offset_scale: float = 0.5,
     ) -> None:
         super().__init__()
         self.hidden_dim = hidden_dim
         self.num_queries = num_queries
+        self.num_levels = num_levels
 
         self.enc_output = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
@@ -497,8 +420,15 @@ class RT_DETRDecoder(nn.Module):
         self.enc_score_head = nn.Linear(hidden_dim, num_classes)
         self.enc_bbox_head = MLP(hidden_dim, [hidden_dim, hidden_dim, 4], activation_layer=nn.ReLU)
 
-        decoder_layer = DeformableTransformerDecoderLayer(
-            hidden_dim, dim_feedforward, dropout, num_levels, num_heads, num_decoder_points
+        decoder_layer = TransformerDecoderLayer(
+            hidden_dim,
+            dim_feedforward,
+            dropout,
+            num_levels,
+            num_heads,
+            num_decoder_points,
+            method=method,
+            offset_scale=offset_scale,
         )
         self.layers = _get_clones(decoder_layer, num_decoder_layers)
 
@@ -625,8 +555,8 @@ class RT_DETRDecoder(nn.Module):
         memory = []
         mask_flatten = []
         for idx, feat in enumerate(feats):
-            feat = feat.flatten(2).permute(0, 2, 1)  # (B, H*W, C)
-            memory.append(feat)
+            feat_flat = feat.flatten(2).permute(0, 2, 1)  # (B, H*W, C)
+            memory.append(feat_flat)
             if padding_mask is not None:
                 mask_flatten.append(padding_mask[idx].flatten(1))
 
@@ -685,7 +615,7 @@ class RT_DETRDecoder(nn.Module):
 
 
 # pylint: disable=invalid-name
-class RT_DETR_v1(DetectionBaseNet):
+class RT_DETR_v2(DetectionBaseNet):
     default_size = (640, 640)
 
     def __init__(
@@ -705,10 +635,9 @@ class RT_DETR_v1(DetectionBaseNet):
         # Sigmoid based classification (no background class in predictions)
         self.num_classes = self.num_classes - 1
 
-        hidden_dim = 256
-        num_heads = 8
-        dim_feedforward = 1024
-        num_decoder_points = 4
+        hidden_dim = self.config.get("hidden_dim", 256)
+        num_heads = self.config.get("num_heads", 8)
+        dim_feedforward = self.config.get("dim_feedforward", 1024)
         dropout: float = self.config.get("dropout", 0.0)
         num_encoder_layers: int = self.config.get("num_encoder_layers", 1)
         num_decoder_layers: int = self.config["num_decoder_layers"]
@@ -719,6 +648,9 @@ class RT_DETR_v1(DetectionBaseNet):
         num_denoising: int = self.config.get("num_denoising", 100)
         label_noise_ratio: float = self.config.get("label_noise_ratio", 0.5)
         box_noise_scale: float = self.config.get("box_noise_scale", 1.0)
+        num_decoder_points: list[int] = self.config.get("num_decoder_points", [4, 4, 4])
+        method: Literal["default", "discrete"] = self.config.get("method", "default")
+        offset_scale: float = self.config.get("offset_scale", 0.5)
 
         self.hidden_dim = hidden_dim
         self.num_queries = num_queries
@@ -750,6 +682,8 @@ class RT_DETR_v1(DetectionBaseNet):
             dim_feedforward=dim_feedforward,
             dropout=dropout,
             num_decoder_points=num_decoder_points,
+            method=method,
+            offset_scale=offset_scale,
         )
 
         self.matcher = HungarianMatcher(cost_class=2.0, cost_bbox=5.0, cost_giou=2.0, use_giou=use_giou)
@@ -1155,7 +1089,59 @@ class RT_DETR_v1(DetectionBaseNet):
 
 
 registry.register_model_config(
-    "rt_detr_v1_t", RT_DETR_v1, config={"num_decoder_layers": 3, "expansion": 0.5, "depth_multiplier": 0.33}
+    "rt_detr_v2_s",
+    RT_DETR_v2,
+    config={
+        "num_decoder_layers": 3,
+        "expansion": 0.5,
+    },
 )
-registry.register_model_config("rt_detr_v1_s", RT_DETR_v1, config={"num_decoder_layers": 3, "expansion": 0.5})
-registry.register_model_config("rt_detr_v1", RT_DETR_v1, config={"num_decoder_layers": 6})
+registry.register_model_config(
+    "rt_detr_v2_s_dsp",
+    RT_DETR_v2,
+    config={
+        "num_decoder_layers": 3,
+        "expansion": 0.5,
+        "method": "discrete",
+    },
+)
+registry.register_model_config(
+    "rt_detr_v2",
+    RT_DETR_v2,
+    config={
+        "num_decoder_layers": 6,
+    },
+)
+registry.register_model_config(
+    "rt_detr_v2_dsp",
+    RT_DETR_v2,
+    config={
+        "num_decoder_layers": 6,
+        "method": "discrete",
+    },
+)
+registry.register_model_config(
+    "rt_detr_v2_l",
+    RT_DETR_v2,
+    config={
+        "num_decoder_layers": 6,
+        "expansion": 1.0,
+        "depth_multiplier": 1.0,
+        "num_heads": 12,  # Deviates from upstream to keep head_dim=32 (power of 2) for MSDA kernel
+        "hidden_dim": 384,
+        "dim_feedforward": 2048,
+    },
+)
+registry.register_model_config(
+    "rt_detr_v2_l_dsp",
+    RT_DETR_v2,
+    config={
+        "num_decoder_layers": 6,
+        "expansion": 1.0,
+        "depth_multiplier": 1.0,
+        "num_heads": 12,  # Deviates from upstream to keep head_dim=32 (power of 2) for MSDA kernel
+        "hidden_dim": 384,
+        "dim_feedforward": 2048,
+        "method": "discrete",
+    },
+)

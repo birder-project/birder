@@ -126,6 +126,14 @@ def set_parser(subparsers: Any) -> None:
         formatter_class=cli.ArgumentHelpFormatter,
     )
     subparser.add_argument("-n", "--network", type=str, required=True, help="the neural network to use")
+    subparser.add_argument(
+        "--model-config",
+        action=cli.FlexibleDictAction,
+        help=(
+            "override the model default configuration, accepts key-value pairs or JSON "
+            "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
+        ),
+    )
     subparser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from the training phase)")
     subparser.add_argument(
@@ -145,7 +153,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--target",
         type=str,
-        help="target class, leave empty to use predicted class (gradcam, guided-backprop, and transformer-attribution)",
+        help="target class, leave empty to use predicted class (gradcam, guided-backprop and transformer-attribution)",
     )
     subparser.add_argument("--block-name", type=str, default="body", help="target block (gradcam only)")
     subparser.add_argument(
@@ -206,6 +214,7 @@ def main(args: argparse.Namespace) -> None:
     net, model_info = fs_ops.load_model(
         device,
         args.network,
+        config=args.model_config,
         tag=args.tag,
         epoch=args.epoch,
         new_size=args.size,

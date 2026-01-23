@@ -27,7 +27,7 @@ class EffectiveSE(nn.Module):
 
     def __init__(self, channels: int) -> None:
         super().__init__()
-        self.fc = nn.Conv2d(channels, channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=True)
+        self.fc = nn.Conv2d(channels, channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x_se = x.mean(dim=(2, 3), keepdim=True)

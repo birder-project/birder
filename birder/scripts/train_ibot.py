@@ -136,7 +136,7 @@ def train(args: argparse.Namespace) -> None:
 
     network_name = get_mim_network_name("ibot", encoder=args.network, tag=args.tag)
 
-    student_backbone = registry.net_factory(args.network, sample_shape[1], 0, config=args.model_config, size=args.size)
+    student_backbone = registry.net_factory(args.network, 0, sample_shape[1], config=args.model_config, size=args.size)
     if args.model_config is not None:
         teacher_model_config = args.model_config.copy()
         teacher_model_config.update({"drop_path_rate": 0.0})
@@ -144,7 +144,7 @@ def train(args: argparse.Namespace) -> None:
         teacher_model_config = {"drop_path_rate": 0.0}
 
     teacher_backbone = registry.net_factory(
-        args.network, sample_shape[1], 0, config=teacher_model_config, size=args.size
+        args.network, 0, sample_shape[1], config=teacher_model_config, size=args.size
     )
     student_backbone.set_dynamic_size()
     student = iBOT(
@@ -506,6 +506,10 @@ def train(args: argparse.Namespace) -> None:
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
+
+        # Clear metrics
+        running_loss.clear()
+        train_proto_agreement.clear()
 
         if args.distributed is True or virtual_epoch_mode is True:
             train_sampler.set_epoch(epoch)

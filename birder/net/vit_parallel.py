@@ -31,6 +31,7 @@ from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenOmissionResultType
 from birder.net.base import TokenRetentionResultType
+from birder.net.base import normalize_out_indices
 from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
 
@@ -172,11 +173,13 @@ class Encoder(nn.Module):
 
         return x
 
-    def forward_features(self, x: torch.Tensor) -> list[torch.Tensor]:
+    def forward_features(self, x: torch.Tensor, out_indices: Optional[list[int]] = None) -> list[torch.Tensor]:
         xs = []
-        for blk in self.block:
+        out_indices_set = set(out_indices) if out_indices is not None else None
+        for idx, blk in enumerate(self.block):
             x = blk(x)
-            xs.append(x)
+            if out_indices_set is None or idx in out_indices_set:
+                xs.append(x)
 
         return xs
 
@@ -213,6 +216,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
+        out_indices: Optional[list[int]] = self.config.get("out_indices", None)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         if norm_layer_type == "LayerNorm":
@@ -230,6 +234,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         self.hidden_dim = hidden_dim
         self.layer_scale_init_value = layer_scale_init_value
         self.num_reg_tokens = num_reg_tokens
+        self.out_indices = normalize_out_indices(out_indices, num_layers)
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
         self.conv_proj = nn.Conv2d(
@@ -238,7 +243,6 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
             kernel_size=(patch_size, patch_size),
             stride=(patch_size, patch_size),
             padding=(0, 0),
-            bias=True,
         )
         self.patch_embed = PatchEmbed()
 
@@ -278,8 +282,9 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         )
         self.norm = norm_layer(hidden_dim, eps=1e-6)
 
-        self.return_stages = ["neck"]  # Actually meaningless, but for completeness
-        self.return_channels = [hidden_dim]
+        num_return_stages = len(self.out_indices) if self.out_indices is not None else 1
+        self.return_stages = [f"stage{stage_idx + 1}" for stage_idx in range(num_return_stages)]
+        self.return_channels = [hidden_dim] * num_return_stages
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
 
@@ -338,6 +343,10 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
     def set_causal_attention(self, is_causal: bool = True) -> None:
         self.encoder.set_causal_attention(is_causal)
 
+    def transform_to_backbone(self) -> None:
+        super().transform_to_backbone()
+        self.norm = nn.Identity()
+
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         H, W = x.shape[-2:]
         x = self.conv_proj(x)
@@ -354,15 +363,21 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
             x = torch.concat([batch_reg_tokens, x], dim=1)
 
         x = x + self._get_pos_embed(H, W)
-        x = self.encoder(x)
-        x = self.norm(x)
 
-        x = x[:, self.num_special_tokens :]
-        x = x.permute(0, 2, 1)
-        B, C, _ = x.size()
-        x = x.reshape(B, C, H // self.patch_size, W // self.patch_size)
+        if self.out_indices is None:
+            xs = [self.encoder(x)]
+        else:
+            xs = self.encoder.forward_features(x, out_indices=self.out_indices)
 
-        return {self.return_stages[0]: x}
+        out: dict[str, torch.Tensor] = {}
+        for stage_name, stage_x in zip(self.return_stages, xs):
+            stage_x = stage_x[:, self.num_special_tokens :]
+            stage_x = stage_x.permute(0, 2, 1)
+            B, C, _ = stage_x.size()
+            stage_x = stage_x.reshape(B, C, H // self.patch_size, W // self.patch_size)
+            out[stage_name] = stage_x
+
+        return out
 
     def freeze_stages(self, up_to_stage: int) -> None:
         for param in self.conv_proj.parameters():

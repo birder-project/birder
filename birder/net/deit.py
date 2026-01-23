@@ -19,13 +19,15 @@ from birder.model_registry import registry
 from birder.net._vit_configs import BASE
 from birder.net._vit_configs import SMALL
 from birder.net._vit_configs import TINY
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
+from birder.net.base import normalize_out_indices
 from birder.net.vit import Encoder
 from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
 
 
-class DeiT(BaseNet):
+# pylint: disable=too-many-instance-attributes
+class DeiT(DetectorBackbone):
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -47,6 +49,7 @@ class DeiT(BaseNet):
         num_heads: int = self.config["num_heads"]
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
+        out_indices: Optional[list[int]] = self.config.get("out_indices", None)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
@@ -56,6 +59,7 @@ class DeiT(BaseNet):
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
         self.num_special_tokens = 2
+        self.out_indices = normalize_out_indices(out_indices, num_layers)
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
         self.conv_proj = nn.Conv2d(
@@ -64,7 +68,6 @@ class DeiT(BaseNet):
             kernel_size=(patch_size, patch_size),
             stride=(patch_size, patch_size),
             padding=(0, 0),
-            bias=True,
         )
         self.patch_embed = PatchEmbed()
 
@@ -92,6 +95,9 @@ class DeiT(BaseNet):
         )
         self.norm = nn.LayerNorm(hidden_dim, eps=1e-6)
 
+        num_return_stages = len(self.out_indices) if self.out_indices is not None else 1
+        self.return_stages = [f"stage{stage_idx + 1}" for stage_idx in range(num_return_stages)]
+        self.return_channels = [hidden_dim] * num_return_stages
         self.embedding_size = hidden_dim
         self.dist_classifier = self.create_classifier()
         self.classifier = self.create_classifier()
@@ -135,6 +141,53 @@ class DeiT(BaseNet):
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
         self.encoder.set_causal_attention(is_causal)
+
+    def transform_to_backbone(self) -> None:
+        super().transform_to_backbone()
+        self.norm = nn.Identity()
+        self.dist_classifier = nn.Identity()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        H, W = x.shape[-2:]
+
+        # Reshape and permute the input tensor
+        x = self.conv_proj(x)
+        x = self.patch_embed(x)
+
+        # Expand the class token to the full batch
+        batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
+        batch_dist_token = self.dist_token.expand(x.shape[0], -1, -1)
+
+        x = torch.concat([batch_class_token, batch_dist_token, x], dim=1)
+        x = x + self.pos_embedding
+
+        if self.out_indices is None:
+            xs = [self.encoder(x)]
+        else:
+            xs = self.encoder.forward_features(x, out_indices=self.out_indices)
+
+        out: dict[str, torch.Tensor] = {}
+        for stage_name, stage_x in zip(self.return_stages, xs):
+            stage_x = stage_x[:, self.num_special_tokens :]
+            stage_x = stage_x.permute(0, 2, 1)
+            B, C, _ = stage_x.size()
+            stage_x = stage_x.reshape(B, C, H // self.patch_size, W // self.patch_size)
+            out[stage_name] = stage_x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.conv_proj.parameters():
+            param.requires_grad_(False)
+
+        self.pos_embedding.requires_grad_(False)
+
+        for idx, module in enumerate(self.encoder.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad_(False)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         # Reshape and permute the input tensor

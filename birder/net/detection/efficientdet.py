@@ -358,13 +358,7 @@ class HeadNet(nn.Module):
         for _ in range(repeats):
             layers.append(
                 nn.Conv2d(
-                    fpn_channels,
-                    fpn_channels,
-                    kernel_size=(3, 3),
-                    stride=(1, 1),
-                    padding=(1, 1),
-                    groups=fpn_channels,
-                    bias=True,
+                    fpn_channels, fpn_channels, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=fpn_channels
                 )
             )
             layers.append(
@@ -383,22 +377,9 @@ class HeadNet(nn.Module):
         self.conv_repeat = nn.Sequential(*layers)
         self.predict = nn.Sequential(
             nn.Conv2d(
-                fpn_channels,
-                fpn_channels,
-                kernel_size=(3, 3),
-                stride=(1, 1),
-                padding=(1, 1),
-                groups=fpn_channels,
-                bias=True,
+                fpn_channels, fpn_channels, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=fpn_channels
             ),
-            nn.Conv2d(
-                fpn_channels,
-                num_outputs * num_anchors,
-                kernel_size=(1, 1),
-                stride=(1, 1),
-                padding=(0, 0),
-                bias=True,
-            ),
+            nn.Conv2d(fpn_channels, num_outputs * num_anchors, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)),
         )
 
     def forward(self, x: list[torch.Tensor]) -> torch.Tensor:

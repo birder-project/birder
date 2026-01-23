@@ -87,7 +87,6 @@ class RepGhostModule(nn.Module):
             padding=self.cheap_operation[0].padding,
             dilation=self.cheap_operation[0].dilation,
             groups=self.cheap_operation[0].groups,
-            bias=True,
         )
 
         self.cheap_operation.weight.data = kernel
@@ -299,7 +298,7 @@ class RepGhost(DetectorBackbone):
         out_channels = 1280
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
-            nn.Conv2d(prev_channels, out_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=True),
+            nn.Conv2d(prev_channels, out_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)),
             nn.ReLU(inplace=True),
             nn.Flatten(1),
             nn.Dropout(p=0.2),

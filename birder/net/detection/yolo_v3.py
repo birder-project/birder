@@ -19,9 +19,9 @@ from torchvision.ops import boxes as box_ops
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.detection._yolo_anchors import resolve_anchor_groups
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import ImageList
-from birder.net.detection.yolo_anchors import resolve_anchor_groups
 
 
 def decode_predictions(
@@ -116,7 +116,7 @@ class YOLOAnchorGenerator(nn.Module):
         """
         Generate anchor boxes for each feature map.
 
-        Returns scaled anchors, grids, and strides for each feature map.
+        Returns scaled anchors, grids and strides for each feature map.
         """
 
         device = feature_maps[0].device
@@ -420,7 +420,7 @@ class YOLO_v3(DetectionBaseNet):
         Uses global anchor assignment: each ground truth box is assigned to the single
         best-matching anchor across all scales, following the original YOLO v3 paper.
 
-        Returns target tensors, object masks, and no-object masks for each scale.
+        Returns target tensors, object masks and no-object masks for each scale.
         """
 
         device = predictions[0].device

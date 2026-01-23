@@ -37,15 +37,7 @@ class ConvNeXtBlock(nn.Module):
     ) -> None:
         super().__init__()
         self.block = nn.Sequential(
-            nn.Conv2d(
-                channels,
-                channels,
-                kernel_size=(7, 7),
-                stride=(1, 1),
-                padding=(3, 3),
-                groups=channels,
-                bias=True,
-            ),
+            nn.Conv2d(channels, channels, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3), groups=channels),
             Permute([0, 2, 3, 1]),
             nn.LayerNorm(channels, eps=1e-6),
             nn.Linear(channels, 4 * channels),  # Same as 1x1 conv
@@ -119,7 +111,7 @@ class ConvNeXt_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                 layers.append(
                     nn.Sequential(
                         LayerNorm2d(i, eps=1e-6),
-                        nn.Conv2d(i, out, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0), bias=True),
+                        nn.Conv2d(i, out, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0)),
                     )
                 )
 

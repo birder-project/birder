@@ -52,7 +52,7 @@ class MAE_ViT(MIMBaseNet):
 
         self.norm_pix_loss = norm_pix_loss
 
-        self.decoder_embed = nn.Linear(encoder_dim, decoder_embed_dim, bias=True)
+        self.decoder_embed = nn.Linear(encoder_dim, decoder_embed_dim)
         self.mask_token = nn.Parameter(torch.zeros(1, 1, decoder_embed_dim))
 
         if learnable_pos_embed is True:
@@ -74,9 +74,7 @@ class MAE_ViT(MIMBaseNet):
             layers.append(self.encoder.decoder_block(decoder_embed_dim))
 
         layers.append(nn.LayerNorm(decoder_embed_dim, eps=1e-6))
-        layers.append(
-            nn.Linear(decoder_embed_dim, self.patch_size**2 * self.input_channels, bias=True)
-        )  # Decoder to patch
+        layers.append(nn.Linear(decoder_embed_dim, self.patch_size**2 * self.input_channels))  # Decoder to patch
         self.decoder = nn.Sequential(*layers)
 
     def patchify(self, imgs: torch.Tensor) -> torch.Tensor:

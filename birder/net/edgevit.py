@@ -55,11 +55,9 @@ class ConvMLP(nn.Module):
         act_layer: Callable[..., nn.Module] = nn.GELU,
     ) -> None:
         super().__init__()
-        self.fc1 = nn.Conv2d(in_features, hidden_features, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=True)
+        self.fc1 = nn.Conv2d(in_features, hidden_features, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.act = act_layer()
-        self.fc2 = nn.Conv2d(
-            hidden_features, out_features, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=True
-        )
+        self.fc2 = nn.Conv2d(hidden_features, out_features, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.fc1(x)
@@ -95,7 +93,6 @@ class GlobalSparseAttn(nn.Module):
                 padding=(0, 0),
                 output_padding=(0, 0),
                 groups=dim,
-                bias=True,
             )
             self.norm = nn.LayerNorm(dim)
 
@@ -141,11 +138,11 @@ class LocalAgg(nn.Module):
         drop_path: float,
     ) -> None:
         super().__init__()
-        self.pos_embed = nn.Conv2d(dim, dim, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=dim, bias=True)
+        self.pos_embed = nn.Conv2d(dim, dim, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=dim)
         self.norm1 = nn.BatchNorm2d(dim)
-        self.conv1 = nn.Conv2d(dim, dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=True)
-        self.conv2 = nn.Conv2d(dim, dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=True)
-        self.attn = nn.Conv2d(dim, dim, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2), groups=dim, bias=True)
+        self.conv1 = nn.Conv2d(dim, dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
+        self.conv2 = nn.Conv2d(dim, dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
+        self.attn = nn.Conv2d(dim, dim, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2), groups=dim)
         self.drop_path = StochasticDepth(drop_path, mode="row")
         self.norm2 = nn.BatchNorm2d(dim)
         self.mlp = ConvMLP(in_features=dim, hidden_features=int(dim * mlp_ratio), out_features=dim, act_layer=act_layer)
@@ -170,7 +167,7 @@ class SelfAttn(nn.Module):
         sr_ratio: int,
     ) -> None:
         super().__init__()
-        self.pos_embed = nn.Conv2d(dim, dim, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=dim, bias=True)
+        self.pos_embed = nn.Conv2d(dim, dim, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=dim)
         self.norm1 = norm_layer(dim)
         self.attn = GlobalSparseAttn(dim, num_heads=num_heads, sr_ratio=sr_ratio)
         self.drop_path = StochasticDepth(drop_path, mode="row")
@@ -225,7 +222,6 @@ class PatchEmbed(nn.Module):
             kernel_size=(patch_size, patch_size),
             stride=(patch_size, patch_size),
             padding=(0, 0),
-            bias=True,
         )
         self.norm = nn.LayerNorm(embed_dim)
 

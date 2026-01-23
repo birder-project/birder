@@ -19,8 +19,8 @@ from torchvision.ops import boxes as box_ops
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.detection._yolo_anchors import resolve_anchor_groups
 from birder.net.detection.base import DetectionBaseNet
-from birder.net.detection.yolo_anchors import resolve_anchor_groups
 from birder.net.detection.yolo_v3 import YOLOAnchorGenerator
 from birder.net.detection.yolo_v3 import YOLOHead
 
@@ -488,7 +488,7 @@ class YOLO_v4(DetectionBaseNet):
         Uses global anchor assignment: each ground truth box is assigned to the single
         best-matching anchor across all scales, following the original YOLO v3 paper.
 
-        Returns target tensors, object masks, and no-object masks for each scale.
+        Returns target tensors, object masks and no-object masks for each scale.
         """
 
         device = predictions[0].device

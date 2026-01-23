@@ -74,6 +74,7 @@ def onnx_export(
     net: torch.nn.Module,
     signature: SignatureType | DetectionSignatureType,
     class_to_idx: dict[str, int],
+    rgb_stats: RGBType,
     model_path: str | Path,
     dynamo: bool,
     trace: bool,
@@ -117,9 +118,19 @@ def onnx_export(
 
     signature["inputs"][0]["data_shape"][0] = 0
 
-    logger.info("Saving class to index json...")
-    with open(f"{model_path}_class_to_idx.json", "w", encoding="utf-8") as handle:
-        json.dump(class_to_idx, handle, indent=2)
+    logger.info("Saving model data json...")
+    with open(f"{model_path}_data.json", "w", encoding="utf-8") as handle:
+        json.dump(
+            {
+                "birder_version": __version__,
+                "task": net.task,
+                "class_to_idx": class_to_idx,
+                "signature": signature,
+                "rgb_stats": rgb_stats,
+            },
+            handle,
+            indent=2,
+        )
 
     # Test exported model
     onnx_model = onnx.load(str(model_path))
@@ -405,8 +416,7 @@ def main(args: argparse.Namespace) -> None:
         )
 
     elif args.onnx is True or args.onnx_dynamo is True:
-        config_export(net, signature, rgb_stats, model_path)
-        onnx_export(net, signature, class_to_idx, model_path, args.onnx_dynamo, args.trace)
+        onnx_export(net, signature, class_to_idx, rgb_stats, model_path, args.onnx_dynamo, args.trace)
 
     elif args.config is True:
         config_export(net, signature, rgb_stats, model_path)

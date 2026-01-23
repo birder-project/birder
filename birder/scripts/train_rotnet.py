@@ -207,7 +207,7 @@ def train(args: argparse.Namespace) -> None:
         network_name = f"{network_name}-{args.tag}"
 
     net = registry.net_factory(
-        args.network, sample_shape[1], len(class_to_idx), config=args.model_config, size=args.size
+        args.network, len(class_to_idx), sample_shape[1], config=args.model_config, size=args.size
     )
 
     if args.resume_epoch is not None:
@@ -388,6 +388,10 @@ def train(args: argparse.Namespace) -> None:
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
+
+        # Clear metrics
+        running_loss.clear()
+        train_accuracy.clear()
 
         if args.distributed is True or virtual_epoch_mode is True:
             train_sampler.set_epoch(epoch)

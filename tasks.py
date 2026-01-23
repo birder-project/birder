@@ -721,7 +721,7 @@ def sam_from_vit(_ctx, network, tag=None, epoch=None, det=False):
     size = lib.get_size_from_signature(model_info.signature)
     channels = lib.get_channels_from_signature(model_info.signature)
 
-    sam = registry.net_factory(sam_network, channels, len(model_info.class_to_idx), size=size)
+    sam = registry.net_factory(sam_network, len(model_info.class_to_idx), channels, size=size)
     sam.load_vit_weights(net.state_dict())
 
     # Save model
@@ -766,7 +766,7 @@ def hieradet_from_hiera(_ctx, network, tag=None, epoch=None):
     size = lib.get_size_from_signature(model_info.signature)
     channels = lib.get_channels_from_signature(model_info.signature)
 
-    hieradet = registry.net_factory(hieradet_network, channels, len(model_info.class_to_idx), size=size)
+    hieradet = registry.net_factory(hieradet_network, len(model_info.class_to_idx), channels, size=size)
     hieradet.load_hiera_weights(net.state_dict())
 
     # Save model
@@ -808,7 +808,7 @@ def flexivit_from_vit(_ctx, network, tag=None, epoch=None):
     size = lib.get_size_from_signature(model_info.signature)
     channels = lib.get_channels_from_signature(model_info.signature)
 
-    flexivit = registry.net_factory(flexivit_network, channels, len(model_info.class_to_idx), size=size)
+    flexivit = registry.net_factory(flexivit_network, len(model_info.class_to_idx), channels, size=size)
     flexivit.load_vit_weights(net.state_dict())
 
     # Save model

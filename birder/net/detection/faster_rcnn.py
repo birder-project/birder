@@ -240,7 +240,7 @@ class RegionProposalNetwork(nn.Module):
 
                 # Get the targets corresponding GT for each proposal
                 # NB: need to clamp the indices because we can have a single
-                # GT in the image, and matched_idxs can be -2, which goes out of bounds
+                # GT in the image and matched_idxs can be -2, which goes out of bounds
                 matched_gt_boxes_per_image = gt_boxes[matched_idxs.clamp(min=0)]
 
                 labels_per_image = matched_idxs >= 0

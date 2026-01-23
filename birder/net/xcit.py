@@ -30,6 +30,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
+from birder.net.base import normalize_out_indices
 from birder.net.cait import ClassAttention
 
 
@@ -311,6 +312,7 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         else:
             raise ValueError(f"depth={depth} is not supported")
 
+        out_indices = normalize_out_indices(out_indices, depth)
         self.patch_embed = ConvPatchEmbed(patch_size, self.input_channels, dim=embed_dim)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # Stochastic depth decay rule

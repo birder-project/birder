@@ -17,17 +17,20 @@ DEFAULT_MULTISCALE_MAX_SIZE = 800
 
 
 def build_multiscale_sizes(
-    min_size: Optional[int] = None, max_size: int = DEFAULT_MULTISCALE_MAX_SIZE
+    min_size: Optional[int] = None, max_size: int = DEFAULT_MULTISCALE_MAX_SIZE, multiscale_step: int = MULTISCALE_STEP
 ) -> tuple[int, ...]:
+    if multiscale_step <= 0:
+        raise ValueError("multiscale_step must be positive")
+
     if min_size is None:
         min_size = DEFAULT_MULTISCALE_MIN_SIZE
 
-    start = int(math.ceil(min_size / MULTISCALE_STEP) * MULTISCALE_STEP)
-    end = int(math.floor(max_size / MULTISCALE_STEP) * MULTISCALE_STEP)
+    start = int(math.ceil(min_size / multiscale_step) * multiscale_step)
+    end = int(math.floor(max_size / multiscale_step) * multiscale_step)
     if end < start:
         return (start,)
 
-    return tuple(range(start, end + 1, MULTISCALE_STEP))
+    return tuple(range(start, end + 1, multiscale_step))
 
 
 class ResizeWithRandomInterpolation(nn.Module):
@@ -59,6 +62,7 @@ def get_birder_augment(
     multiscale: bool,
     max_size: Optional[int],
     multiscale_min_size: Optional[int],
+    multiscale_step: int = MULTISCALE_STEP,
     post_mosaic: bool = False,
 ) -> Callable[..., torch.Tensor]:
     if dynamic_size is True:
@@ -98,7 +102,10 @@ def get_birder_augment(
     # Resize
     if multiscale is True:
         transformations.append(
-            v2.RandomShortestSize(min_size=build_multiscale_sizes(multiscale_min_size), max_size=max_size or 1333),
+            v2.RandomShortestSize(
+                min_size=build_multiscale_sizes(multiscale_min_size, multiscale_step=multiscale_step),
+                max_size=max_size or 1333,
+            ),
         )
     else:
         transformations.append(
@@ -160,6 +167,7 @@ def training_preset(
     multiscale: bool = False,
     max_size: Optional[int] = None,
     multiscale_min_size: Optional[int] = None,
+    multiscale_step: int = MULTISCALE_STEP,
     post_mosaic: bool = False,
 ) -> Callable[..., torch.Tensor]:
     mean = rgv_values["mean"]
@@ -180,7 +188,15 @@ def training_preset(
             [
                 v2.ToImage(),
                 get_birder_augment(
-                    size, level, fill_value, dynamic_size, multiscale, max_size, multiscale_min_size, post_mosaic
+                    size,
+                    level,
+                    fill_value,
+                    dynamic_size,
+                    multiscale,
+                    max_size,
+                    multiscale_min_size,
+                    multiscale_step,
+                    post_mosaic,
                 ),
                 v2.ToDtype(torch.float32, scale=True),
                 v2.Normalize(mean=mean, std=std),
@@ -212,7 +228,10 @@ def training_preset(
         return v2.Compose(  # type: ignore
             [
                 v2.ToImage(),
-                v2.RandomShortestSize(min_size=build_multiscale_sizes(multiscale_min_size), max_size=max_size or 1333),
+                v2.RandomShortestSize(
+                    min_size=build_multiscale_sizes(multiscale_min_size, multiscale_step=multiscale_step),
+                    max_size=max_size or 1333,
+                ),
                 v2.RandomHorizontalFlip(0.5),
                 v2.SanitizeBoundingBoxes(),
                 v2.ToDtype(torch.float32, scale=True),
@@ -284,7 +303,7 @@ def training_preset(
         )
 
     if aug_type == "detr":
-        multiscale_sizes = build_multiscale_sizes(multiscale_min_size)
+        multiscale_sizes = build_multiscale_sizes(multiscale_min_size, multiscale_step=multiscale_step)
         return v2.Compose(  # type: ignore
             [
                 v2.ToImage(),

@@ -215,19 +215,6 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
             "drop_path_rate": 0.1,
         },
     )
-    registry.register_model_config(  # From "Scaling Vision Transformers to 22 Billion Parameters"
-        "vit_22b_p16_qkn",
-        vit,
-        config={
-            "patch_size": 16,
-            "num_layers": 48,
-            "num_heads": 48,
-            "hidden_dim": 6144,
-            "mlp_dim": 24576,
-            "qk_norm": True,
-            "drop_path_rate": 0.1,
-        },
-    )
 
     # With registers
     ####################

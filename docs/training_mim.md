@@ -187,7 +187,7 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_vit --enco
 #### MAE ViT: ViT reg4 b16
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_vit --encoder vit_reg4_b16 --encoder-model-config drop_path_rate=0.0 --batch-size 256 --opt adamw --opt-betas 0.9 0.95 --lr 0.00015 --wd 0.05 --lr-scheduler cosine --warmup-epochs 40 --amp --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_vit --encoder vit_reg4_b16 --encoder-model-config drop_path_rate=0.0 --batch-size 256 --opt adamw --opt-fused --opt-betas 0.9 0.95 --lr 0.00015 --wd 0.05 --lr-scheduler cosine --warmup-epochs 40 --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Intermediate training training: full fine-tuning with layer-wise learning rate decay

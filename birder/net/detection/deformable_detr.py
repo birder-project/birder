@@ -111,8 +111,7 @@ def inverse_sigmoid(x: torch.Tensor, eps: float = 1e-5) -> torch.Tensor:
 class MultiScaleDeformableAttention(nn.Module):
     def __init__(self, d_model: int, n_levels: int, n_heads: int, n_points: int) -> None:
         super().__init__()
-        if d_model % n_heads != 0:
-            raise ValueError(f"d_model must be divisible by n_heads, but got {d_model} and {n_heads}")
+        assert d_model % n_heads == 0, "d_model must be divisible by n_heads"
 
         # Ensure dim_per_head is power of 2
         dim_per_head = d_model // n_heads
@@ -133,9 +132,9 @@ class MultiScaleDeformableAttention(nn.Module):
         self.value_proj = nn.Linear(d_model, d_model)
         self.output_proj = nn.Linear(d_model, d_model)
 
-        self._reset_parameters()
+        self.reset_parameters()
 
-    def _reset_parameters(self) -> None:
+    def reset_parameters(self) -> None:
         nn.init.constant_(self.sampling_offsets.weight, 0.0)
         thetas = torch.arange(self.n_heads, dtype=torch.float32) * (2.0 * math.pi / self.n_heads)
         grid_init = torch.stack([thetas.cos(), thetas.sin()], -1)
@@ -454,7 +453,7 @@ class DeformableTransformer(nn.Module):
 
         for m in self.modules():
             if isinstance(m, MultiScaleDeformableAttention):
-                m._reset_parameters()
+                m.reset_parameters()
 
             nn.init.xavier_uniform_(self.reference_points.weight, gain=1.0)
             nn.init.zeros_(self.reference_points.bias)
@@ -632,7 +631,7 @@ class Deformable_DETR(DetectionBaseNet):
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)
         for class_embed in self.class_embed:
-            class_embed.bias.data = torch.ones(self.num_classes) * bias_value
+            nn.init.constant_(class_embed.bias, bias_value)
 
     def freeze(self, freeze_classifier: bool = True) -> None:
         for param in self.parameters():
@@ -656,20 +655,19 @@ class Deformable_DETR(DetectionBaseNet):
     ) -> torch.Tensor:
         idx = self._get_src_permutation_idx(indices)
         target_classes_o = torch.concat([t["labels"][J] for t, (_, J) in zip(targets, indices)], dim=0)
-        target_classes = torch.full(cls_logits.shape[:2], self.num_classes, dtype=torch.int64, device=cls_logits.device)
-        target_classes[idx] = target_classes_o
 
         target_classes_onehot = torch.zeros(
-            [cls_logits.shape[0], cls_logits.shape[1], cls_logits.shape[2] + 1],
+            cls_logits.size(0),
+            cls_logits.size(1),
+            cls_logits.size(2) + 1,
             dtype=cls_logits.dtype,
-            layout=cls_logits.layout,
             device=cls_logits.device,
         )
-        target_classes_onehot.scatter_(2, target_classes.unsqueeze(-1), 1)
-
+        target_classes_onehot[idx[0], idx[1], target_classes_o] = 1
         target_classes_onehot = target_classes_onehot[:, :, :-1]
+
         loss = sigmoid_focal_loss(cls_logits, target_classes_onehot, alpha=0.25, gamma=2.0)
-        loss_ce = (loss.mean(1).sum() / num_boxes) * cls_logits.shape[1]
+        loss_ce = (loss.mean(1).sum() / num_boxes) * cls_logits.size(1)
 
         return loss_ce
 

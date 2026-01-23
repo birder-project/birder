@@ -76,7 +76,9 @@ class ShiftedWindowAttention(nn.Module):
 
         # MLP to generate continuous relative position bias
         self.cpb_mlp = nn.Sequential(
-            nn.Linear(2, 512, bias=True), nn.ReLU(inplace=True), nn.Linear(512, num_heads, bias=False)
+            nn.Linear(2, 512),
+            nn.ReLU(inplace=True),
+            nn.Linear(512, num_heads, bias=False),
         )
         if qkv_bias is True:
             length = self.qkv.bias.numel() // 3
@@ -224,12 +226,7 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
 
         self.stem = nn.Sequential(
             nn.Conv2d(
-                self.input_channels,
-                embed_dim,
-                kernel_size=(patch_size, patch_size),
-                stride=patch_size,
-                padding=(0, 0),
-                bias=True,
+                self.input_channels, embed_dim, kernel_size=(patch_size, patch_size), stride=patch_size, padding=(0, 0)
             ),
             Permute([0, 2, 3, 1]),
             nn.LayerNorm(embed_dim, eps=1e-5),

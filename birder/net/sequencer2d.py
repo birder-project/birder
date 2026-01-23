@@ -187,7 +187,6 @@ class Sequencer2d(BaseNet):
                 kernel_size=(patch_sizes[0], patch_sizes[0]),
                 stride=(patch_sizes[0], patch_sizes[0]),
                 padding=(0, 0),
-                bias=True,
             ),
             Permute([0, 2, 3, 1]),
         )

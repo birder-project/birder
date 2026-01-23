@@ -56,7 +56,6 @@ class RepVggBlock(nn.Module):
                 stride=(stride, stride),
                 padding=(padding, padding),
                 groups=groups,
-                bias=True,
             )
         else:
             self.reparam_conv = None
@@ -122,7 +121,6 @@ class RepVggBlock(nn.Module):
             padding=self.conv_kxk.conv.padding,
             dilation=self.conv_kxk.conv.dilation,
             groups=self.conv_kxk.conv.groups,
-            bias=True,
         )
         self.reparam_conv.weight.data = kernel
         self.reparam_conv.bias.data = bias

@@ -384,7 +384,7 @@ def load_checkpoint(
     )
 
     # Initialize network and restore checkpoint state
-    net = registry.net_factory(network, input_channels, num_classes, config=config, size=size)
+    net = registry.net_factory(network, num_classes, input_channels, config=config, size=size)
 
     # When a checkpoint was trained with EMA:
     #   The primary weights in the checkpoint file are the EMA weights
@@ -437,7 +437,7 @@ def load_mim_checkpoint(
     size = lib.get_size_from_signature(signature)
 
     # Initialize network and restore checkpoint state
-    net_encoder = registry.net_factory(encoder, input_channels, num_classes, config=encoder_config, size=size)
+    net_encoder = registry.net_factory(encoder, num_classes, input_channels, config=encoder_config, size=size)
     net = registry.mim_net_factory(
         network, net_encoder, config=config, size=size, mask_ratio=mask_ratio, min_mask_size=min_mask_size
     )
@@ -488,7 +488,7 @@ def load_detection_checkpoint(
     size = lib.get_size_from_signature(signature)
 
     # Initialize network and restore checkpoint state
-    net_backbone = registry.net_factory(backbone, input_channels, num_classes, config=backbone_config, size=size)
+    net_backbone = registry.net_factory(backbone, num_classes, input_channels, config=backbone_config, size=size)
     net = registry.detection_net_factory(network, num_classes, net_backbone, config=config, size=size)
 
     # When a checkpoint was trained with EMA:
@@ -584,7 +584,7 @@ def load_model(
             merged_config = None  # type: ignore[assignment]
 
         model_state: dict[str, Any] = safetensors.torch.load_file(path, device=device.type)
-        net = registry.net_factory(network, input_channels, num_classes, config=merged_config, size=size)
+        net = registry.net_factory(network, num_classes, input_channels, config=merged_config, size=size)
         if reparameterized is True:
             net.reparameterize_model()
 
@@ -611,7 +611,7 @@ def load_model(
         if len(merged_config) == 0:
             merged_config = None
 
-        net = registry.net_factory(network, input_channels, num_classes, config=merged_config, size=size)
+        net = registry.net_factory(network, num_classes, input_channels, config=merged_config, size=size)
         if reparameterized is True:
             net.reparameterize_model()
 
@@ -733,7 +733,7 @@ def load_detection_model(
 
         model_state: dict[str, Any] = safetensors.torch.load_file(path, device=device.type)
         net_backbone = registry.net_factory(
-            backbone, input_channels, num_classes, config=backbone_merged_config, size=size
+            backbone, num_classes, input_channels, config=backbone_merged_config, size=size
         )
         if backbone_reparameterized is True:
             net_backbone.reparameterize_model()
@@ -776,7 +776,7 @@ def load_detection_model(
             merged_config = None
 
         net_backbone = registry.net_factory(
-            backbone, input_channels, num_classes, config=backbone_merged_config, size=size
+            backbone, num_classes, input_channels, config=backbone_merged_config, size=size
         )
         if backbone_reparameterized is True:
             net_backbone.reparameterize_model()
@@ -959,7 +959,7 @@ def load_model_with_cfg(
             encoder_name = cfg["encoder"]
 
         encoder_config = cfg.get("encoder_config", None)
-        encoder = registry.net_factory(encoder_name, input_channels, num_classes=0, config=encoder_config, size=size)
+        encoder = registry.net_factory(encoder_name, 0, input_channels, config=encoder_config, size=size)
         net = registry.mim_net_factory(name, encoder, config=model_config, size=size)
 
     elif cfg["task"] == Task.OBJECT_DETECTION:
@@ -969,14 +969,14 @@ def load_model_with_cfg(
             backbone_name = cfg["backbone"]
 
         backbone_config = cfg.get("backbone_config", None)
-        backbone = registry.net_factory(backbone_name, input_channels, num_classes, config=backbone_config, size=size)
+        backbone = registry.net_factory(backbone_name, num_classes, input_channels, config=backbone_config, size=size)
         if cfg.get("backbone_reparameterized", False) is True:
             backbone.reparameterize_model()
 
         net = registry.detection_net_factory(name, num_classes, backbone, config=model_config, size=size)
 
     elif cfg["task"] == Task.IMAGE_CLASSIFICATION:
-        net = registry.net_factory(name, input_channels, num_classes, config=model_config, size=size)
+        net = registry.net_factory(name, num_classes, input_channels, config=model_config, size=size)
 
     else:
         raise ValueError(f"Configuration not supported: {cfg['task']}")

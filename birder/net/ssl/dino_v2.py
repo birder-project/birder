@@ -148,7 +148,17 @@ class DINOLoss(nn.Module):
 
     def forward(
         self, student_output_list: list[torch.Tensor], teacher_out_softmax_centered_list: list[torch.Tensor]
-    ) -> float:
+    ) -> torch.Tensor:
+        s = torch.stack(student_output_list, 0)
+        t = torch.stack(teacher_out_softmax_centered_list, 0)
+        lsm = F.log_softmax(s / self.student_temp, dim=-1)
+        loss = -(torch.einsum("tbk,sbk->tsb", t, lsm).mean(-1).sum())
+
+        return loss
+
+    def forward_reference(
+        self, student_output_list: list[torch.Tensor], teacher_out_softmax_centered_list: list[torch.Tensor]
+    ) -> torch.Tensor:
         total_loss = 0.0
         for s in student_output_list:
             lsm = F.log_softmax(s / self.student_temp, dim=-1)

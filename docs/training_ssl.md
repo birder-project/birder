@@ -350,10 +350,10 @@ BIO, DGX A100 training
 torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --tag bio --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --local-crop-size 98 --batch-size 32 --opt adamw --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_bio_packed/_info.json
 ```
 
-(4000x8x8x32 = 8.2M epoch, 8.2Mx250 = 2B)
+(2500x8x8x48 = 7.68M epoch, 7.68Mx250 = 1.92B)
 
 ```sh
-torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --tag bio --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --warmup-teacher-temp-epochs 20 --local-crop-size 98 --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0002 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 250 --steps-per-epoch 4000 --warmup-epochs 40 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_bio_packed/_info.json
+torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --tag bio --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --warmup-teacher-temp-epochs 20 --local-crop-size 98 --batch-size 48 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0002 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 250 --steps-per-epoch 2500 --warmup-epochs 40 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_bio_packed/_info.json
 ```
 
 #### DINO v2: RoPE SoViT reg8 150m p14 AP

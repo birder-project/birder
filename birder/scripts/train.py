@@ -7,6 +7,7 @@ import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -262,7 +263,7 @@ def train(args: argparse.Namespace) -> None:
             assert class_to_idx == class_to_idx_saved
 
     else:
-        net = registry.net_factory(args.network, sample_shape[1], num_outputs, config=args.model_config, size=args.size)
+        net = registry.net_factory(args.network, num_outputs, sample_shape[1], config=args.model_config, size=args.size)
         training_states = fs_ops.TrainingStates.empty()
 
     net.to(device, dtype=model_dtype)
@@ -474,15 +475,31 @@ def train(args: argparse.Namespace) -> None:
     if virtual_epoch_mode is True:
         train_iter = iter(training_loader)
 
+    top_k = args.top_k
     running_loss = training_utils.SmoothedValue(window_size=64)
     running_val_loss = training_utils.SmoothedValue()
     train_accuracy = training_utils.SmoothedValue(window_size=64)
     val_accuracy = training_utils.SmoothedValue()
+    train_topk: Optional[training_utils.SmoothedValue] = None
+    val_topk: Optional[training_utils.SmoothedValue] = None
+    if top_k is not None:
+        train_topk = training_utils.SmoothedValue(window_size=64)
+        val_topk = training_utils.SmoothedValue()
 
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
+
+        # Clear metrics
+        running_loss.clear()
+        running_val_loss.clear()
+        train_accuracy.clear()
+        val_accuracy.clear()
+        if train_topk is not None:
+            train_topk.clear()
+        if val_topk is not None:
+            val_topk.clear()
 
         if args.distributed is True or virtual_epoch_mode is True:
             train_sampler.set_epoch(epoch)
@@ -565,6 +582,9 @@ def train(args: argparse.Namespace) -> None:
                 targets = targets.argmax(dim=1)
 
             train_accuracy.update(training_utils.accuracy(targets, outputs.detach()))
+            if train_topk is not None:
+                topk_val = training_utils.topk_accuracy(targets, outputs.detach(), topk=(top_k,))[0]
+                train_topk.update(topk_val)
 
             # Write statistics
             if (i % args.log_interval == 0 and i > 0) or i == last_batch_idx:
@@ -583,6 +603,9 @@ def train(args: argparse.Namespace) -> None:
 
                 running_loss.synchronize_between_processes(device)
                 train_accuracy.synchronize_between_processes(device)
+                if train_topk is not None:
+                    train_topk.synchronize_between_processes(device)
+
                 with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
                     log.info(
                         f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
@@ -597,8 +620,17 @@ def train(args: argparse.Namespace) -> None:
                         f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
                         f"Accuracy: {train_accuracy.avg:.4f}"
                     )
+                    if train_topk is not None:
+                        log.info(
+                            f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
+                            f"Accuracy@{top_k}: {train_topk.avg:.4f}"
+                        )
 
                 if training_utils.is_local_primary(args) is True:
+                    performance = {"training_accuracy": train_accuracy.avg}
+                    if train_topk is not None:
+                        performance[f"training_accuracy@{top_k}"] = train_topk.avg
+
                     summary_writer.add_scalars(
                         "loss",
                         {"training": running_loss.avg},
@@ -606,7 +638,7 @@ def train(args: argparse.Namespace) -> None:
                     )
                     summary_writer.add_scalars(
                         "performance",
-                        {"training_accuracy": train_accuracy.avg},
+                        performance,
                         ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                     )
 
@@ -618,6 +650,8 @@ def train(args: argparse.Namespace) -> None:
         # Epoch training metrics
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {running_loss.global_avg:.4f}")
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_accuracy: {train_accuracy.global_avg:.4f}")
+        if train_topk is not None:
+            logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_accuracy@{top_k}: {train_topk.global_avg:.4f}")
 
         # Validation
         eval_model.eval()
@@ -649,6 +683,9 @@ def train(args: argparse.Namespace) -> None:
                 # Statistics
                 running_val_loss.update(val_loss.detach())
                 val_accuracy.update(training_utils.accuracy(targets, outputs), n=outputs.size(0))
+                if val_topk is not None:
+                    topk_val = training_utils.topk_accuracy(targets, outputs, topk=(top_k,))[0]
+                    val_topk.update(topk_val, n=outputs.size(0))
 
                 # Update progress bar
                 progress.update(n=batch_size * args.world_size)
@@ -666,19 +703,30 @@ def train(args: argparse.Namespace) -> None:
 
         running_val_loss.synchronize_between_processes(device)
         val_accuracy.synchronize_between_processes(device)
+        if val_topk is not None:
+            val_topk.synchronize_between_processes(device)
+
         epoch_val_loss = running_val_loss.global_avg
         epoch_val_accuracy = val_accuracy.global_avg
+        if val_topk is not None:
+            epoch_val_topk = val_topk.global_avg
+        else:
+            epoch_val_topk = None
 
         # Write statistics
         if training_utils.is_local_primary(args) is True:
             summary_writer.add_scalars("loss", {"validation": epoch_val_loss}, epoch * epoch_samples)
-            summary_writer.add_scalars(
-                "performance", {"validation_accuracy": epoch_val_accuracy}, epoch * epoch_samples
-            )
+            performance = {"validation_accuracy": epoch_val_accuracy}
+            if epoch_val_topk is not None:
+                performance[f"validation_accuracy@{top_k}"] = epoch_val_topk
+
+            summary_writer.add_scalars("performance", performance, epoch * epoch_samples)
 
         # Epoch validation metrics
         logger.info(f"[Val] Epoch {epoch}/{epochs-1} validation_loss: {epoch_val_loss:.4f}")
         logger.info(f"[Val] Epoch {epoch}/{epochs-1} validation_accuracy: {epoch_val_accuracy:.4f}")
+        if epoch_val_topk is not None:
+            logger.info(f"[Val] Epoch {epoch}/{epochs-1} validation_accuracy@{top_k}: {epoch_val_topk:.4f}")
 
         # Learning rate scheduler update
         if step_update is False:
@@ -849,7 +897,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_compile_args(parser)
     training_cli.add_checkpoint_args(parser, default_save_frequency=5, pretrained=True)
     training_cli.add_distributed_args(parser)
-    training_cli.add_logging_and_debug_args(parser)
+    training_cli.add_logging_and_debug_args(parser, classification=True)
     training_cli.add_training_data_args(parser)
 
     return parser

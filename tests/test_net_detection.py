@@ -24,10 +24,14 @@ NET_DETECTION_TEST_CASES = [
     ("faster_rcnn", "efficientvit_msft_m0"),  # 3 stage network
     ("fcos", "tiny_vit_5m"),
     ("fcos", "vit_s32"),  # 1 stage network
+    ("plain_detr_lite", "vit_t16"),
+    ("plain_detr", "vit_s16"),
     ("retinanet", "mobilenet_v3_small_1_0"),
     ("retinanet", "efficientvit_msft_m0"),  # 3 stage network
     ("retinanet_sfp", "vit_det_m16_rms"),
     ("rt_detr_v1", "resnet_v1_50"),
+    ("rt_detr_v2", "se_resnet_d_50"),
+    ("rt_detr_v2_s_dsp", "vovnet_v2_19"),
     ("ssd", "efficientnet_v2_s"),
     ("ssd", "vit_s16"),  # 1 stage network
     ("ssdlite", "mobilenet_v2_0_25", (512, 512)),
@@ -46,9 +50,13 @@ DETECTION_DYNAMIC_SIZE_CASES = [
     ("efficientdet_d0", "efficientnet_v1_b0"),
     ("faster_rcnn", "resnet_v2_18"),
     ("fcos", "resnet_d_50"),
+    ("plain_detr_lite", "vit_t16"),
+    ("plain_detr", "vit_s16"),
     ("retinanet", "mobilenet_v3_small_1_0"),
     ("retinanet_sfp", "vit_s16"),
     ("rt_detr_v1", "resnet_v1_50"),
+    ("rt_detr_v2", "se_resnet_d_50"),
+    ("rt_detr_v2_s_dsp", "vovnet_v2_19"),
     ("ssd", "efficientnet_v2_s"),
     ("ssdlite", "mobilenet_v2_0_25", (512, 512)),
     ("vitdet", "vit_b32"),
@@ -76,7 +84,7 @@ class TestNetDetection(unittest.TestCase):
         encoder: str,
         size: tuple[int, int] = (256, 256),
     ) -> None:
-        backbone = registry.net_factory(encoder, DEFAULT_NUM_CHANNELS, 10, size=size)
+        backbone = registry.net_factory(encoder, 10, size=size)
         n = registry.detection_net_factory(network_name, 10, backbone, size=size, export_mode=True)
 
         # Ensure config is serializable
@@ -152,7 +160,7 @@ class TestNetDetection(unittest.TestCase):
         encoder: str,
         size: tuple[int, int] = (256, 256),
     ) -> None:
-        backbone = registry.net_factory(encoder, DEFAULT_NUM_CHANNELS, 10, size=size)
+        backbone = registry.net_factory(encoder, 10, size=size)
         n = registry.detection_net_factory(network_name, 10, backbone, size=size)
         n.eval()
         n.set_dynamic_size()
@@ -179,7 +187,7 @@ class TestNetDetection(unittest.TestCase):
         size: tuple[int, int] = (256, 256),
         size_step: int = 2**5,
     ) -> None:
-        backbone = registry.net_factory(encoder, DEFAULT_NUM_CHANNELS, 10, size=size)
+        backbone = registry.net_factory(encoder, 10, size=size)
         n = registry.detection_net_factory(network_name, 10, backbone, size=size)
 
         size = (size[0] + size_step, size[1] + size_step)
@@ -203,6 +211,9 @@ class TestNetDetection(unittest.TestCase):
         self.assertEqual(loss.ndim, 0)
         loss.backward()
         for name, param in n.named_parameters():
+            if param.requires_grad is False:
+                continue
+
             self.assertIsNotNone(param.grad, msg=f"{network_name} missing grad for {name}")
             self.assertTrue(torch.isfinite(param.grad).all().item(), msg=f"{network_name} non-finite grad for {name}")
 
@@ -225,7 +236,7 @@ class TestNetDetection(unittest.TestCase):
         size: tuple[int, int] = (256, 256),
         size_step: int = 2**5,
     ) -> None:
-        backbone = registry.net_factory(encoder, DEFAULT_NUM_CHANNELS, 10, size=size)
+        backbone = registry.net_factory(encoder, 10, size=size)
         n = registry.detection_net_factory(network_name, 10, backbone, size=size)
         n.train()
         n.set_dynamic_size()
@@ -244,5 +255,8 @@ class TestNetDetection(unittest.TestCase):
         loss = sum(v for v in losses.values())
         loss.backward()
         for name, param in n.named_parameters():
+            if param.requires_grad is False:
+                continue
+
             self.assertIsNotNone(param.grad, msg=f"{network_name} missing grad for {name}")
             self.assertTrue(torch.isfinite(param.grad).all().item(), msg=f"{network_name} non-finite grad for {name}")

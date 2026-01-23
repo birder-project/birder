@@ -108,8 +108,8 @@ def train(args: argparse.Namespace) -> None:
 
     network_name = get_mim_network_name("capi", encoder=args.network, tag=args.tag)
 
-    student_backbone = registry.net_factory(args.network, sample_shape[1], 0, config=args.model_config, size=args.size)
-    teacher_backbone = registry.net_factory(args.network, sample_shape[1], 0, config=args.model_config, size=args.size)
+    student_backbone = registry.net_factory(args.network, 0, sample_shape[1], config=args.model_config, size=args.size)
+    teacher_backbone = registry.net_factory(args.network, 0, sample_shape[1], config=args.model_config, size=args.size)
 
     teacher_backbone.load_state_dict(student_backbone.state_dict())
 
@@ -452,6 +452,11 @@ def train(args: argparse.Namespace) -> None:
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
+
+        # Clear metrics
+        running_loss.clear()
+        running_clustering_loss.clear()
+        running_target_entropy.clear()
 
         if args.sinkhorn_queue_size is not None:
             queue_active = epoch > args.sinkhorn_queue_warmup_epochs

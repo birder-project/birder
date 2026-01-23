@@ -25,10 +25,11 @@ from birder.net.ssl import vicreg
 logging.disable(logging.CRITICAL)
 
 
+# pylint: disable=too-many-public-methods
 class TestNetSSL(unittest.TestCase):
     def test_barlow_twins(self) -> None:
         batch_size = 4
-        backbone = registry.net_factory("resnet_v1_50", DEFAULT_NUM_CHANNELS, 0)
+        backbone = registry.net_factory("resnet_v1_50", 0)
         net = barlow_twins.BarlowTwins(backbone, config={"projector_sizes": [512, 512, 512], "off_lambda": 0.005})
 
         # Test network
@@ -41,7 +42,7 @@ class TestNetSSL(unittest.TestCase):
 
     def test_byol(self) -> None:
         batch_size = 2
-        backbone = registry.net_factory("resnet_v1_18", DEFAULT_NUM_CHANNELS, 0)
+        backbone = registry.net_factory("resnet_v1_18", 0)
         net = byol.BYOL(backbone, config={"projection_size": 64, "projection_hidden_size": 128})
 
         # Test network
@@ -53,7 +54,7 @@ class TestNetSSL(unittest.TestCase):
         batch_size = 4
         size = (192, 192)
         num_clusters = 320
-        backbone = registry.net_factory("vit_s16", DEFAULT_NUM_CHANNELS, 0, size=size)
+        backbone = registry.net_factory("vit_s16", 0, size=size)
         input_size = (size[0] // backbone.max_stride, size[1] // backbone.max_stride)
         seq_len = input_size[0] * input_size[1]
         n_masked = int(seq_len * 0.65)
@@ -105,7 +106,7 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(loss.sum().ndim, 0)
 
         # Test with Hiera backbone
-        backbone = registry.net_factory("hiera_tiny", DEFAULT_NUM_CHANNELS, 0, size=size)
+        backbone = registry.net_factory("hiera_tiny", 0, size=size)
         input_size = (size[0] // backbone.max_stride, size[1] // backbone.max_stride)
         seq_len = input_size[0] * input_size[1]
         n_masked = int(seq_len * 0.65)
@@ -147,7 +148,7 @@ class TestNetSSL(unittest.TestCase):
         self.assertFalse(torch.isnan(pred).any())
 
         # Test with global Sinkhorn Knopp
-        backbone = registry.net_factory("vit_s16", DEFAULT_NUM_CHANNELS, 0, size=size)
+        backbone = registry.net_factory("vit_s16", 0, size=size)
         input_size = (size[0] // backbone.max_stride, size[1] // backbone.max_stride)
         seq_len = input_size[0] * input_size[1]
         n_masked = int(seq_len * 0.65)
@@ -192,7 +193,7 @@ class TestNetSSL(unittest.TestCase):
         batch_size = 4
         size = (192, 192)
         num_clusters = 320
-        backbone = registry.net_factory("vit_s16", DEFAULT_NUM_CHANNELS, 0, size=size)
+        backbone = registry.net_factory("vit_s16", 0, size=size)
         input_size = (size[0] // backbone.max_stride, size[1] // backbone.max_stride)
         seq_len = input_size[0] * input_size[1]
         n_masked = int(seq_len * 0.65)
@@ -249,7 +250,7 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(loss.sum().ndim, 0)
 
         # Test with global Sinkhorn Knopp
-        backbone = registry.net_factory("vit_s16", DEFAULT_NUM_CHANNELS, 0, size=size)
+        backbone = registry.net_factory("vit_s16", 0, size=size)
         input_size = (size[0] // backbone.max_stride, size[1] // backbone.max_stride)
         seq_len = input_size[0] * input_size[1]
         n_masked = int(seq_len * 0.65)
@@ -348,7 +349,7 @@ class TestNetSSL(unittest.TestCase):
 
     def test_data2vec(self) -> None:
         batch_size = 2
-        backbone = registry.net_factory("vit_t16", DEFAULT_NUM_CHANNELS, 0, size=(96, 96))
+        backbone = registry.net_factory("vit_t16", 0, size=(96, 96))
         net = data2vec.Data2Vec(
             backbone, config={"normalize_targets": True, "average_top_k_layers": 6, "loss_beta": 2.0}
         )
@@ -363,7 +364,7 @@ class TestNetSSL(unittest.TestCase):
 
     def test_data2vec2(self) -> None:
         batch_size = 2
-        backbone = registry.net_factory("vit_t16", DEFAULT_NUM_CHANNELS, 0, size=(128, 128))
+        backbone = registry.net_factory("vit_t16", 0, size=(128, 128))
         net = data2vec2.Data2Vec2(
             backbone,
             config={
@@ -391,7 +392,7 @@ class TestNetSSL(unittest.TestCase):
 
     def test_dino_v1(self) -> None:
         batch_size = 4
-        backbone = registry.net_factory("resnet_v2_18", DEFAULT_NUM_CHANNELS, 0)
+        backbone = registry.net_factory("resnet_v2_18", 0)
         net = dino_v1.DINO_v1(
             backbone,
             config={
@@ -441,7 +442,7 @@ class TestNetSSL(unittest.TestCase):
     def test_dino_v2(self) -> None:
         batch_size = 4
         size = (192, 192)
-        backbone = registry.net_factory("vit_s16", DEFAULT_NUM_CHANNELS, 0, size=size)
+        backbone = registry.net_factory("vit_s16", 0, size=size)
         backbone.set_dynamic_size()
 
         # Without iBOT head
@@ -574,7 +575,7 @@ class TestNetSSL(unittest.TestCase):
         teacher_temp = 0.04
         n_masked_patches = len(mask_indices_list)
 
-        teacher_dino_softmax_centered_list = dino_loss.softmax_center_teacher(
+        teacher_dino_softmax_centered = dino_loss.softmax_center_teacher(
             teacher_embedding_after_head, teacher_temp=teacher_temp
         ).view(2, -1, *teacher_embedding_after_head.shape[1:])
         dino_loss.update_center(teacher_embedding_after_head)
@@ -586,13 +587,13 @@ class TestNetSSL(unittest.TestCase):
         masked_teacher_ibot_softmax_centered = masked_teacher_ibot_softmax_centered.squeeze(0)
         ibot_patch_loss.update_center(teacher_masked_patch_tokens_after_head_d[:n_masked_patches])
 
-        self.assertFalse(torch.isnan(teacher_dino_softmax_centered_list).any())
-        self.assertEqual(teacher_dino_softmax_centered_list.size(), (2, batch_size, 4096))
+        self.assertFalse(torch.isnan(teacher_dino_softmax_centered).any())
+        self.assertEqual(teacher_dino_softmax_centered.size(), (2, batch_size, 4096))
         self.assertFalse(torch.isnan(masked_teacher_ibot_softmax_centered).any())
         self.assertEqual(masked_teacher_ibot_softmax_centered.size(), (len(mask_indices_list), 4096))
 
         # Loss centering - Sinkhorn Knopp
-        teacher_dino_softmax_centered_list = dino_loss.sinkhorn_knopp_teacher(
+        teacher_dino_softmax_centered = dino_loss.sinkhorn_knopp_teacher(
             teacher_embedding_after_head, teacher_temp=teacher_temp
         ).view(2, -1, *teacher_embedding_after_head.shape[1:])
 
@@ -602,13 +603,13 @@ class TestNetSSL(unittest.TestCase):
             n_masked_patches_tensor=torch.full((1,), fill_value=mask_indices_list.size(0), dtype=torch.long),
         )
 
-        self.assertFalse(torch.isnan(teacher_dino_softmax_centered_list).any())
-        self.assertEqual(teacher_dino_softmax_centered_list.size(), (2, batch_size, 4096))
+        self.assertFalse(torch.isnan(teacher_dino_softmax_centered).any())
+        self.assertEqual(teacher_dino_softmax_centered.size(), (2, batch_size, 4096))
         self.assertFalse(torch.isnan(masked_teacher_ibot_softmax_centered).any())
         self.assertEqual(masked_teacher_ibot_softmax_centered.size(), (len(mask_indices_list), 4096))
 
         # DINO loss
-        loss_dino = dino_loss(student_local_embedding_after_head.chunk(4), teacher_dino_softmax_centered_list)
+        loss_dino = dino_loss(student_local_embedding_after_head.chunk(4), teacher_dino_softmax_centered.unbind(0))
         self.assertFalse(torch.isnan(loss_dino).any())
         self.assertEqual(loss_dino.ndim, 0)
 
@@ -629,10 +630,48 @@ class TestNetSSL(unittest.TestCase):
         self.assertFalse(torch.isnan(loss_ibot_patch).any())
         self.assertEqual(loss_ibot_patch.ndim, 0)
 
+    def test_dino_v2_loss_forward_matches_reference(self) -> None:
+        torch.manual_seed(0)
+        batch_size = 3
+        out_dim = 16
+        n_students = 4
+        n_teachers = 2
+
+        dino_loss = dino_v2.DINOLoss(out_dim, student_temp=0.1, center_momentum=0.9)
+
+        # Student outputs are logits (any real values)
+        student_output_list = [torch.randn(batch_size, out_dim, requires_grad=True) for _ in range(n_students)]
+
+        # Teacher outputs should be valid probability distributions (softmax outputs)
+        teacher_out_softmax_centered_list = [
+            F.softmax(torch.randn(batch_size, out_dim), dim=-1) for _ in range(n_teachers)
+        ]
+
+        # Test forward pass
+        loss_reference = dino_loss.forward_reference(student_output_list, teacher_out_softmax_centered_list)
+        loss_vectorized = dino_loss.forward(student_output_list, teacher_out_softmax_centered_list)
+
+        self.assertEqual(loss_reference.ndim, 0)
+        self.assertEqual(loss_vectorized.ndim, 0)
+        self.assertTrue(torch.allclose(loss_reference, loss_vectorized, rtol=1e-5, atol=1e-5))
+
+        # Test gradients match
+        loss_reference.backward()
+        grads_reference = [s.grad.clone() for s in student_output_list]
+
+        for s in student_output_list:
+            s.grad = None
+
+        loss_vectorized = dino_loss.forward(student_output_list, teacher_out_softmax_centered_list)
+        loss_vectorized.backward()
+
+        for g_reference, s in zip(grads_reference, student_output_list):
+            self.assertTrue(torch.allclose(g_reference, s.grad, rtol=1e-5, atol=1e-5))
+
     def test_dino_v2_queue(self) -> None:
         batch_size = 4
         size = (192, 192)
-        backbone = registry.net_factory("vit_s16", DEFAULT_NUM_CHANNELS, 0, size=size)
+        backbone = registry.net_factory("vit_s16", 0, size=size)
         backbone.set_dynamic_size()
 
         # Without iBOT head
@@ -691,7 +730,7 @@ class TestNetSSL(unittest.TestCase):
 
             teacher_embedding_after_head_list.append(teacher_embedding_after_head)
 
-            teacher_dino_softmax_centered_list = dino_loss.sinkhorn_knopp_teacher(
+            teacher_dino_softmax_centered = dino_loss.sinkhorn_knopp_teacher(
                 teacher_embedding_after_head, teacher_temp=teacher_temp
             ).view(2, -1, *teacher_embedding_after_head.shape[1:])
 
@@ -701,12 +740,12 @@ class TestNetSSL(unittest.TestCase):
                 n_masked_patches_tensor=torch.full((1,), fill_value=mask_indices_list.size(0), dtype=torch.long),
             )
 
-            self.assertFalse(torch.isnan(teacher_dino_softmax_centered_list).any())
-            self.assertEqual(teacher_dino_softmax_centered_list.size(), (2, batch_size, 4096))
+            self.assertFalse(torch.isnan(teacher_dino_softmax_centered).any())
+            self.assertEqual(teacher_dino_softmax_centered.size(), (2, batch_size, 4096))
             self.assertFalse(torch.isnan(masked_teacher_ibot_softmax_centered).any())
             self.assertEqual(masked_teacher_ibot_softmax_centered.size(), (len(mask_indices_list), 4096))
 
-            loss_dino = dino_loss(student_local_embedding_after_head.chunk(4), teacher_dino_softmax_centered_list)
+            loss_dino = dino_loss(student_local_embedding_after_head.chunk(4), teacher_dino_softmax_centered.unbind(0))
             loss_koleo = sum(koleo_loss(p) for p in student_global_embedding.chunk(2))
             masks_weight = (1 / masks.sum(-1).clamp(min=1.0)).unsqueeze(-1).expand_as(masks)[masks.bool()]
             loss_ibot_patch = ibot_patch_loss(
@@ -801,7 +840,7 @@ class TestNetSSL(unittest.TestCase):
         size = (192, 192)
         dino_out_dim = 4096
         num_nesting_levels = 3
-        backbone = registry.net_factory("vit_s16", DEFAULT_NUM_CHANNELS, 0, size=size)
+        backbone = registry.net_factory("vit_s16", 0, size=size)
         backbone.set_dynamic_size()
 
         # Without iBOT head
@@ -991,12 +1030,90 @@ class TestNetSSL(unittest.TestCase):
         self.assertFalse(torch.isnan(loss_ibot_patch).any())
         self.assertEqual(loss_ibot_patch.ndim, 0)
 
+    def test_franca_loss_forward_matches_reference(self) -> None:
+        torch.manual_seed(0)
+        batch_size = 3
+        out_dim = 16
+        n_local_crops = 4
+        n_global_crops = 2
+        num_nesting_levels = 3
+
+        dino_loss = franca.DINOLossMRL(student_temp=0.1, nesting_levels=num_nesting_levels)
+
+        # Student outputs are logits (any real values) - one tensor per nesting level
+        student_output_list = [
+            torch.randn(batch_size * n_local_crops, out_dim // (2 ** (num_nesting_levels - 1 - i)), requires_grad=True)
+            for i in range(num_nesting_levels)
+        ]
+
+        # Teacher outputs should be valid probability distributions - one tensor per nesting level
+        teacher_out_softmax_centered_list = [
+            F.softmax(torch.randn(n_global_crops * batch_size, out_dim // (2 ** (num_nesting_levels - 1 - i))), dim=-1)
+            for i in range(num_nesting_levels)
+        ]
+
+        # Test forward pass (teacher_global=False)
+        loss_reference = dino_loss.forward_reference(
+            student_output_list,
+            teacher_out_softmax_centered_list,
+            n_crops=(n_local_crops, n_global_crops),
+            teacher_global=False,
+        )
+        loss_vectorized = dino_loss.forward(
+            student_output_list,
+            teacher_out_softmax_centered_list,
+            n_crops=(n_local_crops, n_global_crops),
+            teacher_global=False,
+        )
+
+        self.assertEqual(loss_reference.ndim, 0)
+        self.assertEqual(loss_vectorized.ndim, 0)
+        self.assertTrue(torch.allclose(loss_reference, loss_vectorized, rtol=1e-5, atol=1e-5))
+
+        # Test gradients match (teacher_global=False)
+        loss_reference.backward()
+        grads_reference = [s.grad.clone() for s in student_output_list]
+
+        for s in student_output_list:
+            s.grad = None
+
+        loss_vectorized = dino_loss.forward(
+            student_output_list,
+            teacher_out_softmax_centered_list,
+            n_crops=(n_local_crops, n_global_crops),
+            teacher_global=False,
+        )
+        loss_vectorized.backward()
+
+        for g_reference, s in zip(grads_reference, student_output_list):
+            self.assertTrue(torch.allclose(g_reference, s.grad, rtol=1e-5, atol=1e-5))
+
+        # Test forward pass (teacher_global=True)
+        for s in student_output_list:
+            s.grad = None
+
+        student_global_list = [
+            torch.randn(batch_size * n_global_crops, out_dim // (2 ** (num_nesting_levels - 1 - i)), requires_grad=True)
+            for i in range(num_nesting_levels)
+        ]
+
+        loss_reference_global = dino_loss.forward_reference(
+            student_global_list, teacher_out_softmax_centered_list, n_crops=n_global_crops, teacher_global=True
+        )
+        loss_vectorized_global = dino_loss.forward(
+            student_global_list, teacher_out_softmax_centered_list, n_crops=n_global_crops, teacher_global=True
+        )
+
+        self.assertEqual(loss_reference_global.ndim, 0)
+        self.assertEqual(loss_vectorized_global.ndim, 0)
+        self.assertTrue(torch.allclose(loss_reference_global, loss_vectorized_global, rtol=1e-5, atol=1e-5))
+
     def test_franca_queue(self) -> None:
         batch_size = 4
         size = (192, 192)
         dino_out_dim = 4096
         num_nesting_levels = 3
-        backbone = registry.net_factory("vit_s16", DEFAULT_NUM_CHANNELS, 0, size=size)
+        backbone = registry.net_factory("vit_s16", 0, size=size)
         backbone.set_dynamic_size()
 
         # Without iBOT head
@@ -1198,7 +1315,7 @@ class TestNetSSL(unittest.TestCase):
     def test_i_jepa(self) -> None:
         batch_size = 4
         size = (192, 192)
-        backbone = registry.net_factory("vit_s16", DEFAULT_NUM_CHANNELS, 0, size=size)
+        backbone = registry.net_factory("vit_s16", 0, size=size)
         input_size = (size[0] // backbone.stem_stride, size[1] // backbone.stem_stride)
         predictor = i_jepa.VisionTransformerPredictor(
             input_size,
@@ -1254,7 +1371,7 @@ class TestNetSSL(unittest.TestCase):
 
     def test_ibot(self) -> None:
         batch_size = 4
-        backbone = registry.net_factory("vit_b32", DEFAULT_NUM_CHANNELS, 0)
+        backbone = registry.net_factory("vit_b32", 0)
         backbone.set_dynamic_size()
         net = ibot.iBOT(
             backbone,
@@ -1337,7 +1454,7 @@ class TestNetSSL(unittest.TestCase):
 
     def test_mmcr(self) -> None:
         batch_size = 4
-        backbone = registry.net_factory("resnet_v1_50", DEFAULT_NUM_CHANNELS, 0)
+        backbone = registry.net_factory("resnet_v1_50", 0)
         net = mmcr.MMCR(backbone, config={"projector_dims": [512, 512, 512]})
         mmcr_loss = mmcr.MMCRMomentumLoss(0.0, 2)
 
@@ -1355,7 +1472,7 @@ class TestNetSSL(unittest.TestCase):
 
     def test_simclr(self) -> None:
         batch_size = 4
-        backbone = registry.net_factory("resnet_v2_18", DEFAULT_NUM_CHANNELS, 0)
+        backbone = registry.net_factory("resnet_v2_18", 0)
         net = simclr.SimCLR(
             backbone,
             config={
@@ -1375,7 +1492,7 @@ class TestNetSSL(unittest.TestCase):
 
     def test_sscd(self) -> None:
         batch_size = 4
-        backbone = registry.net_factory("resnet_v2_18", DEFAULT_NUM_CHANNELS, 512)
+        backbone = registry.net_factory("resnet_v2_18", 512)
         net = sscd.SSCD(backbone)
         out = net(torch.rand(batch_size, DEFAULT_NUM_CHANNELS, 128, 128))
         self.assertFalse(torch.isnan(out).any())
@@ -1383,7 +1500,7 @@ class TestNetSSL(unittest.TestCase):
 
     def test_vicreg(self) -> None:
         batch_size = 4
-        backbone = registry.net_factory("resnet_v1_18", DEFAULT_NUM_CHANNELS, 0)
+        backbone = registry.net_factory("resnet_v1_18", 0)
         net = vicreg.VICReg(
             backbone,
             config={

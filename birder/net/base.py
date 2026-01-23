@@ -5,6 +5,7 @@ from typing import Literal
 from typing import NotRequired
 from typing import Optional
 from typing import TypedDict
+from typing import overload
 
 import torch
 import torch.nn.functional as F
@@ -52,6 +53,30 @@ def make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> i
         new_v += divisor
 
     return new_v
+
+
+@overload
+def normalize_out_indices(out_indices: None, num_layers: int) -> None: ...
+
+
+@overload
+def normalize_out_indices(out_indices: list[int], num_layers: int) -> list[int]: ...
+
+
+def normalize_out_indices(out_indices: Optional[list[int]], num_layers: int) -> Optional[list[int]]:
+    if out_indices is None:
+        return None
+
+    normalized_indices = []
+    for idx in out_indices:
+        if idx < 0:
+            idx = num_layers + idx
+        if idx < 0 or idx >= num_layers:
+            raise ValueError(f"out_indices contains invalid index for num_layers={num_layers}")
+
+        normalized_indices.append(idx)
+
+    return normalized_indices
 
 
 # class MiscNet(nn.Module):
@@ -137,8 +162,8 @@ class BaseNet(nn.Module):
 
         self.dynamic_size = False
 
-        self.classifier: nn.Module
         self.embedding_size: int
+        self.classifier: nn.Module
 
     def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
         if self.num_classes == 0:

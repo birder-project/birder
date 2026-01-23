@@ -255,7 +255,7 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
-    "hgnet_v2_b4",
+    "hgnet_v2_b4",  # AKA L
     HGNet_v2,
     config={
         "stem_channels": [32, 48],
@@ -269,7 +269,7 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
-    "hgnet_v2_b5",
+    "hgnet_v2_b5",  # AKA X
     HGNet_v2,
     config={
         "stem_channels": [32, 64],
@@ -283,7 +283,7 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
-    "hgnet_v2_b6",
+    "hgnet_v2_b6",  # AKA H
     HGNet_v2,
     config={
         "stem_channels": [48, 96],

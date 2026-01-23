@@ -13,6 +13,7 @@ from birder.conf import settings
 from birder.data.datasets.coco import MosaicType
 from birder.data.transforms.classification import AugType
 from birder.data.transforms.classification import RGBMode
+from birder.data.transforms.detection import MULTISCALE_STEP
 from birder.data.transforms.detection import AugType as DetAugType
 
 logger = logging.getLogger(__name__)
@@ -200,9 +201,15 @@ def add_detection_input_args(parser: argparse.ArgumentParser) -> None:
         help="enable random square resize once per batch (capped by max(--size))",
     )
     group.add_argument(
+        "--multiscale-step",
+        type=int,
+        default=MULTISCALE_STEP,
+        help="step size for multiscale size lists and collator padding divisibility (size_divisible)",
+    )
+    group.add_argument(
         "--multiscale-min-size",
         type=int,
-        help="minimum short-edge size for multiscale lists (rounded up to nearest multiple of 32)",
+        help="minimum short-edge size for multiscale lists (rounded up to nearest multiple of --multiscale-step)",
     )
 
 
@@ -515,7 +522,10 @@ def add_distributed_args(parser: argparse.ArgumentParser) -> None:
 
 
 def add_logging_and_debug_args(
-    parser: argparse.ArgumentParser, default_log_interval: int = 50, fake_data: bool = True
+    parser: argparse.ArgumentParser,
+    default_log_interval: int = 50,
+    fake_data: bool = True,
+    classification: bool = False,
 ) -> None:
     group = parser.add_argument_group("Logging and debugging parameters")
     group.add_argument(
@@ -525,6 +535,11 @@ def add_logging_and_debug_args(
         metavar="NAME",
         help="experiment name for logging (creates dedicated directory for the run)",
     )
+    if classification is True:
+        group.add_argument(
+            "--top-k", type=int, metavar="K", help="additional top-k accuracy value to track (top-1 is always tracked)"
+        )
+
     group.add_argument(
         "--log-interval",
         type=int,
@@ -746,3 +761,10 @@ def common_args_validation(args: argparse.Namespace) -> None:
     # Precision_args, shared by all scripts
     if args.amp is True and args.model_dtype != "float32":
         raise ValidationError("--amp can only be used with --model-dtype float32")
+
+    if hasattr(args, "top_k") is True and args.top_k is not None:
+        if args.top_k == 1:
+            raise ValidationError("Top-1 accuracy is tracked by default, please remove 1 from --top-k argument")
+
+        if args.top_k <= 0:
+            raise ValidationError("--top-k value must be a positive integer")

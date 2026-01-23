@@ -41,6 +41,7 @@ def get_detection_signature(input_shape: tuple[int, ...], num_outputs: int, dyna
 
 class DetectionBaseNet(nn.Module):
     default_size: tuple[int, int]
+    block_group_regex: Optional[str]
     auto_register = False
     scriptable = True
     task = str(Task.OBJECT_DETECTION)
@@ -656,7 +657,7 @@ class Matcher(nn.Module):
         #  tensor([39796, 32055, 32070, 39190, 40255, 40390, 41455, 45470, 45325, 46390]))
         # Each element in the first tensor is a gt index,
         # and each element in second tensor is a prediction index
-        # Note how gt items 1, 2, 3, and 5 each have two ties
+        # Note how gt items 1, 2, 3 and 5 each have two ties
 
         pred_idx_to_update = gt_pred_pairs_of_highest_quality[1]
         matches[pred_idx_to_update] = all_matches[pred_idx_to_update]

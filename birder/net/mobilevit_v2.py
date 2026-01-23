@@ -98,14 +98,10 @@ class LinearTransformerBlock(nn.Module):
 
         self.norm2 = nn.GroupNorm(num_groups=1, num_channels=embed_dim)
         self.mlp = nn.Sequential(
-            nn.Conv2d(
-                embed_dim, int(embed_dim * mlp_ratio), kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=True
-            ),
+            nn.Conv2d(embed_dim, int(embed_dim * mlp_ratio), kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)),
             nn.SiLU(),
             nn.Dropout(drop),
-            nn.Conv2d(
-                int(embed_dim * mlp_ratio), embed_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=True
-            ),
+            nn.Conv2d(int(embed_dim * mlp_ratio), embed_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)),
         )
         self.drop_path2 = StochasticDepth(drop_path, mode="row")
 

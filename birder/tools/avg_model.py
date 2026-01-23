@@ -44,7 +44,7 @@ def avg_models(
             num_classes = lib.get_num_labels_from_signature(signature)
             size = lib.get_size_from_signature(signature)
 
-            net = registry.net_factory(network, input_channels, num_classes, size=size)
+            net = registry.net_factory(network, num_classes, input_channels, size=size)
             if reparameterized is True:
                 net.reparameterize_model()
 

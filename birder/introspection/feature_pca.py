@@ -17,7 +17,7 @@ class FeaturePCA:
     Visualizes feature maps using Principal Component Analysis
 
     This method extracts feature maps from a specified stage of a DetectorBackbone model,
-    applies PCA to reduce the channel dimension to 3 components, and visualizes them as an RGB image where:
+    applies PCA to reduce the channel dimension to 3 components and visualizes them as an RGB image where:
     - R channel = 1st principal component (most important)
     - G channel = 2nd principal component
     - B channel = 3rd principal component

@@ -38,6 +38,7 @@ from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenOmissionResultType
 from birder.net.base import TokenRetentionResultType
+from birder.net.base import normalize_out_indices
 from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
 
@@ -326,13 +327,17 @@ class Encoder(nn.Module):
         x = self.pre_block(x)
         return self.block(x, rope)
 
-    def forward_features(self, x: torch.Tensor, rope: torch.Tensor) -> list[torch.Tensor]:
+    def forward_features(
+        self, x: torch.Tensor, rope: torch.Tensor, out_indices: Optional[list[int]] = None
+    ) -> list[torch.Tensor]:
         x = self.pre_block(x)
 
+        out_indices_set = set(out_indices) if out_indices is not None else None
         xs = []
-        for blk in self.block:
+        for idx, blk in enumerate(self.block):
             x = blk(x, rope)
-            xs.append(x)
+            if out_indices_set is None or idx in out_indices_set:
+                xs.append(x)
 
         return xs
 
@@ -438,6 +443,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
         act_layer_type: Optional[str] = self.config.get("act_layer_type", None)  # Default according to mlp type
+        out_indices: Optional[list[int]] = self.config.get("out_indices", None)
         rope_rot_type: Literal["standard", "interleaved"] = self.config.get("rope_rot_type", "standard")
         rope_grid_indexing: Literal["ij", "xy"] = self.config.get("rope_grid_indexing", "ij")
         rope_grid_offset: int = self.config.get("rope_grid_offset", 0)
@@ -479,6 +485,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         self.norm_layer_eps = norm_layer_eps
         self.mlp_layer = mlp_layer
         self.act_layer = act_layer
+        self.out_indices = normalize_out_indices(out_indices, num_layers)
         self.rope_rot_type = rope_rot_type
         self.rope_grid_indexing = rope_grid_indexing
         self.rope_grid_offset = rope_grid_offset
@@ -571,8 +578,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
             self.attn_pool = MultiHeadAttentionPool(hidden_dim, attn_pool_num_heads, mlp_dim, qkv_bias=True)
 
-        self.return_stages = ["neck"]  # Actually meaningless, just for completeness
-        self.return_channels = [hidden_dim]
+        num_return_stages = len(self.out_indices) if self.out_indices is not None else 1
+        self.return_stages = [f"stage{stage_idx + 1}" for stage_idx in range(num_return_stages)]
+        self.return_channels = [hidden_dim] * num_return_stages
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
 
@@ -658,6 +666,10 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
     def set_causal_attention(self, is_causal: bool = True) -> None:
         self.encoder.set_causal_attention(is_causal)
 
+    def transform_to_backbone(self) -> None:
+        super().transform_to_backbone()
+        self.norm = nn.Identity()
+
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         H, W = x.shape[-2:]
         x = self.conv_proj(x)
@@ -679,15 +691,21 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         if self.pos_embed_special_tokens is True:
             x = x + self._get_pos_embed(H, W)
 
-        x = self.encoder(x, self._get_rope_embed(H, W))
-        x = self.norm(x)
+        rope = self._get_rope_embed(H, W)
+        if self.out_indices is None:
+            xs = [self.encoder(x, rope)]
+        else:
+            xs = self.encoder.forward_features(x, rope, out_indices=self.out_indices)
 
-        x = x[:, self.num_special_tokens :]
-        x = x.permute(0, 2, 1)
-        B, C, _ = x.size()
-        x = x.reshape(B, C, H // self.patch_size, W // self.patch_size)
+        out: dict[str, torch.Tensor] = {}
+        for stage_name, stage_x in zip(self.return_stages, xs):
+            stage_x = stage_x[:, self.num_special_tokens :]
+            stage_x = stage_x.permute(0, 2, 1)
+            B, C, _ = stage_x.size()
+            stage_x = stage_x.reshape(B, C, H // self.patch_size, W // self.patch_size)
+            out[stage_name] = stage_x
 
-        return {self.return_stages[0]: x}
+        return out
 
     def freeze_stages(self, up_to_stage: int) -> None:
         for param in self.conv_proj.parameters():

@@ -60,7 +60,7 @@ class TestNetMIM(unittest.TestCase):
         ]
     )
     def test_net_mim(self, network_name: str, encoder: str) -> None:
-        encoder = registry.net_factory(encoder, DEFAULT_NUM_CHANNELS, 10)
+        encoder = registry.net_factory(encoder, 10)
         size = (encoder.max_stride * 6, encoder.max_stride * 6)
         encoder.adjust_size(size)
         n = registry.mim_net_factory(network_name, encoder, size=size)

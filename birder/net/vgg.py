@@ -40,16 +40,7 @@ class Vgg(DetectorBackbone):
                 else:
                     in_channels = filters[i]
 
-                layers.append(
-                    nn.Conv2d(
-                        in_channels,
-                        filters[i],
-                        kernel_size=(3, 3),
-                        stride=(1, 1),
-                        padding=(1, 1),
-                        bias=True,
-                    )
-                )
+                layers.append(nn.Conv2d(in_channels, filters[i], kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)))
                 layers.append(nn.ReLU(inplace=True))
 
             layers.append(nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2), padding=(0, 0)))

@@ -104,7 +104,7 @@ class RelPosAttention(nn.Module):
         relative_position_index = build_relative_position_index(input_resolution, device=bias_table.device)
         self.relative_position_index = nn.Buffer(relative_position_index)
 
-        self.qkv = nn.Linear(dim, dim * 3, bias=True)
+        self.qkv = nn.Linear(dim, dim * 3)
         self.proj = nn.Linear(dim, dim)
 
         # Weight initialization
@@ -177,7 +177,6 @@ class DeformablePatchMerging(nn.Module):
             kernel_size=(kernel_size, kernel_size),
             stride=(kernel_size, kernel_size),
             padding=(0, 0),
-            bias=True,
         )
         self.deform_conv = DeformConv2d(
             in_dim,
@@ -291,7 +290,6 @@ class LIT_v1(DetectorBackbone):
                 kernel_size=(patch_size, patch_size),
                 stride=(patch_size, patch_size),
                 padding=(0, 0),
-                bias=True,
             ),
             Permute([0, 2, 3, 1]),
             nn.LayerNorm(embed_dim),

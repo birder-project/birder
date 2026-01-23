@@ -85,7 +85,6 @@ class ReparamLargeKernelConv(nn.Module):
                 stride=stride,
                 padding=self.padding,
                 groups=self.groups,
-                bias=True,
             )
         else:
             self.lkb_reparam = None
@@ -152,7 +151,6 @@ class ReparamLargeKernelConv(nn.Module):
             stride=self.stride,
             padding=self.padding,
             groups=self.groups,
-            bias=True,
         )
 
         self.lkb_reparam.weight.data = eq_k
@@ -293,7 +291,6 @@ class RepMixer(nn.Module):
                 stride=(1, 1),
                 padding=self.kernel_size // 2,
                 groups=self.dim,
-                bias=True,
             )
         else:
             self.reparam_conv = None
@@ -364,7 +361,6 @@ class RepMixer(nn.Module):
             stride=(1, 1),
             padding=self.kernel_size // 2,
             groups=self.dim,
-            bias=True,
         )
         self.reparam_conv.weight.data = w
         self.reparam_conv.bias.data = b
@@ -456,7 +452,6 @@ class RepCPE(nn.Module):
                 stride=(1, 1),
                 padding=self.spatial_shape[0] // 2,
                 groups=self.groups,
-                bias=True,
             )
         else:
             self.reparam_conv = None
@@ -468,7 +463,6 @@ class RepCPE(nn.Module):
                 stride=(1, 1),
                 padding=self.spatial_shape[0] // 2,
                 groups=self.groups,
-                bias=True,
             )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -517,7 +511,6 @@ class RepCPE(nn.Module):
             stride=(1, 1),
             padding=self.spatial_shape[0] // 2,
             groups=self.embed_dim,
-            bias=True,
         )
         self.reparam_conv.weight.data = w_final
         self.reparam_conv.bias.data = b_final

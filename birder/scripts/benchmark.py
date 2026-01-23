@@ -13,6 +13,7 @@ from birder.common import cli
 from birder.conf import settings
 from birder.model_registry import Task
 from birder.model_registry import registry
+from birder.net.base import DetectorBackbone
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,23 @@ def prepare_model(net: torch.nn.Module) -> None:
     net.eval()
     for param in net.parameters():
         param.requires_grad_(False)
+
+
+def init_plain_model(
+    model_name: str, sample_shape: tuple[int, ...], device: torch.device, args: argparse.Namespace
+) -> torch.nn.Module:
+    size = (sample_shape[2], sample_shape[3])
+    input_channels = sample_shape[1]
+    if args.backbone is not None:
+        backbone = registry.net_factory(args.backbone, args.num_classes, input_channels, size=size)
+        net = registry.detection_net_factory(model_name, args.num_classes, backbone, size=size)
+    else:
+        net = registry.net_factory(model_name, args.num_classes, input_channels, size=size)
+
+    net.to(device)
+    prepare_model(net)
+
+    return net
 
 
 def throughput_benchmark(
@@ -110,11 +128,7 @@ def memory_benchmark(
     )
 
     if args.plain is True:
-        size = (sample_shape[2], sample_shape[3])
-        input_channels = sample_shape[1]
-        net = registry.net_factory(model_name, input_channels, 0, size=size)
-        net.to(device)
-        prepare_model(net)
+        net = init_plain_model(model_name, sample_shape, device, args)
 
     else:
         net, _ = birder.load_pretrained_model(model_name, inference=True, device=device)
@@ -182,7 +196,8 @@ def benchmark(args: argparse.Namespace) -> None:
     if args.plain is True:
         model_list = args.models or []
         if len(model_list) == 0:
-            model_list = registry.list_models(include_filter=args.filter, task=Task.IMAGE_CLASSIFICATION)
+            task = Task.OBJECT_DETECTION if args.backbone is not None else Task.IMAGE_CLASSIFICATION
+            model_list = registry.list_models(include_filter=args.filter, task=task)
 
     else:
         model_list = birder.list_pretrained_models(args.filter)
@@ -234,9 +249,7 @@ def benchmark(args: argparse.Namespace) -> None:
         else:
             # Initialize model
             if args.plain is True:
-                net = registry.net_factory(model_name, input_channels, 0, size=size)
-                net.to(device)
-                prepare_model(net)
+                net = init_plain_model(model_name, sample_shape, device, args)
             else:
                 net, _ = birder.load_pretrained_model(model_name, inference=True, device=device)
                 if args.size is not None:
@@ -305,12 +318,18 @@ def get_args_parser() -> argparse.ArgumentParser:
             "--compile --suffix il-common --append\n"
             "python -m birder.scripts.benchmark --plain --models rdnet_t convnext_v1_tiny --bench-iter 50 --repeats 1 "
             "--gpu --size 416 --dry-run\n"
+            "python -m birder.scripts.benchmark --plain --models retinanet --backbone resnet_v1_50 --num-classes 91 "
+            "--size 640 --gpu --dry-run\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("--filter", type=str, help="models to benchmark (fnmatch type filter)")
     parser.add_argument("--models", nargs="+", help="plain network names to benchmark")
     parser.add_argument("--plain", default=False, action="store_true", help="benchmark plain networks without weights")
+    parser.add_argument("--backbone", type=str, help="backbone name for plain detection benchmarks")
+    parser.add_argument(
+        "--num-classes", type=int, default=0, metavar="N", help="number of classes for plain benchmarks"
+    )
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument(
         "--amp", default=False, action="store_true", help="use torch.amp.autocast for mixed precision inference"
@@ -353,6 +372,12 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--memory cannot be used with --compile")
     if args.plain is False and args.models is not None:
         raise cli.ValidationError("--models can only be used with --plain")
+    if args.backbone is not None and args.plain is False:
+        raise cli.ValidationError("--backbone can only be used with --plain")
+    if args.backbone is not None and registry.exists(args.backbone, net_type=DetectorBackbone) is False:
+        raise cli.ValidationError(
+            f"--backbone {args.backbone} not supported, see list-models tool for available options"
+        )
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

@@ -69,7 +69,7 @@ class DINOHeadMRL(nn.Module):
     ) -> None:
         super().__init__()
         self.nesting_list = nesting_list
-        self.matryoshka_projections = nn.ModuleList([nn.Linear(dim, dim, bias=True) for dim in self.nesting_list])
+        self.matryoshka_projections = nn.ModuleList([nn.Linear(dim, dim) for dim in self.nesting_list])
 
         self.mlps = nn.ModuleList(
             [
@@ -197,7 +197,31 @@ class DINOLossMRL(nn.Module):
         teacher_out_softmax_centered_list: list[torch.Tensor],
         n_crops: int | tuple[int, int],
         teacher_global: bool,
-    ) -> float:
+    ) -> torch.Tensor:
+        total_loss = 0.0
+        if teacher_global is False:
+            for student_outputs, teacher_outputs in zip(student_output_list, teacher_out_softmax_centered_list):
+                s = torch.stack(student_outputs.chunk(n_crops[0]), 0)  # type: ignore[index]
+                t = teacher_outputs.view(n_crops[1], -1, teacher_outputs.shape[-1])  # type: ignore[index]
+                lsm = F.log_softmax(s / self.student_temp, dim=-1)
+                total_loss -= torch.einsum("tbk,sbk->tsb", t, lsm).mean(-1).sum()
+
+        else:
+            for student_outputs, teacher_outputs in zip(student_output_list, teacher_out_softmax_centered_list):
+                teacher_outputs = teacher_outputs.view(n_crops, -1, teacher_outputs.shape[-1])
+                lsm = F.log_softmax(student_outputs / self.student_temp, dim=-1)
+                loss = torch.sum(teacher_outputs.flatten(0, 1) * lsm, dim=-1)
+                total_loss -= loss.mean()
+
+        return total_loss
+
+    def forward_reference(
+        self,
+        student_output_list: list[torch.Tensor],
+        teacher_out_softmax_centered_list: list[torch.Tensor],
+        n_crops: int | tuple[int, int],
+        teacher_global: bool,
+    ) -> torch.Tensor:
         total_loss = 0.0
         if teacher_global is False:
             for student_outputs, teacher_outputs in zip(student_output_list, teacher_out_softmax_centered_list):

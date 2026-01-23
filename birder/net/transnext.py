@@ -217,9 +217,9 @@ class AggregatedAttention(nn.Module):
         self.act = nn.GELU()
 
         # MLP to generate continuous relative position bias
-        self.cpb_fc1 = nn.Linear(2, 512, bias=True)
+        self.cpb_fc1 = nn.Linear(2, 512)
         self.cpb_act = nn.ReLU(inplace=True)
-        self.cpb_fc2 = nn.Linear(512, num_heads, bias=True)
+        self.cpb_fc2 = nn.Linear(512, num_heads)
 
         # relative bias for local features
         self.relative_pos_bias_local = nn.Parameter(

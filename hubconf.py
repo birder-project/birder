@@ -26,7 +26,7 @@ def _load(
     if model_metadata["task"] == Task.IMAGE_CLASSIFICATION:
         network = model_metadata["net"]["network"]
         reparameterized = model_metadata["net"].get("reparameterized", False)
-        net = birder.model_registry.registry.net_factory(network, input_channels, num_classes, size=size)
+        net = birder.model_registry.registry.net_factory(network, num_classes, input_channels, size=size)
         if reparameterized is True:
             net.reparameterize_model()
 
@@ -38,7 +38,7 @@ def _load(
         backbone = model_metadata["backbone"]["network"]
         backbone_reparameterized = model_metadata["backbone"].get("reparameterized", False)
 
-        net_backbone = birder.model_registry.registry.net_factory(backbone, input_channels, num_classes, size=size)
+        net_backbone = birder.model_registry.registry.net_factory(backbone, num_classes, input_channels, size=size)
         if backbone_reparameterized is True:
             net_backbone.reparameterize_model()
 
