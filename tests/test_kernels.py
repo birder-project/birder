@@ -55,34 +55,39 @@ class TestKernels(unittest.TestCase):
         swattention = load_kernel.load_swattention()
         self.assertIsNotNone(swattention)
 
-        q_norm_scaled = torch.rand(1, 2, 3136, 24, device=device)
-        k_local = torch.rand(1, 2, 3136, 24, device=device)
-        relative_pos_bias_local = torch.rand(2, 9, device=device)
-        H = 56
-        W = 56
+        H = 8
+        W = 8
         window_size = 3
         num_threads = 32
+        num_heads = 2
+        head_dim = 8
+        num_tokens = H * W
+        local_len = window_size * window_size
+
+        q_norm_scaled = torch.rand(1, num_heads, num_tokens, head_dim, device=device)
+        k_local = torch.rand(1, num_heads, num_tokens, head_dim, device=device)
+        relative_pos_bias_local = torch.rand(num_heads, local_len, device=device)
         attn_local = swattention.qk_rpb_forward(  # type: ignore
             q_norm_scaled, k_local, relative_pos_bias_local, H, W, window_size, num_threads
         )
-        self.assertEqual(attn_local.size(), (1, 2, 3136, 9))
+        self.assertEqual(attn_local.size(), (1, num_heads, num_tokens, local_len))
 
         with torch.amp.autocast("cuda"):
             attn_local = swattention.qk_rpb_forward(  # type: ignore
                 q_norm_scaled, k_local, relative_pos_bias_local, H, W, window_size, num_threads
             )
 
-        self.assertEqual(attn_local.size(), (1, 2, 3136, 9))
+        self.assertEqual(attn_local.size(), (1, num_heads, num_tokens, local_len))
 
-        attn_local = torch.rand(1, 2, 3136, 9, device=device)
-        v_local = torch.rand(1, 2, 3136, 9, device=device)
+        attn_local = torch.rand(1, num_heads, num_tokens, local_len, device=device)
+        v_local = torch.rand(1, num_heads, num_tokens, head_dim, device=device)
         x_local = swattention.av_forward(attn_local, v_local, H, W, window_size, num_threads)  # type: ignore
-        self.assertEqual(x_local.size(), (1, 2, 3136, 9))
+        self.assertEqual(x_local.size(), (1, num_heads, num_tokens, head_dim))
 
         with torch.amp.autocast("cuda"):
             x_local = swattention.av_forward(attn_local, v_local, H, W, window_size, num_threads)  # type: ignore
 
-        self.assertEqual(x_local.size(), (1, 2, 3136, 9))
+        self.assertEqual(x_local.size(), (1, num_heads, num_tokens, head_dim))
 
     @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
     def test_soft_nms(self) -> None:

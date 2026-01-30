@@ -21,7 +21,7 @@ See: <https://huggingface.co/facebook/sam2.1-hiera-small> and the official SAM 2
 - **Model Type:** Image classification and detection backbone
 - **Model Stats:**
     - Params (M): 33.9
-    - Input image size: 224 x 224
+    - Input image size: 1024 x 1024
 
 - **Papers:**
     - Hiera: A Hierarchical Vision Transformer without the Bells-and-Whistles: <https://arxiv.org/abs/2306.00989>

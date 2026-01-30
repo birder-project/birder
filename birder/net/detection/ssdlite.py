@@ -50,7 +50,7 @@ class SSDLiteClassificationHead(SSDScoringHead):
             if isinstance(layer, nn.Conv2d):
                 nn.init.xavier_uniform_(layer.weight)
                 if layer.bias is not None:
-                    nn.init.constant_(layer.bias, 0.0)
+                    nn.init.zeros_(layer.bias)
 
         super().__init__(cls_logits, num_classes)
 
@@ -79,7 +79,7 @@ class SSDLiteRegressionHead(SSDScoringHead):
             if isinstance(layer, nn.Conv2d):
                 nn.init.xavier_uniform_(layer.weight)
                 if layer.bias is not None:
-                    nn.init.constant_(layer.bias, 0.0)
+                    nn.init.zeros_(layer.bias)
 
         super().__init__(bbox_reg, 4)
 

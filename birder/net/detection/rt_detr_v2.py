@@ -147,7 +147,7 @@ class MultiScaleDeformableAttention(nn.Module):
                 param.requires_grad_(False)
 
     def reset_parameters(self) -> None:
-        nn.init.constant_(self.sampling_offsets.weight, 0.0)
+        nn.init.zeros_(self.sampling_offsets.weight)
         thetas = torch.arange(self.n_heads, dtype=torch.float32) * (2.0 * math.pi / self.n_heads)
         grid_init = torch.stack([thetas.cos(), thetas.sin()], -1)
         grid_init = grid_init / grid_init.abs().max(-1, keepdim=True)[0]
@@ -158,12 +158,12 @@ class MultiScaleDeformableAttention(nn.Module):
         with torch.no_grad():
             self.sampling_offsets.bias = nn.Parameter(grid_init.view(-1))
 
-        nn.init.constant_(self.attention_weights.weight, 0.0)
-        nn.init.constant_(self.attention_weights.bias, 0.0)
+        nn.init.zeros_(self.attention_weights.weight)
+        nn.init.zeros_(self.attention_weights.bias)
         nn.init.xavier_uniform_(self.value_proj.weight)
-        nn.init.constant_(self.value_proj.bias, 0.0)
+        nn.init.zeros_(self.value_proj.bias)
         nn.init.xavier_uniform_(self.output_proj.weight)
-        nn.init.constant_(self.output_proj.bias, 0.0)
+        nn.init.zeros_(self.output_proj.bias)
 
     def forward(
         self,
@@ -174,7 +174,7 @@ class MultiScaleDeformableAttention(nn.Module):
         input_level_start_index: torch.Tensor,
         input_padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        N, num_queries, _ = query.size()
+        num_queries = query.size(1)
         N, sequence_length, _ = input_flatten.size()
         assert (input_spatial_shapes[:, 0] * input_spatial_shapes[:, 1]).sum() == sequence_length
 
@@ -366,10 +366,9 @@ class TransformerDecoderLayer(nn.Module):
         self_attn_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         # Self attention
-        q = tgt + query_pos
-        k = tgt + query_pos
+        q_k = tgt + query_pos
 
-        tgt2 = self.self_attn(q, k, tgt, attn_mask=self_attn_mask)
+        tgt2 = self.self_attn(q_k, q_k, tgt, attn_mask=self_attn_mask)
         tgt = tgt + self.dropout(tgt2)
         tgt = self.norm1(tgt)
 
@@ -526,18 +525,18 @@ class RT_DETRDecoder(nn.Module):
 
         # Gather reference points
         reference_points_unact = enc_outputs_coord_unact.gather(
-            dim=1, index=topk_ind.unsqueeze(-1).repeat(1, 1, enc_outputs_coord_unact.shape[-1])
+            dim=1, index=topk_ind.unsqueeze(-1).expand(-1, -1, enc_outputs_coord_unact.shape[-1])
         )
 
         enc_topk_bboxes = reference_points_unact.sigmoid()
 
         # Gather encoder logits for loss computation
         enc_topk_logits = enc_outputs_class.gather(
-            dim=1, index=topk_ind.unsqueeze(-1).repeat(1, 1, enc_outputs_class.shape[-1])
+            dim=1, index=topk_ind.unsqueeze(-1).expand(-1, -1, enc_outputs_class.shape[-1])
         )
 
         # Extract region features
-        target = output_memory.gather(dim=1, index=topk_ind.unsqueeze(-1).repeat(1, 1, output_memory.shape[-1]))
+        target = output_memory.gather(dim=1, index=topk_ind.unsqueeze(-1).expand(-1, -1, output_memory.shape[-1]))
         target = target.detach()
 
         return (target, reference_points_unact.detach(), enc_topk_bboxes, enc_topk_logits)
@@ -583,7 +582,7 @@ class RT_DETRDecoder(nn.Module):
         reference_points = init_ref_points_unact.sigmoid()
         for decoder_layer, bbox_head, class_head in zip(self.layers, self.bbox_embed, self.class_embed):
             query_pos = self.query_pos_head(reference_points)
-            reference_points_input = reference_points.unsqueeze(2).repeat(1, 1, len(spatial_shapes), 1)
+            reference_points_input = reference_points.unsqueeze(2).expand(-1, -1, len(spatial_shapes), -1)
             target = decoder_layer(
                 target,
                 query_pos,
@@ -675,7 +674,7 @@ class RT_DETR_v2(DetectionBaseNet):
         self.decoder = RT_DETRDecoder(
             hidden_dim=hidden_dim,
             num_classes=self.num_classes,
-            num_queries=num_queries,
+            num_queries=self.num_queries,
             num_decoder_layers=num_decoder_layers,
             num_levels=self.num_levels,
             num_heads=num_heads,
@@ -744,20 +743,32 @@ class RT_DETR_v2(DetectionBaseNet):
                 for param in self.denoising_class_embed.parameters():
                     param.requires_grad_(True)
 
-    def _get_src_permutation_idx(self, indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+    @staticmethod
+    def _get_src_permutation_idx(indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         batch_idx = torch.concat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
         src_idx = torch.concat([src for (src, _) in indices])
         return (batch_idx, src_idx)
 
-    def _class_loss(
+    def _compute_layer_losses(
         self,
         cls_logits: torch.Tensor,
         box_output: torch.Tensor,
         targets: list[dict[str, torch.Tensor]],
         indices: list[torch.Tensor],
         num_boxes: float,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         idx = self._get_src_permutation_idx(indices)
+
+        src_boxes = box_output[idx]
+        target_boxes = torch.concat([t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0)
+
+        src_boxes_xyxy = box_ops.box_convert(src_boxes, in_fmt="cxcywh", out_fmt="xyxy")
+        target_boxes_xyxy = box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy")
+
+        # IoU for varifocal loss (class loss)
+        ious = torch.diag(box_ops.box_iou(src_boxes_xyxy, target_boxes_xyxy)).detach()
+
+        # Classification loss
         target_classes_o = torch.concat([t["labels"][J] for t, (_, J) in zip(targets, indices)], dim=0)
         target_classes = torch.full(cls_logits.shape[:2], self.num_classes, dtype=torch.int64, device=cls_logits.device)
         target_classes[idx] = target_classes_o
@@ -771,15 +782,6 @@ class RT_DETR_v2(DetectionBaseNet):
         target_classes_onehot.scatter_(2, target_classes.unsqueeze(-1), 1)
         target_classes_onehot = target_classes_onehot[:, :, :-1]
 
-        src_boxes = box_output[idx]
-        target_boxes = torch.concat([t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0)
-        ious = torch.diag(
-            box_ops.box_iou(
-                box_ops.box_convert(src_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
-                box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
-            )
-        ).detach()
-
         target_score_o = torch.zeros(cls_logits.shape[:2], dtype=cls_logits.dtype, device=cls_logits.device)
         target_score_o[idx] = ious.to(cls_logits.dtype)
         target_score = target_score_o.unsqueeze(-1) * target_classes_onehot
@@ -787,31 +789,13 @@ class RT_DETR_v2(DetectionBaseNet):
         loss = varifocal_loss(cls_logits, target_score, target_classes_onehot, alpha=0.75, gamma=2.0)
         loss_ce = (loss.mean(1).sum() / num_boxes) * cls_logits.shape[1]
 
-        return loss_ce
+        # Box L1 loss
+        loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction="none").sum() / num_boxes
 
-    def _box_loss(
-        self,
-        box_output: torch.Tensor,
-        targets: list[dict[str, torch.Tensor]],
-        indices: list[torch.Tensor],
-        num_boxes: float,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        idx = self._get_src_permutation_idx(indices)
-        src_boxes = box_output[idx]
-        target_boxes = torch.concat([t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0)
+        # GIoU loss
+        loss_giou = (1 - torch.diag(box_ops.generalized_box_iou(src_boxes_xyxy, target_boxes_xyxy))).sum() / num_boxes
 
-        loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction="none")
-        loss_bbox = loss_bbox.sum() / num_boxes
-
-        loss_giou = 1 - torch.diag(
-            box_ops.generalized_box_iou(
-                box_ops.box_convert(src_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
-                box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
-            )
-        )
-        loss_giou = loss_giou.sum() / num_boxes
-
-        return (loss_bbox, loss_giou)
+        return (loss_ce, loss_bbox, loss_giou)
 
     def _compute_denoising_loss(
         self,
@@ -846,11 +830,9 @@ class RT_DETR_v2(DetectionBaseNet):
                         )
                     )
 
-            loss_ce = self._class_loss(
+            loss_ce, loss_bbox, loss_giou = self._compute_layer_losses(
                 dn_out_logits[layer_idx], dn_out_bboxes[layer_idx], targets, indices, dn_num_boxes
             )
-            loss_bbox, loss_giou = self._box_loss(dn_out_bboxes[layer_idx], targets, indices, dn_num_boxes)
-
             loss_ce_list.append(loss_ce)
             loss_bbox_list.append(loss_bbox)
             loss_giou_list.append(loss_giou)
@@ -861,9 +843,7 @@ class RT_DETR_v2(DetectionBaseNet):
 
         return (loss_ce_dn, loss_bbox_dn, loss_giou_dn)
 
-    @torch.jit.unused  # type: ignore[untyped-decorator]
-    @torch.compiler.disable()  # type: ignore[untyped-decorator]
-    def _compute_loss_from_outputs(  # pylint: disable=too-many-locals
+    def _compute_loss_from_outputs(
         self,
         targets: list[dict[str, torch.Tensor]],
         out_bboxes: torch.Tensor,
@@ -880,7 +860,7 @@ class RT_DETR_v2(DetectionBaseNet):
         if training_utils.is_dist_available_and_initialized() is True:
             torch.distributed.all_reduce(num_boxes)
 
-        num_boxes = torch.clamp(num_boxes / training_utils.get_world_size(), min=1).item()
+        num_boxes = torch.clamp(num_boxes / training_utils.get_world_size(), min=1)
 
         loss_ce_list = []
         loss_bbox_list = []
@@ -889,19 +869,21 @@ class RT_DETR_v2(DetectionBaseNet):
         # Decoder losses (all layers)
         for layer_idx in range(out_logits.shape[0]):
             indices = self.matcher(out_logits[layer_idx], out_bboxes[layer_idx], targets)
-            loss_ce = self._class_loss(out_logits[layer_idx], out_bboxes[layer_idx], targets, indices, num_boxes)
-            loss_bbox, loss_giou = self._box_loss(out_bboxes[layer_idx], targets, indices, num_boxes)
+            loss_ce, loss_bbox, loss_giou = self._compute_layer_losses(
+                out_logits[layer_idx], out_bboxes[layer_idx], targets, indices, num_boxes
+            )
             loss_ce_list.append(loss_ce)
             loss_bbox_list.append(loss_bbox)
             loss_giou_list.append(loss_giou)
 
         # Encoder auxiliary loss
         enc_indices = self.matcher(enc_topk_logits, enc_topk_bboxes, targets)
-        loss_ce_enc = self._class_loss(enc_topk_logits, enc_topk_bboxes, targets, enc_indices, num_boxes)
-        loss_bbox_enc, loss_giou_enc = self._box_loss(enc_topk_bboxes, targets, enc_indices, num_boxes)
-        loss_ce_list.append(loss_ce_enc)
-        loss_bbox_list.append(loss_bbox_enc)
-        loss_giou_list.append(loss_giou_enc)
+        loss_ce, loss_bbox, loss_giou = self._compute_layer_losses(
+            enc_topk_logits, enc_topk_bboxes, targets, enc_indices, num_boxes
+        )
+        loss_ce_list.append(loss_ce)
+        loss_bbox_list.append(loss_bbox)
+        loss_giou_list.append(loss_giou)
 
         loss_ce = torch.stack(loss_ce_list).sum()  # VFL weight is 1
         loss_bbox = torch.stack(loss_bbox_list).sum() * 5
@@ -985,7 +967,7 @@ class RT_DETR_v2(DetectionBaseNet):
 
         # Convert to [x0, y0, x1, y1] format
         boxes = box_ops.box_convert(box_regression, in_fmt="cxcywh", out_fmt="xyxy")
-        boxes = torch.gather(boxes, 1, topk_boxes.unsqueeze(-1).repeat(1, 1, 4))
+        boxes = torch.gather(boxes, 1, topk_boxes.unsqueeze(-1).expand(-1, -1, 4))
 
         # Convert from relative [0, 1] to absolute [0, height] coordinates
         img_h, img_w = target_sizes.unbind(1)
@@ -1047,6 +1029,7 @@ class RT_DETR_v2(DetectionBaseNet):
             else:
                 B, _, H, W = feat.size()
                 m = torch.zeros(B, H, W, dtype=torch.bool, device=x.device)
+
             mask_list.append(m)
 
         encoder_features = self.encoder(feature_list, masks=mask_list)

@@ -56,7 +56,9 @@ def add_optimization_args(parser: argparse.ArgumentParser, default_batch_size: i
     )
 
 
-def add_lr_wd_args(parser: argparse.ArgumentParser, backbone_lr: bool = False, wd_end: bool = False) -> None:
+def add_lr_wd_args(
+    parser: argparse.ArgumentParser, backbone_lr: bool = False, wd_end: bool = False, backbone_layer_decay: bool = False
+) -> None:
     group = parser.add_argument_group("Learning rate and regularization parameters")
     group.add_argument("--lr", type=float, default=0.1, metavar="LR", help="base learning rate")
     group.add_argument("--bias-lr", type=float, metavar="LR", help="learning rate of biases")
@@ -92,6 +94,9 @@ def add_lr_wd_args(parser: argparse.ArgumentParser, backbone_lr: bool = False, w
         help="custom weight decay for specific layers by name (e.g., offset_conv=0.0)",
     )
     group.add_argument("--layer-decay", type=float, help="layer-wise learning rate decay (LLRD)")
+    if backbone_layer_decay is True:
+        group.add_argument("--backbone-layer-decay", type=float, help="backbone layer-wise learning rate decay (LLRD)")
+
     group.add_argument("--layer-decay-min-scale", type=float, help="minimum layer scale factor clamp value")
     group.add_argument(
         "--layer-decay-no-opt-scale", type=float, help="layer scale threshold below which parameters are frozen"

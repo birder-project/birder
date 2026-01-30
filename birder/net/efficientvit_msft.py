@@ -55,7 +55,7 @@ class Conv2dNorm(nn.Sequential):
         )
         self.add_module("bn", nn.BatchNorm2d(out_channels))
         nn.init.constant_(self.bn.weight, bn_weight_init)
-        nn.init.constant_(self.bn.bias, 0)
+        nn.init.zeros_(self.bn.bias)
 
 
 class PatchMerging(nn.Module):

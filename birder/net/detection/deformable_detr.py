@@ -56,7 +56,7 @@ class HungarianMatcher(nn.Module):
     @torch.jit.unused  # type: ignore[untyped-decorator]
     def forward(
         self, class_logits: torch.Tensor, box_regression: torch.Tensor, targets: list[dict[str, torch.Tensor]]
-    ) -> list[torch.Tensor]:
+    ) -> list[tuple[torch.Tensor, torch.Tensor]]:
         with torch.no_grad():
             B, num_queries = class_logits.shape[:2]
 
@@ -135,7 +135,7 @@ class MultiScaleDeformableAttention(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
-        nn.init.constant_(self.sampling_offsets.weight, 0.0)
+        nn.init.zeros_(self.sampling_offsets.weight)
         thetas = torch.arange(self.n_heads, dtype=torch.float32) * (2.0 * math.pi / self.n_heads)
         grid_init = torch.stack([thetas.cos(), thetas.sin()], -1)
         grid_init = (
@@ -149,12 +149,12 @@ class MultiScaleDeformableAttention(nn.Module):
         with torch.no_grad():
             self.sampling_offsets.bias = nn.Parameter(grid_init.view(-1))
 
-        nn.init.constant_(self.attention_weights.weight, 0.0)
-        nn.init.constant_(self.attention_weights.bias, 0.0)
+        nn.init.zeros_(self.attention_weights.weight)
+        nn.init.zeros_(self.attention_weights.bias)
         nn.init.xavier_uniform_(self.value_proj.weight)
-        nn.init.constant_(self.value_proj.bias, 0.0)
+        nn.init.zeros_(self.value_proj.bias)
         nn.init.xavier_uniform_(self.output_proj.weight)
-        nn.init.constant_(self.output_proj.bias, 0.0)
+        nn.init.zeros_(self.output_proj.bias)
 
     def forward(
         self,
@@ -279,11 +279,10 @@ class DeformableTransformerDecoderLayer(nn.Module):
         self_attn_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         # Self attention
-        q = tgt + query_pos
-        k = tgt + query_pos
+        q_k = tgt + query_pos
 
         tgt2, _ = self.self_attn(
-            q.transpose(0, 1), k.transpose(0, 1), tgt.transpose(0, 1), need_weights=False, attn_mask=self_attn_mask
+            q_k.transpose(0, 1), q_k.transpose(0, 1), tgt.transpose(0, 1), need_weights=False, attn_mask=self_attn_mask
         )
         tgt2 = tgt2.transpose(0, 1)
         tgt = tgt + self.dropout(tgt2)
@@ -587,7 +586,7 @@ class Deformable_DETR(DetectionBaseNet):
 
         self.query_embed = nn.Embedding(num_queries, hidden_dim * 2)
         self.pos_enc = PositionEmbeddingSine(hidden_dim // 2, normalize=True)
-        self.matcher = HungarianMatcher(cost_class=2, cost_bbox=5, cost_giou=2)
+        self.matcher = HungarianMatcher(cost_class=2.0, cost_bbox=5.0, cost_giou=2.0)
 
         class_embed = nn.Linear(hidden_dim, self.num_classes)
         bbox_embed = MLP(hidden_dim, [hidden_dim, hidden_dim, 4], activation_layer=nn.ReLU)
@@ -641,7 +640,8 @@ class Deformable_DETR(DetectionBaseNet):
             for param in self.class_embed.parameters():
                 param.requires_grad_(True)
 
-    def _get_src_permutation_idx(self, indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+    @staticmethod
+    def _get_src_permutation_idx(indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         batch_idx = torch.concat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
         src_idx = torch.concat([src for (src, _) in indices])
         return (batch_idx, src_idx)
@@ -709,7 +709,7 @@ class Deformable_DETR(DetectionBaseNet):
         if training_utils.is_dist_available_and_initialized() is True:
             torch.distributed.all_reduce(num_boxes)
 
-        num_boxes = torch.clamp(num_boxes / training_utils.get_world_size(), min=1).item()
+        num_boxes = torch.clamp(num_boxes / training_utils.get_world_size(), min=1)
 
         loss_ce_list = []
         loss_bbox_list = []

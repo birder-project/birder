@@ -522,13 +522,13 @@ class Plain_DETR(DetectionBaseNet):
 
         self.class_embed = nn.Linear(hidden_dim, self.num_classes)
         self.bbox_embed = MLP(hidden_dim, [hidden_dim, hidden_dim, 4], activation_layer=nn.ReLU)
-        self.query_embed = nn.Embedding(self.num_queries, hidden_dim * 2)
+        self.query_embed = nn.Parameter(torch.empty(self.num_queries, hidden_dim * 2))
         self.reference_point_head = MLP(hidden_dim, [hidden_dim, hidden_dim, 4], activation_layer=nn.ReLU)
         self.input_proj = nn.Conv2d(
             self.backbone.return_channels[-1], hidden_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)
         )
         self.pos_enc = PositionEmbeddingSine(hidden_dim // 2, normalize=True)
-        self.matcher = HungarianMatcher(cost_class=2, cost_bbox=5, cost_giou=2)
+        self.matcher = HungarianMatcher(cost_class=2.0, cost_bbox=5.0, cost_giou=2.0)
 
         if box_refine is True:
             self.class_embed = _get_clones(self.class_embed, num_decoder_layers)
@@ -554,6 +554,7 @@ class Plain_DETR(DetectionBaseNet):
             if idx == 0:
                 nn.init.constant_(last_linear.bias[2:], -2.0)  # Small initial wh
 
+        nn.init.normal_(self.query_embed)
         ref_last_linear = [m for m in self.reference_point_head.modules() if isinstance(m, nn.Linear)][-1]
         nn.init.zeros_(ref_last_linear.weight)
         nn.init.zeros_(ref_last_linear.bias)
@@ -576,7 +577,8 @@ class Plain_DETR(DetectionBaseNet):
             for param in self.class_embed.parameters():
                 param.requires_grad_(True)
 
-    def _get_src_permutation_idx(self, indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+    @staticmethod
+    def _get_src_permutation_idx(indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         batch_idx = torch.concat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
         src_idx = torch.concat([src for (src, _) in indices])
         return (batch_idx, src_idx)
@@ -646,7 +648,7 @@ class Plain_DETR(DetectionBaseNet):
         if training_utils.is_dist_available_and_initialized() is True:
             torch.distributed.all_reduce(num_boxes)
 
-        num_boxes = torch.clamp(num_boxes / training_utils.get_world_size(), min=1).item()
+        num_boxes = torch.clamp(num_boxes / training_utils.get_world_size(), min=1)
 
         loss_ce_list = []
         loss_bbox_list = []
@@ -772,7 +774,7 @@ class Plain_DETR(DetectionBaseNet):
         else:
             num_queries_to_use = self.num_queries_one2one
 
-        query_embed = self.query_embed.weight[:num_queries_to_use]
+        query_embed = self.query_embed[:num_queries_to_use]
         query_embed, query_pos = torch.split(query_embed, self.hidden_dim, dim=1)
         query_embed = query_embed.unsqueeze(0).expand(B, -1, -1)
         query_pos = query_pos.unsqueeze(0).expand(B, -1, -1)

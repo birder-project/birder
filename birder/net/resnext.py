@@ -205,8 +205,8 @@ class ResNeXt(DetectorBackbone):
                 nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
 
             elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

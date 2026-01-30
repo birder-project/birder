@@ -63,7 +63,7 @@ class RetinaNetClassificationHead(nn.Module):
             if isinstance(layer, nn.Conv2d):
                 nn.init.normal_(layer.weight, std=0.01)
                 if layer.bias is not None:
-                    nn.init.constant_(layer.bias, 0)
+                    nn.init.zeros_(layer.bias)
 
         self.cls_logits = nn.Conv2d(in_channels, num_anchors * num_classes, kernel_size=3, stride=1, padding=1)
 

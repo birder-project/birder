@@ -630,6 +630,7 @@ def model_pre_publish(  # pylint: disable=too-many-locals
 
     print(f'"resolution": {size}')
     print(f'"file_size": {file_size}')
+    print(f'"params": {num_params}"')
     print(f'"sha256": "{sha256}"')
 
     # Generate HF model card

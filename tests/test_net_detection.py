@@ -24,6 +24,11 @@ NET_DETECTION_TEST_CASES = [
     ("faster_rcnn", "efficientvit_msft_m0"),  # 3 stage network
     ("fcos", "tiny_vit_5m"),
     ("fcos", "vit_s32"),  # 1 stage network
+    ("lw_detr", "vit_s32", (384, 384)),  # 1 stage network
+    ("lw_detr", "vovnet_v1_27s", (384, 384)),
+    ("lw_detr_2stg", "vit_t32", (384, 384)),  # 1 stage network
+    ("lw_detr_l", "vit_s32", (384, 384)),  # 1 stage network
+    ("lw_detr_l", "vovnet_v1_27s", (384, 384)),
     ("plain_detr_lite", "vit_t16"),
     ("plain_detr", "vit_s16"),
     ("retinanet", "mobilenet_v3_small_1_0"),
@@ -50,6 +55,9 @@ DETECTION_DYNAMIC_SIZE_CASES = [
     ("efficientdet_d0", "efficientnet_v1_b0"),
     ("faster_rcnn", "resnet_v2_18"),
     ("fcos", "resnet_d_50"),
+    ("lw_detr", "vovnet_v1_27s", (384, 384)),
+    ("lw_detr_2stg", "vit_t32", (384, 384)),
+    ("lw_detr_l", "vit_s32", (384, 384)),
     ("plain_detr_lite", "vit_t16"),
     ("plain_detr", "vit_s16"),
     ("retinanet", "mobilenet_v3_small_1_0"),

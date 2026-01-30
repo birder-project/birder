@@ -3,6 +3,7 @@ from birder.net.detection.detr import DETR
 from birder.net.detection.efficientdet import EfficientDet
 from birder.net.detection.faster_rcnn import Faster_RCNN
 from birder.net.detection.fcos import FCOS
+from birder.net.detection.lw_detr import LW_DETR
 from birder.net.detection.plain_detr import Plain_DETR
 from birder.net.detection.retinanet import RetinaNet
 from birder.net.detection.rt_detr_v1 import RT_DETR_v1
@@ -21,6 +22,7 @@ __all__ = [
     "EfficientDet",
     "Faster_RCNN",
     "FCOS",
+    "LW_DETR",
     "Plain_DETR",
     "RetinaNet",
     "RT_DETR_v1",

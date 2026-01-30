@@ -373,6 +373,7 @@ def train(args: argparse.Namespace) -> None:
         custom_keys_weight_decay=custom_keys_weight_decay,
         custom_layer_weight_decay=args.custom_layer_wd,
         layer_decay=args.layer_decay,
+        backbone_layer_decay=args.backbone_layer_decay,
         layer_decay_min_scale=args.layer_decay_min_scale,
         layer_decay_no_opt_scale=args.layer_decay_no_opt_scale,
         bias_lr=args.bias_lr,
@@ -948,7 +949,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="treat all objects as a single class (binary detection: object vs background)",
     )
     training_cli.add_optimization_args(parser, default_batch_size=16)
-    training_cli.add_lr_wd_args(parser, backbone_lr=True)
+    training_cli.add_lr_wd_args(parser, backbone_lr=True, backbone_layer_decay=True)
     training_cli.add_lr_scheduler_args(parser)
     training_cli.add_training_schedule_args(parser)
     training_cli.add_ema_args(parser, default_ema_steps=1, default_ema_decay=0.9998)

@@ -343,7 +343,7 @@ def count_layers(model: torch.nn.Module) -> int:
     return num_layers
 
 
-# pylint: disable=protected-access,too-many-locals,too-many-branches
+# pylint: disable=protected-access,too-many-locals,too-many-branches,too-many-statements
 def optimizer_parameter_groups(
     model: torch.nn.Module,
     weight_decay: float,
@@ -352,6 +352,7 @@ def optimizer_parameter_groups(
     custom_keys_weight_decay: Optional[list[tuple[str, float]]] = None,
     custom_layer_weight_decay: Optional[dict[str, float]] = None,
     layer_decay: Optional[float] = None,
+    backbone_layer_decay: Optional[float] = None,
     layer_decay_min_scale: Optional[float] = None,
     layer_decay_no_opt_scale: Optional[float] = None,
     bias_lr: Optional[float] = None,
@@ -388,6 +389,8 @@ def optimizer_parameter_groups(
         Applied to parameters whose names contain the specified keys.
     layer_decay
         Layer-wise learning rate decay factor.
+    backbone_layer_decay
+        Layer-wise learning rate decay factor for backbone parameters only.
     layer_decay_min_scale
         Minimum learning rate scale factor when using layer decay. Prevents layers from having too small learning rates.
     layer_decay_no_opt_scale
@@ -434,6 +437,27 @@ def optimizer_parameter_groups(
         if layer_decay is not None:
             logger.warning("Assigning lr scaling (layer decay) without a block group map")
 
+    backbone_group_map: dict[str, int] = {}
+    backbone_num_layers = 0
+    if backbone_layer_decay is not None:
+        backbone_module = getattr(model, "backbone", None)
+        if backbone_module is None:
+            logger.warning("Backbone layer decay requested but model has no backbone")
+            backbone_layer_decay = None
+        else:
+            backbone_block_group_regex = getattr(backbone_module, "block_group_regex", None)
+            if backbone_block_group_regex is not None:
+                names = [n for n, _ in backbone_module.named_parameters()]
+                groups = group_by_regex(names, backbone_block_group_regex)
+                backbone_group_map = {
+                    f"backbone.{item}": index for index, sublist in enumerate(groups) for item in sublist
+                }
+                backbone_num_layers = len(groups)
+            else:
+                backbone_group_map = {}
+                backbone_num_layers = count_layers(backbone_module)
+                logger.warning("Assigning lr scaling (backbone layer decay) without a block group map")
+
     # Build layer scale
     if layer_decay_min_scale is None:
         layer_decay_min_scale = 0.0
@@ -444,14 +468,28 @@ def optimizer_parameter_groups(
         layer_scales = [max(layer_decay_min_scale, layer_decay ** (layer_max - i)) for i in range(num_layers)]
         logger.info(f"Layer scaling ranges from {min(layer_scales)} to {max(layer_scales)} across {num_layers} layers")
 
+    backbone_layer_scales = []
+    if backbone_layer_decay is not None:
+        backbone_layer_max = backbone_num_layers - 1
+        backbone_layer_scales = [
+            max(layer_decay_min_scale, backbone_layer_decay ** (backbone_layer_max - i))
+            for i in range(backbone_num_layers)
+        ]
+        logger.info(
+            "Backbone layer scaling ranges from "
+            f"{min(backbone_layer_scales)} to {max(backbone_layer_scales)} across {backbone_num_layers} layers"
+        )
+
     # Set weight decay and layer decay
     idx = 0
+    backbone_idx = 0
     params = []
     module_stack_with_prefix = [(model, "")]
     visited_modules = []
     while len(module_stack_with_prefix) > 0:  # pylint: disable=too-many-nested-blocks
         skip_module = False
         module, prefix = module_stack_with_prefix.pop()
+        is_backbone_module = prefix == "backbone" or prefix.startswith("backbone.")
         if id(module) in visited_modules:
             skip_module = True
 
@@ -460,23 +498,35 @@ def optimizer_parameter_groups(
         for name, p in module.named_parameters(recurse=False):
             target_name = f"{prefix}.{name}" if prefix != "" else name
             idx = group_map.get(target_name, idx)
+            is_backbone_param = target_name.startswith("backbone.")
+            if backbone_layer_decay is not None and is_backbone_param is True:
+                backbone_idx = backbone_group_map.get(target_name, backbone_idx)
             if skip_module is True:
                 break
 
             parameters_found = True
             if p.requires_grad is False:
                 continue
-            if layer_decay is not None and layer_decay_no_opt_scale is not None:
-                if layer_scales[idx] < layer_decay_no_opt_scale:
-                    p.requires_grad_(False)
+            if layer_decay_no_opt_scale is not None:
+                if backbone_layer_decay is not None and is_backbone_param is True:
+                    if backbone_layer_scales and backbone_layer_scales[backbone_idx] < layer_decay_no_opt_scale:
+                        p.requires_grad_(False)
+                elif layer_decay is not None:
+                    if layer_scales[idx] < layer_decay_no_opt_scale:
+                        p.requires_grad_(False)
 
             is_custom_key = False
             if custom_keys_weight_decay is not None:
                 for key, custom_wd in custom_keys_weight_decay:
                     target_name_for_custom_key = f"{prefix}.{name}" if prefix != "" and "." in key else name
                     if key == target_name_for_custom_key:
-                        # Calculate lr_scale (from layer_decay or custom_layer_lr_scale)
-                        lr_scale = 1.0 if layer_decay is None else layer_scales[idx]
+                        # Calculate lr_scale (from layer_decay/backbone_layer_decay or custom_layer_lr_scale)
+                        if layer_decay is not None and (backbone_layer_decay is None or is_backbone_param is False):
+                            lr_scale = layer_scales[idx]
+                        elif backbone_layer_decay is not None and is_backbone_param is True:
+                            lr_scale = backbone_layer_scales[backbone_idx]
+                        else:
+                            lr_scale = 1.0
                         if custom_layer_lr_scale is not None:
                             for layer_name_key, custom_scale in custom_layer_lr_scale.items():
                                 if layer_name_key in target_name:
@@ -500,8 +550,8 @@ def optimizer_parameter_groups(
                         # Apply learning rate based on priority: bias_lr > backbone_lr > lr_scale
                         if bias_lr is not None and target_name.endswith(".bias") is True:
                             d["lr"] = bias_lr
-                        elif backbone_lr is not None and target_name.startswith("backbone.") is True:
-                            d["lr"] = backbone_lr
+                        elif backbone_lr is not None and is_backbone_param is True:
+                            d["lr"] = backbone_lr * lr_scale if backbone_layer_decay is not None else backbone_lr
                         elif lr_scale != 1.0:
                             d["lr"] = base_lr * lr_scale
 
@@ -522,8 +572,13 @@ def optimizer_parameter_groups(
                             wd = custom_wd_value
                             break
 
-                # Calculate lr_scale (from layer_decay or custom_layer_lr_scale)
-                lr_scale = 1.0 if layer_decay is None else layer_scales[idx]
+                # Calculate lr_scale (from layer_decay/backbone_layer_decay or custom_layer_lr_scale)
+                if layer_decay is not None and (backbone_layer_decay is None or is_backbone_param is False):
+                    lr_scale = layer_scales[idx]
+                elif backbone_layer_decay is not None and is_backbone_param is True:
+                    lr_scale = backbone_layer_scales[backbone_idx]
+                else:
+                    lr_scale = 1.0
                 if custom_layer_lr_scale is not None:
                     for layer_name_key, custom_scale in custom_layer_lr_scale.items():
                         if layer_name_key in target_name:
@@ -539,8 +594,8 @@ def optimizer_parameter_groups(
                 # Apply learning rate based on priority: bias_lr > backbone_lr > lr_scale
                 if bias_lr is not None and target_name.endswith(".bias") is True:
                     d["lr"] = bias_lr
-                elif backbone_lr is not None and target_name.startswith("backbone.") is True:
-                    d["lr"] = backbone_lr
+                elif backbone_lr is not None and is_backbone_param is True:
+                    d["lr"] = backbone_lr * lr_scale if backbone_layer_decay is not None else backbone_lr
                 elif lr_scale != 1.0:
                     d["lr"] = base_lr * lr_scale
 
@@ -548,6 +603,8 @@ def optimizer_parameter_groups(
 
         if parameters_found is True:
             idx += 1
+            if is_backbone_module is True:
+                backbone_idx += 1
 
         for child_name, child_module in reversed(list(module.named_children())):
             child_prefix = f"{prefix}.{child_name}" if prefix != "" else child_name

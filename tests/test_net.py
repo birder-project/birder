@@ -163,7 +163,7 @@ NET_TEST_CASES = [
     ("vit_so150m_p14_ap", False, False, 1, 14),
     ("vit_reg8_so150m_p14_swiglu_avg", False, False, 1, 14),
     ("vit_parallel_s16_18x2_ls"),
-    ("vit_det_b16"),
+    ("vit_det_s16"),
     ("vit_sam_b16"),
     ("vovnet_v1_27s"),
     ("vovnet_v2_19"),
@@ -204,6 +204,8 @@ DYNAMIC_SIZE_CASES = [
     ("vit_so150m_p14_ap", 1, 14),
     ("vit_reg8_so150m_p14_swiglu_avg", 1, 14),
     ("vit_parallel_s16_18x2_ls"),
+    ("vit_det_s16"),
+    ("vit_sam_b16"),
 ]
 
 

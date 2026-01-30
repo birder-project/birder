@@ -572,7 +572,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             xs = self.encoder.forward_features(x, out_indices=self.out_indices)
 
         out: dict[str, torch.Tensor] = {}
-        for stage_name, stage_x in zip(self.return_stages, xs):
+        for stage_name, stage_x in zip(self.return_stages, xs, strict=True):
             stage_x = stage_x[:, self.num_special_tokens :]
             stage_x = stage_x.permute(0, 2, 1)
             B, C, _ = stage_x.size()
@@ -802,6 +802,24 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
 # Register model configs (side effects)
 register_vit_configs(ViT)
 
+registry.register_weights(  # BioCLIP v1: https://arxiv.org/abs/2311.18803
+    "vit_b16_pn_bioclip-v1",
+    {
+        "url": "https://huggingface.co/birder-project/vit_b16_pn_bioclip-v1/resolve/main",
+        "description": (
+            "ViT b16 image encoder pre-trained by Imageomics using CLIP on the TreeOfLife-10M dataset. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 328.9,
+                "sha256": "9b2e5598f233657932eeb77e027cd4c4d683bf75515768fe6971cab6ec10bf15",
+            },
+        },
+        "net": {"network": "vit_b16_pn", "tag": "bioclip-v1"},
+    },
+)
 registry.register_weights(
     "vit_l16_mim_200",
     {
@@ -849,8 +867,8 @@ registry.register_weights(  # BioCLIP v2: https://arxiv.org/abs/2505.23883
         "resolution": (224, 224),
         "formats": {
             "pt": {
-                "file_size": 1156.6,
-                "sha256": "6cd7bd6993762590891fe2b41db1649cde5a0c4de5a7f341672f8856ed529d07",
+                "file_size": 1159.7,
+                "sha256": "301a325579dafdfa2ea13b0cbaf8129211ecd1429c29afa20d1c2eaaa91d8b0d",
             },
         },
         "net": {"network": "vit_l14_pn", "tag": "bioclip-v2"},

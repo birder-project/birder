@@ -708,10 +708,12 @@ def train(args: argparse.Namespace) -> None:
             if targets.ndim == 2:
                 targets = targets.argmax(dim=1)
 
-            train_accuracy.update(training_utils.accuracy(targets, outputs.detach()))
-            if train_topk is not None:
-                topk_val = training_utils.topk_accuracy(targets, outputs.detach(), topk=(top_k,))[0]
-                train_topk.update(topk_val)
+            if train_topk is None:
+                train_accuracy.update(training_utils.accuracy(targets, outputs.detach()))
+            else:
+                topk_values = training_utils.topk_accuracy(targets, outputs.detach(), topk=(1, top_k))
+                train_accuracy.update(topk_values[0])
+                train_topk.update(topk_values[1])
 
             # Write statistics
             if (i % args.log_interval == 0 and i > 0) or i == last_batch_idx:
@@ -804,10 +806,12 @@ def train(args: argparse.Namespace) -> None:
 
                 # Statistics
                 running_val_loss.update(val_loss.detach())
-                val_accuracy.update(training_utils.accuracy(targets, outputs), n=outputs.size(0))
-                if val_topk is not None:
-                    topk_val = training_utils.topk_accuracy(targets, outputs, topk=(top_k,))[0]
-                    val_topk.update(topk_val, n=outputs.size(0))
+                if val_topk is None:
+                    val_accuracy.update(training_utils.accuracy(targets, outputs), n=outputs.size(0))
+                else:
+                    topk_values = training_utils.topk_accuracy(targets, outputs, topk=(1, top_k))
+                    val_accuracy.update(topk_values[0], n=outputs.size(0))
+                    val_topk.update(topk_values[1], n=outputs.size(0))
 
                 # Update progress bar
                 progress.update(n=batch_size * args.world_size)

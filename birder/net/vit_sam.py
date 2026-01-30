@@ -29,7 +29,9 @@ from birder.net._vit_configs import BASE
 from birder.net._vit_configs import HUGE
 from birder.net._vit_configs import LARGE
 from birder.net._vit_configs import MEDIUM
+from birder.net._vit_configs import SMALL
 from birder.net.base import DetectorBackbone
+from birder.net.base import normalize_out_indices
 from birder.net.vit import EncoderBlock as MAEDecoderBlock
 
 
@@ -72,7 +74,7 @@ def get_rel_pos(q_size: int, k_size: int, rel_pos: torch.Tensor) -> torch.Tensor
 
     # Interpolate rel pos if needed
     if rel_pos.shape[0] != max_rel_dist:
-        # Adjust size is a one off interpolation, should prevent us from getting here
+        # Only reached in dynamic-size mode (rel-pos table resized on the fly)
         rel_pos_resized = F.interpolate(
             rel_pos.reshape(1, rel_pos.shape[0], -1).permute(0, 2, 1), size=max_rel_dist, mode="linear"
         )
@@ -242,6 +244,7 @@ class EncoderBlock(nn.Module):
 class ViT_SAM(DetectorBackbone):
     block_group_regex = r"body\.(\d+)"
 
+    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,
@@ -266,6 +269,7 @@ class ViT_SAM(DetectorBackbone):
         window_size: int = self.config["window_size"]
         global_attn_indexes: list[int] = self.config["global_attn_indexes"]
         neck_channels: Optional[int] = self.config.get("neck_channels", None)
+        out_indices: Optional[list[int]] = self.config.get("out_indices", None)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         if norm_layer_type == "LayerNorm":
@@ -292,6 +296,7 @@ class ViT_SAM(DetectorBackbone):
         self.hidden_dim = hidden_dim
         self.global_attn_indexes = global_attn_indexes
         self.num_special_tokens = 0
+        self.out_indices = normalize_out_indices(out_indices, num_layers)
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
         self.patch_embed = PatchEmbed(
@@ -356,8 +361,10 @@ class ViT_SAM(DetectorBackbone):
             nn.Flatten(1),
         )
 
-        self.return_stages = ["neck"]  # Actually meaningless, but for completeness
-        self.return_channels = [neck_channels]
+        num_return_stages = len(self.out_indices) if self.out_indices is not None else 1
+        self.return_stages = [f"stage{stage_idx + 1}" for stage_idx in range(num_return_stages)]
+        self.return_channels = [hidden_dim] * num_return_stages
+        self.return_channels[-1] = neck_channels
         self.embedding_size = neck_channels
         self.classifier = self.create_classifier()
 
@@ -372,13 +379,54 @@ class ViT_SAM(DetectorBackbone):
             activation_layer=nn.GELU,
         )
 
-    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        x = self.patch_embed(x)
-        x = x + self.pos_embedding
+    def _get_pos_embed(self, H: int, W: int) -> torch.Tensor:
+        if self.dynamic_size is False:
+            return self.pos_embedding
 
-        x = self.body(x)
-        x = self.neck(x.permute(0, 3, 1, 2))
-        return {self.return_stages[0]: x}
+        if H == self.size[0] and W == self.size[1]:
+            return self.pos_embedding
+
+        base_h = H // self.patch_size
+        base_w = W // self.patch_size
+        orig_dtype = self.pos_embedding.dtype
+        pos_embedding = self.pos_embedding.float()
+        pos_embedding = pos_embedding.permute(0, 3, 1, 2)
+        pos_embedding = F.interpolate(pos_embedding, size=(base_h, base_w), mode="bicubic", antialias=True)
+        pos_embedding = pos_embedding.permute(0, 2, 3, 1)
+
+        return pos_embedding.to(orig_dtype)
+
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        for b in self.body:
+            b.set_causal_attention(is_causal)
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        H, W = x.shape[-2:]
+        x = self.patch_embed(x)
+        x = x + self._get_pos_embed(H, W)
+
+        if self.out_indices is None:
+            x = self.body(x)
+            x = self.neck(x.permute(0, 3, 1, 2))
+            return {self.return_stages[0]: x}
+
+        out_indices_set = set(self.out_indices)
+        last_out_idx = max(out_indices_set)
+        out: dict[str, torch.Tensor] = {}
+        stage_idx = 0
+        for idx, blk in enumerate(self.body):
+            x = blk(x)
+            if idx not in out_indices_set:
+                continue
+
+            stage_x = x.permute(0, 3, 1, 2)
+            if idx == last_out_idx:
+                stage_x = self.neck(stage_x)
+
+            out[self.return_stages[stage_idx]] = stage_x
+            stage_idx += 1
+
+        return out
 
     def freeze_stages(self, up_to_stage: int) -> None:
         for param in self.patch_embed.parameters():
@@ -393,13 +441,10 @@ class ViT_SAM(DetectorBackbone):
             for param in module.parameters():
                 param.requires_grad_(False)
 
-    def set_causal_attention(self, is_causal: bool = True) -> None:
-        for b in self.body:
-            b.set_causal_attention(is_causal)
-
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+        H, W = x.shape[-2:]
         x = self.patch_embed(x)
-        x = x + self.pos_embedding
+        x = x + self._get_pos_embed(H, W)
 
         x = self.body(x)
         x = self.neck(x.permute(0, 3, 1, 2))
@@ -409,9 +454,6 @@ class ViT_SAM(DetectorBackbone):
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.forward_features(x)
         return self.features(x)
-
-    def set_dynamic_size(self, dynamic_size: bool = True) -> None:
-        assert dynamic_size is False, "Dynamic size not supported for this network"
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
@@ -531,6 +573,11 @@ class ViT_SAM(DetectorBackbone):
 
 # ViTDet (no neck)
 registry.register_model_config(
+    "vit_det_s16",
+    ViT_SAM,
+    config={"patch_size": 16, **SMALL, "window_size": 14, "global_attn_indexes": [2, 5, 8, 11]},
+)
+registry.register_model_config(
     "vit_det_m16_rms",
     ViT_SAM,
     config={
@@ -541,7 +588,6 @@ registry.register_model_config(
         "global_attn_indexes": [2, 5, 8, 11],
     },
 )
-
 registry.register_model_config(
     "vit_det_b16",
     ViT_SAM,

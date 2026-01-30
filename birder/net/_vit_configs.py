@@ -112,6 +112,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         config={"patch_size": 16, **BASE, "layer_scale_init_value": 1e-5},
     )
     registry.register_model_config(
+        "vit_b16_pn",
+        vit,
+        config={"patch_size": 16, **BASE, "pre_norm": True, "norm_layer_eps": 1e-5},
+    )
+    registry.register_model_config(
         "vit_b16_qkn_ls",
         vit,
         config={"patch_size": 16, **BASE, "layer_scale_init_value": 1e-5, "qk_norm": True},

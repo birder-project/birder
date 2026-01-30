@@ -613,11 +613,11 @@ registry.register_weights(  # SAM v2: https://arxiv.org/abs/2408.00714
             "HieraDet small image encoder pre-trained by Meta AI using SAM v2. "
             "This model has not been fine-tuned for a specific classification task"
         ),
-        "resolution": (224, 224),
+        "resolution": (1024, 1024),
         "formats": {
             "pt": {
                 "file_size": 129.6,
-                "sha256": "79b6ffdfd4ea9f3b1489ce5a229fe9756b215fc3b52640d01d64136560c1d341",
+                "sha256": "2ede3a78389ca74ed37d82dbc1c3410549f1fdafb5a7a94ac02968aa6d3dec80",
             }
         },
         "net": {"network": "hieradet_small", "tag": "sam2_1"},

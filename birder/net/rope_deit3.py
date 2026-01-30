@@ -249,7 +249,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             xs = self.encoder.forward_features(x, rope, out_indices=self.out_indices)
 
         out: dict[str, torch.Tensor] = {}
-        for stage_name, stage_x in zip(self.return_stages, xs):
+        for stage_name, stage_x in zip(self.return_stages, xs, strict=True):
             stage_x = stage_x[:, self.num_special_tokens :]
             stage_x = stage_x.permute(0, 2, 1)
             B, C, _ = stage_x.size()

@@ -49,7 +49,7 @@ class HungarianMatcher(nn.Module):
     @torch.jit.unused  # type: ignore[untyped-decorator]
     def forward(
         self, class_logits: torch.Tensor, box_regression: torch.Tensor, targets: list[dict[str, torch.Tensor]]
-    ) -> list[torch.Tensor]:
+    ) -> list[tuple[torch.Tensor, torch.Tensor]]:
         with torch.no_grad():
             B, num_queries = class_logits.shape[:2]
 
@@ -148,10 +148,9 @@ class TransformerDecoderLayer(nn.Module):
         query_pos: torch.Tensor,
         memory_key_padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        q = tgt + query_pos
-        k = tgt + query_pos
+        q_k = tgt + query_pos
 
-        tgt2, _ = self.self_attn(q, k, value=tgt, need_weights=False)
+        tgt2, _ = self.self_attn(q_k, q_k, value=tgt, need_weights=False)
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
         tgt2, _ = self.multihead_attn(
@@ -341,7 +340,7 @@ class DETR(DetectionBaseNet):
         )
         self.pos_enc = PositionEmbeddingSine(hidden_dim // 2, normalize=True)
 
-        self.matcher = HungarianMatcher(cost_class=1, cost_bbox=5, cost_giou=2)
+        self.matcher = HungarianMatcher(cost_class=1.0, cost_bbox=5.0, cost_giou=2.0)
         empty_weight = torch.ones(self.num_classes)
         empty_weight[0] = 0.1
         self.empty_weight = nn.Buffer(empty_weight)
@@ -365,7 +364,8 @@ class DETR(DetectionBaseNet):
             for param in self.class_embed.parameters():
                 param.requires_grad_(True)
 
-    def _get_src_permutation_idx(self, indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+    @staticmethod
+    def _get_src_permutation_idx(indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         batch_idx = torch.concat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
         src_idx = torch.concat([src for (src, _) in indices])
         return (batch_idx, src_idx)
@@ -422,7 +422,7 @@ class DETR(DetectionBaseNet):
         if training_utils.is_dist_available_and_initialized() is True:
             torch.distributed.all_reduce(num_boxes)
 
-        num_boxes = torch.clamp(num_boxes / training_utils.get_world_size(), min=1).item()
+        num_boxes = torch.clamp(num_boxes / training_utils.get_world_size(), min=1)
 
         loss_ce_list = []
         loss_bbox_list = []

@@ -63,15 +63,21 @@ logger = logging.getLogger(__name__)
 
 
 class TrainCollator:
-    def __init__(self, mask_generator: Callable[[int], tuple[list[torch.Tensor], list[torch.Tensor]]]) -> None:
+    def __init__(
+        self, mask_generator: Callable[[int], tuple[list[torch.Tensor], list[torch.Tensor]]], n_predict: int
+    ) -> None:
         self.mask_generator = mask_generator
+        self.n_predict = n_predict
 
-    def __call__(self, batch: Any) -> tuple[torch.Tensor, torch.Tensor]:
+    def __call__(self, batch: Any) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         B = len(batch)
         collated_batch = torch.utils.data.default_collate(batch)
         masks = self.mask_generator(B)
 
-        return (collated_batch, masks)
+        ids_keep = masking.get_ids_keep(masks)
+        predict_indices = masking.get_random_masked_indices(masks, self.n_predict)
+
+        return (collated_batch, ids_keep, predict_indices)
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
@@ -183,7 +189,7 @@ def train(args: argparse.Namespace) -> None:
     )
     n_masked = int(seq_len * args.mask_ratio)
     n_predict = int(n_masked * args.kept_mask_ratio)
-    mask_collator = TrainCollator(mask_generator)
+    mask_collator = TrainCollator(mask_generator, n_predict)
     training_transform = training_utils.get_training_transform(args)
     if args.use_fake_data is True:
         logger.warning("Using fake data")
@@ -491,16 +497,13 @@ def train(args: argparse.Namespace) -> None:
         else:
             batch_iter = enumerate(training_loader)
 
-        for i, ((_, images, _), masks) in batch_iter:
+        for i, ((_, images, _), ids_keep, predict_indices) in batch_iter:
             global_iter = ((epoch - 1) * epoch_num_batches) + i
             images = images.to(device, dtype=model_dtype, non_blocking=True)
-            masks = masks.to(device, dtype=model_dtype, non_blocking=True)
+            ids_keep = ids_keep.to(device, non_blocking=True)
+            predict_indices = predict_indices.to(device, non_blocking=True)
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
-
-            # Mask handling
-            ids_keep = masking.get_ids_keep(masks)
-            predict_indices = masking.get_random_masked_indices(masks, n_predict)
 
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):

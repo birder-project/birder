@@ -332,7 +332,7 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertEqual(samples[1024], 0)
         self.assertEqual(samples[1025], 0)
 
-    # pylint: disable=too-many-branches
+    # pylint: disable=too-many-branches,too-many-statements
     def test_optimizer_parameter_groups(self) -> None:
         model = torch.nn.Sequential(
             torch.nn.Linear(1, 2),
@@ -490,6 +490,27 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertAlmostEqual(params[2]["lr"], 0.01)
         self.assertAlmostEqual(params[3]["lr"], 0.01)
         self.assertNotIn("lr", params[4])  # classifier (lr_scale=1.0, no backbone_lr)
+
+        # Test backbone layer decay
+        params = training_utils.optimizer_parameter_groups(model, 0, 0.1, backbone_layer_decay=0.1)
+        self.assertAlmostEqual(params[0]["lr_scale"], 0.1)
+        self.assertAlmostEqual(params[1]["lr_scale"], 0.1)
+        self.assertEqual(params[2]["lr_scale"], 1.0)
+        self.assertEqual(params[3]["lr_scale"], 1.0)
+        self.assertEqual(params[4]["lr_scale"], 1.0)
+
+        self.assertAlmostEqual(params[0]["lr"], 0.01)
+        self.assertAlmostEqual(params[1]["lr"], 0.01)
+        self.assertNotIn("lr", params[2])
+        self.assertNotIn("lr", params[3])
+        self.assertNotIn("lr", params[4])
+
+        params = training_utils.optimizer_parameter_groups(model, 0, 0.1, backbone_lr=0.01, backbone_layer_decay=0.1)
+        self.assertAlmostEqual(params[0]["lr"], 0.001)
+        self.assertAlmostEqual(params[1]["lr"], 0.001)
+        self.assertAlmostEqual(params[2]["lr"], 0.01)
+        self.assertAlmostEqual(params[3]["lr"], 0.01)
+        self.assertNotIn("lr", params[4])
 
         # Test bias
         model = torch.nn.Sequential(

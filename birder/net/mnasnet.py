@@ -230,8 +230,8 @@ class MNASNet(DetectorBackbone):
                     nn.init.zeros_(m.bias)
 
             elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
 
             elif isinstance(m, nn.Linear):
                 nn.init.kaiming_uniform_(m.weight, mode="fan_out", nonlinearity="sigmoid")

@@ -596,18 +596,18 @@ class RT_DETRDecoder(nn.Module):
 
         # Gather reference points
         reference_points_unact = enc_outputs_coord_unact.gather(
-            dim=1, index=topk_ind.unsqueeze(-1).repeat(1, 1, enc_outputs_coord_unact.shape[-1])
+            dim=1, index=topk_ind.unsqueeze(-1).expand(-1, -1, enc_outputs_coord_unact.shape[-1])
         )
 
         enc_topk_bboxes = reference_points_unact.sigmoid()
 
         # Gather encoder logits for loss computation
         enc_topk_logits = enc_outputs_class.gather(
-            dim=1, index=topk_ind.unsqueeze(-1).repeat(1, 1, enc_outputs_class.shape[-1])
+            dim=1, index=topk_ind.unsqueeze(-1).expand(-1, -1, enc_outputs_class.shape[-1])
         )
 
         # Extract region features
-        target = output_memory.gather(dim=1, index=topk_ind.unsqueeze(-1).repeat(1, 1, output_memory.shape[-1]))
+        target = output_memory.gather(dim=1, index=topk_ind.unsqueeze(-1).expand(-1, -1, output_memory.shape[-1]))
         target = target.detach()
 
         return (target, reference_points_unact.detach(), enc_topk_bboxes, enc_topk_logits)
@@ -653,7 +653,7 @@ class RT_DETRDecoder(nn.Module):
         reference_points = init_ref_points_unact.sigmoid()
         for decoder_layer, bbox_head, class_head in zip(self.layers, self.bbox_embed, self.class_embed):
             query_pos = self.query_pos_head(reference_points)
-            reference_points_input = reference_points.unsqueeze(2).repeat(1, 1, len(spatial_shapes), 1)
+            reference_points_input = reference_points.unsqueeze(2).expand(-1, -1, len(spatial_shapes), -1)
             target = decoder_layer(
                 target,
                 query_pos,
@@ -743,7 +743,7 @@ class RT_DETR_v1(DetectionBaseNet):
         self.decoder = RT_DETRDecoder(
             hidden_dim=hidden_dim,
             num_classes=self.num_classes,
-            num_queries=num_queries,
+            num_queries=self.num_queries,
             num_decoder_layers=num_decoder_layers,
             num_levels=self.num_levels,
             num_heads=num_heads,
@@ -810,7 +810,8 @@ class RT_DETR_v1(DetectionBaseNet):
                 for param in self.denoising_class_embed.parameters():
                     param.requires_grad_(True)
 
-    def _get_src_permutation_idx(self, indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+    @staticmethod
+    def _get_src_permutation_idx(indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         batch_idx = torch.concat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
         src_idx = torch.concat([src for (src, _) in indices])
         return (batch_idx, src_idx)
@@ -927,8 +928,6 @@ class RT_DETR_v1(DetectionBaseNet):
 
         return (loss_ce_dn, loss_bbox_dn, loss_giou_dn)
 
-    @torch.jit.unused  # type: ignore[untyped-decorator]
-    @torch.compiler.disable()  # type: ignore[untyped-decorator]
     def _compute_loss_from_outputs(  # pylint: disable=too-many-locals
         self,
         targets: list[dict[str, torch.Tensor]],
@@ -946,7 +945,7 @@ class RT_DETR_v1(DetectionBaseNet):
         if training_utils.is_dist_available_and_initialized() is True:
             torch.distributed.all_reduce(num_boxes)
 
-        num_boxes = torch.clamp(num_boxes / training_utils.get_world_size(), min=1).item()
+        num_boxes = torch.clamp(num_boxes / training_utils.get_world_size(), min=1)
 
         loss_ce_list = []
         loss_bbox_list = []
@@ -1051,7 +1050,7 @@ class RT_DETR_v1(DetectionBaseNet):
 
         # Convert to [x0, y0, x1, y1] format
         boxes = box_ops.box_convert(box_regression, in_fmt="cxcywh", out_fmt="xyxy")
-        boxes = torch.gather(boxes, 1, topk_boxes.unsqueeze(-1).repeat(1, 1, 4))
+        boxes = torch.gather(boxes, 1, topk_boxes.unsqueeze(-1).expand(-1, -1, 4))
 
         # Convert from relative [0, 1] to absolute [0, height] coordinates
         img_h, img_w = target_sizes.unbind(1)
@@ -1113,6 +1112,7 @@ class RT_DETR_v1(DetectionBaseNet):
             else:
                 B, _, H, W = feat.size()
                 m = torch.zeros(B, H, W, dtype=torch.bool, device=x.device)
+
             mask_list.append(m)
 
         encoder_features = self.encoder(feature_list, masks=mask_list)

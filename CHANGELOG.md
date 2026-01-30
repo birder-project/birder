@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.2 - 2026-01-30
+
+### Added
+
+- **LW-DETR Detection**: Added [LW-DETR](https://arxiv.org/abs/2406.03459) object detection model.
+- **Backbone Layer Decay**: Added `--backbone-layer-decay` CLI argument to apply layer-wise learning rate decay (LLRD) specifically to backbone parameters during detection training.
+- **Pretrained Models**:
+    - `vit_b16_pn_bioclip-v1`: Added [BioCLIP](https://arxiv.org/abs/2311.18803) ViT-B/16 pretrained weights.
+
+### Changed
+
+- **BioCLIP v2 Weights (Breaking)**: Updated `vit_l14_pn_bioclip-v2` model weights to include visual projection layer (head).
+- **Compatibility**: Tested with PyTorch 2.10.
+
 ## 0.4.1 - 2026-01-23
 
 ### Added
