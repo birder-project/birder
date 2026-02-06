@@ -92,6 +92,10 @@ def predict(args: argparse.Namespace) -> None:
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
+    if args.channels_last is True:
+        net = net.to(memory_format=torch.channels_last)
+        logger.debug("Using channels-last memory format")
+
     if args.compile is True:
         net = torch.compile(net)
     elif args.compile_backbone is True:
@@ -163,7 +167,7 @@ def predict(args: argparse.Namespace) -> None:
         _inputs: torch.Tensor,
         detections: list[dict[str, torch.Tensor]],
         _targets: list[dict[str, Any]],
-        _image_sizes: list[list[int]],
+        _image_sizes: list[tuple[int, int]],
     ) -> None:
         # Show flags
         if show_flag is True:
@@ -202,6 +206,7 @@ def predict(args: argparse.Namespace) -> None:
             net,
             inference_loader,
             tta=args.tta,
+            channels_last=args.channels_last,
             model_dtype=model_dtype,
             amp=args.amp,
             amp_dtype=amp_dtype,
@@ -284,6 +289,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--compile-backbone", default=False, action="store_true", help="enable backbone only compilation"
     )
+    parser.add_argument("--channels-last", default=False, action="store_true", help="use channels-last memory format")
     parser.add_argument(
         "--model-dtype",
         type=str,

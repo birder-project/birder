@@ -34,7 +34,7 @@ torchrun --nproc_per_node=2 train.py --network hieradet_d_small --tag dino-v2-eu
 
 #### Birder - Attentive Probing (AVG -> APS)
 
-Intermediate training training: first stage - attentive probing (quick)
+Intermediate training: first stage - attentive probing (quick)
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_reg4_so150m_p14_aps --tag mim-intermediate --reset-head --freeze-body --unfreeze-features --batch-size 384 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 5 --size 224 --aug-level 1 --smoothing-alpha 0.1 --rgb-mode none --amp --amp-dtype bfloat16 --compile --save-frequency 1 --resume-epoch 0 --non-strict-weights --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt

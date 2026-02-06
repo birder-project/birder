@@ -324,6 +324,7 @@ class LWDeformableTransformerDecoderLayer(nn.Module):
         reference_points: torch.Tensor,
         src: torch.Tensor,
         src_spatial_shapes: torch.Tensor,
+        src_shapes: list[list[int]],
         level_start_index: torch.Tensor,
         src_padding_mask: Optional[torch.Tensor],
     ) -> torch.Tensor:
@@ -349,7 +350,7 @@ class LWDeformableTransformerDecoderLayer(nn.Module):
         tgt = self.norm1(tgt)
 
         tgt2 = self.cross_attn(
-            tgt + query_pos, reference_points, src, src_spatial_shapes, level_start_index, src_padding_mask
+            tgt + query_pos, reference_points, src, src_spatial_shapes, level_start_index, src_padding_mask, src_shapes
         )
         tgt = tgt + self.dropout(tgt2)
         tgt = self.norm2(tgt)
@@ -432,7 +433,7 @@ class LW_DETRDecoder(nn.Module):
         bias_value = -math.log((1 - prior_prob) / prior_prob)
         nn.init.constant_(self.class_embed.bias, bias_value)
 
-    # pylint: disable=too-many-locals
+    # pylint: disable=too-many-locals,too-many-branches
     def forward(
         self,
         feats: list[torch.Tensor],
@@ -441,6 +442,7 @@ class LW_DETRDecoder(nn.Module):
         valid_ratios: torch.Tensor,
         padding_mask: Optional[list[torch.Tensor]] = None,
         enc_reference_points: Optional[torch.Tensor] = None,
+        return_intermediates: bool = True,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         memory = []
         mask_flatten = []
@@ -513,27 +515,40 @@ class LW_DETRDecoder(nn.Module):
         query_sine_embed = _gen_sine_embed_for_position(reference_points_input[:, :, 0], self.hidden_dim // 2)
         query_pos = self.query_pos_head(query_sine_embed)
 
-        out_bboxes: list[torch.Tensor] = []
-        out_logits: list[torch.Tensor] = []
-        for decoder_layer in self.layers:
+        bboxes_list: list[torch.Tensor] = []
+        logits_list: list[torch.Tensor] = []
+        layer_bboxes = torch.empty(0, device=target.device, dtype=target.dtype)
+        class_logits = torch.empty(0, device=target.device, dtype=target.dtype)
+        last_idx = len(self.layers) - 1
+        for layer_idx, decoder_layer in enumerate(self.layers):
             target = decoder_layer(
                 target,
                 query_pos,
                 reference_points_input,
                 memory,
                 spatial_shapes_tensor,
+                spatial_shapes,
                 level_start_index_tensor,
                 memory_padding_mask,
             )
 
-            # Each layer predicts boxes from the same initial reference points
-            bbox_delta = self.bbox_embed(target)
-            layer_bboxes = _apply_reference_delta(reference_points, bbox_delta)
+            if return_intermediates is True or layer_idx == last_idx:
+                # Each layer predicts boxes from the same initial reference points
+                bbox_delta = self.bbox_embed(target)
+                layer_bboxes = _apply_reference_delta(reference_points, bbox_delta)
+                class_logits = self.class_embed(target)
+                if return_intermediates is True:
+                    bboxes_list.append(layer_bboxes)
+                    logits_list.append(class_logits)
 
-            out_bboxes.append(layer_bboxes)
-            out_logits.append(self.class_embed(target))
+        if return_intermediates is True:
+            out_bboxes = torch.stack(bboxes_list)
+            out_logits = torch.stack(logits_list)
+        else:
+            out_bboxes = layer_bboxes
+            out_logits = class_logits
 
-        return (torch.stack(out_bboxes), torch.stack(out_logits))
+        return (out_bboxes, out_logits)
 
 
 # pylint: disable=invalid-name
@@ -672,7 +687,7 @@ class LW_DETR(DetectionBaseNet):
                         param.requires_grad_(True)
 
     @staticmethod
-    def _get_src_permutation_idx(indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+    def _get_src_permutation_idx(indices: list[tuple[torch.Tensor, torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
         batch_idx = torch.concat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
         src_idx = torch.concat([src for (src, _) in indices])
         return (batch_idx, src_idx)
@@ -682,7 +697,7 @@ class LW_DETR(DetectionBaseNet):
         cls_logits: torch.Tensor,
         box_output: torch.Tensor,
         targets: list[dict[str, torch.Tensor]],
-        indices: list[torch.Tensor],
+        indices: list[tuple[torch.Tensor, torch.Tensor]],
         num_boxes: float,
     ) -> torch.Tensor:
         idx = self._get_src_permutation_idx(indices)
@@ -717,7 +732,7 @@ class LW_DETR(DetectionBaseNet):
         self,
         box_output: torch.Tensor,
         targets: list[dict[str, torch.Tensor]],
-        indices: list[torch.Tensor],
+        indices: list[tuple[torch.Tensor, torch.Tensor]],
         num_boxes: float,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         idx = self._get_src_permutation_idx(indices)
@@ -843,11 +858,10 @@ class LW_DETR(DetectionBaseNet):
         targets: list[dict[str, torch.Tensor]],
         out_logits: torch.Tensor,
         out_bboxes: torch.Tensor,
-        images: Any,
+        image_sizes: torch.Tensor,
         enc_cls_logits: Optional[torch.Tensor] = None,
         enc_box_output: Optional[torch.Tensor] = None,
     ) -> dict[str, torch.Tensor]:
-        device = out_logits.device
         losses: dict[str, torch.Tensor] = {}
 
         # Compute encoder output loss first (before modifying targets in-place)
@@ -856,7 +870,8 @@ class LW_DETR(DetectionBaseNet):
             for idx, target in enumerate(enc_targets):
                 boxes = target["boxes"]
                 boxes = box_ops.box_convert(boxes, in_fmt="xyxy", out_fmt="cxcywh")
-                boxes = boxes / torch.tensor(images.image_sizes[idx][::-1] * 2, dtype=torch.float32, device=device)
+                scale = image_sizes[idx].flip(0).repeat(2).float()  # flip to [W, H], repeat to [W, H, W, H]
+                boxes = boxes / scale
                 enc_targets[idx]["boxes"] = boxes
                 enc_targets[idx]["labels"] = target["labels"] - 1
 
@@ -867,7 +882,8 @@ class LW_DETR(DetectionBaseNet):
         for idx, target in enumerate(targets):
             boxes = target["boxes"]
             boxes = box_ops.box_convert(boxes, in_fmt="xyxy", out_fmt="cxcywh")
-            boxes = boxes / torch.tensor(images.image_sizes[idx][::-1] * 2, dtype=torch.float32, device=device)
+            scale = image_sizes[idx].flip(0).repeat(2).float()  # flip to [W, H], repeat to [W, H, W, H]
+            boxes = boxes / scale
             targets[idx]["boxes"] = boxes
             targets[idx]["labels"] = target["labels"] - 1
 
@@ -943,7 +959,7 @@ class LW_DETR(DetectionBaseNet):
         return (output_memory, output_proposals.to(memory.dtype))
 
     def postprocess_detections(
-        self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_shapes: list[tuple[int, int]]
+        self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_sizes: torch.Tensor
     ) -> list[dict[str, torch.Tensor]]:
         prob = class_logits.sigmoid()
         topk = min(self.num_queries, prob.shape[1] * prob.shape[2])
@@ -953,11 +969,10 @@ class LW_DETR(DetectionBaseNet):
         labels = topk_indexes % prob.shape[2]
         labels += 1  # background offset
 
-        target_sizes = torch.tensor(image_shapes, device=class_logits.device)
         boxes = box_ops.box_convert(box_regression, in_fmt="cxcywh", out_fmt="xyxy")
         boxes = torch.gather(boxes, 1, topk_boxes.unsqueeze(-1).expand(-1, -1, 4))
 
-        img_h, img_w = target_sizes.unbind(1)
+        img_h, img_w = image_sizes.unbind(1)
         scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
         boxes = boxes * scale_fct[:, None, :]
 
@@ -974,17 +989,10 @@ class LW_DETR(DetectionBaseNet):
 
         return detections
 
-    # pylint: disable=too-many-locals,too-many-branches
-    def forward(
-        self,
-        x: torch.Tensor,
-        targets: Optional[list[dict[str, torch.Tensor]]] = None,
-        masks: Optional[torch.Tensor] = None,
-        image_sizes: Optional[list[list[int]]] = None,
-    ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
-        self._input_check(targets)
-        images = self._to_img_list(x, image_sizes)
-
+    # pylint: disable=too-many-locals
+    def forward_net(
+        self, x: torch.Tensor, masks: Optional[torch.Tensor]
+    ) -> tuple[Optional[torch.Tensor], Optional[torch.Tensor], torch.Tensor, torch.Tensor]:
         features: dict[str, torch.Tensor] = self.backbone.detection_features(x)
         stages = self.backbone.return_stages
         feature_list = [features[stage] for stage in stages]
@@ -1122,7 +1130,22 @@ class LW_DETR(DetectionBaseNet):
             valid_ratios,
             padding_mask=mask_list,
             enc_reference_points=enc_reference_points,
+            return_intermediates=self.training is True,
         )
+
+        return (enc_cls_logits, enc_box_output, out_bboxes, out_logits)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        targets: Optional[list[dict[str, torch.Tensor]]] = None,
+        masks: Optional[torch.Tensor] = None,
+        image_sizes: Optional[list[tuple[int, int]]] = None,
+    ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
+        self._input_check(targets)
+        image_sizes_tensor = self._to_img_list(x, image_sizes).image_sizes
+
+        enc_cls_logits, enc_box_output, out_bboxes, out_logits = self.forward_net(x, masks)
 
         losses: dict[str, torch.Tensor] = {}
         detections: list[dict[str, torch.Tensor]] = []
@@ -1134,12 +1157,12 @@ class LW_DETR(DetectionBaseNet):
                 targets,
                 out_logits,
                 out_bboxes,
-                images,
+                image_sizes_tensor,
                 enc_cls_logits=enc_cls_logits,
                 enc_box_output=enc_box_output,
             )
         else:
-            detections = self.postprocess_detections(out_logits[-1], out_bboxes[-1], images.image_sizes)
+            detections = self.postprocess_detections(out_logits, out_bboxes, image_sizes_tensor)
 
         return (detections, losses)
 

@@ -7,6 +7,7 @@ An open-source computer vision framework for wildlife image analysis, featuring 
 - [Getting Started](#getting-started)
 - [Pre-trained Models](#pre-trained-models)
 - [Detection](#detection)
+- [Evaluation](#evaluation)
 - [Project Status and Contributions](#project-status-and-contributions)
 - [Licenses](#licenses)
 - [Acknowledgments](#acknowledgments)
@@ -37,7 +38,9 @@ The same principle applies to Birder. We stand on the shoulders of giants in the
 
 ## Setup
 
-1. Ensure PyTorch 2.7 is installed on your system
+1. Ensure your environment meets the minimum requirements:
+   - Python 3.11 or newer
+   - PyTorch 2.7 or newer (installed for your hardware/driver stack)
 
 1. Install the latest Birder version:
 
@@ -132,6 +135,10 @@ For detailed information about these datasets, including descriptions, citations
 Detection training and inference are available, see [docs/training_scripts.md](docs/training_scripts.md) and
 [docs/inference.md](docs/inference.md). APIs and model coverage may evolve as detection support matures.
 
+## Evaluation
+
+Evaluation workflows are documented in [docs/evaluation.md](docs/evaluation.md).
+
 ## Project Status and Contributions
 
 Birder is currently a personal project in active development. As the sole developer, I am focused on building and refining the core functionalities of the framework. At this time, I am not actively seeking external contributors.
@@ -160,15 +167,15 @@ Files subject to additional license restrictions are marked in their headers. So
 
 If you think we've missed a reference or a license, please create an issue.
 
-### Pretrained Weights
+### Pre-trained Weights
 
-Some of the pretrained weights available here are pretrained on ImageNet. ImageNet was released for non-commercial research purposes only (<https://image-net.org/download>). It's not clear what the implications of that are for the use of pretrained weights from that dataset. It's best to seek legal advice if you intend to use the pretrained weights in a commercial product.
+Some of the pre-trained weights available here are pre-trained on ImageNet. ImageNet was released for non-commercial research purposes only (<https://image-net.org/download>). It's not clear what the implications are for the use of pre-trained weights from that dataset. It's best to seek legal advice if you intend to use the pre-trained weights in a commercial product.
 
 ### Disclaimer
 
-If you intend to use Birder, its pretrained weights, or any associated datasets in a commercial product, we strongly recommend seeking legal advice to ensure compliance with all relevant licenses and terms of use.
+If you intend to use Birder, its pre-trained weights, or any associated datasets in a commercial product, we strongly recommend seeking legal advice to ensure compliance with all relevant licenses and terms of use.
 
-It's the user's responsibility to ensure that their use of this project, including any pretrained weights or datasets, complies with all applicable licenses and legal requirements.
+It's the user's responsibility to ensure that their use of this project, including any pre-trained weights or datasets, complies with all applicable licenses and legal requirements.
 
 ## Acknowledgments
 

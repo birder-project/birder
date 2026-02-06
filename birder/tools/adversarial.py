@@ -131,6 +131,8 @@ def _display_results(
 def run_attack(args: argparse.Namespace) -> None:
     if args.gpu is True:
         device = torch.device("cuda")
+    elif args.mps is True:
+        device = torch.device("mps")
     else:
         device = torch.device("cpu")
 
@@ -187,6 +189,9 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--reparameterized", default=False, action="store_true", help="load reparameterized model")
     subparser.add_argument("--gpu", default=False, action="store_true", help="use GPU")
     subparser.add_argument("--gpu-id", type=int, metavar="ID", help="GPU device ID")
+    subparser.add_argument(
+        "--mps", default=False, action="store_true", help="use mps (Metal Performance Shaders) device"
+    )
     subparser.add_argument(
         "--method",
         type=str,

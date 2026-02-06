@@ -165,18 +165,20 @@ class MultiScaleDeformableAttention(nn.Module):
         nn.init.xavier_uniform_(self.output_proj.weight)
         nn.init.zeros_(self.output_proj.bias)
 
+    # pylint: disable=too-many-locals
     def forward(
         self,
         query: torch.Tensor,
         reference_points: torch.Tensor,
         input_flatten: torch.Tensor,
         input_spatial_shapes: torch.Tensor,
+        src_shapes: list[list[int]],
         input_level_start_index: torch.Tensor,
         input_padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         num_queries = query.size(1)
         N, sequence_length, _ = input_flatten.size()
-        assert (input_spatial_shapes[:, 0] * input_spatial_shapes[:, 1]).sum() == sequence_length
+        # assert (input_spatial_shapes[:, 0] * input_spatial_shapes[:, 1]).sum() == sequence_length
 
         value = self.value_proj(input_flatten)
         if input_padding_mask is not None:
@@ -231,7 +233,7 @@ class MultiScaleDeformableAttention(nn.Module):
 
         if self.method == "discrete":
             output = self._forward_fallback(
-                value, input_spatial_shapes, sampling_locations, attention_weights, method="discrete"
+                value, input_spatial_shapes, src_shapes, sampling_locations, attention_weights, method="discrete"
             )
         else:
             if self.uniform_points is True:
@@ -245,10 +247,11 @@ class MultiScaleDeformableAttention(nn.Module):
                     sampling_locations,
                     attention_weights,
                     self.im2col_step,
+                    src_shapes,
                 )
             else:
                 output = self._forward_fallback(
-                    value, input_spatial_shapes, sampling_locations, attention_weights, method="default"
+                    value, input_spatial_shapes, src_shapes, sampling_locations, attention_weights, method="default"
                 )
 
         output = self.output_proj(output)
@@ -258,6 +261,7 @@ class MultiScaleDeformableAttention(nn.Module):
         self,
         value: torch.Tensor,
         spatial_shapes: torch.Tensor,
+        src_shapes: list[list[int]],
         sampling_locations: torch.Tensor,
         attention_weights: torch.Tensor,
         method: str = "default",
@@ -272,8 +276,7 @@ class MultiScaleDeformableAttention(nn.Module):
         sampling_locations_list = sampling_grids.split(self.num_points, dim=-2)
 
         sampling_value_list = []
-        spatial_shapes_list: list[list[int]] = spatial_shapes.tolist()
-        for level, (H, W) in enumerate(spatial_shapes_list):
+        for level, (H, W) in enumerate(src_shapes):
             value_l = value_list[level].reshape(B * n_heads, head_dim, H, W)
             sampling_grid_l = sampling_locations_list[level]
 
@@ -361,6 +364,7 @@ class TransformerDecoderLayer(nn.Module):
         reference_points: torch.Tensor,
         src: torch.Tensor,
         src_spatial_shapes: torch.Tensor,
+        src_shapes: list[list[int]],
         level_start_index: torch.Tensor,
         src_padding_mask: Optional[torch.Tensor],
         self_attn_mask: Optional[torch.Tensor] = None,
@@ -374,7 +378,7 @@ class TransformerDecoderLayer(nn.Module):
 
         # Cross attention
         tgt2 = self.cross_attn(
-            tgt + query_pos, reference_points, src, src_spatial_shapes, level_start_index, src_padding_mask
+            tgt + query_pos, reference_points, src, src_spatial_shapes, src_shapes, level_start_index, src_padding_mask
         )
         tgt = tgt + self.dropout(tgt2)
         tgt = self.norm2(tgt)
@@ -550,6 +554,7 @@ class RT_DETRDecoder(nn.Module):
         denoising_bbox_unact: Optional[torch.Tensor] = None,
         attn_mask: Optional[torch.Tensor] = None,
         padding_mask: Optional[list[torch.Tensor]] = None,
+        return_intermediates: bool = True,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         memory = []
         mask_flatten = []
@@ -577,8 +582,8 @@ class RT_DETRDecoder(nn.Module):
         level_start_index_tensor = torch.tensor(level_start_index, dtype=torch.long, device=memory.device)
 
         # Decoder forward
-        out_bboxes = []
-        out_logits = []
+        bboxes_list: list[torch.Tensor] = []
+        logits_list: list[torch.Tensor] = []
         reference_points = init_ref_points_unact.sigmoid()
         for decoder_layer, bbox_head, class_head in zip(self.layers, self.bbox_embed, self.class_embed):
             query_pos = self.query_pos_head(reference_points)
@@ -589,6 +594,7 @@ class RT_DETRDecoder(nn.Module):
                 reference_points_input,
                 memory,
                 spatial_shapes_tensor,
+                spatial_shapes,
                 level_start_index_tensor,
                 memory_padding_mask,
                 attn_mask,
@@ -601,14 +607,19 @@ class RT_DETRDecoder(nn.Module):
             # Classification
             class_logits = class_head(target)
 
-            out_bboxes.append(new_reference_points)
-            out_logits.append(class_logits)
+            if return_intermediates is True:
+                bboxes_list.append(new_reference_points)
+                logits_list.append(class_logits)
 
             # Update reference points for next layer
             reference_points = new_reference_points.detach()
 
-        out_bboxes = torch.stack(out_bboxes)
-        out_logits = torch.stack(out_logits)
+        if return_intermediates is True:
+            out_bboxes = torch.stack(bboxes_list)
+            out_logits = torch.stack(logits_list)
+        else:
+            out_bboxes = new_reference_points
+            out_logits = class_logits
 
         return (out_bboxes, out_logits, enc_topk_bboxes, enc_topk_logits)
 
@@ -744,7 +755,7 @@ class RT_DETR_v2(DetectionBaseNet):
                     param.requires_grad_(True)
 
     @staticmethod
-    def _get_src_permutation_idx(indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+    def _get_src_permutation_idx(indices: list[tuple[torch.Tensor, torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
         batch_idx = torch.concat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
         src_idx = torch.concat([src for (src, _) in indices])
         return (batch_idx, src_idx)
@@ -754,7 +765,7 @@ class RT_DETR_v2(DetectionBaseNet):
         cls_logits: torch.Tensor,
         box_output: torch.Tensor,
         targets: list[dict[str, torch.Tensor]],
-        indices: list[torch.Tensor],
+        indices: list[tuple[torch.Tensor, torch.Tensor]],
         num_boxes: float,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         idx = self._get_src_permutation_idx(indices)
@@ -917,11 +928,11 @@ class RT_DETR_v2(DetectionBaseNet):
         images: Any,
         masks: Optional[list[torch.Tensor]] = None,
     ) -> dict[str, torch.Tensor]:
-        device = encoder_features[0].device
         for idx, target in enumerate(targets):
             boxes = target["boxes"]
             boxes = box_ops.box_convert(boxes, in_fmt="xyxy", out_fmt="cxcywh")
-            boxes = boxes / torch.tensor(images.image_sizes[idx][::-1] * 2, dtype=torch.float32, device=device)
+            scale = images.image_sizes[idx].flip(0).repeat(2).float()  # flip to [W, H], repeat to [W, H, W, H]
+            boxes = boxes / scale
             targets[idx]["boxes"] = boxes
             targets[idx]["labels"] = target["labels"] - 1  # No background
 
@@ -954,7 +965,7 @@ class RT_DETR_v2(DetectionBaseNet):
         return losses
 
     def postprocess_detections(
-        self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_shapes: list[tuple[int, int]]
+        self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_sizes: torch.Tensor
     ) -> list[dict[str, torch.Tensor]]:
         prob = class_logits.sigmoid()
         topk_values, topk_indexes = torch.topk(prob.view(class_logits.shape[0], -1), k=self.decoder.num_queries, dim=1)
@@ -963,14 +974,12 @@ class RT_DETR_v2(DetectionBaseNet):
         labels = topk_indexes % class_logits.shape[2]
         labels += 1  # Background offset
 
-        target_sizes = torch.tensor(image_shapes, device=class_logits.device)
-
         # Convert to [x0, y0, x1, y1] format
         boxes = box_ops.box_convert(box_regression, in_fmt="cxcywh", out_fmt="xyxy")
         boxes = torch.gather(boxes, 1, topk_boxes.unsqueeze(-1).expand(-1, -1, 4))
 
         # Convert from relative [0, 1] to absolute [0, height] coordinates
-        img_h, img_w = target_sizes.unbind(1)
+        img_h, img_w = image_sizes.unbind(1)
         scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
         boxes = boxes * scale_fct[:, None, :]
 
@@ -1006,33 +1015,34 @@ class RT_DETR_v2(DetectionBaseNet):
 
         return (None, None, None, None)
 
+    def forward_net(
+        self, x: torch.Tensor, masks: Optional[torch.Tensor]
+    ) -> tuple[list[torch.Tensor], Optional[list[torch.Tensor]]]:
+        features: dict[str, torch.Tensor] = self.backbone.detection_features(x)
+        feature_list = list(features.values())
+
+        mask_list: Optional[list[torch.Tensor]] = None
+        if masks is not None:
+            mask_list = []
+            for feat in feature_list:
+                m = F.interpolate(masks[None].float(), size=feat.shape[-2:], mode="nearest").to(torch.bool)[0]
+                mask_list.append(m)
+
+        encoder_features = self.encoder(feature_list, masks=mask_list)
+
+        return (encoder_features, mask_list)
+
     def forward(
         self,
         x: torch.Tensor,
         targets: Optional[list[dict[str, torch.Tensor]]] = None,
         masks: Optional[torch.Tensor] = None,
-        image_sizes: Optional[list[list[int]]] = None,
+        image_sizes: Optional[list[tuple[int, int]]] = None,
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
         self._input_check(targets)
         images = self._to_img_list(x, image_sizes)
 
-        # Backbone features
-        features: dict[str, torch.Tensor] = self.backbone.detection_features(x)
-        feature_list = list(features.values())
-
-        # Hybrid encoder
-        mask_list: list[torch.Tensor] = []
-        for feat in feature_list:
-            if masks is not None:
-                mask_size = feat.shape[-2:]
-                m = F.interpolate(masks[None].float(), size=mask_size, mode="nearest").to(torch.bool)[0]
-            else:
-                B, _, H, W = feat.size()
-                m = torch.zeros(B, H, W, dtype=torch.bool, device=x.device)
-
-            mask_list.append(m)
-
-        encoder_features = self.encoder(feature_list, masks=mask_list)
+        encoder_features, mask_list = self.forward_net(x, masks)
 
         # Prepare spatial shapes and level start index
         spatial_shapes: list[list[int]] = []
@@ -1053,9 +1063,9 @@ class RT_DETR_v2(DetectionBaseNet):
         else:
             # Inference path - no CDN
             out_bboxes, out_logits, _, _ = self.decoder(
-                encoder_features, spatial_shapes, level_start_index, padding_mask=mask_list
+                encoder_features, spatial_shapes, level_start_index, padding_mask=mask_list, return_intermediates=False
             )
-            detections = self.postprocess_detections(out_logits[-1], out_bboxes[-1], images.image_sizes)
+            detections = self.postprocess_detections(out_logits, out_bboxes, images.image_sizes)
 
         return (detections, losses)
 

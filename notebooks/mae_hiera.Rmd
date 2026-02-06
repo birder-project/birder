@@ -1,0 +1,127 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.19.1
+  kernelspec:
+    display_name: birder
+    language: python
+    name: birder
+---
+
+```{python}
+import logging
+
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+import torch.nn.functional as F
+from PIL import Image
+```
+
+```{python}
+# %cd ..
+```
+
+```{python}
+from birder.common import fs_ops
+from birder.common.lib import get_label_from_path
+from birder.conf import settings
+from birder.data.transforms.classification import get_rgb_stats
+from birder.data.transforms.classification import inference_preset
+from birder.model_registry import registry
+```
+
+```{python}
+plt.rcParams["figure.figsize"] = [24, 24]
+```
+
+```{python}
+def show_image(image, title=""):
+    mean = torch.tensor((0.5189, 0.5255, 0.4845))
+    std = torch.tensor((0.2124, 0.2083, 0.2555))
+    # image is [H, W, 3]
+    assert image.shape[2] == 3
+    plt.imshow(torch.clip((image * std + mean) * 255, 0, 255).int())
+    plt.title(title, fontsize=16)
+    plt.axis("off")
+```
+
+```{python}
+network = "mae_hiera"
+encoder = "hiera_abswin_base"
+size = 224
+
+epoch_start = 1
+epoch_end = 800
+
+# image = "data/validation/Bluethroat/000013.jpeg"
+image = "data/training/African crake/000005.jpeg"
+# image = "data/training/African swamphen/000001.jpeg"
+# image = "data/validation/Barn owl/000013.jpeg"
+# image = "data/validation/Zitting cisticola/000025.jpeg"
+# image = "data/validation/Great egret/000031.jpeg"
+img = Image.open(image)
+```
+
+```{python}
+logging.disable(logging.INFO)
+device = torch.device("cpu")
+for e in range(epoch_start, epoch_end + 1):
+    try:
+        net, _ = fs_ops.load_mim_checkpoint(
+            device,
+            network,
+            encoder=encoder,
+            epoch=e,
+        )
+        net.eval()
+
+    except FileNotFoundError:
+        continue
+
+    transform = inference_preset((size, size), get_rgb_stats("birder"), 1.0)
+    input_tensor = transform(img).unsqueeze(dim=0).to(device)
+
+    torch.manual_seed(0)
+    output = net(input_tensor)
+    mask = output["mask"]
+    pred = output["pred"]
+
+    y = net.unpatchify(pred)
+    y = torch.einsum("nchw->nhwc", y).detach().cpu()
+
+    # visualize the mask
+    mask = (~mask).float()
+    mask = mask.unsqueeze(-1).repeat(1, 1, net.pred_stride**2 * 3)
+    mask = net.unpatchify(mask)
+    mask = torch.einsum("nchw->nhwc", mask).detach().cpu()
+
+    x = torch.einsum("nchw->nhwc", input_tensor).squeeze(0)
+
+    # Masked image
+    im_masked = x * (1 - mask)
+
+    # MAE reconstruction pasted with visible patches
+    im_paste = x * (1 - mask) + y * mask
+
+    plt.subplot(1, 4, 1)
+    show_image(x, "Original")
+
+    plt.subplot(1, 4, 2)
+    show_image(im_masked[0], "Masked")
+
+    plt.subplot(1, 4, 3)
+    show_image(y[0], "Reconstruction")
+
+    plt.subplot(1, 4, 4)
+    show_image(im_paste[0], "Reconstruction + Visible")
+
+    plt.show()
+
+logging.disable(logging.NOTSET)
+```

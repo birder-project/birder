@@ -8,12 +8,15 @@ keywords = [
     "computer-vision",
     "image-classification",
     "object-detection",
+    "self-supervised learning",
+    "masked image modeling",
     "pytorch",
     "deep-learning",
+    "artificial intelligence",
 ]
 license = "Apache-2.0"
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
     "Intended Audience :: Education",

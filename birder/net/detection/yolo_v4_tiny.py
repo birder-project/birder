@@ -69,8 +69,7 @@ class YOLOTinyNeck(nn.Module):
 
         self.out_channels = [c4, c5]
 
-    def forward(self, features: dict[str, torch.Tensor]) -> list[torch.Tensor]:
-        feature_list = list(features.values())
+    def forward(self, feature_list: list[torch.Tensor]) -> list[torch.Tensor]:
         c4, c5 = feature_list[-2:]
 
         p5 = self.conv_c5(c5)

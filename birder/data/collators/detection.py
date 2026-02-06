@@ -15,7 +15,9 @@ def collate_fn(batch: list[tuple[Any, ...]]) -> tuple[Any, ...]:
     return tuple(zip(*batch))
 
 
-def batch_images(images: list[torch.Tensor], size_divisible: int) -> tuple[torch.Tensor, torch.Tensor, list[list[int]]]:
+def batch_images(
+    images: list[torch.Tensor], size_divisible: int
+) -> tuple[torch.Tensor, torch.Tensor, list[tuple[int, int]]]:
     """
     Batch list of image tensors of different sizes into a single batch.
     Pad with zeros all images to the shape of the largest image in the list.

@@ -22,6 +22,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.detection._yolo_anchors import resolve_anchor_group
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import ImageList
+from birder.net.detection.base import clip_boxes_to_image
 
 
 def decode_predictions(
@@ -478,7 +479,7 @@ class YOLO_v2(DetectionBaseNet):
     def postprocess_detections(
         self,
         decoded_predictions: torch.Tensor,
-        image_shapes: list[tuple[int, int]],
+        image_sizes: torch.Tensor,
     ) -> list[dict[str, torch.Tensor]]:
         batch_size = decoded_predictions.shape[0]
         detections: list[dict[str, torch.Tensor]] = []
@@ -501,8 +502,8 @@ class YOLO_v2(DetectionBaseNet):
             labels = labels[keep]
 
             # Clip boxes to image
-            image_shape = image_shapes[idx]
-            boxes = box_ops.clip_boxes_to_image(boxes, image_shape)
+            image_shape = image_sizes[idx]
+            boxes = clip_boxes_to_image(boxes, image_shape)
 
             # Remove small boxes
             keep = box_ops.remove_small_boxes(boxes, min_size=1.0)
@@ -510,33 +511,47 @@ class YOLO_v2(DetectionBaseNet):
             scores = scores[keep]
             labels = labels[keep]
 
-            # NMS
-            keep = box_ops.batched_nms(boxes, scores, labels, self.nms_thresh)
-            keep = keep[: self.detections_per_img]
+            if self.export_mode is False:
+                # Non-maximum suppression
+                keep = box_ops.batched_nms(boxes, scores, labels, self.nms_thresh)
+                keep = keep[: self.detections_per_img]
 
-            detections.append(
-                {
-                    "boxes": boxes[keep],
-                    "scores": scores[keep],
-                    "labels": labels[keep],
-                }
-            )
+                detections.append(
+                    {
+                        "boxes": boxes[keep],
+                        "scores": scores[keep],
+                        "labels": labels[keep],
+                    }
+                )
+            else:
+                detections.append(
+                    {
+                        "boxes": boxes,
+                        "scores": scores,
+                        "labels": labels,
+                    }
+                )
 
         return detections
+
+    def forward_net(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        features = self.backbone.detection_features(x)
+        neck_features = self.neck(features)
+        predictions = self.head(neck_features)
+
+        return (neck_features, predictions)
 
     def forward(
         self,
         x: torch.Tensor,
         targets: Optional[list[dict[str, torch.Tensor]]] = None,
         masks: Optional[torch.Tensor] = None,
-        image_sizes: Optional[list[list[int]]] = None,
+        image_sizes: Optional[list[tuple[int, int]]] = None,
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
         self._input_check(targets)
         images = self._to_img_list(x, image_sizes)
 
-        features = self.backbone.detection_features(x)
-        neck_features = self.neck(features)
-        predictions = self.head(neck_features)
+        neck_features, predictions = self.forward_net(x)
         anchors, grid, stride = self.anchor_generator(images, neck_features)
 
         losses: dict[str, torch.Tensor] = {}

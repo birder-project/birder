@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -134,14 +136,21 @@ class MultiScaleDeformableAttention(nn.Module):
         sampling_locations: torch.Tensor,
         attention_weights: torch.Tensor,
         im2col_step: int,
+        src_shapes: Optional[list[list[int]]] = None,
     ) -> torch.Tensor:
-        # Pure PyTorch
+        # Pure PyTorch path
         if self.is_available is False or value.is_cuda is False:
             return multi_scale_deformable_attention(
-                value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, im2col_step
+                value,
+                value_spatial_shapes,
+                value_level_start_index,
+                sampling_locations,
+                attention_weights,
+                im2col_step,
+                src_shapes,
             )
 
-        # Custom kernel
+        # Custom CUDA kernel path
         if torch.is_autocast_enabled() is True:
             value = value.float()
             sampling_locations = sampling_locations.float()
@@ -152,6 +161,7 @@ class MultiScaleDeformableAttention(nn.Module):
         )
 
 
+# pylint: disable=too-many-locals
 def multi_scale_deformable_attention(
     value: torch.Tensor,
     value_spatial_shapes: torch.Tensor,
@@ -159,23 +169,41 @@ def multi_scale_deformable_attention(
     sampling_locations: torch.Tensor,
     attention_weights: torch.Tensor,
     im2col_step: int,  # pylint: disable=unused-argument
+    src_shapes: Optional[list[list[int]]] = None,
 ) -> torch.Tensor:
+    """
+    Pure PyTorch implementation of multi-scale deformable attention
+    """
+
     batch_size, _, num_heads, hidden_dim = value.size()
-    _, num_queries, num_heads, num_levels, num_points, _ = sampling_locations.size()
-    areas: list[int] = value_spatial_shapes.prod(dim=1).tolist()
-    value_list = value.split(areas, dim=1)
+    _, num_queries, _, num_levels, num_points, _ = sampling_locations.size()
+
     sampling_grids = 2 * sampling_locations - 1
     sampling_value_list = []
-    for level_id, spatial_shape in enumerate(value_spatial_shapes):
-        # (batch_size, height*width, num_heads, hidden_dim)
-        # -> (batch_size, height*width, num_heads*hidden_dim)
-        # -> (batch_size, num_heads*hidden_dim, height*width)
-        # -> (batch_size*num_heads, hidden_dim, height, width)
-        height = spatial_shape[0]
-        width = spatial_shape[1]
-        value_l_ = (
-            value_list[level_id].flatten(2).transpose(1, 2).reshape(batch_size * num_heads, hidden_dim, height, width)
-        )
+
+    # Compute level slicing using symbolic shapes
+    start_idx = 0
+    for level_id in range(num_levels):
+        if src_shapes is not None:
+            # Use symbolic shapes (export-compatible path)
+            H, W = src_shapes[level_id]
+            level_size = H * W
+        else:
+            # Fallback: extract from tensor
+            H = value_spatial_shapes[level_id, 0].item()
+            W = value_spatial_shapes[level_id, 1].item()
+            level_size = H * W
+
+        end_idx = start_idx + level_size
+
+        # Slice value for this level
+        value_level = value[:, start_idx:end_idx, :, :]
+
+        # (batch_size, H*W, num_heads, hidden_dim)
+        # -> (batch_size, H*W, num_heads*hidden_dim)
+        # -> (batch_size, num_heads*hidden_dim, H*W)
+        # -> (batch_size*num_heads, hidden_dim, H, W)
+        value_l_ = value_level.flatten(2).transpose(1, 2).reshape(batch_size * num_heads, hidden_dim, H, W)
 
         # (batch_size, num_queries, num_heads, num_points, 2)
         # -> (batch_size, num_heads, num_queries, num_points, 2)
@@ -187,6 +215,8 @@ def multi_scale_deformable_attention(
             value_l_, sampling_grid_l_, mode="bilinear", padding_mode="zeros", align_corners=False
         )
         sampling_value_list.append(sampling_value_l_)
+
+        start_idx = end_idx
 
     # (batch_size, num_queries, num_heads, num_levels, num_points)
     # -> (batch_size, num_heads, num_queries, num_levels, num_points)

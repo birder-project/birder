@@ -292,7 +292,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
                 pt_grid_size=self.pt_grid_size,
             ),
             dim=-1,
-        ).to(self.rope.pos_embed.device)
+        ).to(self.rope.pos_embed.device, dtype=self.rope.pos_embed.dtype)
 
     def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
         for param in self.parameters():

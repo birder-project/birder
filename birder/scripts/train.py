@@ -267,6 +267,10 @@ def train(args: argparse.Namespace) -> None:
         training_states = fs_ops.TrainingStates.empty()
 
     net.to(device, dtype=model_dtype)
+    if args.channels_last is True:
+        net = net.to(memory_format=torch.channels_last)
+        logger.debug("Using channels-last memory format")
+
     if args.freeze_body is True:
         net.freeze(freeze_classifier=False, unfreeze_features=args.unfreeze_features)
     elif args.freeze_stages is not None:
@@ -526,7 +530,11 @@ def train(args: argparse.Namespace) -> None:
             batch_iter = enumerate(training_loader)
 
         for i, (inputs, targets) in batch_iter:
-            inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
+            if args.channels_last is True:
+                inputs = inputs.to(device, dtype=model_dtype, non_blocking=True, memory_format=torch.channels_last)
+            else:
+                inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
+
             targets = targets.to(device, non_blocking=True)
             loss_targets = targets
             if args.bce_loss is True:
@@ -671,7 +679,11 @@ def train(args: argparse.Namespace) -> None:
         epoch_start = time.time()
         with torch.inference_mode():
             for inputs, targets in validation_loader:
-                inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
+                if args.channels_last is True:
+                    inputs = inputs.to(device, dtype=model_dtype, non_blocking=True, memory_format=torch.channels_last)
+                else:
+                    inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
+
                 targets = targets.to(device, non_blocking=True)
                 loss_targets = targets
                 if args.bce_loss is True:
@@ -897,7 +909,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_input_args(parser)
     training_cli.add_data_aug_args(parser, smoothing_alpha=True, mixup_cutmix=True)
     training_cli.add_dataloader_args(parser, ra_sampler=True)
-    training_cli.add_precision_args(parser)
+    training_cli.add_precision_args(parser, channels_last=True)
     training_cli.add_compile_args(parser)
     training_cli.add_checkpoint_args(parser, default_save_frequency=5, pretrained=True)
     training_cli.add_distributed_args(parser)

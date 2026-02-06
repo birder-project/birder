@@ -16,15 +16,15 @@ from birder.inference.wbf import fuse_detections_wbf
 from birder.net.base import make_divisible
 
 
-def _normalize_image_sizes(inputs: torch.Tensor, image_sizes: Optional[list[list[int]]]) -> list[list[int]]:
+def _normalize_image_sizes(inputs: torch.Tensor, image_sizes: Optional[list[tuple[int, int]]]) -> list[tuple[int, int]]:
     if image_sizes is not None:
         return image_sizes
 
     _, _, height, width = inputs.shape
-    return [[height, width] for _ in range(inputs.size(0))]
+    return [(height, width) for _ in range(inputs.size(0))]
 
 
-def _hflip_inputs(inputs: torch.Tensor, image_sizes: list[list[int]]) -> torch.Tensor:
+def _hflip_inputs(inputs: torch.Tensor, image_sizes: list[tuple[int, int]]) -> torch.Tensor:
     # Detection collator pads on the right/bottom, so flip only the valid region to keep padding aligned.
     flipped = inputs.clone()
     for idx, (height, width) in enumerate(image_sizes):
@@ -34,8 +34,8 @@ def _hflip_inputs(inputs: torch.Tensor, image_sizes: list[list[int]]) -> torch.T
 
 
 def _resize_batch(
-    inputs: torch.Tensor, image_sizes: list[list[int]], scale: float, size_divisible: int
-) -> tuple[torch.Tensor, torch.Tensor, list[list[int]]]:
+    inputs: torch.Tensor, image_sizes: list[tuple[int, int]], scale: float, size_divisible: int
+) -> tuple[torch.Tensor, torch.Tensor, list[tuple[int, int]]]:
     resized_images: list[torch.Tensor] = []
     for idx, (height, width) in enumerate(image_sizes):
         target_h = make_divisible(height * scale, size_divisible)
@@ -47,7 +47,7 @@ def _resize_batch(
     return batch_images(resized_images, size_divisible)
 
 
-def _rescale_boxes(boxes: torch.Tensor, from_size: list[int], to_size: list[int]) -> torch.Tensor:
+def _rescale_boxes(boxes: torch.Tensor, from_size: tuple[int, int], to_size: tuple[int, int]) -> torch.Tensor:
     scale_w = to_size[1] / from_size[1]
     scale_h = to_size[0] / from_size[0]
     scale = boxes.new_tensor([scale_w, scale_h, scale_w, scale_h])
@@ -56,8 +56,8 @@ def _rescale_boxes(boxes: torch.Tensor, from_size: list[int], to_size: list[int]
 
 def _rescale_detections(
     detections: list[dict[str, torch.Tensor]],
-    from_sizes: list[list[int]],
-    to_sizes: list[list[int]],
+    from_sizes: list[tuple[int, int]],
+    to_sizes: list[tuple[int, int]],
 ) -> list[dict[str, torch.Tensor]]:
     for idx, (detection, from_size, to_size) in enumerate(zip(detections, from_sizes, to_sizes)):
         boxes = detection["boxes"]
@@ -69,7 +69,7 @@ def _rescale_detections(
     return detections
 
 
-def _invert_hflip_boxes(boxes: torch.Tensor, image_size: list[int]) -> torch.Tensor:
+def _invert_hflip_boxes(boxes: torch.Tensor, image_size: tuple[int, int]) -> torch.Tensor:
     width = boxes.new_tensor(image_size[1])
     x1 = boxes[:, 0]
     x2 = boxes[:, 2]
@@ -81,7 +81,7 @@ def _invert_hflip_boxes(boxes: torch.Tensor, image_size: list[int]) -> torch.Ten
 
 
 def _invert_detections(
-    detections: list[dict[str, torch.Tensor]], image_sizes: list[list[int]]
+    detections: list[dict[str, torch.Tensor]], image_sizes: list[tuple[int, int]]
 ) -> list[dict[str, torch.Tensor]]:
     for idx, (detection, image_size) in enumerate(zip(detections, image_sizes)):
         boxes = detection["boxes"]
@@ -144,10 +144,13 @@ def infer_batch(
     net: torch.nn.Module | torch.ScriptModule,
     inputs: torch.Tensor,
     masks: Optional[torch.Tensor] = None,
-    image_sizes: Optional[list[list[int]]] = None,
+    image_sizes: Optional[list[tuple[int, int]]] = None,
     tta: bool = False,
+    channels_last: bool = False,
     **kwargs: Any,
 ) -> list[dict[str, torch.Tensor]]:
+    # The 'inputs' are assumed to be in the correct memory format
+
     if tta is False:
         detections, _ = net(inputs, masks=masks, image_sizes=image_sizes, **kwargs)
         return detections  # type: ignore[no-any-return]
@@ -157,11 +160,17 @@ def infer_batch(
 
     for scale in (0.8, 1.0, 1.2):
         scaled_inputs, scaled_masks, scaled_sizes = _resize_batch(inputs, normalized_sizes, scale, size_divisible=32)
+        if channels_last is True:
+            scaled_inputs = scaled_inputs.to(memory_format=torch.channels_last)
+
         detections, _ = net(scaled_inputs, masks=scaled_masks, image_sizes=scaled_sizes, **kwargs)
         detections = _rescale_detections(detections, scaled_sizes, normalized_sizes)
         detections_list.append(detections)
 
         flipped_inputs = _hflip_inputs(scaled_inputs, scaled_sizes)
+        if channels_last is True:
+            flipped_inputs = flipped_inputs.to(memory_format=torch.channels_last)
+
         flipped_detections, _ = net(flipped_inputs, masks=scaled_masks, image_sizes=scaled_sizes, **kwargs)
         flipped_detections = _invert_detections(flipped_detections, scaled_sizes)
         flipped_detections = _rescale_detections(flipped_detections, scaled_sizes, normalized_sizes)
@@ -175,12 +184,15 @@ def infer_dataloader(
     net: torch.nn.Module | torch.ScriptModule,
     dataloader: DataLoader,
     tta: bool = False,
+    channels_last: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
     num_samples: Optional[int] = None,
     batch_callback: Optional[
-        Callable[[list[str], torch.Tensor, list[dict[str, torch.Tensor]], list[dict[str, Any]], list[list[int]]], None]
+        Callable[
+            [list[str], torch.Tensor, list[dict[str, torch.Tensor]], list[dict[str, Any]], list[tuple[int, int]]], None
+        ]
     ] = None,
 ) -> tuple[list[str], list[dict[str, torch.Tensor]], list[dict[str, Any]]]:
     """
@@ -201,6 +213,8 @@ def infer_dataloader(
         The DataLoader containing the dataset to perform inference on.
     tta
         Run inference with multi-scale and horizontal flip test time augmentation and fuse results with WBF.
+    channels_last
+        If True, convert input batches to channels-last memory format before inference.
     model_dtype
         The base dtype to use.
     amp
@@ -216,7 +230,7 @@ def infer_dataloader(
         - torch.Tensor: The input tensor for the current batch
         - list[dict[str, torch.Tensor]]: The detections for the current batch
         - list[dict[str, Any]]: A list of targets for the current batch
-        - list[list[int]]: The image sizes for the current batch
+        - list[tuple[int, int]]: The image sizes for the current batch
 
     Returns
     -------
@@ -242,11 +256,17 @@ def infer_dataloader(
     with tqdm(total=num_samples, initial=0, unit="images", unit_scale=True, leave=False) as progress:
         for file_paths, inputs, targets, orig_sizes, masks, image_sizes in dataloader:
             # Inference
-            inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
+            if channels_last is True:
+                inputs = inputs.to(device, dtype=model_dtype, non_blocking=True, memory_format=torch.channels_last)
+            else:
+                inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
+
             masks = masks.to(device, non_blocking=True)
 
             with torch.amp.autocast(device.type, enabled=amp, dtype=amp_dtype):
-                detections = infer_batch(net, inputs, masks=masks, image_sizes=image_sizes, tta=tta)
+                detections = infer_batch(
+                    net, inputs, masks=masks, image_sizes=image_sizes, tta=tta, channels_last=channels_last
+                )
 
             detections = InferenceTransform.postprocess(detections, image_sizes, orig_sizes)
             if targets[0] != settings.NO_LABEL:

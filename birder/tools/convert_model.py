@@ -14,12 +14,20 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.data.transforms.classification import RGBType
+from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import SignatureType
 from birder.net.base import reparameterize_available
 from birder.net.detection.base import DetectionSignatureType
 from birder.version import __version__
+
+try:
+    import onnxsim
+
+    _HAS_ONNXSIM = True
+except ImportError:
+    _HAS_ONNXSIM = False
 
 logger = logging.getLogger(__name__)
 
@@ -58,13 +66,31 @@ def pt2_export(
     rgb_stats: RGBType,
     device: torch.device,
     model_path: str | Path,
+    dynamic_size: bool,
 ) -> None:
-    signature["inputs"][0]["data_shape"][0] = 2  # Set batch size
     sample_shape = signature["inputs"][0]["data_shape"]
-    batch_dim = torch.export.Dim("batch", min=1, max=4096)
+    dynamic_shapes = None
+    if net.task == Task.OBJECT_DETECTION:
+        logger.info("Exporting with constant batch size of 1")
+        signature["inputs"][0]["data_shape"][0] = 1  # Set batch size
+        if dynamic_size is True:
+            height_dim = torch.export.Dim.DYNAMIC
+            width_dim = torch.export.Dim.DYNAMIC
+            dynamic_shapes = {"x": {2: height_dim, 3: width_dim}}
+    else:
+        logger.info("Exporting with dynamic batch size")
+        signature["inputs"][0]["data_shape"][0] = 2  # Set batch size
+        batch_dim = torch.export.Dim.DYNAMIC
+        dynamic_shapes = {"x": {0: batch_dim}}
+        if dynamic_size is True:
+            height_dim = torch.export.Dim.DYNAMIC
+            width_dim = torch.export.Dim.DYNAMIC
+            dynamic_shapes["x"][2] = height_dim
+            dynamic_shapes["x"][3] = width_dim
+
     with torch.no_grad():
         exported_net = torch.export.export(
-            net, (torch.randn(*sample_shape, device=device),), dynamic_shapes={"x": {0: batch_dim}}
+            net, (torch.randn(*sample_shape, device=device),), dynamic_shapes=dynamic_shapes, strict=True
         )
 
     fs_ops.save_pt2(exported_net, model_path, net.task, class_to_idx, signature, rgb_stats)
@@ -76,50 +102,51 @@ def onnx_export(
     class_to_idx: dict[str, int],
     rgb_stats: RGBType,
     model_path: str | Path,
-    dynamo: bool,
-    trace: bool,
+    dynamic_size: bool,
+    opset: int,
+    optimize: bool,
+    simplify: bool,
 ) -> None:
     signature["inputs"][0]["data_shape"][0] = 1  # Set batch size
     sample_shape = signature["inputs"][0]["data_shape"]
+    dynamic_shapes = None
+    if net.task == Task.OBJECT_DETECTION:
+        logger.info("Exporting with constant batch size of 1")
+        output_names = ["boxes", "scores", "labels"]
+        if dynamic_size is True:
+            height_dim = torch.export.Dim.DYNAMIC
+            width_dim = torch.export.Dim.DYNAMIC
+            dynamic_shapes = {"x": {2: height_dim, 3: width_dim}}
+    else:
+        logger.info("Exporting with dynamic batch size")
+        output_names = ["output"]
+        batch_dim = torch.export.Dim.DYNAMIC
+        dynamic_shapes = {"x": {0: batch_dim}}
+        if dynamic_size is True:
+            height_dim = torch.export.Dim.DYNAMIC
+            width_dim = torch.export.Dim.DYNAMIC
+            dynamic_shapes["x"][2] = height_dim
+            dynamic_shapes["x"][3] = width_dim
 
-    if dynamo is False:
-        if trace is False:
-            scripted_module = torch.jit.script(net)
-        else:
-            scripted_module = net
-
+    with torch.no_grad():
         torch.onnx.export(
-            scripted_module,
+            net,
             torch.randn(sample_shape),
             str(model_path),
             export_params=True,
-            opset_version=18,
-            input_names=["input"],
-            output_names=["output"],
-            dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
-            dynamo=False,
+            opset_version=opset,
+            input_names=["x"],
+            output_names=output_names,
+            dynamic_shapes=dynamic_shapes,
+            dynamo=True,
+            optimize=optimize,
+            external_data=False,
         )
-
-    else:
-        batch_dim = torch.export.Dim("batch", min=1, max=4096)
-        with torch.no_grad():
-            torch.onnx.export(
-                net,
-                torch.randn(sample_shape),
-                str(model_path),
-                export_params=True,
-                opset_version=18,
-                input_names=["input"],
-                output_names=["output"],
-                dynamic_shapes={"x": {0: batch_dim}},
-                dynamo=True,
-                external_data=False,
-            )
 
     signature["inputs"][0]["data_shape"][0] = 0
 
-    logger.info("Saving model data json...")
-    with open(f"{model_path}_data.json", "w", encoding="utf-8") as handle:
+    logger.info("Saving model metadata json...")
+    with open(f"{model_path}_metadata.json", "w", encoding="utf-8") as handle:
         json.dump(
             {
                 "birder_version": __version__,
@@ -131,6 +158,17 @@ def onnx_export(
             handle,
             indent=2,
         )
+
+    if simplify is True:
+        # Simplify exported model
+        assert _HAS_ONNXSIM, "'pip install onnxsim onnxruntime' to use --simplify"
+        logger.info("Running ONNX-Simplifier...")
+        onnx_model, check = onnxsim.simplify(str(model_path))
+        if check is True:
+            logger.info("ONNX simplified successfully, overwriting model")
+            onnx.save(onnx_model, str(model_path))
+        else:
+            logger.warning("ONNX simplification failed, retaining original model")
 
     # Test exported model
     onnx_model = onnx.load(str(model_path))
@@ -197,6 +235,19 @@ def set_parser(subparsers: Any) -> None:
         action="store_true",
         help="trace instead of script (applies only to TorchScript conversions)",
     )
+    subparser.add_argument(
+        "--dynamic-size",
+        default=False,
+        action="store_true",
+        help="export with dynamic input H/W (applies to --pt2 and --onnx)",
+    )
+    subparser.add_argument("--opset", type=int, default=20, help="ONNX opset version (applies only to --onnx)")
+    subparser.add_argument(
+        "--optimize", default=False, action="store_true", help="enable ONNX optimization (applies only to --onnx)"
+    )
+    subparser.add_argument(
+        "--simplify", default=False, action="store_true", help="enable ONNX simplification (applies only to --onnx)"
+    )
     subparser.add_argument("--force", action="store_true", help="override existing model")
 
     format_group = subparser.add_mutually_exclusive_group(required=True)
@@ -222,9 +273,6 @@ def set_parser(subparsers: Any) -> None:
         "--st", "--safetensors", default=False, action="store_true", help="convert to Safetensors"
     )
     format_group.add_argument("--onnx", default=False, action="store_true", help="convert to ONNX format")
-    format_group.add_argument(
-        "--onnx-dynamo", default=False, action="store_true", help="convert to ONNX format using TorchDynamo"
-    )
     format_group.add_argument("--config", default=False, action="store_true", help="generate model config json")
     format_group.add_argument(
         "--head-only", default=False, action="store_true", help="extract and save only the network head weights"
@@ -239,7 +287,7 @@ def main(args: argparse.Namespace) -> None:
 
     if args.backbone is not None and registry.exists(args.backbone, net_type=DetectorBackbone) is False:
         raise cli.ValidationError(
-            f"--backbone {args.network} not supported, see list-models tool for available options"
+            f"--backbone {args.backbone} not supported, see list-models tool for available options"
         )
     if args.trace is True and args.pts is False and args.lite is False and args.onnx is False:
         raise cli.ValidationError("--trace requires one of --pts, --lite --onnx to be set")
@@ -295,7 +343,7 @@ def main(args: argparse.Namespace) -> None:
         lite=args.lite,
         pt2=args.pt2,
         st=args.st,
-        onnx=args.onnx or args.onnx_dynamo,
+        onnx=args.onnx,
     )
     if args.head_only is True:
         model_path = model_path.with_suffix(".head.pt")
@@ -401,7 +449,7 @@ def main(args: argparse.Namespace) -> None:
         )
 
     elif args.pt2 is True:
-        pt2_export(net, signature, class_to_idx, rgb_stats, device, model_path)
+        pt2_export(net, signature, class_to_idx, rgb_stats, device, model_path, args.dynamic_size)
 
     elif args.st is True:
         fs_ops.save_st(
@@ -415,8 +463,18 @@ def main(args: argparse.Namespace) -> None:
             external_backbone_config=backbone_custom_config,
         )
 
-    elif args.onnx is True or args.onnx_dynamo is True:
-        onnx_export(net, signature, class_to_idx, rgb_stats, model_path, args.onnx_dynamo, args.trace)
+    elif args.onnx is True:
+        onnx_export(
+            net,
+            signature,
+            class_to_idx,
+            rgb_stats,
+            model_path,
+            args.dynamic_size,
+            args.opset,
+            args.optimize,
+            args.simplify,
+        )
 
     elif args.config is True:
         config_export(net, signature, rgb_stats, model_path)

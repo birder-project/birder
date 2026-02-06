@@ -30,6 +30,7 @@ license: apache-2.0
 import birder
 from birder.inference.detection import infer_image
 
+# Option 1: manual setup (more control over preprocessing)
 (net, model_info) = birder.load_pretrained_model("{{ model_name }}", inference=True)
 
 # Get the image size the model was trained on
@@ -37,6 +38,9 @@ size = birder.get_size_from_signature(model_info.signature)
 
 # Create an inference transform
 transform = birder.detection_transform(size, model_info.rgb_stats, dynamic_size=model_info.signature["dynamic"])
+
+# Option 2: helper (quick start with default preprocessing)
+(net, model_info, transform) = birder.load_pretrained_model_and_transform("{{ model_name }}", inference=True)
 
 image = "path/to/image.jpeg"  # or a PIL image, must be loaded in RGB format
 detections = infer_image(net, image, transform)

@@ -70,7 +70,7 @@ image_info_unlabeled2017.zip
 
 Dataset paper: <https://authors.library.caltech.edu/records/cvm3y-5hh21>
 
-An image dataset with birds photos (mostly North American) - <https://www.vision.caltech.edu/datasets/cub_200_2011/>
+An image dataset with bird photos (mostly North American) - <https://www.vision.caltech.edu/datasets/cub_200_2011/>
 
 About ~12K images of 200 species.
 
@@ -97,7 +97,7 @@ License: The annotations are licensed by Google under CC BY 4.0 license.
 
 Main website: <https://image-net.org/index.php>
 
-The famous ImageNet 1K (ILSVRC 2012) packed as `webdataset` by timm - <https://huggingface.co/datasets/timm/imagenet-1k-wds>
+The famous ImageNet 1K (ILSVRC 2012) packed as `WebDataset` by timm - <https://huggingface.co/datasets/timm/imagenet-1k-wds>
 
 About ~1.3M images of 1000 classes.
 
@@ -105,7 +105,7 @@ You have to accept the terms and conditions to access it.
 
 ## ImageNet 21K
 
-ImageNet 21K clean, encoded as WEBP and packed as `webdataset` by timm - <https://huggingface.co/datasets/timm/imagenet-w21-webp-wds>
+ImageNet 21K clean, encoded as WEBP and packed as `WebDataset` by timm - <https://huggingface.co/datasets/timm/imagenet-w21-webp-wds>
 
 About ~13M images of 19000 classes.
 

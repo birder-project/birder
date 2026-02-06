@@ -556,8 +556,8 @@ class MaxViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                     nn.init.zeros_(m.bias)
 
             elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
 
             elif isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, std=0.02)

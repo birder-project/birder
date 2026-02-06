@@ -1165,12 +1165,16 @@ def init_training(
         device_id = torch.cuda.current_device()
 
     if args.use_deterministic_algorithms is True:
+        log.debug("Turning on deterministic algorithms")
         torch.backends.cudnn.benchmark = False
         torch.use_deterministic_algorithms(True)
     elif cudnn_dynamic_size is True:
         # Dynamic sizes: avoid per-size algorithm selection overhead.
+        log.debug("Turning off cudnn")
         torch.backends.cudnn.enabled = False
+        torch.backends.cudnn.benchmark = False
     else:
+        log.debug("Turning on cudnn")
         torch.backends.cudnn.enabled = True
         torch.backends.cudnn.benchmark = True
 

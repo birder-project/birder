@@ -40,6 +40,10 @@ def init_plain_model(
         net = registry.net_factory(model_name, args.num_classes, input_channels, size=size)
 
     net.to(device)
+    if args.channels_last is True:
+        net = net.to(memory_format=torch.channels_last)
+        logger.debug("Using channels-last memory format")
+
     prepare_model(net)
 
     return net
@@ -48,6 +52,13 @@ def init_plain_model(
 def throughput_benchmark(
     net: torch.nn.Module, device: torch.device, sample_shape: tuple[int, ...], model_name: str, args: argparse.Namespace
 ) -> tuple[float, int]:
+    def _make_sample() -> torch.Tensor:
+        sample = torch.rand(sample_shape, device=device)
+        if args.channels_last is True:
+            sample = sample.to(memory_format=torch.channels_last)
+
+        return sample
+
     # Sanity
     if args.amp_dtype is None:
         amp_dtype = torch.get_autocast_dtype(device.type)
@@ -56,7 +67,7 @@ def throughput_benchmark(
 
     logger.info(
         f"Sanity check for {model_name}: size={sample_shape[2:]} device={device.type} compile={args.compile} "
-        f"amp={args.amp} amp_dtype={amp_dtype}"
+        f"amp={args.amp} amp_dtype={amp_dtype} channels_last={args.channels_last}"
     )
 
     batch_size = sample_shape[0]
@@ -64,8 +75,8 @@ def throughput_benchmark(
         with torch.inference_mode():
             with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
                 try:
-                    output = net(torch.rand(sample_shape, device=device))
-                    output = net(torch.rand(sample_shape, device=device))
+                    output = net(_make_sample())
+                    output = net(_make_sample())
                     break
                 except Exception:  # pylint: disable=broad-exception-caught
                     batch_size -= 32
@@ -81,7 +92,12 @@ def throughput_benchmark(
     with torch.inference_mode():
         with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
             for _ in range(args.warmup):
-                output = net(torch.rand(sample_shape, device=device))
+                output = net(_make_sample())
+
+    # Create a pool of inputs to cycle through
+    # This prevents "hot cache" effects while avoiding allocation overhead
+    pool_size = 2
+    input_pool = [_make_sample() for _ in range(pool_size)]
 
     # Benchmark
     logger.info(f"Throughput benchmark for {model_name}: repeats={args.repeats} bench_iter={args.bench_iter}")
@@ -92,8 +108,8 @@ def throughput_benchmark(
 
             t_start = time.perf_counter()
             for _ in range(args.repeats):
-                for _ in range(args.bench_iter):
-                    output = net(torch.rand(sample_shape, device=device))
+                for i in range(args.bench_iter):
+                    output = net(input_pool[i % pool_size])
 
             if device.type == "cuda":
                 torch.cuda.synchronize(device=device)
@@ -124,7 +140,7 @@ def memory_benchmark(
 
     logger.info(
         f"Memory benchmark for {model_name}: batch={sample_shape[0]} size={sample_shape[2:]} device={device.type} "
-        f"compile={args.compile} amp={args.amp} amp_dtype={amp_dtype}"
+        f"compile={args.compile} amp={args.amp} amp_dtype={amp_dtype} channels_last={args.channels_last}"
     )
 
     if args.plain is True:
@@ -135,12 +151,17 @@ def memory_benchmark(
         if args.size is not None:
             size = (sample_shape[2], sample_shape[3])
             net.adjust_size(size)
+        if args.channels_last is True:
+            net = net.to(memory_format=torch.channels_last)
+            logger.debug("Using channels-last memory format")
 
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats(device)
     with torch.inference_mode():
         with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
             sample = torch.rand(sample_shape, device=device)
+            if args.channels_last is True:
+                sample = sample.to(memory_format=torch.channels_last)
             for _ in range(5):
                 net(sample)
 
@@ -148,7 +169,7 @@ def memory_benchmark(
     sync_peak_memory.value = peak_memory
 
 
-# pylint: disable=too-many-branches,too-many-locals
+# pylint: disable=too-many-branches,too-many-locals,too-many-statements
 def benchmark(args: argparse.Namespace) -> None:
     mp.set_start_method("spawn")
 
@@ -227,6 +248,7 @@ def benchmark(args: argparse.Namespace) -> None:
                     "compile": args.compile,
                     "amp": args.amp,
                     "fast_matmul": args.fast_matmul,
+                    "channels_last": args.channels_last,
                     "size": size[0],
                     "max_batch_size": args.max_batch_size,
                     "memory": args.memory,
@@ -254,6 +276,9 @@ def benchmark(args: argparse.Namespace) -> None:
                 net, _ = birder.load_pretrained_model(model_name, inference=True, device=device)
                 if args.size is not None:
                     net.adjust_size(size)
+                if args.channels_last is True:
+                    net = net.to(memory_format=torch.channels_last)
+                    logger.debug("Using channels-last memory format")
 
             if args.compile is True:
                 torch.compiler.reset()
@@ -276,6 +301,7 @@ def benchmark(args: argparse.Namespace) -> None:
                 "compile": args.compile,
                 "amp": args.amp,
                 "fast_matmul": args.fast_matmul,
+                "channels_last": args.channels_last,
                 "size": size[0],
                 "max_batch_size": args.max_batch_size,
                 "memory": args.memory,
@@ -331,6 +357,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--num-classes", type=int, default=0, metavar="N", help="number of classes for plain benchmarks"
     )
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
+    parser.add_argument("--channels-last", default=False, action="store_true", help="use channels-last memory format")
     parser.add_argument(
         "--amp", default=False, action="store_true", help="use torch.amp.autocast for mixed precision inference"
     )

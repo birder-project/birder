@@ -63,9 +63,7 @@ def train(args: argparse.Namespace) -> None:
     )
     model_dynamic_size = transform_dynamic_size or args.batch_multiscale is True
 
-    device, device_id, disable_tqdm = training_utils.init_training(
-        args, logger, cudnn_dynamic_size=transform_dynamic_size
-    )
+    device, device_id, disable_tqdm = training_utils.init_training(args, logger, cudnn_dynamic_size=model_dynamic_size)
 
     if args.size is None:
         args.size = registry.get_default_size(args.network)
@@ -328,6 +326,10 @@ def train(args: argparse.Namespace) -> None:
         training_states = fs_ops.TrainingStates.empty()
 
     net.to(device, dtype=model_dtype)
+    if args.channels_last is True:
+        net = net.to(memory_format=torch.channels_last)
+        logger.debug("Using channels-last memory format")
+
     if model_dynamic_size is True:
         net.set_dynamic_size()
 
@@ -591,7 +593,11 @@ def train(args: argparse.Namespace) -> None:
             batch_iter = enumerate(training_loader)
 
         for i, (inputs, targets, masks, image_sizes) in batch_iter:
-            inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
+            if args.channels_last is True:
+                inputs = inputs.to(device, dtype=model_dtype, non_blocking=True, memory_format=torch.channels_last)
+            else:
+                inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
+
             targets = [
                 {k: v.to(device, non_blocking=True) if isinstance(v, torch.Tensor) else v for k, v in t.items()}
                 for t in targets
@@ -716,7 +722,11 @@ def train(args: argparse.Namespace) -> None:
         epoch_start = time.time()
         with torch.inference_mode():
             for inputs, targets, masks, image_sizes in validation_loader:
-                inputs = inputs.to(device, non_blocking=True)
+                if args.channels_last is True:
+                    inputs = inputs.to(device, non_blocking=True, memory_format=torch.channels_last)
+                else:
+                    inputs = inputs.to(device, non_blocking=True)
+
                 targets = [
                     {k: v.to(device, non_blocking=True) if isinstance(v, torch.Tensor) else v for k, v in t.items()}
                     for t in targets
@@ -962,7 +972,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         default_num_workers=min(8, max(os.cpu_count() // 8, 2)),  # type: ignore[operator]
         ra_sampler=True,
     )
-    training_cli.add_precision_args(parser)
+    training_cli.add_precision_args(parser, channels_last=True)
     training_cli.add_compile_args(parser, backbone=True)
     training_cli.add_checkpoint_args(parser, pretrained=True)
     training_cli.add_distributed_args(parser)

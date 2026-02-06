@@ -76,13 +76,13 @@ class DINOHead(nn.Module):
 
 
 class SinkhornQueue(nn.Module):
-    def __init__(self, queue_size: int) -> None:
+    def __init__(self, queue_size: int, dim: int) -> None:
         super().__init__()
         self.queue_size = queue_size
         self.active = True
-        self.queue = nn.Buffer(torch.empty(0), persistent=False)
-        self.queue_ptr: int = 0
-        self.queue_full: bool = False
+        self.queue = nn.Buffer(torch.empty(queue_size, dim))
+        self.queue_ptr = nn.Buffer(torch.zeros(1, dtype=torch.long))
+        self.queue_full = nn.Buffer(torch.zeros(1, dtype=torch.bool))
 
     def set_active(self, active: bool) -> None:
         self.active = active
@@ -90,7 +90,7 @@ class SinkhornQueue(nn.Module):
     def get(self) -> Optional[torch.Tensor]:
         if self.active is False:
             return None
-        if self.queue_full is False:
+        if self.queue_full.item() is False:
             return None
 
         return self.queue
@@ -104,17 +104,14 @@ class SinkhornQueue(nn.Module):
         if values.dim() != 2:
             raise ValueError("SinkhornQueue expects a 2D tensor")
 
-        if self.queue.numel() == 0:
-            self.queue = values.new_empty(self.queue_size, values.size(1))
-
         values = values.detach()
         if values.size(0) >= self.queue_size:
             self.queue.copy_(values[-self.queue_size :])
-            self.queue_ptr = 0
-            self.queue_full = True
+            self.queue_ptr.zero_()
+            self.queue_full.fill_(True)
             return
 
-        ptr = self.queue_ptr
+        ptr = self.queue_ptr.item()
         end = ptr + values.size(0)
         if end <= self.queue_size:
             self.queue[ptr:end].copy_(values)
@@ -123,9 +120,9 @@ class SinkhornQueue(nn.Module):
             self.queue[ptr:].copy_(values[:first])
             self.queue[: end - self.queue_size].copy_(values[first:])
 
-        self.queue_ptr = end % self.queue_size
+        self.queue_ptr.fill_(end % self.queue_size)
         if end >= self.queue_size:
-            self.queue_full = True
+            self.queue_full.fill_(True)
 
 
 class DINOLoss(nn.Module):
@@ -139,7 +136,7 @@ class DINOLoss(nn.Module):
         if queue_size is None:
             self.sinkhorn_queue = None
         else:
-            self.sinkhorn_queue = SinkhornQueue(queue_size)
+            self.sinkhorn_queue = SinkhornQueue(queue_size, dim=out_dim)
 
         self.updated = True
         self.reduce_handle: Any = None
@@ -267,7 +264,7 @@ class iBOTPatchLoss(nn.Module):
         if queue_size is None:
             self.sinkhorn_queue = None
         else:
-            self.sinkhorn_queue = SinkhornQueue(queue_size)
+            self.sinkhorn_queue = SinkhornQueue(queue_size, dim=patch_out_dim)
 
         self.updated = True
         self.reduce_handle: Any = None

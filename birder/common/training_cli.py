@@ -485,8 +485,13 @@ def add_dataloader_args(
         )
 
 
-def add_precision_args(parser: argparse.ArgumentParser) -> None:
+def add_precision_args(parser: argparse.ArgumentParser, channels_last: bool = False) -> None:
     group = parser.add_argument_group("Precision parameters")
+    if channels_last is True:
+        group.add_argument(
+            "--channels-last", default=False, action="store_true", help="use channels-last memory format"
+        )
+
     group.add_argument(
         "--model-dtype",
         type=str,

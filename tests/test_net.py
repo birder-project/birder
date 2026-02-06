@@ -36,7 +36,7 @@ NET_TEST_CASES = [
     ("csp_resnext_50"),
     ("csp_darknet_53"),
     ("csp_se_resnet_50"),
-    ("cswin_transformer_t"),  # PT2 fails
+    ("cswin_transformer_t"),
     ("darknet_53"),
     ("davit_tiny"),
     ("deit_t16", True),
@@ -74,7 +74,7 @@ NET_TEST_CASES = [
     ("hieradet_tiny"),
     ("hieradet_d_tiny"),
     ("hornet_tiny_7x7"),
-    ("hornet_tiny_gf"),  # PT2 fails, no bfloat16 support
+    ("hornet_tiny_gf"),  # No bfloat16 support
     ("iformer_s"),
     ("inception_next_t"),
     ("inception_resnet_v1"),
@@ -286,10 +286,6 @@ class TestNet(unittest.TestCase):
             torch.jit.trace(n, example_inputs=torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
             n.train()
 
-        # Test PT2
-        # batch_dim = torch.export.Dim("batch", min=1, max=4096)
-        # torch.export.export(n, (torch.randn(2, DEFAULT_NUM_CHANNELS, *size),), dynamic_shapes={"x": {0: batch_dim}})
-
         # Adjust size
         if size_step != 0:
             size = (size[0] + size_step, size[1] + size_step)
@@ -310,11 +306,6 @@ class TestNet(unittest.TestCase):
             n.reparameterize_model()
             out = n(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
             self.assertEqual(out.numel(), 200 * batch_size)
-
-        # Test modified dtype
-        # n.to(torch.bfloat16)
-        # out = n(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size), dtype=torch.bfloat16))
-        # self.assertEqual(out.numel(), 200 * batch_size)
 
         # Ensure model is copyable
         n_copy = copy.deepcopy(n)
@@ -357,6 +348,44 @@ class TestNet(unittest.TestCase):
             for name, param in n.named_parameters():
                 self.assertIsNone(param.grad, msg=f"{network_name} reparameterize_model set grad for {name}")
                 self.assertIsNone(param.grad_fn, msg=f"{network_name} reparameterize_model tracked grad for {name}")
+
+    @parameterized.expand(NET_TEST_CASES)  # type: ignore[untyped-decorator]
+    @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    def test_net_pt2(
+        self,
+        network_name: str,
+        _skip_embedding: bool = False,
+        _skip_features: bool = False,
+        _batch_size: int = 1,
+        _size_step: int = 2**5,
+    ) -> None:
+        n = registry.net_factory(network_name, 100)
+        n.eval()
+        size = n.default_size
+
+        # Test PT2
+        batch_dim = torch.export.Dim("batch", min=1, max=4096)
+        with torch.no_grad():
+            torch.export.export(n, (torch.randn(2, DEFAULT_NUM_CHANNELS, *size),), dynamic_shapes={"x": {0: batch_dim}})
+
+    # @parameterized.expand(NET_TEST_CASES)  # type: ignore[untyped-decorator]
+    # @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    # def test_net_bfloat16(
+    #     self,
+    #     network_name: str,
+    #     _skip_embedding: bool = False,
+    #     _skip_features: bool = False,
+    #     batch_size: int = 1,
+    #     _size_step: int = 2**5,
+    # ) -> None:
+    #     n = registry.net_factory(network_name, 100)
+    #     n.eval()
+    #     size = n.default_size
+
+    #     # Test modified dtype
+    #     n.to(torch.bfloat16)
+    #     out = n(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size), dtype=torch.bfloat16))
+    #     self.assertEqual(out.numel(), 100 * batch_size)
 
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [

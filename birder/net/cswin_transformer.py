@@ -37,7 +37,8 @@ def img2windows(img: torch.Tensor, h_sp: int, w_sp: int) -> torch.Tensor:
 
 
 def windows2img(img_splits_hw: torch.Tensor, h_sp: int, w_sp: int, H: int, W: int) -> torch.Tensor:
-    B = int(img_splits_hw.shape[0] / (H * W / h_sp / w_sp))
+    num_windows = (H // h_sp) * (W // w_sp)
+    B = img_splits_hw.size(0) // num_windows
     img = img_splits_hw.view(B, H // h_sp, W // w_sp, h_sp, w_sp, -1)
     img = img.permute(0, 1, 3, 2, 4, 5).contiguous().view(B, H, W, -1)
 

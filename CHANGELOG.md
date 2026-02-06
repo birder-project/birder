@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.4.3 - 2026-02-06
+
+### Added
+
+- **Eval Module**: New `birder.eval` module for model evaluation with subcommand-based CLI (`python -m birder.eval <command>`).
+    - `classification`: Evaluate pretrained classification models (migrated from `evaluate.py` with WebDataset support and configurable `--num-workers`).
+    - `adversarial`: Evaluate adversarial robustness with FGSM, PGD, DeepFool and SimBA attacks.
+    - `awa2`: Run [AwA2](https://arxiv.org/abs/1707.00600) benchmark using MLP probe for 85-attribute multi-label classification (macro F1 metric).
+    - `fishnet`: Run [FishNet](https://fishnet-2023.github.io/) benchmark using MLP probe for 9-trait multi-label classification (macro F1 metric).
+    - `flowers102`: Run [Flowers102](https://www.robots.ox.ac.uk/~vgg/data/flowers/102/) benchmark using SimpleShot with full training set.
+    - `bioscan5m`: Run [BIOSCAN-5M](https://arxiv.org/abs/2406.12723) benchmark - unsupervised embedding evaluation using UMAP + Agglomerative Clustering + Adjusted Mutual Information.
+    - `fungiclef`: Run [FungiCLEF2023](https://www.imageclef.org/FungiCLEF2023) benchmark - 1,604 species classification using KNN.
+    - `nabirds`: Run [NABirds](https://dl.allaboutbirds.org/nabirds) benchmark using KNN with configurable k neighbors.
+    - `newt`: Run [NeWT](https://arxiv.org/abs/2103.16483) benchmark (164 binary tasks with SVM, micro-averaged accuracy, per-cluster breakdown).
+    - `plankton`: Run [SYKE-plankton_IFCB_2022](https://b2share.eudat.eu/records/xvnrp-7ga56) benchmark - 50 class phytoplankton classification using linear probing.
+    - `plantdoc`: Run [PlantDoc](https://arxiv.org/abs/1911.10317) benchmark using SimpleShot few-shot learning with configurable k-shot sampling.
+    - `plantnet`: Run [PlantNet-300K](https://openreview.net/forum?id=eLYinD0TtIt) benchmark using SimpleShot few-shot learning with configurable k-shot sampling.
+- **Eval Methods**: Added evaluation methods to `birder.eval.methods`:
+    - `simpleshot`: [SimpleShot](https://arxiv.org/abs/1911.04623) few-shot classifier using nearest centroid with mean centering and L2 normalization.
+    - `knn`: K-nearest neighbors with temperature-scaled softmax voting.
+    - `mlp`: MLP probe for multi-label classification following AwA2 design (Linear -> Dropout -> Linear).
+    - `ami`: AMI clustering using UMAP + Agglomerative Clustering + Adjusted Mutual Information.
+    - `linear`: Linear probing on frozen embeddings - trains a single linear layer with cross-entropy loss.
+    - `svm`: SVM classifier with StandardScaler preprocessing and RandomizedSearchCV hyperparameter tuning.
+- **AwA2 Datahub**: Added [AwA2](https://arxiv.org/abs/1707.00600) (Animals with Attributes 2) dataset to `birder.datahub.evaluation` for attribute prediction benchmark.
+- **FishNet Datahub**: Added [FishNet](https://fishnet-2023.github.io/) dataset to `birder.datahub.evaluation` for trait prediction benchmark.
+- **FungiCLEF2023 Datahub**: Added [FungiCLEF2023](https://www.imageclef.org/FungiCLEF2023) dataset to `birder.datahub.evaluation` for fungi species classification benchmark.
+- **NABirds Datahub**: Added [NABirds](https://dl.allaboutbirds.org/nabirds) dataset to `birder.datahub.evaluation` for bird species classification benchmark.
+- **NeWT Datahub**: Added [NeWT](https://arxiv.org/abs/2103.16483) (Natural World Tasks) dataset to `birder.datahub.evaluation` for benchmark evaluation.
+- **Plankton Datahub**: Added [SYKE-plankton_IFCB_2022](https://b2share.eudat.eu/records/xvnrp-7ga56) dataset to `birder.datahub.evaluation` for phytoplankton classification benchmark.
+- **PlantDoc Datahub**: Added [PlantDoc](https://arxiv.org/abs/1911.10317) dataset to `birder.datahub.evaluation` for plant disease classification benchmark.
+- **PlantNet Datahub**: Added [PlantNet-300K](https://openreview.net/forum?id=eLYinD0TtIt) dataset to `birder.datahub.evaluation` for plant species classification benchmark.
+- **Convenience Loader**: Added `load_pretrained_model_and_transform` to return a pretrained model and its default inference transform.
+- **Detection PT2 Export**: All detection models now support `torch.export`, except Faster R-CNN, which is currently unsupported due to data-dependent control flow in the RPN.
+- **Model Conversion**: Added `--opset` and `--simplify` arguments to `convert-model` for better control over ONNX export.
+- **Image Loader Selection**: Added `--img-loader` to `predict` CLI to select the image decoding backend (`tv` or `pil`), matching the existing training option.
+- **Channels-Last Inference**: Added `--channels-last` to `predict`, `predict_detection`, `birder.eval classification` and `benchmark` CLIs to opt into channels-last memory format.
+- **Channels-Last Training**: Added `--channels-last` to `train`, `train_detection` and `train_kd` CLIs to opt into channels-last memory format during training.
+
+### Changed
+
+- **Detection ImageList**: Changed `ImageList.image_sizes` from `list[tuple[int, int]]` to `torch.Tensor` with shape `(B, 2)`.
+- **Sinkhorn Queues (SSL)**: Queue tensors, pointers and full-state are now registered buffers so they save/load with the model state dict.
+
+### Fixed
+
+- **MAE Hiera Unpatchify**: Fixed incorrect pixel order in `unpatchify` to match the `[C, H, W]` order from `get_pixel_label_2d`.
+- **CSWin Transformer PT2 Export**: Fixed dynamic batch shape specialization caused by Python `int()` casting during window reconstruction. All classification models are now exportable.
+
 ## 0.4.2 - 2026-01-30
 
 ### Added
@@ -40,7 +89,7 @@
 ### Changed
 
 - **ViT Attention Consolidation (Breaking)**:
-    - Dropped the `nn.MultiheadAttention` path; ViT now always uses the custom attention implementation.
+    - Dropped the `nn.MultiheadAttention` path, ViT now always uses the custom attention implementation.
     - Renamed ViT block attributes `self_attention` → `attn` and `ln1/ln2` → `norm1/norm2` (affects hooks, tooling and checkpoint key names).
 - **Checkpoint States Filenames (Breaking)**: Training state checkpoints now use a `.pt` extension (e.g., `_states.pt`).
 - **Network Architecture Consolidation (Breaking)**:

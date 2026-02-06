@@ -292,6 +292,11 @@ def train(args: argparse.Namespace) -> None:
 
     teacher.to(device, dtype=model_dtype)
     student.to(device, dtype=model_dtype)
+    if args.channels_last is True:
+        teacher = teacher.to(memory_format=torch.channels_last)
+        student = student.to(memory_format=torch.channels_last)
+        logger.debug("Using channels-last memory format")
+
     if args.freeze_bn is True:
         student = training_utils.freeze_batchnorm2d(student)
     elif args.sync_bn is True and args.distributed is True:
@@ -620,7 +625,11 @@ def train(args: argparse.Namespace) -> None:
             batch_iter = enumerate(training_loader)
 
         for i, (inputs, targets) in batch_iter:
-            inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
+            if args.channels_last is True:
+                inputs = inputs.to(device, dtype=model_dtype, non_blocking=True, memory_format=torch.channels_last)
+            else:
+                inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
+
             targets = targets.to(device, non_blocking=True)
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
@@ -798,7 +807,11 @@ def train(args: argparse.Namespace) -> None:
         epoch_start = time.time()
         with torch.inference_mode():
             for inputs, targets in validation_loader:
-                inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
+                if args.channels_last is True:
+                    inputs = inputs.to(device, dtype=model_dtype, non_blocking=True, memory_format=torch.channels_last)
+                else:
+                    inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
+
                 targets = targets.to(device, non_blocking=True)
                 with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
                     outputs = eval_model(inputs)
@@ -1036,7 +1049,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     training_cli.add_data_aug_args(parser, smoothing_alpha=True, mixup_cutmix=True)
     training_cli.add_dataloader_args(parser, ra_sampler=True)
-    training_cli.add_precision_args(parser)
+    training_cli.add_precision_args(parser, channels_last=True)
     training_cli.add_compile_args(parser, teacher=True)
     training_cli.add_checkpoint_args(parser, default_save_frequency=5)
     training_cli.add_distributed_args(parser)

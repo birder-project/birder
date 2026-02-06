@@ -32,7 +32,7 @@ torchrun --nproc_per_node=2 train_kd.py --type deit --teacher regnet_y_8g --teac
 
 #### Tiny ViT 5M with a ViT L16 teacher
 
-Intermediate training training
+Intermediate training
 
 ```sh
 torchrun --nproc_per_node=2 train_kd.py --type soft --teacher vit_l16 --teacher-tag intermediate --teacher-epoch 0 --student tiny_vit_5m --student-tag dist --temperature 1 --batch-size 64 --opt adamw --clip-grad-norm 5 --grad-accum-steps 2 --lr 0.002 --wd 0.01 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 90 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt

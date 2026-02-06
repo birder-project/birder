@@ -1,5 +1,6 @@
 import logging
 import tarfile
+import zipfile
 from pathlib import Path
 
 from birder.common import cli
@@ -26,9 +27,17 @@ def download_url(url: str, target: str | Path, sha256: str, progress_bar: bool =
 
 def extract_archive(from_path: str | Path, to_path: str | Path) -> None:
     logger.info(f"Extracting {from_path} to {to_path}")
-    with tarfile.open(from_path, "r") as tar:
-        if hasattr(tarfile, "data_filter") is True:
-            tar.extractall(to_path, filter="data")
-        else:
-            # NOTE: Remove once minimum Python version is 3.12 or above
-            tar.extractall(to_path)  # nosec # tarfile_unsafe_members
+    if isinstance(from_path, str):
+        from_path = Path(from_path)
+
+    if from_path.suffix == ".zip":
+        with zipfile.ZipFile(from_path, "r") as zf:
+            zf.extractall(to_path)  # nosec # tarfile_unsafe_members
+
+    else:
+        with tarfile.open(from_path, "r") as tar:
+            if hasattr(tarfile, "data_filter") is True:
+                tar.extractall(to_path, filter="data")
+            else:
+                # NOTE: Remove once minimum Python version is 3.12 or above
+                tar.extractall(to_path)  # nosec # tarfile_unsafe_members

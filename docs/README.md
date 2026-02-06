@@ -27,6 +27,8 @@ Whether you're a researcher in ornithology, a conservation scientist, or a wildl
 
 1. [Inference](inference.md)
 
+1. [Evaluation](evaluation.md)
+
 1. [Tools and Utilities](tools/index.md)
     - [Adversarial](tools/adversarial.md)
     - [Convert Model](tools/convert-model.md)
@@ -36,6 +38,9 @@ Whether you're a researcher in ornithology, a conservation scientist, or a wildl
     - [Results](tools/results.md)
 
 1. [API Reference](api/index.md)
+    - [Model Loading](api/model_loading.md)
+    - [Transforms and Signatures](api/transforms_and_signatures.md)
+    - [Inference Workflows](api/inference_workflows.md)
     - [Model Registry](api/model_registry.md)
 
 1. [Public Datasets](public_datasets.md)

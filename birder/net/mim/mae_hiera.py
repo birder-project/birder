@@ -63,7 +63,7 @@ class MAE_Hiera(MIMBaseNet):
         decoder_num_heads = 16
         self.patch_size = self.encoder.mask_unit_size[0] * self.encoder.patch_stride[0]
 
-        self.mask_unit_spatial_shape_final = [
+        mask_unit_spatial_shape_final = [
             i // s ** (self.encoder.q_pool) for i, s in zip(self.encoder.mask_unit_size, self.encoder.q_stride)
         ]
         self.tokens_spatial_shape_final = [
@@ -76,7 +76,7 @@ class MAE_Hiera(MIMBaseNet):
         self.multi_scale_fusion_heads = nn.ModuleList()
         stage_idx = 0
         for _ in self.encoder.stage_ends[: self.encoder.q_pool]:  # resolution constant after q_pool
-            kernel = [i // s for i, s in zip(curr_mu_size, self.mask_unit_spatial_shape_final)]
+            kernel = [i // s for i, s in zip(curr_mu_size, mask_unit_spatial_shape_final)]
             curr_mu_size = [i // s for i, s in zip(curr_mu_size, self.encoder.q_stride)]
             self.multi_scale_fusion_heads.append(
                 nn.Conv2d(
@@ -133,7 +133,7 @@ class MAE_Hiera(MIMBaseNet):
                     nn.init.zeros_(m.bias)
 
             elif isinstance(m, nn.LayerNorm):
-                nn.init.constant_(m.weight, 1.0)
+                nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
 
     def get_pixel_label_2d(self, input_img: torch.Tensor, mask: torch.Tensor, norm: bool) -> torch.Tensor:
@@ -152,7 +152,7 @@ class MAE_Hiera(MIMBaseNet):
 
     def unpatchify(self, x: torch.Tensor) -> torch.Tensor:
         """
-        x: (N, L, patch_size**2 * C)
+        x: (N, L, C * patch_size**2) where data is in [C, H, W] order per patch
         imgs: (N, C, H, W)
         """
 
@@ -161,8 +161,9 @@ class MAE_Hiera(MIMBaseNet):
         w = int(x.shape[1] ** 0.5)
         assert h * w == x.shape[1]
 
-        x = x.reshape(shape=(x.shape[0], h, w, p, p, self.input_channels))
-        x = torch.einsum("nhwpqc->nchpwq", x)
+        # Data is [C, p, p] order from get_pixel_label_2d
+        x = x.reshape(shape=(x.shape[0], h, w, self.input_channels, p, p))
+        x = torch.einsum("nhwcpq->nchpwq", x)
         imgs = x.reshape(shape=(x.shape[0], self.input_channels, h * p, w * p))
 
         return imgs
@@ -204,16 +205,8 @@ class MAE_Hiera(MIMBaseNet):
         x_dec = ~mask * mask_tokens + mask * x_dec
 
         # Get back spatial order
-        x = undo_windowing(
-            x_dec,
-            self.tokens_spatial_shape_final,  # type: ignore[arg-type]
-            self.mask_unit_spatial_shape_final,
-        )
-        mask = undo_windowing(
-            mask[..., 0:1],
-            self.tokens_spatial_shape_final,  # type: ignore[arg-type]
-            self.mask_unit_spatial_shape_final,
-        )
+        x = undo_windowing(x_dec, self.tokens_spatial_shape_final)  # type: ignore[arg-type]
+        mask = undo_windowing(mask[..., 0:1], self.tokens_spatial_shape_final)  # type: ignore[arg-type]
 
         # Flatten
         x = x.reshape(x.shape[0], -1, x.shape[-1])

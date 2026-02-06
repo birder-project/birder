@@ -8,6 +8,7 @@ nav:
   - Pre-trained Models: pretrained_models.md
   - Training: training_scripts.md
   - Inference: inference.md
+  - Evaluation: evaluation.md
   - Tools:
       - Overview: tools/index.md
       - Adversarial: tools/adversarial.md

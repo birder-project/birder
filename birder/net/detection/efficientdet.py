@@ -27,6 +27,7 @@ from birder.net.detection.base import AnchorGenerator
 from birder.net.detection.base import BoxCoder
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import Matcher
+from birder.net.detection.base import clip_boxes_to_image
 from birder.ops.soft_nms import SoftNMS
 
 
@@ -588,6 +589,8 @@ class EfficientDet(DetectionBaseNet):
             for param in self.class_net.parameters():
                 param.requires_grad_(True)
 
+    @torch.jit.unused  # type: ignore[untyped-decorator]
+    @torch.compiler.disable()  # type: ignore[untyped-decorator]
     def compute_loss(
         self,
         targets: list[dict[str, torch.Tensor]],
@@ -617,16 +620,16 @@ class EfficientDet(DetectionBaseNet):
         class_logits: list[torch.Tensor],
         box_regression: list[torch.Tensor],
         anchors: list[list[torch.Tensor]],
-        image_shapes: list[tuple[int, int]],
+        image_sizes: torch.Tensor,
     ) -> list[dict[str, torch.Tensor]]:
-        num_images = len(image_shapes)
+        num_images = image_sizes.size(0)
 
         detections: list[dict[str, torch.Tensor]] = []
         for index in range(num_images):
             box_regression_per_image = [br[index] for br in box_regression]
             logits_per_image = [cl[index] for cl in class_logits]
             anchors_per_image = anchors[index]
-            image_shape = image_shapes[index]
+            image_shape = image_sizes[index]
 
             image_boxes_list = []
             image_scores_list = []
@@ -643,7 +646,7 @@ class EfficientDet(DetectionBaseNet):
                 topk_idxs = torch.where(keep_idxs)[0]
 
                 # Keep only topk scoring predictions
-                num_topk = min(self.topk_candidates, int(topk_idxs.size(0)))
+                num_topk = min(self.topk_candidates, topk_idxs.size(0))
                 scores_per_level, idxs = scores_per_level.topk(num_topk)
                 topk_idxs = topk_idxs[idxs]
 
@@ -654,7 +657,7 @@ class EfficientDet(DetectionBaseNet):
                 boxes_per_level = self.box_coder.decode_single(
                     box_regression_per_level[anchor_idxs], anchors_per_level[anchor_idxs]
                 )
-                boxes_per_level = box_ops.clip_boxes_to_image(boxes_per_level, image_shape)
+                boxes_per_level = clip_boxes_to_image(boxes_per_level, image_shape)
 
                 image_boxes_list.append(boxes_per_level)
                 image_scores_list.append(scores_per_level)
@@ -664,24 +667,42 @@ class EfficientDet(DetectionBaseNet):
             image_scores = torch.concat(image_scores_list, dim=0)
             image_labels = torch.concat(image_labels_list, dim=0)
 
-            # Non-maximum suppression
-            if self.soft_nms is not None:
-                soft_scores, keep = self.soft_nms(image_boxes, image_scores, image_labels, score_threshold=0.001)
-                image_scores[keep] = soft_scores
+            if self.export_mode is False:
+                # Non-maximum suppression
+                if self.soft_nms is not None:
+                    soft_scores, keep = self.soft_nms(image_boxes, image_scores, image_labels, score_threshold=0.001)
+                    image_scores[keep] = soft_scores
+                else:
+                    keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)
+
+                keep = keep[: self.detections_per_img]
+
+                detections.append(
+                    {
+                        "boxes": image_boxes[keep],
+                        "scores": image_scores[keep],
+                        "labels": image_labels[keep],
+                    }
+                )
             else:
-                keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)
-
-            keep = keep[: self.detections_per_img]
-
-            detections.append(
-                {
-                    "boxes": image_boxes[keep],
-                    "scores": image_scores[keep],
-                    "labels": image_labels[keep],
-                }
-            )
+                detections.append(
+                    {
+                        "boxes": image_boxes,
+                        "scores": image_scores,
+                        "labels": image_labels,
+                    }
+                )
 
         return detections
+
+    def forward_net(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]:
+        features: dict[str, torch.Tensor] = self.backbone.detection_features(x)
+        feature_list = list(features.values())
+        feature_list = self.bifpn(feature_list)
+        cls_logits = self.class_net(feature_list)
+        box_output = self.box_net(feature_list)
+
+        return (cls_logits, box_output, feature_list)
 
     # pylint: disable=invalid-name
     def forward(
@@ -689,16 +710,12 @@ class EfficientDet(DetectionBaseNet):
         x: torch.Tensor,
         targets: Optional[list[dict[str, torch.Tensor]]] = None,
         masks: Optional[torch.Tensor] = None,
-        image_sizes: Optional[list[list[int]]] = None,
+        image_sizes: Optional[list[tuple[int, int]]] = None,
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
         self._input_check(targets)
         images = self._to_img_list(x, image_sizes)
 
-        features: dict[str, torch.Tensor] = self.backbone.detection_features(x)
-        feature_list = list(features.values())
-        feature_list = self.bifpn(feature_list)
-        cls_logits = self.class_net(feature_list)
-        box_output = self.box_net(feature_list)
+        cls_logits, box_output, feature_list = self.forward_net(x)
         anchors = self.anchor_generator(images, feature_list)
 
         losses: dict[str, torch.Tensor] = {}

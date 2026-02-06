@@ -124,13 +124,13 @@ class DINOHeadMRL(nn.Module):
 
 
 class SinkhornQueue(nn.Module):
-    def __init__(self, queue_size: int) -> None:
+    def __init__(self, queue_size: int, dim: int) -> None:
         super().__init__()
         self.queue_size = queue_size
         self.active = True
-        self.queue = nn.Buffer(torch.empty(0), persistent=False)
-        self.queue_ptr: int = 0
-        self.queue_full: bool = False
+        self.queue = nn.Buffer(torch.empty(queue_size, dim))
+        self.queue_ptr = nn.Buffer(torch.zeros(1, dtype=torch.long))
+        self.queue_full = nn.Buffer(torch.zeros(1, dtype=torch.bool))
 
     def set_active(self, active: bool) -> None:
         self.active = active
@@ -138,7 +138,7 @@ class SinkhornQueue(nn.Module):
     def get(self) -> Optional[torch.Tensor]:
         if self.active is False:
             return None
-        if self.queue_full is False:
+        if self.queue_full.item() is False:
             return None
 
         return self.queue
@@ -152,17 +152,14 @@ class SinkhornQueue(nn.Module):
         if values.dim() != 2:
             raise ValueError("SinkhornQueue expects a 2D tensor")
 
-        if self.queue.numel() == 0:
-            self.queue = values.new_empty(self.queue_size, values.size(1))
-
         values = values.detach()
         if values.size(0) >= self.queue_size:
             self.queue.copy_(values[-self.queue_size :])
-            self.queue_ptr = 0
-            self.queue_full = True
+            self.queue_ptr.zero_()
+            self.queue_full.fill_(True)
             return
 
-        ptr = self.queue_ptr
+        ptr = self.queue_ptr.item()
         end = ptr + values.size(0)
         if end <= self.queue_size:
             self.queue[ptr:end].copy_(values)
@@ -171,13 +168,15 @@ class SinkhornQueue(nn.Module):
             self.queue[ptr:].copy_(values[:first])
             self.queue[: end - self.queue_size].copy_(values[first:])
 
-        self.queue_ptr = end % self.queue_size
+        self.queue_ptr.fill_(end % self.queue_size)
         if end >= self.queue_size:
-            self.queue_full = True
+            self.queue_full.fill_(True)
 
 
 class DINOLossMRL(nn.Module):
-    def __init__(self, student_temp: float, nesting_levels: int, queue_size: Optional[int] = None) -> None:
+    def __init__(
+        self, student_temp: float, nesting_levels: int, queue_size: Optional[int] = None, out_dim: Optional[int] = None
+    ) -> None:
         super().__init__()
         self.student_temp = student_temp
         self.queue_active = True
@@ -185,9 +184,12 @@ class DINOLossMRL(nn.Module):
         if queue_size is None:
             self.sinkhorn_queue = None
         else:
+            assert out_dim is not None, "out_dim is required when queue_size is set"
+
+            queue_dims = _get_nesting_list(out_dim, nesting_levels)
             self.sinkhorn_queue = nn.ModuleList()
-            for _ in range(nesting_levels):
-                queue = SinkhornQueue(queue_size)
+            for dim in queue_dims:
+                queue = SinkhornQueue(queue_size, dim)
                 queue.set_active(self.queue_active)
                 self.sinkhorn_queue.append(queue)
 
@@ -300,7 +302,9 @@ class DINOLossMRL(nn.Module):
 
 # pylint: disable=invalid-name
 class iBOTPatchLossMRL(nn.Module):
-    def __init__(self, student_temp: float, nesting_levels: int, queue_size: Optional[int] = None) -> None:
+    def __init__(
+        self, student_temp: float, nesting_levels: int, queue_size: Optional[int] = None, out_dim: Optional[int] = None
+    ) -> None:
         super().__init__()
         self.student_temp = student_temp
         self.queue_active = True
@@ -308,9 +312,12 @@ class iBOTPatchLossMRL(nn.Module):
         if queue_size is None:
             self.sinkhorn_queue = None
         else:
+            assert out_dim is not None, "out_dim is required when queue_size is set"
+
+            queue_dims = _get_nesting_list(out_dim, nesting_levels)
             self.sinkhorn_queue = nn.ModuleList()
-            for _ in range(nesting_levels):
-                queue = SinkhornQueue(queue_size)
+            for dim in queue_dims:
+                queue = SinkhornQueue(queue_size, dim)
                 queue.set_active(self.queue_active)
                 self.sinkhorn_queue.append(queue)
 

@@ -301,14 +301,11 @@ class GlobalDecoderLayer(nn.Module):
 
 
 class GlobalDecoder(nn.Module):
-    def __init__(
-        self, decoder_layer: nn.Module, num_layers: int, norm: nn.Module, return_intermediate: bool, d_model: int
-    ) -> None:
+    def __init__(self, decoder_layer: nn.Module, num_layers: int, norm: nn.Module, d_model: int) -> None:
         super().__init__()
         self.layers = _get_clones(decoder_layer, num_layers)
         self.num_layers = num_layers
         self.norm = norm
-        self.return_intermediate = return_intermediate
         self.d_model = d_model
 
         self.bbox_embed: Optional[nn.ModuleList] = None
@@ -339,6 +336,7 @@ class GlobalDecoder(nn.Module):
         reference_points: torch.Tensor,
         spatial_shape: tuple[int, int],
         memory_key_padding_mask: Optional[torch.Tensor] = None,
+        return_intermediates: bool = True,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         output = tgt
         intermediate = []
@@ -364,14 +362,14 @@ class GlobalDecoder(nn.Module):
                 new_reference_points = new_reference_points.sigmoid()
                 reference_points = new_reference_points.detach()
 
-                if self.return_intermediate is True:
+                if return_intermediates is True:
                     intermediate.append(output_for_pred)
                     intermediate_reference_points.append(new_reference_points)
 
-            if self.return_intermediate is True:
+            if return_intermediates is True:
                 return torch.stack(intermediate), torch.stack(intermediate_reference_points)
 
-            return output_for_pred.unsqueeze(0), new_reference_points.unsqueeze(0)
+            return output_for_pred, new_reference_points
 
         for layer in self.layers:
             reference_points_input = reference_points.detach().clamp(0, 1)
@@ -388,14 +386,14 @@ class GlobalDecoder(nn.Module):
 
             output_for_pred = self.norm(output)
 
-            if self.return_intermediate is True:
+            if return_intermediates is True:
                 intermediate.append(output_for_pred)
                 intermediate_reference_points.append(reference_points)
 
-        if self.return_intermediate is True:
+        if return_intermediates is True:
             return torch.stack(intermediate), torch.stack(intermediate_reference_points)
 
-        return output_for_pred.unsqueeze(0), reference_points.unsqueeze(0)
+        return output_for_pred, reference_points
 
 
 class TransformerEncoderLayer(nn.Module):
@@ -467,7 +465,6 @@ class Plain_DETR(DetectionBaseNet):
         hidden_dim = 256
         num_heads = 8
         dropout = 0.0
-        return_intermediate = True
         dim_feedforward: int = self.config.get("dim_feedforward", 2048)
         num_encoder_layers: int = self.config["num_encoder_layers"]
         num_decoder_layers: int = self.config["num_decoder_layers"]
@@ -516,7 +513,6 @@ class Plain_DETR(DetectionBaseNet):
             decoder_layer,
             num_decoder_layers,
             decoder_norm,
-            return_intermediate=return_intermediate,
             d_model=hidden_dim,
         )
 
@@ -578,7 +574,7 @@ class Plain_DETR(DetectionBaseNet):
                 param.requires_grad_(True)
 
     @staticmethod
-    def _get_src_permutation_idx(indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+    def _get_src_permutation_idx(indices: list[tuple[torch.Tensor, torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
         batch_idx = torch.concat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
         src_idx = torch.concat([src for (src, _) in indices])
         return (batch_idx, src_idx)
@@ -587,7 +583,7 @@ class Plain_DETR(DetectionBaseNet):
         self,
         cls_logits: torch.Tensor,
         targets: list[dict[str, torch.Tensor]],
-        indices: list[torch.Tensor],
+        indices: list[tuple[torch.Tensor, torch.Tensor]],
         num_boxes: int,
     ) -> torch.Tensor:
         idx = self._get_src_permutation_idx(indices)
@@ -612,7 +608,7 @@ class Plain_DETR(DetectionBaseNet):
         self,
         box_output: torch.Tensor,
         targets: list[dict[str, torch.Tensor]],
-        indices: list[torch.Tensor],
+        indices: list[tuple[torch.Tensor, torch.Tensor]],
         num_boxes: int,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         idx = self._get_src_permutation_idx(indices)
@@ -699,20 +695,17 @@ class Plain_DETR(DetectionBaseNet):
         return losses
 
     def postprocess_detections(
-        self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_shapes: list[tuple[int, int]]
+        self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_sizes: torch.Tensor
     ) -> list[dict[str, torch.Tensor]]:
         prob = class_logits.sigmoid()
         scores, labels = prob.max(-1)
         labels = labels + 1  # Background offset
 
-        # TorchScript doesn't support creating tensor from tuples, convert everything to lists
-        target_sizes = torch.tensor([list(s) for s in image_shapes], device=class_logits.device)
-
         # Convert to [x0, y0, x1, y1] format
         boxes = box_ops.box_convert(box_regression, in_fmt="cxcywh", out_fmt="xyxy")
 
         # Convert from relative [0, 1] to absolute [0, height] coordinates
-        img_h, img_w = target_sizes.unbind(1)
+        img_h, img_w = image_sizes.unbind(1)
         scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
         boxes = boxes * scale_fct[:, None, :]
 
@@ -737,17 +730,7 @@ class Plain_DETR(DetectionBaseNet):
 
         return detections
 
-    # pylint: disable=too-many-locals
-    def forward(
-        self,
-        x: torch.Tensor,
-        targets: Optional[list[dict[str, torch.Tensor]]] = None,
-        masks: Optional[torch.Tensor] = None,
-        image_sizes: Optional[list[list[int]]] = None,
-    ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
-        self._input_check(targets)
-        images = self._to_img_list(x, image_sizes)
-
+    def forward_net(self, x: torch.Tensor, masks: Optional[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         features: dict[str, torch.Tensor] = self.backbone.detection_features(x)
         src = features[self.backbone.return_stages[-1]]
         src = self.input_proj(src)
@@ -789,25 +772,52 @@ class Plain_DETR(DetectionBaseNet):
             reference_points=reference_points,
             spatial_shape=(H, W),
             memory_key_padding_mask=mask_flatten,
+            return_intermediates=self.training is True,
         )
 
-        outputs_classes = []
-        outputs_coords = []
-        for lvl, (class_embed, bbox_embed) in enumerate(zip(self.class_embed, self.bbox_embed)):
-            outputs_class = class_embed(hs[lvl])
-            outputs_classes.append(outputs_class)
+        if self.training is True:
+            outputs_classes = []
+            outputs_coords = []
+            for lvl, (class_embed, bbox_embed) in enumerate(zip(self.class_embed, self.bbox_embed)):
+                outputs_class = class_embed(hs[lvl])
+                outputs_classes.append(outputs_class)
+
+                if self.box_refine is True:
+                    outputs_coord = inter_references[lvl]
+                else:
+                    tmp = bbox_embed(hs[lvl])
+                    tmp = tmp + inverse_sigmoid(reference_points)
+                    outputs_coord = tmp.sigmoid()
+
+                outputs_coords.append(outputs_coord)
+
+            outputs_class = torch.stack(outputs_classes)
+            outputs_coord = torch.stack(outputs_coords)
+        else:
+            class_embed = self.class_embed[-1]
+            bbox_embed = self.bbox_embed[-1]
+            outputs_class = class_embed(hs)
 
             if self.box_refine is True:
-                outputs_coord = inter_references[lvl]
+                outputs_coord = inter_references
             else:
-                tmp = bbox_embed(hs[lvl])
+                tmp = bbox_embed(hs)
                 tmp = tmp + inverse_sigmoid(reference_points)
                 outputs_coord = tmp.sigmoid()
 
-            outputs_coords.append(outputs_coord)
+        return (outputs_class, outputs_coord)
 
-        outputs_class = torch.stack(outputs_classes)
-        outputs_coord = torch.stack(outputs_coords)
+    def forward(
+        self,
+        x: torch.Tensor,
+        targets: Optional[list[dict[str, torch.Tensor]]] = None,
+        masks: Optional[torch.Tensor] = None,
+        image_sizes: Optional[list[tuple[int, int]]] = None,
+    ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
+        self._input_check(targets)
+        images = self._to_img_list(x, image_sizes)
+
+        outputs_class, outputs_coord = self.forward_net(x, masks)
 
         losses = {}
         detections: list[dict[str, torch.Tensor]] = []
@@ -817,7 +827,8 @@ class Plain_DETR(DetectionBaseNet):
             for idx, target in enumerate(targets):
                 boxes = target["boxes"]
                 boxes = box_ops.box_convert(boxes, in_fmt="xyxy", out_fmt="cxcywh")
-                boxes = boxes / torch.tensor(images.image_sizes[idx][::-1] * 2, dtype=torch.float32, device=x.device)
+                scale = images.image_sizes[idx].flip(0).repeat(2).float()  # flip to [W, H], repeat to [W, H, W, H]
+                boxes = boxes / scale
                 targets[idx]["boxes"] = boxes
                 targets[idx]["labels"] = target["labels"] - 1  # No background
 
@@ -837,7 +848,7 @@ class Plain_DETR(DetectionBaseNet):
             )
 
         else:
-            detections = self.postprocess_detections(outputs_class[-1], outputs_coord[-1], images.image_sizes)
+            detections = self.postprocess_detections(outputs_class, outputs_coord, images.image_sizes)
 
         return (detections, losses)
 

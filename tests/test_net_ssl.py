@@ -189,7 +189,7 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(pred.size(), (masks.count_nonzero().item(), num_clusters))
         self.assertFalse(torch.isnan(pred).any())
 
-    def test_capi_queue(self) -> None:
+    def test_capi_queue(self) -> None:  # pylint: disable=too-many-locals
         batch_size = 4
         size = (192, 192)
         num_clusters = 320
@@ -228,10 +228,29 @@ class TestNetSSL(unittest.TestCase):
         # Simulate a few full steps
         #
 
-        selected_assignments, clustering_loss = teacher(x, None, predict_indices)
-        pred = student(x, ids_keep, predict_indices)
-        selected_assignments, clustering_loss = teacher(x, None, predict_indices)
-        pred = student(x, ids_keep, predict_indices)
+        teacher_logits_list = []
+        for _ in range(3):
+            with torch.no_grad():
+                tokens = teacher.backbone.masked_encoding_omission(x, None)["tokens"]
+                tokens = tokens[:, teacher.backbone.num_special_tokens :, :]
+                head_in = tokens.transpose(0, 1)
+                logits = teacher.head.layer(F.normalize(head_in, dim=-1, p=2, eps=1e-7))
+                teacher_logits_list.append(logits.detach().clone())
+                teacher.head(head_in)
+
+        q = teacher.head.sinkhorn_queue
+        assert q is not None
+
+        # Queue state tracing:
+        # - After iteration 1: positions 0-3 filled, queue_ptr = 4
+        # - After iteration 2: positions 4-7 filled, queue_ptr = 0
+        # - After iteration 3: positions 0-3 filled, queue_ptr = 4
+
+        # Leftover from previous run
+        self.assertTrue(torch.equal(q.queue[:, 4:8, :], teacher_logits_list[-2]))
+
+        # Start of this run
+        self.assertTrue(torch.equal(q.queue[:, :4, :], teacher_logits_list[-1]))
 
         # Teacher
         selected_assignments, clustering_loss = teacher(x, None, predict_indices)
@@ -285,10 +304,20 @@ class TestNetSSL(unittest.TestCase):
         # Simulate a few full steps
         #
 
-        selected_assignments, clustering_loss = teacher(x, None, predict_indices)
-        pred = student(x, ids_keep, predict_indices)
-        selected_assignments, clustering_loss = teacher(x, None, predict_indices)
-        pred = student(x, ids_keep, predict_indices)
+        teacher_logits_list = []
+        for _ in range(3):
+            with torch.no_grad():
+                tokens = teacher.backbone.masked_encoding_omission(x, None)["tokens"]
+                tokens = tokens[:, teacher.backbone.num_special_tokens :, :]
+                head_in = tokens.transpose(0, 1)
+                logits = teacher.head.layer(F.normalize(head_in, dim=-1, p=2, eps=1e-7))
+                teacher_logits_list.append(logits.detach().clone())
+                teacher.head(head_in)
+
+        q = teacher.head.sinkhorn_queue
+        assert q is not None
+        logits_flat = teacher_logits_list[-1].flatten(0, -2)
+        self.assertTrue(torch.equal(q.queue, logits_flat[-q.queue_size :]))
 
         # Teacher
         selected_assignments, clustering_loss = teacher(x, None, predict_indices)
@@ -329,7 +358,15 @@ class TestNetSSL(unittest.TestCase):
 
         # Position-wise with queue
         head = capi.OnlineClustering(
-            16, 32, bias=True, n_sk_iter=3, target_temp=0.06, pred_temp=0.12, position_wise_sk=True, queue_size=4
+            16,
+            32,
+            bias=True,
+            n_sk_iter=3,
+            target_temp=0.06,
+            pred_temp=0.12,
+            position_wise_sk=True,
+            queue_size=4,
+            seq_len=4,
         )
         for _ in range(3):
             x = torch.randn(4, 8, 16)
@@ -1156,9 +1193,19 @@ class TestNetSSL(unittest.TestCase):
         n_global_crops = 2
 
         # Loss
-        dino_loss = franca.DINOLossMRL(student_temp=0.1, nesting_levels=num_nesting_levels, queue_size=10)
+        dino_loss = franca.DINOLossMRL(
+            student_temp=0.1,
+            nesting_levels=num_nesting_levels,
+            queue_size=10,
+            out_dim=dino_out_dim,
+        )
         koleo_loss = dino_v2.KoLeoLoss()
-        ibot_patch_loss = franca.iBOTPatchLossMRL(student_temp=0.1, nesting_levels=num_nesting_levels, queue_size=10)
+        ibot_patch_loss = franca.iBOTPatchLossMRL(
+            student_temp=0.1,
+            nesting_levels=num_nesting_levels,
+            queue_size=10,
+            out_dim=dino_out_dim,
+        )
 
         teacher_embedding_after_head_list = []
         for _ in range(3):
@@ -1275,8 +1322,19 @@ class TestNetSSL(unittest.TestCase):
 
     def test_franca_sk_no_mutation(self) -> None:
         num_nesting_levels = 2
-        dino_loss = franca.DINOLossMRL(student_temp=0.1, nesting_levels=num_nesting_levels, queue_size=10)
-        ibot_patch_loss = franca.iBOTPatchLossMRL(student_temp=0.1, nesting_levels=num_nesting_levels, queue_size=10)
+        out_dim = 256
+        dino_loss = franca.DINOLossMRL(
+            student_temp=0.1,
+            nesting_levels=num_nesting_levels,
+            queue_size=10,
+            out_dim=out_dim,
+        )
+        ibot_patch_loss = franca.iBOTPatchLossMRL(
+            student_temp=0.1,
+            nesting_levels=num_nesting_levels,
+            queue_size=10,
+            out_dim=out_dim,
+        )
 
         # Run a few steps to fill the queue
         for _ in range(3):

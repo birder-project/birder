@@ -36,8 +36,8 @@ from birder.net.vit import adjust_position_embedding
 
 
 def get_resized_mask(target_size: list[int], mask: torch.Tensor) -> torch.Tensor:
-    # target_size: [(T), (H), W]
-    # (spatial) mask: [B, C, (t), (h), w]
+    # target_size: [H, W]
+    # mask: [B, C, H, W]
     if mask is None:
         return mask
 
@@ -48,33 +48,32 @@ def get_resized_mask(target_size: list[int], mask: torch.Tensor) -> torch.Tensor
     return mask
 
 
-def undo_windowing(x: torch.Tensor, shape: tuple[int, int], mu_shape: list[int]) -> torch.Tensor:
+def undo_windowing(x: torch.Tensor, shape: tuple[int, int]) -> torch.Tensor:
     """
-    Restore spatial organization by undoing windowed organization of mask units.
+    Restore spatial organization by undoing windowed organization of mask units
 
     Parameters
     ----------
     x
-        Organized by mask units windows, e.g. in 2d [B, #MUy*#MUx, MUy, MUx, C]
+        Organized by mask units windows, e.g. in 2d [B, #mu_y*#mu_x, mu_y, mu_x, C]
     shape
-        Current spatial shape, if it were not organized into mask unit windows, e.g. in 2d [B, #MUy*MUy, #MUx*MUx, C]
-    mu_shape
-        current mask unit shape, e.g. in 2d [MUy, MUx]
+        Current spatial shape, if it were not organized into mask unit windows,
+        e.g. in 2d [B, #mu_y*mu_y, #mu_x*mu_x, C]
 
     Returns
     -------
-    Tensor with shape of [B, #MUy*MUy, #MUx*MUx, C]
+    Tensor with shape of [B, #mu_y*mu_y, #mu_x*mu_x, C]
     """
 
-    D = len(shape)
-    B, C = x.shape[0], x.shape[-1]
-    # [B, #MUy*#MUx, MUy, MUx, C] -> [B, #MUy, #MUx, MUy, MUx, C]
-    num_mu = [s // mu for s, mu in zip(shape, mu_shape)]
-    x = x.view(B, *num_mu, *mu_shape, C)
+    # [B, #mu_y*#mu_x, mu_y, mu_x, C] -> [B, #mu_y, #mu_x, mu_y, mu_x, C]
+    B, _, mu_y, mu_x, C = x.size()
+    H, W = shape
+    nwy = H // mu_y
+    nwx = W // mu_x
+    x = x.view(B, nwy, nwx, mu_y, mu_x, C)
 
-    # [B, #MUy, #MUx, MUy, MUx, C] -> [B, #MUy*MUy, #MUx*MUx, C]
-    permute = [0] + sum([list(p) for p in zip(range(1, 1 + D), range(1 + D, 1 + 2 * D))], []) + [len(x.shape) - 1]
-    x = x.permute(permute).reshape(B, *shape, C)
+    # [B, #mu_y, #mu_x, mu_y, mu_x, C] -> [B, #mu_y*mu_y, #mu_x*mu_x, C]
+    x = x.permute(0, 1, 3, 2, 4, 5).reshape(B, H, W, C)
 
     return x
 
@@ -121,8 +120,6 @@ class Unroll(nn.Module):
     Note: This means that intermediate values of the model are not in HxW order, so they
     need to be re-rolled if you want to use the intermediate values as a HxW feature map.
     The last block of the network is fine though, since by then the strides are all consumed.
-
-    Modified to only fit 2d due to TorchScript constraints.
     """
 
     def __init__(
@@ -133,33 +130,21 @@ class Unroll(nn.Module):
         self.schedule = unroll_schedule
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Input: flattened patch embeddings [B, N, C]
-        Output: patch embeddings [B, N, C] permuted such that [B, 4, N//4, C].max(1) etc. performs MaxPoolNd
-        """
-
         B, _, C = x.shape
-        cur_size = self.size
-        x = x.view(B, *cur_size, C)
+        H, W = self.size
+        x = x.view(B, H, W, C)
 
-        for strides in self.schedule:
-            # Move patches with the given strides to the batch dimension
+        for sy, sx in self.schedule:
+            h2 = H // sy
+            w2 = W // sx
+            # [B, h2, sy, w2, sx, C] -> [B, sy, sx, h2, w2, C]
+            x = x.view(B, h2, sy, w2, sx, C).permute(0, 2, 4, 1, 3, 5)
 
-            # Create a view of the tensor with the patch stride as separate dims
-            # For example in 2d: [B, H // Sy, Sy, W // Sx, Sx, C]
-            cur_size = (cur_size[0] // strides[0], cur_size[1] // strides[1])
-            new_shape = (B, cur_size[0], strides[0], cur_size[1], strides[1], C)
-            x = x.view(new_shape)
-
-            # Move the patch stride into the batch dimension
-            # For example in 2d: [B, Sy, Sx, H // Sy, W // Sx, C]
-            L = len(new_shape)
-            permute = [0] + list(range(2, L - 1, 2)) + list(range(1, L - 1, 2)) + [L - 1]
-            x = x.permute(permute)
-
-            # Now finally flatten the relevant dims into the batch dimension
-            x = x.flatten(0, len(strides))
-            B *= strides[0] * strides[1]
+            # Flatten sy, sx into batch
+            x = x.reshape(B * sy * sx, h2, w2, C)
+            B = B * sy * sx
+            H = h2
+            W = w2
 
         x = x.reshape(-1, self.size[0] * self.size[1], C)
 
@@ -184,7 +169,7 @@ class Reroll(nn.Module):
 
         # The first stage has to reverse everything
         # The next stage has to reverse all but the first unroll, etc.
-        self.schedule = {}
+        self.schedule: dict[int, tuple[list[tuple[int, int]], tuple[int, int]]] = {}
         size = self.size
         for i in range(stage_ends[-1] + 1):
             self.schedule[i] = (unroll_schedule, size)
@@ -200,43 +185,35 @@ class Reroll(nn.Module):
         Roll the given tensor back up to spatial order assuming it's from the given block.
 
         If no mask is provided:
-            - Returns [B, H, W, C] for 2d, [B, T, H, W, C] for 3d, etc.
+            - Returns [B, H, W, C]
         If a mask is provided:
-            - Returns [B, #MUs, MUy, MUx, C] for 2d, etc.
+            - Returns [B, #MUs, mu_y, mu_x, C]
         """
 
         schedule, size = self.schedule[block_idx]
         B, N, C = x.size()
 
-        D = len(size)
-        cur_mu_shape = [1] * D
+        mu_y = 1
+        mu_x = 1
+        for sy, sx in schedule:
+            x = x.view(B, sy, sx, N // (sy * sx), mu_y, mu_x, C)
 
-        for strides in schedule:
-            # Extract the current patch from N
-            x = x.view(B, *strides, N // math.prod(strides), *cur_mu_shape, C)
+            # -> [B, N//..., Sy, mu_y, Sx, mu_x, C]
+            x = x.permute(0, 3, 1, 4, 2, 5, 6)
 
-            # Move that patch into the current MU
-            # Example in 2d: [B, Sy, Sx, N//(Sy*Sx), MUy, MUx, C] -> [B, N//(Sy*Sx), Sy, MUy, Sx, MUx, C]
-            L = len(x.shape)
-            permute = [0, 1 + D] + sum([list(p) for p in zip(range(1, 1 + D), range(1 + D + 1, L - 1))], []) + [L - 1]
-            x = x.permute(permute)
+            mu_y = mu_y * sy
+            mu_x = mu_x * sx
+            x = x.reshape(B, -1, mu_y, mu_x, C)
+            N = x.size(1)
 
-            # Reshape to [B, N//(Sy*Sx), *MU, C]
-            for i in range(D):
-                cur_mu_shape[i] *= strides[i]
+        x = x.reshape(B, N, mu_y, mu_x, C)
 
-            x = x.reshape(B, -1, *cur_mu_shape, C)
-            N = x.shape[1]
-
-        # Current shape (e.g., 2d: [B, #MUy*#MUx, MUy, MUx, C])
-        x = x.view(B, N, *cur_mu_shape, C)
-
-        # If masked, return [B, #MUs, MUy, MUx, C]
+        # If masked, return [B, #MUs, mu_y, mu_x, C]
         if mask is not None:
             return x
 
         # If not masked, we can return [B, H, W, C]
-        x = undo_windowing(x, size, cur_mu_shape)
+        x = undo_windowing(x, size)
 
         return x
 

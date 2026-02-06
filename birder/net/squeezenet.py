@@ -76,7 +76,7 @@ class SqueezeNet(BaseNet):
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_uniform_(m.weight)
                 if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
+                    nn.init.zeros_(m.bias)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

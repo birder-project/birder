@@ -44,6 +44,7 @@ class DetectionBaseNet(nn.Module):
     block_group_regex: Optional[str]
     auto_register = False
     scriptable = True
+    exportable = True
     task = str(Task.OBJECT_DETECTION)
 
     def __init_subclass__(cls) -> None:
@@ -134,40 +135,62 @@ class DetectionBaseNet(nn.Module):
                         f" Found invalid box {degenerate_bb} for target at index {target_idx}.",
                     )
 
-    # pylint: disable=protected-access
-    def _to_img_list(self, x: torch.Tensor, image_sizes: Optional[list[list[int]]] = None) -> "ImageList":
+    def _to_img_list(self, x: torch.Tensor, image_sizes: Optional[list[tuple[int, int]]] = None) -> "ImageList":
+        B = x.size(0)
         if image_sizes is None:
-            image_sizes = [img.shape[-2:] for img in x]
+            H = x.size(2)
+            W = x.size(3)
+            h_tensor = torch.full((B,), H, dtype=torch.int64, device=x.device)
+            w_tensor = torch.full((B,), W, dtype=torch.int64, device=x.device)
+            image_sizes_tensor = torch.stack([h_tensor, w_tensor], dim=1)
+        else:
+            image_sizes_tensor = torch.tensor(image_sizes, dtype=torch.int64, device=x.device)
 
-        image_sizes_list: list[tuple[int, int]] = []
-        for image_size in image_sizes:
-            torch._assert(
-                len(image_size) == 2,
-                f"Input tensors expected to have in the last two elements H and W, instead got {image_size}",
-            )
-            image_sizes_list.append((image_size[0], image_size[1]))
-
-        return ImageList(x, image_sizes_list)
+        return ImageList(x, image_sizes_tensor)
 
     def forward(
         self,
         x: torch.Tensor,
         targets: Optional[list[dict[str, torch.Tensor]]] = None,
         masks: Optional[torch.Tensor] = None,
-        image_sizes: Optional[list[list[int]]] = None,
+        image_sizes: Optional[list[tuple[int, int]]] = None,
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
         # TypedDict not supported for TorchScript - avoid returning DetectorResultType
         raise NotImplementedError
 
 
 class ImageList:
-    def __init__(self, tensors: torch.Tensor, image_sizes: list[tuple[int, int]]) -> None:
+    def __init__(self, tensors: torch.Tensor, image_sizes: torch.Tensor) -> None:
         self.tensors = tensors
-        self.image_sizes = image_sizes
+        self.image_sizes = image_sizes  # Shape: (B, 2) with [H, W] format
 
     def to(self, device: torch.device) -> "ImageList":
         cast_tensor = self.tensors.to(device)
-        return ImageList(cast_tensor, self.image_sizes)
+        cast_sizes = self.image_sizes.to(device)
+        return ImageList(cast_tensor, cast_sizes)
+
+
+def clip_boxes_to_image(boxes: torch.Tensor, image_size: torch.Tensor) -> torch.Tensor:
+    """
+    Clip boxes to image boundaries
+
+    Parameters
+    ----------
+    boxes
+        Boxes in (x1, y1, x2, y2) format, shape (..., 4)
+    image_size
+        Tensor of [height, width]
+
+    Returns
+    -------
+    Clipped boxes
+    """
+
+    boxes_x = boxes[..., 0::2].clamp(min=0, max=image_size[1])
+    boxes_y = boxes[..., 1::2].clamp(min=0, max=image_size[0])
+    clipped_boxes = torch.stack([boxes_x[..., 0], boxes_y[..., 0], boxes_x[..., 1], boxes_y[..., 1]], dim=-1)
+
+    return clipped_boxes
 
 
 ###############################################################################
@@ -325,7 +348,7 @@ class SimpleFeaturePyramidNetwork(nn.Module):
 
 
 # pylint: disable=protected-access,too-many-locals
-@torch.jit._script_if_tracing  # type: ignore
+@torch.jit._script_if_tracing  # type: ignore[untyped-decorator]
 def encode_boxes(reference_boxes: torch.Tensor, proposals: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
     """
     Encode a set of proposals with respect to some reference boxes
@@ -609,7 +632,7 @@ class Matcher(nn.Module):
 
         if match_quality_matrix.numel() == 0:
             # Empty targets or proposals not supported during training
-            if match_quality_matrix.shape[0] == 0:
+            if match_quality_matrix.size(0) == 0:
                 raise ValueError("No ground-truth boxes available for one of the images during training")
 
             raise ValueError("No proposal boxes available for one of the images during training")

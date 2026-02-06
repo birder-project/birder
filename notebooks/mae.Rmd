@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.19.0
+      jupytext_version: 1.19.1
   kernelspec:
     display_name: birder
     language: python
@@ -58,10 +58,6 @@ size = 224
 
 # network = "mae_vit"
 # encoder = "vit_l16"
-# size = 224
-
-# network = "mae_hiera"
-# encoder = "hiera_abswin_tiny"
 # size = 224
 
 # network = "fcmae"

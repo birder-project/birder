@@ -6,6 +6,11 @@ This section will guide you through the process of setting up Birder on your sys
 
 Birder can be installed either as a package or cloned from Git.
 
+Minimum requirements:
+
+- Python 3.11 or newer
+- PyTorch 2.7 or newer
+
 ### Option 1: Package Installation (Recommended for Users)
 
 1. Set up and activate a virtual environment:
@@ -17,7 +22,7 @@ Birder can be installed either as a package or cloned from Git.
 
         pip install --upgrade pip wheel
 
-1. Install PyTorch 2.7 or above suitable for your hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
+1. Install PyTorch 2.7 or newer suitable for your hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
 
 1. Install the `birder` package
 
@@ -39,7 +44,7 @@ Birder can be installed either as a package or cloned from Git.
 
         pip install --upgrade pip wheel
 
-1. Install PyTorch 2.7 or above suitable for your hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
+1. Install PyTorch 2.7 or newer suitable for your hardware and drivers (see [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
 
         # For CUDA
         pip install --upgrade -r requirements/requirements-pytorch-gpu.txt
@@ -119,7 +124,7 @@ Alternatively, you can load Birder models directly using Torch Hub:
 Notes:
 
 - By default the model will be downloaded into `$TORCH_HOME` and not into the standard Birder directories.
-- Replace all dashes with underscores as Torch Hub define all entry points as functions
+- Replace all dashes with underscores, as Torch Hub defines all entry points as functions
 
 ```python
 import torch

@@ -161,31 +161,6 @@ class TestNetDetection(unittest.TestCase):
                 for key in ["boxes", "labels", "scores"]:
                     self.assertFalse(torch.isnan(detection[key]).any())
 
-    @parameterized.expand(DETECTION_DYNAMIC_SIZE_CASES)  # type: ignore[untyped-decorator]
-    def test_detection_dynamic_size(
-        self,
-        network_name: str,
-        encoder: str,
-        size: tuple[int, int] = (256, 256),
-    ) -> None:
-        backbone = registry.net_factory(encoder, 10, size=size)
-        n = registry.detection_net_factory(network_name, 10, backbone, size=size)
-        n.eval()
-        n.set_dynamic_size()
-
-        detections, losses = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
-        self.assertEqual(len(losses), 0)
-        for detection in detections:
-            for key in ["boxes", "labels", "scores"]:
-                self.assertFalse(torch.isnan(detection[key]).any())
-
-        size = (size[0] + 32, size[1] + 64)
-        detections, losses = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
-        self.assertEqual(len(losses), 0)
-        for detection in detections:
-            for key in ["boxes", "labels", "scores"]:
-                self.assertFalse(torch.isnan(detection[key]).any())
-
     @parameterized.expand(NET_DETECTION_TEST_CASES)  # type: ignore[untyped-decorator]
     @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
     def test_net_detection_backward(
@@ -234,6 +209,48 @@ class TestNetDetection(unittest.TestCase):
             for name, param in n.named_parameters():
                 self.assertIsNone(param.grad, msg=f"{network_name} reparameterize_model set grad for {name}")
                 self.assertIsNone(param.grad_fn, msg=f"{network_name} reparameterize_model tracked grad for {name}")
+
+    @parameterized.expand(NET_DETECTION_TEST_CASES)  # type: ignore[untyped-decorator]
+    @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    def test_net_detection_pt2(
+        self,
+        network_name: str,
+        encoder: str,
+        size: tuple[int, int] = (256, 256),
+    ) -> None:
+        backbone = registry.net_factory(encoder, 10, size=size)
+        n = registry.detection_net_factory(network_name, 10, backbone, size=size, export_mode=True)
+        n.eval()
+
+        if n.exportable is True:
+            # Test PT2
+            with torch.no_grad():
+                torch.export.export(n, (torch.randn(1, DEFAULT_NUM_CHANNELS, *size),))
+
+    @parameterized.expand(DETECTION_DYNAMIC_SIZE_CASES)  # type: ignore[untyped-decorator]
+    def test_detection_dynamic_size(
+        self,
+        network_name: str,
+        encoder: str,
+        size: tuple[int, int] = (256, 256),
+    ) -> None:
+        backbone = registry.net_factory(encoder, 10, size=size)
+        n = registry.detection_net_factory(network_name, 10, backbone, size=size)
+        n.eval()
+        n.set_dynamic_size()
+
+        detections, losses = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+        self.assertEqual(len(losses), 0)
+        for detection in detections:
+            for key in ["boxes", "labels", "scores"]:
+                self.assertFalse(torch.isnan(detection[key]).any())
+
+        size = (size[0] + 32, size[1] + 64)
+        detections, losses = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+        self.assertEqual(len(losses), 0)
+        for detection in detections:
+            for key in ["boxes", "labels", "scores"]:
+                self.assertFalse(torch.isnan(detection[key]).any())
 
     @parameterized.expand(DETECTION_DYNAMIC_SIZE_CASES)  # type: ignore[untyped-decorator]
     @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")

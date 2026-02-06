@@ -81,7 +81,7 @@ python train.py --network resnet_v2_50 \
 
 #### WebDataset Info File
 
-If exists, you can provide a WebDataset info file:
+If available, you can provide a WebDataset info file:
 
 ```sh
 python train.py --network resnet_v2_50 \

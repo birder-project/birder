@@ -373,8 +373,8 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                     nn.init.zeros_(m.bias)
 
             elif isinstance(m, nn.LayerNorm):
+                nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
-                nn.init.constant_(m.weight, 1.0)
 
     def transform_to_backbone(self) -> None:
         self.block2 = nn.Identity()

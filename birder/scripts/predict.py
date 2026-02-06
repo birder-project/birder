@@ -12,6 +12,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import torch
 from torch.utils.data import DataLoader
+from torchvision.datasets.folder import pil_loader  # Slower but handles external dataset quirks better
 
 from birder.common import cli
 from birder.common import fs_ops
@@ -20,6 +21,7 @@ from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import class_to_idx_from_paths
 from birder.data.datasets.directory import make_image_dataset
+from birder.data.datasets.directory import tv_loader
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
@@ -242,6 +244,10 @@ def predict(args: argparse.Namespace) -> None:
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
+    if args.channels_last is True:
+        net = net.to(memory_format=torch.channels_last)
+        logger.debug("Using channels-last memory format")
+
     if args.parallel is True and torch.cuda.device_count() > 1:
         compile_methods = ["embedding"] if args.save_embeddings is True else None
         net = InferenceDataParallel(
@@ -274,6 +280,7 @@ def predict(args: argparse.Namespace) -> None:
             shuffle=args.shuffle,
             samples_names=True,
             transform=inference_transform,
+            img_loader=args.img_loader,
         )
         inference_loader = make_wds_loader(
             dataset,
@@ -287,8 +294,9 @@ def predict(args: argparse.Namespace) -> None:
         )
 
     else:
+        loader = pil_loader if args.img_loader == "pil" else tv_loader
         dataset = make_image_dataset(
-            args.data_path, class_to_idx, transforms=inference_transform, hierarchical=args.hierarchical
+            args.data_path, class_to_idx, transforms=inference_transform, loader=loader, hierarchical=args.hierarchical
         )
         num_samples = len(dataset)
         inference_loader = DataLoader(
@@ -364,6 +372,7 @@ def predict(args: argparse.Namespace) -> None:
         args.save_embeddings,
         args.tta,
         return_logits=args.save_logits,
+        channels_last=args.channels_last,
         model_dtype=model_dtype,
         amp=args.amp,
         amp_dtype=amp_dtype,
@@ -504,6 +513,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pt2", default=False, action="store_true", help="load standardized model")
     parser.add_argument("--st", "--safetensors", default=False, action="store_true", help="load Safetensors weights")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
+    parser.add_argument("--channels-last", default=False, action="store_true", help="use channels-last memory format")
     parser.add_argument(
         "--model-dtype",
         type=str,
@@ -528,6 +538,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--size", type=int, nargs="+", metavar=("H", "W"), help="image size for inference (defaults to model signature)"
     )
     parser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
+    parser.add_argument(
+        "--img-loader", type=str, choices=["tv", "pil"], default="tv", help="backend to load and decode images"
+    )
     parser.add_argument("-j", "--num-workers", type=int, default=8, metavar="N", help="number of preprocessing workers")
     parser.add_argument(
         "--prefetch-factor", type=int, metavar="N", help="number of batches loaded in advance by each worker"

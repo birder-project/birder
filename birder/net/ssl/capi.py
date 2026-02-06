@@ -66,14 +66,20 @@ def sinkhorn_knopp_(M: torch.Tensor, temp: float, n_iterations: int, eps: float 
 
 
 class SinkhornQueue(nn.Module):
-    def __init__(self, queue_size: int, position_wise: bool) -> None:
+    def __init__(self, queue_size: int, position_wise: bool, dim: int, seq_len: Optional[int] = None) -> None:
         super().__init__()
         self.queue_size = queue_size
         self.position_wise = position_wise
         self.active = True
-        self.queue = nn.Buffer(torch.empty(0), persistent=False)
-        self.queue_ptr: int = 0
-        self.queue_full: bool = False
+        if self.position_wise is True:
+            assert seq_len is not None, "seq_len is required when position_wise is True"
+
+            self.queue = nn.Buffer(torch.empty(seq_len, queue_size, dim))
+        else:
+            self.queue = nn.Buffer(torch.empty(queue_size, dim))
+
+        self.queue_ptr = nn.Buffer(torch.zeros(1, dtype=torch.long))
+        self.queue_full = nn.Buffer(torch.zeros(1, dtype=torch.bool))
 
     def set_active(self, active: bool) -> None:
         self.active = active
@@ -81,13 +87,13 @@ class SinkhornQueue(nn.Module):
     def get(self) -> Optional[torch.Tensor]:
         if self.active is False:
             return None
-        if self.queue_full is False:
+        if self.queue_full.item() is False:
             return None
 
         return self.queue
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
-    def forward(self, values: torch.Tensor) -> None:  # pylint: disable=too-many-branches
+    def forward(self, values: torch.Tensor) -> None:
         if self.active is False:
             return
         if values.numel() == 0:
@@ -98,21 +104,16 @@ class SinkhornQueue(nn.Module):
             if values.dim() != 3:
                 raise ValueError("SinkhornQueue in position wise mode expects a 3D tensor")
 
-            seq_len = values.size(0)
             batch_size = values.size(1)
-            dim = values.size(2)
-
-            if self.queue.numel() == 0:
-                self.queue = values.new_empty(seq_len, self.queue_size, dim)
 
             values = values.detach()
             if batch_size >= self.queue_size:
                 self.queue.copy_(values[:, -self.queue_size :, :])
-                self.queue_ptr = 0
-                self.queue_full = True
+                self.queue_ptr.zero_()
+                self.queue_full.fill_(True)
                 return
 
-            ptr = self.queue_ptr
+            ptr = self.queue_ptr.item()
             end = ptr + batch_size
             if end <= self.queue_size:
                 self.queue[:, ptr:end, :].copy_(values)
@@ -121,26 +122,23 @@ class SinkhornQueue(nn.Module):
                 self.queue[:, ptr:, :].copy_(values[:, :first, :])
                 self.queue[:, : end - self.queue_size, :].copy_(values[:, first:, :])
 
-            self.queue_ptr = end % self.queue_size
+            self.queue_ptr.fill_(end % self.queue_size)
             if end >= self.queue_size:
-                self.queue_full = True
+                self.queue_full.fill_(True)
 
         else:
             # values shape: (N, dim) - 2D
             if values.dim() != 2:
                 raise ValueError("SinkhornQueue in non-position wise mode expects a 2D tensor")
 
-            if self.queue.numel() == 0:
-                self.queue = values.new_empty(self.queue_size, values.size(1))
-
             values = values.detach()
             if values.size(0) >= self.queue_size:
                 self.queue.copy_(values[-self.queue_size :])
-                self.queue_ptr = 0
-                self.queue_full = True
+                self.queue_ptr.zero_()
+                self.queue_full.fill_(True)
                 return
 
-            ptr = self.queue_ptr
+            ptr = self.queue_ptr.item()
             end = ptr + values.size(0)
             if end <= self.queue_size:
                 self.queue[ptr:end].copy_(values)
@@ -149,9 +147,9 @@ class SinkhornQueue(nn.Module):
                 self.queue[ptr:].copy_(values[:first])
                 self.queue[: end - self.queue_size].copy_(values[first:])
 
-            self.queue_ptr = end % self.queue_size
+            self.queue_ptr.fill_(end % self.queue_size)
             if end >= self.queue_size:
-                self.queue_full = True
+                self.queue_full.fill_(True)
 
 
 class OnlineClustering(nn.Module):
@@ -166,6 +164,7 @@ class OnlineClustering(nn.Module):
         pred_temp: float,
         position_wise_sk: bool = True,
         queue_size: Optional[int] = None,
+        seq_len: Optional[int] = None,
     ):
         super().__init__()
         self.n_sk_iter = n_sk_iter
@@ -176,7 +175,9 @@ class OnlineClustering(nn.Module):
         if queue_size is None:
             self.sinkhorn_queue = None
         else:
-            self.sinkhorn_queue = SinkhornQueue(queue_size, position_wise=position_wise_sk)
+            self.sinkhorn_queue = SinkhornQueue(
+                queue_size, position_wise=position_wise_sk, dim=out_dim, seq_len=seq_len
+            )
 
         # Weight initialization
         nn.init.normal_(self.layer.weight, std=1.0)
@@ -399,6 +400,11 @@ class CAPITeacher(SSLBaseNet):
         sk_mode: str = self.config["sk_mode"]
         queue_size: Optional[int] = self.config.get("queue_size", None)
 
+        queue_seq_len: Optional[int] = None
+        if sk_mode == "position-wise" and queue_size is not None:
+            input_size = (self.size[0] // self.backbone.max_stride, self.size[1] // self.backbone.max_stride)
+            queue_seq_len = input_size[0] * input_size[1]
+
         self.head = OnlineClustering(
             self.backbone.embedding_size,
             num_clusters,
@@ -408,6 +414,7 @@ class CAPITeacher(SSLBaseNet):
             pred_temp=pred_temp,
             position_wise_sk=sk_mode == "position-wise",
             queue_size=queue_size,
+            seq_len=queue_seq_len,
         )
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ

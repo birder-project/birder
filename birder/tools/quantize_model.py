@@ -9,14 +9,16 @@ from typing import Any
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data import Subset
-from torchvision.datasets import ImageFolder
+from torchvision.datasets.folder import pil_loader
 from tqdm import tqdm
 
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
+from birder.common import training_utils
 from birder.common.lib import get_network_name
 from birder.conf import settings
+from birder.data.datasets.directory import make_image_dataset
 from birder.data.transforms.classification import RGBType
 from birder.data.transforms.classification import inference_preset
 from birder.net.base import SignatureType
@@ -46,17 +48,17 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def _build_quantizer(backend: str) -> Any:
+def _build_quantizer(backend: str, dynamic_quantization: bool) -> Any:
     assert _HAS_TORCHAO, "'pip install torchao' to use quantization"
     if backend == "xnnpack":
         assert _HAS_EXECUTORCH, "'pip install executorch' to use quantization"
         quantizer = XNNPACKQuantizer()
-        quantizer.set_global(get_symmetric_quantization_config())
+        quantizer.set_global(get_symmetric_quantization_config(is_dynamic=dynamic_quantization))
         return quantizer
 
     if backend == "x86":
         quantizer = X86InductorQuantizer()
-        quantizer.set_global(get_default_x86_inductor_quantization_config())
+        quantizer.set_global(get_default_x86_inductor_quantization_config(is_dynamic=dynamic_quantization))
         return quantizer
 
     raise ValueError(f"Unsupported backend: {backend}")
@@ -75,7 +77,7 @@ def _save_pte(
     with open(dst, "wb") as f:
         f.write(executorch_program.buffer)
 
-    with open(f"{dst}_data.json", "w", encoding="utf-8") as handle:
+    with open(f"{dst}_metadata.json", "w", encoding="utf-8") as handle:
         json.dump(
             {
                 "birder_version": __version__,
@@ -97,7 +99,7 @@ def set_parser(subparsers: Any) -> None:
         description="quantize model",
         epilog=(
             "Usage examples:\n"
-            "python -m birder.tools quantize-model -n convnext_v2_tiny -t eu-common\n"
+            "python -m birder.tools quantize-model -n convnext_v2_tiny -t eu-common --dynamic-size\n"
             "python -m birder.tools quantize-model --network densenet_121 -e 100 --num-calibration-batches 256\n"
             "python -m birder.tools quantize-model -n efficientnet_v2_s -e 200 --qbackend xnnpack --batch-size 1\n"
             "python -m birder.tools quantize-model -n hgnet_v2_b4 --qbackend xnnpack --pte\n"
@@ -118,15 +120,20 @@ def set_parser(subparsers: Any) -> None:
         "--qbackend", type=str, choices=["x86", "xnnpack"], default="x86", help="quantization backend"
     )
     subparser.add_argument(
+        "--dynamic-quantization", default=False, action="store_true", help="use dynamic quantization"
+    )
+    subparser.add_argument(
         "--pte", default=False, action="store_true", help="lower quantized model to ExecuTorch PTE format"
     )
     subparser.add_argument("--batch-size", type=int, default=1, metavar="N", help="the batch size")
     subparser.add_argument(
         "--num-calibration-batches",
-        default=256,
+        default=128,
         type=int,
         help="number of batches of training set for observer calibration",
     )
+    subparser.add_argument("--dynamic-size", default=False, action="store_true", help="export with dynamic input H/W")
+    subparser.add_argument("--seed", type=int, help="set random seed for better reproducibility")
     subparser.add_argument(
         "--data-path", type=str, default=str(settings.TRAINING_DATA_PATH), help="training directory path"
     )
@@ -137,6 +144,9 @@ def set_parser(subparsers: Any) -> None:
 def main(args: argparse.Namespace) -> None:
     if args.pte is True and args.qbackend != "xnnpack":
         raise cli.ValidationError("--pte requires --qbackend xnnpack")
+
+    if args.seed is not None:
+        training_utils.set_random_seeds(args.seed)
 
     network_name = get_network_name(args.network, tag=args.tag)
     model_path = fs_ops.model_path(network_name, epoch=args.epoch, quantized=True, pt2=True)
@@ -157,7 +167,9 @@ def main(args: argparse.Namespace) -> None:
     size = lib.get_size_from_signature(signature)
 
     # Set calibration data
-    full_dataset = ImageFolder(args.data_path, transform=inference_preset(size, rgb_stats, 1.0))
+    full_dataset = make_image_dataset(
+        [args.data_path], {}, transforms=inference_preset(size, rgb_stats, 1.0), loader=pil_loader
+    )
     num_calibration_samples = min(
         len(full_dataset),
         args.batch_size * args.num_calibration_batches,
@@ -171,22 +183,25 @@ def main(args: argparse.Namespace) -> None:
 
     # Quantization
     tic = time.time()
-    quantizer = _build_quantizer(args.qbackend)
+    quantizer = _build_quantizer(args.qbackend, args.dynamic_quantization)
     calibration_iter = iter(calibration_data_loader)
 
     first_batch = next(calibration_iter)
-    example_inputs = (first_batch[0].to(device),)
+    example_inputs = (first_batch[1].to(device),)
 
-    # batch_dim = torch.export.Dim("batch", min=1, max=4096)
-    # dynamic_shapes = ({0: batch_dim},)
+    dynamic_shapes = None
+    if args.dynamic_size is True:
+        height_dim = torch.export.Dim.DYNAMIC
+        width_dim = torch.export.Dim.DYNAMIC
+        dynamic_shapes = {"x": {2: height_dim, 3: width_dim}}
 
     with torch.no_grad():
-        exported_net = torch.export.export(net, example_inputs).module()
+        exported_net = torch.export.export(net, example_inputs, dynamic_shapes=dynamic_shapes, strict=True).module()
         prepared_net = prepare_pt2e(exported_net, quantizer)
 
     with tqdm(total=num_calibration_samples, initial=0, unit="images", unit_scale=True, leave=False) as progress:
-        with torch.inference_mode():
-            for inputs, _ in itertools.chain([first_batch], calibration_iter):
+        with torch.no_grad():
+            for _, inputs, _ in itertools.chain([first_batch], calibration_iter):
                 inputs = inputs.to(device)
                 prepared_net(inputs)
 
@@ -195,7 +210,9 @@ def main(args: argparse.Namespace) -> None:
 
     with torch.no_grad():
         quantized_net = convert_pt2e(prepared_net)
-        exported_quantized_net = torch.export.export(quantized_net, example_inputs)
+        exported_quantized_net = torch.export.export(
+            quantized_net, example_inputs, dynamic_shapes=dynamic_shapes, strict=True
+        )
 
     toc = time.time()
     minutes, seconds = divmod(toc - tic, 60)

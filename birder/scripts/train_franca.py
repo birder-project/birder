@@ -277,10 +277,18 @@ def train(args: argparse.Namespace) -> None:
     teacher.load_state_dict(student.state_dict())
     teacher.eval()
 
-    dino_loss = DINOLossMRL(student_temp=0.1, nesting_levels=args.nesting_levels, queue_size=args.sinkhorn_queue_size)
+    dino_loss = DINOLossMRL(
+        student_temp=0.1,
+        nesting_levels=args.nesting_levels,
+        queue_size=args.sinkhorn_queue_size,
+        out_dim=args.dino_out_dim,
+    )
     koleo_loss = KoLeoLoss()
     ibot_patch_loss = iBOTPatchLossMRL(
-        student_temp=0.1, nesting_levels=args.nesting_levels, queue_size=args.sinkhorn_queue_size
+        student_temp=0.1,
+        nesting_levels=args.nesting_levels,
+        queue_size=args.sinkhorn_queue_size,
+        out_dim=args.ibot_out_dim,
     )
 
     net = torch.nn.ModuleDict(

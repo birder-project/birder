@@ -365,7 +365,7 @@ class DETR(DetectionBaseNet):
                 param.requires_grad_(True)
 
     @staticmethod
-    def _get_src_permutation_idx(indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+    def _get_src_permutation_idx(indices: list[tuple[torch.Tensor, torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
         batch_idx = torch.concat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
         src_idx = torch.concat([src for (src, _) in indices])
         return (batch_idx, src_idx)
@@ -374,7 +374,7 @@ class DETR(DetectionBaseNet):
         self,
         cls_logits: torch.Tensor,
         targets: list[dict[str, torch.Tensor]],
-        indices: list[torch.Tensor],
+        indices: list[tuple[torch.Tensor, torch.Tensor]],
     ) -> torch.Tensor:
         idx = self._get_src_permutation_idx(indices)
         target_classes_o = torch.concat([t["labels"][J] for t, (_, J) in zip(targets, indices)], dim=0)
@@ -388,7 +388,7 @@ class DETR(DetectionBaseNet):
         self,
         box_output: torch.Tensor,
         targets: list[dict[str, torch.Tensor]],
-        indices: list[torch.Tensor],
+        indices: list[tuple[torch.Tensor, torch.Tensor]],
         num_boxes: int,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         idx = self._get_src_permutation_idx(indices)
@@ -447,20 +447,17 @@ class DETR(DetectionBaseNet):
         return losses
 
     def postprocess_detections(
-        self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_shapes: list[tuple[int, int]]
+        self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_sizes: torch.Tensor
     ) -> list[dict[str, torch.Tensor]]:
         prob = F.softmax(class_logits, -1)
         scores, labels = prob[..., 1:].max(-1)
         labels = labels + 1
 
-        # TorchScript doesn't support creating tensor from tuples, convert everything to lists
-        target_sizes = torch.tensor([list(s) for s in image_shapes], device=class_logits.device)
-
         # Convert to [x0, y0, x1, y1] format
         boxes = box_ops.box_convert(box_regression, in_fmt="cxcywh", out_fmt="xyxy")
 
         # Convert from relative [0, 1] to absolute [0, height] coordinates
-        img_h, img_w = target_sizes.unbind(1)
+        img_h, img_w = image_sizes.unbind(1)
         scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
         boxes = boxes * scale_fct[:, None, :]
 
@@ -485,16 +482,7 @@ class DETR(DetectionBaseNet):
 
         return detections
 
-    def forward(
-        self,
-        x: torch.Tensor,
-        targets: Optional[list[dict[str, torch.Tensor]]] = None,
-        masks: Optional[torch.Tensor] = None,
-        image_sizes: Optional[list[list[int]]] = None,
-    ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
-        self._input_check(targets)
-        images = self._to_img_list(x, image_sizes)
-
+    def forward_net(self, x: torch.Tensor, masks: Optional[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         features: dict[str, torch.Tensor] = self.backbone.detection_features(x)
         x = features[self.backbone.return_stages[-1]]
         if masks is not None:
@@ -505,6 +493,20 @@ class DETR(DetectionBaseNet):
         outputs_class = self.class_embed(hs)
         outputs_coord = self.bbox_embed(hs).sigmoid()
 
+        return (outputs_class, outputs_coord)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        targets: Optional[list[dict[str, torch.Tensor]]] = None,
+        masks: Optional[torch.Tensor] = None,
+        image_sizes: Optional[list[tuple[int, int]]] = None,
+    ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
+        self._input_check(targets)
+        image_sizes_tensor = self._to_img_list(x, image_sizes).image_sizes
+
+        outputs_class, outputs_coord = self.forward_net(x, masks)
+
         losses = {}
         detections: list[dict[str, torch.Tensor]] = []
         if self.training is True:
@@ -514,13 +516,14 @@ class DETR(DetectionBaseNet):
             for idx, target in enumerate(targets):
                 boxes = target["boxes"]
                 boxes = box_ops.box_convert(boxes, in_fmt="xyxy", out_fmt="cxcywh")
-                boxes = boxes / torch.tensor(images.image_sizes[idx][::-1] * 2, dtype=torch.float32, device=x.device)
+                scale = image_sizes_tensor[idx].flip(0).repeat(2).float()  # flip to [W, H], repeat to [W, H, W, H]
+                boxes = boxes / scale
                 targets[idx]["boxes"] = boxes
 
             losses = self.compute_loss(targets, outputs_class, outputs_coord)
 
         else:
-            detections = self.postprocess_detections(outputs_class[-1], outputs_coord[-1], images.image_sizes)
+            detections = self.postprocess_detections(outputs_class[-1], outputs_coord[-1], image_sizes_tensor)
 
         return (detections, losses)
 

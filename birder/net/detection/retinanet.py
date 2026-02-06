@@ -30,6 +30,7 @@ from birder.net.detection.base import BackboneWithSimpleFPN
 from birder.net.detection.base import BoxCoder
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import Matcher
+from birder.net.detection.base import clip_boxes_to_image
 from birder.ops.soft_nms import SoftNMS
 
 
@@ -281,6 +282,11 @@ class RetinaNet(DetectionBaseNet):
         if soft_nms is True:
             self.soft_nms = SoftNMS()
 
+        self.score_thresh = score_thresh
+        self.nms_thresh = nms_thresh
+        self.detections_per_img = detections_per_img
+        self.topk_candidates = topk_candidates
+
         if feature_pyramid_type == "fpn":
             feature_pyramid: Callable[..., nn.Module] = BackboneWithFPN
             num_anchor_sizes = len(self.backbone.return_stages) + 2
@@ -314,10 +320,8 @@ class RetinaNet(DetectionBaseNet):
         self.proposal_matcher = Matcher(fg_iou_thresh, bg_iou_thresh, allow_low_quality_matches=True)
         self.box_coder = BoxCoder(weights=(1.0, 1.0, 1.0, 1.0))
 
-        self.score_thresh = score_thresh
-        self.nms_thresh = nms_thresh
-        self.detections_per_img = detections_per_img
-        self.topk_candidates = topk_candidates
+        if self.export_mode is False:
+            self.forward = torch.compiler.disable(recursive=False)(self.forward)  # type: ignore[method-assign]
 
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes
@@ -341,10 +345,7 @@ class RetinaNet(DetectionBaseNet):
     @torch.jit.unused  # type: ignore[untyped-decorator]
     @torch.compiler.disable()  # type: ignore[untyped-decorator]
     def compute_loss(
-        self,
-        targets: list[dict[str, torch.Tensor]],
-        head_outputs: dict[str, torch.Tensor],
-        anchors: list[torch.Tensor],
+        self, targets: list[dict[str, torch.Tensor]], head_outputs: dict[str, torch.Tensor], anchors: list[torch.Tensor]
     ) -> dict[str, torch.Tensor]:
         matched_idxs = []
         for idx, (anchors_per_image, targets_per_image) in enumerate(zip(anchors, targets)):
@@ -362,22 +363,19 @@ class RetinaNet(DetectionBaseNet):
 
     # pylint: disable=too-many-locals
     def postprocess_detections(
-        self,
-        head_outputs: dict[str, list[torch.Tensor]],
-        anchors: list[list[torch.Tensor]],
-        image_shapes: list[tuple[int, int]],
+        self, head_outputs: dict[str, list[torch.Tensor]], anchors: list[list[torch.Tensor]], image_sizes: torch.Tensor
     ) -> list[dict[str, torch.Tensor]]:
         class_logits = head_outputs["cls_logits"]
         box_regression = head_outputs["bbox_regression"]
 
-        num_images = len(image_shapes)
+        num_images = image_sizes.size(0)
 
         detections: list[dict[str, torch.Tensor]] = []
         for index in range(num_images):
             box_regression_per_image = [br[index] for br in box_regression]
             logits_per_image = [cl[index] for cl in class_logits]
             anchors_per_image = anchors[index]
-            image_shape = image_shapes[index]
+            image_shape = image_sizes[index]
 
             image_boxes_list = []
             image_scores_list = []
@@ -394,7 +392,7 @@ class RetinaNet(DetectionBaseNet):
                 topk_idxs = torch.where(keep_idxs)[0]
 
                 # Keep only topk scoring predictions
-                num_topk = min(self.topk_candidates, int(topk_idxs.size(0)))
+                num_topk = min(self.topk_candidates, topk_idxs.size(0))
                 scores_per_level, idxs = scores_per_level.topk(num_topk)
                 topk_idxs = topk_idxs[idxs]
 
@@ -405,7 +403,7 @@ class RetinaNet(DetectionBaseNet):
                 boxes_per_level = self.box_coder.decode_single(
                     box_regression_per_level[anchor_idxs], anchors_per_level[anchor_idxs]
                 )
-                boxes_per_level = box_ops.clip_boxes_to_image(boxes_per_level, image_shape)
+                boxes_per_level = clip_boxes_to_image(boxes_per_level, image_shape)
 
                 image_boxes_list.append(boxes_per_level)
                 image_scores_list.append(scores_per_level)
@@ -415,24 +413,40 @@ class RetinaNet(DetectionBaseNet):
             image_scores = torch.concat(image_scores_list, dim=0)
             image_labels = torch.concat(image_labels_list, dim=0)
 
-            # Non-maximum suppression
-            if self.soft_nms is not None:
-                soft_scores, keep = self.soft_nms(image_boxes, image_scores, image_labels, score_threshold=0.001)
-                image_scores[keep] = soft_scores
+            if self.export_mode is False:
+                # Non-maximum suppression
+                if self.soft_nms is not None:
+                    soft_scores, keep = self.soft_nms(image_boxes, image_scores, image_labels, score_threshold=0.001)
+                    image_scores[keep] = soft_scores
+                else:
+                    keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)
+
+                keep = keep[: self.detections_per_img]
+
+                detections.append(
+                    {
+                        "boxes": image_boxes[keep],
+                        "scores": image_scores[keep],
+                        "labels": image_labels[keep],
+                    }
+                )
             else:
-                keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)
-
-            keep = keep[: self.detections_per_img]
-
-            detections.append(
-                {
-                    "boxes": image_boxes[keep],
-                    "scores": image_scores[keep],
-                    "labels": image_labels[keep],
-                }
-            )
+                detections.append(
+                    {
+                        "boxes": image_boxes,
+                        "scores": image_scores,
+                        "labels": image_labels,
+                    }
+                )
 
         return detections
+
+    def forward_net(self, x: torch.Tensor) -> tuple[list[torch.Tensor], dict[str, torch.Tensor]]:
+        features: dict[str, torch.Tensor] = self.backbone_with_fpn(x)
+        feature_list = list(features.values())
+        head_outputs = self.head(feature_list)
+
+        return (feature_list, head_outputs)
 
     # pylint: disable=invalid-name
     def forward(
@@ -440,14 +454,12 @@ class RetinaNet(DetectionBaseNet):
         x: torch.Tensor,
         targets: Optional[list[dict[str, torch.Tensor]]] = None,
         masks: Optional[torch.Tensor] = None,
-        image_sizes: Optional[list[list[int]]] = None,
+        image_sizes: Optional[list[tuple[int, int]]] = None,
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
         self._input_check(targets)
         images = self._to_img_list(x, image_sizes)
 
-        features: dict[str, torch.Tensor] = self.backbone_with_fpn(x)
-        feature_list = list(features.values())
-        head_outputs = self.head(feature_list)
+        feature_list, head_outputs = self.forward_net(x)
         anchors = self.anchor_generator(images, feature_list)
 
         losses: dict[str, torch.Tensor] = {}

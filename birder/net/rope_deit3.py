@@ -223,7 +223,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
                 pt_grid_size=self.pt_grid_size,
             ),
             dim=-1,
-        ).to(self.rope.pos_embed.device)
+        ).to(self.rope.pos_embed.device, dtype=self.rope.pos_embed.dtype)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         H, W = x.shape[-2:]

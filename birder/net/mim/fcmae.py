@@ -74,8 +74,8 @@ class FCMAE(MIMBaseNet):
                     nn.init.zeros_(m.bias)
 
             if isinstance(m, nn.LayerNorm):
-                nn.init.constant_(m.bias, 0)
-                nn.init.constant_(m.weight, 1.0)
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
 
             if hasattr(self, "mask_token") is True:
                 nn.init.normal_(self.mask_token, std=0.02)

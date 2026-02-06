@@ -164,10 +164,11 @@ class MultiScaleDeformableAttention(nn.Module):
         input_spatial_shapes: torch.Tensor,
         input_level_start_index: torch.Tensor,
         input_padding_mask: Optional[torch.Tensor] = None,
+        src_shapes: Optional[list[list[int]]] = None,
     ) -> torch.Tensor:
         N, num_queries, _ = query.size()
         N, sequence_length, _ = input_flatten.size()
-        assert (input_spatial_shapes[:, 0] * input_spatial_shapes[:, 1]).sum() == sequence_length
+        # assert (input_spatial_shapes[:, 0] * input_spatial_shapes[:, 1]).sum() == sequence_length
 
         value = self.value_proj(input_flatten)
         if input_padding_mask is not None:
@@ -208,6 +209,7 @@ class MultiScaleDeformableAttention(nn.Module):
             sampling_locations,
             attention_weights,
             self.im2col_step,
+            src_shapes,
         )
 
         output = self.output_proj(output)
@@ -235,8 +237,9 @@ class DeformableTransformerEncoderLayer(nn.Module):
         spatial_shapes: torch.Tensor,
         level_start_index: torch.Tensor,
         mask: Optional[torch.Tensor],
+        src_shapes: Optional[list[list[int]]] = None,
     ) -> torch.Tensor:
-        src2 = self.self_attn(src + pos, reference_points, src, spatial_shapes, level_start_index, mask)
+        src2 = self.self_attn(src + pos, reference_points, src, spatial_shapes, level_start_index, mask, src_shapes)
         src = src + self.dropout(src2)
         src = self.norm1(src)
 
@@ -277,6 +280,7 @@ class DeformableTransformerDecoderLayer(nn.Module):
         level_start_index: torch.Tensor,
         src_padding_mask: Optional[torch.Tensor],
         self_attn_mask: Optional[torch.Tensor] = None,
+        src_shapes: Optional[list[list[int]]] = None,
     ) -> torch.Tensor:
         # Self attention
         q_k = tgt + query_pos
@@ -290,7 +294,7 @@ class DeformableTransformerDecoderLayer(nn.Module):
 
         # Cross attention
         tgt2 = self.cross_attn(
-            tgt + query_pos, reference_points, src, src_spatial_shapes, level_start_index, src_padding_mask
+            tgt + query_pos, reference_points, src, src_spatial_shapes, level_start_index, src_padding_mask, src_shapes
         )
         tgt = tgt + self.dropout(tgt2)
         tgt = self.norm2(tgt)
@@ -310,17 +314,15 @@ class DeformableTransformerEncoder(nn.Module):
 
     @staticmethod
     def get_reference_points(
-        spatial_shapes: torch.Tensor, valid_ratios: torch.Tensor, device: torch.device
+        src_shapes: list[list[int]], valid_ratios: torch.Tensor, device: torch.device
     ) -> torch.Tensor:
         reference_points_list = []
-        for lvl, spatial_shape in enumerate(spatial_shapes):
-            H = spatial_shape[0]
-            W = spatial_shape[1]
-            ref_y, ref_x = torch.meshgrid(
-                torch.linspace(0.5, H - 0.5, H, dtype=torch.float32, device=device),
-                torch.linspace(0.5, W - 0.5, W, dtype=torch.float32, device=device),
-                indexing="ij",
-            )
+        for lvl, (H, W) in enumerate(src_shapes):
+            # Use arange instead of linspace - works with symbolic sizes
+            # linspace(0.5, H-0.5, H) is equivalent to arange(H) + 0.5
+            ref_y = (torch.arange(H, dtype=torch.float32, device=device) + 0.5).view(-1, 1).expand(-1, W)
+            ref_x = (torch.arange(W, dtype=torch.float32, device=device) + 0.5).view(1, -1).expand(H, -1)
+
             ref_y = ref_y.reshape(-1)[None] / (valid_ratios[:, None, lvl, 1] * H)
             ref_x = ref_x.reshape(-1)[None] / (valid_ratios[:, None, lvl, 0] * W)
             ref = torch.stack((ref_x, ref_y), dim=-1)
@@ -335,15 +337,16 @@ class DeformableTransformerEncoder(nn.Module):
         self,
         src: torch.Tensor,
         spatial_shapes: torch.Tensor,
+        src_shapes: list[list[int]],
         level_start_index: torch.Tensor,
         pos: torch.Tensor,
         valid_ratios: torch.Tensor,
         mask: torch.Tensor,
     ) -> torch.Tensor:
         out = src
-        reference_points = self.get_reference_points(spatial_shapes, valid_ratios, device=src.device)
+        reference_points = self.get_reference_points(src_shapes, valid_ratios, device=src.device)
         for layer in self.layers:
-            out = layer(out, pos, reference_points, spatial_shapes, level_start_index, mask)
+            out = layer(out, pos, reference_points, spatial_shapes, level_start_index, mask, src_shapes)
 
         return out
 
@@ -368,6 +371,7 @@ class DeformableTransformerDecoder(nn.Module):
         query_pos: torch.Tensor,
         src_valid_ratios: torch.Tensor,
         src_padding_mask: torch.Tensor,
+        src_shapes: Optional[list[list[int]]] = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         output = tgt
 
@@ -390,6 +394,7 @@ class DeformableTransformerDecoder(nn.Module):
                 src_spatial_shapes,
                 src_level_start_index,
                 src_padding_mask,
+                src_shapes=src_shapes,
             )
 
             if self.box_refine is True:
@@ -481,10 +486,11 @@ class DeformableTransformer(nn.Module):
         src_list = []
         lvl_pos_embed_list = []
         mask_list = []
-        spatial_shape_list: list[list[int]] = []  # list[tuple[int, int]] not supported on TorchScript
+        src_shapes: list[list[int]] = []  # list[tuple[int, int]] not supported on TorchScript
+
         for lvl, (src, pos_embed, mask) in enumerate(zip(srcs, pos_embeds, masks)):
-            _, _, H, W = src.size()
-            spatial_shape_list.append([H, W])
+            H, W = src.shape[-2], src.shape[-1]
+            src_shapes.append([H, W])
             src = src.flatten(2).transpose(1, 2)
             pos_embed = pos_embed.flatten(2).transpose(1, 2)
             mask = mask.flatten(1)
@@ -496,13 +502,19 @@ class DeformableTransformer(nn.Module):
         src_flatten = torch.concat(src_list, dim=1)
         mask_flatten = torch.concat(mask_list, dim=1)
         lvl_pos_embed_flatten = torch.concat(lvl_pos_embed_list, dim=1)
-        spatial_shapes = torch.as_tensor(spatial_shape_list, dtype=torch.long, device=src_flatten.device)
+        spatial_shapes = torch.tensor(src_shapes, dtype=torch.long, device=src_flatten.device)
         level_start_index = torch.concat((spatial_shapes.new_zeros((1,)), spatial_shapes.prod(1).cumsum(0)[:-1]), dim=0)
         valid_ratios = torch.stack([self.get_valid_ratio(m) for m in masks], dim=1)
 
         # Encoder
         memory = self.encoder(
-            src_flatten, spatial_shapes, level_start_index, lvl_pos_embed_flatten, valid_ratios, mask_flatten
+            src_flatten,
+            spatial_shapes,
+            src_shapes,
+            level_start_index,
+            lvl_pos_embed_flatten,
+            valid_ratios,
+            mask_flatten,
         )
 
         # Prepare input for decoder
@@ -514,7 +526,15 @@ class DeformableTransformer(nn.Module):
 
         # Decoder
         hs, inter_references = self.decoder(
-            tgt, reference_points, memory, spatial_shapes, level_start_index, query_embed, valid_ratios, mask_flatten
+            tgt,
+            reference_points,
+            memory,
+            spatial_shapes,
+            level_start_index,
+            query_embed,
+            valid_ratios,
+            mask_flatten,
+            src_shapes,
         )
 
         return (hs, reference_points, inter_references)
@@ -641,7 +661,7 @@ class Deformable_DETR(DetectionBaseNet):
                 param.requires_grad_(True)
 
     @staticmethod
-    def _get_src_permutation_idx(indices: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+    def _get_src_permutation_idx(indices: list[tuple[torch.Tensor, torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
         batch_idx = torch.concat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
         src_idx = torch.concat([src for (src, _) in indices])
         return (batch_idx, src_idx)
@@ -650,7 +670,7 @@ class Deformable_DETR(DetectionBaseNet):
         self,
         cls_logits: torch.Tensor,
         targets: list[dict[str, torch.Tensor]],
-        indices: list[torch.Tensor],
+        indices: list[tuple[torch.Tensor, torch.Tensor]],
         num_boxes: int,
     ) -> torch.Tensor:
         idx = self._get_src_permutation_idx(indices)
@@ -675,7 +695,7 @@ class Deformable_DETR(DetectionBaseNet):
         self,
         box_output: torch.Tensor,
         targets: list[dict[str, torch.Tensor]],
-        indices: list[torch.Tensor],
+        indices: list[tuple[torch.Tensor, torch.Tensor]],
         num_boxes: int,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         idx = self._get_src_permutation_idx(indices)
@@ -734,7 +754,7 @@ class Deformable_DETR(DetectionBaseNet):
         return losses
 
     def postprocess_detections(
-        self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_shapes: list[tuple[int, int]]
+        self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_sizes: torch.Tensor
     ) -> list[dict[str, torch.Tensor]]:
         prob = class_logits.sigmoid()
         topk_values, topk_indexes = torch.topk(prob.view(class_logits.shape[0], -1), k=100, dim=1)
@@ -743,14 +763,12 @@ class Deformable_DETR(DetectionBaseNet):
         labels = topk_indexes % class_logits.shape[2]
         labels += 1  # Background offset
 
-        target_sizes = torch.tensor(image_shapes, device=class_logits.device)
-
         # Convert to [x0, y0, x1, y1] format
         boxes = box_ops.box_convert(box_regression, in_fmt="cxcywh", out_fmt="xyxy")
         boxes = torch.gather(boxes, 1, topk_boxes.unsqueeze(-1).repeat(1, 1, 4))
 
         # Convert from relative [0, 1] to absolute [0, height] coordinates
-        img_h, img_w = target_sizes.unbind(1)
+        img_h, img_w = image_sizes.unbind(1)
         scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
         boxes = boxes * scale_fct[:, None, :]
 
@@ -776,16 +794,7 @@ class Deformable_DETR(DetectionBaseNet):
         return detections
 
     # pylint: disable=too-many-locals
-    def forward(
-        self,
-        x: torch.Tensor,
-        targets: Optional[list[dict[str, torch.Tensor]]] = None,
-        masks: Optional[torch.Tensor] = None,
-        image_sizes: Optional[list[list[int]]] = None,
-    ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
-        self._input_check(targets)
-        images = self._to_img_list(x, image_sizes)
-
+    def forward_net(self, x: torch.Tensor, masks: Optional[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         features: dict[str, torch.Tensor] = self.backbone.detection_features(x)
         feature_list = list(features.values())
         mask_list = []
@@ -829,6 +838,20 @@ class Deformable_DETR(DetectionBaseNet):
         outputs_class = torch.stack(outputs_classes)
         outputs_coord = torch.stack(outputs_coords)
 
+        return (outputs_class, outputs_coord)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        targets: Optional[list[dict[str, torch.Tensor]]] = None,
+        masks: Optional[torch.Tensor] = None,
+        image_sizes: Optional[list[tuple[int, int]]] = None,
+    ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
+        self._input_check(targets)
+        image_sizes_tensor = self._to_img_list(x, image_sizes).image_sizes
+
+        outputs_class, outputs_coord = self.forward_net(x, masks)
+
         losses = {}
         detections: list[dict[str, torch.Tensor]] = []
         if self.training is True:
@@ -838,14 +861,15 @@ class Deformable_DETR(DetectionBaseNet):
             for idx, target in enumerate(targets):
                 boxes = target["boxes"]
                 boxes = box_ops.box_convert(boxes, in_fmt="xyxy", out_fmt="cxcywh")
-                boxes = boxes / torch.tensor(images.image_sizes[idx][::-1] * 2, dtype=torch.float32, device=x.device)
+                scale = image_sizes_tensor[idx].flip(0).repeat(2).float()  # flip to [W, H], repeat to [W, H, W, H]
+                boxes = boxes / scale
                 targets[idx]["boxes"] = boxes
                 targets[idx]["labels"] = target["labels"] - 1  # No background
 
             losses = self.compute_loss(targets, outputs_class, outputs_coord)
 
         else:
-            detections = self.postprocess_detections(outputs_class[-1], outputs_coord[-1], images.image_sizes)
+            detections = self.postprocess_detections(outputs_class[-1], outputs_coord[-1], image_sizes_tensor)
 
         return (detections, losses)
 

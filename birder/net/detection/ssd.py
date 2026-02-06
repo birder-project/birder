@@ -30,6 +30,7 @@ from birder.net.detection.base import BoxCoder
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import ImageList
 from birder.net.detection.base import Matcher
+from birder.net.detection.base import clip_boxes_to_image
 
 
 class SSDMatcher(Matcher):
@@ -303,6 +304,12 @@ class SSD(DetectionBaseNet):
         topk_candidates = 400
         positive_fraction = 0.25
 
+        self.score_thresh = score_thresh
+        self.nms_thresh = nms_thresh
+        self.detections_per_img = detections_per_img
+        self.topk_candidates = topk_candidates
+        self.neg_to_pos_ratio = (1.0 - positive_fraction) / positive_fraction
+
         self.backbone.return_channels = self.backbone.return_channels[-2:]
         self.backbone.return_stages = self.backbone.return_stages[-2:]
         self.extra_blocks = nn.ModuleList(
@@ -325,11 +332,8 @@ class SSD(DetectionBaseNet):
         self.head = SSDHead(self.backbone.return_channels + [512, 256, 256, 256], num_anchors, self.num_classes)
         self.proposal_matcher = SSDMatcher(iou_thresh)
 
-        self.score_thresh = score_thresh
-        self.nms_thresh = nms_thresh
-        self.detections_per_img = detections_per_img
-        self.topk_candidates = topk_candidates
-        self.neg_to_pos_ratio = (1.0 - positive_fraction) / positive_fraction
+        if self.export_mode is False:
+            self.forward = torch.compiler.disable(recursive=False)(self.forward)  # type: ignore[method-assign]
 
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes + 1
@@ -348,6 +352,8 @@ class SSD(DetectionBaseNet):
                 param.requires_grad_(True)
 
     # pylint: disable=too-many-locals
+    @torch.jit.unused  # type: ignore[untyped-decorator]
+    @torch.compiler.disable()  # type: ignore[untyped-decorator]
     def compute_loss(
         self,
         targets: list[dict[str, torch.Tensor]],
@@ -423,7 +429,7 @@ class SSD(DetectionBaseNet):
         self,
         head_outputs: dict[str, torch.Tensor],
         image_anchors: list[torch.Tensor],
-        image_shapes: list[tuple[int, int]],
+        image_sizes: torch.Tensor,
     ) -> list[dict[str, torch.Tensor]]:
         bbox_regression = head_outputs["bbox_regression"]
         pred_scores = F.softmax(head_outputs["cls_logits"], dim=-1)
@@ -431,11 +437,10 @@ class SSD(DetectionBaseNet):
         num_classes = pred_scores.size(-1)
         device = pred_scores.device
         detections: list[dict[str, torch.Tensor]] = []
-        for boxes, scores, anchors, image_shape in zip(bbox_regression, pred_scores, image_anchors, image_shapes):
+        for boxes, scores, anchors, image_shape in zip(bbox_regression, pred_scores, image_anchors, image_sizes):
             boxes = self.box_coder.decode_single(boxes, anchors)
-            boxes = box_ops.clip_boxes_to_image(boxes, image_shape)
+            boxes = clip_boxes_to_image(boxes, image_shape)
 
-            list_empty = True
             image_boxes_list = []
             image_scores_list = []
             image_labels_list = []
@@ -447,51 +452,62 @@ class SSD(DetectionBaseNet):
                 box = boxes[keep_idxs]
 
                 # Keep only topk scoring predictions
-                num_topk = min(self.topk_candidates, int(score.size(0)))
+                num_topk = min(self.topk_candidates, score.size(0))
                 score, idxs = score.topk(num_topk)
                 box = box[idxs]
-                if len(box) == 0 and list_empty is False:
-                    continue
 
                 image_boxes_list.append(box)
                 image_scores_list.append(score)
                 image_labels_list.append(torch.full_like(score, fill_value=label, dtype=torch.int64, device=device))
-                list_empty = False
 
             image_boxes = torch.concat(image_boxes_list, dim=0)
             image_scores = torch.concat(image_scores_list, dim=0)
             image_labels = torch.concat(image_labels_list, dim=0)
 
-            # Non-maximum suppression
-            keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)
-            keep = keep[: self.detections_per_img]
+            if self.export_mode is False:
+                # Non-maximum suppression
+                keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)
+                keep = keep[: self.detections_per_img]
 
-            detections.append(
-                {
-                    "boxes": image_boxes[keep],
-                    "scores": image_scores[keep],
-                    "labels": image_labels[keep],
-                }
-            )
+                detections.append(
+                    {
+                        "boxes": image_boxes[keep],
+                        "scores": image_scores[keep],
+                        "labels": image_labels[keep],
+                    }
+                )
+            else:
+                detections.append(
+                    {
+                        "boxes": image_boxes,
+                        "scores": image_scores,
+                        "labels": image_labels,
+                    }
+                )
 
         return detections
 
-    def forward(
-        self,
-        x: torch.Tensor,
-        targets: Optional[list[dict[str, torch.Tensor]]] = None,
-        masks: Optional[torch.Tensor] = None,
-        image_sizes: Optional[list[list[int]]] = None,
-    ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
-        self._input_check(targets)
-        images = self._to_img_list(x, image_sizes)
-
+    def forward_net(self, x: torch.Tensor) -> tuple[list[torch.Tensor], dict[str, torch.Tensor]]:
         features = self.backbone.detection_features(x)
         feature_list = list(features.values())
         for extra_block in self.extra_blocks:
             feature_list.append(extra_block(feature_list[-1]))
 
         head_outputs = self.head(feature_list)
+
+        return (feature_list, head_outputs)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        targets: Optional[list[dict[str, torch.Tensor]]] = None,
+        masks: Optional[torch.Tensor] = None,
+        image_sizes: Optional[list[tuple[int, int]]] = None,
+    ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
+        self._input_check(targets)
+        images = self._to_img_list(x, image_sizes)
+
+        feature_list, head_outputs = self.forward_net(x)
         anchors = self.anchor_generator(images, feature_list)
 
         losses = {}

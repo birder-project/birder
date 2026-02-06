@@ -105,6 +105,7 @@ def infer_dataloader_iter(
     return_embedding: bool = False,
     tta: bool = False,
     return_logits: bool = False,
+    channels_last: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
@@ -134,7 +135,10 @@ def infer_dataloader_iter(
             batch_size = inputs.size(0)
 
             # Inference
-            inputs = inputs.to(device, dtype=model_dtype)
+            if channels_last is True:
+                inputs = inputs.to(device, dtype=model_dtype, memory_format=torch.channels_last)
+            else:
+                inputs = inputs.to(device, dtype=model_dtype)
 
             with torch.amp.autocast(device.type, enabled=amp, dtype=amp_dtype):
                 out, embedding = infer_batch(
@@ -181,6 +185,7 @@ def infer_dataloader(
     return_embedding: bool = False,
     tta: bool = False,
     return_logits: bool = False,
+    channels_last: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
@@ -199,6 +204,7 @@ def infer_dataloader(
     return_embedding: bool = False,
     tta: bool = False,
     return_logits: bool = False,
+    channels_last: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
@@ -216,6 +222,7 @@ def infer_dataloader(
     return_embedding: bool = False,
     tta: bool = False,
     return_logits: bool = False,
+    channels_last: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
@@ -249,6 +256,8 @@ def infer_dataloader(
     return_logits
         If True, the raw logits from the model's final layer will be returned
         instead of probabilities after a softmax operation.
+    channels_last
+        If True, convert input batches to channels-last memory format before inference.
     model_dtype
         The base dtype to use.
     amp
@@ -338,6 +347,7 @@ def infer_dataloader(
         return_embedding,
         tta,
         return_logits,
+        channels_last,
         model_dtype,
         amp,
         amp_dtype,
@@ -359,6 +369,7 @@ def evaluate(
     dataloader: DataLoader,
     class_to_idx: dict[str, int],
     tta: bool = False,
+    channels_last: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
@@ -374,6 +385,7 @@ def evaluate(
     dataloader: DataLoader,
     class_to_idx: dict[str, int],
     tta: bool = False,
+    channels_last: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
@@ -388,6 +400,7 @@ def evaluate(
     dataloader: DataLoader,
     class_to_idx: dict[str, int],
     tta: bool = False,
+    channels_last: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
@@ -395,7 +408,15 @@ def evaluate(
     sparse: bool = False,
 ) -> Results | SparseResults:
     sample_paths, outs, labels, _ = infer_dataloader(
-        device, net, dataloader, tta=tta, model_dtype=model_dtype, amp=amp, amp_dtype=amp_dtype, num_samples=num_samples
+        device,
+        net,
+        dataloader,
+        tta=tta,
+        channels_last=channels_last,
+        model_dtype=model_dtype,
+        amp=amp,
+        amp_dtype=amp_dtype,
+        num_samples=num_samples,
     )
     if sparse is True:
         return SparseResults(sample_paths, labels, list(class_to_idx.keys()), outs)

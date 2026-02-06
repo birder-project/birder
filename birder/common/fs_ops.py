@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+from collections.abc import Callable
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,8 @@ from birder.common.lib import get_network_name
 from birder.common.lib import get_pretrained_model_url
 from birder.conf import settings
 from birder.data.transforms.classification import RGBType
+from birder.data.transforms.classification import inference_preset
+from birder.data.transforms.detection import InferenceTransform
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.model_registry.manifest import FileFormatType
@@ -801,7 +804,8 @@ def load_detection_model(
         for param in net.parameters():
             param.requires_grad_(False)
 
-        net.eval()
+        if pt2 is False:  # NOTE: Remove when GraphModule add support for 'eval'
+            net.eval()
 
     if len(backbone_loaded_config) == 0:
         backbone_custom_config = None
@@ -916,6 +920,82 @@ def load_pretrained_model(
         )
 
     raise ValueError(f"Unknown model type: {model_metadata['task']}")
+
+
+def load_pretrained_model_and_transform(
+    weights: str,
+    *,
+    dst: Optional[str | Path] = None,
+    file_format: FileFormatType = "pt",
+    inference: bool = True,
+    device: Optional[torch.device] = None,
+    dtype: Optional[torch.dtype] = None,
+    custom_config: Optional[dict[str, Any]] = None,
+    progress_bar: bool = True,
+    classification_kwargs: Optional[dict[str, Any]] = None,
+    detection_kwargs: Optional[dict[str, Any]] = None,
+) -> tuple[BaseNet | DetectionBaseNet, ModelInfo | DetectionModelInfo, Callable[..., torch.Tensor]]:
+    """
+    Loads a pre-trained model and builds the matching inference transform
+
+    This is a convenience helper for the common inference path where the model and
+    its default preprocessing are needed together. Classification models use
+    inference_preset, detection models use InferenceTransform.
+
+    Parameters
+    ----------
+    weights
+        Name of the pre-trained weights to load from the model registry.
+    dst
+        Destination path where the model weights will be downloaded or loaded from.
+    file_format
+        Model format (e.g. pt, pt2, safetensors, etc.)
+    inference
+        Flag to prepare the model for inference mode.
+    device
+        The device to load the model on (cpu/cuda).
+    dtype
+        Data type for model parameters and computations (e.g., torch.float32, torch.float16).
+    custom_config
+        Additional model configuration that overrides or extends the predefined configuration.
+    progress_bar
+        Whether to display a progress bar during file download.
+    classification_kwargs
+        Optional keyword arguments forwarded to inference_preset.
+    detection_kwargs
+        Optional keyword arguments forwarded to InferenceTransform. If dynamic_size is
+        not provided it defaults to the model signature value.
+
+    Returns
+    -------
+    A tuple containing three elements:
+    - A PyTorch module (neural network model) loaded with pre-trained weights.
+    - Model info containing class mappings, signature, and RGB stats.
+    - An inference transform matching the model task.
+    """
+
+    net, model_info = load_pretrained_model(
+        weights,
+        dst=dst,
+        file_format=file_format,
+        inference=inference,
+        device=device,
+        dtype=dtype,
+        custom_config=custom_config,
+        progress_bar=progress_bar,
+    )
+
+    size = lib.get_size_from_signature(model_info.signature)
+    transform: Callable[..., torch.Tensor]
+    if isinstance(model_info, DetectionModelInfo):
+        detection_args = {} if detection_kwargs is None else dict(detection_kwargs)
+        detection_args.setdefault("dynamic_size", model_info.signature["dynamic"])
+        transform = InferenceTransform(size, model_info.rgb_stats, **detection_args)
+    else:
+        classification_args = {} if classification_kwargs is None else dict(classification_kwargs)
+        transform = inference_preset(size, model_info.rgb_stats, **classification_args)
+
+    return (net, model_info, transform)
 
 
 def load_model_with_cfg(

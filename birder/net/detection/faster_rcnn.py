@@ -27,6 +27,7 @@ from birder.net.detection.base import BoxCoder
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import ImageList
 from birder.net.detection.base import Matcher
+from birder.net.detection.base import clip_boxes_to_image
 
 
 class BalancedPositiveNegativeSampler:
@@ -169,6 +170,24 @@ def concat_box_prediction_layers(
     return (box_cls, box_regression)
 
 
+def _batched_nms_coordinate_trick(
+    boxes: torch.Tensor, scores: torch.Tensor, idxs: torch.Tensor, iou_threshold: float
+) -> torch.Tensor:
+    """
+    Batched NMS using coordinate offset trick (same as torchvision)
+
+    Separates boxes from different classes by adding class-specific offsets,
+    then runs standard NMS on all boxes together.
+    """
+
+    max_coordinate = boxes.max()
+    offsets = idxs.to(boxes) * (max_coordinate + 1)
+    boxes_for_nms = boxes + offsets[:, None]
+    keep = box_ops.nms(boxes_for_nms, scores, iou_threshold)
+
+    return keep
+
+
 class RegionProposalNetwork(nn.Module):
     def __init__(
         self,
@@ -184,6 +203,8 @@ class RegionProposalNetwork(nn.Module):
         post_nms_top_n: dict[str, int],
         nms_thresh: float,
         score_thresh: float = 0.0,
+        # Other
+        export_mode: bool = False,
     ) -> None:
         super().__init__()
         self.anchor_generator = anchor_generator
@@ -206,6 +227,7 @@ class RegionProposalNetwork(nn.Module):
         self.nms_thresh = nms_thresh
         self.score_thresh = score_thresh
         self.min_size = 1e-3
+        self.export_mode = export_mode
 
     def pre_nms_top_n(self) -> int:
         if self.training is True:
@@ -275,7 +297,7 @@ class RegionProposalNetwork(nn.Module):
         self,
         proposals: torch.Tensor,
         objectness: torch.Tensor,
-        image_shapes: list[tuple[int, int]],
+        image_sizes: torch.Tensor,
         num_anchors_per_level: list[int],
     ) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
         num_images = proposals.shape[0]
@@ -305,8 +327,8 @@ class RegionProposalNetwork(nn.Module):
 
         final_boxes = []
         final_scores = []
-        for boxes, scores, lvl, img_shape in zip(proposals, objectness_prob, levels, image_shapes):
-            boxes = box_ops.clip_boxes_to_image(boxes, img_shape)
+        for boxes, scores, lvl, img_shape in zip(proposals, objectness_prob, levels, image_sizes):
+            boxes = clip_boxes_to_image(boxes, img_shape)
 
             # Remove small boxes
             keep = box_ops.remove_small_boxes(boxes, self.min_size)
@@ -317,13 +339,17 @@ class RegionProposalNetwork(nn.Module):
             keep = torch.where(scores >= self.score_thresh)[0]
             boxes, scores, lvl = boxes[keep], scores[keep], lvl[keep]
 
-            # Non-maximum suppression, independently done per level
-            keep = box_ops.batched_nms(boxes, scores, lvl, self.nms_thresh)
+            if self.export_mode is False:
+                # Non-maximum suppression, independently done per level
+                keep = box_ops.batched_nms(boxes, scores, lvl, self.nms_thresh)
 
-            # Keep only topk scoring predictions
-            keep = keep[: self.post_nms_top_n()]
-            boxes, scores = boxes[keep], scores[keep]
+                # Keep only topk scoring predictions
+                keep = keep[: self.post_nms_top_n()]
+            else:
+                keep = _batched_nms_coordinate_trick(boxes, scores, lvl, self.nms_thresh)
 
+            boxes = boxes[keep]
+            scores = scores[keep]
             final_boxes.append(boxes)
             final_scores.append(scores)
 
@@ -531,6 +557,7 @@ class RoIHeads(nn.Module):
         self.score_thresh = score_thresh
         self.nms_thresh = nms_thresh
         self.detections_per_img = detections_per_img
+        self.export_mode = export_mode
 
         if export_mode is False:
             self.forward = torch.compiler.disable(recursive=False)(self.forward)  # type: ignore[method-assign]
@@ -637,7 +664,7 @@ class RoIHeads(nn.Module):
         class_logits: torch.Tensor,
         box_regression: torch.Tensor,
         proposals: list[torch.Tensor],
-        image_shapes: list[tuple[int, int]],
+        image_sizes: torch.Tensor,
     ) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]:
         device = class_logits.device
         num_classes = class_logits.shape[-1]
@@ -653,8 +680,8 @@ class RoIHeads(nn.Module):
         all_boxes = []
         all_scores = []
         all_labels = []
-        for boxes, scores, image_shape in zip(pred_boxes_list, pred_scores_list, image_shapes):
-            boxes = box_ops.clip_boxes_to_image(boxes, image_shape)
+        for boxes, scores, image_shape in zip(pred_boxes_list, pred_scores_list, image_sizes):
+            boxes = clip_boxes_to_image(boxes, image_shape)
 
             # Create labels for each prediction
             labels = torch.arange(num_classes, device=device)
@@ -682,14 +709,15 @@ class RoIHeads(nn.Module):
             scores = scores[keep]
             labels = labels[keep]
 
-            # Non-maximum suppression, independently done per class
-            keep = box_ops.batched_nms(boxes, scores, labels, self.nms_thresh)
+            if self.export_mode is False:
+                # Non-maximum suppression, independently done per class
+                keep = box_ops.batched_nms(boxes, scores, labels, self.nms_thresh)
 
-            # Keep only topk scoring predictions
-            keep = keep[: self.detections_per_img]
-            boxes = boxes[keep]
-            scores = scores[keep]
-            labels = labels[keep]
+                # Keep only topk scoring predictions
+                keep = keep[: self.detections_per_img]
+                boxes = boxes[keep]
+                scores = scores[keep]
+                labels = labels[keep]
 
             all_boxes.append(boxes)
             all_scores.append(scores)
@@ -701,7 +729,7 @@ class RoIHeads(nn.Module):
         self,
         features: dict[str, torch.Tensor],
         proposals: list[torch.Tensor],
-        image_shapes: list[tuple[int, int]],
+        image_sizes: torch.Tensor,
         targets: Optional[list[dict[str, torch.Tensor]]] = None,
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
         if targets is not None:
@@ -719,6 +747,8 @@ class RoIHeads(nn.Module):
             regression_targets = None
             _matched_idxs = None  # noqa: F841
 
+        image_shapes: list[tuple[int, int]] = [(int(s[0]), int(s[1])) for s in image_sizes]  # TorchScript
+
         box_features = self.box_roi_pool(features, proposals, image_shapes)
         box_features = self.box_head(box_features)
         class_logits, box_regression = self.box_predictor(box_features)
@@ -735,7 +765,7 @@ class RoIHeads(nn.Module):
             losses = {"loss_classifier": loss_classifier, "loss_box_reg": loss_box_reg}
 
         else:
-            boxes, scores, labels = self.postprocess_detections(class_logits, box_regression, proposals, image_shapes)
+            boxes, scores, labels = self.postprocess_detections(class_logits, box_regression, proposals, image_sizes)
             num_images = len(boxes)
             for i in range(num_images):
                 result.append(
@@ -753,6 +783,7 @@ class RoIHeads(nn.Module):
 class Faster_RCNN(DetectionBaseNet):
     default_size = (640, 640)
     auto_register = True
+    exportable = False
 
     # pylint: disable=too-many-locals
     def __init__(
@@ -812,6 +843,7 @@ class Faster_RCNN(DetectionBaseNet):
             rpn_post_nms_top_n,
             rpn_nms_thresh,
             score_thresh=rpn_score_thresh,
+            export_mode=self.export_mode,
         )
         box_roi_pool = MultiScaleRoIAlign(
             featmap_names=self.backbone.return_stages,
@@ -862,7 +894,7 @@ class Faster_RCNN(DetectionBaseNet):
         x: torch.Tensor,
         targets: Optional[list[dict[str, torch.Tensor]]] = None,
         masks: Optional[torch.Tensor] = None,
-        image_sizes: Optional[list[list[int]]] = None,
+        image_sizes: Optional[list[tuple[int, int]]] = None,
     ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
         self._input_check(targets)
         images = self._to_img_list(x, image_sizes)
