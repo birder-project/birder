@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.4 - 2026-02-06
+
+### Fixed
+
+- **Release pipeline**: Fixed an issue preventing package publication due to CI configuration mismatch.
+
 ## 0.4.3 - 2026-02-06
 
 ### Added
