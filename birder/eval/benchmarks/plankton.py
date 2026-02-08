@@ -82,12 +82,20 @@ def _load_plankton_metadata(dataset: Plankton) -> pl.DataFrame:
     }
 
     rows: list[dict[str, Any]] = []
+    skipped_no_label = 0
     for split, split_dir in [("train", dataset.train_dir), ("val", dataset.val_dir)]:
         image_dataset = make_image_dataset([str(split_dir)], class_to_idx)
         for i in range(len(image_dataset)):
             path = image_dataset.paths[i].decode("utf-8")
             label = image_dataset.labels[i].item()
+            if label == settings.NO_LABEL:
+                skipped_no_label += 1
+                continue
+
             rows.append({"id": Path(path).stem, "label": label, "split": split})
+
+    if skipped_no_label > 0:
+        logger.info(f"Skipped {skipped_no_label} samples with unknown labels (NO_LABEL)")
 
     return pl.DataFrame(rows)
 
@@ -96,29 +104,31 @@ def _load_embeddings_with_split(
     embeddings_path: str, metadata_df: pl.DataFrame
 ) -> tuple[npt.NDArray[np.float32], npt.NDArray[np.int_], npt.NDArray[np.float32], npt.NDArray[np.int_]]:
     logger.info(f"Loading embeddings from {embeddings_path}")
-    sample_ids, all_features = load_embeddings(embeddings_path)
-    emb_df = pl.DataFrame({"id": sample_ids, "embedding": all_features.tolist()})
+    emb_df = load_embeddings(embeddings_path)
 
-    joined = metadata_df.join(emb_df, on="id", how="inner")
-    if joined.height < metadata_df.height:
-        logger.warning(f"Join dropped {metadata_df.height - joined.height} samples (missing embeddings)")
+    train_meta = metadata_df.filter(pl.col("split") == "train").select(["id", "label"])
+    val_meta = metadata_df.filter(pl.col("split") == "val").select(["id", "label"])
 
-    all_features = np.array(joined.get_column("embedding").to_list(), dtype=np.float32)
-    all_labels = joined.get_column("label").to_numpy().astype(np.int_)
-    splits = joined.get_column("split").to_list()
+    train_join = train_meta.join(emb_df, on="id", how="inner")
+    val_join = val_meta.join(emb_df, on="id", how="inner")
 
-    is_train = np.array([s == "train" for s in splits], dtype=bool)
-    is_val = np.array([s == "val" for s in splits], dtype=bool)
+    dropped_train = train_meta.height - train_join.height
+    dropped_val = val_meta.height - val_join.height
+    dropped_total = dropped_train + dropped_val
+    if dropped_total > 0:
+        logger.warning(
+            f"Join dropped {dropped_total} samples (missing embeddings): train={dropped_train}, val={dropped_val}"
+        )
 
-    num_classes = all_labels.max() + 1
-    logger.info(
-        f"Loaded {all_features.shape[0]} samples with {all_features.shape[1]} dimensions, {num_classes} classes"
-    )
+    x_train = train_join.get_column("embedding").to_numpy().astype(np.float32, copy=False)
+    y_train = train_join.get_column("label").to_numpy().astype(np.int_)
+    x_val = val_join.get_column("embedding").to_numpy().astype(np.float32, copy=False)
+    y_val = val_join.get_column("label").to_numpy().astype(np.int_)
 
-    x_train = all_features[is_train]
-    y_train = all_labels[is_train]
-    x_val = all_features[is_val]
-    y_val = all_labels[is_val]
+    num_classes = y_train.max() + 1
+    total_samples = x_train.shape[0] + x_val.shape[0]
+    embedding_dim = x_train.shape[1]
+    logger.info(f"Loaded {total_samples} samples with {embedding_dim} dimensions, {num_classes} classes")
 
     logger.info(f"Train: {len(y_train)} samples, Val: {len(y_val)} samples")
 
@@ -230,9 +240,9 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--dataset-path", type=str, metavar="PATH", help="path to Plankton dataset root")
     subparser.add_argument("--runs", type=int, default=3, help="number of evaluation runs")
-    subparser.add_argument("--epochs", type=int, default=75, help="training epochs per run")
-    subparser.add_argument("--batch-size", type=int, default=128, help="batch size for training and inference")
-    subparser.add_argument("--lr", type=float, default=1e-4, help="learning rate")
+    subparser.add_argument("--epochs", type=int, default=50, help="training epochs per run")
+    subparser.add_argument("--batch-size", type=int, default=64, help="batch size for training and inference")
+    subparser.add_argument("--lr", type=float, default=2e-3, help="learning rate")
     subparser.add_argument("--seed", type=int, default=0, help="base random seed")
     subparser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
     subparser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use")

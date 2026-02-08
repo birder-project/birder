@@ -127,8 +127,7 @@ def _load_embeddings_with_labels(
     test_classes: list[str],
 ) -> tuple[npt.NDArray[np.float32], npt.NDArray[np.float32], npt.NDArray[np.float32], npt.NDArray[np.float32]]:
     logger.info(f"Loading embeddings from {embeddings_path}")
-    sample_ids, all_features = load_embeddings(embeddings_path)
-    emb_df = pl.DataFrame({"id": sample_ids, "embedding": all_features.tolist()})
+    emb_df = load_embeddings(embeddings_path)
 
     # Join embeddings with metadata
     joined = metadata_df.join(emb_df, on="id", how="inner")
@@ -146,8 +145,8 @@ def _load_embeddings_with_labels(
     test_data = joined.filter(test_mask)
 
     # Extract features
-    x_train = np.array(train_data.get_column("embedding").to_list(), dtype=np.float32)
-    x_test = np.array(test_data.get_column("embedding").to_list(), dtype=np.float32)
+    x_train = train_data.get_column("embedding").to_numpy().astype(np.float32, copy=False)
+    x_test = test_data.get_column("embedding").to_numpy().astype(np.float32, copy=False)
 
     # Get labels from attribute matrix (class-level attributes)
     train_class_indices = [class_to_idx[name] for name in train_data.get_column("class_name").to_list()]

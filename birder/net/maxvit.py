@@ -456,7 +456,6 @@ class MaxViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     ) -> None:
         super().__init__(input_channels, num_classes, config=config, size=size)
         assert self.config is not None, "must set config"
-        assert self.size is not None, "must set size"
 
         image_size = self.size
         squeeze_ratio = 0.25
@@ -469,6 +468,8 @@ class MaxViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         block_layers: list[int] = self.config["block_layers"]
         stem_channels: int = self.config["stem_channels"]
         head_dim: int = self.config["head_dim"]
+        self.head_bias = self.config.get("head_bias", False)
+        self.mlp_head = self.config.get("mlp_head", True)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         # Make sure input size will be divisible by the partition size in all blocks
@@ -613,19 +614,28 @@ class MaxViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         x = self.forward_features(x)
         return self.features(x)
 
-    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
+    def create_classifier(
+        self, embed_dim: Optional[int] = None, head_bias: Optional[bool] = None, mlp_head: Optional[bool] = None
+    ) -> nn.Module:
         if self.num_classes == 0:
             return nn.Identity()
 
         if embed_dim is None:
             embed_dim = self.embedding_size
+        if head_bias is None:
+            head_bias = self.head_bias
+        if mlp_head is None:
+            mlp_head = self.mlp_head
 
-        return nn.Sequential(
-            nn.LayerNorm(embed_dim),
-            nn.Linear(embed_dim, embed_dim),
-            nn.Tanh(),
-            nn.Linear(embed_dim, self.num_classes, bias=False),
-        )
+        if mlp_head is True:
+            return nn.Sequential(
+                nn.LayerNorm(embed_dim),
+                nn.Linear(embed_dim, embed_dim),
+                nn.Tanh(),
+                nn.Linear(embed_dim, self.num_classes, bias=head_bias),
+            )
+
+        return nn.Linear(embed_dim, self.num_classes, bias=head_bias)
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
         assert dynamic_size is False, "Dynamic size not supported for this network"

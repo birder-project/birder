@@ -345,7 +345,7 @@ class MetaFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         norm_layer_names: list[str] = self.config["norm_layer_names"]
         downsample_norm_name: str = self.config["downsample_norm_name"]
         drop_path_rate: float = self.config["drop_path_rate"]
-        use_mlp_head: bool = self.config["use_mlp_head"]
+        mlp_head: bool = self.config["mlp_head"]
         mlp_head_dropout: float = self.config["mlp_head_dropout"]
 
         token_mixers: list[type[nn.Module]] = []
@@ -384,7 +384,7 @@ class MetaFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         else:
             raise ValueError(f"Unknown downsample_norm_name '{downsample_norm_name}'")
 
-        self.use_mlp_head = use_mlp_head
+        self.mlp_head = mlp_head
         self.mlp_head_dropout = mlp_head_dropout
         self.stem = nn.Sequential(
             nn.Conv2d(self.input_channels, dims[0], kernel_size=(7, 7), stride=(4, 4), padding=(2, 2)),
@@ -485,22 +485,28 @@ class MetaFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         x = self.forward_features(x)
         return self.features(x)
 
-    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
+    def create_classifier(
+        self, embed_dim: Optional[int] = None, head_bias: Optional[bool] = None, mlp_head: Optional[bool] = None
+    ) -> nn.Module:
         if self.num_classes == 0:
             return nn.Identity()
 
         if embed_dim is None:
             embed_dim = self.embedding_size
+        if head_bias is None:
+            head_bias = self.head_bias
+        if mlp_head is None:
+            mlp_head = self.mlp_head
 
-        if self.use_mlp_head is False:
-            return nn.Linear(embed_dim, self.num_classes)
+        if mlp_head is False:
+            return nn.Linear(embed_dim, self.num_classes, bias=head_bias)
 
         return nn.Sequential(
             nn.Dropout(self.mlp_head_dropout),
             nn.Linear(embed_dim, 4 * embed_dim),
             SquaredReLU(),
             nn.LayerNorm(4 * embed_dim),
-            nn.Linear(4 * embed_dim, self.num_classes),
+            nn.Linear(4 * embed_dim, self.num_classes, bias=head_bias),
         )
 
 
@@ -519,7 +525,7 @@ registry.register_model_config(
         "norm_layer_names": ["GroupNorm1", "GroupNorm1", "GroupNorm1", "GroupNorm1"],
         "downsample_norm_name": "Identity",
         "drop_path_rate": 0.1,
-        "use_mlp_head": False,
+        "mlp_head": False,
         "mlp_head_dropout": 0.0,
     },
 )
@@ -537,7 +543,7 @@ registry.register_model_config(
         "norm_layer_names": ["GroupNorm1", "GroupNorm1", "GroupNorm1", "GroupNorm1"],
         "downsample_norm_name": "Identity",
         "drop_path_rate": 0.1,
-        "use_mlp_head": False,
+        "mlp_head": False,
         "mlp_head_dropout": 0.0,
     },
 )
@@ -555,7 +561,7 @@ registry.register_model_config(
         "norm_layer_names": ["GroupNorm1", "GroupNorm1", "GroupNorm1", "GroupNorm1"],
         "downsample_norm_name": "Identity",
         "drop_path_rate": 0.2,
-        "use_mlp_head": False,
+        "mlp_head": False,
         "mlp_head_dropout": 0.0,
     },
 )
@@ -573,7 +579,7 @@ registry.register_model_config(
         "norm_layer_names": ["GroupNorm1", "GroupNorm1", "GroupNorm1", "GroupNorm1"],
         "downsample_norm_name": "Identity",
         "drop_path_rate": 0.3,
-        "use_mlp_head": False,
+        "mlp_head": False,
         "mlp_head_dropout": 0.0,
     },
 )
@@ -591,7 +597,7 @@ registry.register_model_config(
         "norm_layer_names": ["GroupNorm1", "GroupNorm1", "GroupNorm1", "GroupNorm1"],
         "downsample_norm_name": "Identity",
         "drop_path_rate": 0.4,
-        "use_mlp_head": False,
+        "mlp_head": False,
         "mlp_head_dropout": 0.0,
     },
 )
@@ -611,7 +617,7 @@ registry.register_model_config(
         "norm_layer_names": ["GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias"],
         "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.1,
-        "use_mlp_head": False,
+        "mlp_head": False,
         "mlp_head_dropout": 0.0,
     },
 )
@@ -629,7 +635,7 @@ registry.register_model_config(
         "norm_layer_names": ["GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias"],
         "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.1,
-        "use_mlp_head": False,
+        "mlp_head": False,
         "mlp_head_dropout": 0.0,
     },
 )
@@ -647,7 +653,7 @@ registry.register_model_config(
         "norm_layer_names": ["GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias"],
         "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.2,
-        "use_mlp_head": False,
+        "mlp_head": False,
         "mlp_head_dropout": 0.0,
     },
 )
@@ -665,7 +671,7 @@ registry.register_model_config(
         "norm_layer_names": ["GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias"],
         "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.3,
-        "use_mlp_head": False,
+        "mlp_head": False,
         "mlp_head_dropout": 0.0,
     },
 )
@@ -683,7 +689,7 @@ registry.register_model_config(
         "norm_layer_names": ["GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias", "GroupNorm1NoBias"],
         "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.4,
-        "use_mlp_head": False,
+        "mlp_head": False,
         "mlp_head_dropout": 0.0,
     },
 )
@@ -703,7 +709,7 @@ registry.register_model_config(
         "norm_layer_names": ["LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias"],
         "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.2,
-        "use_mlp_head": True,
+        "mlp_head": True,
         "mlp_head_dropout": 0.0,
     },
 )
@@ -721,7 +727,7 @@ registry.register_model_config(
         "norm_layer_names": ["LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias"],
         "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.3,
-        "use_mlp_head": True,
+        "mlp_head": True,
         "mlp_head_dropout": 0.0,
     },
 )
@@ -739,7 +745,7 @@ registry.register_model_config(
         "norm_layer_names": ["LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias"],
         "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.4,
-        "use_mlp_head": True,
+        "mlp_head": True,
         "mlp_head_dropout": 0.0,
     },
 )
@@ -757,7 +763,7 @@ registry.register_model_config(
         "norm_layer_names": ["LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias"],
         "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.6,
-        "use_mlp_head": True,
+        "mlp_head": True,
         "mlp_head_dropout": 0.0,
     },
 )
@@ -777,7 +783,7 @@ registry.register_model_config(
         "norm_layer_names": ["LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias"],
         "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.15,
-        "use_mlp_head": True,
+        "mlp_head": True,
         "mlp_head_dropout": 0.0,
     },
 )
@@ -795,7 +801,7 @@ registry.register_model_config(
         "norm_layer_names": ["LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias"],
         "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.3,
-        "use_mlp_head": True,
+        "mlp_head": True,
         "mlp_head_dropout": 0.4,
     },
 )
@@ -813,7 +819,7 @@ registry.register_model_config(
         "norm_layer_names": ["LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias"],
         "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.4,
-        "use_mlp_head": True,
+        "mlp_head": True,
         "mlp_head_dropout": 0.4,
     },
 )
@@ -831,7 +837,7 @@ registry.register_model_config(
         "norm_layer_names": ["LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias", "LayerNorm2dNoBias"],
         "downsample_norm_name": "LayerNorm2dNoBias",
         "drop_path_rate": 0.6,
-        "use_mlp_head": True,
+        "mlp_head": True,
         "mlp_head_dropout": 0.5,
     },
 )

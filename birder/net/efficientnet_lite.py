@@ -203,10 +203,10 @@ class EfficientNet_Lite(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionM
             ),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
+            nn.Dropout(p=dropout_rate, inplace=True),
         )
         self.return_channels = return_channels[1:5]
         self.embedding_size = 1280
-        self.dropout_rate = dropout_rate
         self.classifier = self.create_classifier()
 
         self.stem_stride = 2
@@ -278,18 +278,6 @@ class EfficientNet_Lite(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionM
         x = self.forward_features(x)
         return self.features(x)
 
-    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
-        if self.num_classes == 0:
-            return nn.Identity()
-
-        if embed_dim is None:
-            embed_dim = self.embedding_size
-
-        return nn.Sequential(
-            nn.Dropout(p=self.dropout_rate, inplace=True),
-            nn.Linear(embed_dim, self.num_classes),
-        )
-
 
 registry.register_model_config(
     "efficientnet_lite0",
@@ -325,7 +313,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 15.0,
-                "sha256": "e37102c47b4f3feb0fdf991efff3ada6c7b830cf66dc685d371eaf7ecb75d34c",
+                "sha256": "1444ad28408c4c90564e166712e7feefb9bb2361a556555d62eb5283e7114f85",
             }
         },
         "net": {"network": "efficientnet_lite0", "tag": "il-common"},

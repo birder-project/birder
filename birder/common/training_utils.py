@@ -33,12 +33,13 @@ from birder.data.transforms.classification import training_preset
 from birder.optim import Lamb
 from birder.optim import Lars
 from birder.scheduler import CooldownLR
+from birder.scheduler import ReciprocalSquareRootLR
 from birder.version import __version__ as birder_version
 
 logger = logging.getLogger(__name__)
 
 OptimizerType = Literal["sgd", "rmsprop", "adam", "adamw", "nadam", "nadamw", "lamb", "lambw", "lars"]
-SchedulerType = Literal["constant", "step", "multistep", "cosine", "polynomial"]
+SchedulerType = Literal["constant", "step", "multistep", "cosine", "polynomial", "reciprocal-sqrt"]
 
 ###############################################################################
 # Core Utilities
@@ -773,6 +774,8 @@ def get_scheduler(
         )
     elif args.lr_scheduler == "polynomial":
         main_scheduler = torch.optim.lr_scheduler.PolynomialLR(optimizer, total_iters=main_steps, power=args.lr_power)
+    elif args.lr_scheduler == "reciprocal-sqrt":
+        main_scheduler = ReciprocalSquareRootLR(optimizer)
     else:
         raise ValueError("Unknown learning rate scheduler")
 

@@ -162,6 +162,7 @@ class MobileViT_v1(BaseNet):
         channels_b: list[int] = self.config["channels_b"]
         last_dim: int = self.config["last_dim"]
         expansion: int = self.config["expansion"]
+        self.head_bias = self.config.get("head_bias", False)
 
         self.stem = Conv2dNormActivation(
             self.input_channels,
@@ -248,15 +249,6 @@ class MobileViT_v1(BaseNet):
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.forward_features(x)
         return self.features(x)
-
-    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
-        if self.num_classes == 0:
-            return nn.Identity()
-
-        if embed_dim is None:
-            embed_dim = self.embedding_size
-
-        return nn.Linear(embed_dim, self.num_classes, bias=False)
 
 
 registry.register_model_config(

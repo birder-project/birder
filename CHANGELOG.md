@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.5 - 2026-02-08
+
+### Added
+
+- **Reciprocal Square-Root Scheduler**: Added `reciprocal-sqrt` learning rate scheduler option (`--lr-scheduler reciprocal-sqrt`).
+- **Base MLP Head Option**: Added `mlp_head` config option to `BaseNet` classifiers to enable a MLP classification head (`Linear -> GELU -> LayerNorm -> Linear`) instead of a single linear layer.
+
+### Changed
+
+- **EfficientNet Dropout Consolidation (Breaking)**: Moved dropout from the classifier head into the feature pipeline for EfficientNet Lite, EfficientNet v1 and EfficientNet v2. This changes `state_dict` key names and breaks existing checkpoints.
+- **Pretrained Models**:
+    - **Breaking**: Updated `efficientnet_v2_s_arabian-peninsula`
+
+### Fixed
+
+- **Plankton Benchmark**: Fixed validation accuracy bug in eval benchmarks where unlabeled samples were included during evaluation.
+
 ## 0.4.4 - 2026-02-06
 
 ### Fixed

@@ -182,6 +182,7 @@ class Inception_NeXt(DetectorBackbone):
         num_layers: list[int] = self.config["num_layers"]
         band_kernel_size: int = self.config["band_kernel_size"]
         branch_ratio: float = self.config["branch_ratio"]
+        self.mlp_head = self.config.get("mlp_head", True)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         self.stem = Conv2dNormActivation(
@@ -267,20 +268,6 @@ class Inception_NeXt(DetectorBackbone):
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.forward_features(x)
         return self.features(x)
-
-    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
-        if self.num_classes == 0:
-            return nn.Identity()
-
-        if embed_dim is None:
-            embed_dim = self.embedding_size
-
-        return nn.Sequential(
-            nn.Linear(embed_dim, self.last_mlp_ratio * embed_dim),
-            nn.GELU(),
-            nn.LayerNorm(self.last_mlp_ratio * embed_dim, eps=1e-6),
-            nn.Linear(self.last_mlp_ratio * embed_dim, self.num_classes),
-        )
 
 
 registry.register_model_config(

@@ -291,6 +291,7 @@ class EdgeViT(DetectorBackbone):
         depth: list[int] = self.config["depth"]
         embed_dim: list[int] = self.config["embed_dim"]
         head_dim: int = self.config["head_dim"]
+        self.head_bias = self.config.get("head_bias", False)
         drop_path_rate: float = self.config.get("drop_path_rate", 0.1)
 
         num_stages = len(depth)
@@ -361,15 +362,6 @@ class EdgeViT(DetectorBackbone):
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.forward_features(x)
         return self.features(x)
-
-    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
-        if self.num_classes == 0:
-            return nn.Identity()
-
-        if embed_dim is None:
-            embed_dim = self.embedding_size
-
-        return nn.Linear(embed_dim, self.num_classes, bias=False)
 
 
 registry.register_model_config(

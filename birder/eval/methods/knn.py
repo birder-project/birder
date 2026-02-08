@@ -6,8 +6,8 @@ Uses cosine similarity (dot product of L2-normalized features) with temperature-
 
 import numpy as np
 import numpy.typing as npt
-
-from birder.eval._embeddings import l2_normalize
+import torch
+import torch.nn.functional as F
 
 
 def evaluate_knn(
@@ -17,6 +17,8 @@ def evaluate_knn(
     test_labels: npt.NDArray[np.int_],
     k: int,
     temperature: float = 0.07,
+    device: torch.device = torch.device("cpu"),
+    chunk_size: int = 4096,
 ) -> tuple[npt.NDArray[np.int_], npt.NDArray[np.int_]]:
     """
     Evaluate using K-Nearest Neighbors with cosine similarity and soft voting
@@ -35,6 +37,10 @@ def evaluate_knn(
         Number of nearest neighbors.
     temperature
         Temperature for softmax scaling.
+    device
+        Device to run on.
+    chunk_size
+        Number of test samples to process per chunk.
 
     Returns
     -------
@@ -44,28 +50,35 @@ def evaluate_knn(
         True labels for test samples (same as test_labels).
     """
 
-    # Cosine similarity
-    train_norm = l2_normalize(train_features)
-    test_norm = l2_normalize(test_features)
-    similarities = test_norm @ train_norm.T
+    effective_k = min(k, train_features.shape[0])
 
-    # Get top-k neighbors
-    top_k_indices = np.argsort(-similarities, axis=1)[:, :k]
-    top_k_sims = np.take_along_axis(similarities, top_k_indices, axis=1)
-    top_k_labels = train_labels[top_k_indices]
+    train_tensor = torch.from_numpy(train_features).to(device=device, dtype=torch.float32)
+    train_norm = F.normalize(train_tensor, p=2.0, dim=1, eps=1e-12)
+    train_labels_tensor = torch.from_numpy(train_labels.astype(np.int64, copy=False)).to(
+        device=device, dtype=torch.long
+    )
 
-    # Temperature-scaled softmax voting
-    top_k_sims_scaled = top_k_sims / temperature
-    top_k_sims_scaled = top_k_sims_scaled - top_k_sims_scaled.max(axis=1, keepdims=True)
-    weights = np.exp(top_k_sims_scaled)
-    weights = weights / weights.sum(axis=1, keepdims=True)
+    num_classes = train_labels_tensor.max().item() + 1
+    pred_chunks: list[torch.Tensor] = []
+    with torch.inference_mode():
+        for start in range(0, len(test_features), chunk_size):
+            stop = min(start + chunk_size, len(test_features))
+            test_chunk = torch.from_numpy(test_features[start:stop]).to(device=device, dtype=torch.float32)
+            test_norm = F.normalize(test_chunk, p=2.0, dim=1, eps=1e-12)
 
-    # Weighted voting
-    num_classes = train_labels.max() + 1
-    votes = np.zeros((len(test_features), num_classes), dtype=np.float32)
-    for i in range(k):
-        np.add.at(votes, (np.arange(len(test_features)), top_k_labels[:, i]), weights[:, i])
+            similarities = test_norm @ train_norm.T
+            top_k_sims, top_k_indices = torch.topk(similarities, k=effective_k, dim=1, largest=True, sorted=False)
+            top_k_labels = train_labels_tensor[top_k_indices]
 
-    y_pred = votes.argmax(axis=1).astype(np.int_)
+            weights = torch.softmax(top_k_sims / temperature, dim=1)
+            votes = torch.zeros((test_chunk.size(0), num_classes), dtype=torch.float32, device=device)
+            votes.scatter_add_(1, top_k_labels, weights)
+
+            pred_chunks.append(votes.argmax(dim=1))
+
+    if len(pred_chunks) == 0:
+        y_pred = np.empty((0,), dtype=np.int_)
+    else:
+        y_pred = torch.concat(pred_chunks, dim=0).cpu().numpy().astype(np.int_, copy=False)
 
     return (y_pred, test_labels)

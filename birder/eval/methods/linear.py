@@ -23,8 +23,7 @@ def train_linear_probe(
     device: torch.device,
     epochs: int,
     batch_size: int,
-    lr: float = 1e-4,
-    step_size: int = 20,
+    lr: float = 1e-3,
     seed: int = 0,
 ) -> nn.Linear:
     """
@@ -46,8 +45,6 @@ def train_linear_probe(
         Batch size for training.
     lr
         Learning rate.
-    step_size
-        Number of epochs between learning rate decay steps.
     seed
         Random seed for reproducibility.
 
@@ -70,7 +67,7 @@ def train_linear_probe(
 
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=0.5)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-5)
 
     model.train()
     for epoch in range(epochs):

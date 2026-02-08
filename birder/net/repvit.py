@@ -334,6 +334,8 @@ class RepViT(DetectorBackbone):
     ) -> None:
         super().__init__(input_channels, num_classes, config=config, size=size)
         assert self.config is not None, "must set config"
+        assert "head_bias" not in self.config, "head_bias customization is not supported"
+        assert "mlp_head" not in self.config, "mlp_head customization is not supported"
 
         self.reparameterized = False
         embed_dims: list[int] = self.config["embed_dims"]
@@ -447,7 +449,12 @@ class RepViT(DetectorBackbone):
         x = self.forward_features(x)
         return self.features(x)
 
-    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
+    def create_classifier(
+        self, embed_dim: Optional[int] = None, head_bias: Optional[bool] = None, mlp_head: Optional[bool] = None
+    ) -> nn.Module:
+        assert head_bias is None, "head_bias customization is not supported"
+        assert mlp_head is None, "mlp_head customization is not supported"
+
         if self.num_classes == 0:
             return nn.Identity()
 

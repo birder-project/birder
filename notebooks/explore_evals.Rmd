@@ -1,0 +1,139 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.19.1
+  kernelspec:
+    display_name: birder
+    language: python
+    name: birder
+---
+
+```{python}
+import os
+
+import matplotlib.pyplot as plt
+import numpy as np
+import polars as pl
+import torch
+```
+
+```{python}
+# %cd ..
+```
+
+```{python}
+from birder.datahub.evaluation import AwA2
+from birder.eval._embeddings import load_embeddings
+from birder.eval.benchmarks import awa2
+```
+
+### AwA2
+
+```{python}
+AWA2_DATASET_PATH = "~/Datasets/Animals_with_Attributes2"
+AWA2_EMBEDDINGS_PATH = "results/awa2/awa2_vit_b16_pn_bioclip-v1_512_224px_crop1.0_37322_sc_embeddings.parquet"
+```
+
+```{python}
+device = torch.device("cuda:1")
+
+dataset = AwA2(os.path.expanduser(AWA2_DATASET_PATH))
+metadata_df, attribute_matrix, class_names, train_classes, test_classes = awa2._load_awa2_metadata(dataset)
+x_train, y_train, x_test, y_test = awa2._load_embeddings_with_labels(
+    AWA2_EMBEDDINGS_PATH, metadata_df, attribute_matrix, class_names, train_classes, test_classes
+)
+```
+
+```{python}
+model = awa2.train_mlp(
+    x_train,
+    y_train,
+    num_classes=len(dataset.attribute_names),
+    device=device,
+    epochs=100,
+    batch_size=256,
+    lr=1e-4,
+    hidden_dim=512,
+    dropout=0.5,
+    seed=0,
+)
+y_pred, y_true, _ = awa2.evaluate_mlp(model, x_test, y_test, batch_size=256, device=device)
+```
+
+```{python}
+present_attrs = np.where(y_true.sum(axis=0) > 0)[0]
+sample_ids = load_embeddings(AWA2_EMBEDDINGS_PATH)["id"]
+
+test_meta = (
+    metadata_df.join(pl.DataFrame({"id": sample_ids}), on="id", how="inner")
+    .filter(pl.col("class_name").is_in(test_classes))
+    .with_columns(
+        pl.concat_str(
+            pl.lit(f"{dataset.images_dir}/"),
+            pl.col("class_name"),
+            pl.lit("/"),
+            pl.col("id"),
+            pl.lit(".jpg"),
+        ).alias("image_path")
+    )
+    .select(["class_name", "image_path"])
+)
+
+assert len(test_meta) == y_true.shape[0]
+```
+
+```{python}
+test_rows = test_meta.to_dicts()
+attr_acc = (y_pred == y_true).mean(axis=0)
+mistakes = []
+for attr_idx in present_attrs:
+    mismatch = np.flatnonzero(y_pred[:, attr_idx] != y_true[:, attr_idx])
+    if mismatch.size == 0:
+        continue
+
+    sample_idx = int(np.random.choice(mismatch))
+    row = test_rows[sample_idx]
+    mistakes.append(
+        {
+            "attribute": dataset.attribute_names[attr_idx],
+            "error": "FN" if y_true[sample_idx, attr_idx] else "FP",
+            "accuracy": float(attr_acc[attr_idx]),
+            "class_name": row["class_name"],
+            "image_path": row["image_path"],
+        }
+    )
+
+print(f"Found mistakes for {len(mistakes)}/{len(present_attrs)} present attributes")
+# pl.DataFrame(mistakes).head(10)
+```
+
+```{python}
+def plot_mistakes(rows: list[dict], start: int, n: int, cols: int) -> None:
+    batch = rows[start : start + n]
+    if len(batch) == 0:
+        return
+
+    n_rows = int(np.ceil(len(batch) / cols))
+    fig, axes = plt.subplots(n_rows, cols, figsize=(cols * 2.8, n_rows * 2.8))
+    axes = np.atleast_1d(axes).ravel()
+
+    for ax, row in zip(axes, batch):
+        ax.imshow(plt.imread(row["image_path"]))
+        ax.set_title(f"{row['attribute']} ({row['error']}, acc={row['accuracy']:.1%})\n{row['class_name']}", fontsize=8)
+        ax.axis("off")
+
+    for ax in axes[len(batch) :]:
+        ax.axis("off")
+
+    end = start + len(batch)
+    fig.suptitle(f"One mistake per attribute ({start + 1}-{end} / {len(rows)})", fontsize=12)
+    plt.tight_layout()
+
+
+plot_mistakes(mistakes, start=0, n=20, cols=5)
+```

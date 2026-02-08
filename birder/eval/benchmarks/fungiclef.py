@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 import polars as pl
+import torch
 from rich.console import Console
 from rich.table import Table
 
@@ -72,8 +73,8 @@ def _load_fungiclef_metadata(dataset: FungiCLEF2023) -> pl.DataFrame:
     Load metadata from FungiCLEF2023 CSV files
 
     Returns DataFrame with columns: id (filename stem), label, split (train/val/test).
-    Filters out validation samples with unknown species (class_id == -1).
-    Test samples have label=-1 (no ground truth available) and are excluded from evaluation.
+    Filters out validation samples with unknown species (class_id == settings.NO_LABEL).
+    Test samples have label=settings.NO_LABEL (no ground truth available) and are excluded from evaluation.
     """
 
     train_df = pl.read_csv(dataset.train_metadata_path)
@@ -83,7 +84,7 @@ def _load_fungiclef_metadata(dataset: FungiCLEF2023) -> pl.DataFrame:
     ).select(["id", "class_id", "split"])
 
     val_df = pl.read_csv(dataset.val_metadata_path)
-    val_df = val_df.filter(pl.col("class_id") >= 0)
+    val_df = val_df.filter(pl.col("class_id") != settings.NO_LABEL)
     val_df = val_df.with_columns(
         pl.col("filename").alias("id"),
         pl.lit("val").alias("split"),
@@ -94,7 +95,7 @@ def _load_fungiclef_metadata(dataset: FungiCLEF2023) -> pl.DataFrame:
     test_df = test_df.with_columns(
         pl.col("filename").alias("id"),
         pl.lit("test").alias("split"),
-        pl.lit(-1, dtype=pl.Int64).alias("class_id"),
+        pl.lit(settings.NO_LABEL, dtype=pl.Int64).alias("class_id"),
     ).select(["id", "class_id", "split"])
 
     metadata_df = pl.concat([train_df, val_df, test_df])
@@ -107,34 +108,39 @@ def _load_embeddings_with_split(
     embeddings_path: str, metadata_df: pl.DataFrame
 ) -> tuple[npt.NDArray[np.float32], npt.NDArray[np.int_], npt.NDArray[np.float32], npt.NDArray[np.int_]]:
     logger.info(f"Loading embeddings from {embeddings_path}")
-    sample_ids, all_features = load_embeddings(embeddings_path)
-    emb_df = pl.DataFrame({"id": sample_ids, "embedding": all_features.tolist()})
+    emb_df = load_embeddings(embeddings_path)
 
-    joined = metadata_df.join(emb_df, on="id", how="inner")
-    if joined.height < metadata_df.height:
-        logger.warning(f"Join dropped {metadata_df.height - joined.height} samples (missing embeddings)")
+    train_meta = metadata_df.filter(pl.col("split") == "train").select(["id", "label"])
+    val_meta = metadata_df.filter(pl.col("split") == "val").select(["id", "label"])
+    test_meta = metadata_df.filter(pl.col("split") == "test").select(["id"])
 
-    all_features = np.array(joined.get_column("embedding").to_list(), dtype=np.float32)
-    all_labels = joined.get_column("label").to_numpy().astype(np.int_)
-    splits = joined.get_column("split").to_list()
+    train_join = train_meta.join(emb_df, on="id", how="inner")
+    val_join = val_meta.join(emb_df, on="id", how="inner")
+    test_join = test_meta.join(emb_df, on="id", how="inner")
 
-    is_train = np.array([s == "train" for s in splits], dtype=bool)
-    is_val = np.array([s == "val" for s in splits], dtype=bool)
-    is_test = np.array([s == "test" for s in splits], dtype=bool)
+    dropped_train = train_meta.height - train_join.height
+    dropped_val = val_meta.height - val_join.height
+    dropped_test = test_meta.height - test_join.height
+    dropped_total = dropped_train + dropped_val + dropped_test
+    if dropped_total > 0:
+        logger.warning(
+            f"Join dropped {dropped_total} samples (missing embeddings): "
+            f"train={dropped_train}, val={dropped_val}, test={dropped_test}"
+        )
 
-    num_classes = len(np.unique(all_labels[is_train]))
-    logger.info(
-        f"Loaded {all_features.shape[0]} samples with {all_features.shape[1]} dimensions, {num_classes} classes"
-    )
+    x_train = train_join.get_column("embedding").to_numpy().astype(np.float32, copy=False)
+    y_train = train_join.get_column("label").to_numpy().astype(np.int_)
+    x_val = val_join.get_column("embedding").to_numpy().astype(np.float32, copy=False)
+    y_val = val_join.get_column("label").to_numpy().astype(np.int_)
 
-    x_train = all_features[is_train]
-    y_train = all_labels[is_train]
-    x_val = all_features[is_val]
-    y_val = all_labels[is_val]
+    num_classes = y_train.max() + 1
+    total_samples = x_train.shape[0] + x_val.shape[0] + test_join.height
+    embedding_dim = x_train.shape[1]
+    logger.info(f"Loaded {total_samples} samples with {embedding_dim} dimensions, {num_classes} classes")
 
     logger.info(
         f"Train: {len(y_train)} samples, Val: {len(y_val)} samples, "
-        f"Test: {int(is_test.sum())} samples (no labels, excluded)"
+        f"Test: {test_join.height} samples (no labels, excluded)"
     )
 
     return (x_train, y_train, x_val, y_val)
@@ -148,6 +154,7 @@ def _evaluate_single_k(
     k: int,
     num_runs: int,
     seed: int,
+    device: torch.device,
 ) -> tuple[float, float]:
     logger.info(f"Evaluating k={k} ({k}-shot sampling, KNN k={k})")
 
@@ -160,7 +167,7 @@ def _evaluate_single_k(
         x_train_k, y_train_k = sample_k_shot(x_train, y_train, k, rng)
 
         # Evaluate using KNN with k neighbors
-        y_pred, y_true = evaluate_knn(x_train_k, y_train_k, x_val, y_val, k=k)
+        y_pred, y_true = evaluate_knn(x_train_k, y_train_k, x_val, y_val, k=k, device=device)
 
         acc = float(np.mean(y_pred == y_true))
         scores.append(acc)
@@ -178,6 +185,15 @@ def _evaluate_single_k(
 def evaluate_fungiclef(args: argparse.Namespace) -> None:
     tic = time.time()
 
+    if args.gpu is True:
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+
+    if args.gpu_id is not None:
+        torch.cuda.set_device(args.gpu_id)
+
+    logger.info(f"Using device {device}")
     logger.info(f"Loading FungiCLEF2023 dataset from {args.dataset_path}")
     dataset = FungiCLEF2023(args.dataset_path)
     metadata_df = _load_fungiclef_metadata(dataset)
@@ -192,7 +208,7 @@ def evaluate_fungiclef(args: argparse.Namespace) -> None:
         accuracies: dict[int, float] = {}
         accuracies_std: dict[int, float] = {}
         for k in args.k:
-            mean_acc, std_acc = _evaluate_single_k(x_train, y_train, x_val, y_val, k, args.runs, args.seed)
+            mean_acc, std_acc = _evaluate_single_k(x_train, y_train, x_val, y_val, k, args.runs, args.seed, device)
             accuracies[k] = mean_acc
             accuracies_std[k] = std_acc
 
@@ -229,7 +245,7 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.eval fungiclef --embeddings "
             "results/fungiclef_embeddings.parquet --dataset-path ~/Datasets/FungiCLEF2023 --dry-run\n"
             "python -m birder.eval fungiclef --embeddings results/fungiclef/*.parquet "
-            "--dataset-path ~/Datasets/FungiCLEF2023\n"
+            "--dataset-path ~/Datasets/FungiCLEF2023 --gpu\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -242,6 +258,8 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--runs", type=int, default=5, help="number of evaluation runs")
     subparser.add_argument("--seed", type=int, default=0, help="base random seed")
+    subparser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
+    subparser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use")
     subparser.add_argument(
         "--dir", type=str, default="fungiclef", help="place all outputs in a sub-directory (relative to results)"
     )

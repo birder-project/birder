@@ -68,12 +68,22 @@ class TestMethods(unittest.TestCase):
 
     def test_evaluate_knn_predictions(self) -> None:
         train_features, train_labels, test_features, test_labels = _make_separable_data()
-        y_pred, y_true = evaluate_knn(train_features, train_labels, test_features, test_labels, k=3)
+        y_pred, y_true = evaluate_knn(
+            train_features, train_labels, test_features, test_labels, k=3, device=torch.device("cpu")
+        )
 
         self.assertTrue(np.array_equal(y_true, test_labels))
         self.assertEqual(y_pred.shape, test_labels.shape)
         self.assertTrue(np.isin(y_pred, [0, 1]).all())
         self.assertEqual(float(np.mean(y_pred == y_true)), 1.0)
+
+    def test_evaluate_knn_with_k_larger_than_train_set(self) -> None:
+        train_features, train_labels, test_features, test_labels = _make_separable_data()
+        y_pred, y_true = evaluate_knn(train_features, train_labels, test_features, test_labels, k=100)
+
+        self.assertTrue(np.array_equal(y_true, test_labels))
+        self.assertEqual(y_pred.shape, test_labels.shape)
+        self.assertTrue(np.isin(y_pred, [0, 1]).all())
 
     def test_mlp_probe_predictions(self) -> None:
         rng = np.random.default_rng(0)

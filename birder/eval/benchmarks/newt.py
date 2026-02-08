@@ -24,12 +24,15 @@ from birder.common import cli
 from birder.common import lib
 from birder.conf import settings
 from birder.datahub.evaluation import NeWT
-from birder.eval._embeddings import l2_normalize
+from birder.eval._embeddings import l2_normalize_
 from birder.eval._embeddings import load_embeddings
 from birder.eval.methods.simpleshot import normalize_features
 from birder.eval.methods.svm import evaluate_svm
 
 logger = logging.getLogger(__name__)
+
+NeWTTaskData = tuple[str, npt.NDArray[np.float32], npt.NDArray[np.int_], npt.NDArray[np.float32], npt.NDArray[np.int_]]
+NeWTPredictionsByCluster = dict[str, list[npt.NDArray[np.int_]]]
 
 
 def _print_summary_table(results: list[dict[str, Any]]) -> None:
@@ -81,83 +84,95 @@ def _write_results_csv(results: list[dict[str, Any]], output_path: Path) -> None
     logger.info(f"Results saved to {output_path}")
 
 
-# pylint: disable=too-many-locals
-def evaluate_newt_single(embeddings_path: str, labels_df: pl.DataFrame, args: argparse.Namespace) -> dict[str, Any]:
+def _prepare_newt_task_data(embeddings_path: str, labels_df: pl.DataFrame) -> list[NeWTTaskData]:
     logger.info(f"Loading embeddings from {embeddings_path}")
-    sample_ids, all_features = load_embeddings(embeddings_path)
-    emb_df = pl.DataFrame({"id": sample_ids, "embedding": all_features.tolist()})
+    emb_df = load_embeddings(embeddings_path)
 
     joined = labels_df.join(emb_df, on="id", how="inner").sort("index")
     if joined.height < labels_df.height:
         logger.warning(f"Join dropped {labels_df.height - joined.height} samples (missing embeddings)")
 
-    all_features = np.array(joined.get_column("embedding").to_list(), dtype=np.float32)
+    all_features = joined.get_column("embedding").to_numpy().astype(np.float32, copy=False)
     logger.info(f"Loaded {all_features.shape[0]} samples with {all_features.shape[1]} dimensions")
 
     # Global L2 normalization
-    all_features = l2_normalize(all_features)
-    joined = joined.with_columns(pl.Series("embedding", all_features.tolist()))
+    l2_normalize_(all_features)
+    all_labels = joined.get_column("label").to_numpy().astype(np.int_)
+    all_splits = joined.get_column("split").to_numpy()
+    all_tasks = joined.get_column("task").to_numpy()
+    all_clusters = joined.get_column("task_cluster").to_numpy()
 
-    tasks = joined.get_column("task").unique().to_list()
-    logger.info(f"Found {len(tasks)} tasks")
+    task_names = np.unique(all_tasks)
+    logger.info(f"Found {len(task_names)} tasks")
+
+    task_data: list[NeWTTaskData] = []
+    for task_name in task_names:
+        task_mask = all_tasks == task_name
+        task_features = all_features[task_mask]
+        task_labels = all_labels[task_mask]
+        is_train = all_splits[task_mask] == "train"
+        cluster = str(all_clusters[task_mask][0])
+
+        x_train = task_features[is_train]
+        y_train = task_labels[is_train]
+        x_test = task_features[~is_train]
+        y_test = task_labels[~is_train]
+
+        if x_train.size == 0 or x_test.size == 0:
+            logger.warning(f"Skipping task {task_name}: empty train or test split")
+            continue
+
+        # Per-task centering and L2 normalization
+        x_train, x_test = normalize_features(x_train, x_test)
+        task_data.append((cluster, x_train, y_train, x_test, y_test))
+
+    return task_data
+
+
+def _predict_newt(
+    task_data: list[NeWTTaskData], n_iter: int, n_jobs: int, seed: int
+) -> tuple[list[npt.NDArray[np.int_]], list[npt.NDArray[np.int_]], NeWTPredictionsByCluster, NeWTPredictionsByCluster]:
+    y_preds_all: list[npt.NDArray[np.int_]] = []
+    y_trues_all: list[npt.NDArray[np.int_]] = []
+    cluster_preds: NeWTPredictionsByCluster = {}
+    cluster_trues: NeWTPredictionsByCluster = {}
+
+    for cluster, x_train, y_train, x_test, y_test in task_data:
+        y_pred, y_true = evaluate_svm(x_train, y_train, x_test, y_test, n_iter=n_iter, n_jobs=n_jobs, seed=seed)
+        y_preds_all.append(y_pred)
+        y_trues_all.append(y_true)
+
+        if cluster not in cluster_preds:
+            cluster_preds[cluster] = []
+            cluster_trues[cluster] = []
+
+        cluster_preds[cluster].append(y_pred)
+        cluster_trues[cluster].append(y_true)
+
+    return (y_preds_all, y_trues_all, cluster_preds, cluster_trues)
+
+
+# pylint: disable=too-many-locals
+def evaluate_newt_single(
+    embeddings_path: str, labels_df: pl.DataFrame, runs: int, n_iter: int, n_jobs: int, seed: int
+) -> dict[str, Any]:
+    task_data = _prepare_newt_task_data(embeddings_path, labels_df)
 
     scores: list[float] = []
     cluster_scores: dict[str, list[float]] = {}
-    for run in range(args.runs):
-        run_seed = args.seed + run
+    for run in range(runs):
+        run_seed = seed + run
 
-        y_preds_all: list[npt.NDArray[np.int_]] = []
-        y_trues_all: list[npt.NDArray[np.int_]] = []
-        cluster_preds: dict[str, list[npt.NDArray[np.int_]]] = {}
-        cluster_trues: dict[str, list[npt.NDArray[np.int_]]] = {}
-        for task_name in tasks:
-            tdf = joined.filter(pl.col("task") == task_name)
-
-            features = np.array(tdf.get_column("embedding").to_list(), dtype=np.float32)
-
-            labels = tdf.get_column("label").to_numpy()
-            is_train = (tdf.get_column("split") == "train").to_numpy()
-            cluster = tdf.item(0, "task_cluster")
-
-            x_train = features[is_train]
-            y_train = labels[is_train]
-            x_test = features[~is_train]
-            y_test = labels[~is_train]
-
-            if x_train.size == 0 or x_test.size == 0:
-                logger.warning(f"Skipping task {task_name}: empty train or test split")
-                continue
-
-            # Per-task centering and L2 normalization
-            x_train, x_test = normalize_features(x_train, x_test)
-
-            # Train and evaluate SVM
-            y_pred, y_true = evaluate_svm(
-                x_train,
-                y_train,
-                x_test,
-                y_test,
-                n_iter=args.n_iter,
-                n_jobs=args.n_jobs,
-                seed=run_seed,
-            )
-
-            y_preds_all.append(y_pred)
-            y_trues_all.append(y_true)
-
-            # Track per-cluster predictions
-            if cluster not in cluster_preds:
-                cluster_preds[cluster] = []
-                cluster_trues[cluster] = []
-            cluster_preds[cluster].append(y_pred)
-            cluster_trues[cluster].append(y_true)
+        y_preds_all, y_trues_all, cluster_preds, cluster_trues = _predict_newt(
+            task_data, n_iter=n_iter, n_jobs=n_jobs, seed=run_seed
+        )
 
         # Micro-averaged accuracy
         y_preds = np.concatenate(y_preds_all)
         y_trues = np.concatenate(y_trues_all)
         acc = float(np.mean(y_preds == y_trues))
         scores.append(acc)
-        logger.info(f"Run {run + 1}/{args.runs} - Accuracy: {acc:.4f}")
+        logger.info(f"Run {run + 1}/{runs} - Accuracy: {acc:.4f}")
 
         # Compute per-cluster accuracy for this run
         for cluster, preds_list in cluster_preds.items():
@@ -166,6 +181,7 @@ def evaluate_newt_single(embeddings_path: str, labels_df: pl.DataFrame, args: ar
             cluster_acc = float(np.mean(preds == trues))
             if cluster not in cluster_scores:
                 cluster_scores[cluster] = []
+
             cluster_scores[cluster].append(cluster_acc)
 
     # Average per-cluster accuracy across runs
@@ -177,7 +193,7 @@ def evaluate_newt_single(embeddings_path: str, labels_df: pl.DataFrame, args: ar
     mean_acc = float(scores_arr.mean())
     std_acc = float(scores_arr.std(ddof=1)) if len(scores) > 1 else 0.0
 
-    logger.info(f"Mean accuracy over {args.runs} runs: {mean_acc:.4f} +/- {std_acc:.4f} (std)")
+    logger.info(f"Mean accuracy over {runs} runs: {mean_acc:.4f} +/- {std_acc:.4f} (std)")
     for cluster, acc in sorted(per_cluster_accuracy.items()):
         logger.info(f"  {cluster}: {acc:.4f}")
 
@@ -185,7 +201,7 @@ def evaluate_newt_single(embeddings_path: str, labels_df: pl.DataFrame, args: ar
         "method": "svm",
         "accuracy": mean_acc,
         "accuracy_std": std_acc,
-        "num_runs": args.runs,
+        "num_runs": runs,
         "per_cluster_accuracy": per_cluster_accuracy,
         "embeddings_file": str(embeddings_path),
     }
@@ -204,7 +220,9 @@ def evaluate_newt(args: argparse.Namespace) -> None:
     total = len(args.embeddings)
     for idx, embeddings_path in enumerate(args.embeddings, start=1):
         logger.info(f"Processing embeddings {idx}/{total}: {embeddings_path}")
-        result = evaluate_newt_single(embeddings_path, labels_df, args)
+        result = evaluate_newt_single(
+            embeddings_path, labels_df, runs=args.runs, n_iter=args.n_iter, n_jobs=args.n_jobs, seed=args.seed
+        )
         results.append(result)
 
     _print_summary_table(results)

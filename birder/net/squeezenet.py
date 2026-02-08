@@ -85,7 +85,12 @@ class SqueezeNet(BaseNet):
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         return self.forward_features(x)
 
-    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
+    def create_classifier(
+        self, embed_dim: Optional[int] = None, head_bias: Optional[bool] = None, mlp_head: Optional[bool] = None
+    ) -> nn.Module:
+        assert head_bias is None, "head_bias customization is not supported"
+        assert mlp_head is None, "mlp_head customization is not supported"
+
         if self.num_classes == 0:
             return nn.Identity()
 

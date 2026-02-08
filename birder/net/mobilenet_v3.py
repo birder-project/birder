@@ -130,6 +130,7 @@ class MobileNet_v3(DetectorBackbone):
 
         alpha: float = self.config["alpha"]
         large: bool = self.config["large"]
+        self.mlp_head = self.config.get("mlp_head", True)
 
         if large is True:
             last_channels = int(round(1280 * max(1.0, alpha)))
@@ -256,19 +257,28 @@ class MobileNet_v3(DetectorBackbone):
         x = self.forward_features(x)
         return self.features(x)
 
-    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
+    def create_classifier(
+        self, embed_dim: Optional[int] = None, head_bias: Optional[bool] = None, mlp_head: Optional[bool] = None
+    ) -> nn.Module:
         if self.num_classes == 0:
             return nn.Identity()
 
         if embed_dim is None:
             embed_dim = self.embedding_size
+        if head_bias is None:
+            head_bias = self.head_bias
+        if mlp_head is None:
+            mlp_head = self.mlp_head
 
-        return nn.Sequential(
-            nn.Linear(embed_dim, self.last_channels),
-            nn.Hardswish(inplace=True),
-            nn.Dropout(p=0.2, inplace=True),
-            nn.Linear(self.last_channels, self.num_classes),
-        )
+        if mlp_head is True:
+            return nn.Sequential(
+                nn.Linear(embed_dim, self.last_channels),
+                nn.Hardswish(inplace=True),
+                nn.Dropout(p=0.2, inplace=True),
+                nn.Linear(self.last_channels, self.num_classes, bias=head_bias),
+            )
+
+        return nn.Linear(embed_dim, self.num_classes, bias=head_bias)
 
 
 registry.register_model_config("mobilenet_v3_small_0_25", MobileNet_v3, config={"alpha": 0.25, "large": False})

@@ -10,41 +10,50 @@ logger = logging.getLogger(__name__)
 
 def l2_normalize(x: npt.NDArray[np.float32], eps: float = 1e-12) -> npt.NDArray[np.float32]:
     norms = np.linalg.norm(x, axis=1, keepdims=True)
-    return x / np.clip(norms, eps, None)  # type: ignore[no-any-return]
+    np.maximum(norms, eps, out=norms)
+
+    return x / norms  # type: ignore[no-any-return]
 
 
-def load_embeddings(path: Path | str) -> tuple[list[str], npt.NDArray[np.float32]]:
+def l2_normalize_(x: npt.NDArray[np.float32], eps: float = 1e-12) -> npt.NDArray[np.float32]:
+    norms = np.linalg.norm(x, axis=1, keepdims=True)
+    np.maximum(norms, eps, out=norms)
+    x /= norms
+
+    return x
+
+
+def load_embeddings(path: Path | str) -> pl.DataFrame:
     """
-    Load embeddings from parquet file
+    Load embeddings from parquet file as a dataframe
 
     Auto-detects format:
     - If 'embedding' column exists: use directly
     - If numeric column names (0, 1, 2, ...): treat as logits, convert to array
 
+    Parameters
+    ----------
+    path
+        Path to parquet embedding or logits file.
+
     Returns
     -------
-    sample_ids
-        List of sample identifiers (stem of 'sample' column path).
-    features
-        Array of shape (n_samples, embedding_dim), dtype float32.
+    DataFrame with columns:
+    - id: sample identifier (stem of 'sample' column path)
+    - embedding: fixed-size float32 embedding array
     """
 
     if isinstance(path, str):
         path = Path(path)
 
     df = pl.read_parquet(path)
-    df = df.with_columns(pl.col("sample").map_elements(lambda p: Path(p).stem, return_dtype=pl.Utf8).alias("id"))
-
+    id_expr = pl.col("sample").str.split("/").list.last().str.replace(r"\.[^./\\]+$", "").alias("id")
     if "embedding" in df.columns:
-        df = df.select(["id", "embedding"])
-    else:
-        # Logits format - numeric column names
-        embed_cols = sorted([c for c in df.columns if c.isdigit()], key=int)
-        df = df.with_columns(
-            pl.concat_list(pl.col(embed_cols)).cast(pl.Array(pl.Float32, len(embed_cols))).alias("embedding")
-        ).select(["id", "embedding"])
+        return df.select(id_expr, pl.col("embedding"))
 
-    sample_ids = df.get_column("id").to_list()
-    features = df.get_column("embedding").to_numpy().astype(np.float32, copy=False)
-
-    return (sample_ids, features)
+    # Logits format - numeric column names
+    embed_cols = sorted([c for c in df.columns if c.isdigit()], key=int)
+    return df.select(
+        id_expr,
+        pl.concat_arr(pl.col(embed_cols)).cast(pl.Array(pl.Float32, len(embed_cols))).alias("embedding"),
+    )

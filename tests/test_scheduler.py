@@ -1,4 +1,5 @@
 import logging
+import math
 import unittest
 
 import torch
@@ -43,3 +44,28 @@ class TestScheduler(unittest.TestCase):
         lr_scheduler.step()
         last_lr = lr_scheduler.get_last_lr()[0]
         self.assertEqual(last_lr, 0.0)
+
+    def test_reciprocal_square_root(self) -> None:
+        # Just a simple sanity test
+        size = (64, 64)
+        n = net.MobileNet_v2(3, 10, config={"alpha": 0.5}, size=size)
+        optimizer = torch.optim.SGD(n.parameters(), lr=0.1)
+        lr_scheduler = scheduler.ReciprocalSquareRootLR(optimizer)
+
+        # Initialization step keeps base LR
+        self.assertAlmostEqual(lr_scheduler.get_last_lr()[0], 0.1)
+
+        optimizer.zero_grad()
+        optimizer.step()
+
+        lr_scheduler.step()
+        last_lr = lr_scheduler.get_last_lr()[0]
+        self.assertAlmostEqual(last_lr, 0.1 / math.sqrt(2), places=6)
+
+        lr_scheduler.step()
+        last_lr = lr_scheduler.get_last_lr()[0]
+        self.assertAlmostEqual(last_lr, 0.1 / math.sqrt(3), places=6)
+
+        lr_scheduler.step()
+        last_lr = lr_scheduler.get_last_lr()[0]
+        self.assertAlmostEqual(last_lr, 0.1 / math.sqrt(4), places=6)

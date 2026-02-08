@@ -247,6 +247,14 @@ class TestBase(unittest.TestCase):
         self.assertTrue(base_net.features.weight.requires_grad)
         self.assertFalse(base_net.classifier.weight.requires_grad)
 
+    def test_base_net_mlp_head(self) -> None:
+        base_net = base.BaseNet(DEFAULT_NUM_CHANNELS, num_classes=2, config={"mlp_head": True}, size=(128, 128))
+        classifier = base_net.create_classifier(embed_dim=10)
+        self.assertIsInstance(classifier, torch.nn.Sequential)
+
+        classifier = base_net.create_classifier(embed_dim=10, mlp_head=False)
+        self.assertIsInstance(classifier, torch.nn.Linear)
+
 
 class TestNet(unittest.TestCase):
     @parameterized.expand(NET_TEST_CASES)  # type: ignore[untyped-decorator]

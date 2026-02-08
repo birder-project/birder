@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 import polars as pl
+import torch
 from rich.console import Console
 from rich.table import Table
 
@@ -93,26 +94,31 @@ def _load_embeddings_with_split(
     embeddings_path: str, metadata_df: pl.DataFrame
 ) -> tuple[npt.NDArray[np.float32], npt.NDArray[np.int_], npt.NDArray[np.float32], npt.NDArray[np.int_]]:
     logger.info(f"Loading embeddings from {embeddings_path}")
-    sample_ids, all_features = load_embeddings(embeddings_path)
-    emb_df = pl.DataFrame({"id": sample_ids, "embedding": all_features.tolist()})
+    emb_df = load_embeddings(embeddings_path)
 
-    joined = metadata_df.join(emb_df, on="id", how="inner")
-    if joined.height < metadata_df.height:
-        logger.warning(f"Join dropped {metadata_df.height - joined.height} samples (missing embeddings)")
+    train_meta = metadata_df.filter(pl.col("is_train") == 1).select(["id", "label"])
+    test_meta = metadata_df.filter(pl.col("is_train") == 0).select(["id", "label"])
 
-    all_features = np.array(joined.get_column("embedding").to_list(), dtype=np.float32)
-    all_labels = joined.get_column("label").to_numpy().astype(np.int_)
-    is_train = joined.get_column("is_train").to_numpy().astype(bool)
+    train_join = train_meta.join(emb_df, on="id", how="inner")
+    test_join = test_meta.join(emb_df, on="id", how="inner")
 
-    num_classes = all_labels.max() + 1
-    logger.info(
-        f"Loaded {all_features.shape[0]} samples with {all_features.shape[1]} dimensions, {num_classes} classes"
-    )
+    dropped_train = train_meta.height - train_join.height
+    dropped_test = test_meta.height - test_join.height
+    dropped_total = dropped_train + dropped_test
+    if dropped_total > 0:
+        logger.warning(
+            f"Join dropped {dropped_total} samples (missing embeddings): train={dropped_train}, test={dropped_test}"
+        )
 
-    x_train = all_features[is_train]
-    y_train = all_labels[is_train]
-    x_test = all_features[~is_train]
-    y_test = all_labels[~is_train]
+    x_train = train_join.get_column("embedding").to_numpy().astype(np.float32, copy=False)
+    y_train = train_join.get_column("label").to_numpy().astype(np.int_)
+    x_test = test_join.get_column("embedding").to_numpy().astype(np.float32, copy=False)
+    y_test = test_join.get_column("label").to_numpy().astype(np.int_)
+
+    num_classes = metadata_df.get_column("label").max() + 1  # type: ignore[operator]
+    total_samples = x_train.shape[0] + x_test.shape[0]
+    embedding_dim = x_train.shape[1]
+    logger.info(f"Loaded {total_samples} samples with {embedding_dim} dimensions, {num_classes} classes")
 
     logger.info(f"Train: {len(y_train)} samples, Test: {len(y_test)} samples")
 
@@ -122,6 +128,15 @@ def _load_embeddings_with_split(
 def evaluate_nabirds(args: argparse.Namespace) -> None:
     tic = time.time()
 
+    if args.gpu is True:
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+
+    if args.gpu_id is not None:
+        torch.cuda.set_device(args.gpu_id)
+
+    logger.info(f"Using device {device}")
     logger.info(f"Loading NABirds dataset from {args.dataset_path}")
     dataset = NABirds(args.dataset_path)
     metadata_df = _load_nabirds_metadata(dataset)
@@ -136,7 +151,7 @@ def evaluate_nabirds(args: argparse.Namespace) -> None:
         accuracies: dict[int, float] = {}
         for k in args.k:
             logger.info(f"Evaluating KNN with k={k}")
-            y_pred, y_true = evaluate_knn(x_train, y_train, x_test, y_test, k=k)
+            y_pred, y_true = evaluate_knn(x_train, y_train, x_test, y_test, k=k, device=device)
             acc = float(np.mean(y_pred == y_true))
             accuracies[k] = acc
             logger.info(f"k={k} - Accuracy: {acc:.4f}")
@@ -172,7 +187,8 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.eval nabirds --embeddings "
             "results/vit_b16_224px_crop1.0_48562_embeddings.parquet "
             "--dataset-path ~/Datasets/nabirds --dry-run\n"
-            "python -m birder.eval nabirds --embeddings results/nabirds/*.parquet --dataset-path ~/Datasets/nabirds\n"
+            "python -m birder.eval nabirds --embeddings results/nabirds/*.parquet "
+            "--dataset-path ~/Datasets/nabirds --gpu\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -183,6 +199,8 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--k", type=int, nargs="+", default=[10, 20, 100], help="number of nearest neighbors for KNN"
     )
+    subparser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
+    subparser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use")
     subparser.add_argument(
         "--dir", type=str, default="nabirds", help="place all outputs in a sub-directory (relative to results)"
     )

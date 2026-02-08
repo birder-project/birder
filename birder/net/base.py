@@ -161,18 +161,38 @@ class BaseNet(nn.Module):
             assert self.size[0] == self.size[1]
 
         self.dynamic_size = False
+        self.head_bias = True
+        self.mlp_head = False
+        if self.config is not None:
+            self.head_bias = self.config.get("head_bias", True)
+            self.mlp_head = self.config.get("mlp_head", False)
 
         self.embedding_size: int
         self.classifier: nn.Module
 
-    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
+    def create_classifier(
+        self, embed_dim: Optional[int] = None, head_bias: Optional[bool] = None, mlp_head: Optional[bool] = None
+    ) -> nn.Module:
         if self.num_classes == 0:
             return nn.Identity()
 
         if embed_dim is None:
             embed_dim = self.embedding_size
+        if head_bias is None:
+            head_bias = self.head_bias
+        if mlp_head is None:
+            mlp_head = self.mlp_head
 
-        return nn.Linear(embed_dim, self.num_classes)
+        if mlp_head is True:
+            hidden_dim = 3 * embed_dim
+            return nn.Sequential(
+                nn.Linear(embed_dim, hidden_dim),
+                nn.GELU(),
+                nn.LayerNorm(hidden_dim, eps=1e-6),
+                nn.Linear(hidden_dim, self.num_classes, bias=head_bias),
+            )
+
+        return nn.Linear(embed_dim, self.num_classes, bias=head_bias)
 
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes

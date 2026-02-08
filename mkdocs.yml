@@ -19,6 +19,9 @@ nav:
       - Results: tools/results.md
   - API:
       - Overview: api/index.md
+      - Model Loading: api/model_loading.md
+      - Transforms and Signatures: api/transforms_and_signatures.md
+      - Inference Workflows: api/inference_workflows.md
       - Model Registry: api/model_registry.md
   # - Deployment:
   #     - TorchServe: torchserve.md

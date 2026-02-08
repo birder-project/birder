@@ -76,11 +76,11 @@ def _write_results_csv(results: list[dict[str, Any]], trait_names: list[str], ou
     logger.info(f"Results saved to {output_path}")
 
 
-def _load_fishnet_data(csv_path: Path, trait_columns: list[str]) -> pl.DataFrame:
+def _load_fishnet_data(csv_path: Path, trait_columns: list[str], split: str) -> pl.DataFrame:
     """
     Load FishNet CSV and prepare metadata
 
-    Returns DataFrame with columns: id, trait labels (0/1)
+    Returns DataFrame with columns: id, split, trait labels (0/1)
     """
 
     df = pl.read_csv(csv_path)
@@ -108,6 +108,7 @@ def _load_fishnet_data(csv_path: Path, trait_columns: list[str]) -> pl.DataFrame
 
     # Rename FeedingPath_encoded back to FeedingPath
     df = df.rename({"FeedingPath_encoded": "FeedingPath"})
+    df = df.with_columns(pl.lit(split).alias("split"))
 
     # Filter rows with any null trait values
     for trait in trait_columns:
@@ -117,28 +118,32 @@ def _load_fishnet_data(csv_path: Path, trait_columns: list[str]) -> pl.DataFrame
 
 
 def _load_embeddings_with_labels(
-    embeddings_path: str, train_df: pl.DataFrame, test_df: pl.DataFrame, trait_columns: list[str]
+    embeddings_path: str, metadata_df: pl.DataFrame, trait_columns: list[str]
 ) -> tuple[npt.NDArray[np.float32], npt.NDArray[np.float32], npt.NDArray[np.float32], npt.NDArray[np.float32]]:
     logger.info(f"Loading embeddings from {embeddings_path}")
-    sample_ids, all_features = load_embeddings(embeddings_path)
-    emb_df = pl.DataFrame({"id": sample_ids, "embedding": all_features.tolist()})
+    emb_df = load_embeddings(embeddings_path)
 
-    # Join with train data
-    train_joined = train_df.join(emb_df, on="id", how="inner")
-    if train_joined.height < train_df.height:
-        logger.warning(f"Train: dropped {train_df.height - train_joined.height} samples (missing embeddings)")
+    train_meta = metadata_df.filter(pl.col("split") == "train")
+    test_meta = metadata_df.filter(pl.col("split") == "test")
 
-    # Join with test data
-    test_joined = test_df.join(emb_df, on="id", how="inner")
-    if test_joined.height < test_df.height:
-        logger.warning(f"Test: dropped {test_df.height - test_joined.height} samples (missing embeddings)")
+    train_join = train_meta.join(emb_df, on="id", how="inner")
+    test_join = test_meta.join(emb_df, on="id", how="inner")
+
+    expected_train = train_meta.height
+    expected_test = test_meta.height
+    found_train = train_join.height
+    found_test = test_join.height
+
+    if found_train < expected_train:
+        logger.warning(f"Train: dropped {expected_train - found_train} samples (missing embeddings)")
+    if found_test < expected_test:
+        logger.warning(f"Test: dropped {expected_test - found_test} samples (missing embeddings)")
 
     # Extract features and labels
-    x_train = np.array(train_joined.get_column("embedding").to_list(), dtype=np.float32)
-    y_train = train_joined.select(trait_columns).to_numpy().astype(np.float32)
-
-    x_test = np.array(test_joined.get_column("embedding").to_list(), dtype=np.float32)
-    y_test = test_joined.select(trait_columns).to_numpy().astype(np.float32)
+    x_train = train_join.get_column("embedding").to_numpy().astype(np.float32, copy=False)
+    y_train = train_join.select(trait_columns).to_numpy().astype(np.float32)
+    x_test = test_join.get_column("embedding").to_numpy().astype(np.float32, copy=False)
+    y_test = test_join.select(trait_columns).to_numpy().astype(np.float32)
 
     logger.info(f"Train: {x_train.shape[0]} samples, Test: {x_test.shape[0]} samples")
     logger.info(f"Features: {x_train.shape[1]} dims, Traits: {len(trait_columns)}")
@@ -243,17 +248,16 @@ def evaluate_fishnet(args: argparse.Namespace) -> None:
     dataset = FishNet(args.dataset_path)
     trait_columns = dataset.trait_columns
 
-    train_df = _load_fishnet_data(dataset.train_csv, trait_columns)
-    test_df = _load_fishnet_data(dataset.test_csv, trait_columns)
+    train_df = _load_fishnet_data(dataset.train_csv, trait_columns, split="train")
+    test_df = _load_fishnet_data(dataset.test_csv, trait_columns, split="test")
+    metadata_df = pl.concat([train_df, test_df])
     logger.info(f"Train samples: {train_df.height}, Test samples: {test_df.height}")
 
     results: list[dict[str, Any]] = []
     total = len(args.embeddings)
     for idx, embeddings_path in enumerate(args.embeddings, start=1):
         logger.info(f"Processing embeddings {idx}/{total}: {embeddings_path}")
-        x_train, y_train, x_test, y_test = _load_embeddings_with_labels(
-            embeddings_path, train_df, test_df, trait_columns
-        )
+        x_train, y_train, x_test, y_test = _load_embeddings_with_labels(embeddings_path, metadata_df, trait_columns)
 
         result = evaluate_fishnet_single(x_train, y_train, x_test, y_test, trait_columns, args, embeddings_path, device)
         results.append(result)

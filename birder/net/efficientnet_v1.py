@@ -142,7 +142,6 @@ class EfficientNet_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMix
         dropout_rate: float = self.config["dropout_rate"]
         drop_path_rate: float = self.config.get("drop_path_rate", 0.2)
 
-        self.dropout_rate = dropout_rate
         in_channels = [adjust_channels(ch, width_coefficient) for ch in in_channels]
         out_channels = [adjust_channels(ch, width_coefficient) for ch in out_channels]
         repeats = [adjust_depth(re, depth_coefficient) for re in repeats]
@@ -211,6 +210,7 @@ class EfficientNet_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMix
             ),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
+            nn.Dropout(p=dropout_rate, inplace=True),
         )
         self.return_channels = return_channels[1:5]
         self.embedding_size = out_channels[-1] * 4
@@ -285,18 +285,6 @@ class EfficientNet_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMix
         x = self.forward_features(x)
         return self.features(x)
 
-    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
-        if self.num_classes == 0:
-            return nn.Identity()
-
-        if embed_dim is None:
-            embed_dim = self.embedding_size
-
-        return nn.Sequential(
-            nn.Dropout(p=self.dropout_rate, inplace=True),
-            nn.Linear(embed_dim, self.num_classes),
-        )
-
 
 registry.register_model_config(
     "efficientnet_v1_b0",
@@ -347,7 +335,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 17.4,
-                "sha256": "9b8da7fa8095cb0bec88df85f56735d8c4a41e0f68cbf5dc610665fb30a5fbbc",
+                "sha256": "0fa929ac2c996cfbb5e4975414df747cbabbe2e26b186c746c67a2a972395676",
             }
         },
         "net": {"network": "efficientnet_v1_b0", "tag": "il-common"},
@@ -361,7 +349,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 27.1,
-                "sha256": "e93b5f13cd93654fbec1455a3593a963aa415c21ad28c442583af57ac43e032f",
+                "sha256": "c2b7e5809de4b549d5eb9270ecc6f79d3258dd772f9adc5eae6a601acf51dfb7",
             }
         },
         "net": {"network": "efficientnet_v1_b1", "tag": "il-common"},
@@ -375,7 +363,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 31.8,
-                "sha256": "3a62a94364c874e9d6b8e32aeb27470d88c6b3c15d690ee623e8a59697e4cba5",
+                "sha256": "b17b8f4c2c233e2f3f801da25d23dedd02d6ad31599b824862e6dd9c3e869498",
             }
         },
         "net": {"network": "efficientnet_v1_b2", "tag": "il-common"},

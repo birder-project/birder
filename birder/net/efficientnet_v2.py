@@ -140,7 +140,6 @@ class EfficientNet_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMix
         dropout_rate: float = self.config["dropout_rate"]
         drop_path_rate: float = self.config.get("drop_path_rate", 0.2)
 
-        self.dropout_rate = dropout_rate
         in_channels = [adjust_channels(ch, width_coefficient) for ch in in_channels]
         out_channels = [adjust_channels(ch, width_coefficient) for ch in out_channels]
         repeats = [adjust_depth(re, depth_coefficient) for re in repeats]
@@ -222,6 +221,7 @@ class EfficientNet_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMix
             ),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
+            nn.Dropout(p=dropout_rate, inplace=True),
         )
         self.return_channels = return_channels[1:5]
         self.embedding_size = last_channels
@@ -296,18 +296,6 @@ class EfficientNet_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMix
         x = self.forward_features(x)
         return self.features(x)
 
-    def create_classifier(self, embed_dim: Optional[int] = None) -> nn.Module:
-        if self.num_classes == 0:
-            return nn.Identity()
-
-        if embed_dim is None:
-            embed_dim = self.embedding_size
-
-        return nn.Sequential(
-            nn.Dropout(p=self.dropout_rate, inplace=True),
-            nn.Linear(embed_dim, self.num_classes),
-        )
-
 
 registry.register_model_config(
     "efficientnet_v2_s",
@@ -370,7 +358,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 79.7,
-                "sha256": "abd0310951ae2dcc56792473bcefab49ab28971746322cd561d6c369503e4d6f",
+                "sha256": "0181614c7d805ee134e2179d36532f44d482c25452b85afa00ef7689d110d5d7",
             }
         },
         "net": {"network": "efficientnet_v2_s", "tag": "il-common"},
@@ -385,7 +373,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 81.5,
-                "sha256": "ad708a255d2e0fbcacc907d0b42a3881180a4e0a9b238dec409985b502dac62d",
+                "sha256": "bfc0aa1a5221dfc29e4e2babbb0ef7e712de144092da0dde1aac76cf9996a586",
             }
         },
         "net": {"network": "efficientnet_v2_s", "tag": "arabian-peninsula"},

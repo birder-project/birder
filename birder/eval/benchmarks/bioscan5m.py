@@ -86,14 +86,13 @@ def _load_bioscan5m_metadata(data_path: str) -> pl.DataFrame:
 
 def _load_embeddings_with_labels(embeddings_path: str, metadata_df: pl.DataFrame) -> tuple[np.ndarray, np.ndarray, int]:
     logger.info(f"Loading embeddings from {embeddings_path}")
-    sample_ids, all_features = load_embeddings(embeddings_path)
-    emb_df = pl.DataFrame({"id": sample_ids, "embedding": all_features.tolist()})
+    emb_df = load_embeddings(embeddings_path)
 
     joined = metadata_df.join(emb_df, on="id", how="inner")
     if joined.height < metadata_df.height:
         logger.warning(f"Join dropped {metadata_df.height - joined.height} samples (missing embeddings)")
 
-    features = np.array(joined.get_column("embedding").to_list(), dtype=np.float32)
+    features = joined.get_column("embedding").to_numpy().astype(np.float32, copy=False)
     labels = joined.get_column("label").to_numpy().astype(np.int_)
 
     num_classes = len(metadata_df.get_column("label").unique())
@@ -127,7 +126,7 @@ def evaluate_bioscan5m(args: argparse.Namespace) -> None:
             l2_normalize_features=not args.no_l2_normalize,
             seed=args.seed,
         )
-        logger.info(f"AMI Score: {ami_score:.4f}")
+        logger.info(f"AMI score: {ami_score:.4f}")
 
         results.append(
             {

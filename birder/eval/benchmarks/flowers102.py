@@ -84,32 +84,37 @@ def _load_embeddings_with_split(embeddings_path: str, metadata_df: pl.DataFrame)
     npt.NDArray[np.int_],
 ]:
     logger.info(f"Loading embeddings from {embeddings_path}")
-    sample_ids, all_features = load_embeddings(embeddings_path)
-    emb_df = pl.DataFrame({"id": sample_ids, "embedding": all_features.tolist()})
+    emb_df = load_embeddings(embeddings_path)
 
-    joined = metadata_df.join(emb_df, on="id", how="inner")
-    if joined.height < metadata_df.height:
-        logger.warning(f"Join dropped {metadata_df.height - joined.height} samples (missing embeddings)")
+    train_meta = metadata_df.filter(pl.col("split") == "training").select(["id", "label"])
+    val_meta = metadata_df.filter(pl.col("split") == "validation").select(["id", "label"])
+    test_meta = metadata_df.filter(pl.col("split") == "testing").select(["id", "label"])
 
-    all_features = np.array(joined.get_column("embedding").to_list(), dtype=np.float32)
-    all_labels = joined.get_column("label").to_numpy().astype(np.int_)
-    splits = joined.get_column("split").to_list()
+    train_join = train_meta.join(emb_df, on="id", how="inner")
+    val_join = val_meta.join(emb_df, on="id", how="inner")
+    test_join = test_meta.join(emb_df, on="id", how="inner")
 
-    is_train = np.array([s == "training" for s in splits], dtype=bool)
-    is_val = np.array([s == "validation" for s in splits], dtype=bool)
-    is_test = np.array([s == "testing" for s in splits], dtype=bool)
+    dropped_train = train_meta.height - train_join.height
+    dropped_val = val_meta.height - val_join.height
+    dropped_test = test_meta.height - test_join.height
+    dropped_total = dropped_train + dropped_val + dropped_test
+    if dropped_total > 0:
+        logger.warning(
+            f"Join dropped {dropped_total} samples (missing embeddings): "
+            f"train={dropped_train}, val={dropped_val}, test={dropped_test}"
+        )
 
-    num_classes = all_labels.max() + 1
-    logger.info(
-        f"Loaded {all_features.shape[0]} samples with {all_features.shape[1]} dimensions, {num_classes} classes"
-    )
+    x_train = train_join.get_column("embedding").to_numpy().astype(np.float32, copy=False)
+    y_train = train_join.get_column("label").to_numpy().astype(np.int_)
+    x_val = val_join.get_column("embedding").to_numpy().astype(np.float32, copy=False)
+    y_val = val_join.get_column("label").to_numpy().astype(np.int_)
+    x_test = test_join.get_column("embedding").to_numpy().astype(np.float32, copy=False)
+    y_test = test_join.get_column("label").to_numpy().astype(np.int_)
 
-    x_train = all_features[is_train]
-    y_train = all_labels[is_train]
-    x_val = all_features[is_val]
-    y_val = all_labels[is_val]
-    x_test = all_features[is_test]
-    y_test = all_labels[is_test]
+    num_classes = metadata_df.get_column("label").max() + 1  # type: ignore[operator]
+    total_samples = x_train.shape[0] + x_val.shape[0] + x_test.shape[0]
+    embedding_dim = x_train.shape[1]
+    logger.info(f"Loaded {total_samples} samples with {embedding_dim} dimensions, {num_classes} classes")
 
     logger.info(f"Train: {len(y_train)}, Val: {len(y_val)}, Test: {len(y_test)} samples")
 
