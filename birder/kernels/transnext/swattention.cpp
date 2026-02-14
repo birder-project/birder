@@ -8,6 +8,7 @@
 */
 
 #include <torch/extension.h>
+#include <ATen/autocast_mode.h>
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
@@ -31,6 +32,7 @@ torch::Tensor qk_forward(
     int kernel_size,
     int cuda_threads
 ){
+    at::NoGradGuard no_grad;
     CHECK_INPUT(queries);
     CHECK_INPUT(keys);
 
@@ -57,6 +59,7 @@ std::vector<torch::Tensor> qk_backward(
     int kernel_size,
     int cuda_threads
 ){
+    at::NoGradGuard no_grad;
     CHECK_INPUT(d_attn_weight);
     CHECK_INPUT(queries);
     CHECK_INPUT(keys);
@@ -84,6 +87,7 @@ std::vector<torch::Tensor> qk_rpb_backward(
     int kernel_size,
     int cuda_threads
 ){
+    at::NoGradGuard no_grad;
     CHECK_INPUT(d_attn_weight);
     CHECK_INPUT(queries);
     CHECK_INPUT(keys);
@@ -111,6 +115,7 @@ torch::Tensor qk_rpb_forward(
     int kernel_size,
     int cuda_threads
 ){
+    at::NoGradGuard no_grad;
     CHECK_INPUT(queries);
     CHECK_INPUT(keys);
     CHECK_INPUT(rpb);
@@ -135,6 +140,7 @@ torch::Tensor av_forward(
     int kernel_size,
     int cuda_threads
 ){
+    at::NoGradGuard no_grad;
     CHECK_INPUT(attn_weight);
     CHECK_INPUT(values);
 
@@ -161,6 +167,7 @@ std::vector<torch::Tensor> av_backward(
     int kernel_size,
     int cuda_threads
 ){
+    at::NoGradGuard no_grad;
     CHECK_INPUT(d_output);
     CHECK_INPUT(attn_weight);
     CHECK_INPUT(values);

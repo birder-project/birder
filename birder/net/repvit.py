@@ -52,9 +52,8 @@ class RepConvBN(nn.Sequential):
         )
         if reparameterized is False:
             self.add_module("bn", nn.BatchNorm2d(out_channels))
+            nn.init.constant_(self.bn.weight, bn_weight_init)
             nn.init.zeros_(self.bn.bias)
-
-        nn.init.constant_(self.bn.weight, bn_weight_init)
 
     def reparameterize(self) -> None:
         if self.reparameterized is True:
@@ -81,7 +80,6 @@ class RepConvBN(nn.Sequential):
             param.detach_()
 
         del self.bn
-
         self.reparameterized = True
 
 
@@ -119,7 +117,6 @@ class RepNormLinear(nn.Sequential):
             param.detach_()
 
         del self.bn
-
         self.reparameterized = True
 
 

@@ -59,6 +59,34 @@ def _convert_to_binary_annotations(dataset: CocoDetection) -> CocoDetection:
     return dataset
 
 
+def _map_annotations_to_targets(dataset: CocoDetection, source_idx_to_target_idx: dict[int, int]) -> CocoDetection:
+    for img_id in dataset.ids:
+        ann_ids = dataset.coco.getAnnIds(imgIds=img_id, iscrowd=None)
+        anno = dataset.coco.loadAnns(ann_ids)
+        for obj in anno:
+            category_id = obj["category_id"]
+            if category_id not in source_idx_to_target_idx:
+                raise ValueError(f"Missing label mapping for category_id={category_id}")
+
+            obj["category_id"] = source_idx_to_target_idx[category_id]
+
+    return dataset
+
+
+def _mapped_class_to_idx(class_to_idx: dict[str, int], label_mapping: dict[str, str]) -> dict[str, int]:
+    mapped_class_to_idx: dict[str, int] = {}
+    for class_name, _ in sorted(class_to_idx.items(), key=lambda item: item[1]):
+        if class_name not in label_mapping:
+            raise ValueError(f"Missing label mapping for class '{class_name}'")
+
+        mapped_name = label_mapping[class_name]
+        if mapped_name not in mapped_class_to_idx:
+            # Give place to "background" class (always index 0)
+            mapped_class_to_idx[mapped_name] = len(mapped_class_to_idx) + 1
+
+    return mapped_class_to_idx
+
+
 class CocoBase(torch.utils.data.Dataset):
     def __init__(
         self, root: str | Path, ann_file: str, transforms: Optional[Callable[..., torch.Tensor]] = None
@@ -84,14 +112,29 @@ class CocoBase(torch.utils.data.Dataset):
     def remove_images_without_annotations(self, ignore_list: list[str]) -> None:
         self.dataset = _remove_images_without_annotations(self.dataset, ignore_list)
 
-    def convert_to_binary_annotations(self) -> None:
+    def convert_to_binary_annotations(self, class_name: str = "Object") -> None:
         self.dataset = _convert_to_binary_annotations(self.dataset)
-        self.class_to_idx = {"Object": 1}
+        self.class_to_idx = {class_name: 1}
+
+    def convert_annotations_with_label_mapping(
+        self, label_mapping: dict[str, str], target_class_to_idx: Optional[dict[str, int]] = None
+    ) -> dict[str, int]:
+        if target_class_to_idx is None:
+            target_class_to_idx = _mapped_class_to_idx(self.class_to_idx, label_mapping)
+
+        source_idx_to_target_idx = {
+            idx: target_class_to_idx[label_mapping[class_name]] for class_name, idx in self.class_to_idx.items()
+        }
+
+        self.dataset = _map_annotations_to_targets(self.dataset, source_idx_to_target_idx)
+        self.class_to_idx = target_class_to_idx
+
+        return target_class_to_idx
 
 
 class CocoTraining(CocoBase):
     def __getitem__(self, index: int) -> tuple[torch.Tensor, Any]:
-        (sample, labels) = self.dataset[index]
+        sample, labels = self.dataset[index]
         return (sample, labels)
 
 
@@ -100,7 +143,7 @@ class CocoInference(CocoBase):
         coco_id = self.dataset.ids[index]
         img_info = self.dataset.coco.loadImgs(coco_id)[0]
         path = img_info["file_name"]
-        (sample, labels) = self.dataset[index]
+        sample, labels = self.dataset[index]
 
         # Get original image size (height, width) before transforms
         orig_size = [img_info["height"], img_info["width"]]
@@ -167,16 +210,16 @@ class CocoMosaicTraining(CocoBase):
             images = []
             targets = []
             for idx in indices:
-                (img, target) = self.dataset[idx]
+                img, target = self.dataset[idx]
                 images.append(img)
                 targets.append(target)
 
-            (img, target) = self.mosaic_fn(images, targets, self.output_size, self.fill_value)
+            img, target = self.mosaic_fn(images, targets, self.output_size, self.fill_value)
             if self.mosaic_transforms is not None:
-                (img, target) = self.mosaic_transforms(img, target)
+                img, target = self.mosaic_transforms(img, target)
 
         else:
-            (img, target) = self.dataset[index]
+            img, target = self.dataset[index]
 
             # When an image has no annotations, wrapped COCO returns only {'image_id': ...}
             if "boxes" not in target or len(target["boxes"]) == 0:
@@ -190,6 +233,6 @@ class CocoMosaicTraining(CocoBase):
                 target = {"boxes": boxes, "labels": labels}
 
             if self.transforms is not None:
-                (img, target) = self.transforms(img, target)
+                img, target = self.transforms(img, target)
 
         return (img, target)

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.6 - 2026-02-14
+
+### Added
+
+- **Distributed DDP Buffer Sync Toggle**: Added `--no-broadcast-buffers` to training CLIs to disable `DistributedDataParallel` buffer broadcasting from rank 0.
+- **Detection Label Mapping**: Added `--label-mapping` support to `train_detection` and `predict_detection` for remapping labels to groups.
+- **Predict Raw Labels Flag**: Added `--save-labels` to `predict` to include a `label` metadata column in raw outputs (`embeddings`, `logits`, `output`).
+- **ImageNet-1K Eval Benchmark**: Added `imagenet1k` benchmark to `birder.eval` using SimpleShot with k-shot sampling (`--k`).
+- **RoPE ViT-5**: Added [ViT-5](https://arxiv.org/abs/2602.08071) style RoPE model.
+- **SHViT**: Added [SHViT](https://arxiv.org/abs/2401.16456) model variants with reparameterization support.
+- **PNASNet**: Added [PNASNet](https://arxiv.org/abs/1712.00559) classification models (`pnasnet_large` and `pnasnet_mobile`).
+- **Spatial Robustness Eval**: Added `spatial` command to `birder.eval` for robustness evaluation under spatial transforms.
+- **Experimental FSDP (ZeRO-2/3) for SimCLR**: Added experimental PyTorch FSDP support to `train_simclr` via `--distributed-mode fsdp` (ZeRO-2/3). This path is not yet stable.
+
+### Fixed
+
+- **Custom Kernel Memory Leak (PyTorch 2.10)**: Attempted fix for memory leak in custom CUDA ops (MSDA, SWAttention) during training with PyTorch 2.10.
+- **RA Sampler Epoch Length**: Fixed `RASampler` so `--ra-sampler` no longer inflates epoch length by `--ra-reps`.
+- **Detection Parallel Inference**: Fixed multi-GPU `predict_detection --parallel` handling.
+- **Detection Parallel + Compile**: `predict_detection` now supports `--parallel` with `--compile` (replica compilation); `--compile-backbone` remains unsupported with `--parallel`.
+
 ## 0.4.5 - 2026-02-08
 
 ### Added

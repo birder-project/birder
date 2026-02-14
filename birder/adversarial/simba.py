@@ -98,7 +98,7 @@ class SimBA:
 
         # Coordinate-wise search in random order
         for flat_idx in perm[:num_steps]:
-            c, rem = divmod(int(flat_idx.item()), stride)
+            c, rem = divmod(flat_idx.item(), stride)
             h, w = divmod(rem, width)
             step_val = step_vals[c]
 

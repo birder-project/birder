@@ -35,59 +35,85 @@ from birder.results.gui import show_top_k
 logger = logging.getLogger(__name__)
 
 
+def _validate_label_names(label_names: list[str]) -> None:
+    collisions = sorted(set(label_names).intersection({"sample", "label"}))
+    if len(collisions) > 0:
+        collision_str = ", ".join(f"'{name}'" for name in collisions)
+        raise ValueError(
+            f"Class names cannot use reserved metadata column names: {collision_str}. "
+            "Rename the colliding class labels."
+        )
+
+
+def _metadata_pa_fields(columns: list[str]) -> list[pa.Field]:
+    return [pa.field(name, pa.int64()) if name == "label" else pa.field(name, pa.string()) for name in columns]
+
+
 def _init_array_parquet_writer(
     metadata_columns: list[str], array_name: str, array_len: int, path: Path
 ) -> pq.ParquetWriter:
-    embeddings_schema = pa.schema(
-        [pa.field(name, pa.string()) for name in metadata_columns]
-        + [pa.field(array_name, pa.list_(pa.float32(), list_size=array_len))]
+    schema = pa.schema(
+        _metadata_pa_fields(metadata_columns) + [pa.field(array_name, pa.list_(pa.float32(), list_size=array_len))]
     )
-    return pq.ParquetWriter(path, embeddings_schema)
+    return pq.ParquetWriter(path, schema)
 
 
 def _init_parquet_writer(metadata_columns: list[str], label_names: list[str], path: Path) -> pq.ParquetWriter:
-    logits_schema = pa.schema(
-        [pa.field(name, pa.string()) for name in metadata_columns]
-        + [pa.field(name, pa.float32()) for name in label_names]
-    )
-    return pq.ParquetWriter(path, logits_schema)
+    schema = pa.schema(_metadata_pa_fields(metadata_columns) + [pa.field(name, pa.float32()) for name in label_names])
+    return pq.ParquetWriter(path, schema)
 
 
 def save_embeddings_parquet(
-    writer: pq.ParquetWriter, sample_paths: list[str], embedding_list: list[npt.NDArray[np.float32]]
+    writer: pq.ParquetWriter,
+    sample_paths: list[str],
+    embedding_list: list[npt.NDArray[np.float32]],
+    labels: Optional[list[int]] = None,
 ) -> None:
     logger.info(f"Writing embeddings at {writer.where}")
     embeddings = np.concatenate(embedding_list, axis=0)
-    table = pa.Table.from_pydict(
-        {
-            "sample": pa.array(sample_paths, type=pa.string()),
-            "embedding": pa.array(embeddings.tolist(), type=pa.list_(pa.float32())),
-        },
-        schema=writer.schema,
-    )
+    data = {"sample": pa.array(sample_paths, type=pa.string())}
+    if labels is not None:
+        data["label"] = pa.array(labels, type=pa.int64())
+
+    data["embedding"] = pa.array(embeddings.tolist(), type=pa.list_(pa.float32()))
+    table = pa.Table.from_pydict(data, schema=writer.schema)
     writer.write_table(table)
 
 
-def save_logits_parquet(writer: pq.ParquetWriter, sample_paths: list[str], logits: npt.NDArray[np.float32]) -> None:
+def save_logits_parquet(
+    writer: pq.ParquetWriter,
+    sample_paths: list[str],
+    label_names: list[str],
+    logits: npt.NDArray[np.float32],
+    labels: Optional[list[int]] = None,
+) -> None:
     logger.info(f"Writing logits at {writer.where}")
     data = {"sample": pa.array(sample_paths, type=pa.string())}
-    for i, field_name in enumerate(writer.schema.names[1:]):
-        data[field_name] = pa.array(logits[:, i], type=pa.float32())
+    if labels is not None:
+        data["label"] = pa.array(labels, type=pa.int64())
+
+    for i, label_name in enumerate(label_names):
+        data[label_name] = pa.array(logits[:, i], type=pa.float32())
 
     table = pa.Table.from_pydict(data, schema=writer.schema)
     writer.write_table(table)
 
 
 def save_output_parquet(
-    writer: pq.ParquetWriter, sample_paths: list[str], label_names: list[str], outs: npt.NDArray[np.float32]
+    writer: pq.ParquetWriter,
+    sample_paths: list[str],
+    label_names: list[str],
+    outs: npt.NDArray[np.float32],
+    labels: Optional[list[int]] = None,
 ) -> None:
     logger.info(f"Writing outputs at {writer.where}")
-    data = {
-        "sample": pa.array(sample_paths, type=pa.string()),
-        "prediction": pa.array(np.array(label_names)[outs.argmax(axis=1)], type=pa.string()),
-    }
-    for i, field_name in enumerate(writer.schema.names[2:]):
-        data[field_name] = pa.array(outs[:, i], type=pa.float32())
+    data = {"sample": pa.array(sample_paths, type=pa.string())}
+    if labels is not None:
+        data["label"] = pa.array(labels, type=pa.int64())
+
+    data["prediction"] = pa.array(np.array(label_names)[outs.argmax(axis=1)], type=pa.string())
+    for i, label_name in enumerate(label_names):
+        data[label_name] = pa.array(outs[:, i], type=pa.float32())
 
     table = pa.Table.from_pydict(data, schema=writer.schema)
     writer.write_table(table)
@@ -104,42 +130,56 @@ def _save_dataframe(path: Path, df: pl.DataFrame, append: bool, data_type: str) 
 
 
 def save_embeddings(
-    path: Path, sample_paths: list[str], embedding_list: list[npt.NDArray[np.float32]], append: bool
+    path: Path,
+    sample_paths: list[str],
+    embedding_list: list[npt.NDArray[np.float32]],
+    append: bool,
+    labels: Optional[list[int]] = None,
 ) -> None:
     embeddings = np.concatenate(embedding_list, axis=0)
-    embeddings_df = pl.DataFrame(
-        {
-            "sample": sample_paths,
-            **{f"{i}": embeddings[:, i] for i in range(embeddings.shape[-1])},
-        }
-    )
+    data: dict[str, Any] = {"sample": sample_paths}
+    if labels is not None:
+        data["label"] = labels
+
+    data.update({f"{i}": embeddings[:, i] for i in range(embeddings.shape[-1])})
+    embeddings_df = pl.DataFrame(data)
     embeddings_df = embeddings_df.sort("sample", descending=False)
     _save_dataframe(path, embeddings_df, append, data_type="embeddings")
 
 
 def save_logits(
-    path: Path, sample_paths: list[str], label_names: list[str], logits: npt.NDArray[np.float32], append: bool
+    path: Path,
+    sample_paths: list[str],
+    label_names: list[str],
+    logits: npt.NDArray[np.float32],
+    append: bool,
+    labels: Optional[list[int]] = None,
 ) -> None:
-    logits_df = pl.DataFrame(
-        {
-            "sample": sample_paths,
-            **{name: logits[:, i] for i, name in enumerate(label_names)},
-        }
-    )
+    data: dict[str, Any] = {"sample": sample_paths}
+    if labels is not None:
+        data["label"] = labels
+
+    data.update({name: logits[:, i] for i, name in enumerate(label_names)})
+    logits_df = pl.DataFrame(data)
     logits_df = logits_df.sort("sample", descending=False)
     _save_dataframe(path, logits_df, append, data_type="logits")
 
 
 def save_output(
-    path: Path, sample_paths: list[str], label_names: list[str], outs: npt.NDArray[np.float32], append: bool
+    path: Path,
+    sample_paths: list[str],
+    label_names: list[str],
+    outs: npt.NDArray[np.float32],
+    append: bool,
+    labels: Optional[list[int]] = None,
 ) -> None:
-    output_df = pl.DataFrame(
-        {
-            "sample": sample_paths,
-            "prediction": np.array(label_names)[outs.argmax(axis=1)],
-            **{name: outs[:, i] for i, name in enumerate(label_names)},
-        }
-    )
+    data: dict[str, Any] = {"sample": sample_paths}
+    if labels is not None:
+        data["label"] = labels
+
+    data["prediction"] = np.array(label_names)[outs.argmax(axis=1)]
+    data.update({name: outs[:, i] for i, name in enumerate(label_names)})
+    output_df = pl.DataFrame(data)
     output_df = output_df.sort("sample", descending=False)
     _save_dataframe(path, output_df, append, data_type="output")
 
@@ -357,11 +397,16 @@ def predict(args: argparse.Namespace) -> None:
             # In case that a 'pts' or 'pt2' type models were loaded, we don't know the output size
             # so we’ll fill this lazily on the first batch
             label_names = None
+        elif label_names is not None:
+            _validate_label_names(label_names)
 
     # Define Parquet writers
     embeddings_writer: Optional[pq.ParquetWriter] = None
     logits_writer: Optional[pq.ParquetWriter] = None
     output_writer: Optional[pq.ParquetWriter] = None
+    metadata_columns = ["sample"]
+    if args.save_labels is True:
+        metadata_columns.append("label")
 
     # Inference
     tic = time.time()
@@ -389,34 +434,38 @@ def predict(args: argparse.Namespace) -> None:
                 label_names = [str(i) for i in range(outs.shape[1])]
                 logger.warning(f"Falling back to {len(label_names)} numeric class names")
 
+            labels_to_save = labels if args.save_labels is True else None
+
             # Save embeddings
             if args.save_embeddings is True:
                 if args.output_format == "parquet":
                     if embeddings_writer is None:
                         embeddings_writer = _init_array_parquet_writer(
-                            ["sample"], "embedding", embedding_list[0].shape[1], embeddings_path
+                            metadata_columns, "embedding", embedding_list[0].shape[1], embeddings_path
                         )
 
-                    save_embeddings_parquet(embeddings_writer, sample_paths, embedding_list)
+                    save_embeddings_parquet(embeddings_writer, sample_paths, embedding_list, labels=labels_to_save)
                 else:
-                    save_embeddings(embeddings_path, sample_paths, embedding_list, append=append)
+                    save_embeddings(embeddings_path, sample_paths, embedding_list, append=append, labels=labels_to_save)
 
             if args.save_logits is True:
                 if args.output_format == "parquet":
                     if logits_writer is None:
-                        logits_writer = _init_parquet_writer(["sample"], label_names, logits_path)
+                        logits_writer = _init_parquet_writer(metadata_columns, label_names, logits_path)
 
-                    save_logits_parquet(logits_writer, sample_paths, outs)
+                    save_logits_parquet(logits_writer, sample_paths, label_names, outs, labels=labels_to_save)
                 else:
-                    save_logits(logits_path, sample_paths, label_names, outs, append=append)
+                    save_logits(logits_path, sample_paths, label_names, outs, append=append, labels=labels_to_save)
             elif args.save_output is True:
                 if args.output_format == "parquet":
                     if output_writer is None:
-                        output_writer = _init_parquet_writer(["sample", "prediction"], label_names, output_path)
+                        output_writer = _init_parquet_writer(
+                            metadata_columns + ["prediction"], label_names, output_path
+                        )
 
-                    save_output_parquet(output_writer, sample_paths, label_names, outs)
+                    save_output_parquet(output_writer, sample_paths, label_names, outs, labels=labels_to_save)
                 else:
-                    save_output(output_path, sample_paths, label_names, outs, append=append)
+                    save_output(output_path, sample_paths, label_names, outs, append=append, labels=labels_to_save)
 
             if len(class_to_idx) > 0:
                 # Handle results (Results / SparseResults)
@@ -573,6 +622,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--save-output", default=False, action="store_true", help="save raw output")
     parser.add_argument("--save-logits", default=False, action="store_true", help="save raw model logits")
     parser.add_argument("--save-embeddings", default=False, action="store_true", help="save embedding layer outputs")
+    parser.add_argument(
+        "--save-labels",
+        default=False,
+        action="store_true",
+        help="include the label column in raw outputs (embeddings, logits, output)",
+    )
     parser.add_argument(
         "--output-format",
         type=str,

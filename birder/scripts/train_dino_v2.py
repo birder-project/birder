@@ -296,13 +296,13 @@ def train(args: argparse.Namespace) -> None:
     # Compile networks
     teacher_compile_flag = args.compile is True or args.compile_teacher is True
     if args.compile is True:
-        student = torch.compile(student)
-        teacher = torch.compile(teacher)
-        dino_loss = torch.compile(dino_loss)
-        koleo_loss = torch.compile(koleo_loss)
-        ibot_patch_loss = torch.compile(ibot_patch_loss)
+        student = torch.compile(student, fullgraph=args.compile_fullgraph)
+        teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph)
+        dino_loss = torch.compile(dino_loss, fullgraph=args.compile_fullgraph)
+        koleo_loss = torch.compile(koleo_loss, fullgraph=args.compile_fullgraph)
+        ibot_patch_loss = torch.compile(ibot_patch_loss, fullgraph=args.compile_fullgraph)
     elif args.compile_teacher is True:
-        teacher = torch.compile(teacher)
+        teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph)
 
     #
     # Data
@@ -508,7 +508,10 @@ def train(args: argparse.Namespace) -> None:
     student_without_ddp = student
     if args.distributed is True:
         student = torch.nn.parallel.DistributedDataParallel(
-            student, device_ids=[args.local_rank], find_unused_parameters=args.find_unused_parameters
+            student,
+            device_ids=[args.local_rank],
+            find_unused_parameters=args.find_unused_parameters,
+            broadcast_buffers=not args.no_broadcast_buffers,
         )
         student_without_ddp = student.module
 
@@ -940,7 +943,8 @@ def train(args: argparse.Namespace) -> None:
         if training_utils.is_local_primary(args) is True:
             # Checkpoint model
             if epoch % args.save_frequency == 0:
-                fs_ops.checkpoint_model(
+                training_utils.save_training_checkpoint(
+                    args,
                     network_name,
                     epoch,
                     model_to_save,
@@ -952,7 +956,8 @@ def train(args: argparse.Namespace) -> None:
                     scaler,
                     None,
                 )
-                fs_ops.checkpoint_model(
+                training_utils.save_training_checkpoint(
+                    args,
                     backbone_name,
                     epoch,
                     model_to_save["teacher"].backbone,
@@ -964,7 +969,7 @@ def train(args: argparse.Namespace) -> None:
                     scaler=None,
                     model_base=None,
                 )
-                if args.keep_last is not None:
+                if args.keep_last is not None and training_utils.is_global_primary(args) is True:
                     fs_ops.clean_checkpoints(network_name, args.keep_last)
                     fs_ops.clean_checkpoints(backbone_name, args.keep_last)
 
@@ -977,7 +982,8 @@ def train(args: argparse.Namespace) -> None:
 
     # Checkpoint model
     if training_utils.is_local_primary(args) is True:
-        fs_ops.checkpoint_model(
+        training_utils.save_training_checkpoint(
+            args,
             network_name,
             epoch,
             model_to_save,
@@ -989,7 +995,8 @@ def train(args: argparse.Namespace) -> None:
             scaler,
             None,
         )
-        fs_ops.checkpoint_model(
+        training_utils.save_training_checkpoint(
+            args,
             backbone_name,
             epoch,
             model_to_save["teacher"].backbone,

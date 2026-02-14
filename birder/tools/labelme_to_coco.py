@@ -50,7 +50,12 @@ def labelme_to_coco(args: argparse.Namespace) -> None:
     target_path = Path(args.data_path).parent.joinpath(f"{base_name}_coco.json")
 
     class_to_idx = fs_ops.read_class_file(class_file)
+    if "Unknown" in class_to_idx:
+        logger.debug("Removing the 'Unknown' label")
+        del class_to_idx["Unknown"]
+
     class_to_idx = lib.detection_class_to_idx(class_to_idx)
+    logger.info(f"{len(class_to_idx)} labels in class_to_idx")
 
     image_list = []
     annotation_list = []

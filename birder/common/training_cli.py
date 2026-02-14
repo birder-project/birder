@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 def add_compile_args(parser: argparse.ArgumentParser, teacher: bool = False, backbone: bool = False) -> None:
     group = parser.add_argument_group("Compilation parameters")
     group.add_argument("--compile", default=False, action="store_true", help="enable compilation")
+    group.add_argument("--compile-fullgraph", default=False, action="store_true", help="compile using fullgraph=True")
     if teacher is True:
         group.add_argument(
             "--compile-teacher", default=False, action="store_true", help="enable teacher only compilation"
@@ -517,17 +518,73 @@ def add_precision_args(parser: argparse.ArgumentParser, channels_last: bool = Fa
     )
 
 
-def add_distributed_args(parser: argparse.ArgumentParser) -> None:
+def add_distributed_args(parser: argparse.ArgumentParser, fsdp: bool = False) -> None:
     group = parser.add_argument_group("Distributed training parameters")
     group.add_argument("--world-size", type=int, default=1, metavar="N", help="number of distributed processes")
     group.add_argument("--local-rank", type=int, metavar="N", help="local rank")
     group.add_argument("--dist-url", type=str, default="env://", help="URL used to initialize distributed training")
     group.add_argument("--dist-backend", type=str, default="nccl", help="distributed backend")
+    if fsdp is True:
+        group.add_argument(
+            "--distributed-mode",
+            type=str,
+            choices=["ddp", "fsdp"],
+            default="ddp",
+            help="distributed training mode",
+        )
+        group.add_argument(
+            "--fsdp-sharding-strategy",
+            type=str,
+            choices=["shard-grad-op", "full-shard"],
+            default="shard-grad-op",
+            help="FSDP sharding strategy",
+        )
+        group.add_argument(
+            "--fsdp-param-dtype",
+            type=str,
+            choices=["float32", "float16", "bfloat16"],
+            help="FSDP mixed precision parameter dtype",
+        )
+        group.add_argument(
+            "--fsdp-reduce-dtype",
+            type=str,
+            choices=["float32", "float16", "bfloat16"],
+            help="FSDP mixed precision gradient reduction dtype",
+        )
+        group.add_argument(
+            "--fsdp-wrap-policy",
+            type=str,
+            choices=["block-group-regex", "stages", "min-num-params"],
+            default="block-group-regex",
+            help="FSDP module wrapping policy",
+        )
+        group.add_argument(
+            "--fsdp-wrap-min-num-params",
+            type=float,
+            metavar="M",
+            help=(
+                "minimum module parameter count in millions for wrapping when using --fsdp-wrap-policy min-num-params"
+            ),
+        )
+        group.add_argument(
+            "--fsdp-offload-policy",
+            type=str,
+            choices=["none", "cpu"],
+            default="none",
+            help="FSDP parameter offload policy",
+        )
+
     group.add_argument(
         "--find-unused-parameters",
         default=False,
         action="store_true",
         help="enable searching for unused parameters in DistributedDataParallel (may impact performance)",
+    )
+    group.add_argument(
+        "--no-broadcast-buffers",
+        default=False,
+        action="store_true",
+        help="disable broadcasting of buffers from rank 0 in distributed training",
     )
 
 
@@ -682,6 +739,12 @@ def add_detection_training_data_args(parser: argparse.ArgumentParser) -> None:
     group.add_argument(
         "--ignore-file", type=str, metavar="FILE", help="ignore list file, list of samples to ignore in training"
     )
+    group.add_argument(
+        "--label-mapping",
+        type=str,
+        metavar="FILE",
+        help="JSON mapping of source labels to target labels for grouped detection training",
+    )
 
 
 # pylint: disable=too-many-branches
@@ -719,6 +782,14 @@ def common_args_validation(args: argparse.Namespace) -> None:
             raise ValidationError("--model-ema-steps must be >= 1")
 
     # Compile args, argument dependant
+    if hasattr(args, "compile_fullgraph") is True and args.compile_fullgraph is True:
+        if (
+            args.compile is False
+            and (hasattr(args, "compile_teacher") is False or args.compile_teacher is False)
+            and (hasattr(args, "compile_backbone") is False or args.compile_backbone is False)
+        ):
+            raise ValidationError("--compile-fullgraph requires --compile, --compile-teacher or --compile-backbone")
+
     if hasattr(args, "compile_teacher") is True:
         if args.compile is True and args.compile_teacher is True:
             raise ValidationError("--compile cannot be used with --compile-teacher")
@@ -767,6 +838,21 @@ def common_args_validation(args: argparse.Namespace) -> None:
     if hasattr(args, "freeze_bn") is True and hasattr(args, "sync_bn"):
         if args.freeze_bn is True and args.sync_bn is True:
             raise ValidationError("--freeze-bn cannot be used with --sync-bn")
+
+    # FSDP mode checks
+    if hasattr(args, "distributed_mode") is True and args.distributed_mode == "fsdp":
+        if hasattr(args, "sync_bn") is True and args.sync_bn is True:
+            raise ValidationError("--sync-bn cannot be used with --distributed-mode fsdp")
+        if args.find_unused_parameters is True:
+            raise ValidationError("--find-unused-parameters cannot be used with --distributed-mode fsdp")
+        if args.compile_opt is True:
+            raise ValidationError("--compile-opt cannot be used with --distributed-mode fsdp")
+        if args.cpu is True:
+            raise ValidationError("--cpu cannot be used with --distributed-mode fsdp")
+        if args.fsdp_wrap_policy == "min-num-params" and args.fsdp_wrap_min_num_params is None:
+            raise ValidationError("--fsdp-wrap-min-num-params is required when --fsdp-wrap-policy is min-num-params")
+        if args.fsdp_wrap_min_num_params is not None and args.fsdp_wrap_min_num_params <= 0:
+            raise ValidationError("--fsdp-wrap-min-num-params must be > 0")
 
     # Precision_args, shared by all scripts
     if args.amp is True and args.model_dtype != "float32":

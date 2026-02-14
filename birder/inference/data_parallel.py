@@ -160,9 +160,14 @@ class InferenceDataParallel(nn.Module):
                             )
                         else:
                             kwargs_chunk[key] = value.to(f"cuda:{device_id}", non_blocking=True)
-
+                    elif isinstance(value, list) and len(value) == batch_size:
+                        # Assume sequence with len == batch_size are per-sample and must be sliced per chunk
+                        kwargs_chunk[key] = value[offset : offset + chunk_size]
+                    elif isinstance(value, tuple) and len(value) == batch_size:
+                        # Same assumption as list above, keep tuple type while slicing by chunk
+                        kwargs_chunk[key] = value[offset : offset + chunk_size]
                     else:
-                        # Non-tensor kwargs are passed as-is
+                        # Rest of the non-tensor kwargs are passed as-is
                         kwargs_chunk[key] = value
 
                 kwargs_chunks.append(kwargs_chunk)
@@ -294,3 +299,47 @@ class InferenceDataParallel(nn.Module):
             f"  src_device={self.src_device}\n"
             f")"
         )
+
+
+class DetectionInferenceDataParallel(InferenceDataParallel):
+    def _replicate_model(self) -> None:
+        self.replicas = [self.module]
+        source_forward = self.module.__dict__.get("forward")
+
+        for device_id in self.device_ids[1:]:
+            replica = copy.deepcopy(self.module)
+            # Some detector models assign a compiler disable wrapper to self.forward
+            # After deepcopy, that wrapper can still point to the source module
+            if source_forward is not None and replica.__dict__.get("forward") is source_forward:
+                replica.forward = torch.compiler.disable(recursive=False)(
+                    type(replica).forward.__get__(replica)  # pylint: disable=unnecessary-dunder-call
+                )
+
+            replica = replica.to(f"cuda:{device_id}")
+            self.replicas.append(replica)
+            logger.debug(f"Model replicated to cuda:{device_id}")
+
+    def _gather_detection_list(self, outputs: list[list[dict[str, torch.Tensor]]]) -> list[dict[str, torch.Tensor]]:
+        non_blocking = self.output_device.type == "cuda"
+        merged: list[dict[str, torch.Tensor]] = []
+        for detection_batch in outputs:
+            for detection in detection_batch:
+                merged.append(
+                    {key: value.to(self.output_device, non_blocking=non_blocking) for key, value in detection.items()}
+                )
+
+        if self.output_device.type == "cuda":
+            torch.cuda.synchronize(self.output_device)
+
+        return merged
+
+    def _gather(
+        self, outputs: list[Optional[tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]]]
+    ) -> tuple[list[dict[str, torch.Tensor]], dict[str, torch.Tensor]]:
+        valid_outputs = [out for out in outputs if out is not None]
+        detection_batches: list[list[dict[str, torch.Tensor]]] = []
+        for detections, _ in valid_outputs:
+            detection_batches.append(detections)
+
+        # In inference we only consume detections, loss maps are ignored
+        return (self._gather_detection_list(detection_batches), {})

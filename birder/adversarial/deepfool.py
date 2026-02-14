@@ -77,16 +77,16 @@ class DeepFool:
         self, inputs: torch.Tensor, logits: torch.Tensor, target_label: Optional[torch.Tensor]
     ) -> torch.Tensor:
         adv_inputs = inputs.clone()
-        original_label = int(predict_labels(logits).item())
+        original_label = predict_labels(logits).item()
         targeted = target_label is not None
         for _ in range(self.max_iter):
             adv_inputs.requires_grad_(True)
             outputs = self.net(adv_inputs)
-            current_label = int(predict_labels(outputs).item())
+            current_label = predict_labels(outputs).item()
 
             if targeted is True:
                 assert target_label is not None
-                target_value = int(target_label.item())
+                target_value = target_label.item()
                 if current_label == target_value:
                     break
 
@@ -110,7 +110,7 @@ class DeepFool:
     def _targeted_perturbation(
         self, adv_inputs: torch.Tensor, outputs: torch.Tensor, current_label: int, target_label: int
     ) -> Optional[torch.Tensor]:
-        self.net.zero_grad(set_to_none=True)
+        self.net.zero_grad()
         grad_current = torch.autograd.grad(outputs[0, current_label], adv_inputs, retain_graph=True)[0]
         grad_target = torch.autograd.grad(outputs[0, target_label], adv_inputs, retain_graph=False)[0]
 
@@ -137,7 +137,7 @@ class DeepFool:
         if len(candidate_labels) == 0:
             return None
 
-        self.net.zero_grad(set_to_none=True)
+        self.net.zero_grad()
         grad_current = torch.autograd.grad(outputs[0, current_label], adv_inputs, retain_graph=True)[0]
 
         # Track the closest decision boundary

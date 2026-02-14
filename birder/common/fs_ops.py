@@ -211,6 +211,29 @@ def _checkpoint_states(
     )
 
 
+def _checkpoint_states_from_state_dicts(
+    states_path: Path,
+    optimizer_state: Optional[dict[str, Any]],
+    scheduler_state: Optional[dict[str, Any]],
+    scaler_state: Optional[dict[str, Any]],
+    model_base_state: Optional[dict[str, Any]],
+    **extra_states: Optional[dict[str, Any]],
+) -> None:
+    if optimizer_state is None or scheduler_state is None:
+        return
+
+    torch.save(
+        {
+            "optimizer_state": optimizer_state,
+            "scheduler_state": scheduler_state,
+            "scaler_state": scaler_state,
+            "model_base_state": model_base_state,
+            **extra_states,
+        },
+        states_path,
+    )
+
+
 def checkpoint_model(
     network_name: str,
     epoch: int,
@@ -250,6 +273,55 @@ def checkpoint_model(
     )
 
     _checkpoint_states(states_path, optimizer, scheduler, scaler, model_base, **extra_states)
+
+
+def checkpoint_model_from_state_dicts(
+    network_name: str,
+    epoch: int,
+    model_state: dict[str, Any],
+    task: Any,
+    signature: SignatureType | DetectionSignatureType | MIMSignatureType | SSLSignatureType,
+    class_to_idx: dict[str, int],
+    rgb_stats: RGBType,
+    optimizer_state: Optional[dict[str, Any]],
+    scheduler_state: Optional[dict[str, Any]],
+    scaler_state: Optional[dict[str, Any]],
+    model_base_state: Optional[dict[str, Any]],
+    *,
+    external_config: Optional[dict[str, Any]] = None,
+    external_backbone_config: Optional[dict[str, Any]] = None,
+    **extra_states: Optional[dict[str, Any]],
+) -> None:
+    kwargs = {}
+    if external_config is not None:
+        kwargs["config"] = external_config
+    if external_backbone_config is not None:
+        kwargs["backbone_config"] = external_backbone_config
+
+    path = model_path(network_name, epoch=epoch)
+    states_path = model_path(network_name, epoch=epoch, states=True)
+    logger.info(f"Saving model checkpoint {path}...")
+    torch.save(
+        {
+            "state": model_state,
+            "birder_version": __version__,
+            "task": task,
+            "signature": signature,
+            "class_to_idx": class_to_idx,
+            "rgb_stats": rgb_stats,
+            **kwargs,
+        },
+        path,
+    )
+
+    _checkpoint_states_from_state_dicts(
+        states_path,
+        optimizer_state,
+        scheduler_state,
+        scaler_state,
+        model_base_state,
+        **extra_states,
+    )
 
 
 def clean_checkpoints(network_name: str, keep_last: int) -> None:

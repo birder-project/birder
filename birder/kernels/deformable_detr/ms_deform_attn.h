@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <ATen/autocast_mode.h>
 #include "cpu/ms_deform_attn_cpu.h"
 
 #ifdef WITH_CUDA
@@ -21,13 +22,14 @@
 
 at::Tensor
 ms_deform_attn_forward(
-    const at::Tensor &value, 
+    const at::Tensor &value,
     const at::Tensor &spatial_shapes,
     const at::Tensor &level_start_index,
     const at::Tensor &sampling_loc,
     const at::Tensor &attn_weight,
     const int im2col_step)
 {
+    at::NoGradGuard no_grad;
     if (value.is_cuda())
     {
 #ifdef WITH_CUDA
@@ -42,7 +44,7 @@ ms_deform_attn_forward(
 
 std::vector<at::Tensor>
 ms_deform_attn_backward(
-    const at::Tensor &value, 
+    const at::Tensor &value,
     const at::Tensor &spatial_shapes,
     const at::Tensor &level_start_index,
     const at::Tensor &sampling_loc,
@@ -50,6 +52,7 @@ ms_deform_attn_backward(
     const at::Tensor &grad_output,
     const int im2col_step)
 {
+    at::NoGradGuard no_grad;
     if (value.is_cuda())
     {
 #ifdef WITH_CUDA

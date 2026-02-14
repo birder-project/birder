@@ -3,11 +3,13 @@ import argparse
 from birder.common import cli
 from birder.eval import adversarial
 from birder.eval import classification
+from birder.eval import spatial
 from birder.eval.benchmarks import awa2
 from birder.eval.benchmarks import bioscan5m
 from birder.eval.benchmarks import fishnet
 from birder.eval.benchmarks import flowers102
 from birder.eval.benchmarks import fungiclef
+from birder.eval.benchmarks import imagenet1k
 from birder.eval.benchmarks import nabirds
 from birder.eval.benchmarks import newt
 from birder.eval.benchmarks import plankton
@@ -25,6 +27,8 @@ def main() -> None:
             "python -m birder.eval adversarial -n resnet_v2_50 -t il-all -e 100 --method pgd "
             "--gpu data/validation_il-all_packed\n"
             "python -m birder.eval classification --filter '*il-all*' --gpu data/validation_il-all\n"
+            "python -m birder.eval spatial -n regnet_y_16g -e 100 --transforms rotate translate_x "
+            "--magnitudes 1 2 4 --gpu data/validation\n"
             "---\n"
             "python -m birder.eval awa2 --embeddings "
             "results/awa2/*.parquet --dataset-path ~/Datasets/Animals_with_Attributes2 --gpu\n"
@@ -37,6 +41,9 @@ def main() -> None:
             "--dataset-path ~/Datasets/Flowers102\n"
             "python -m birder.eval fungiclef --embeddings "
             "results/fungiclef/*.parquet --dataset-path ~/Datasets/FungiCLEF2023 --gpu\n"
+            "python -m birder.eval imagenet1k --train-embeddings "
+            "results/imagenet1k/*1281167*embeddings.parquet --val-embeddings "
+            "results/imagenet1k/*50000*embeddings.parquet\n"
             "python -m birder.eval nabirds --embeddings "
             "results/vit_b16_224px_crop1.0_48562_embeddings.parquet --dataset-path ~/Datasets/nabirds --gpu\n"
             "python -m birder.eval newt --embeddings "
@@ -54,12 +61,14 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="cmd", required=True)
     adversarial.set_parser(subparsers)
     classification.set_parser(subparsers)
+    spatial.set_parser(subparsers)
 
     awa2.set_parser(subparsers)
     bioscan5m.set_parser(subparsers)
     fishnet.set_parser(subparsers)
     flowers102.set_parser(subparsers)
     fungiclef.set_parser(subparsers)
+    imagenet1k.set_parser(subparsers)
     nabirds.set_parser(subparsers)
     newt.set_parser(subparsers)
     plankton.set_parser(subparsers)

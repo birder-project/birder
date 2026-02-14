@@ -52,7 +52,7 @@ def _make_block_input_shapes(input_size: tuple[int, int], n_blocks: int) -> list
     return shapes
 
 
-def _get_relative_position_index(height: int, width: int, device: torch.device | None = None) -> torch.Tensor:
+def _get_relative_position_index(height: int, width: int, device: Optional[torch.device] = None) -> torch.Tensor:
     coords = torch.stack(
         torch.meshgrid([torch.arange(height, device=device), torch.arange(width, device=device)], indexing="ij")
     )

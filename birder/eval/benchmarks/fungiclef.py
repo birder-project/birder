@@ -129,9 +129,9 @@ def _load_embeddings_with_split(
         )
 
     x_train = train_join.get_column("embedding").to_numpy().astype(np.float32, copy=False)
-    y_train = train_join.get_column("label").to_numpy().astype(np.int_)
+    y_train = train_join.get_column("label").to_numpy().astype(np.int_, copy=False)
     x_val = val_join.get_column("embedding").to_numpy().astype(np.float32, copy=False)
-    y_val = val_join.get_column("label").to_numpy().astype(np.int_)
+    y_val = val_join.get_column("label").to_numpy().astype(np.int_, copy=False)
 
     num_classes = y_train.max() + 1
     total_samples = x_train.shape[0] + x_val.shape[0] + test_join.height

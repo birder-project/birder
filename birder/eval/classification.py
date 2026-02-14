@@ -210,17 +210,19 @@ def validate_args(args: argparse.Namespace) -> None:
     if args.parallel is True and args.gpu is False:
         raise cli.ValidationError("--parallel requires --gpu to be set")
     if args.wds is False and len(args.data_path) == 0:
-        raise cli.ValidationError("Must provide at least one data source, --data-path or --wds")
+        raise cli.ValidationError("Must provide at least one data source: DATA_PATH positional argument or --wds")
 
     if args.wds is True:
         if args.wds_info is None and len(args.data_path) == 0:
             raise cli.ValidationError("--wds requires a data path unless --wds-info is provided")
         if len(args.data_path) > 1:
-            raise cli.ValidationError(f"--wds can have at most 1 --data-path, got {len(args.data_path)}")
+            raise cli.ValidationError(
+                f"--wds can have at most 1 DATA_PATH positional argument, got {len(args.data_path)}"
+            )
         if args.wds_info is None and len(args.data_path) == 1:
             data_path = args.data_path[0]
             if "://" in data_path and args.wds_size is None:
-                raise cli.ValidationError("--wds-size is required for remote --data-path")
+                raise cli.ValidationError("--wds-size is required for remote DATA_PATH")
 
     args.size = cli.parse_size(args.size)
 

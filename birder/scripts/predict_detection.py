@@ -18,6 +18,7 @@ from birder.data.collators.detection import inference_collate_fn
 from birder.data.datasets.coco import CocoInference
 from birder.data.datasets.directory import make_image_dataset
 from birder.data.transforms.detection import InferenceTransform
+from birder.inference.data_parallel import DetectionInferenceDataParallel
 from birder.inference.detection import infer_dataloader
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
@@ -96,13 +97,13 @@ def predict(args: argparse.Namespace) -> None:
         net = net.to(memory_format=torch.channels_last)
         logger.debug("Using channels-last memory format")
 
-    if args.compile is True:
-        net = torch.compile(net)
-    elif args.compile_backbone is True:
-        net.backbone.detection_features = torch.compile(net.backbone.detection_features)
-
     if args.parallel is True and torch.cuda.device_count() > 1:
-        net = torch.nn.DataParallel(net)
+        net = DetectionInferenceDataParallel(net, compile_replicas=args.compile)
+    else:
+        if args.compile is True:
+            net = torch.compile(net)
+        elif args.compile_backbone is True:
+            net.backbone.detection_features = torch.compile(net.backbone.detection_features)
 
     if args.size is None:
         args.size = lib.get_size_from_signature(signature)
@@ -138,6 +139,12 @@ def predict(args: argparse.Namespace) -> None:
             args.coco_json_path,
             transforms=InferenceTransform(args.size, rgb_stats, args.dynamic_size, args.max_size, args.no_resize),
         )
+        if args.label_mapping is not None:
+            with open(args.label_mapping, "r", encoding="utf-8") as handle:
+                label_mapping = json.load(handle)
+
+            dataset.convert_annotations_with_label_mapping(label_mapping, target_class_to_idx=class_to_idx)
+
         if dataset.class_to_idx != class_to_idx:
             logger.warning("Dataset class to index differs from model")
     else:
@@ -359,6 +366,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mps", default=False, action="store_true", help="use mps (Metal Performance Shaders) device")
     parser.add_argument("--parallel", default=False, action="store_true", help="use multiple gpus")
     parser.add_argument("--coco-json-path", type=str, help="COCO json path")
+    parser.add_argument(
+        "--label-mapping", type=str, metavar="FILE", help="JSON mapping of source labels to target labels"
+    )
     parser.add_argument("data_path", nargs="+", help="data files path (directories and files)")
 
     return parser
@@ -389,14 +399,16 @@ def validate_args(args: argparse.Namespace) -> None:
                 raise cli.ValidationError(f"--class-min-score value must be a valid float, got '{score_str}'") from e
     if args.parallel is True and args.gpu is False:
         raise cli.ValidationError("--parallel requires --gpu to be set")
-    if args.parallel is True and args.compile is True:
-        raise cli.ValidationError("--parallel cannot be used with --compile")
+    if args.parallel is True and args.compile_backbone is True:
+        raise cli.ValidationError("--parallel cannot be used with --compile-backbone")
     if args.compile is True and args.compile_backbone is True:
         raise cli.ValidationError("--compile cannot be used with --compile-backbone")
     if args.amp is True and args.model_dtype != "float32":
         raise cli.ValidationError("--amp can only be used with --model-dtype float32")
     if args.coco_json_path is not None and len(args.data_path) > 1:
         raise cli.ValidationError(f"--coco-json-path can have at most 1 --data-path, got {len(args.data_path)}")
+    if args.label_mapping is not None and args.coco_json_path is None:
+        raise cli.ValidationError("--label-mapping requires --coco-json-path")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

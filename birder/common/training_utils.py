@@ -27,6 +27,8 @@ import torch.distributed as dist
 import torch.utils.data.distributed
 from torchvision.ops import FrozenBatchNorm2d
 
+from birder.common import fs_ops
+from birder.common import fsdp_utils
 from birder.conf import settings
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.classification import training_preset
@@ -81,6 +83,7 @@ class RASampler(torch.utils.data.Sampler):
         self.rank = rank
         self.epoch = 0
         self.num_samples = int(math.ceil(len(self.dataset) * float(repetitions) / self.num_replicas))
+        self.num_selected_samples = int(math.ceil(len(self.dataset) / self.num_replicas))
         self.total_size = self.num_samples * self.num_replicas
         self.shuffle = shuffle
         self.seed = seed
@@ -106,10 +109,10 @@ class RASampler(torch.utils.data.Sampler):
         indices = indices[self.rank : self.total_size : self.num_replicas]
         assert len(indices) == self.num_samples
 
-        yield from indices
+        yield from indices[: self.num_selected_samples]
 
     def __len__(self) -> int:
-        return self.num_samples
+        return self.num_selected_samples
 
     def set_epoch(self, epoch: int) -> None:
         self.epoch = epoch
@@ -729,8 +732,8 @@ def get_scheduler(
     remaining_cooldown = min(cooldown_steps, steps - begin_step)
 
     main_steps = steps - begin_step - remaining_warmup - remaining_cooldown - 1
-
     logger.debug(f"Scheduler using {steps_per_epoch} steps per epoch")
+
     logger.debug(
         f"Scheduler {args.lr_scheduler} set for {steps} steps of which {warmup_steps} "
         f"are warmup and {cooldown_steps} are cooldown"
@@ -1146,6 +1149,75 @@ def is_local_primary(args: argparse.Namespace) -> bool:
         return True
 
     return args.local_rank == 0  # type: ignore[no-any-return]
+
+
+def save_training_checkpoint(
+    args: argparse.Namespace,
+    network_name: str,
+    epoch: int,
+    net: torch.nn.Module,
+    signature: Any,
+    class_to_idx: dict[str, int],
+    rgb_stats: Any,
+    optimizer: Optional[torch.optim.Optimizer],
+    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler],
+    scaler: Optional[torch.amp.grad_scaler.GradScaler],
+    model_base: Optional[torch.nn.Module],
+    *,
+    fsdp_mode: bool = False,
+    external_config: Optional[dict[str, Any]] = None,
+    external_backbone_config: Optional[dict[str, Any]] = None,
+    **extra_states: Optional[dict[str, Any]],
+) -> None:
+    if fsdp_mode is True:
+        model_state = fsdp_utils.gather_full_model_state_dict(net)
+        optimizer_state = None
+        scheduler_state = None
+        scaler_state = None
+        model_base_state = None
+        if optimizer is not None and scheduler is not None:
+            optimizer_state = fsdp_utils.gather_full_optimizer_state_dict(net, optimizer)
+            scheduler_state = scheduler.state_dict()
+            if scaler is not None:
+                scaler_state = scaler.state_dict()
+            if model_base is not None:
+                model_base_state = model_base.state_dict()
+
+        if is_global_primary(args) is True:
+            fs_ops.checkpoint_model_from_state_dicts(
+                network_name,
+                epoch,
+                model_state,
+                net.task,
+                signature,
+                class_to_idx,
+                rgb_stats,
+                optimizer_state,
+                scheduler_state,
+                scaler_state,
+                model_base_state,
+                external_config=external_config,
+                external_backbone_config=external_backbone_config,
+                **extra_states,
+            )
+
+    else:
+        if is_global_primary(args) is True:
+            fs_ops.checkpoint_model(
+                network_name,
+                epoch,
+                net,
+                signature,
+                class_to_idx,
+                rgb_stats,
+                optimizer,
+                scheduler,
+                scaler,
+                model_base,
+                external_config=external_config,
+                external_backbone_config=external_backbone_config,
+                **extra_states,
+            )
 
 
 def init_training(

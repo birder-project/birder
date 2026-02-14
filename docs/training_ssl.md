@@ -516,6 +516,12 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_rotnet --network regnet_y_6_
 torchrun --nproc_per_node=2 -m birder.scripts.train_simclr --network resnet_v1_50 --batch-size 256 --opt lars --lr 0.075 --lr-scale 4096 --lr-scale-type sqrt --wd 0.0001 --lr-scheduler cosine --epochs 100 --warmup-epochs 10 --sync-bn --amp --compile --data-path data/training
 ```
 
+#### SimCLR: ConvNeXt v1 Small
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_simclr --network convnext_v1_small --batch-size 128 --opt lars --lr 0.075 --lr-scale 4096 --lr-scale-type sqrt --wd 0.0001 --lr-scheduler cosine --epochs 100 --warmup-epochs 10 --fast-matmul --compile --distributed-mode fsdp --fsdp-sharding-strategy full-shard --fsdp-param-dtype bfloat16 --fsdp-reduce-dtype bfloat16 --no-broadcast-buffers --data-path data/training
+```
+
 ### VICReg
 
 #### VICReg: ConvNeXt v2 Tiny

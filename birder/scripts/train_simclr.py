@@ -29,6 +29,7 @@ from tqdm import tqdm
 import birder
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common import fsdp_utils
 from birder.common import training_cli
 from birder.common import training_utils
 from birder.common.lib import format_duration
@@ -62,12 +63,47 @@ class TrainTransform:
         return (x1, x2)
 
 
+def _simclr_fsdp_wrap_modules(net: SimCLR, args: argparse.Namespace) -> list[torch.nn.Module]:
+    if args.fsdp_wrap_policy == "stages":
+        matched_modules = fsdp_utils.modules_from_stages(net.backbone)
+        if len(matched_modules) == 0:
+            logger.warning("FSDP stages policy did not match any returned stage module on backbone")
+
+        logger.info(f"FSDP wrap modules resolved: {len(matched_modules)}")
+        return matched_modules
+
+    if args.fsdp_wrap_policy == "min-num-params":
+        min_num_params = int(args.fsdp_wrap_min_num_params * 1_000_000)
+        matched_modules = fsdp_utils.modules_from_min_num_params(net.backbone, min_num_params=min_num_params)
+        if len(matched_modules) == 0:
+            logger.warning(
+                f"FSDP min-num-params policy with threshold {args.fsdp_wrap_min_num_params:g}M "
+                "did not match any module on backbone"
+            )
+
+        logger.info(f"FSDP wrap modules resolved: {len(matched_modules)}")
+        return matched_modules
+
+    block_group_regex = getattr(net.backbone, "block_group_regex", None)
+    if block_group_regex is None:
+        logger.warning("No block_group_regex on backbone, using root-only FSDP")
+        return []
+
+    matched_modules = fsdp_utils.modules_from_block_group_regex(net.backbone, block_group_regex)
+    if len(matched_modules) == 0:
+        logger.warning(f"FSDP wrap regex '{block_group_regex}' did not match any module on backbone")
+
+    logger.info(f"FSDP wrap modules resolved: {len(matched_modules)}")
+    return matched_modules
+
+
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
     #
     # Initialize
     #
     device, device_id, disable_tqdm = training_utils.init_training(args, logger)
+    fsdp_mode = fsdp_utils.is_fsdp_mode(args)
 
     if args.size is None:
         args.size = registry.get_default_size(args.network)
@@ -215,9 +251,13 @@ def train(args: argparse.Namespace) -> None:
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
-    # Compile backbone
+    if fsdp_mode is True:
+        fsdp_wrap_modules = _simclr_fsdp_wrap_modules(net, args)
+        net = fsdp_utils.setup_fsdp(net, args, wrap_modules=fsdp_wrap_modules)
+
+    # Compile
     if args.compile is True:
-        net = torch.compile(net)
+        net = torch.compile(net, fullgraph=args.compile_fullgraph)
 
     #
     # Optimizer, learning rate scheduler and training parameter groups
@@ -262,7 +302,13 @@ def train(args: argparse.Namespace) -> None:
 
     # Load states
     if args.load_states is True:
-        optimizer.load_state_dict(training_states.optimizer_state)
+        if fsdp_mode is True:
+            fsdp_utils.load_full_optimizer_state_dict(
+                net, optimizer, training_states.optimizer_state  # type: ignore[arg-type]
+            )
+        else:
+            optimizer.load_state_dict(training_states.optimizer_state)
+
         scheduler.load_state_dict(training_states.scheduler_state)
         if scaler is not None:
             scaler.load_state_dict(training_states.scaler_state)
@@ -293,9 +339,12 @@ def train(args: argparse.Namespace) -> None:
     # Distributed (DDP)
     #
     net_without_ddp = net
-    if args.distributed is True:
+    if args.distributed is True and fsdp_mode is False:
         net = torch.nn.parallel.DistributedDataParallel(
-            net, device_ids=[args.local_rank], find_unused_parameters=args.find_unused_parameters
+            net,
+            device_ids=[args.local_rank],
+            find_unused_parameters=args.find_unused_parameters,
+            broadcast_buffers=not args.no_broadcast_buffers,
         )
         net_without_ddp = net.module
 
@@ -308,10 +357,7 @@ def train(args: argparse.Namespace) -> None:
     #
 
     # Print network summary
-    net_for_info = net_without_ddp
-    if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
-        net_for_info = net_without_ddp._orig_mod  # pylint: disable=protected-access
-
+    net_for_info = model_to_save
     if args.no_summary is False:
         summary = torchinfo.summary(
             net_for_info,
@@ -402,6 +448,10 @@ def train(args: argparse.Namespace) -> None:
             y = y.to(device, dtype=model_dtype, non_blocking=True)
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
+            if fsdp_mode is True and grad_accum_steps > 1:
+                net.set_requires_gradient_sync(requires_gradient_sync=optimizer_update)
+            if fsdp_mode is True and args.no_broadcast_buffers is False:
+                fsdp_utils.broadcast_module_buffers(net)
 
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
@@ -483,36 +533,39 @@ def train(args: argparse.Namespace) -> None:
             last_lr = float(max(scheduler.get_last_lr()))
             logger.info(f"Updated learning rate to: {last_lr}")
 
-        if training_utils.is_local_primary(args) is True:
-            # Checkpoint model
-            if epoch % args.save_frequency == 0:
-                fs_ops.checkpoint_model(
-                    network_name,
-                    epoch,
-                    model_to_save,
-                    signature,
-                    {},
-                    rgb_stats,
-                    optimizer,
-                    scheduler,
-                    scaler,
-                    None,
-                )
-                fs_ops.checkpoint_model(
-                    backbone_name,
-                    epoch,
-                    model_to_save.backbone,
-                    backbone_signature,
-                    {},
-                    rgb_stats,
-                    optimizer=None,
-                    scheduler=None,
-                    scaler=None,
-                    model_base=None,
-                )
-                if args.keep_last is not None:
-                    fs_ops.clean_checkpoints(network_name, args.keep_last)
-                    fs_ops.clean_checkpoints(backbone_name, args.keep_last)
+        # Checkpoint model
+        if epoch % args.save_frequency == 0:
+            training_utils.save_training_checkpoint(
+                args,
+                network_name=network_name,
+                epoch=epoch,
+                net=model_to_save,
+                signature=signature,
+                class_to_idx={},
+                rgb_stats=rgb_stats,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                scaler=scaler,
+                model_base=None,
+                fsdp_mode=fsdp_mode,
+            )
+            training_utils.save_training_checkpoint(
+                args,
+                network_name=backbone_name,
+                epoch=epoch,
+                net=model_to_save.backbone,
+                signature=backbone_signature,
+                class_to_idx={},
+                rgb_stats=rgb_stats,
+                optimizer=None,
+                scheduler=None,
+                scaler=None,
+                model_base=None,
+                fsdp_mode=fsdp_mode,
+            )
+            if args.keep_last is not None and training_utils.is_global_primary(args) is True:
+                fs_ops.clean_checkpoints(network_name, args.keep_last)
+                fs_ops.clean_checkpoints(backbone_name, args.keep_last)
 
         # Epoch timing
         toc = time.time()
@@ -522,31 +575,34 @@ def train(args: argparse.Namespace) -> None:
     summary_writer.close()
 
     # Checkpoint model
-    if training_utils.is_local_primary(args) is True:
-        fs_ops.checkpoint_model(
-            network_name,
-            epoch,
-            model_to_save,
-            signature,
-            {},
-            rgb_stats,
-            optimizer,
-            scheduler,
-            scaler,
-            None,
-        )
-        fs_ops.checkpoint_model(
-            backbone_name,
-            epoch,
-            model_to_save.backbone,
-            backbone_signature,
-            {},
-            rgb_stats,
-            optimizer=None,
-            scheduler=None,
-            scaler=None,
-            model_base=None,
-        )
+    training_utils.save_training_checkpoint(
+        args,
+        network_name=network_name,
+        epoch=epoch,
+        net=model_to_save,
+        signature=signature,
+        class_to_idx={},
+        rgb_stats=rgb_stats,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        scaler=scaler,
+        model_base=None,
+        fsdp_mode=fsdp_mode,
+    )
+    training_utils.save_training_checkpoint(
+        args,
+        network_name=backbone_name,
+        epoch=epoch,
+        net=model_to_save.backbone,
+        signature=backbone_signature,
+        class_to_idx={},
+        rgb_stats=rgb_stats,
+        optimizer=None,
+        scheduler=None,
+        scaler=None,
+        model_base=None,
+        fsdp_mode=fsdp_mode,
+    )
 
     training_utils.shutdown_distributed_mode(args)
 
@@ -598,7 +654,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_precision_args(parser)
     training_cli.add_compile_args(parser)
     training_cli.add_checkpoint_args(parser)
-    training_cli.add_distributed_args(parser)
+    training_cli.add_distributed_args(parser, fsdp=True)
     training_cli.add_logging_and_debug_args(parser, default_log_interval=100)
     training_cli.add_training_data_args(parser, unsupervised=True)
 

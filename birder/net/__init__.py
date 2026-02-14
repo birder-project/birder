@@ -67,6 +67,7 @@ from birder.net.mvit_v2 import MViT_v2
 from birder.net.nextvit import NextViT
 from birder.net.nfnet import NFNet
 from birder.net.pit import PiT
+from birder.net.pnasnet import PNASNet
 from birder.net.pvt_v1 import PVT_v1
 from birder.net.pvt_v2 import PVT_v2
 from birder.net.rdnet import RDNet
@@ -84,9 +85,11 @@ from birder.net.resnext import ResNeXt
 from birder.net.rope_deit3 import RoPE_DeiT3
 from birder.net.rope_flexivit import RoPE_FlexiViT
 from birder.net.rope_vit import RoPE_ViT
+from birder.net.rope_vit5 import RoPE_ViT5
 from birder.net.sequencer2d import Sequencer2d
 from birder.net.shufflenet_v1 import ShuffleNet_v1
 from birder.net.shufflenet_v2 import ShuffleNet_v2
+from birder.net.shvit import SHViT
 from birder.net.simple_vit import Simple_ViT
 from birder.net.smt import SMT
 from birder.net.squeezenet import SqueezeNet
@@ -180,6 +183,7 @@ __all__ = [
     "NextViT",
     "NFNet",
     "PiT",
+    "PNASNet",
     "PVT_v1",
     "PVT_v2",
     "RDNet",
@@ -197,9 +201,11 @@ __all__ = [
     "RoPE_DeiT3",
     "RoPE_FlexiViT",
     "RoPE_ViT",
+    "RoPE_ViT5",
     "Sequencer2d",
     "ShuffleNet_v1",
     "ShuffleNet_v2",
+    "SHViT",
     "Simple_ViT",
     "SMT",
     "SqueezeNet",

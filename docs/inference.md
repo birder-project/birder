@@ -36,7 +36,7 @@ You can also prepend or append text using `--prefix` and `--suffix`.
 - **Format**: CSV.
 - **Content (for `--save-results`):**
     - `sample`: The path to the input image.
-    - `labels`: The ground truth label of the image (if available).
+    - `label`: The ground truth label of the image (if available).
     - `prediction_names`: Predicted class name.
     - `<class_name_1>`, `<class_name_2>`, ...: Probability values for each class.
 - **Content (for `--save-sparse-results`):** Similar to `--save-results` but only include the top-k predicted class probabilities to conserve space.
@@ -57,8 +57,10 @@ If you want to load them manually with another library, make sure to skip the fi
 
 - **Purpose**: These files contain the model outputs (typically softmax probabilities) for each sample.
 - **Format**: CSV or Parquet, determined by the `--output-format` argument.
+- **Optional labels**: Add `--save-labels` to include a `label` column in these files.
 - **Content**:
     - `sample`: The path to the input image.
+    - `label` (optional): Ground-truth class index from the dataset (if available).
     - `prediction`: The predicted class name (based on the highest probability).
     - `<class_name_1>`, `<class_name_2>`, ...: Columns representing the output (e.g., probability) for each class.
 
@@ -68,8 +70,10 @@ If you want to load them manually with another library, make sure to skip the fi
 
 - **Purpose**: These files store the raw outputs from the final layer of the model before any activation functions are applied.
 - **Format**: CSV or Parquet, determined by the `--output-format` argument.
+- **Optional labels**: Add `--save-labels` to include a `label` column in these files.
 - **Content**:
     - `sample`: The path to the input image.
+    - `label` (optional): Ground-truth class index from the dataset (if available).
     - `<class_name_1>`, `<class_name_2>`, ...: Columns representing the logit value for each class.
 
 #### Embeddings
@@ -78,8 +82,10 @@ If you want to load them manually with another library, make sure to skip the fi
 
 - **Purpose**: These files contain the embeddings vectors from the model.
 - **Format**: CSV or Parquet, determined by the `--output-format` argument.
+- **Optional labels**: Add `--save-labels` to include a `label` column in these files.
 - **Content**:
     - `sample`: The path to the input image.
+    - `label` (optional): Ground-truth class index from the dataset (if available).
     - In CSV format, `0`, `1`, `2`, ...: Columns representing each dimension of the embedding vector.
     - In Parquet format, `embedding`: Column with "Fixed sized list" (array) type.
 
@@ -88,7 +94,7 @@ If you want to load them manually with another library, make sure to skip the fi
 If you run a command like:
 
 ```sh
-birder-predict -n resnet_v2_50 -t my_model_tag data/my_images/ --save-results --save-output --save-embeddings --output-format parquet
+birder-predict -n resnet_v2_50 -t my_model_tag data/my_images/ --save-results --save-output --save-embeddings --save-labels --output-format parquet
 ```
 
 You might expect to see files similar to these in your `results` directory:

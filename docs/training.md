@@ -86,6 +86,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [Next-ViT](#next-vit)
 - [NFNet](#nfnet)
 - [PiT](#pit)
+- [PNASNet](#pnasnet)
 - [PVT v1](#pvt-v1)
 - [PVT v2](#pvt-v2)
 - [RDNet](#rdnet)
@@ -102,12 +103,14 @@ Most networks train more effectively with growing resolution and augmentation as
 - [RoPE DeiT3](#rope-deit3)
 - [RoPE FlexiViT](#rope-flexivit)
 - [RoPE ViT](#rope-vit)
+- [RoPE ViT-5](#rope-vit-5)
 - [SE ResNet v1](#se-resnet-v1)
 - [SE ResNet v2](#se-resnet-v2)
 - [SE ResNeXt](#se-resnext)
 - [Sequencer2d](#sequencer2d)
 - [ShuffleNet v1](#shufflenet-v1)
 - [ShuffleNet v2](#shufflenet-v2)
+- [SHViT](#shvit)
 - [Simple ViT](#simple-vit)
 - [SqueezeNet](#squeezenet)
 - [SqueezeNext](#squeezenext)
@@ -1810,6 +1813,20 @@ torchrun --nproc_per_node=2 train.py --network pit_s --batch-size 256 --opt adam
 torchrun --nproc_per_node=2 train.py --network pit_b --batch-size 128 --opt adamw --clip-grad-norm 1 --grad-accum-steps 2 --lr 0.0005 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
+### PNASNet
+
+#### PNASNet: Mobile
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pnasnet_mobile --batch-size 256 --lr 0.04 --wd 0.00004 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --epochs 400 --warmup-epochs 3 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --fast-matmul --compile
+```
+
+#### PNASNet: Large
+
+```sh
+torchrun --nproc_per_node=2 train.py --network pnasnet_large --batch-size 32 --opt rmsprop --lr 0.015 --wd 0.00004 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --epochs 400 --warmup-epochs 3 --size 331 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --amp --compile
+```
+
 ### PVT v1
 
 #### PVT v1: Tiny
@@ -2170,6 +2187,14 @@ Same as [FlexiViT](#flexivit)
 
 Same as [ViT](#vit)
 
+### RoPE ViT-5
+
+#### RoPE ViT-5: b16
+
+```sh
+torchrun --nproc_per_node=2 train.py --network rope_vit5_reg4_b16 --bce-loss --bce-threshold 0.05 --batch-size 256 --opt adamw --clip-grad-norm 1 --lr 0.003 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 800 --warmup-epochs 5 --model-ema --size 224 --aug-level 2 --resize-min-scale 0.4 --re-prob 0 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile
+```
+
 ### SE ResNet v1
 
 Same as ResNet v1
@@ -2218,6 +2243,38 @@ torchrun --nproc_per_node=2 train.py --network shufflenet_v1_4 --batch-size 256 
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network shufflenet_v2_2_0 --batch-size 128 --lr 0.5 --wd 0.00002 --norm-wd 0 --lr-scheduler cosine --epochs 300 --warmup-epochs 5 --model-ema --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --ra-sampler --ra-reps 2
+```
+
+### SHViT
+
+#### SHViT: S1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network shvit_s1 --batch-size 512 --opt adamw --clip-grad-norm 1 --lr 0.001 --wd 0.025 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --fast-matmul --compile
+```
+
+#### SHViT: S2
+
+```sh
+torchrun --nproc_per_node=2 train.py --network shvit_s2 --batch-size 384 --opt adamw --clip-grad-norm 1 --lr 0.001 --wd 0.032 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --fast-matmul --compile
+```
+
+#### SHViT: S3
+
+```sh
+torchrun --nproc_per_node=2 train.py --network shvit_s3 --batch-size 256 --opt adamw --clip-grad-norm 1 --lr 0.001 --wd 0.035 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
+```
+
+Fine-tuning, increase resolution
+
+```sh
+torchrun --nproc_per_node=2 train.py --network shvit_s3 --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.004 --wd 1e-8 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 30 --model-ema --size 384 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile --resume-epoch 0
+```
+
+#### SHViT: S4
+
+```sh
+torchrun --nproc_per_node=2 train.py --network shvit_s4 --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.001 --wd 0.03 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
 ### Simple ViT

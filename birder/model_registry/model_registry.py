@@ -175,15 +175,23 @@ class ModelRegistry:
 
         return name in nets
 
+    def _metadata_type_name(self, model: "BaseNetObjType") -> str:
+        cls = model.__class__
+        bases = cls.__bases__
+        if len(bases) > 1 and bases[0].__name__ == "FSDPModule":
+            return bases[1].__name__.lower()
+
+        return cls.__name__.lower()
+
     def get_model_base_name(self, model: "BaseNetObjType") -> str:
-        type_name = model.__class__.__name__.lower()
+        type_name = self._metadata_type_name(model)
         if type_name in self.aliases:
-            type_name = model.__class__.__bases__[0].__name__.lower()
+            type_name = self.aliases[type_name].__bases__[0].__name__.lower()
 
         return type_name
 
     def get_model_alias(self, model: "BaseNetObjType") -> Optional[str]:
-        type_name = model.__class__.__name__.lower()
+        type_name = self._metadata_type_name(model)
         if type_name in self.aliases:
             return type_name
 

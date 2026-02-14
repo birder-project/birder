@@ -4,6 +4,7 @@ The `birder.eval` module provides a dedicated CLI for model evaluation workflows
 
 - Classification accuracy checks on labeled datasets
 - Adversarial robustness evaluation
+- Spatial robustness evaluation
 - Standardized benchmark runs on external datasets
 
 This module is intentionally separate from `birder-predict` and `birder.tools`.
@@ -19,7 +20,8 @@ python -m birder.eval <command> --help
 
 - `classification`: evaluate pre-trained classification models on a dataset
 - `adversarial`: evaluate robustness of a trained model under adversarial attacks
-- Benchmarks: `awa2`, `bioscan5m`, `fishnet`, `flowers102`, `fungiclef`, `nabirds`, `newt`, `plankton`, `plantdoc`, `plantnet`
+- `spatial`: evaluate robustness of a trained model under spatial perturbations
+- Benchmarks: `awa2`, `bioscan5m`, `fishnet`, `flowers102`, `fungiclef`, `imagenet1k`, `nabirds`, `newt`, `plankton`, `plantdoc`, `plantnet`
 
 ## Minimal Examples
 
@@ -30,13 +32,21 @@ python -m birder.eval classification --filter '*eu-common*' --gpu data/validatio
 # Evaluate one trained model with a PGD attack
 python -m birder.eval adversarial -n resnet_v2_50 -t il-all -e 100 --method pgd --gpu data/validation_il-all
 
+# Evaluate one trained model with spatial perturbations
+python -m birder.eval spatial -n efficientnet_v2_m -t arabian-peninsula --transforms rotate translate_xy --magnitudes 1 2 5 --gpu data/validation_il-all
+
+# Evaluate multiple pretrained models
+python -m birder.eval adversarial --filter '*arabian-peninsula*' --method fgsm --eps 0.01 --gpu data/validation_arabian-peninsula
+python -m birder.eval spatial --filter '*arabian-peninsula*' --transforms rotate translate_xy --magnitudes 2 5 --gpu data/validation_arabian-peninsula
+
 # Run a benchmark from saved embeddings
 python -m birder.eval nabirds --embeddings results/nabirds/*.parquet --dataset-path ~/Datasets/nabirds
 ```
 
 ## Inputs and Outputs
 
-- Core commands (`classification`, `adversarial`) read labeled image directories or WebDataset inputs
+- Core commands (`classification`, `adversarial`, `spatial`) read labeled image directories or WebDataset inputs
+- `adversarial` and `spatial` support model selection via `--filter`, `--network` or both in one run
 - Benchmark commands read feature parquet files (embeddings and/or logits) plus a benchmark dataset path
 - Results are written under `results/` in task-specific subdirectories
 

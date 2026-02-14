@@ -439,25 +439,28 @@ def train(args: argparse.Namespace) -> None:
 
     # Compile networks
     if args.compile is True:
-        train_student = torch.compile(train_student)
+        train_student = torch.compile(train_student, fullgraph=args.compile_fullgraph)
         if distillation_type == "embedding":
-            teacher.embedding = torch.compile(teacher.embedding)
-            embedding_projection = torch.compile(embedding_projection)
-            student = torch.compile(student)  # For validation
+            teacher.embedding = torch.compile(teacher.embedding, fullgraph=args.compile_fullgraph)
+            embedding_projection = torch.compile(embedding_projection, fullgraph=args.compile_fullgraph)
+            student = torch.compile(student, fullgraph=args.compile_fullgraph)  # For validation
         else:
-            teacher = torch.compile(teacher)
+            teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph)
             student = train_student
 
     elif args.compile_teacher is True:
         if distillation_type == "embedding":
-            teacher.embedding = torch.compile(teacher.embedding)
+            teacher.embedding = torch.compile(teacher.embedding, fullgraph=args.compile_fullgraph)
         else:
-            teacher = torch.compile(teacher)
+            teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph)
 
     net_without_ddp = student
     if args.distributed is True:
         train_student = torch.nn.parallel.DistributedDataParallel(
-            train_student, device_ids=[args.local_rank], find_unused_parameters=args.find_unused_parameters
+            train_student,
+            device_ids=[args.local_rank],
+            find_unused_parameters=args.find_unused_parameters,
+            broadcast_buffers=not args.no_broadcast_buffers,
         )
         if distillation_type != "embedding":
             net_without_ddp = train_student.module
@@ -469,6 +472,7 @@ def train(args: argparse.Namespace) -> None:
                 embedding_projection,
                 device_ids=[args.local_rank],
                 find_unused_parameters=args.find_unused_parameters,
+                broadcast_buffers=False,
             )
             embedding_projection_to_save = embedding_projection.module
         else:
@@ -881,7 +885,8 @@ def train(args: argparse.Namespace) -> None:
                 if embedding_projection_to_save is not None:
                     extra_states["embedding_projection"] = embedding_projection_to_save.state_dict()
 
-                fs_ops.checkpoint_model(
+                training_utils.save_training_checkpoint(
+                    args,
                     student_name,
                     epoch,
                     model_to_save,
@@ -894,7 +899,7 @@ def train(args: argparse.Namespace) -> None:
                     model_base,
                     **extra_states,
                 )
-                if args.keep_last is not None:
+                if args.keep_last is not None and training_utils.is_global_primary(args) is True:
                     fs_ops.clean_checkpoints(student_name, args.keep_last)
 
         # Epoch timing
@@ -937,7 +942,8 @@ def train(args: argparse.Namespace) -> None:
         if embedding_projection_to_save is not None:
             extra_states["embedding_projection"] = embedding_projection_to_save.state_dict()
 
-        fs_ops.checkpoint_model(
+        training_utils.save_training_checkpoint(
+            args,
             student_name,
             epoch,
             model_to_save,

@@ -8,6 +8,7 @@ import time
 import types
 from collections.abc import Iterator
 from typing import Any
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -146,12 +147,11 @@ def train(args: argparse.Namespace) -> None:
         transforms=InferenceTransform(args.size, rgb_stats, transform_dynamic_size, args.max_size),
     )
 
-    if args.class_file is not None:
-        class_to_idx = fs_ops.read_class_file(args.class_file)
-    else:
-        class_to_idx = lib.class_to_idx_from_coco(training_dataset.dataset.coco.cats)
+    label_mapping: Optional[dict[str, str]] = None
+    if args.label_mapping is not None:
+        with open(args.label_mapping, "r", encoding="utf-8") as handle:
+            label_mapping = json.load(handle)
 
-    class_to_idx = lib.detection_class_to_idx(class_to_idx)
     if args.ignore_file is not None:
         with open(args.ignore_file, "r", encoding="utf-8") as handle:
             ignore_list = handle.read().splitlines()
@@ -159,9 +159,21 @@ def train(args: argparse.Namespace) -> None:
         ignore_list = []
 
     if args.binary_mode is True:
-        training_dataset.convert_to_binary_annotations()
-        validation_dataset.convert_to_binary_annotations()
+        training_dataset.convert_to_binary_annotations(args.binary_class_name)
+        validation_dataset.convert_to_binary_annotations(args.binary_class_name)
         class_to_idx = training_dataset.class_to_idx
+    elif label_mapping is not None:
+        original_num_labels = len(training_dataset.class_to_idx)
+        class_to_idx = training_dataset.convert_annotations_with_label_mapping(label_mapping)
+        validation_dataset.convert_annotations_with_label_mapping(label_mapping, target_class_to_idx=class_to_idx)
+        logger.info(f"Applied label mapping: {original_num_labels} -> {len(class_to_idx)} labels")
+    else:
+        if args.class_file is not None:
+            class_to_idx = fs_ops.read_class_file(args.class_file)
+        else:
+            class_to_idx = lib.class_to_idx_from_coco(training_dataset.dataset.coco.cats)
+
+        class_to_idx = lib.detection_class_to_idx(class_to_idx)
 
     training_dataset.remove_images_without_annotations(ignore_list)
 
@@ -354,9 +366,11 @@ def train(args: argparse.Namespace) -> None:
 
     # Compile network
     if args.compile is True:
-        net = torch.compile(net)
+        net = torch.compile(net, fullgraph=args.compile_fullgraph)
     elif args.compile_backbone is True:
-        net.backbone.detection_features = torch.compile(net.backbone.detection_features)  # type: ignore[method-assign]
+        net.backbone.detection_features = torch.compile(  # type: ignore[method-assign]
+            net.backbone.detection_features, fullgraph=args.compile_fullgraph
+        )
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
@@ -447,7 +461,10 @@ def train(args: argparse.Namespace) -> None:
     net_without_ddp = net
     if args.distributed is True:
         net = torch.nn.parallel.DistributedDataParallel(
-            net, device_ids=[args.local_rank], find_unused_parameters=args.find_unused_parameters
+            net,
+            device_ids=[args.local_rank],
+            find_unused_parameters=args.find_unused_parameters,
+            broadcast_buffers=not args.no_broadcast_buffers,
         )
         net_without_ddp = net.module
 
@@ -783,7 +800,8 @@ def train(args: argparse.Namespace) -> None:
         if training_utils.is_local_primary(args) is True:
             # Checkpoint model
             if epoch % args.save_frequency == 0:
-                fs_ops.checkpoint_model(
+                training_utils.save_training_checkpoint(
+                    args,
                     network_name,
                     epoch,
                     model_to_save,
@@ -795,7 +813,7 @@ def train(args: argparse.Namespace) -> None:
                     scaler,
                     model_base,
                 )
-                if args.keep_last is not None:
+                if args.keep_last is not None and training_utils.is_global_primary(args) is True:
                     fs_ops.clean_checkpoints(network_name, args.keep_last)
 
         # Epoch timing
@@ -832,7 +850,8 @@ def train(args: argparse.Namespace) -> None:
 
     # Checkpoint model
     if training_utils.is_local_primary(args) is True:
-        fs_ops.checkpoint_model(
+        training_utils.save_training_checkpoint(
+            args,
             network_name,
             epoch,
             model_to_save,
@@ -958,6 +977,9 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="treat all objects as a single class (binary detection: object vs background)",
     )
+    parser.add_argument(
+        "--binary-class-name", default="Object", type=str, help="single class name used with --binary-mode"
+    )
     training_cli.add_optimization_args(parser, default_batch_size=16)
     training_cli.add_lr_wd_args(parser, backbone_lr=True, backbone_layer_decay=True)
     training_cli.add_lr_scheduler_args(parser)
@@ -1027,9 +1049,17 @@ def validate_args(args: argparse.Namespace) -> None:
             )
     if args.backbone_pretrained is True and args.backbone_epoch is not None:
         raise cli.ValidationError("--backbone-pretrained cannot be used with --backbone-epoch")
+    if args.label_mapping is not None and args.binary_mode is True:
+        raise cli.ValidationError("--label-mapping cannot be used with --binary-mode")
+    if args.label_mapping is not None and args.class_file is not None:
+        raise cli.ValidationError("--label-mapping cannot be used with --class-file")
+    if args.label_mapping is not None and args.label_mapping.strip() == "":
+        raise cli.ValidationError("--label-mapping cannot be empty")
 
     if args.model_dtype != "float32":  # NOTE: only float32 supported at this time
         raise cli.ValidationError(f"Only float32 supported for --model-dtype at this time, got {args.model_dtype}")
+    if args.binary_class_name.strip() == "":
+        raise cli.ValidationError("--binary-class-name cannot be empty")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

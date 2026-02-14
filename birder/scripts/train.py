@@ -286,7 +286,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Compile network
     if args.compile is True:
-        net = torch.compile(net)
+        net = torch.compile(net, fullgraph=args.compile_fullgraph)
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
@@ -381,7 +381,10 @@ def train(args: argparse.Namespace) -> None:
     net_without_ddp = net
     if args.distributed is True:
         net = torch.nn.parallel.DistributedDataParallel(
-            net, device_ids=[args.local_rank], find_unused_parameters=args.find_unused_parameters
+            net,
+            device_ids=[args.local_rank],
+            find_unused_parameters=args.find_unused_parameters,
+            broadcast_buffers=not args.no_broadcast_buffers,
         )
         net_without_ddp = net.module
 
@@ -754,7 +757,8 @@ def train(args: argparse.Namespace) -> None:
         if training_utils.is_local_primary(args) is True:
             # Checkpoint model
             if epoch % args.save_frequency == 0:
-                fs_ops.checkpoint_model(
+                training_utils.save_training_checkpoint(
+                    args,
                     network_name,
                     epoch,
                     model_to_save,
@@ -766,7 +770,7 @@ def train(args: argparse.Namespace) -> None:
                     scaler,
                     model_base,
                 )
-                if args.keep_last is not None:
+                if args.keep_last is not None and training_utils.is_global_primary(args) is True:
                     fs_ops.clean_checkpoints(network_name, args.keep_last)
 
         # Epoch timing
@@ -803,7 +807,8 @@ def train(args: argparse.Namespace) -> None:
 
     # Checkpoint model
     if training_utils.is_local_primary(args) is True:
-        fs_ops.checkpoint_model(
+        training_utils.save_training_checkpoint(
+            args,
             network_name,
             epoch,
             model_to_save,

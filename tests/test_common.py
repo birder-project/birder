@@ -15,6 +15,7 @@ import torch
 
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common import fsdp_utils
 from birder.common import lib
 from birder.common import masking
 from birder.common import training_cli
@@ -233,12 +234,49 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertEqual(len(groups[-1]), 1)
         self.assertEqual(groups[-1][0], "anything")
 
+    def test_fsdp_modules_from_min_num_params(self) -> None:
+        class ToyNet(torch.nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.stem = torch.nn.Linear(4, 4)
+                self.block = torch.nn.Sequential(
+                    torch.nn.Linear(4, 128),
+                    torch.nn.ReLU(),
+                    torch.nn.Linear(128, 4),
+                )
+                self.head = torch.nn.Linear(4, 2)
+
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                raise NotImplementedError
+
+        net = ToyNet()
+        name_by_id = {id(m): n for n, m in net.named_modules()}
+
+        modules = fsdp_utils.modules_from_min_num_params(net, min_num_params=500)
+        module_names = [name_by_id[id(m)] for m in modules]
+        self.assertEqual(set(module_names), {"block.0", "block.2"})
+        self.assertNotIn("block", module_names)
+
+        modules = fsdp_utils.modules_from_min_num_params(net, min_num_params=800)
+        module_names = [name_by_id[id(m)] for m in modules]
+        self.assertEqual(module_names, ["block"])
+
+        modules = fsdp_utils.modules_from_min_num_params(net, min_num_params=10_000)
+        self.assertEqual(modules, [])
+
+    def test_fsdp_modules_from_stages(self) -> None:
+        resnext = ResNeXt(3, 2, config={"units": [1, 1, 1, 1]})
+        modules = fsdp_utils.modules_from_stages(resnext)
+        self.assertEqual(
+            modules, [resnext.stem, resnext.body.stage1, resnext.body.stage2, resnext.body.stage3, resnext.body.stage4]
+        )
+
     def test_ra_sampler(self) -> None:
         dataset = list(range(512))
         sampler = training_utils.RASampler(dataset, num_replicas=2, rank=0, shuffle=False, repetitions=1)
         self.assertEqual(len(sampler), 256)  # Each rank gets half the dataset
         sampler = training_utils.RASampler(dataset, num_replicas=2, rank=1, shuffle=False, repetitions=2)
-        self.assertEqual(len(sampler), 512)
+        self.assertEqual(len(sampler), 256)
 
         sampler = training_utils.RASampler(dataset, num_replicas=2, rank=0, shuffle=False, repetitions=1)
         sample_iterator = iter(sampler)

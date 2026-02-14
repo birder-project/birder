@@ -168,7 +168,7 @@ def train(args: argparse.Namespace) -> None:
     # Compile network
     if args.compile is True:
         # encoder = torch.compile(encoder)  # Dynamic sequence length not handled well by dynamo
-        target_encoder = torch.compile(target_encoder)
+        target_encoder = torch.compile(target_encoder, fullgraph=args.compile_fullgraph)
         # predictor = torch.compile(predictor)
 
     #
@@ -363,9 +363,14 @@ def train(args: argparse.Namespace) -> None:
     # predictor_without_ddp = predictor
     if args.distributed is True:
         encoder = torch.nn.parallel.DistributedDataParallel(
-            encoder, device_ids=[args.local_rank], find_unused_parameters=args.find_unused_parameters
+            encoder,
+            device_ids=[args.local_rank],
+            find_unused_parameters=args.find_unused_parameters,
+            broadcast_buffers=not args.no_broadcast_buffers,
         )
-        predictor = torch.nn.parallel.DistributedDataParallel(predictor, device_ids=[args.local_rank])
+        predictor = torch.nn.parallel.DistributedDataParallel(
+            predictor, device_ids=[args.local_rank], broadcast_buffers=not args.no_broadcast_buffers
+        )
         encoder_without_ddp = encoder.module
         # predictor_without_ddp = predictor.module
 
@@ -589,7 +594,8 @@ def train(args: argparse.Namespace) -> None:
         if training_utils.is_local_primary(args) is True:
             # Checkpoint model
             if epoch % args.save_frequency == 0:
-                fs_ops.checkpoint_model(
+                training_utils.save_training_checkpoint(
+                    args,
                     network_name,
                     epoch,
                     model_to_save,
@@ -601,7 +607,8 @@ def train(args: argparse.Namespace) -> None:
                     scaler,
                     None,
                 )
-                fs_ops.checkpoint_model(
+                training_utils.save_training_checkpoint(
+                    args,
                     encoder_name,
                     epoch,
                     model_to_save["encoder"].backbone,
@@ -613,7 +620,7 @@ def train(args: argparse.Namespace) -> None:
                     scaler=None,
                     model_base=None,
                 )
-                if args.keep_last is not None:
+                if args.keep_last is not None and training_utils.is_global_primary(args) is True:
                     fs_ops.clean_checkpoints(network_name, args.keep_last)
                     fs_ops.clean_checkpoints(encoder_name, args.keep_last)
 
@@ -626,7 +633,8 @@ def train(args: argparse.Namespace) -> None:
 
     # Checkpoint model
     if training_utils.is_local_primary(args) is True:
-        fs_ops.checkpoint_model(
+        training_utils.save_training_checkpoint(
+            args,
             network_name,
             epoch,
             model_to_save,
@@ -638,7 +646,8 @@ def train(args: argparse.Namespace) -> None:
             scaler,
             None,
         )
-        fs_ops.checkpoint_model(
+        training_utils.save_training_checkpoint(
+            args,
             encoder_name,
             epoch,
             model_to_save["encoder"].backbone,

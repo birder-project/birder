@@ -140,6 +140,8 @@ def run_attack(args: argparse.Namespace) -> None:
         torch.cuda.set_device(args.gpu_id)
 
     logger.info(f"Using device {device}")
+    if args.fast_matmul is True:
+        torch.set_float32_matmul_precision("high")
 
     net, class_to_idx, rgb_stats, transform, reverse_transform = _load_model_and_transform(args, device)
     label_names = [name for name, _idx in sorted(class_to_idx.items(), key=lambda item: item[1])]
@@ -203,6 +205,9 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--target", type=str, help="target class name for targeted attack (omit for untargeted)")
     subparser.add_argument("--steps", type=int, default=10, help="number of iterations for iterative attacks")
     subparser.add_argument("--step-size", type=float, help="step size in pixel space (defaults to eps/steps for PGD)")
+    subparser.add_argument(
+        "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
+    )
     subparser.add_argument(
         "--random-start", default=False, action="store_true", help="use random initialization for PGD"
     )

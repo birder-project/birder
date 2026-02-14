@@ -11,6 +11,7 @@ from birder.adversarial.pgd import PGD
 from birder.adversarial.simba import SimBA
 from birder.data.transforms.classification import RGBType
 from birder.data.transforms.classification import get_rgb_stats
+from birder.inference.data_parallel import InferenceDataParallel
 
 logging.disable(logging.CRITICAL)
 
@@ -236,3 +237,48 @@ class TestAdversarialAttacks(unittest.TestCase):
 
         self.assertEqual(result.adv_inputs.shape, self.inputs.shape)
         self.assertEqual(result.perturbation.shape, self.inputs.shape)
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+@unittest.skipUnless(torch.cuda.device_count() >= 2, "Requires at least 2 GPUs")
+class TestAdversarialInferenceDataParallel(unittest.TestCase):
+    def setUp(self) -> None:
+        torch.manual_seed(0)
+        self.net = _TinyNet().eval()
+        for param in self.net.parameters():
+            param.requires_grad_(False)
+
+        self.parallel_net = InferenceDataParallel(self.net)
+        self.inputs = torch.rand((4, 3, 4, 4), device=torch.device("cuda"))
+
+    def test_fgsm_data_parallel(self) -> None:
+        attack = FGSM(self.parallel_net, eps=0.1, rgb_stats=_RGB_STATS)
+        result = attack(self.inputs, target=None)
+        self.assertEqual(result.adv_inputs.shape, self.inputs.shape)
+        self.assertEqual(result.adv_logits.shape[0], self.inputs.shape[0])
+        self.assertIsNotNone(result.success)
+        self.assertEqual(result.success.shape[0], self.inputs.shape[0])  # type: ignore[union-attr]
+
+    def test_pgd_data_parallel(self) -> None:
+        attack = PGD(self.parallel_net, eps=0.1, steps=2, step_size=0.05, rgb_stats=_RGB_STATS)
+        result = attack(self.inputs, target=None)
+        self.assertEqual(result.adv_inputs.shape, self.inputs.shape)
+        self.assertEqual(result.adv_logits.shape[0], self.inputs.shape[0])
+        self.assertIsNotNone(result.success)
+        self.assertEqual(result.success.shape[0], self.inputs.shape[0])  # type: ignore[union-attr]
+
+    def test_deepfool_data_parallel(self) -> None:
+        attack = DeepFool(self.parallel_net, num_classes=2, max_iter=2, rgb_stats=_RGB_STATS)
+        result = attack(self.inputs, target=None)
+        self.assertEqual(result.adv_inputs.shape, self.inputs.shape)
+        self.assertEqual(result.adv_logits.shape[0], self.inputs.shape[0])
+        self.assertIsNotNone(result.success)
+        self.assertEqual(result.success.shape[0], self.inputs.shape[0])  # type: ignore[union-attr]
+
+    def test_simba_data_parallel(self) -> None:
+        attack = SimBA(self.parallel_net, step_size=0.05, max_iter=3, rgb_stats=_RGB_STATS)
+        result = attack(self.inputs, target=None)
+        self.assertEqual(result.adv_inputs.shape, self.inputs.shape)
+        self.assertEqual(result.adv_logits.shape[0], self.inputs.shape[0])
+        self.assertIsNotNone(result.success)
+        self.assertEqual(result.success.shape[0], self.inputs.shape[0])  # type: ignore[union-attr]
