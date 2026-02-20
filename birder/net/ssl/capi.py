@@ -331,7 +331,7 @@ class Decoder(nn.Module):
     def mask_tokens_grid(self, mask: torch.Tensor) -> torch.Tensor:
         N = mask.size(0)
         x = self.decoder_pos_embed.masked_select(mask.bool().unsqueeze(-1)).reshape(N, -1, self.mask_token.size(-1))
-        x = x + self.mask_token
+        x = x.to(self.mask_token.dtype) + self.mask_token
 
         return x
 

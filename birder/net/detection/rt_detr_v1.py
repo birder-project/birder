@@ -660,8 +660,8 @@ class RT_DETRDecoder(nn.Module):
                 spatial_shapes_tensor,
                 level_start_index_tensor,
                 memory_padding_mask,
+                spatial_shapes,
                 attn_mask,
-                src_shapes=spatial_shapes,
             )
 
             bbox_delta = bbox_head(target)

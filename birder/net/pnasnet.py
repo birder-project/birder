@@ -291,11 +291,11 @@ class PNASNet(BaseNet):
         super().__init__(input_channels, num_classes, config=config, size=size)
         assert self.config is not None, "must set config"
 
+        num_reduction_layers = 2
         num_cells: int = self.config["num_cells"]
         num_conv_filters: int = self.config["num_conv_filters"]
         stem_multiplier: float = self.config["stem_multiplier"]
         dropout_rate: float = self.config["dropout_rate"]
-        num_reduction_layers = 2
 
         reduction_indices = _calc_reduction_layers(num_cells, num_reduction_layers)
 

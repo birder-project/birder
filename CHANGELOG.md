@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.7 - 2026-02-20
+
+### Added
+
+- **VOLO**: Added [VOLO](https://arxiv.org/abs/2106.13112) (Vision Outlooker) classification models with outlook attention and class attention.
+- **Cosine Scheduler Fraction**: Added `cosine_fraction` parameter to `cosine_scheduler` and `get_scheduler` for truncated cosine annealing.
+
+### Changed
+
+- **SimCLR FSDP (Beta)**: Improved reliability of the previously experimental `--distributed-mode fsdp` path in `train_simclr`.
+- **CAPI FSDP (Beta)**: Added `--distributed-mode fsdp` support to `train_capi` with two FSDP roots (student + teacher).
+- **FSDP Utility Mesh Reuse**: Extended `fsdp_utils.setup_fsdp` to accept an optional prebuilt device mesh, allowing multiple roots to share a single mesh/process-group setup.
+
+### Fixed
+
+- **Custom Kernel Memory Leak (PyTorch 2.10)**: Fixed memory leak in custom CUDA ops (MSDA, SWAttention) during training with PyTorch 2.10 by migrating C++ bindings from `PYBIND11_MODULE` to `TORCH_LIBRARY_EXPAND` for proper dispatcher integration.
+- **MSDA Pure Python Path**: Optimized the pure Python multi-scale deformable attention by removing GPU→CPU synchronization, reducing intermediate tensor allocations and accumulating output in-place.
+- **Compiled Models Layer-Decay + Custom WD**: Fixed layer-decay and custom weight-decay parameter grouping for `torch.compile`-wrapped models.
+- **Data2Vec / Data2Vec2 EMA Teacher Mode**: Keep the EMA backbone in eval mode during training.
+
 ## 0.4.6 - 2026-02-14
 
 ### Added

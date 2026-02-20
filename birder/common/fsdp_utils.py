@@ -11,6 +11,7 @@ from torch.distributed.checkpoint.state_dict import StateDictOptions
 from torch.distributed.checkpoint.state_dict import get_model_state_dict
 from torch.distributed.checkpoint.state_dict import get_optimizer_state_dict
 from torch.distributed.checkpoint.state_dict import set_optimizer_state_dict
+from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.device_mesh import init_device_mesh
 from torch.distributed.fsdp import CPUOffloadPolicy
 from torch.distributed.fsdp import FSDPModule
@@ -115,7 +116,10 @@ def modules_from_min_num_params(module: torch.nn.Module, min_num_params: int) ->
 
 
 def setup_fsdp(
-    net: torch.nn.Module, args: argparse.Namespace, wrap_modules: Optional[Sequence[torch.nn.Module]] = None
+    net: torch.nn.Module,
+    args: argparse.Namespace,
+    wrap_modules: Optional[Sequence[torch.nn.Module]] = None,
+    mesh: Optional[DeviceMesh] = None,
 ) -> FSDPModule:
     sync_module_states(net)
     param_dtype = None if args.fsdp_param_dtype is None else getattr(torch, args.fsdp_param_dtype)
@@ -130,7 +134,9 @@ def setup_fsdp(
         raise ValueError(f"Unsupported FSDP offload policy: {args.fsdp_offload_policy}")
 
     reshard_after_forward = _reshard_after_forward(args.fsdp_sharding_strategy)
-    mesh = init_device_mesh("cuda", (args.world_size,), mesh_dim_names=("dp",))
+    if mesh is None:
+        mesh = init_device_mesh("cuda", (args.world_size,), mesh_dim_names=("dp",))
+
     if wrap_modules is None:
         modules_to_wrap: Sequence[torch.nn.Module] = ()
     else:
@@ -174,6 +180,18 @@ def broadcast_module_buffers(net: torch.nn.Module, src: int = 0) -> None:
             continue
 
         dist.broadcast(buffer, src=src)
+
+
+def extract_submodule_state_dict(
+    full_state_dict: dict[str, Any], parent: torch.nn.Module, submodule: torch.nn.Module
+) -> dict[str, Any]:
+    for name, mod in parent.named_modules():
+        if mod is submodule:
+            prefix = f"{name}."
+            prefix_len = len(prefix)
+            return {k[prefix_len:]: v for k, v in full_state_dict.items() if k.startswith(prefix)}
+
+    raise ValueError("submodule not found in parent")
 
 
 def gather_full_model_state_dict(

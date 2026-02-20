@@ -147,6 +147,7 @@ class TestFSOps(unittest.TestCase):
         self.assertEqual(path, settings.MODELS_DIR.joinpath("net_17.pt"))
 
 
+# pylint: disable=too-many-public-methods
 class TestTrainingUtils(unittest.TestCase):
     def test_misc(self) -> None:
         self.assertFalse(training_utils.is_dist_available_and_initialized())
@@ -185,6 +186,20 @@ class TestTrainingUtils(unittest.TestCase):
 
         self.assertEqual(len(logger.handlers), num_handlers)
         self.assertEqual(original_handlers, logger.handlers)  # Verify handler order
+
+    def test_normalize_stop_epoch(self) -> None:
+        self.assertEqual(training_utils.normalize_stop_epoch(101, None), 101)
+        self.assertEqual(training_utils.normalize_stop_epoch(101, 40), 41)
+
+    def test_make_training_args_payload(self) -> None:
+        args = argparse.Namespace(network="tiny-net", epochs=3, custom_value=17)
+        payload = training_utils.make_training_args_payload(args)
+        self.assertEqual(payload["network"], "tiny-net")
+        self.assertEqual(payload["epochs"], 3)
+        self.assertEqual(payload["custom_value"], 17)
+        self.assertEqual(payload["pytorch_version"], torch.__version__)
+        self.assertIn("birder_version", payload)
+        self.assertIsInstance(payload["cmdline"], str)
 
     def test_group_by_regex(self) -> None:
         layer_names = [
@@ -906,6 +921,30 @@ class TestTrainingUtils(unittest.TestCase):
         # Verify milestones
         self.assertEqual(scheduler._milestones, [0, 0])
 
+        # Test cosine_fraction inflates T_max
+        args_cosine = argparse.Namespace(
+            lr_scheduler="cosine",
+            warmup_epochs=None,
+            warmup_steps=None,
+            cooldown_epochs=None,
+            cooldown_steps=None,
+            resume_epoch=None,
+            epochs=100,
+            lr_cosine_min=0.0,
+            lr_step_size=1,
+            lr_steps=[],
+            lr_step_gamma=0.0,
+            lr_power=1.0,
+        )
+        scheduler_default = training_utils.get_scheduler(opt, steps_per_epoch=1, args=args_cosine)
+        scheduler_frac = training_utils.get_scheduler(opt, steps_per_epoch=1, args=args_cosine, cosine_fraction=0.8)
+
+        # Default: T_max == main_steps (99)
+        self.assertEqual(scheduler_default.T_max, 99)
+
+        # With fraction 0.8: T_max == round(99 / 0.8) = 124
+        self.assertEqual(scheduler_frac.T_max, 124)
+
     def test_lr_scaling(self) -> None:
         args = argparse.Namespace(
             lr=0.1, batch_size=128, grad_accum_steps=1, world_size=1, lr_scale=64, lr_scale_type="linear"
@@ -1036,6 +1075,23 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertEqual(len(schedule), 50)
         self.assertAlmostEqual(schedule[0], 1.0)
         self.assertAlmostEqual(schedule[-1], 0.0, places=2)
+
+        # Test cosine_fraction=0.5 results in shallower decay (ends at midpoint)
+        schedule_half = training_utils.cosine_scheduler(
+            base_value=1.0, final_value=0.0, epochs=5, warmup_epochs=0.0, iter_per_epoch=10, cosine_fraction=0.5
+        )
+        self.assertEqual(len(schedule_half), 50)
+        self.assertAlmostEqual(schedule_half[0], 1.0)
+        self.assertAlmostEqual(schedule_half[-1], 0.515, places=2)
+        for v in schedule_half:
+            self.assertGreater(v, 0.5)
+
+        # Test cosine_fraction < 1 always decays less than cosine_fraction=1
+        schedule_full = training_utils.cosine_scheduler(
+            base_value=1.0, final_value=0.0, epochs=5, warmup_epochs=0.0, iter_per_epoch=10, cosine_fraction=1.0
+        )
+        for v_half, v_full in zip(schedule_half, schedule_full):
+            self.assertGreaterEqual(v_half, v_full)
 
     def test_freeze_batchnorm2d(self) -> None:
         model = torch.nn.Sequential(

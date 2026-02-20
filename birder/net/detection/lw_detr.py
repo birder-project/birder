@@ -350,7 +350,7 @@ class LWDeformableTransformerDecoderLayer(nn.Module):
         tgt = self.norm1(tgt)
 
         tgt2 = self.cross_attn(
-            tgt + query_pos, reference_points, src, src_spatial_shapes, level_start_index, src_padding_mask, src_shapes
+            tgt + query_pos, reference_points, src, src_spatial_shapes, level_start_index, src_shapes, src_padding_mask
         )
         tgt = tgt + self.dropout(tgt2)
         tgt = self.norm2(tgt)

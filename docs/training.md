@@ -127,6 +127,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [ViT](#vit)
 - [ViT Parallel](#vit-parallel)
 - [ViT SAM](#vit-sam)
+- [VOLO](#volo)
 - [VoVNet v1](#vovnet-v1)
 - [VoVNet v2](#vovnet-v2)
 - [Wide ResNet](#wide-resnet)
@@ -2189,7 +2190,7 @@ Same as [ViT](#vit)
 
 ### RoPE ViT-5
 
-#### RoPE ViT-5: b16
+#### RoPE ViT-5: reg4 b16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network rope_vit5_reg4_b16 --bce-loss --bce-threshold 0.05 --batch-size 256 --opt adamw --clip-grad-norm 1 --lr 0.003 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 800 --warmup-epochs 5 --model-ema --size 224 --aug-level 2 --resize-min-scale 0.4 --re-prob 0 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile
@@ -2637,6 +2638,14 @@ torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls --tag in
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_sam_b16 --batch-size 64 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0005 --wd 0.1 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
+```
+
+### VOLO
+
+#### VOLO: D2
+
+```sh
+torchrun --nproc_per_node=2 train.py --network volo_d2 --batch-size 128 --opt adamw --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --amp-dtype bfloat16 --compile
 ```
 
 ### VoVNet v1

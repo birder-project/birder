@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -136,7 +134,7 @@ class MultiScaleDeformableAttention(nn.Module):
         sampling_locations: torch.Tensor,
         attention_weights: torch.Tensor,
         im2col_step: int,
-        src_shapes: Optional[list[list[int]]] = None,
+        src_shapes: list[list[int]],
     ) -> torch.Tensor:
         # Pure PyTorch path
         if self.is_available is False or value.is_cuda is False:
@@ -161,15 +159,14 @@ class MultiScaleDeformableAttention(nn.Module):
         )
 
 
-# pylint: disable=too-many-locals
 def multi_scale_deformable_attention(
     value: torch.Tensor,
-    value_spatial_shapes: torch.Tensor,
+    value_spatial_shapes: torch.Tensor,  # pylint: disable=unused-argument
     value_level_start_index: torch.Tensor,  # pylint: disable=unused-argument
     sampling_locations: torch.Tensor,
     attention_weights: torch.Tensor,
     im2col_step: int,  # pylint: disable=unused-argument
-    src_shapes: Optional[list[list[int]]] = None,
+    src_shapes: list[list[int]],
 ) -> torch.Tensor:
     """
     Pure PyTorch implementation of multi-scale deformable attention
@@ -178,56 +175,33 @@ def multi_scale_deformable_attention(
     batch_size, _, num_heads, hidden_dim = value.size()
     _, num_queries, _, num_levels, num_points, _ = sampling_locations.size()
 
+    # assert len(src_shapes) == num_levels
+    level_sizes = [H * W for H, W in src_shapes]
     sampling_grids = 2 * sampling_locations - 1
-    sampling_value_list = []
 
-    # Compute level slicing using symbolic shapes
-    start_idx = 0
-    for level_id in range(num_levels):
-        if src_shapes is not None:
-            # Use symbolic shapes (export-compatible path)
-            H, W = src_shapes[level_id]
-            level_size = H * W
-        else:
-            # Fallback: extract from tensor
-            H = value_spatial_shapes[level_id, 0].item()
-            W = value_spatial_shapes[level_id, 1].item()
-            level_size = H * W
+    # (B, Len_in, heads, head_dim) -> (B, heads, head_dim, Len_in)
+    value = value.permute(0, 2, 3, 1).contiguous()
+    value_list = value.split(level_sizes, dim=-1)
 
-        end_idx = start_idx + level_size
+    # (B, Len_q, heads, levels, points) -> (B*heads, 1, Len_q, levels, points)
+    attention_weights = attention_weights.transpose(1, 2).reshape(
+        batch_size * num_heads, 1, num_queries, num_levels, num_points
+    )
 
-        # Slice value for this level
-        value_level = value[:, start_idx:end_idx, :, :]
+    output = value.new_zeros((batch_size * num_heads, hidden_dim, num_queries))
+    for level_id, (H, W) in enumerate(src_shapes):
+        value_l_ = value_list[level_id].reshape(batch_size * num_heads, hidden_dim, H, W)
+        sampling_grid_l_ = (
+            sampling_grids[:, :, :, level_id]
+            .transpose(1, 2)
+            .reshape(batch_size * num_heads, num_queries, num_points, 2)
+        )
 
-        # (batch_size, H*W, num_heads, hidden_dim)
-        # -> (batch_size, H*W, num_heads*hidden_dim)
-        # -> (batch_size, num_heads*hidden_dim, H*W)
-        # -> (batch_size*num_heads, hidden_dim, H, W)
-        value_l_ = value_level.flatten(2).transpose(1, 2).reshape(batch_size * num_heads, hidden_dim, H, W)
-
-        # (batch_size, num_queries, num_heads, num_points, 2)
-        # -> (batch_size, num_heads, num_queries, num_points, 2)
-        # -> (batch_size*num_heads, num_queries, num_points, 2)
-        sampling_grid_l_ = sampling_grids[:, :, :, level_id].transpose(1, 2).flatten(0, 1)
-
-        # (batch_size*num_heads, hidden_dim, num_queries, num_points)
         sampling_value_l_ = F.grid_sample(
             value_l_, sampling_grid_l_, mode="bilinear", padding_mode="zeros", align_corners=False
         )
-        sampling_value_list.append(sampling_value_l_)
+        output += (sampling_value_l_ * attention_weights[:, :, :, level_id, :]).sum(-1)
 
-        start_idx = end_idx
-
-    # (batch_size, num_queries, num_heads, num_levels, num_points)
-    # -> (batch_size, num_heads, num_queries, num_levels, num_points)
-    # -> (batch_size, num_heads, 1, num_queries, num_levels*num_points)
-    attention_weights = attention_weights.transpose(1, 2).reshape(
-        batch_size * num_heads, 1, num_queries, num_levels * num_points
-    )
-    output = (
-        (torch.stack(sampling_value_list, dim=-2).flatten(-2) * attention_weights)
-        .sum(-1)
-        .view(batch_size, num_heads * hidden_dim, num_queries)
-    )
+    output = output.view(batch_size, num_heads * hidden_dim, num_queries)
 
     return output.transpose(1, 2).contiguous()

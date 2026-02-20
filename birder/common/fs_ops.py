@@ -199,6 +199,7 @@ def _checkpoint_states(
     else:
         model_base_state = None
 
+    logger.info(f"Saving checkpoint states {states_path}...")
     torch.save(
         {
             "optimizer_state": optimizer.state_dict(),
@@ -222,6 +223,7 @@ def _checkpoint_states_from_state_dicts(
     if optimizer_state is None or scheduler_state is None:
         return
 
+    logger.info(f"Saving checkpoint states {states_path}...")
     torch.save(
         {
             "optimizer_state": optimizer_state,

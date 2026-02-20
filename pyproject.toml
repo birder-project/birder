@@ -75,4 +75,5 @@ omit = [
     # Omit command line scripts and tools
     "birder/scripts/*",
     "birder/tools/*",
+    "birder/eval/benchmarks/*",
 ]

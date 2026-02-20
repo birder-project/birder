@@ -49,37 +49,37 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_byol --network regnet_x_4g -
 #### CAPI: Hiera AbsWin Small
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network hiera_abswin_small --decoder-layers 6 --decoder-dim 768 --mask-ratio 0.6 --kept-mask-ratio 0.2 --batch-size 512 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 16 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 600 --warmup-epochs 40 --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network hiera_abswin_small --decoder-layers 6 --decoder-dim 768 --mask-ratio 0.6 --kept-mask-ratio 0.2 --batch-size 512 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 16 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 600 --warmup-epochs 40 --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data
 ```
 
 #### CAPI: Hiera AbsWin Base Plus
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network hiera_abswin_base_plus --decoder-layers 8 --decoder-dim 768 --mask-ratio 0.6 --kept-mask-ratio 0.2 --batch-size 448 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 16 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 40 --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network hiera_abswin_base_plus --decoder-layers 8 --decoder-dim 768 --mask-ratio 0.6 --kept-mask-ratio 0.2 --batch-size 448 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 16 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 400 --warmup-epochs 40 --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_packed/_info.json
 ```
 
 #### CAPI: Hiera AbsWin Large
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network hiera_abswin_large --mask-ratio 0.6 --kept-mask-ratio 0.2 --batch-size 128 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 64 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 40 --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network hiera_abswin_large --mask-ratio 0.6 --kept-mask-ratio 0.2 --batch-size 128 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 64 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 400 --warmup-epochs 40 --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_packed/_info.json
 ```
 
 DGX A100 training
 
 ```sh
-torchrun --nproc_per_node=8 -m birder.scripts.train_capi --network hiera_abswin_large --mask-ratio 0.6 --kept-mask-ratio 0.2 --batch-size 512 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 4 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 40 --amp --amp-dtype bfloat16 --compile --keep-last 4 --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=8 -m birder.scripts.train_capi --network hiera_abswin_large --mask-ratio 0.6 --kept-mask-ratio 0.2 --batch-size 512 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 4 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 400 --warmup-epochs 40 --amp --amp-dtype bfloat16 --compile --keep-last 4 --wds --wds-info data/ssl_packed/_info.json
 ```
 
 #### CAPI: RoPE ViT reg4 m14 AVG
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg4_m14_avg --decoder-layers 6 --decoder-dim 512 --momentum-teacher 0.998 --sinkhorn-queue-size 256 --batch-size 256 --opt adamw --opt-fused --opt-betas 0.9 0.95 --grad-accum-steps 4 --lr 0.0015 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 600 --warmup-epochs 60 --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg4_m14_avg --decoder-layers 6 --decoder-dim 512 --momentum-teacher 0.998 --sinkhorn-queue-size 256 --batch-size 256 --opt adamw --opt-fused --opt-betas 0.9 0.95 --grad-accum-steps 4 --lr 0.0015 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 600 --warmup-epochs 60 --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data
 ```
 
 #### CAPI: RoPE ViT reg8 b14 AP
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg8_b14_ap --decoder-layers 8 --decoder-dim 768 --batch-size 192 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 32 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 40 --amp --amp-dtype bfloat16 --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg8_b14_ap --decoder-layers 8 --decoder-dim 768 --batch-size 192 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 32 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 400 --warmup-epochs 40 --amp --amp-dtype bfloat16 --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Intermediate training: full fine-tuning with layer-wise learning rate decay
@@ -133,13 +133,13 @@ torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-p
 #### CAPI: RoPE SoViT reg8 150m p14 swiglu rms AVG
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg8_so150m_p14_swiglu_rms_avg --decoder-layers 10 --decoder-dim 896 --batch-size 192 --opt adamw --opt-fused --opt-betas 0.9 0.95 --grad-accum-steps 32 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 40 --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg8_so150m_p14_swiglu_rms_avg --decoder-layers 10 --decoder-dim 896 --batch-size 192 --opt adamw --opt-fused --opt-betas 0.9 0.95 --grad-accum-steps 32 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 400 --warmup-epochs 40 --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 DGX A100 training
 
 ```sh
-torchrun --nproc_per_node=8 -m birder.scripts.train_capi --network rope_vit_reg8_so150m_p14_swiglu_rms_avg --decoder-layers 10 --batch-size 1024 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 2 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 40 --rgb-mode none --amp --amp-dtype bfloat16 --compile --keep-last 4 --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=8 -m birder.scripts.train_capi --network rope_vit_reg8_so150m_p14_swiglu_rms_avg --decoder-layers 10 --batch-size 1024 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 2 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 400 --warmup-epochs 40 --rgb-mode none --amp --amp-dtype bfloat16 --compile --keep-last 4 --wds --wds-info data/ssl_packed/_info.json
 ```
 
 Optional: Train attention pooling head using DINO
@@ -158,6 +158,12 @@ Use as backbone for RotNet
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_rotnet --network rope_vit_reg8_so150m_p14_swiglu_rms_ap --rotation-prob 0.5 --tag capi --freeze-body --unfreeze-features --batch-size 256 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --rgb-mode none --amp --compile --resume-epoch 0 --non-strict-weights --wds --wds-info data/ssl_micro_packed/_info.json
+```
+
+#### CAPI: RoPE ViT-5 reg4 s16
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit5_reg4_s16 --decoder-layers 6 --decoder-dim 384 --momentum-teacher 0.998 --batch-size 256 --opt adamw --opt-fused --opt-betas 0.9 0.95 --grad-accum-steps 4 --lr 0.002 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 400 --warmup-epochs 40 --size 256 --fast-matmul --compile --distributed-mode fsdp --fsdp-sharding-strategy shard-grad-op --fsdp-param-dtype bfloat16 --fsdp-reduce-dtype float32 --no-broadcast-buffers --wds --wds-info data/ssl_packed/_info.json
 ```
 
 ### Data2Vec

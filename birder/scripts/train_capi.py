@@ -4,15 +4,11 @@ https://github.com/facebookresearch/capi/blob/main/train_capi.py
 
 Paper "Cluster and Predict Latent Patches for Improved Masked Image Modeling",
 https://arxiv.org/abs/2502.08769
-
-Changes from original:
-* No LR truncation
 """
 
 # Reference license: Apache-2.0
 
 import argparse
-import json
 import logging
 import math
 import sys
@@ -28,14 +24,15 @@ import torch
 import torch.amp
 import torch.nn.functional as F
 import torchinfo
+from torch.distributed.device_mesh import init_device_mesh
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets.folder import pil_loader  # Slower but Handles external dataset quirks better
 from tqdm import tqdm
 
-import birder
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common import fsdp_utils
 from birder.common import masking
 from birder.common import training_cli
 from birder.common import training_utils
@@ -80,12 +77,50 @@ class TrainCollator:
         return (collated_batch, ids_keep, predict_indices)
 
 
+def _capi_fsdp_wrap_modules(module: CAPIStudent | CAPITeacher, args: argparse.Namespace) -> list[torch.nn.Module]:
+    backbone = module.backbone
+
+    # Only backbone sub-modules are wrapped, the decoder and heads are small and get wrapped with the root
+    if args.fsdp_wrap_policy == "stages":
+        matched_modules = fsdp_utils.modules_from_stages(backbone)
+        if len(matched_modules) == 0:
+            logger.warning("FSDP stages policy did not match any returned stage module on backbone")
+
+        logger.info(f"FSDP wrap modules resolved: {len(matched_modules)}")
+        return matched_modules
+
+    if args.fsdp_wrap_policy == "min-num-params":
+        min_num_params = int(args.fsdp_wrap_min_num_params * 1_000_000)
+        matched_modules = fsdp_utils.modules_from_min_num_params(backbone, min_num_params=min_num_params)
+        if len(matched_modules) == 0:
+            logger.warning(
+                f"FSDP min-num-params policy with threshold {args.fsdp_wrap_min_num_params:g}M "
+                "did not match any module on backbone"
+            )
+
+        logger.info(f"FSDP wrap modules resolved: {len(matched_modules)}")
+        return matched_modules
+
+    block_group_regex = getattr(backbone, "block_group_regex", None)
+    if block_group_regex is None:
+        logger.warning("No block_group_regex on backbone, using root-only FSDP")
+        return []
+
+    matched_modules = fsdp_utils.modules_from_block_group_regex(backbone, block_group_regex)
+    if len(matched_modules) == 0:
+        logger.warning(f"FSDP wrap regex '{block_group_regex}' did not match any module on backbone")
+
+    logger.info(f"FSDP wrap modules resolved: {len(matched_modules)}")
+    return matched_modules
+
+
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
     #
     # Initialize
     #
     device, device_id, disable_tqdm = training_utils.init_training(args, logger)
+    fsdp_mode = fsdp_utils.is_fsdp_mode(args)
 
     if args.size is None:
         args.size = registry.get_default_size(args.network)
@@ -98,10 +133,7 @@ def train(args: argparse.Namespace) -> None:
 
     begin_epoch = 1
     epochs = args.epochs + 1
-    if args.stop_epoch is None:
-        args.stop_epoch = epochs
-    else:
-        args.stop_epoch += 1
+    args.stop_epoch = training_utils.normalize_stop_epoch(epochs, args.stop_epoch)
 
     #
     # Initialize network
@@ -167,6 +199,18 @@ def train(args: argparse.Namespace) -> None:
     net.to(device, dtype=model_dtype)
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
+
+    if fsdp_mode is True:
+        fsdp_mesh = init_device_mesh("cuda", (args.world_size,), mesh_dim_names=("dp",))
+
+        student_wrap_modules = _capi_fsdp_wrap_modules(student, args)
+        student = fsdp_utils.setup_fsdp(student, args, wrap_modules=student_wrap_modules, mesh=fsdp_mesh)
+
+        teacher_wrap_modules = _capi_fsdp_wrap_modules(teacher, args)
+        teacher = fsdp_utils.setup_fsdp(teacher, args, wrap_modules=teacher_wrap_modules, mesh=fsdp_mesh)
+
+        net["student"] = student
+        net["teacher"] = teacher
 
     # Compile networks
     if args.compile is True:
@@ -312,8 +356,10 @@ def train(args: argparse.Namespace) -> None:
     # Optimizer and learning rate scheduler
     optimizer = training_utils.get_optimizer(parameters, lr, args)
     clustering_optimizer = torch.optim.AdamW(teacher.head.parameters(), lr=clustering_lr, betas=[0.9, 0.95])
-    scheduler = training_utils.get_scheduler(optimizer, scheduler_steps_per_epoch, args)
-    clustering_scheduler = training_utils.get_scheduler(clustering_optimizer, scheduler_steps_per_epoch, args)
+    scheduler = training_utils.get_scheduler(optimizer, scheduler_steps_per_epoch, args, cosine_fraction=0.8)
+    clustering_scheduler = training_utils.get_scheduler(
+        clustering_optimizer, scheduler_steps_per_epoch, args, cosine_fraction=0.8
+    )
     if args.compile_opt is True:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
         clustering_optimizer.step = torch.compile(clustering_optimizer.step, fullgraph=False)
@@ -327,7 +373,13 @@ def train(args: argparse.Namespace) -> None:
         warmup_epochs = 0.0
 
     momentum_schedule = training_utils.cosine_scheduler(
-        args.momentum_teacher, 1.0, args.epochs, warmup_epochs, epoch_num_batches, start_warmup_value=1.0
+        args.momentum_teacher,
+        1.0,
+        args.epochs,
+        warmup_epochs,
+        epoch_num_batches,
+        start_warmup_value=1.0,
+        cosine_fraction=0.8,
     )
     student_temp = 0.12
 
@@ -337,9 +389,20 @@ def train(args: argparse.Namespace) -> None:
 
     # Load states
     if args.load_states is True:
-        optimizer.load_state_dict(training_states.optimizer_state)
+        if fsdp_mode is True:
+            fsdp_utils.load_full_optimizer_state_dict(
+                student, optimizer, training_states.optimizer_state  # type: ignore[arg-type]
+            )
+            fsdp_utils.load_full_optimizer_state_dict(
+                teacher,  # Not .head to keep FQN correct
+                clustering_optimizer,
+                training_states.extra_states["clustering_optimizer"],  # type: ignore
+            )
+        else:
+            optimizer.load_state_dict(training_states.optimizer_state)
+            clustering_optimizer.load_state_dict(training_states.extra_states["clustering_optimizer"])  # type: ignore
+
         scheduler.load_state_dict(training_states.scheduler_state)
-        clustering_optimizer.load_state_dict(training_states.extra_states["clustering_optimizer"])  # type: ignore
         clustering_scheduler.load_state_dict(training_states.extra_states["clustering_scheduler"])  # type: ignore
         if scaler is not None:
             scaler.load_state_dict(training_states.scaler_state)
@@ -371,7 +434,7 @@ def train(args: argparse.Namespace) -> None:
 
     teacher_without_ddp = teacher
     student_without_ddp = student
-    if args.distributed is True:
+    if args.distributed is True and fsdp_mode is False:
         student = torch.nn.parallel.DistributedDataParallel(
             student,
             device_ids=[args.local_rank],
@@ -426,28 +489,12 @@ def train(args: argparse.Namespace) -> None:
     signature = get_ssl_signature(input_shape=sample_shape)
     backbone_signature = get_signature(input_shape=sample_shape, num_outputs=0)
     file_handler: logging.Handler = logging.NullHandler()
-    if training_utils.is_local_primary(args) is True:
+    if training_utils.is_global_primary(args) is True:
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
         file_handler = training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
-        with open(training_log_path.joinpath("training_args.json"), "w", encoding="utf-8") as handle:
-            json.dump(
-                {
-                    "birder_version": birder.__version__,
-                    "pytorch_version": torch.__version__,
-                    "cmdline": " ".join(sys.argv),
-                    **vars(args),
-                },
-                handle,
-                indent=2,
-            )
-
-        with open(training_log_path.joinpath("training_data.json"), "w", encoding="utf-8") as handle:
-            json.dump(
-                {"training_samples": len(training_dataset)},
-                handle,
-                indent=2,
-            )
+        training_utils.write_training_args_json(training_log_path, args)
+        training_utils.write_training_data_json(training_log_path, {"training_samples": len(training_dataset)})
 
     #
     # Training loop
@@ -509,6 +556,12 @@ def train(args: argparse.Namespace) -> None:
             predict_indices = predict_indices.to(device, non_blocking=True)
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
+            if fsdp_mode is True and grad_accum_steps > 1:
+                student.set_requires_gradient_sync(requires_gradient_sync=optimizer_update)
+                teacher.set_requires_gradient_sync(requires_gradient_sync=optimizer_update)
+            if fsdp_mode is True and args.no_broadcast_buffers is False:
+                fsdp_utils.broadcast_module_buffers(student)
+                fsdp_utils.broadcast_module_buffers(teacher)
 
             # Forward, backward and optimize
             with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
@@ -578,7 +631,7 @@ def train(args: argparse.Namespace) -> None:
             running_target_entropy.update(target_entropy.detach())
 
             # Write statistics
-            if (i % args.log_interval == 0 and i > 0) or i == last_batch_idx:
+            if (i + 1) % args.log_interval == 0 or i == last_batch_idx:
                 time_now = time.time()
                 time_cost = time_now - start_time
                 iters_processed_in_interval = i - last_idx
@@ -606,7 +659,7 @@ def train(args: argparse.Namespace) -> None:
                         f"LR: {cur_lr:.4e}"
                     )
 
-                if training_utils.is_local_primary(args) is True:
+                if training_utils.is_global_primary(args) is True:
                     summary_writer.add_scalars(
                         "loss",
                         {
@@ -639,46 +692,67 @@ def train(args: argparse.Namespace) -> None:
             last_lr = float(max(scheduler.get_last_lr()))
             logger.info(f"Updated learning rate to: {last_lr}")
 
-        if training_utils.is_local_primary(args) is True:
+        # Checkpoint model
+        if epoch % args.save_frequency == 0:
+            if fsdp_mode is True:
+                student_state = fsdp_utils.gather_full_model_state_dict(model_to_save["student"])
+                teacher_state = fsdp_utils.gather_full_model_state_dict(model_to_save["teacher"])
+                full_model_state = {
+                    **{f"student.{k}": v for k, v in student_state.items()},
+                    **{f"teacher.{k}": v for k, v in teacher_state.items()},
+                }
+                backbone_model_state = fsdp_utils.extract_submodule_state_dict(
+                    teacher_state, model_to_save["teacher"], model_to_save["teacher"].backbone
+                )
+                clustering_optimizer_state = fsdp_utils.gather_full_optimizer_state_dict(
+                    model_to_save["teacher"], clustering_optimizer
+                )
+            else:
+                full_model_state = None
+                backbone_model_state = None
+                clustering_optimizer_state = clustering_optimizer.state_dict()
+
             extra_states = {
-                "clustering_optimizer": clustering_optimizer.state_dict(),
+                "clustering_optimizer": clustering_optimizer_state,
                 "clustering_scheduler": clustering_scheduler.state_dict(),
             }
             if clustering_scaler is not None:
                 extra_states.update({"clustering_scaler": clustering_scaler.state_dict()})
 
-            # Checkpoint model
-            if epoch % args.save_frequency == 0:
-                training_utils.save_training_checkpoint(
-                    args,
-                    network_name,
-                    epoch,
-                    model_to_save,
-                    signature,
-                    {},
-                    rgb_stats,
-                    optimizer,
-                    scheduler,
-                    scaler,
-                    None,
-                    **extra_states,
-                )
-                training_utils.save_training_checkpoint(
-                    args,
-                    backbone_name,
-                    epoch,
-                    model_to_save["teacher"].backbone,
-                    backbone_signature,
-                    {},
-                    rgb_stats,
-                    optimizer=None,
-                    scheduler=None,
-                    scaler=None,
-                    model_base=None,
-                )
-                if args.keep_last is not None and training_utils.is_global_primary(args) is True:
-                    fs_ops.clean_checkpoints(network_name, args.keep_last)
-                    fs_ops.clean_checkpoints(backbone_name, args.keep_last)
+            training_utils.save_training_checkpoint(
+                args,
+                network_name,
+                epoch,
+                model_to_save,
+                signature,
+                {},
+                rgb_stats,
+                optimizer,
+                scheduler,
+                scaler,
+                None,
+                fsdp_mode=fsdp_mode,
+                fsdp_model_state=full_model_state,
+                **extra_states,
+            )
+            training_utils.save_training_checkpoint(
+                args,
+                backbone_name,
+                epoch,
+                model_to_save["teacher"].backbone,
+                backbone_signature,
+                {},
+                rgb_stats,
+                optimizer=None,
+                scheduler=None,
+                scaler=None,
+                model_base=None,
+                fsdp_mode=fsdp_mode,
+                fsdp_model_state=backbone_model_state,
+            )
+            if args.keep_last is not None and training_utils.is_global_primary(args) is True:
+                fs_ops.clean_checkpoints(network_name, args.keep_last)
+                fs_ops.clean_checkpoints(backbone_name, args.keep_last)
 
         # Epoch timing
         toc = time.time()
@@ -688,41 +762,62 @@ def train(args: argparse.Namespace) -> None:
     summary_writer.close()
 
     # Checkpoint model
-    if training_utils.is_local_primary(args) is True:
-        extra_states = {
-            "clustering_optimizer": clustering_optimizer.state_dict(),
-            "clustering_scheduler": clustering_scheduler.state_dict(),
+    if fsdp_mode is True:
+        student_state = fsdp_utils.gather_full_model_state_dict(model_to_save["student"])
+        teacher_state = fsdp_utils.gather_full_model_state_dict(model_to_save["teacher"])
+        full_model_state = {
+            **{f"student.{k}": v for k, v in student_state.items()},
+            **{f"teacher.{k}": v for k, v in teacher_state.items()},
         }
-        if clustering_scaler is not None:
-            extra_states.update({"clustering_scaler": clustering_scaler.state_dict()})
+        backbone_model_state = fsdp_utils.extract_submodule_state_dict(
+            teacher_state, model_to_save["teacher"], model_to_save["teacher"].backbone
+        )
+        clustering_optimizer_state = fsdp_utils.gather_full_optimizer_state_dict(
+            model_to_save["teacher"], clustering_optimizer
+        )
+    else:
+        full_model_state = None
+        backbone_model_state = None
+        clustering_optimizer_state = clustering_optimizer.state_dict()
 
-        training_utils.save_training_checkpoint(
-            args,
-            network_name,
-            epoch,
-            model_to_save,
-            signature,
-            {},
-            rgb_stats,
-            optimizer,
-            scheduler,
-            scaler,
-            None,
-            **extra_states,
-        )
-        training_utils.save_training_checkpoint(
-            args,
-            backbone_name,
-            epoch,
-            model_to_save["teacher"].backbone,
-            backbone_signature,
-            {},
-            rgb_stats,
-            optimizer=None,
-            scheduler=None,
-            scaler=None,
-            model_base=None,
-        )
+    extra_states = {
+        "clustering_optimizer": clustering_optimizer_state,
+        "clustering_scheduler": clustering_scheduler.state_dict(),
+    }
+    if clustering_scaler is not None:
+        extra_states.update({"clustering_scaler": clustering_scaler.state_dict()})
+
+    training_utils.save_training_checkpoint(
+        args,
+        network_name,
+        epoch,
+        model_to_save,
+        signature,
+        {},
+        rgb_stats,
+        optimizer,
+        scheduler,
+        scaler,
+        None,
+        fsdp_mode=fsdp_mode,
+        fsdp_model_state=full_model_state,
+        **extra_states,
+    )
+    training_utils.save_training_checkpoint(
+        args,
+        backbone_name,
+        epoch,
+        model_to_save["teacher"].backbone,
+        backbone_signature,
+        {},
+        rgb_stats,
+        optimizer=None,
+        scheduler=None,
+        scaler=None,
+        model_base=None,
+        fsdp_mode=fsdp_mode,
+        fsdp_model_state=backbone_model_state,
+    )
 
     training_utils.shutdown_distributed_mode(args)
 
@@ -798,7 +893,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_precision_args(parser)
     training_cli.add_compile_args(parser)
     training_cli.add_checkpoint_args(parser)
-    training_cli.add_distributed_args(parser)
+    training_cli.add_distributed_args(parser, fsdp=True)
     training_cli.add_logging_and_debug_args(parser, default_log_interval=100)
     training_cli.add_training_data_args(parser, unsupervised=True)
 

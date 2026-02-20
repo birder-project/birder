@@ -291,7 +291,7 @@ class SHSA(nn.Module):
         attn = (q.transpose(-2, -1) @ k) * self.scale
         attn = attn.softmax(dim=-1)
         x1 = (v @ attn.transpose(-2, -1)).reshape(b, self.partial_dim, h, w)
-        x = self.proj(torch.cat([x1, x2], dim=1))
+        x = self.proj(torch.concat([x1, x2], dim=1))
 
         return x
 
@@ -391,11 +391,11 @@ class SHViT(DetectorBackbone):
         assert "mlp_head" not in self.config, "mlp_head customization is not supported"
 
         self.reparameterized = False
+        qk_dims = [16, 16, 16]
+        use_shsa = [False, True, True]
         embed_dims: list[int] = self.config["embed_dims"]
         depths: list[int] = self.config["depths"]
         partial_dims: list[int] = self.config["partial_dims"]
-        qk_dims = [16, 16, 16]
-        use_shsa = [False, True, True]
 
         stem_dim = embed_dims[0]
 

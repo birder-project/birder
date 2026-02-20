@@ -1,5 +1,6 @@
 import argparse
 import contextlib
+import json
 import logging
 import math
 import os
@@ -320,9 +321,21 @@ def group_by_regex(strings: list[str], pattern: str) -> list[list[str]]:
     return groups
 
 
+def unwrap_compiled_module(module: torch.nn.Module) -> torch.nn.Module:
+    """
+    Unwrap a torch.compile wrapper and return the original module
+    """
+
+    orig_mod = getattr(module, "_orig_mod", None)
+    if isinstance(orig_mod, torch.nn.Module):
+        return orig_mod
+
+    return module
+
+
 def count_layers(model: torch.nn.Module) -> int:
     num_layers = 0
-    module_stack = [model]
+    module_stack = [unwrap_compiled_module(model)]
     visited_modules: list[int] = []
     while len(module_stack) > 0:
         skip_module = False
@@ -420,6 +433,8 @@ def optimizer_parameter_groups(
     - Custom key matching supports both full parameter names and shortened names for nested modules
     """
 
+    model = unwrap_compiled_module(model)
+
     norm_classes = (
         torch.nn.modules.batchnorm._BatchNorm,
         torch.nn.LayerNorm,
@@ -449,6 +464,7 @@ def optimizer_parameter_groups(
             logger.warning("Backbone layer decay requested but model has no backbone")
             backbone_layer_decay = None
         else:
+            backbone_module = unwrap_compiled_module(backbone_module)
             backbone_block_group_regex = getattr(backbone_module, "block_group_regex", None)
             if backbone_block_group_regex is not None:
                 names = [n for n, _ in backbone_module.named_parameters()]
@@ -702,7 +718,7 @@ def get_optimizer(parameters: list[dict[str, Any]], l_rate: float, args: argpars
 
 
 def get_scheduler(
-    optimizer: torch.optim.Optimizer, steps_per_epoch: int, args: argparse.Namespace
+    optimizer: torch.optim.Optimizer, steps_per_epoch: int, args: argparse.Namespace, cosine_fraction: float = 1.0
 ) -> torch.optim.lr_scheduler.LRScheduler:
     # At first, we translate everything into "steps"
     begin_step = 0
@@ -772,8 +788,9 @@ def get_scheduler(
             optimizer, milestones=adjusted_milestones, gamma=args.lr_step_gamma
         )
     elif args.lr_scheduler == "cosine":
+        cosine_t_max = round(main_steps / cosine_fraction)
         main_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=main_steps, eta_min=args.lr_cosine_min
+            optimizer, T_max=cosine_t_max, eta_min=args.lr_cosine_min
         )
     elif args.lr_scheduler == "polynomial":
         main_scheduler = torch.optim.lr_scheduler.PolynomialLR(optimizer, total_iters=main_steps, power=args.lr_power)
@@ -1165,12 +1182,17 @@ def save_training_checkpoint(
     model_base: Optional[torch.nn.Module],
     *,
     fsdp_mode: bool = False,
+    fsdp_model_state: Optional[dict[str, Any]] = None,
     external_config: Optional[dict[str, Any]] = None,
     external_backbone_config: Optional[dict[str, Any]] = None,
     **extra_states: Optional[dict[str, Any]],
 ) -> None:
     if fsdp_mode is True:
-        model_state = fsdp_utils.gather_full_model_state_dict(net)
+        if fsdp_model_state is not None:
+            model_state = fsdp_model_state
+        else:
+            model_state = fsdp_utils.gather_full_model_state_dict(net)
+
         optimizer_state = None
         scheduler_state = None
         scaler_state = None
@@ -1200,6 +1222,9 @@ def save_training_checkpoint(
                 external_backbone_config=external_backbone_config,
                 **extra_states,
             )
+
+        if is_dist_available_and_initialized() is True:
+            dist.barrier()
 
     else:
         if is_global_primary(args) is True:
@@ -1256,7 +1281,7 @@ def init_training(
     if args.seed is not None:
         set_random_seeds(args.seed)
 
-    if args.non_interactive is True or is_local_primary(args) is False:
+    if args.non_interactive is True or is_global_primary(args) is False:
         disable_tqdm = True
     elif sys.stderr.isatty() is False:
         disable_tqdm = True
@@ -1281,6 +1306,7 @@ def cosine_scheduler(
     warmup_epochs: float,
     iter_per_epoch: int,
     start_warmup_value: float = 0.0,
+    cosine_fraction: float = 1.0,
 ) -> list[float]:
     """
     Create a learning rate schedule with linear warmup followed by cosine annealing
@@ -1303,6 +1329,9 @@ def cosine_scheduler(
         Number of iterations per epoch.
     start_warmup_value
         Starting value for warmup phase.
+    cosine_fraction
+        Fraction of the cosine half-period to use (default 1.0 = full cosine decay).
+        Values less than 1.0 result in a shallower decay that doesn't reach final_value.
 
     Returns
     -------
@@ -1322,7 +1351,9 @@ def cosine_scheduler(
 
     warmup_schedule = np.linspace(start_warmup_value, base_value, warmup_iterations, endpoint=False)
     iters = np.arange(cosine_iterations)
-    cosine_schedule = final_value + 0.5 * (base_value - final_value) * (1 + np.cos(np.pi * iters / len(iters)))
+    cosine_schedule = final_value + 0.5 * (base_value - final_value) * (
+        1 + np.cos(np.pi * cosine_fraction * iters / len(iters))
+    )
 
     schedule = np.concatenate((warmup_schedule, cosine_schedule))
     assert len(schedule) == total_iterations
@@ -1386,6 +1417,41 @@ def training_log_path(network_name: str, device: torch.device, experiment: Optio
         log_dir = settings.TRAINING_RUNS_PATH
 
     return log_dir.joinpath(log_name)
+
+
+###############################################################################
+# Training Script Composition Helpers
+###############################################################################
+
+
+def normalize_stop_epoch(epochs: int, stop_epoch: Optional[int]) -> int:
+    if stop_epoch is None:
+        return epochs
+
+    return stop_epoch + 1
+
+
+def make_training_args_payload(args: argparse.Namespace) -> dict[str, Any]:
+    """
+    Build the payload persisted as training_args.json
+    """
+
+    return {
+        "birder_version": birder_version,
+        "pytorch_version": torch.__version__,
+        "cmdline": " ".join(sys.argv),
+        **vars(args),
+    }
+
+
+def write_training_args_json(path: Path, args: argparse.Namespace) -> None:
+    with open(path.joinpath("training_args.json"), "w", encoding="utf-8") as handle:
+        json.dump(make_training_args_payload(args), handle, indent=2)
+
+
+def write_training_data_json(path: Path, payload: dict[str, Any]) -> None:
+    with open(path.joinpath("training_data.json"), "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2)
 
 
 def setup_file_logging(log_file_path: str | Path) -> logging.Handler:

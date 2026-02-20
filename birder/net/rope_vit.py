@@ -5,9 +5,6 @@ and
 https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/pos_embed_sincos.py
 
 Paper "Rotary Position Embedding for Vision Transformer", https://arxiv.org/abs/2403.13298
-
-Changes from original:
-* Implemented only axial RoPE (EVA style RoPE)
 """
 
 # Reference license: Apache-2.0 (both)

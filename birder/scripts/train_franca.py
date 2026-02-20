@@ -9,7 +9,6 @@ https://arxiv.org/abs/2507.14137
 # Reference license: Apache-2.0
 
 import argparse
-import json
 import logging
 import math
 import random
@@ -30,7 +29,6 @@ from torchvision.datasets.folder import pil_loader  # Slower but Handles externa
 from torchvision.transforms import v2
 from tqdm import tqdm
 
-import birder
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import training_cli
@@ -218,10 +216,7 @@ def train(args: argparse.Namespace) -> None:
 
     begin_epoch = 1
     epochs = args.epochs + 1
-    if args.stop_epoch is None:
-        args.stop_epoch = epochs
-    else:
-        args.stop_epoch += 1
+    args.stop_epoch = training_utils.normalize_stop_epoch(epochs, args.stop_epoch)
 
     #
     # Initialize network
@@ -594,28 +589,12 @@ def train(args: argparse.Namespace) -> None:
     signature = get_ssl_signature(input_shape=sample_shape)
     backbone_signature = get_signature(input_shape=sample_shape, num_outputs=0)
     file_handler: logging.Handler = logging.NullHandler()
-    if training_utils.is_local_primary(args) is True:
+    if training_utils.is_global_primary(args) is True:
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
         file_handler = training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
-        with open(training_log_path.joinpath("training_args.json"), "w", encoding="utf-8") as handle:
-            json.dump(
-                {
-                    "birder_version": birder.__version__,
-                    "pytorch_version": torch.__version__,
-                    "cmdline": " ".join(sys.argv),
-                    **vars(args),
-                },
-                handle,
-                indent=2,
-            )
-
-        with open(training_log_path.joinpath("training_data.json"), "w", encoding="utf-8") as handle:
-            json.dump(
-                {"training_samples": len(training_dataset)},
-                handle,
-                indent=2,
-            )
+        training_utils.write_training_args_json(training_log_path, args)
+        training_utils.write_training_data_json(training_log_path, {"training_samples": len(training_dataset)})
 
     #
     # Training loop
@@ -823,7 +802,7 @@ def train(args: argparse.Namespace) -> None:
             running_loss_ibot_patch.update(loss_ibot_patch.detach())
 
             # Write statistics
-            if (i % args.log_interval == 0 and i > 0) or i == last_batch_idx:
+            if (i + 1) % args.log_interval == 0 or i == last_batch_idx:
                 time_now = time.time()
                 time_cost = time_now - start_time
                 iters_processed_in_interval = i - last_idx
@@ -853,7 +832,7 @@ def train(args: argparse.Namespace) -> None:
                         f"LR: {cur_lr:.4e}"
                     )
 
-                if training_utils.is_local_primary(args) is True:
+                if training_utils.is_global_primary(args) is True:
                     summary_writer.add_scalars(
                         "loss",
                         {
@@ -885,38 +864,37 @@ def train(args: argparse.Namespace) -> None:
             last_lr = float(max(scheduler.get_last_lr()))
             logger.info(f"Updated learning rate to: {last_lr}")
 
-        if training_utils.is_local_primary(args) is True:
-            # Checkpoint model
-            if epoch % args.save_frequency == 0:
-                training_utils.save_training_checkpoint(
-                    args,
-                    network_name,
-                    epoch,
-                    model_to_save,
-                    signature,
-                    {},
-                    rgb_stats,
-                    optimizer,
-                    scheduler,
-                    scaler,
-                    None,
-                )
-                training_utils.save_training_checkpoint(
-                    args,
-                    backbone_name,
-                    epoch,
-                    model_to_save["teacher"].backbone,
-                    backbone_signature,
-                    {},
-                    rgb_stats,
-                    optimizer=None,
-                    scheduler=None,
-                    scaler=None,
-                    model_base=None,
-                )
-                if args.keep_last is not None and training_utils.is_global_primary(args) is True:
-                    fs_ops.clean_checkpoints(network_name, args.keep_last)
-                    fs_ops.clean_checkpoints(backbone_name, args.keep_last)
+        # Checkpoint model
+        if epoch % args.save_frequency == 0:
+            training_utils.save_training_checkpoint(
+                args,
+                network_name,
+                epoch,
+                model_to_save,
+                signature,
+                {},
+                rgb_stats,
+                optimizer,
+                scheduler,
+                scaler,
+                None,
+            )
+            training_utils.save_training_checkpoint(
+                args,
+                backbone_name,
+                epoch,
+                model_to_save["teacher"].backbone,
+                backbone_signature,
+                {},
+                rgb_stats,
+                optimizer=None,
+                scheduler=None,
+                scaler=None,
+                model_base=None,
+            )
+            if args.keep_last is not None and training_utils.is_global_primary(args) is True:
+                fs_ops.clean_checkpoints(network_name, args.keep_last)
+                fs_ops.clean_checkpoints(backbone_name, args.keep_last)
 
         # Epoch timing
         toc = time.time()
@@ -926,33 +904,32 @@ def train(args: argparse.Namespace) -> None:
     summary_writer.close()
 
     # Checkpoint model
-    if training_utils.is_local_primary(args) is True:
-        training_utils.save_training_checkpoint(
-            args,
-            network_name,
-            epoch,
-            model_to_save,
-            signature,
-            {},
-            rgb_stats,
-            optimizer,
-            scheduler,
-            scaler,
-            None,
-        )
-        training_utils.save_training_checkpoint(
-            args,
-            backbone_name,
-            epoch,
-            model_to_save["teacher"].backbone,
-            backbone_signature,
-            {},
-            rgb_stats,
-            optimizer=None,
-            scheduler=None,
-            scaler=None,
-            model_base=None,
-        )
+    training_utils.save_training_checkpoint(
+        args,
+        network_name,
+        epoch,
+        model_to_save,
+        signature,
+        {},
+        rgb_stats,
+        optimizer,
+        scheduler,
+        scaler,
+        None,
+    )
+    training_utils.save_training_checkpoint(
+        args,
+        backbone_name,
+        epoch,
+        model_to_save["teacher"].backbone,
+        backbone_signature,
+        {},
+        rgb_stats,
+        optimizer=None,
+        scheduler=None,
+        scaler=None,
+        model_base=None,
+    )
 
     training_utils.shutdown_distributed_mode(args)
 

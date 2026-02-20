@@ -168,6 +168,7 @@ NET_TEST_CASES = [
     ("vit_parallel_s16_18x2_ls"),
     ("vit_det_s16"),
     ("vit_sam_b16"),
+    ("volo_d1"),
     ("vovnet_v1_27s"),
     ("vovnet_v2_19"),
     ("wide_resnet_50"),
@@ -177,6 +178,7 @@ NET_TEST_CASES = [
 
 DYNAMIC_SIZE_CASES = [
     ("davit_tiny"),
+    ("deit_t16"),
     ("deit3_t16"),
     ("deit3_reg4_t16"),
     ("flexivit_s16"),
@@ -210,6 +212,7 @@ DYNAMIC_SIZE_CASES = [
     ("vit_parallel_s16_18x2_ls"),
     ("vit_det_s16"),
     ("vit_sam_b16"),
+    ("volo_d1"),
 ]
 
 
@@ -376,7 +379,7 @@ class TestNet(unittest.TestCase):
         size = n.default_size
 
         # Test PT2
-        batch_dim = torch.export.Dim("batch", min=1, max=4096)
+        batch_dim = torch.export.Dim.DYNAMIC
         with torch.no_grad():
             torch.export.export(n, (torch.randn(2, DEFAULT_NUM_CHANNELS, *size),), dynamic_shapes={"x": {0: batch_dim}})
 
@@ -942,6 +945,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("vit_parallel_s16_18x2_ls"),
             ("vit_det_b16"),
             ("vit_sam_b16"),
+            ("volo_d1"),
             ("vovnet_v1_27s"),
             ("vovnet_v2_19"),
             ("wide_resnet_50"),
@@ -1020,6 +1024,30 @@ class TestDynamicSize(unittest.TestCase):
         for name, param in n.named_parameters():
             self.assertIsNotNone(param.grad, msg=f"{network_name} missing grad for {name}")
             self.assertTrue(torch.isfinite(param.grad).all().item(), msg=f"{network_name} non-finite grad for {name}")
+
+    # @parameterized.expand(DYNAMIC_SIZE_CASES)  # type: ignore[untyped-decorator]
+    # @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    # def test_dynamic_size_pt2(
+    #     self,
+    #     network_name: str,
+    #     _batch_size: int = 1,
+    #     _size_step: int = 2**5,
+    # ) -> None:
+    #     n = registry.net_factory(network_name, 100)
+    #     n.eval()
+    #     n.set_dynamic_size()
+    #     size = n.default_size
+
+    #     # Test PT2
+    #     batch_dim = torch.export.Dim.DYNAMIC
+    #     height_dim = torch.export.Dim.DYNAMIC
+    #     width_dim = torch.export.Dim.DYNAMIC
+    #     with torch.no_grad():
+    #         torch.export.export(
+    #             n,
+    #             (torch.randn(2, DEFAULT_NUM_CHANNELS, *size),),
+    #             dynamic_shapes={"x": {0: batch_dim, 2: height_dim, 3: width_dim}},
+    #         )
 
 
 class TestCudaAdjustSize(unittest.TestCase):

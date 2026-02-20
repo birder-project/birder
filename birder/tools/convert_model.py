@@ -74,6 +74,8 @@ def pt2_export(
         logger.info("Exporting with constant batch size of 1")
         signature["inputs"][0]["data_shape"][0] = 1  # Set batch size
         if dynamic_size is True:
+            logger.info("Exporting with dynamic H x W")
+            net.set_dynamic_size()
             height_dim = torch.export.Dim.DYNAMIC
             width_dim = torch.export.Dim.DYNAMIC
             dynamic_shapes = {"x": {2: height_dim, 3: width_dim}}
@@ -83,6 +85,8 @@ def pt2_export(
         batch_dim = torch.export.Dim.DYNAMIC
         dynamic_shapes = {"x": {0: batch_dim}}
         if dynamic_size is True:
+            logger.info("Exporting with dynamic H x W")
+            net.set_dynamic_size()
             height_dim = torch.export.Dim.DYNAMIC
             width_dim = torch.export.Dim.DYNAMIC
             dynamic_shapes["x"][2] = height_dim
@@ -92,6 +96,7 @@ def pt2_export(
         exported_net = torch.export.export(
             net, (torch.randn(*sample_shape, device=device),), dynamic_shapes=dynamic_shapes, strict=True
         )
+        exported_net = exported_net.run_decompositions(decomp_table={})
 
     fs_ops.save_pt2(exported_net, model_path, net.task, class_to_idx, signature, rgb_stats)
 

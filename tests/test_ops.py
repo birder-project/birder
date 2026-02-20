@@ -32,11 +32,24 @@ class TestOps(unittest.TestCase):
         attention_weights = torch.rand(1, 34000, 8, 4, 4, device=device)
         im2col_step = 64
 
+        src_shapes = value_spatial_shapes.tolist()
         op_kernel = msda(
-            value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, im2col_step
+            value,
+            value_spatial_shapes,
+            value_level_start_index,
+            sampling_locations,
+            attention_weights,
+            im2col_step,
+            src_shapes,
         )
         fb_kernel = multi_scale_deformable_attention(
-            value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, im2col_step
+            value,
+            value_spatial_shapes,
+            value_level_start_index,
+            sampling_locations,
+            attention_weights,
+            im2col_step,
+            src_shapes,
         )
 
         self.assertEqual(op_kernel.size(), fb_kernel.size())

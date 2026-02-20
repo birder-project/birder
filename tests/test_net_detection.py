@@ -285,3 +285,27 @@ class TestNetDetection(unittest.TestCase):
 
             self.assertIsNotNone(param.grad, msg=f"{network_name} missing grad for {name}")
             self.assertTrue(torch.isfinite(param.grad).all().item(), msg=f"{network_name} non-finite grad for {name}")
+
+    # @parameterized.expand(DETECTION_DYNAMIC_SIZE_CASES)  # type: ignore[untyped-decorator]
+    # @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    # def test_detection_dynamic_size_pt2(
+    #     self,
+    #     network_name: str,
+    #     encoder: str,
+    #     size: tuple[int, int] = (256, 256),
+    # ) -> None:
+    #     backbone = registry.net_factory(encoder, 10, size=size)
+    #     n = registry.detection_net_factory(network_name, 10, backbone, size=size, export_mode=True)
+    #     n.eval()
+    #     n.set_dynamic_size()
+
+    #     if n.exportable is True:
+    #         # Test PT2
+    #         height_dim = torch.export.Dim.DYNAMIC
+    #         width_dim = torch.export.Dim.DYNAMIC
+    #         with torch.no_grad():
+    #             torch.export.export(
+    #                 n,
+    #                 (torch.randn(1, DEFAULT_NUM_CHANNELS, *size),),
+    #                 dynamic_shapes={"x": {2: height_dim, 3: width_dim}},
+    #             )

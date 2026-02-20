@@ -48,7 +48,7 @@ def load_msda() -> Optional[ModuleType]:
 
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=UserWarning)
-        msda: Optional[ModuleType] = load(
+        lib_path = load(
             "MultiScaleDeformableAttention",
             src_files,
             with_cuda=True,
@@ -60,7 +60,11 @@ def load_msda() -> Optional[ModuleType]:
                 "-D__CUDA_NO_HALF_CONVERSIONS__",
                 "-D__CUDA_NO_HALF2_OPERATORS__",
             ],
+            is_python_module=False,
         )
+
+    ops_namespace = Path(lib_path).stem
+    msda: Optional[ModuleType] = getattr(torch.ops, ops_namespace, None)
 
     if msda is not None:
         logger.info("MSDA custom kernel loaded")
@@ -92,7 +96,7 @@ def load_swattention() -> Optional[ModuleType]:
 
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=UserWarning)
-        swattention: Optional[ModuleType] = load(
+        lib_path = load(
             "swattention",
             src_files,
             with_cuda=True,
@@ -103,7 +107,11 @@ def load_swattention() -> Optional[ModuleType]:
                 "-D__CUDA_NO_HALF_CONVERSIONS__",
                 "-D__CUDA_NO_HALF2_OPERATORS__",
             ],
+            is_python_module=False,
         )
+
+    ops_namespace = Path(lib_path).stem
+    swattention: Optional[ModuleType] = getattr(torch.ops, ops_namespace, None)
 
     if swattention is not None:
         logger.info("swattention custom kernel loaded")

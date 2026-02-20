@@ -123,6 +123,21 @@ class DeiT(DetectorBackbone):
             nn.init.zeros_(self.dist_classifier.weight)
             nn.init.zeros_(self.dist_classifier.bias)
 
+    def _get_pos_embed(self, H: int, W: int) -> torch.Tensor:
+        if self.dynamic_size is False:
+            return self.pos_embedding
+
+        if H == self.size[0] and W == self.size[1]:
+            return self.pos_embedding
+
+        return adjust_position_embedding(
+            self.pos_embedding,
+            (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
+            (H // self.patch_size, W // self.patch_size),
+            self.num_special_tokens,
+            antialias=False,
+        )
+
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes
         self.dist_classifier = self.create_classifier()
@@ -159,7 +174,7 @@ class DeiT(DetectorBackbone):
         batch_dist_token = self.dist_token.expand(x.shape[0], -1, -1)
 
         x = torch.concat([batch_class_token, batch_dist_token, x], dim=1)
-        x = x + self.pos_embedding
+        x = x + self._get_pos_embed(H, W)
 
         if self.out_indices is None:
             xs = [self.encoder(x)]
@@ -190,6 +205,8 @@ class DeiT(DetectorBackbone):
                 param.requires_grad_(False)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+        H, W = x.shape[-2:]
+
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
         x = self.patch_embed(x)
@@ -199,7 +216,7 @@ class DeiT(DetectorBackbone):
         batch_dist_token = self.dist_token.expand(x.shape[0], -1, -1)
 
         x = torch.concat([batch_class_token, batch_dist_token, x], dim=1)
-        x = x + self.pos_embedding
+        x = x + self._get_pos_embed(H, W)
 
         x = self.encoder(x)
         x = self.norm(x)
@@ -229,9 +246,6 @@ class DeiT(DetectorBackbone):
             x = (x_cls + x_dist) / 2
 
         return x
-
-    def set_dynamic_size(self, dynamic_size: bool = True) -> None:
-        assert dynamic_size is False, "Dynamic size not supported for this network"
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:

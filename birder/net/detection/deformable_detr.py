@@ -163,8 +163,8 @@ class MultiScaleDeformableAttention(nn.Module):
         input_flatten: torch.Tensor,
         input_spatial_shapes: torch.Tensor,
         input_level_start_index: torch.Tensor,
+        src_shapes: list[list[int]],
         input_padding_mask: Optional[torch.Tensor] = None,
-        src_shapes: Optional[list[list[int]]] = None,
     ) -> torch.Tensor:
         N, num_queries, _ = query.size()
         N, sequence_length, _ = input_flatten.size()
@@ -237,9 +237,9 @@ class DeformableTransformerEncoderLayer(nn.Module):
         spatial_shapes: torch.Tensor,
         level_start_index: torch.Tensor,
         mask: Optional[torch.Tensor],
-        src_shapes: Optional[list[list[int]]] = None,
+        src_shapes: list[list[int]],
     ) -> torch.Tensor:
-        src2 = self.self_attn(src + pos, reference_points, src, spatial_shapes, level_start_index, mask, src_shapes)
+        src2 = self.self_attn(src + pos, reference_points, src, spatial_shapes, level_start_index, src_shapes, mask)
         src = src + self.dropout(src2)
         src = self.norm1(src)
 
@@ -279,8 +279,8 @@ class DeformableTransformerDecoderLayer(nn.Module):
         src_spatial_shapes: torch.Tensor,
         level_start_index: torch.Tensor,
         src_padding_mask: Optional[torch.Tensor],
+        src_shapes: list[list[int]],
         self_attn_mask: Optional[torch.Tensor] = None,
-        src_shapes: Optional[list[list[int]]] = None,
     ) -> torch.Tensor:
         # Self attention
         q_k = tgt + query_pos
@@ -294,7 +294,7 @@ class DeformableTransformerDecoderLayer(nn.Module):
 
         # Cross attention
         tgt2 = self.cross_attn(
-            tgt + query_pos, reference_points, src, src_spatial_shapes, level_start_index, src_padding_mask, src_shapes
+            tgt + query_pos, reference_points, src, src_spatial_shapes, level_start_index, src_shapes, src_padding_mask
         )
         tgt = tgt + self.dropout(tgt2)
         tgt = self.norm2(tgt)
@@ -371,7 +371,7 @@ class DeformableTransformerDecoder(nn.Module):
         query_pos: torch.Tensor,
         src_valid_ratios: torch.Tensor,
         src_padding_mask: torch.Tensor,
-        src_shapes: Optional[list[list[int]]] = None,
+        src_shapes: list[list[int]],
     ) -> tuple[torch.Tensor, torch.Tensor]:
         output = tgt
 
