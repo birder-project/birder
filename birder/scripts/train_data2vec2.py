@@ -13,6 +13,7 @@ import sys
 import time
 from collections.abc import Callable
 from collections.abc import Iterator
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -234,6 +235,11 @@ def train(args: argparse.Namespace) -> None:
         epoch_samples = len(training_dataset)
 
     last_batch_idx = epoch_num_batches - 1
+    last_accum_steps = epoch_num_batches % grad_accum_steps
+    if last_accum_steps == 0:
+        last_accum_steps = grad_accum_steps
+
+    last_accum_start_idx = epoch_num_batches - last_accum_steps
     logger.debug(
         f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
         f"virtual mode={virtual_epoch_mode}"
@@ -318,6 +324,7 @@ def train(args: argparse.Namespace) -> None:
     # Distributed (DDP)
     #
     net_without_ddp = net
+    no_sync_cm = nullcontext
     if args.distributed is True:
         net = torch.nn.parallel.DistributedDataParallel(
             net,
@@ -325,6 +332,7 @@ def train(args: argparse.Namespace) -> None:
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
+        no_sync_cm = net.no_sync
         net_without_ddp = net.module
 
     model_to_save = net_without_ddp
@@ -417,34 +425,40 @@ def train(args: argparse.Namespace) -> None:
             masks = masks.reshape(-1, masks.size(-1))
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
+            sync_context = no_sync_cm if optimizer_update is False else nullcontext
+            if i >= last_accum_start_idx:
+                effective_accum_steps = last_accum_steps
+            else:
+                effective_accum_steps = grad_accum_steps
 
-            # Forward, backward and optimize
-            with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                loss = net(x, masks)
+            # Forward and backward
+            with sync_context():
+                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
+                    raw_loss = net(x, masks)
 
-            if scaler is not None:
-                scaler.scale(loss).backward()
-                if optimizer_update is True:
+                loss = raw_loss / effective_accum_steps
+                if scaler is not None:
+                    scaler.scale(loss).backward()
+                else:
+                    loss.backward()
+
+            if optimizer_update is True:
+                if scaler is not None:
                     if args.clip_grad_norm is not None:
                         scaler.unscale_(optimizer)
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     scaler.step(optimizer)
                     scaler.update()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
-
-            else:
-                loss.backward()
-                if optimizer_update is True:
+                else:
                     if args.clip_grad_norm is not None:
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     optimizer.step()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
+
+                optimizer.zero_grad()
+                if step_update is True:
+                    scheduler.step()
 
             if optimizer_update is True:
                 # EMA update for the teacher
@@ -457,7 +471,7 @@ def train(args: argparse.Namespace) -> None:
                     )
 
             # Statistics
-            running_loss.update(loss.detach())
+            running_loss.update(raw_loss.detach())
 
             # Write statistics
             if (i + 1) % args.log_interval == 0 or i == last_batch_idx:

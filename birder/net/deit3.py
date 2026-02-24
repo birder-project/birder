@@ -52,7 +52,6 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
         image_size = self.size
         attention_dropout = 0.0
         dropout = 0.0
-        pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", False)
         patch_size: int = self.config["patch_size"]
         num_layers: int = self.config["num_layers"]
         num_heads: int = self.config["num_heads"]
@@ -71,7 +70,6 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
         self.hidden_dim = hidden_dim
         self.num_reg_tokens = num_reg_tokens
         self.num_special_tokens = 1 + self.num_reg_tokens
-        self.pos_embed_special_tokens = pos_embed_special_tokens
         self.out_indices = normalize_out_indices(out_indices, num_layers)
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
@@ -88,14 +86,10 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
 
         # Add a class token
         self.class_token = nn.Parameter(torch.zeros(1, 1, hidden_dim))
-        if pos_embed_special_tokens is True:
-            seq_length += 1
 
         # Add optional register tokens
         if self.num_reg_tokens > 0:
             self.reg_tokens = nn.Parameter(torch.zeros(1, self.num_reg_tokens, hidden_dim))
-            if pos_embed_special_tokens is True:
-                seq_length += self.num_reg_tokens
         else:
             self.reg_tokens = None
 
@@ -157,7 +151,7 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
             self.pos_embedding,
             (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
             (H // self.patch_size, W // self.patch_size),
-            self.num_special_tokens if self.pos_embed_special_tokens is True else 0,
+            0,
             antialias=False,
         )
 
@@ -167,17 +161,14 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
-        batch_special_tokens = self.class_token.expand(x.shape[0], -1, -1)
+        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
+        special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
-            batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
-            batch_special_tokens = torch.concat([batch_reg_tokens, batch_special_tokens], dim=1)
+            special_tokens.append(self.reg_tokens.expand(x.size(0), -1, -1))
 
-        if self.pos_embed_special_tokens is True:
-            x = torch.concat([batch_special_tokens, x], dim=1)
-            x = x + self._get_pos_embed(H, W)
-        else:
-            x = x + self._get_pos_embed(H, W)
-            x = torch.concat([batch_special_tokens, x], dim=1)
+        special_tokens.append(self.class_token.expand(x.size(0), -1, -1))
+        x = x + self._get_pos_embed(H, W)
+        x = torch.concat(special_tokens + [x], dim=1)
 
         if self.out_indices is None:
             xs = [self.encoder(x)]
@@ -229,32 +220,20 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
 
         # Add pos embedding without special tokens
         pos_embedding = self._get_pos_embed(H, W)
-        if self.pos_embed_special_tokens is True:
-            x = x + pos_embedding[:, self.num_special_tokens :, :]
-        else:
-            x = x + pos_embedding
+        x = x + pos_embedding
 
         # Mask tokens
         if ids_keep is not None:
             x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, x.size(2)))
 
-        # Append class and register tokens
-        if self.pos_embed_special_tokens is True:
-            cls_token = self.class_token + pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
-        else:
-            cls_token = self.class_token
-
-        batch_class_token = cls_token.expand(x.shape[0], -1, -1)
-        x = torch.concat((batch_class_token, x), dim=1)
-
+        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
+        special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
-            if self.pos_embed_special_tokens is True:
-                reg_tokens = self.reg_tokens + pos_embedding[:, 0 : self.num_reg_tokens, :]
-            else:
-                reg_tokens = self.reg_tokens
+            special_tokens.append(self.reg_tokens.expand(x.size(0), -1, -1))
 
-            batch_reg_tokens = reg_tokens.expand(x.shape[0], -1, -1)
-            x = torch.concat([batch_reg_tokens, x], dim=1)
+        special_tokens.append(self.class_token.expand(x.size(0), -1, -1))
+
+        x = torch.concat(special_tokens + [x], dim=1)
 
         # Apply transformer
         if return_all_features is True:
@@ -292,20 +271,15 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
         # Reshape and permute the input tensor
         x = self.patch_embed(x)
 
-        # Expand the class token to the full batch
-        batch_special_tokens = self.class_token.expand(x.shape[0], -1, -1)
-
-        # Expand the register tokens to the full batch
+        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
+        special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
-            batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
-            batch_special_tokens = torch.concat([batch_reg_tokens, batch_special_tokens], dim=1)
+            special_tokens.append(self.reg_tokens.expand(x.size(0), -1, -1))
 
-        if self.pos_embed_special_tokens is True:
-            x = torch.concat([batch_special_tokens, x], dim=1)
-            x = x + self._get_pos_embed(H, W)
-        else:
-            x = x + self._get_pos_embed(H, W)
-            x = torch.concat([batch_special_tokens, x], dim=1)
+        special_tokens.append(self.class_token.expand(x.size(0), -1, -1))
+
+        x = x + self._get_pos_embed(H, W)
+        x = torch.concat(special_tokens + [x], dim=1)
 
         x = self.encoder(x)
         x = self.norm(x)
@@ -323,30 +297,29 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
 
         return result
 
-    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor, return_input_embedding: bool = False) -> torch.Tensor:
         H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
-        # Expand the class token to the full batch
-        batch_special_tokens = self.class_token.expand(x.shape[0], -1, -1)
-
-        # Expand the register tokens to the full batch
+        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
+        special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
-            batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
-            batch_special_tokens = torch.concat([batch_reg_tokens, batch_special_tokens], dim=1)
+            special_tokens.append(self.reg_tokens.expand(x.size(0), -1, -1))
 
-        if self.pos_embed_special_tokens is True:
-            x = torch.concat([batch_special_tokens, x], dim=1)
-            x = x + self._get_pos_embed(H, W)
-        else:
-            x = x + self._get_pos_embed(H, W)
-            x = torch.concat([batch_special_tokens, x], dim=1)
+        special_tokens.append(self.class_token.expand(x.size(0), -1, -1))
 
+        x = x + self._get_pos_embed(H, W)
+        x = torch.concat(special_tokens + [x], dim=1)
+
+        input_embedding = x
         x = self.encoder(x)
         x = self.norm(x)
+
+        if return_input_embedding is True:
+            return torch.stack([input_embedding, x], dim=-1)
 
         return x
 
@@ -366,19 +339,13 @@ class DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedT
         old_size = self.size
         super().adjust_size(new_size)
 
-        # Sort out sizes
-        if self.pos_embed_special_tokens is True:
-            num_prefix_tokens = self.num_special_tokens
-        else:
-            num_prefix_tokens = 0
-
         # Add back class tokens
         with torch.no_grad():
             pos_embedding = adjust_position_embedding(
                 self.pos_embedding,
                 (old_size[0] // self.patch_size, old_size[1] // self.patch_size),
                 (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
-                num_prefix_tokens,
+                0,
             )
         self.pos_embedding = nn.Parameter(pos_embedding)
 

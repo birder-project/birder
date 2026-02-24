@@ -10,6 +10,7 @@ import sys
 import time
 from collections.abc import Callable
 from collections.abc import Iterator
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -183,6 +184,11 @@ def train(args: argparse.Namespace) -> None:
         epoch_samples = len(training_dataset)
 
     last_batch_idx = epoch_num_batches - 1
+    last_accum_steps = epoch_num_batches % grad_accum_steps
+    if last_accum_steps == 0:
+        last_accum_steps = grad_accum_steps
+
+    last_accum_start_idx = epoch_num_batches - last_accum_steps
     begin_epoch = 1
     epochs = args.epochs + 1
     args.stop_epoch = training_utils.normalize_stop_epoch(epochs, args.stop_epoch)
@@ -307,6 +313,7 @@ def train(args: argparse.Namespace) -> None:
     # Distributed (DDP)
     #
     net_without_ddp = net
+    no_sync_cm = nullcontext
     if args.distributed is True:
         net = torch.nn.parallel.DistributedDataParallel(
             net,
@@ -314,6 +321,7 @@ def train(args: argparse.Namespace) -> None:
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
+        no_sync_cm = net.no_sync
         net_without_ddp = net.module
 
     model_to_save = net_without_ddp
@@ -404,38 +412,44 @@ def train(args: argparse.Namespace) -> None:
             targets = targets.to(device, non_blocking=True)
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
+            sync_context = no_sync_cm if optimizer_update is False else nullcontext
+            if i >= last_accum_start_idx:
+                effective_accum_steps = last_accum_steps
+            else:
+                effective_accum_steps = grad_accum_steps
 
-            # Forward, backward and optimize
-            with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                outputs = net(inputs)
-                loss = criterion(outputs, targets)
+            # Forward and backward
+            with sync_context():
+                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
+                    outputs = net(inputs)
+                    raw_loss = criterion(outputs, targets)
 
-            if scaler is not None:
-                scaler.scale(loss).backward()
-                if optimizer_update is True:
+                loss = raw_loss / effective_accum_steps
+                if scaler is not None:
+                    scaler.scale(loss).backward()
+                else:
+                    loss.backward()
+
+            if optimizer_update is True:
+                if scaler is not None:
                     if args.clip_grad_norm is not None:
                         scaler.unscale_(optimizer)
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     scaler.step(optimizer)
                     scaler.update()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
-
-            else:
-                loss.backward()
-                if optimizer_update is True:
+                else:
                     if args.clip_grad_norm is not None:
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     optimizer.step()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
+
+                optimizer.zero_grad()
+                if step_update is True:
+                    scheduler.step()
 
             # Statistics
-            running_loss.update(loss.detach())
+            running_loss.update(raw_loss.detach())
             if targets.ndim == 2:
                 targets = targets.argmax(dim=1)
 

@@ -10,6 +10,7 @@ from birder.net.ssl.dino_v2 import DINOv2Teacher
 from birder.net.ssl.i_jepa import I_JEPA
 from birder.net.ssl.ibot import iBOT
 from birder.net.ssl.mmcr import MMCR
+from birder.net.ssl.nepa import NEPA
 from birder.net.ssl.simclr import SimCLR
 from birder.net.ssl.sscd import SSCD
 from birder.net.ssl.vicreg import VICReg
@@ -27,6 +28,7 @@ __all__ = [
     "I_JEPA",
     "iBOT",
     "MMCR",
+    "NEPA",
     "SimCLR",
     "SSCD",
     "VICReg",

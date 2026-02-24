@@ -18,6 +18,7 @@ from birder.net.ssl import franca
 from birder.net.ssl import i_jepa
 from birder.net.ssl import ibot
 from birder.net.ssl import mmcr
+from birder.net.ssl import nepa
 from birder.net.ssl import simclr
 from birder.net.ssl import sscd
 from birder.net.ssl import vicreg
@@ -1527,6 +1528,23 @@ class TestNetSSL(unittest.TestCase):
         loss = mmcr_loss(out, out_m)
         self.assertFalse(torch.isnan(loss).any())
         self.assertEqual(loss.ndim, 0)
+
+    def test_nepa(self) -> None:
+        batch_size = 4
+        size = (128, 128)
+        backbone = registry.net_factory("vit_t16", 0, size=size)
+        net = nepa.NEPA(backbone, config={"shift": True})
+
+        self.assertTrue(net.backbone.encoder.block[0].is_causal)
+
+        out = net(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.ndim, 0)
+
+        net_no_shift = nepa.NEPA(backbone, config={"shift": False})
+        out_no_shift = net_no_shift(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
+        self.assertFalse(torch.isnan(out_no_shift).any())
+        self.assertEqual(out_no_shift.ndim, 0)
 
     def test_simclr(self) -> None:
         batch_size = 4

@@ -184,13 +184,17 @@ class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
 
         return result
 
-    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor, return_input_embedding: bool = False) -> torch.Tensor:
         H, W = x.shape[-2:]
         x = self.conv_proj(x)
         x = self.patch_embed(x)
         x = x + self._get_pos_embed(H, W)
+        input_embedding = x
         x = self.encoder(x)
         x = self.norm(x)
+
+        if return_input_embedding is True:
+            return torch.stack([input_embedding, x], dim=-1)
 
         return x
 

@@ -56,6 +56,8 @@ from birder.net.base import BaseNet
 #     - avg         : Average pooling for sequence reduction
 #     - ap          : Attention Pooling for sequence reduction
 #     - aps         : Attention Pooling inc. Special tokens for sequence reduction
+#     - ep          : Efficient Probing for sequence reduction
+#     - eps         : Efficient Probing inc. Special tokens for sequence reduction
 #
 #     Custom Variants:
 #     - c{N}        : Custom variant (N = version number) for models with fine-grained or non-standard
@@ -381,6 +383,21 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
             "num_reg_tokens": 8,
             "class_token": False,
             "attn_pool_head": True,
+            "attn_pool_special_tokens": True,
+            "norm_layer_type": "RMSNorm",
+            "mlp_layer_type": "SwiGLU_FFN",
+        },
+    )
+    registry.register_model_config(
+        "rope_vit_reg8_so150m_p14_swiglu_rms_eps",
+        rope_vit,
+        config={
+            "patch_size": 14,
+            **SO150,
+            "num_reg_tokens": 8,
+            "class_token": False,
+            "attn_pool_head": True,
+            "attn_pool_type": "EfficientProbing",
             "attn_pool_special_tokens": True,
             "norm_layer_type": "RMSNorm",
             "mlp_layer_type": "SwiGLU_FFN",

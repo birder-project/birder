@@ -18,6 +18,7 @@ import sys
 import time
 from collections.abc import Callable
 from collections.abc import Iterator
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -264,6 +265,11 @@ def train(args: argparse.Namespace) -> None:
         epoch_samples = len(training_dataset)
 
     last_batch_idx = epoch_num_batches - 1
+    last_accum_steps = epoch_num_batches % grad_accum_steps
+    if last_accum_steps == 0:
+        last_accum_steps = grad_accum_steps
+
+    last_accum_start_idx = epoch_num_batches - last_accum_steps
     logger.debug(
         f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
         f"virtual mode={virtual_epoch_mode}"
@@ -355,6 +361,8 @@ def train(args: argparse.Namespace) -> None:
         p.requires_grad_(False)
 
     encoder_without_ddp = encoder
+    encoder_no_sync_cm = nullcontext
+    predictor_no_sync_cm = nullcontext
     # predictor_without_ddp = predictor
     if args.distributed is True:
         encoder = torch.nn.parallel.DistributedDataParallel(
@@ -366,6 +374,8 @@ def train(args: argparse.Namespace) -> None:
         predictor = torch.nn.parallel.DistributedDataParallel(
             predictor, device_ids=[args.local_rank], broadcast_buffers=not args.no_broadcast_buffers
         )
+        encoder_no_sync_cm = encoder.no_sync
+        predictor_no_sync_cm = predictor.no_sync
         encoder_without_ddp = encoder.module
         # predictor_without_ddp = predictor.module
 
@@ -466,49 +476,56 @@ def train(args: argparse.Namespace) -> None:
             pred_masks = [m.to(device, non_blocking=True) for m in pred_masks]
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
+            encoder_sync_context = encoder_no_sync_cm if optimizer_update is False else nullcontext
+            predictor_sync_context = predictor_no_sync_cm if optimizer_update is False else nullcontext
+            if i >= last_accum_start_idx:
+                effective_accum_steps = last_accum_steps
+            else:
+                effective_accum_steps = grad_accum_steps
 
-            # Forward, backward and optimize
-            with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                # Target encoder
-                with torch.no_grad():
-                    h = target_encoder(images)
-                    h = h[:, num_special_tokens:, :]  # Remove special tokens
-                    h = F.layer_norm(h, (h.size(-1),))
-                    h = apply_masks(h, pred_masks)
-                    h = repeat_interleave_batch(h, batch_size, repeat=len(enc_masks))
+            # Forward and backward
+            with encoder_sync_context(), predictor_sync_context():
+                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
+                    # Target encoder
+                    with torch.no_grad():
+                        h = target_encoder(images)
+                        h = h[:, num_special_tokens:, :]  # Remove special tokens
+                        h = F.layer_norm(h, (h.size(-1),))
+                        h = apply_masks(h, pred_masks)
+                        h = repeat_interleave_batch(h, batch_size, repeat=len(enc_masks))
 
-                # Context encoder
-                # NOTE: When enc_masks > 1, this implementation is not as efficient as the original, as we run through
-                # the stem over and over with the same input.
-                z = torch.concat([encoder(images, enc_mask) for enc_mask in enc_masks], dim=0)
-                z = z[:, num_special_tokens:, :]  # Remove special tokens
-                z = predictor(z, enc_masks, pred_masks)
+                    # Context encoder
+                    # NOTE: When enc_masks > 1, this implementation is not as efficient as the original,
+                    # as we run through the stem over and over with the same input.
+                    z = torch.concat([encoder(images, enc_mask) for enc_mask in enc_masks], dim=0)
+                    z = z[:, num_special_tokens:, :]  # Remove special tokens
+                    z = predictor(z, enc_masks, pred_masks)
 
-                loss = F.smooth_l1_loss(z, h)
+                    raw_loss = F.smooth_l1_loss(z, h)
 
-            if scaler is not None:
-                scaler.scale(loss).backward()
-                if optimizer_update is True:
+                loss = raw_loss / effective_accum_steps
+                if scaler is not None:
+                    scaler.scale(loss).backward()
+                else:
+                    loss.backward()
+
+            if optimizer_update is True:
+                if scaler is not None:
                     if args.clip_grad_norm is not None:
                         scaler.unscale_(optimizer)
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     scaler.step(optimizer)
                     scaler.update()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
-
-            else:
-                loss.backward()
-                if optimizer_update is True:
+                else:
                     if args.clip_grad_norm is not None:
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     optimizer.step()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
+
+                optimizer.zero_grad()
+                if step_update is True:
+                    scheduler.step()
 
             if optimizer_update is True:
                 # EMA update for the target encoder
@@ -519,7 +536,7 @@ def train(args: argparse.Namespace) -> None:
                     )
 
             # Statistics
-            running_loss.update(loss.detach())
+            running_loss.update(raw_loss.detach())
 
             # Write statistics
             if (i + 1) % args.log_interval == 0 or i == last_batch_idx:

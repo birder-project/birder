@@ -16,6 +16,7 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 - [I-JEPA](#i-jepa)
 - [iBOT](#ibot)
 - [MMCR](#mmcr)
+- [NEPA](#nepa)
 - [RotNet](#rotnet)
 - [SimCLR](#simclr)
 - [VICReg](#vicreg)
@@ -498,6 +499,20 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mmcr --network efficientnet_
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_mmcr --network pvt_v2_b1 --batch-size 128 --opt adamw --opt-betas 0.9 0.95 --lr 0.0005 --wd 0.000001 --lr-scheduler-update step --lr-scheduler cosine --epochs 100 --warmup-epochs 10 --amp --amp-dtype bfloat16 --compile --data-path data/training
+```
+
+### NEPA
+
+#### NEPA: RoPE FlexiViT
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_nepa --network rope_flexivit_reg4_b16_qkn_ls --model-config min_patch_size=10,max_patch_size=30 --batch-size 128 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 8 --lr 0.0003 --lr-scale 256 --wd 0.05 --lr-scheduler cosine --epochs 480 --warmup-epochs 40 --size 240 --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path data/training
+```
+
+#### NEPA: RoPE ViT-5 reg4 b16
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_nepa --network rope_vit5_reg4_b16 --batch-size 256 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 8 --lr 0.0003 --lr-scale 256 --wd 0.05 --lr-scheduler cosine --epochs 480 --warmup-epochs 40 --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path data/training
 ```
 
 ### RotNet

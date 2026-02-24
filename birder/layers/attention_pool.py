@@ -53,3 +53,46 @@ class MultiHeadAttentionPool(nn.Module):
         x = x + self.mlp(self.norm(x))
 
         return x
+
+
+class EfficientProbing(nn.Module):
+    """
+    Paper: "Attention, Please! Revisiting Attentive Probing Through the Lens of Efficiency",
+    https://arxiv.org/abs/2506.10178
+
+    Adapted from: https://github.com/billpsomas/efficient-probing/blob/master/poolings/ep.py
+    """
+
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        mlp_dim: int,  # pylint: disable=unused-argument
+        qkv_bias: bool,
+        latent_len: int = 32,
+    ) -> None:
+        super().__init__()
+        assert dim % num_heads == 0
+        assert dim % latent_len == 0
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.scale = self.head_dim**-0.5
+
+        self.latent_len = latent_len
+        self.chunk_dim = dim // self.latent_len
+        self.latent = nn.Parameter(torch.randn(1, self.latent_len, dim) * 0.02)
+        self.v = nn.Linear(dim, dim, bias=qkv_bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, N, C = x.size()
+
+        q = self.latent.expand(B, -1, -1).reshape(B, self.latent_len, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
+        k = x.reshape(B, N, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
+        v = self.v(x).reshape(B, N, self.latent_len, self.chunk_dim).permute(0, 2, 1, 3)
+
+        attn = torch.matmul(q * self.scale, k.transpose(-2, -1))
+        attn = attn.softmax(dim=-1)
+        attn = attn.mean(dim=1)
+        x = torch.matmul(attn.unsqueeze(2), v).reshape(B, 1, C)
+
+        return x

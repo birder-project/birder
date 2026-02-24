@@ -789,6 +789,10 @@ def get_scheduler(
         )
     elif args.lr_scheduler == "cosine":
         cosine_t_max = round(main_steps / cosine_fraction)
+        if cosine_fraction != 1.0:
+            logger.debug(
+                f"Adjusted cosine T_max from {main_steps} to {cosine_t_max} using cosine_fraction={cosine_fraction}"
+            )
         main_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=cosine_t_max, eta_min=args.lr_cosine_min
         )

@@ -1073,6 +1073,34 @@ class TestCudaAdjustSize(unittest.TestCase):
 
 
 class TestSpecialFunctions(unittest.TestCase):
+    @parameterized.expand(  # type: ignore[untyped-decorator]
+        [
+            ("deit_t16"),
+            ("deit3_t16"),
+            ("flexivit_s16"),
+            ("rope_deit3_t16"),
+            ("rope_flexivit_s16"),
+            ("rope_vit_s32"),
+            ("rope_vit5_reg4_s16"),
+            ("simple_vit_s32"),
+            ("vit_s32"),
+            ("vit_b16_qkn_ls"),
+            ("vit_parallel_s16_18x2_ls"),
+        ]
+    )
+    def test_vit_forward_features_return_input_embedding(self, network_name: str) -> None:
+        n = registry.net_factory(network_name, 10)
+        n.eval()
+        x = torch.rand((1, DEFAULT_NUM_CHANNELS, *n.default_size))
+
+        features = n.forward_features(x)
+        stacked = n.forward_features(x, return_input_embedding=True)  # type: ignore[call-arg]
+
+        self.assertEqual(stacked.size(), (*features.shape, 2))
+
+        _input_embedding, encoded_features = stacked.unbind(dim=-1)
+        self.assertTrue(torch.allclose(encoded_features, features))
+
     def test_vit_encoder_out_indices(self) -> None:
         n = registry.net_factory("vit_s16", 10)
         n.eval()

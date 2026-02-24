@@ -17,6 +17,7 @@ import sys
 import time
 from collections.abc import Callable
 from collections.abc import Iterator
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -201,6 +202,11 @@ def train(args: argparse.Namespace) -> None:
         epoch_samples = len(training_dataset)
 
     last_batch_idx = epoch_num_batches - 1
+    last_accum_steps = epoch_num_batches % grad_accum_steps
+    if last_accum_steps == 0:
+        last_accum_steps = grad_accum_steps
+
+    last_accum_start_idx = epoch_num_batches - last_accum_steps
     begin_epoch = 1
     epochs = args.epochs + 1
     args.stop_epoch = training_utils.normalize_stop_epoch(epochs, args.stop_epoch)
@@ -403,6 +409,7 @@ def train(args: argparse.Namespace) -> None:
         p.requires_grad_(False)
 
     student_without_ddp = student
+    no_sync_cm = nullcontext
     if args.distributed is True:
         student = torch.nn.parallel.DistributedDataParallel(
             student,
@@ -410,6 +417,7 @@ def train(args: argparse.Namespace) -> None:
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
+        no_sync_cm = student.no_sync
         student_without_ddp = student.module
 
     model_to_save = net
@@ -511,44 +519,49 @@ def train(args: argparse.Namespace) -> None:
             images = [img.to(device, dtype=model_dtype, non_blocking=True) for img in images]
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
+            sync_context = no_sync_cm if optimizer_update is False else nullcontext
+            if i >= last_accum_start_idx:
+                effective_accum_steps = last_accum_steps
+            else:
+                effective_accum_steps = grad_accum_steps
 
-            # Forward, backward and optimize
-            with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                with torch.no_grad():
-                    teacher_output = teacher(images[:2])  # Only the 2 global views pass through the teacher
+            # Forward and backward
+            with sync_context():
+                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
+                    with torch.no_grad():
+                        teacher_output = teacher(images[:2])  # Only the 2 global views pass through the teacher
 
-                student_output = student(images)
-                loss = dino_loss(student_output, teacher_output, epoch - 1)
+                    student_output = student(images)
+                    raw_loss = dino_loss(student_output, teacher_output, epoch - 1)
 
-            if scaler is not None:
-                scaler.scale(loss).backward()
-                if args.freeze_last_layer_epochs >= epoch:
-                    student_without_ddp.head.cancel_last_layer_gradients()
+                loss = raw_loss / effective_accum_steps
+                if scaler is not None:
+                    scaler.scale(loss).backward()
+                    if args.freeze_last_layer_epochs >= epoch:
+                        student_without_ddp.head.cancel_last_layer_gradients()
 
-                if optimizer_update is True:
+                else:
+                    loss.backward()
+                    if args.freeze_last_layer_epochs >= epoch:
+                        student_without_ddp.head.cancel_last_layer_gradients()
+
+            if optimizer_update is True:
+                if scaler is not None:
                     if args.clip_grad_norm is not None:
                         scaler.unscale_(optimizer)
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     scaler.step(optimizer)
                     scaler.update()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
-
-            else:
-                loss.backward()
-                if args.freeze_last_layer_epochs >= epoch:
-                    student_without_ddp.head.cancel_last_layer_gradients()
-
-                if optimizer_update is True:
+                else:
                     if args.clip_grad_norm is not None:
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     optimizer.step()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
+
+                optimizer.zero_grad()
+                if step_update is True:
+                    scheduler.step()
 
             if optimizer_update is True:
                 # EMA update for the teacher
@@ -559,7 +572,7 @@ def train(args: argparse.Namespace) -> None:
                             param_k.lerp_(param_q, weight=1 - m)
 
             # Statistics
-            running_loss.update(loss.detach())
+            running_loss.update(raw_loss.detach())
 
             probs_teacher = teacher_output.chunk(2)
             probs_student = student_output.chunk(args.local_crops_number + 2)

@@ -213,6 +213,7 @@
     "ncols",
     "ndarray",
     "ndim",
+    "nepa",
     "nesterov",
     "nextvit",
     "nfnet",

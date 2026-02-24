@@ -15,6 +15,7 @@ import sys
 import time
 from collections.abc import Callable
 from collections.abc import Iterator
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torchinfo
+from torch.distributed.device_mesh import init_device_mesh
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets.folder import pil_loader  # Slower but Handles external dataset quirks better
@@ -30,6 +32,7 @@ from tqdm import tqdm
 
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common import fsdp_utils
 from birder.common import training_cli
 from birder.common import training_utils
 from birder.common.lib import format_duration
@@ -171,12 +174,52 @@ class TrainCollator:
         }
 
 
+def _dino_v2_fsdp_wrap_modules(
+    module: DINOv2Student | DINOv2Teacher, args: argparse.Namespace
+) -> list[torch.nn.Module]:
+    backbone = module.backbone
+
+    # Only backbone sub-modules are wrapped, heads are small and get wrapped with the root
+    if args.fsdp_wrap_policy == "stages":
+        matched_modules = fsdp_utils.modules_from_stages(backbone)
+        if len(matched_modules) == 0:
+            logger.warning("FSDP stages policy did not match any returned stage module on backbone")
+
+        logger.info(f"FSDP wrap modules resolved: {len(matched_modules)}")
+        return matched_modules
+
+    if args.fsdp_wrap_policy == "min-num-params":
+        min_num_params = int(args.fsdp_wrap_min_num_params * 1_000_000)
+        matched_modules = fsdp_utils.modules_from_min_num_params(backbone, min_num_params=min_num_params)
+        if len(matched_modules) == 0:
+            logger.warning(
+                f"FSDP min-num-params policy with threshold {args.fsdp_wrap_min_num_params:g}M "
+                "did not match any module on backbone"
+            )
+
+        logger.info(f"FSDP wrap modules resolved: {len(matched_modules)}")
+        return matched_modules
+
+    block_group_regex = getattr(backbone, "block_group_regex", None)
+    if block_group_regex is None:
+        logger.warning("No block_group_regex on backbone, using root-only FSDP")
+        return []
+
+    matched_modules = fsdp_utils.modules_from_block_group_regex(backbone, block_group_regex)
+    if len(matched_modules) == 0:
+        logger.warning(f"FSDP wrap regex '{block_group_regex}' did not match any module on backbone")
+
+    logger.info(f"FSDP wrap modules resolved: {len(matched_modules)}")
+    return matched_modules
+
+
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
     #
     # Initialize
     #
     device, device_id, disable_tqdm = training_utils.init_training(args, logger)
+    fsdp_mode = fsdp_utils.is_fsdp_mode(args)
 
     if args.size is None:
         args.size = registry.get_default_size(args.network)
@@ -274,6 +317,13 @@ def train(args: argparse.Namespace) -> None:
     else:
         training_states = fs_ops.TrainingStates.empty()
 
+    if args.adapt_size is not None:
+        logger.info(f"Adapting size from {args.size} to {args.adapt_size}")
+        student.backbone.adjust_size(args.adapt_size)
+        teacher.backbone.adjust_size(args.adapt_size)
+        args.size = args.adapt_size
+        sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
+
     assert isinstance(student_backbone, MaskedTokenRetentionMixin)
     assert isinstance(net, torch.nn.Module)
 
@@ -287,6 +337,18 @@ def train(args: argparse.Namespace) -> None:
 
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
+
+    if fsdp_mode is True:
+        fsdp_mesh = init_device_mesh("cuda", (args.world_size,), mesh_dim_names=("dp",))
+
+        student_wrap_modules = _dino_v2_fsdp_wrap_modules(student, args)
+        student = fsdp_utils.setup_fsdp(student, args, wrap_modules=student_wrap_modules, mesh=fsdp_mesh)
+
+        teacher_wrap_modules = _dino_v2_fsdp_wrap_modules(teacher, args)
+        teacher = fsdp_utils.setup_fsdp(teacher, args, wrap_modules=teacher_wrap_modules, mesh=fsdp_mesh)
+
+        net["student"] = student
+        net["teacher"] = teacher
 
     # Compile networks
     teacher_compile_flag = args.compile is True or args.compile_teacher is True
@@ -402,6 +464,11 @@ def train(args: argparse.Namespace) -> None:
         epoch_samples = len(training_dataset)
 
     last_batch_idx = epoch_num_batches - 1
+    last_accum_steps = epoch_num_batches % grad_accum_steps
+    if last_accum_steps == 0:
+        last_accum_steps = grad_accum_steps
+
+    last_accum_start_idx = epoch_num_batches - last_accum_steps
     logger.debug(
         f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
         f"virtual mode={virtual_epoch_mode}"
@@ -465,7 +532,13 @@ def train(args: argparse.Namespace) -> None:
 
     # Load states
     if args.load_states is True:
-        optimizer.load_state_dict(training_states.optimizer_state)
+        if fsdp_mode is True:
+            fsdp_utils.load_full_optimizer_state_dict(
+                net, optimizer, training_states.optimizer_state  # type: ignore[arg-type]
+            )
+        else:
+            optimizer.load_state_dict(training_states.optimizer_state)
+
         scheduler.load_state_dict(training_states.scheduler_state)
         if scaler is not None:
             scaler.load_state_dict(training_states.scaler_state)
@@ -501,13 +574,15 @@ def train(args: argparse.Namespace) -> None:
         p.requires_grad_(False)
 
     student_without_ddp = student
-    if args.distributed is True:
+    no_sync_cm = nullcontext
+    if args.distributed is True and fsdp_mode is False:
         student = torch.nn.parallel.DistributedDataParallel(
             student,
             device_ids=[args.local_rank],
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
+        no_sync_cm = student.no_sync
         student_without_ddp = student.module
 
     model_to_save = net
@@ -637,7 +712,19 @@ def train(args: argparse.Namespace) -> None:
         for i, data in batch_iter:
             global_iter = ((epoch - 1) * epoch_num_batches) + i
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
+            sync_context = no_sync_cm if optimizer_update is False else nullcontext
+            if i >= last_accum_start_idx:
+                effective_accum_steps = last_accum_steps
+            else:
+                effective_accum_steps = grad_accum_steps
+
             teacher_temp = teacher_temp_schedule[global_iter]
+            if fsdp_mode is True and grad_accum_steps > 1:
+                student.set_requires_gradient_sync(requires_gradient_sync=optimizer_update)
+                teacher.set_requires_gradient_sync(requires_gradient_sync=optimizer_update)
+            if fsdp_mode is True and args.no_broadcast_buffers is False:
+                fsdp_utils.broadcast_module_buffers(student)
+                fsdp_utils.broadcast_module_buffers(teacher)
 
             global_crops = data["collated_global_crops"].to(device, dtype=model_dtype, non_blocking=True)
             local_crops = data["collated_local_crops"].to(device, dtype=model_dtype, non_blocking=True)
@@ -652,123 +739,124 @@ def train(args: argparse.Namespace) -> None:
             n_local_crops_loss_terms = max(n_local_crops * n_global_crops, 1)
             n_global_crops_loss_terms = (n_global_crops - 1) * n_global_crops
 
-            # Forward, backward and optimize
-            with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                with torch.no_grad():
-                    # Teacher
-                    teacher_embedding_after_head, teacher_masked_patch_tokens_after_head = teacher(
-                        global_crops, n_global_crops, upper_bound, mask_indices_list
-                    )
-                    teacher_patch_tokens_raw = teacher_masked_patch_tokens_after_head
-                    if args.centering == "centering":
-                        # Track centers before update for drift computation
-                        if track_extended_metrics is True:
-                            prev_dino_center = dino_loss.center.clone()
-                            prev_ibot_center = ibot_patch_loss.center.clone()
-
-                        teacher_dino_softmax_centered = dino_loss.softmax_center_teacher(
-                            teacher_embedding_after_head, teacher_temp=teacher_temp
-                        ).view(n_global_crops, -1, *teacher_embedding_after_head.shape[1:])
-                        dino_loss.update_center(teacher_embedding_after_head)
-
-                        teacher_masked_patch_tokens_after_head = teacher_masked_patch_tokens_after_head.unsqueeze(0)
-                        masked_teacher_ibot_softmax_centered = ibot_patch_loss.softmax_center_teacher(
-                            teacher_masked_patch_tokens_after_head[:, :n_masked_patches], teacher_temp=teacher_temp
+            # Forward and backward
+            with sync_context():
+                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
+                    with torch.no_grad():
+                        # Teacher
+                        teacher_embedding_after_head, teacher_masked_patch_tokens_after_head = teacher(
+                            global_crops, n_global_crops, upper_bound, mask_indices_list
                         )
-                        masked_teacher_ibot_softmax_centered = masked_teacher_ibot_softmax_centered.squeeze(0)
-                        ibot_patch_loss.update_center(teacher_masked_patch_tokens_after_head[:, :n_masked_patches])
+                        teacher_patch_tokens_raw = teacher_masked_patch_tokens_after_head
+                        if args.centering == "centering":
+                            # Track centers before update for drift computation
+                            if track_extended_metrics is True:
+                                prev_dino_center = dino_loss.center.clone()
+                                prev_ibot_center = ibot_patch_loss.center.clone()
 
-                    else:  # sinkhorn_knopp
-                        teacher_dino_softmax_centered = dino_loss.sinkhorn_knopp_teacher(
-                            teacher_embedding_after_head, teacher_temp=teacher_temp
-                        ).view(n_global_crops, -1, *teacher_embedding_after_head.shape[1:])
+                            teacher_dino_softmax_centered = dino_loss.softmax_center_teacher(
+                                teacher_embedding_after_head, teacher_temp=teacher_temp
+                            ).view(n_global_crops, -1, *teacher_embedding_after_head.shape[1:])
+                            dino_loss.update_center(teacher_embedding_after_head)
 
-                        masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
-                            teacher_masked_patch_tokens_after_head,
-                            teacher_temp=teacher_temp,
-                            n_masked_patches_tensor=n_masked_patches_tensor,
-                        )
+                            teacher_masked_patch_tokens_after_head = teacher_masked_patch_tokens_after_head.unsqueeze(0)
+                            masked_teacher_ibot_softmax_centered = ibot_patch_loss.softmax_center_teacher(
+                                teacher_masked_patch_tokens_after_head[:, :n_masked_patches], teacher_temp=teacher_temp
+                            )
+                            masked_teacher_ibot_softmax_centered = masked_teacher_ibot_softmax_centered.squeeze(0)
+                            ibot_patch_loss.update_center(teacher_masked_patch_tokens_after_head[:, :n_masked_patches])
 
-                # Student
-                (
-                    student_global_embedding,
-                    student_global_embedding_after_head,
-                    student_local_embedding_after_head,
-                    student_global_masked_patch_tokens_after_head,
-                ) = student(global_crops, local_crops, masks, upper_bound, mask_indices_list)
+                        else:  # sinkhorn_knopp
+                            teacher_dino_softmax_centered = dino_loss.sinkhorn_knopp_teacher(
+                                teacher_embedding_after_head, teacher_temp=teacher_temp
+                            ).view(n_global_crops, -1, *teacher_embedding_after_head.shape[1:])
 
-                # Local DINO loss
-                loss_dino_local_crops = dino_loss(
-                    student_local_embedding_after_head.chunk(n_local_crops),
-                    teacher_dino_softmax_centered.unbind(0),
-                ) / (n_global_crops_loss_terms + n_local_crops_loss_terms)
-                loss = args.dino_loss_weight * loss_dino_local_crops
+                            masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
+                                teacher_masked_patch_tokens_after_head,
+                                teacher_temp=teacher_temp,
+                                n_masked_patches_tensor=n_masked_patches_tensor,
+                            )
 
-                # Global DINO loss
-                loss_scales = n_global_crops
-                loss_dino_global_crops = (
-                    dino_loss(
-                        [student_global_embedding_after_head],
-                        [
-                            teacher_dino_softmax_centered.flatten(0, 1)
-                        ],  # These were chunked and stacked in reverse so A is matched to B
-                    )
-                    * loss_scales
-                    / (n_global_crops_loss_terms + n_local_crops_loss_terms)
-                )
-                loss += args.dino_loss_weight * loss_dino_global_crops
-
-                # KoLeo loss
-                loss_koleo = sum(koleo_loss(p) for p in student_global_embedding.chunk(n_global_crops))
-                loss += args.koleo_loss_weight * loss_koleo
-
-                # iBOT loss
-                loss_ibot_patch = (
-                    ibot_patch_loss(
+                    # Student
+                    (
+                        student_global_embedding,
+                        student_global_embedding_after_head,
+                        student_local_embedding_after_head,
                         student_global_masked_patch_tokens_after_head,
-                        masked_teacher_ibot_softmax_centered,
-                        student_masks_flat=masks,
-                        masks_weight=masks_weight,
-                        n_masked_patches=n_masked_patches,
+                    ) = student(global_crops, local_crops, masks, upper_bound, mask_indices_list)
+
+                    # Local DINO loss
+                    loss_dino_local_crops = dino_loss(
+                        student_local_embedding_after_head.chunk(n_local_crops),
+                        teacher_dino_softmax_centered.unbind(0),
+                    ) / (n_global_crops_loss_terms + n_local_crops_loss_terms)
+                    loss = args.dino_loss_weight * loss_dino_local_crops
+
+                    # Global DINO loss
+                    loss_scales = n_global_crops
+                    loss_dino_global_crops = (
+                        dino_loss(
+                            [student_global_embedding_after_head],
+                            [
+                                teacher_dino_softmax_centered.flatten(0, 1)
+                            ],  # These were chunked and stacked in reverse so A is matched to B
+                        )
+                        * loss_scales
+                        / (n_global_crops_loss_terms + n_local_crops_loss_terms)
                     )
-                    * loss_scales
-                    * ibot_loss_scale
-                )
-                loss += args.ibot_loss_weight * loss_ibot_patch
+                    loss += args.dino_loss_weight * loss_dino_global_crops
 
-            if scaler is not None:
-                scaler.scale(loss).backward()
-                if args.freeze_last_layer_epochs >= epoch:
-                    student_without_ddp.dino_head.cancel_last_layer_gradients()
-                    if student_without_ddp.ibot_head is not None:
-                        student_without_ddp.ibot_head.cancel_last_layer_gradients()
+                    # KoLeo loss
+                    loss_koleo = sum(koleo_loss(p) for p in student_global_embedding.chunk(n_global_crops))
+                    loss += args.koleo_loss_weight * loss_koleo
 
-                if optimizer_update is True:
+                    # iBOT loss
+                    loss_ibot_patch = (
+                        ibot_patch_loss(
+                            student_global_masked_patch_tokens_after_head,
+                            masked_teacher_ibot_softmax_centered,
+                            student_masks_flat=masks,
+                            masks_weight=masks_weight,
+                            n_masked_patches=n_masked_patches,
+                        )
+                        * loss_scales
+                        * ibot_loss_scale
+                    )
+                    loss += args.ibot_loss_weight * loss_ibot_patch
+
+                raw_loss = loss
+                loss = raw_loss / effective_accum_steps
+                if scaler is not None:
+                    scaler.scale(loss).backward()
+                    if args.freeze_last_layer_epochs >= epoch:
+                        student_without_ddp.dino_head.cancel_last_layer_gradients()
+                        if student_without_ddp.ibot_head is not None:
+                            student_without_ddp.ibot_head.cancel_last_layer_gradients()
+
+                else:
+                    loss.backward()
+                    if args.freeze_last_layer_epochs >= epoch:
+                        student_without_ddp.dino_head.cancel_last_layer_gradients()
+                        if student_without_ddp.ibot_head is not None:
+                            student_without_ddp.ibot_head.cancel_last_layer_gradients()
+
+            if optimizer_update is True:
+                if scaler is not None:
                     if args.clip_grad_norm is not None:
                         scaler.unscale_(optimizer)
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     scaler.step(optimizer)
                     scaler.update()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
-
-            else:
-                loss.backward()
-                if args.freeze_last_layer_epochs >= epoch:
-                    student_without_ddp.dino_head.cancel_last_layer_gradients()
-                    if student_without_ddp.ibot_head is not None:
-                        student_without_ddp.ibot_head.cancel_last_layer_gradients()
-
-                if optimizer_update is True:
+                else:
                     if args.clip_grad_norm is not None:
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     optimizer.step()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
+
+                optimizer.zero_grad()
+                if step_update is True:
+                    scheduler.step()
 
             if optimizer_update is True:
                 # EMA update for the teacher
@@ -786,7 +874,7 @@ def train(args: argparse.Namespace) -> None:
                             param_group["weight_decay"] = wd
 
             # Statistics
-            running_loss.update(loss.detach())
+            running_loss.update(raw_loss.detach())
             running_loss_dino_local.update(loss_dino_local_crops.detach())
             running_loss_dino_global.update(loss_dino_global_crops.detach())
             running_loss_koleo.update(loss_koleo.detach())
@@ -921,6 +1009,23 @@ def train(args: argparse.Namespace) -> None:
 
         # Checkpoint model
         if epoch % args.save_frequency == 0:
+            if fsdp_mode is True:
+                student_state = fsdp_utils.gather_full_model_state_dict(model_to_save["student"])
+                teacher_state = fsdp_utils.gather_full_model_state_dict(model_to_save["teacher"])
+                full_model_state = {
+                    **{f"student.{k}": v for k, v in student_state.items()},
+                    **{f"teacher.{k}": v for k, v in teacher_state.items()},
+                    **{f"dino_loss.{k}": v for k, v in model_to_save["dino_loss"].state_dict().items()},
+                    **{f"koleo_loss.{k}": v for k, v in model_to_save["koleo_loss"].state_dict().items()},
+                    **{f"ibot_patch_loss.{k}": v for k, v in model_to_save["ibot_patch_loss"].state_dict().items()},
+                }
+                backbone_model_state = fsdp_utils.extract_submodule_state_dict(
+                    teacher_state, model_to_save["teacher"], model_to_save["teacher"].backbone
+                )
+            else:
+                full_model_state = None
+                backbone_model_state = None
+
             training_utils.save_training_checkpoint(
                 args,
                 network_name,
@@ -933,6 +1038,8 @@ def train(args: argparse.Namespace) -> None:
                 scheduler,
                 scaler,
                 None,
+                fsdp_mode=fsdp_mode,
+                fsdp_model_state=full_model_state,
             )
             training_utils.save_training_checkpoint(
                 args,
@@ -946,6 +1053,8 @@ def train(args: argparse.Namespace) -> None:
                 scheduler=None,
                 scaler=None,
                 model_base=None,
+                fsdp_mode=fsdp_mode,
+                fsdp_model_state=backbone_model_state,
             )
             if args.keep_last is not None and training_utils.is_global_primary(args) is True:
                 fs_ops.clean_checkpoints(network_name, args.keep_last)
@@ -959,6 +1068,23 @@ def train(args: argparse.Namespace) -> None:
     summary_writer.close()
 
     # Checkpoint model
+    if fsdp_mode is True:
+        student_state = fsdp_utils.gather_full_model_state_dict(model_to_save["student"])
+        teacher_state = fsdp_utils.gather_full_model_state_dict(model_to_save["teacher"])
+        full_model_state = {
+            **{f"student.{k}": v for k, v in student_state.items()},
+            **{f"teacher.{k}": v for k, v in teacher_state.items()},
+            **{f"dino_loss.{k}": v for k, v in model_to_save["dino_loss"].state_dict().items()},
+            **{f"koleo_loss.{k}": v for k, v in model_to_save["koleo_loss"].state_dict().items()},
+            **{f"ibot_patch_loss.{k}": v for k, v in model_to_save["ibot_patch_loss"].state_dict().items()},
+        }
+        backbone_model_state = fsdp_utils.extract_submodule_state_dict(
+            teacher_state, model_to_save["teacher"], model_to_save["teacher"].backbone
+        )
+    else:
+        full_model_state = None
+        backbone_model_state = None
+
     training_utils.save_training_checkpoint(
         args,
         network_name,
@@ -971,6 +1097,8 @@ def train(args: argparse.Namespace) -> None:
         scheduler,
         scaler,
         None,
+        fsdp_mode=fsdp_mode,
+        fsdp_model_state=full_model_state,
     )
     training_utils.save_training_checkpoint(
         args,
@@ -984,6 +1112,8 @@ def train(args: argparse.Namespace) -> None:
         scheduler=None,
         scaler=None,
         model_base=None,
+        fsdp_mode=fsdp_mode,
+        fsdp_model_state=backbone_model_state,
     )
 
     training_utils.shutdown_distributed_mode(args)
@@ -1091,6 +1221,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="disable extended metrics (prototype/patch agreement, target entropy, center drift)",
     )
+    parser.add_argument("--adapt-size", type=int, nargs="+", metavar=("H", "W"), help="resize after loading")
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser, wd_end=True)
     training_cli.add_lr_scheduler_args(parser)
@@ -1102,7 +1233,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_precision_args(parser)
     training_cli.add_compile_args(parser, teacher=True)
     training_cli.add_checkpoint_args(parser)
-    training_cli.add_distributed_args(parser)
+    training_cli.add_distributed_args(parser, fsdp=True)
     training_cli.add_logging_and_debug_args(parser, default_log_interval=100)
     training_cli.add_training_data_args(parser, unsupervised=True)
 
@@ -1112,6 +1243,7 @@ def get_args_parser() -> argparse.ArgumentParser:
 def validate_args(args: argparse.Namespace) -> None:
     args.data_path = [str(p) for p in args.data_path]
     args.size = cli.parse_size(args.size)
+    args.adapt_size = cli.parse_size(args.adapt_size)
     args.local_crop_size = cli.parse_size(args.local_crop_size)
 
     # This will capture the common argument mistakes

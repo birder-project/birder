@@ -360,6 +360,19 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         },
     )
     registry.register_model_config(
+        "vit_reg4_so150m_p14_eps",
+        vit,
+        config={
+            "patch_size": 14,
+            **SO150,
+            "num_reg_tokens": 4,
+            "class_token": False,
+            "attn_pool_head": True,
+            "attn_pool_type": "EfficientProbing",
+            "attn_pool_special_tokens": True,
+        },
+    )
+    registry.register_model_config(
         "vit_reg8_so150m_p14_avg",
         vit,
         config={"patch_size": 14, **SO150, "num_reg_tokens": 8, "class_token": False},

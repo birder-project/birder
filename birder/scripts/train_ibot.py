@@ -17,6 +17,7 @@ import sys
 import time
 from collections.abc import Callable
 from collections.abc import Iterator
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -331,6 +332,11 @@ def train(args: argparse.Namespace) -> None:
         epoch_samples = len(training_dataset)
 
     last_batch_idx = epoch_num_batches - 1
+    last_accum_steps = epoch_num_batches % grad_accum_steps
+    if last_accum_steps == 0:
+        last_accum_steps = grad_accum_steps
+
+    last_accum_start_idx = epoch_num_batches - last_accum_steps
     logger.debug(
         f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
         f"virtual mode={virtual_epoch_mode}"
@@ -422,6 +428,7 @@ def train(args: argparse.Namespace) -> None:
         p.requires_grad_(False)
 
     student_without_ddp = student
+    no_sync_cm = nullcontext
     if args.distributed is True:
         student = torch.nn.parallel.DistributedDataParallel(
             student,
@@ -429,6 +436,7 @@ def train(args: argparse.Namespace) -> None:
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
+        no_sync_cm = student.no_sync
         student_without_ddp = student.module
 
     model_to_save = net
@@ -534,57 +542,63 @@ def train(args: argparse.Namespace) -> None:
                 masks = masks.to(device, dtype=model_dtype, non_blocking=True)
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
+            sync_context = no_sync_cm if optimizer_update is False else nullcontext
+            if i >= last_accum_start_idx:
+                effective_accum_steps = last_accum_steps
+            else:
+                effective_accum_steps = grad_accum_steps
 
-            # Forward, backward and optimize
-            with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                # Global views
-                with torch.no_grad():
-                    teacher_embedding, teacher_features = teacher(torch.concat(images[:2], dim=0), None)
+            # Forward and backward
+            with sync_context():
+                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
+                    # Global views
+                    with torch.no_grad():
+                        teacher_embedding, teacher_features = teacher(torch.concat(images[:2], dim=0), None)
 
-                student_embedding, student_features = student(torch.concat(images[:2], dim=0), masks)
+                    student_embedding, student_features = student(torch.concat(images[:2], dim=0), masks)
 
-                # Local views
-                student_local_embedding, _ = student(torch.concat(images[2:], dim=0), None, return_keys="embedding")
+                    # Local views
+                    student_local_embedding, _ = student(torch.concat(images[2:], dim=0), None, return_keys="embedding")
 
-                loss = ibot_loss(
-                    student_embedding,
-                    student_features,
-                    teacher_embedding,
-                    teacher_features,
-                    student_local_embedding,
-                    masks.reshape(batch_size * 2, -1),
-                    epoch - 1,
-                )["all"]
+                    raw_loss = ibot_loss(
+                        student_embedding,
+                        student_features,
+                        teacher_embedding,
+                        teacher_features,
+                        student_local_embedding,
+                        masks.reshape(batch_size * 2, -1),
+                        epoch - 1,
+                    )["all"]
 
-            if scaler is not None:
-                scaler.scale(loss).backward()
-                if args.freeze_last_layer_epochs >= epoch:
-                    student_without_ddp.head.cancel_last_layer_gradients()
+                loss = raw_loss / effective_accum_steps
+                if scaler is not None:
+                    scaler.scale(loss).backward()
+                    if args.freeze_last_layer_epochs >= epoch:
+                        student_without_ddp.head.cancel_last_layer_gradients()
 
-                if optimizer_update is True:
+                else:
+                    loss.backward()
+                    if args.freeze_last_layer_epochs >= epoch:
+                        student_without_ddp.head.cancel_last_layer_gradients()
+
+            if optimizer_update is True:
+                if scaler is not None:
                     if args.clip_grad_norm is not None:
                         scaler.unscale_(optimizer)
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     scaler.step(optimizer)
                     scaler.update()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
 
-            else:
-                loss.backward()
-                if args.freeze_last_layer_epochs >= epoch:
-                    student_without_ddp.head.cancel_last_layer_gradients()
-
-                if optimizer_update is True:
+                else:
                     if args.clip_grad_norm is not None:
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     optimizer.step()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
+
+                optimizer.zero_grad()
+                if step_update is True:
+                    scheduler.step()
 
             if optimizer_update is True:
                 # EMA update for the teacher
@@ -595,7 +609,7 @@ def train(args: argparse.Namespace) -> None:
                     )
 
             # Statistics
-            running_loss.update(loss.detach())
+            running_loss.update(raw_loss.detach())
 
             probs_teacher = teacher_embedding.chunk(2)  # Per global crop
             probs_student = student_embedding.chunk(2)

@@ -352,15 +352,14 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
-        # Expand the class token to the full batch
-        if self.class_token is not None:
-            batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
-            x = torch.concat([batch_class_token, x], dim=1)
-
-        # Expand the register tokens to the full batch
+        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
+        special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
-            batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
-            x = torch.concat([batch_reg_tokens, x], dim=1)
+            special_tokens.append(self.reg_tokens.expand(x.size(0), -1, -1))
+        if self.class_token is not None:
+            special_tokens.append(self.class_token.expand(x.size(0), -1, -1))
+        if len(special_tokens) > 0:
+            x = torch.concat(special_tokens + [x], dim=1)
 
         x = x + self._get_pos_embed(H, W)
 
@@ -413,16 +412,18 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         if ids_keep is not None:
             x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, x.size(2)))
 
-        # Append class and register tokens
-        if self.class_token is not None:
-            cls_token = self.class_token + pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
-            batch_class_token = cls_token.expand(x.shape[0], -1, -1)
-            x = torch.concat((batch_class_token, x), dim=1)
-
+        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
+        special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
             reg_tokens = self.reg_tokens + pos_embedding[:, 0 : self.num_reg_tokens, :]
-            batch_reg_tokens = reg_tokens.expand(x.shape[0], -1, -1)
-            x = torch.concat([batch_reg_tokens, x], dim=1)
+            special_tokens.append(reg_tokens.expand(x.size(0), -1, -1))
+
+        if self.class_token is not None:
+            cls_token = self.class_token + pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
+            special_tokens.append(cls_token.expand(x.size(0), -1, -1))
+
+        if len(special_tokens) > 0:
+            x = torch.concat(special_tokens + [x], dim=1)
 
         # Apply transformer
         if return_all_features is True:
@@ -464,15 +465,14 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         # Reshape and permute the input tensor
         x = self.patch_embed(x)
 
-        # Expand the class token to the full batch
-        if self.class_token is not None:
-            batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
-            x = torch.concat([batch_class_token, x], dim=1)
-
-        # Expand the register tokens to the full batch
+        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
+        special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
-            batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
-            x = torch.concat([batch_reg_tokens, x], dim=1)
+            special_tokens.append(self.reg_tokens.expand(x.size(0), -1, -1))
+        if self.class_token is not None:
+            special_tokens.append(self.class_token.expand(x.size(0), -1, -1))
+        if len(special_tokens) > 0:
+            x = torch.concat(special_tokens + [x], dim=1)
 
         x = x + self._get_pos_embed(H, W)
         x = self.encoder(x)
@@ -495,26 +495,29 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
 
         return result
 
-    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor, return_input_embedding: bool = False) -> torch.Tensor:
         H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
-        # Expand the class token to the full batch
-        if self.class_token is not None:
-            batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
-            x = torch.concat([batch_class_token, x], dim=1)
-
-        # Expand the register tokens to the full batch
+        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
+        special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
-            batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
-            x = torch.concat([batch_reg_tokens, x], dim=1)
+            special_tokens.append(self.reg_tokens.expand(x.size(0), -1, -1))
+        if self.class_token is not None:
+            special_tokens.append(self.class_token.expand(x.size(0), -1, -1))
+        if len(special_tokens) > 0:
+            x = torch.concat(special_tokens + [x], dim=1)
 
         x = x + self._get_pos_embed(H, W)
+        input_embedding = x
         x = self.encoder(x)
         x = self.norm(x)
+
+        if return_input_embedding is True:
+            return torch.stack([input_embedding, x], dim=-1)
 
         return x
 

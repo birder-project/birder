@@ -26,6 +26,7 @@ from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_from_indices
+from birder.layers import EfficientProbing
 from birder.layers import MultiHeadAttentionPool
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
@@ -306,7 +307,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
     scriptable = False
     block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
-    # pylint: disable=too-many-locals
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def __init__(
         self,
         input_channels: int,
@@ -334,6 +335,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         num_heads: int = self.config["num_heads"]
         abs_win_pos_embed: bool = self.config["abs_win_pos_embed"]
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
+        attn_pool_type: str = self.config.get("attn_pool_type", "MultiHeadAttentionPool")
         attn_pool_num_heads: Optional[int] = self.config.get("attn_pool_num_heads", None)
         drop_path_rate: float = self.config["drop_path_rate"]
 
@@ -417,12 +419,18 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         if attn_pool_head is False:
             attn_pool = None
         else:
-            if attn_pool_num_heads is None:
-                attn_pool_num_heads = num_heads
+            if attn_pool_type == "MultiHeadAttentionPool":
+                attn_pool = MultiHeadAttentionPool
+                if attn_pool_num_heads is None:
+                    attn_pool_num_heads = num_heads
+            elif attn_pool_type == "EfficientProbing":
+                attn_pool = EfficientProbing
+                if attn_pool_num_heads is None:
+                    attn_pool_num_heads = 1
+            else:
+                raise ValueError(f"Unknown attn_pool_type '{attn_pool_type}'")
 
-            attn_pool = MultiHeadAttentionPool(
-                embed_dim, attn_pool_num_heads, int(mlp_ratio * embed_dim), qkv_bias=True
-            )
+            attn_pool = attn_pool(embed_dim, attn_pool_num_heads, int(mlp_ratio * embed_dim), qkv_bias=True)
 
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(

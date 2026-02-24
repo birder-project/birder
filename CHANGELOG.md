@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.8 - 2026-02-24
+
+### Added
+
+- **Efficient Probing Pooling Layer**: Added [EfficientProbing](https://arxiv.org/abs/2506.10178) attention-based pooling module in `birder.layers`.
+- **DINOv2 Resume Resolution Adaptation**: Added `--adapt-size` to `train_dino_v2` to adapt resolution after loading resumed checkpoints (high-res adaptation workflow).
+- **ViT Input Embedding Return**: Added `return_input_embedding=True` support to `forward_features` so it can optionally return input embeddings together with encoded features.
+- **NEPA SSL**: Added [NEPA](https://arxiv.org/abs/2512.16922) self-supervised training via `birder.net.ssl.NEPA` and `train_nepa`.
+- **DINOv2 Distillation Mixed Patch Sizes**: Added teacher global-crop interpolation in `train_dino_v2_dist` so distillation supports different teacher/student patch strides while keeping iBOT mask-token alignment.
+
+### Changed
+
+- **DINOv2 FSDP (Beta)**: Added `--distributed-mode fsdp` support to `train_dino_v2` with two FSDP roots (student + teacher).
+- **DDP No-Sync for Accumulation**: training scripts now use `DDP.no_sync()` on non-update iterations.
+
+### Fixed
+
+- **Gradient Accumulation Loss Scaling**: Fixed loss scaling during gradient accumulation in training so optimization behavior stays consistent across accumulation settings.
+
 ## 0.4.7 - 2026-02-20
 
 ### Added

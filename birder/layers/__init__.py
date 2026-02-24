@@ -1,4 +1,5 @@
 from birder.layers.activations import QuickGELU
+from birder.layers.attention_pool import EfficientProbing
 from birder.layers.attention_pool import MultiHeadAttentionPool
 from birder.layers.ffn import FFN
 from birder.layers.ffn import SwiGLU_FFN
@@ -10,6 +11,7 @@ from birder.layers.layer_scale import LayerScale2d
 
 __all__ = [
     "QuickGELU",
+    "EfficientProbing",
     "MultiHeadAttentionPool",
     "FFN",
     "SwiGLU_FFN",

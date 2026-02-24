@@ -1,19 +1,22 @@
 """
-BYOL, adapted from
-https://github.com/lucidrains/byol-pytorch/blob/master/byol_pytorch/trainer.py
+NEPA (Next-Embedding Predictive Autoregression), adapted from
+https://github.com/SihanXU/nepa/blob/main/run_nepa.py
 
-Paper "Bootstrap your own latent: A new approach to self-supervised Learning",
-https://arxiv.org/abs/2006.07733
+Paper "Next-Embedding Prediction Makes Strong Vision Learners",
+https://arxiv.org/abs/2512.16922
+
+Changes from original:
+* No RoPE positional coordinate augmentation (pos_embed_rescale) during training
 """
 
-# Reference license: MIT
+# Reference license: Apache-2.0
 
 import argparse
+import copy
 import logging
 import math
 import sys
 import time
-from collections.abc import Callable
 from collections.abc import Iterator
 from contextlib import nullcontext
 from pathlib import Path
@@ -47,21 +50,12 @@ from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import get_rgb_stats
 from birder.model_registry import Task
 from birder.model_registry import registry
+from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import get_signature
 from birder.net.ssl.base import get_ssl_signature
-from birder.net.ssl.byol import BYOL
+from birder.net.ssl.nepa import NEPA
 
 logger = logging.getLogger(__name__)
-
-
-class TrainTransform:
-    def __init__(self, transform: Callable[..., torch.Tensor]) -> None:
-        self.transform = transform
-
-    def __call__(self, sample: Any) -> tuple[torch.Tensor, torch.Tensor]:
-        x1 = self.transform(sample)
-        x2 = self.transform(sample)
-        return (x1, x2)
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
@@ -72,7 +66,6 @@ def train(args: argparse.Namespace) -> None:
     device, device_id, disable_tqdm = training_utils.init_training(args, logger)
 
     if args.size is None:
-        # Prefer mim size over encoder default size
         args.size = registry.get_default_size(args.network)
 
     logger.info(f"Using size={args.size}")
@@ -83,7 +76,7 @@ def train(args: argparse.Namespace) -> None:
     rgb_stats = get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std)
     logger.debug(f"Using RGB stats: {rgb_stats}")
 
-    training_transform = TrainTransform(training_utils.get_training_transform(args))
+    training_transform = training_utils.get_training_transform(args)
     if args.use_fake_data is True:
         logger.warning("Using fake data")
         training_dataset = FakeDataWithPaths(
@@ -186,20 +179,14 @@ def train(args: argparse.Namespace) -> None:
     #
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
-    backbone_name = get_network_name(args.network, tag="byol")
+    backbone_name = get_network_name(args.network, tag="nepa")
     if args.tag is not None:
         backbone_name = f"{backbone_name}-{args.tag}"
 
-    network_name = get_mim_network_name("byol", encoder=args.network, tag=args.tag)
+    network_name = get_mim_network_name("nepa", encoder=args.network, tag=args.tag)
 
     backbone = registry.net_factory(args.network, 0, sample_shape[1], config=args.model_config, size=args.size)
-    net = BYOL(
-        backbone,
-        config={
-            "projection_size": args.projection_size,
-            "projection_hidden_size": args.projection_hidden_size,
-        },
-    )
+    net = NEPA(backbone, config={"shift": not args.no_shift})
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
@@ -211,6 +198,12 @@ def train(args: argparse.Namespace) -> None:
         training_states = fs_ops.TrainingStates.empty()
 
     net.to(device, dtype=model_dtype)
+
+    ema_backbone = copy.deepcopy(net.backbone)
+    ema_backbone.eval()
+    for p in ema_backbone.parameters():
+        p.requires_grad_(False)
+
     if args.freeze_bn is True:
         net = training_utils.freeze_batchnorm2d(net)
     elif args.sync_bn is True and args.distributed is True:
@@ -219,16 +212,12 @@ def train(args: argparse.Namespace) -> None:
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
-    # There is no backpropagation through the teacher
-    for p in net.target_encoder.parameters():
-        p.requires_grad_(False)
-
     # Compile network
     if args.compile is True:
         net = torch.compile(net, fullgraph=args.compile_fullgraph)
 
     #
-    # Loss criteria, optimizer, learning rate scheduler and training parameter groups
+    # Optimizer, learning rate scheduler and training parameter groups
     #
 
     # Learning rate scaling
@@ -268,12 +257,22 @@ def train(args: argparse.Namespace) -> None:
     # Gradient scaler and AMP related tasks
     scaler, amp_dtype = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
 
+    # EMA warmup iterations (no EMA update during LR warmup)
+    if args.warmup_epochs is not None:
+        ema_warmup_iters = int(args.warmup_epochs * epoch_num_batches)
+    elif args.warmup_steps is not None:
+        ema_warmup_iters = args.warmup_steps * grad_accum_steps
+    else:
+        ema_warmup_iters = 0
+
     # Load states
     if args.load_states is True:
         optimizer.load_state_dict(training_states.optimizer_state)
         scheduler.load_state_dict(training_states.scheduler_state)
         if scaler is not None:
             scaler.load_state_dict(training_states.scaler_state)
+
+        ema_backbone.load_state_dict(training_states.extra_states["ema_backbone_state"])  # type: ignore
 
     elif args.load_scheduler is True:
         scheduler.load_state_dict(training_states.scheduler_state)
@@ -394,11 +393,8 @@ def train(args: argparse.Namespace) -> None:
         else:
             batch_iter = enumerate(training_loader)
 
-        for i, (_, (x, y), _) in batch_iter:
-            x = x.to(device, dtype=model_dtype, non_blocking=True)
-            y = y.to(device, dtype=model_dtype, non_blocking=True)
-            inputs = torch.concat((x, y), dim=0)
-
+        for i, (_, images, _) in batch_iter:
+            images = images.to(device, dtype=model_dtype, non_blocking=True)
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
             sync_context = no_sync_cm if optimizer_update is False else nullcontext
             if i >= last_accum_start_idx:
@@ -409,7 +405,7 @@ def train(args: argparse.Namespace) -> None:
             # Forward and backward
             with sync_context():
                 with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                    raw_loss = net(inputs)
+                    raw_loss = net(images)
 
                 loss = raw_loss / effective_accum_steps
                 if scaler is not None:
@@ -435,13 +431,14 @@ def train(args: argparse.Namespace) -> None:
                 if step_update is True:
                     scheduler.step()
 
+            # EMA update
             if optimizer_update is True:
-                # EMA update for the teacher
+                global_iter = ((epoch - 1) * epoch_num_batches) + i
+                m = 0.0 if global_iter < ema_warmup_iters else 0.9999
                 with torch.no_grad():
-                    m = args.momentum_teacher
                     torch._foreach_lerp_(  # pylint: disable=protected-access
-                        list(net_without_ddp.target_encoder.parameters()),
-                        list(net_without_ddp.online_encoder.parameters()),
+                        list(ema_backbone.parameters()),
+                        list(net_without_ddp.backbone.parameters()),
                         weight=1 - m,
                     )
 
@@ -511,12 +508,13 @@ def train(args: argparse.Namespace) -> None:
                 scheduler,
                 scaler,
                 None,
+                ema_backbone_state=ema_backbone.state_dict(),
             )
             training_utils.save_training_checkpoint(
                 args,
                 backbone_name,
                 epoch,
-                model_to_save.backbone.backbone,
+                ema_backbone,
                 backbone_signature,
                 {},
                 rgb_stats,
@@ -549,12 +547,13 @@ def train(args: argparse.Namespace) -> None:
         scheduler,
         scaler,
         None,
+        ema_backbone_state=ema_backbone.state_dict(),
     )
     training_utils.save_training_checkpoint(
         args,
         backbone_name,
         epoch,
-        model_to_save.backbone.backbone,
+        ema_backbone,
         backbone_signature,
         {},
         rgb_stats,
@@ -574,24 +573,25 @@ def get_args_parser() -> argparse.ArgumentParser:
         epilog=(
             "Usage examples\n"
             "==============\n"
-            "torchrun --nproc_per_node=2 -m birder.scripts.train_byol \\\n"
-            "    --network regnet_x_4g \\\n"
-            "    --opt lars \\\n"
-            "    --lr 0.2 \\\n"
+            "torchrun --nproc_per_node=2 -m birder.scripts.train_nepa \\\n"
+            "    --network rope_vit5_reg4_b16 \\\n"
+            "    --batch-size 256 \\\n"
+            "    --opt adamw --opt-betas 0.9 0.95 \\\n"
+            "    --grad-accum-steps 8 \\\n"
+            "    --lr 0.0003 \\\n"
+            "    --lr-scale 256 \\\n"
+            "    --wd 0.05 \\\n"
             "    --lr-scheduler cosine \\\n"
-            "    --warmup-epochs 10 \\\n"
-            "    --batch-size 64 \\\n"
-            "    --epochs 400 \\\n"
-            "    --wd 0.0000015 \\\n"
-            "    --norm-wd 0 \\\n"
-            "    --bias-weight-decay 0 \\\n"
-            "    --amp \\\n"
+            "    --epochs 480 \\\n"
+            "    --warmup-epochs 40 \\\n"
+            "    --rgb-mode none \\\n"
+            "    --amp --amp-dtype bfloat16 \\\n"
             "    --compile \\\n"
             "    --data-path data/training\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
-    parser.add_argument("-n", "--network", type=str, help="the neural network to use")
+    parser.add_argument("-n", "--network", type=str, help="the neural network to train")
     parser.add_argument("-t", "--tag", type=str, help="add model tag")
     parser.add_argument(
         "--model-config",
@@ -601,18 +601,11 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
-    parser.add_argument("--projection-size", type=int, default=256, help="the projection size")
     parser.add_argument(
-        "--projection-hidden-size",
-        type=int,
-        default=4096,
-        help="the hidden dimension of the MLP for both the projection and prediction",
-    )
-    parser.add_argument(
-        "--momentum-teacher",
-        type=float,
-        default=0.99,
-        help="base EMA parameter for teacher update, set a higher value with small batches",
+        "--no-shift",
+        default=False,
+        action="store_true",
+        help="disable next-token shift and use position-wise embedding matching",
     )
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser)
@@ -620,7 +613,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_training_schedule_args(parser, default_epochs=800)
     training_cli.add_batch_norm_args(parser)
     training_cli.add_input_args(parser)
-    training_cli.add_data_aug_args(parser, default_min_scale=0.3, default_re_prob=0.0)
+    training_cli.add_data_aug_args(parser, default_level=1, default_min_scale=0.15, default_re_prob=0.0)
     training_cli.add_dataloader_args(parser, default_drop_last=True)
     training_cli.add_precision_args(parser)
     training_cli.add_compile_args(parser)
@@ -640,7 +633,7 @@ def validate_args(args: argparse.Namespace) -> None:
     training_cli.common_args_validation(args)
 
     # Script specific checks
-    if registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION) is False:
+    if registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION, net_type=MaskedTokenOmissionMixin) is False:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
 
 

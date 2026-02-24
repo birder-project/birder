@@ -16,6 +16,7 @@ import sys
 import time
 from collections.abc import Callable
 from collections.abc import Iterator
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -437,6 +438,11 @@ def train(args: argparse.Namespace) -> None:
         epoch_samples = len(training_dataset)
 
     last_batch_idx = epoch_num_batches - 1
+    last_accum_steps = epoch_num_batches % grad_accum_steps
+    if last_accum_steps == 0:
+        last_accum_steps = grad_accum_steps
+
+    last_accum_start_idx = epoch_num_batches - last_accum_steps
     logger.debug(
         f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
         f"virtual mode={virtual_epoch_mode}"
@@ -536,6 +542,7 @@ def train(args: argparse.Namespace) -> None:
         p.requires_grad_(False)
 
     student_without_ddp = student
+    no_sync_cm = nullcontext
     if args.distributed is True:
         student = torch.nn.parallel.DistributedDataParallel(
             student,
@@ -543,6 +550,7 @@ def train(args: argparse.Namespace) -> None:
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
+        no_sync_cm = student.no_sync
         student_without_ddp = student.module
 
     model_to_save = net
@@ -659,6 +667,12 @@ def train(args: argparse.Namespace) -> None:
         for i, data in batch_iter:
             global_iter = ((epoch - 1) * epoch_num_batches) + i
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
+            sync_context = no_sync_cm if optimizer_update is False else nullcontext
+            if i >= last_accum_start_idx:
+                effective_accum_steps = last_accum_steps
+            else:
+                effective_accum_steps = grad_accum_steps
+
             teacher_temp = teacher_temp_schedule[global_iter]
 
             global_crops = data["collated_global_crops"].to(device, dtype=model_dtype, non_blocking=True)
@@ -674,110 +688,111 @@ def train(args: argparse.Namespace) -> None:
             n_local_crops_loss_terms = max(n_local_crops * n_global_crops, 1)
             n_global_crops_loss_terms = (n_global_crops - 1) * n_global_crops
 
-            # Forward, backward and optimize
-            with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                with torch.no_grad():
-                    # Teacher
-                    teacher_embedding_after_head, teacher_masked_patch_tokens_after_head = teacher(
-                        global_crops, n_global_crops, upper_bound, mask_indices_list
-                    )
+            # Forward and backward
+            with sync_context():
+                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
+                    with torch.no_grad():
+                        # Teacher
+                        teacher_embedding_after_head, teacher_masked_patch_tokens_after_head = teacher(
+                            global_crops, n_global_crops, upper_bound, mask_indices_list
+                        )
 
-                    # Sinkhorn-Knopp
-                    teacher_dino_softmax_centered_list = dino_loss.sinkhorn_knopp_teacher(
-                        teacher_embedding_after_head, teacher_temp=teacher_temp
-                    )
+                        # Sinkhorn-Knopp
+                        teacher_dino_softmax_centered_list = dino_loss.sinkhorn_knopp_teacher(
+                            teacher_embedding_after_head, teacher_temp=teacher_temp
+                        )
 
-                    masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
-                        teacher_masked_patch_tokens_after_head,
-                        teacher_temp=teacher_temp,
-                        n_masked_patches_tensor=n_masked_patches_tensor,
-                    )
+                        masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
+                            teacher_masked_patch_tokens_after_head,
+                            teacher_temp=teacher_temp,
+                            n_masked_patches_tensor=n_masked_patches_tensor,
+                        )
 
-                # Student
-                (
-                    student_global_embedding,
-                    student_global_embedding_after_head,
-                    student_local_embedding_after_head,
-                    student_global_masked_patch_tokens_after_head,
-                ) = student(global_crops, local_crops, masks, upper_bound, mask_indices_list)
-
-                # Local DINO loss
-                loss_dino_local_crops = dino_loss(
-                    list(student_local_embedding_after_head),
-                    teacher_dino_softmax_centered_list,
-                    n_crops=(n_local_crops, n_global_crops),
-                    teacher_global=False,
-                ) / (n_global_crops_loss_terms + n_local_crops_loss_terms)
-                loss = args.dino_loss_weight * loss_dino_local_crops
-
-                # Global DINO loss
-                loss_scales = n_global_crops
-                student_global_concat = [  # Concatenate all nesting levels for global crops
-                    torch.concat(list(t.chunk(n_global_crops)), dim=0) for t in student_global_embedding_after_head
-                ]
-                loss_dino_global_crops = (
-                    dino_loss(
-                        student_global_concat,
-                        teacher_dino_softmax_centered_list,
-                        n_crops=n_global_crops,
-                        teacher_global=True,
-                    )
-                    * loss_scales
-                    / (n_global_crops_loss_terms + n_local_crops_loss_terms)
-                )
-                loss += args.dino_loss_weight * loss_dino_global_crops
-
-                # KoLeo loss
-                loss_koleo = sum(koleo_loss(p) for p in student_global_embedding.chunk(n_global_crops))
-                loss += args.koleo_loss_weight * loss_koleo
-
-                # iBOT loss
-                loss_ibot_patch = (
-                    ibot_patch_loss(
+                    # Student
+                    (
+                        student_global_embedding,
+                        student_global_embedding_after_head,
+                        student_local_embedding_after_head,
                         student_global_masked_patch_tokens_after_head,
-                        masked_teacher_ibot_softmax_centered,
-                        student_masks_flat=masks,
-                        masks_weight=masks_weight,
-                        n_masked_patches=n_masked_patches,
+                    ) = student(global_crops, local_crops, masks, upper_bound, mask_indices_list)
+
+                    # Local DINO loss
+                    loss_dino_local_crops = dino_loss(
+                        list(student_local_embedding_after_head),
+                        teacher_dino_softmax_centered_list,
+                        n_crops=(n_local_crops, n_global_crops),
+                        teacher_global=False,
+                    ) / (n_global_crops_loss_terms + n_local_crops_loss_terms)
+                    loss = args.dino_loss_weight * loss_dino_local_crops
+
+                    # Global DINO loss
+                    loss_scales = n_global_crops
+                    student_global_concat = [  # Concatenate all nesting levels for global crops
+                        torch.concat(list(t.chunk(n_global_crops)), dim=0) for t in student_global_embedding_after_head
+                    ]
+                    loss_dino_global_crops = (
+                        dino_loss(
+                            student_global_concat,
+                            teacher_dino_softmax_centered_list,
+                            n_crops=n_global_crops,
+                            teacher_global=True,
+                        )
+                        * loss_scales
+                        / (n_global_crops_loss_terms + n_local_crops_loss_terms)
                     )
-                    * loss_scales
-                    * ibot_loss_scale
-                )
-                loss += args.ibot_loss_weight * loss_ibot_patch
+                    loss += args.dino_loss_weight * loss_dino_global_crops
 
-            if scaler is not None:
-                scaler.scale(loss).backward()
-                if args.freeze_last_layer_epochs >= epoch:
-                    student_without_ddp.dino_head.cancel_last_layer_gradients()
-                    if student_without_ddp.ibot_head is not None:
-                        student_without_ddp.ibot_head.cancel_last_layer_gradients()
+                    # KoLeo loss
+                    loss_koleo = sum(koleo_loss(p) for p in student_global_embedding.chunk(n_global_crops))
+                    loss += args.koleo_loss_weight * loss_koleo
 
-                if optimizer_update is True:
+                    # iBOT loss
+                    loss_ibot_patch = (
+                        ibot_patch_loss(
+                            student_global_masked_patch_tokens_after_head,
+                            masked_teacher_ibot_softmax_centered,
+                            student_masks_flat=masks,
+                            masks_weight=masks_weight,
+                            n_masked_patches=n_masked_patches,
+                        )
+                        * loss_scales
+                        * ibot_loss_scale
+                    )
+                    loss += args.ibot_loss_weight * loss_ibot_patch
+
+                raw_loss = loss
+                loss = raw_loss / effective_accum_steps
+                if scaler is not None:
+                    scaler.scale(loss).backward()
+                    if args.freeze_last_layer_epochs >= epoch:
+                        student_without_ddp.dino_head.cancel_last_layer_gradients()
+                        if student_without_ddp.ibot_head is not None:
+                            student_without_ddp.ibot_head.cancel_last_layer_gradients()
+
+                else:
+                    loss.backward()
+                    if args.freeze_last_layer_epochs >= epoch:
+                        student_without_ddp.dino_head.cancel_last_layer_gradients()
+                        if student_without_ddp.ibot_head is not None:
+                            student_without_ddp.ibot_head.cancel_last_layer_gradients()
+
+            if optimizer_update is True:
+                if scaler is not None:
                     if args.clip_grad_norm is not None:
                         scaler.unscale_(optimizer)
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     scaler.step(optimizer)
                     scaler.update()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
-
-            else:
-                loss.backward()
-                if args.freeze_last_layer_epochs >= epoch:
-                    student_without_ddp.dino_head.cancel_last_layer_gradients()
-                    if student_without_ddp.ibot_head is not None:
-                        student_without_ddp.ibot_head.cancel_last_layer_gradients()
-
-                if optimizer_update is True:
+                else:
                     if args.clip_grad_norm is not None:
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     optimizer.step()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
+
+                optimizer.zero_grad()
+                if step_update is True:
+                    scheduler.step()
 
             if optimizer_update is True:
                 # EMA update for the teacher
@@ -795,7 +810,7 @@ def train(args: argparse.Namespace) -> None:
                             param_group["weight_decay"] = wd
 
             # Statistics
-            running_loss.update(loss.detach())
+            running_loss.update(raw_loss.detach())
             running_loss_dino_local.update(loss_dino_local_crops.detach())
             running_loss_dino_global.update(loss_dino_global_crops.detach())
             running_loss_koleo.update(loss_koleo.detach())

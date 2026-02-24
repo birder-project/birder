@@ -15,6 +15,7 @@ import sys
 import time
 from collections.abc import Callable
 from collections.abc import Iterator
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -315,6 +316,11 @@ def train(args: argparse.Namespace) -> None:
         epoch_samples = len(training_dataset)
 
     last_batch_idx = epoch_num_batches - 1
+    last_accum_steps = epoch_num_batches % grad_accum_steps
+    if last_accum_steps == 0:
+        last_accum_steps = grad_accum_steps
+
+    last_accum_start_idx = epoch_num_batches - last_accum_steps
     logger.debug(
         f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
         f"virtual mode={virtual_epoch_mode}"
@@ -434,6 +440,8 @@ def train(args: argparse.Namespace) -> None:
 
     teacher_without_ddp = teacher
     student_without_ddp = student
+    student_no_sync_cm = nullcontext
+    teacher_no_sync_cm = nullcontext
     if args.distributed is True and fsdp_mode is False:
         student = torch.nn.parallel.DistributedDataParallel(
             student,
@@ -444,6 +452,8 @@ def train(args: argparse.Namespace) -> None:
         teacher = torch.nn.parallel.DistributedDataParallel(
             teacher, device_ids=[args.local_rank], broadcast_buffers=not args.no_broadcast_buffers
         )
+        student_no_sync_cm = student.no_sync
+        teacher_no_sync_cm = teacher.no_sync
         student_without_ddp = student.module
         teacher_without_ddp = teacher.module
 
@@ -556,6 +566,13 @@ def train(args: argparse.Namespace) -> None:
             predict_indices = predict_indices.to(device, non_blocking=True)
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
+            student_sync_context = student_no_sync_cm if optimizer_update is False else nullcontext
+            teacher_sync_context = teacher_no_sync_cm if optimizer_update is False else nullcontext
+            if i >= last_accum_start_idx:
+                effective_accum_steps = last_accum_steps
+            else:
+                effective_accum_steps = grad_accum_steps
+
             if fsdp_mode is True and grad_accum_steps > 1:
                 student.set_requires_gradient_sync(requires_gradient_sync=optimizer_update)
                 teacher.set_requires_gradient_sync(requires_gradient_sync=optimizer_update)
@@ -563,57 +580,61 @@ def train(args: argparse.Namespace) -> None:
                 fsdp_utils.broadcast_module_buffers(student)
                 fsdp_utils.broadcast_module_buffers(teacher)
 
-            # Forward, backward and optimize
-            with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                selected_assignments, clustering_loss = teacher(images, None, predict_indices)
+            # Teacher forward and backward
+            with teacher_sync_context():
+                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
+                    selected_assignments, raw_clustering_loss = teacher(images, None, predict_indices)
 
-            if clustering_scaler is not None:
-                clustering_scaler.scale(clustering_loss).backward()
-                if optimizer_update is True:
+                clustering_loss = raw_clustering_loss / effective_accum_steps
+                if clustering_scaler is not None:
+                    clustering_scaler.scale(clustering_loss).backward()
+                else:
+                    clustering_loss.backward()
+
+            if optimizer_update is True:
+                if clustering_scaler is not None:
                     clustering_scaler.step(clustering_optimizer)
                     clustering_scaler.update()
-                    clustering_optimizer.zero_grad()
-                    if step_update is True:
-                        clustering_scheduler.step()
-
-            else:
-                clustering_loss.backward()
-                if optimizer_update is True:
+                else:
                     clustering_optimizer.step()
-                    clustering_optimizer.zero_grad()
-                    if step_update is True:
-                        clustering_scheduler.step()
 
-            with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                pred = student(images, ids_keep, predict_indices)
-                loss = -torch.sum(selected_assignments * F.log_softmax(pred / student_temp, dim=-1), dim=-1)
-                target_entropy = -torch.xlogy(selected_assignments, selected_assignments).sum(dim=-1).mean()
+                clustering_optimizer.zero_grad()
+                if step_update is True:
+                    clustering_scheduler.step()
 
-            loss = loss.double().sum() / len(loss)
+            # Student forward and backward
+            with student_sync_context():
+                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
+                    pred = student(images, ids_keep, predict_indices)
+                    raw_loss = -torch.sum(selected_assignments * F.log_softmax(pred / student_temp, dim=-1), dim=-1)
+                    target_entropy = -torch.xlogy(selected_assignments, selected_assignments).sum(dim=-1).mean()
 
-            if scaler is not None:
-                scaler.scale(loss).backward()
-                if optimizer_update is True:
+                raw_loss = raw_loss.double().sum() / len(raw_loss)
+                loss = raw_loss / effective_accum_steps
+
+                if scaler is not None:
+                    scaler.scale(loss).backward()
+                else:
+                    loss.backward()
+
+            if optimizer_update is True:
+                if scaler is not None:
                     if args.clip_grad_norm is not None:
                         scaler.unscale_(optimizer)
                         torch.nn.utils.clip_grad_norm_(student.parameters(), args.clip_grad_norm)
 
                     scaler.step(optimizer)
                     scaler.update()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
 
-            else:
-                loss.backward()
-                if optimizer_update is True:
+                else:
                     if args.clip_grad_norm is not None:
                         torch.nn.utils.clip_grad_norm_(student.parameters(), args.clip_grad_norm)
 
                     optimizer.step()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
+
+                optimizer.zero_grad()
+                if step_update is True:
+                    scheduler.step()
 
             if optimizer_update is True:
                 # EMA update for the teacher
@@ -626,8 +647,8 @@ def train(args: argparse.Namespace) -> None:
                     )
 
             # Statistics
-            running_loss.update(loss.detach())
-            running_clustering_loss.update(clustering_loss.detach())
+            running_loss.update(raw_loss.detach())
+            running_clustering_loss.update(raw_clustering_loss.detach())
             running_target_entropy.update(target_entropy.detach())
 
             # Write statistics

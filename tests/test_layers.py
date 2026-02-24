@@ -15,6 +15,17 @@ class TestLayers(unittest.TestCase):
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.size(), (2, 8))
 
+    def test_efficient_probing(self) -> None:
+        efficient_probing = layers.EfficientProbing(32, 2, 64, True)
+        out = efficient_probing(torch.rand(2, 8, 32))
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.size(), (2, 1, 32))
+
+        efficient_probing = layers.EfficientProbing(32, 1, 64, True)
+        out = efficient_probing(torch.rand(2, 8, 32))
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.size(), (2, 1, 32))
+
     def test_attention_pool(self) -> None:
         attention_pool = layers.MultiHeadAttentionPool(32, 2, 64, True)
         out = attention_pool(torch.rand(2, 8, 32))

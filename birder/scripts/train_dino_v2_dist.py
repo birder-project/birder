@@ -7,22 +7,21 @@ Paper "DINOv2: Learning Robust Visual Features without Supervision", https://arx
 import argparse
 import logging
 import math
-import random
 import sys
 import time
-from collections.abc import Callable
 from collections.abc import Iterator
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import torch.nn.functional as F
 import torchinfo
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets.folder import pil_loader  # Slower but Handles external dataset quirks better
-from torchvision.transforms import v2
 from tqdm import tqdm
 
 from birder.common import cli
@@ -32,7 +31,6 @@ from birder.common import training_utils
 from birder.common.lib import format_duration
 from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
-from birder.common.masking import BlockMasking
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import make_image_dataset
@@ -41,7 +39,6 @@ from birder.data.datasets.fake import FakeDataWithPaths
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
-from birder.data.transforms.classification import RGBType
 from birder.data.transforms.classification import get_rgb_stats
 from birder.model_registry import Task
 from birder.model_registry import registry
@@ -53,123 +50,11 @@ from birder.net.ssl.dino_v2 import DINOv2Student
 from birder.net.ssl.dino_v2 import DINOv2Teacher
 from birder.net.ssl.dino_v2 import KoLeoLoss
 from birder.net.ssl.dino_v2 import iBOTPatchLoss
+from birder.scripts.train_dino_v2 import DINOv2BlockMasking
+from birder.scripts.train_dino_v2 import TrainCollator
+from birder.scripts.train_dino_v2 import TrainTransform
 
 logger = logging.getLogger(__name__)
-
-
-class DINOv2BlockMasking(BlockMasking):
-    def __call__(self, num_masking_patches: int) -> torch.Tensor:
-        mask = torch.zeros(*self.get_shape())
-        mask_count = 0
-        while mask_count < num_masking_patches:
-            max_mask_patches = num_masking_patches - mask_count
-            max_mask_patches = min(max_mask_patches, self.max_num_patches)
-
-            delta = self._mask(mask, max_mask_patches)
-            if delta == 0:
-                break
-
-            mask_count += delta
-
-        return mask
-
-
-class TrainTransform:
-    def __init__(
-        self,
-        global_transform: Callable[..., torch.Tensor],
-        crop_size: tuple[int, int],
-        rgv_values: RGBType,
-        local_crops_number: int,
-    ) -> None:
-        self.global_transform = global_transform
-        self.local_crops_number = local_crops_number
-
-        # Local small crops
-        mean = rgv_values["mean"]
-        std = rgv_values["std"]
-        self.local_transform = v2.Compose(
-            [
-                v2.PILToTensor(),
-                v2.RandomResizedCrop(crop_size, scale=(0.1, 0.35), interpolation=v2.InterpolationMode.BICUBIC),
-                v2.RandomHorizontalFlip(p=0.5),
-                v2.RandomApply([v2.ColorJitter(brightness=0.25, contrast=0.15, hue=0.04)], p=0.8),
-                v2.RandomApply([v2.GaussianBlur(kernel_size=(3, 3), sigma=(0.5, 1.2))], p=0.5),
-                v2.ToDtype(torch.float32, scale=True),
-                v2.Normalize(mean=mean, std=std),
-            ]
-        )
-
-    def __call__(self, image: Any) -> dict[str, list[torch.Tensor]]:
-        output = {}
-        output["global_crops"] = [self.global_transform(image), self.global_transform(image)]
-
-        local_crops = []
-        for _ in range(self.local_crops_number):
-            local_crops.append(self.local_transform(image))
-
-        output["local_crops"] = local_crops
-
-        return output
-
-
-class TrainCollator:
-    def __init__(
-        self,
-        mask_generator: Callable[[int], tuple[list[torch.Tensor], list[torch.Tensor]]],
-        seq_len: int,
-        mask_probability: float,
-        mask_ratio_tuple: tuple[float, float],
-    ) -> None:
-        self.mask_generator = mask_generator
-        self.seq_len = seq_len
-        self.mask_probability = mask_probability
-        self.mask_ratio_tuple = mask_ratio_tuple
-
-    def __call__(self, batch: Any) -> dict[str, Any]:
-        n_global_crops = len(batch[0][1]["global_crops"])
-        n_local_crops = len(batch[0][1]["local_crops"])
-
-        collated_global_crops = torch.stack([s[1]["global_crops"][i] for i in range(n_global_crops) for s in batch])
-        collated_local_crops = torch.stack([s[1]["local_crops"][i] for i in range(n_local_crops) for s in batch])
-
-        B = len(collated_global_crops)
-        N = self.seq_len
-        n_samples_masked = int(B * self.mask_probability)
-        probs = torch.linspace(*self.mask_ratio_tuple, n_samples_masked + 1)
-        upper_bound = 0
-        masks_list = []
-        for i in range(0, n_samples_masked):
-            prob_min = probs[i]
-            prob_max = probs[i + 1]
-            masks_list.append(self.mask_generator(int(N * random.uniform(prob_min, prob_max))))
-            upper_bound += int(N * prob_max)
-
-        for i in range(n_samples_masked, B):
-            masks_list.append(self.mask_generator(0))
-
-        random.shuffle(masks_list)
-
-        collated_masks = torch.stack(masks_list).flatten(1)
-        mask_indices_list = collated_masks.flatten().nonzero().flatten()
-
-        masks_weight = (
-            (1 / collated_masks.sum(-1).clamp(min=1.0)).unsqueeze(-1).expand_as(collated_masks)[collated_masks.bool()]
-        )
-
-        # Keep everything intact for loss calculation (with the randomness of the fake masking)
-        # Just the remove actual masking
-        collated_masks = torch.zeros_like(collated_masks)
-
-        return {
-            "collated_global_crops": collated_global_crops,
-            "collated_local_crops": collated_local_crops,
-            "collated_masks": collated_masks,
-            "mask_indices_list": mask_indices_list,
-            "masks_weight": masks_weight,
-            "upper_bound": upper_bound,
-            "n_masked_patches": torch.full((1,), fill_value=mask_indices_list.size(0), dtype=torch.long),
-        }
 
 
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
@@ -217,12 +102,22 @@ def train(args: argparse.Namespace) -> None:
         config=args.teacher_model_config,
         size=args.size,
     )
-    assert student_backbone.max_stride == teacher_backbone.max_stride, (
-        "Student and teacher max_stride must match for distillation "
-        f"(student={student_backbone.max_stride}, teacher={teacher_backbone.max_stride})"
-    )
 
     student_backbone.set_dynamic_size()
+    teacher_backbone.set_dynamic_size()
+    student_mask_size = (args.size[0] // student_backbone.max_stride, args.size[1] // student_backbone.max_stride)
+    teacher_global_crop_size = (
+        student_mask_size[0] * teacher_backbone.max_stride,
+        student_mask_size[1] * teacher_backbone.max_stride,
+    )
+    interpolate_teacher_global_crops = teacher_global_crop_size != args.size
+    if interpolate_teacher_global_crops is True:
+        logger.debug(
+            f"Interpolating teacher global crops from {args.size} to {teacher_global_crop_size} "
+            f"(student max_stride={student_backbone.max_stride}, "
+            f"teacher max_stride={teacher_backbone.max_stride}) to align patch-token grids"
+        )
+
     if args.ibot_separate_head is False:
         args.ibot_out_dim = args.dino_out_dim
 
@@ -327,7 +222,7 @@ def train(args: argparse.Namespace) -> None:
     rgb_stats = get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std)
     logger.debug(f"Using RGB stats: {rgb_stats}")
 
-    mask_size = (args.size[0] // student_backbone.max_stride, args.size[1] // student_backbone.max_stride)
+    mask_size = student_mask_size
     seq_len = mask_size[0] * mask_size[1]
 
     mask_generator = DINOv2BlockMasking(
@@ -424,6 +319,11 @@ def train(args: argparse.Namespace) -> None:
         epoch_samples = len(training_dataset)
 
     last_batch_idx = epoch_num_batches - 1
+    last_accum_steps = epoch_num_batches % grad_accum_steps
+    if last_accum_steps == 0:
+        last_accum_steps = grad_accum_steps
+
+    last_accum_start_idx = epoch_num_batches - last_accum_steps
     logger.debug(
         f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
         f"virtual mode={virtual_epoch_mode}"
@@ -522,6 +422,7 @@ def train(args: argparse.Namespace) -> None:
         p.requires_grad_(False)
 
     student_without_ddp = student
+    no_sync_cm = nullcontext
     if args.distributed is True:
         student = torch.nn.parallel.DistributedDataParallel(
             student,
@@ -529,6 +430,7 @@ def train(args: argparse.Namespace) -> None:
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
+        no_sync_cm = student.no_sync
         student_without_ddp = student.module
 
     model_to_save = net
@@ -658,6 +560,12 @@ def train(args: argparse.Namespace) -> None:
         for i, data in batch_iter:
             global_iter = ((epoch - 1) * epoch_num_batches) + i
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
+            sync_context = no_sync_cm if optimizer_update is False else nullcontext
+            if i >= last_accum_start_idx:
+                effective_accum_steps = last_accum_steps
+            else:
+                effective_accum_steps = grad_accum_steps
+
             teacher_temp = teacher_temp_schedule[global_iter]
 
             global_crops = data["collated_global_crops"].to(device, dtype=model_dtype, non_blocking=True)
@@ -673,123 +581,130 @@ def train(args: argparse.Namespace) -> None:
             n_local_crops_loss_terms = max(n_local_crops * n_global_crops, 1)
             n_global_crops_loss_terms = (n_global_crops - 1) * n_global_crops
 
-            # Forward, backward and optimize
-            with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                with torch.no_grad():
-                    # Teacher
-                    teacher_embedding_after_head, teacher_masked_patch_tokens_after_head = teacher(
-                        global_crops, n_global_crops, upper_bound, mask_indices_list
-                    )
-                    teacher_patch_tokens_raw = teacher_masked_patch_tokens_after_head
-                    if args.centering == "centering":
-                        # Track centers before update for drift computation
-                        if track_extended_metrics is True:
-                            prev_dino_center = dino_loss.center.clone()
-                            prev_ibot_center = ibot_patch_loss.center.clone()
+            # Forward and backward
+            with sync_context():
+                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
+                    with torch.no_grad():
+                        # Teacher
+                        teacher_global_crops = global_crops
+                        if interpolate_teacher_global_crops is True:
+                            teacher_global_crops = F.interpolate(
+                                global_crops, size=teacher_global_crop_size, mode="bilinear", antialias=True
+                            )
 
-                        teacher_dino_softmax_centered = dino_loss.softmax_center_teacher(
-                            teacher_embedding_after_head, teacher_temp=teacher_temp
-                        ).view(n_global_crops, -1, *teacher_embedding_after_head.shape[1:])
-                        dino_loss.update_center(teacher_embedding_after_head)
-
-                        teacher_masked_patch_tokens_after_head = teacher_masked_patch_tokens_after_head.unsqueeze(0)
-                        masked_teacher_ibot_softmax_centered = ibot_patch_loss.softmax_center_teacher(
-                            teacher_masked_patch_tokens_after_head[:, :n_masked_patches], teacher_temp=teacher_temp
+                        teacher_embedding_after_head, teacher_masked_patch_tokens_after_head = teacher(
+                            teacher_global_crops, n_global_crops, upper_bound, mask_indices_list
                         )
-                        masked_teacher_ibot_softmax_centered = masked_teacher_ibot_softmax_centered.squeeze(0)
-                        ibot_patch_loss.update_center(teacher_masked_patch_tokens_after_head[:, :n_masked_patches])
+                        teacher_patch_tokens_raw = teacher_masked_patch_tokens_after_head
+                        if args.centering == "centering":
+                            # Track centers before update for drift computation
+                            if track_extended_metrics is True:
+                                prev_dino_center = dino_loss.center.clone()
+                                prev_ibot_center = ibot_patch_loss.center.clone()
 
-                    else:  # sinkhorn_knopp
-                        teacher_dino_softmax_centered = dino_loss.sinkhorn_knopp_teacher(
-                            teacher_embedding_after_head, teacher_temp=teacher_temp
-                        ).view(n_global_crops, -1, *teacher_embedding_after_head.shape[1:])
+                            teacher_dino_softmax_centered = dino_loss.softmax_center_teacher(
+                                teacher_embedding_after_head, teacher_temp=teacher_temp
+                            ).view(n_global_crops, -1, *teacher_embedding_after_head.shape[1:])
+                            dino_loss.update_center(teacher_embedding_after_head)
 
-                        masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
-                            teacher_masked_patch_tokens_after_head,
-                            teacher_temp=teacher_temp,
-                            n_masked_patches_tensor=n_masked_patches_tensor,
-                        )
+                            teacher_masked_patch_tokens_after_head = teacher_masked_patch_tokens_after_head.unsqueeze(0)
+                            masked_teacher_ibot_softmax_centered = ibot_patch_loss.softmax_center_teacher(
+                                teacher_masked_patch_tokens_after_head[:, :n_masked_patches], teacher_temp=teacher_temp
+                            )
+                            masked_teacher_ibot_softmax_centered = masked_teacher_ibot_softmax_centered.squeeze(0)
+                            ibot_patch_loss.update_center(teacher_masked_patch_tokens_after_head[:, :n_masked_patches])
 
-                # Student
-                (
-                    student_global_embedding,
-                    student_global_embedding_after_head,
-                    student_local_embedding_after_head,
-                    student_global_masked_patch_tokens_after_head,
-                ) = student(global_crops, local_crops, masks, upper_bound, mask_indices_list)
+                        else:  # sinkhorn_knopp
+                            teacher_dino_softmax_centered = dino_loss.sinkhorn_knopp_teacher(
+                                teacher_embedding_after_head, teacher_temp=teacher_temp
+                            ).view(n_global_crops, -1, *teacher_embedding_after_head.shape[1:])
 
-                # Local DINO loss
-                loss_dino_local_crops = dino_loss(
-                    student_local_embedding_after_head.chunk(n_local_crops),
-                    teacher_dino_softmax_centered.unbind(0),
-                ) / (n_global_crops_loss_terms + n_local_crops_loss_terms)
-                loss = args.dino_loss_weight * loss_dino_local_crops
+                            masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
+                                teacher_masked_patch_tokens_after_head,
+                                teacher_temp=teacher_temp,
+                                n_masked_patches_tensor=n_masked_patches_tensor,
+                            )
 
-                # Global DINO loss
-                loss_scales = n_global_crops
-                loss_dino_global_crops = (
-                    dino_loss(
-                        [student_global_embedding_after_head],
-                        [
-                            teacher_dino_softmax_centered.flatten(0, 1)
-                        ],  # These were chunked and stacked in reverse so A is matched to B
-                    )
-                    * loss_scales
-                    / (n_global_crops_loss_terms + n_local_crops_loss_terms)
-                )
-                loss += args.dino_loss_weight * loss_dino_global_crops
-
-                # KoLeo loss
-                loss_koleo = sum(koleo_loss(p) for p in student_global_embedding.chunk(n_global_crops))
-                loss += args.koleo_loss_weight * loss_koleo
-
-                # iBOT loss
-                loss_ibot_patch = (
-                    ibot_patch_loss(
+                    # Student
+                    (
+                        student_global_embedding,
+                        student_global_embedding_after_head,
+                        student_local_embedding_after_head,
                         student_global_masked_patch_tokens_after_head,
-                        masked_teacher_ibot_softmax_centered,
-                        student_masks_flat=masks,
-                        masks_weight=masks_weight,
-                        n_masked_patches=n_masked_patches,
+                    ) = student(global_crops, local_crops, torch.zeros_like(masks), upper_bound, mask_indices_list)
+
+                    # Local DINO loss
+                    loss_dino_local_crops = dino_loss(
+                        student_local_embedding_after_head.chunk(n_local_crops),
+                        teacher_dino_softmax_centered.unbind(0),
+                    ) / (n_global_crops_loss_terms + n_local_crops_loss_terms)
+                    loss = args.dino_loss_weight * loss_dino_local_crops
+
+                    # Global DINO loss
+                    loss_scales = n_global_crops
+                    loss_dino_global_crops = (
+                        dino_loss(
+                            [student_global_embedding_after_head],
+                            [
+                                teacher_dino_softmax_centered.flatten(0, 1)
+                            ],  # These were chunked and stacked in reverse so A is matched to B
+                        )
+                        * loss_scales
+                        / (n_global_crops_loss_terms + n_local_crops_loss_terms)
                     )
-                    * loss_scales
-                    * ibot_loss_scale
-                )
-                loss += args.ibot_loss_weight * loss_ibot_patch
+                    loss += args.dino_loss_weight * loss_dino_global_crops
 
-            if scaler is not None:
-                scaler.scale(loss).backward()
-                if args.freeze_last_layer_epochs >= epoch:
-                    student_without_ddp.dino_head.cancel_last_layer_gradients()
-                    if student_without_ddp.ibot_head is not None:
-                        student_without_ddp.ibot_head.cancel_last_layer_gradients()
+                    # KoLeo loss
+                    loss_koleo = sum(koleo_loss(p) for p in student_global_embedding.chunk(n_global_crops))
+                    loss += args.koleo_loss_weight * loss_koleo
 
-                if optimizer_update is True:
+                    # iBOT loss
+                    loss_ibot_patch = (
+                        ibot_patch_loss(
+                            student_global_masked_patch_tokens_after_head,
+                            masked_teacher_ibot_softmax_centered,
+                            student_masks_flat=masks,
+                            masks_weight=masks_weight,
+                            n_masked_patches=n_masked_patches,
+                        )
+                        * loss_scales
+                        * ibot_loss_scale
+                    )
+                    loss += args.ibot_loss_weight * loss_ibot_patch
+
+                raw_loss = loss
+                loss = raw_loss / effective_accum_steps
+                if scaler is not None:
+                    scaler.scale(loss).backward()
+                    if args.freeze_last_layer_epochs >= epoch:
+                        student_without_ddp.dino_head.cancel_last_layer_gradients()
+                        if student_without_ddp.ibot_head is not None:
+                            student_without_ddp.ibot_head.cancel_last_layer_gradients()
+
+                else:
+                    loss.backward()
+                    if args.freeze_last_layer_epochs >= epoch:
+                        student_without_ddp.dino_head.cancel_last_layer_gradients()
+                        if student_without_ddp.ibot_head is not None:
+                            student_without_ddp.ibot_head.cancel_last_layer_gradients()
+
+            if optimizer_update is True:
+                if scaler is not None:
                     if args.clip_grad_norm is not None:
                         scaler.unscale_(optimizer)
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     scaler.step(optimizer)
                     scaler.update()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
-
-            else:
-                loss.backward()
-                if args.freeze_last_layer_epochs >= epoch:
-                    student_without_ddp.dino_head.cancel_last_layer_gradients()
-                    if student_without_ddp.ibot_head is not None:
-                        student_without_ddp.ibot_head.cancel_last_layer_gradients()
-
-                if optimizer_update is True:
+                else:
                     if args.clip_grad_norm is not None:
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     optimizer.step()
-                    optimizer.zero_grad()
-                    if step_update is True:
-                        scheduler.step()
+
+                optimizer.zero_grad()
+                if step_update is True:
+                    scheduler.step()
 
             if optimizer_update is True:
                 # EMA update for the student backbone
@@ -807,7 +722,7 @@ def train(args: argparse.Namespace) -> None:
                             param_group["weight_decay"] = wd
 
             # Statistics
-            running_loss.update(loss.detach())
+            running_loss.update(raw_loss.detach())
             running_loss_dino_local.update(loss_dino_local_crops.detach())
             running_loss_dino_global.update(loss_dino_global_crops.detach())
             running_loss_koleo.update(loss_koleo.detach())

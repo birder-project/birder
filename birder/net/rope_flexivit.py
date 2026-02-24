@@ -17,6 +17,7 @@ from torch import nn
 
 from birder.common.masking import mask_tensor
 from birder.layers import FFN
+from birder.layers import EfficientProbing
 from birder.layers import MultiHeadAttentionPool
 from birder.layers import SwiGLU_FFN
 from birder.layers.activations import get_activation_module
@@ -77,6 +78,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
+        attn_pool_type: str = self.config.get("attn_pool_type", "MultiHeadAttentionPool")
         attn_pool_num_heads: Optional[int] = self.config.get("attn_pool_num_heads", None)
         attn_pool_special_tokens: bool = self.config.get("attn_pool_special_tokens", False)
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
@@ -215,10 +217,18 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         if attn_pool_head is False:
             self.attn_pool = None
         else:
-            if attn_pool_num_heads is None:
-                attn_pool_num_heads = num_heads
+            if attn_pool_type == "MultiHeadAttentionPool":
+                attn_pool = MultiHeadAttentionPool
+                if attn_pool_num_heads is None:
+                    attn_pool_num_heads = num_heads
+            elif attn_pool_type == "EfficientProbing":
+                attn_pool = EfficientProbing
+                if attn_pool_num_heads is None:
+                    attn_pool_num_heads = 1
+            else:
+                raise ValueError(f"Unknown attn_pool_type '{attn_pool_type}'")
 
-            self.attn_pool = MultiHeadAttentionPool(hidden_dim, attn_pool_num_heads, mlp_dim, qkv_bias=True)
+            self.attn_pool = attn_pool(hidden_dim, attn_pool_num_heads, mlp_dim, qkv_bias=True)
 
         num_return_stages = len(self.out_indices) if self.out_indices is not None else 1
         self.return_stages = [f"stage{stage_idx + 1}" for stage_idx in range(num_return_stages)]
@@ -322,15 +332,14 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         if self.pos_embed_special_tokens is False:
             x = x + self._get_pos_embed(H, W)
 
-        # Expand the class token to the full batch
-        if self.class_token is not None:
-            batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
-            x = torch.concat([batch_class_token, x], dim=1)
-
-        # Expand the register tokens to the full batch
+        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
+        special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
-            batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
-            x = torch.concat([batch_reg_tokens, x], dim=1)
+            special_tokens.append(self.reg_tokens.expand(x.size(0), -1, -1))
+        if self.class_token is not None:
+            special_tokens.append(self.class_token.expand(x.size(0), -1, -1))
+        if len(special_tokens) > 0:
+            x = torch.concat(special_tokens + [x], dim=1)
 
         if self.pos_embed_special_tokens is True:
             x = x + self._get_pos_embed(H, W)
@@ -395,24 +404,26 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         else:
             rope_masked = self.rope.pos_embed
 
-        # Append class and register tokens
-        if self.class_token is not None:
-            if self.pos_embed_special_tokens is True:
-                cls_token = self.class_token + pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
-            else:
-                cls_token = self.class_token
-
-            batch_class_token = cls_token.expand(x.shape[0], -1, -1)
-            x = torch.concat((batch_class_token, x), dim=1)
-
+        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
+        special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
             if self.pos_embed_special_tokens is True:
                 reg_tokens = self.reg_tokens + pos_embedding[:, 0 : self.num_reg_tokens, :]
             else:
                 reg_tokens = self.reg_tokens
 
-            batch_reg_tokens = reg_tokens.expand(x.shape[0], -1, -1)
-            x = torch.concat([batch_reg_tokens, x], dim=1)
+            special_tokens.append(reg_tokens.expand(x.size(0), -1, -1))
+
+        if self.class_token is not None:
+            if self.pos_embed_special_tokens is True:
+                cls_token = self.class_token + pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
+            else:
+                cls_token = self.class_token
+
+            special_tokens.append(cls_token.expand(x.size(0), -1, -1))
+
+        if len(special_tokens) > 0:
+            x = torch.concat(special_tokens + [x], dim=1)
 
         # Apply transformer
         if return_all_features is True:
@@ -463,15 +474,14 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         if self.pos_embed_special_tokens is False:
             x = x + self._get_pos_embed(H, W)
 
-        # Expand the class token to the full batch
-        if self.class_token is not None:
-            batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
-            x = torch.concat([batch_class_token, x], dim=1)
-
-        # Expand the register tokens to the full batch
+        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
+        special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
-            batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
-            x = torch.concat([batch_reg_tokens, x], dim=1)
+            special_tokens.append(self.reg_tokens.expand(x.size(0), -1, -1))
+        if self.class_token is not None:
+            special_tokens.append(self.class_token.expand(x.size(0), -1, -1))
+        if len(special_tokens) > 0:
+            x = torch.concat(special_tokens + [x], dim=1)
 
         if self.pos_embed_special_tokens is True:
             x = x + self._get_pos_embed(H, W)
@@ -502,7 +512,9 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
 
         return result
 
-    def forward_features(self, x: torch.Tensor, patch_size: Optional[int] = None) -> torch.Tensor:
+    def forward_features(
+        self, x: torch.Tensor, patch_size: Optional[int] = None, return_input_embedding: bool = False
+    ) -> torch.Tensor:
         H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
@@ -512,21 +524,24 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         if self.pos_embed_special_tokens is False:
             x = x + self._get_pos_embed(H, W, patch_size=patch_size)
 
-        # Expand the class token to the full batch
-        if self.class_token is not None:
-            batch_class_token = self.class_token.expand(x.shape[0], -1, -1)
-            x = torch.concat([batch_class_token, x], dim=1)
-
-        # Expand the register tokens to the full batch
+        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
+        special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
-            batch_reg_tokens = self.reg_tokens.expand(x.shape[0], -1, -1)
-            x = torch.concat([batch_reg_tokens, x], dim=1)
+            special_tokens.append(self.reg_tokens.expand(x.size(0), -1, -1))
+        if self.class_token is not None:
+            special_tokens.append(self.class_token.expand(x.size(0), -1, -1))
+        if len(special_tokens) > 0:
+            x = torch.concat(special_tokens + [x], dim=1)
 
         if self.pos_embed_special_tokens is True:
             x = x + self._get_pos_embed(H, W, patch_size=patch_size)
 
+        input_embedding = x
         x = self.encoder(x, self._get_rope_embed(H, W, patch_size=patch_size))
         x = self.norm(x)
+
+        if return_input_embedding is True:
+            return torch.stack([input_embedding, x], dim=-1)
 
         return x
 
@@ -693,7 +708,17 @@ registry.register_model_config(
     config={"patch_size": 16, **SMALL, "num_reg_tokens": 1},
 )
 registry.register_model_config(
+    "rope_flexivit_reg4_b16",
+    RoPE_FlexiViT,
+    config={"patch_size": 16, **BASE, "num_reg_tokens": 4},
+)
+registry.register_model_config(
     "rope_flexivit_reg4_b16_avg",
     RoPE_FlexiViT,
     config={"patch_size": 16, **BASE, "num_reg_tokens": 4, "class_token": False},
+)
+registry.register_model_config(
+    "rope_flexivit_reg4_b16_qkn_ls",
+    RoPE_FlexiViT,
+    config={"patch_size": 16, **BASE, "num_reg_tokens": 4, "layer_scale_init_value": 1e-5, "qk_norm": True},
 )
