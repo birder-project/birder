@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.9 - 2026-02-28
+
+### Changed
+
+- **FlexiViT Patch-Size Sampling**: Moved random patch-size selection from `forward()` to `forward_features()` in `flexivit` and `rope_flexivit`, so all feature-extraction paths (including NEPA pre-training) apply patch-size randomization consistently.
+
 ## 0.4.8 - 2026-02-24
 
 ### Added

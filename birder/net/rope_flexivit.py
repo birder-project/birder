@@ -515,6 +515,9 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
     def forward_features(
         self, x: torch.Tensor, patch_size: Optional[int] = None, return_input_embedding: bool = False
     ) -> torch.Tensor:
+        if self.training is True and patch_size is None and not torch.jit.is_tracing() and not torch.jit.is_scripting():
+            patch_size = random.choice(self.patch_size_list)
+
         H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
@@ -563,9 +566,6 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         return x[:, self.num_reg_tokens]
 
     def forward(self, x: torch.Tensor, patch_size: Optional[int] = None) -> torch.Tensor:
-        if self.training is True and patch_size is None and not torch.jit.is_tracing() and not torch.jit.is_scripting():
-            patch_size = random.choice(self.patch_size_list)
-
         x = self.embedding(x, patch_size)
         return self.classify(x)
 
@@ -721,4 +721,17 @@ registry.register_model_config(
     "rope_flexivit_reg4_b16_qkn_ls",
     RoPE_FlexiViT,
     config={"patch_size": 16, **BASE, "num_reg_tokens": 4, "layer_scale_init_value": 1e-5, "qk_norm": True},
+)
+registry.register_model_config(
+    "rope_flexivit_reg4_b16_qkn_ls_ep",
+    RoPE_FlexiViT,
+    config={
+        "patch_size": 16,
+        **BASE,
+        "num_reg_tokens": 4,
+        "layer_scale_init_value": 1e-5,
+        "qk_norm": True,
+        "attn_pool_head": True,
+        "attn_pool_type": "EfficientProbing",
+    },
 )

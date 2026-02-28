@@ -396,7 +396,7 @@ torchrun --nproc_per_node=8 -m birder.scripts.train_franca --network vit_b16_ls 
 BIOSCAN-5M
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_franca --network vit_b16_ls --tag bioscan5m --dino-out-dim 65536 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 65536 --nesting-levels 4 --sinkhorn-queue-size 1280 --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 16 --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --steps-per-epoch 2000 --warmup-epochs 32 --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/BIOSCAN-5M/pretrain
+torchrun --nproc_per_node=2 -m birder.scripts.train_franca --network vit_b16_ls --tag bioscan5m --dino-out-dim 65536 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 65536 --nesting-levels 4 --sinkhorn-queue-size 1280 --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 16 --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --steps-per-epoch 2000 --warmup-epochs 32 --rgb-mode none --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --data-path ~/Datasets/BIOSCAN-5M/pretrain
 ```
 
 ### I-JEPA
@@ -506,13 +506,13 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mmcr --network pvt_v2_b1 --b
 #### NEPA: RoPE FlexiViT
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_nepa --network rope_flexivit_reg4_b16_qkn_ls --model-config min_patch_size=10,max_patch_size=30 --batch-size 128 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 8 --lr 0.0003 --lr-scale 256 --wd 0.05 --lr-scheduler cosine --epochs 480 --warmup-epochs 40 --size 240 --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path data/training
+torchrun --nproc_per_node=2 -m birder.scripts.train_nepa --network rope_flexivit_reg4_b16_qkn_ls --model-config min_patch_size=10,max_patch_size=30,drop_path_rate=0.0 --batch-size 128 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 1 --lr 0.0003 --lr-scale 256 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --epochs 600 --warmup-epochs 40 --size 240 --rgb-mode none --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --data-path data/training
 ```
 
 #### NEPA: RoPE ViT-5 reg4 b16
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_nepa --network rope_vit5_reg4_b16 --batch-size 256 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 8 --lr 0.0003 --lr-scale 256 --wd 0.05 --lr-scheduler cosine --epochs 480 --warmup-epochs 40 --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path data/training
+torchrun --nproc_per_node=2 -m birder.scripts.train_nepa --network rope_vit5_reg4_b16 --model-config drop_path_rate=0.0 --batch-size 256 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 1 --lr 0.0003 --lr-scale 256 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --epochs 480 --warmup-epochs 40 --rgb-mode none --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --data-path data/training
 ```
 
 ### RotNet

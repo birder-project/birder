@@ -1,5 +1,5 @@
 altair~=5.5.0
-bandit~=1.9.3
+bandit~=1.9.4
 black~=26.1.0
 build~=1.4.0
 bumpver~=2025.1131

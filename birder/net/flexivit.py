@@ -481,6 +481,9 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
     def forward_features(
         self, x: torch.Tensor, patch_size: Optional[int] = None, return_input_embedding: bool = False
     ) -> torch.Tensor:
+        if self.training is True and patch_size is None and not torch.jit.is_tracing() and not torch.jit.is_scripting():
+            patch_size = random.choice(self.patch_size_list)
+
         H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
@@ -529,9 +532,6 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         return x[:, self.num_reg_tokens]
 
     def forward(self, x: torch.Tensor, patch_size: Optional[int] = None) -> torch.Tensor:
-        if self.training is True and patch_size is None and not torch.jit.is_tracing() and not torch.jit.is_scripting():
-            patch_size = random.choice(self.patch_size_list)
-
         x = self.embedding(x, patch_size)
         return self.classify(x)
 

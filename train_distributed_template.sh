@@ -25,7 +25,7 @@
 # 1. Customize the SBATCH parameters at the top based on your cluster resources
 # 2. Modify the training configuration
 # 3. Adjust module loading and environment activation commands
-# 4. Submit the job with: sbatch distributed_training.sh
+# 4. Submit the job with: sbatch train_distributed_template.sh
 #
 # Monitor your job with:
 # - squeue -u $USER
@@ -54,6 +54,7 @@ echo ""
 
 # System information
 echo "--- System Info ---"
+echo "Slurm version: $(scontrol --version)"
 echo "Kernel: $(uname -r)"
 echo "Architecture: $(uname -m)"
 echo "CPU Info: $(lscpu | grep 'Model name' | cut -d':' -f2 | xargs)"
@@ -70,6 +71,12 @@ echo "--- GPU Info ---"
 nvidia-smi --query-gpu=index,name,driver_version,memory.total --format=csv
 echo ""
 
+# Network information
+# echo "--- Network Interfaces ---"
+# ip -o -4 addr show | awk '{print $2, $4}'
+# ip route
+# echo ""
+
 # Load required modules (adjust based on your cluster)
 module load python/3.11
 module load cuda/12.8
@@ -79,7 +86,8 @@ module load cuda/12.8
 # export WDS_SHUFFLE_SIZE=12000
 
 # Set distributed training environment variables
-export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+export MASTER_ADDR
 export MASTER_PORT=12355
 export WORLD_SIZE=$SLURM_NTASKS
 export NCCL_DEBUG=INFO

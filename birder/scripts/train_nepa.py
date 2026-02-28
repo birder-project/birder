@@ -359,7 +359,7 @@ def train(args: argparse.Namespace) -> None:
     if virtual_epoch_mode is True:
         train_iter = iter(training_loader)
 
-    running_loss = training_utils.SmoothedValue()
+    running_loss = training_utils.SmoothedValue(window_size=64)
 
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
