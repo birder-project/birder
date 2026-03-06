@@ -21,7 +21,7 @@ python -m birder.eval <command> --help
 - `classification`: evaluate pre-trained classification models on a dataset
 - `adversarial`: evaluate robustness of a trained model under adversarial attacks
 - `spatial`: evaluate robustness of a trained model under spatial perturbations
-- Benchmarks: `awa2`, `bioscan5m`, `fishnet`, `flowers102`, `fungiclef`, `imagenet1k`, `nabirds`, `newt`, `plankton`, `plantdoc`, `plantnet`
+- Benchmarks: `awa2`, `bioscan5m`, `cct`, `fishnet`, `flowers102`, `fungiclef`, `imagenet1k`, `nabirds`, `newt`, `plankton`, `plantdoc`, `plantnet`
 
 ## Minimal Examples
 
@@ -41,6 +41,9 @@ python -m birder.eval spatial --filter '*arabian-peninsula*' --transforms rotate
 
 # Run a benchmark from saved embeddings
 python -m birder.eval nabirds --embeddings results/nabirds/*.parquet --dataset-path ~/Datasets/nabirds
+
+# Caltech Camera Traps benchmark (cross-location + empty-vs-non-empty)
+python -m birder.eval cct --embeddings results/cct/*.parquet --dataset-path ~/Datasets/CaltechCameraTraps
 ```
 
 ## Inputs and Outputs
@@ -82,7 +85,7 @@ For `bioclip-v1` and `bioclip-v2`, logits are the CLIP projection vectors.
 ## Dataset Helpers (Optional)
 
 `birder.datahub.evaluation` provides dataset helper classes used by several benchmarks, including:
-`AwA2`, `FishNet`, `FungiCLEF2023`, `NABirds`, `NeWT`, `Plankton`, `PlantDoc`, and `PlantNet`.
+`AwA2`, `CaltechCameraTraps`, `FishNet`, `FungiCLEF2023`, `NABirds`, `NeWT`, `Plankton`, `PlantDoc` and `PlantNet`.
 
 Use these helpers if you want programmatic dataset validation/download for supported datasets.
 

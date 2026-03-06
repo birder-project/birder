@@ -15,6 +15,7 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 - [Franca](#franca)
 - [I-JEPA](#i-jepa)
 - [iBOT](#ibot)
+- [LeJEPA](#lejepa)
 - [MMCR](#mmcr)
 - [NEPA](#nepa)
 - [RotNet](#rotnet)
@@ -487,6 +488,20 @@ Large scale training
 torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network vit_b16 --shared-head --norm-last-layer --local-crops-number 10 --teacher-temp 0.07 --warmup-teacher-temp-epochs 30 --freeze-last-layer-epochs 3 --batch-size 48 --opt adamw --clip-grad-norm 0.3 --lr 0.0005 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 80 --warmup-epochs 5 --amp --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
+### LeJEPA
+
+#### LeJEPA: ConvNeXt v1 Small
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_lejepa --network convnext_v1_tiny --batch-size 128 --opt adamw --lr 0.0005 --wd 0.0005 --lr-scheduler cosine --epochs 300 --warmup-epochs 20 --amp --amp-dtype bfloat16 --compile --data-path data/training
+```
+
+#### LeJEPA: SoViT reg4 150m p14
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_lejepa --network vit_reg4_so150m_p14_ls --projection-dim 512 --loss-lambda 0.05 --num-slices 1024 --local-crop-size 98 --batch-size 64 --opt adamw --lr 0.0005 --wd 0.05 --lr-scheduler cosine --epochs 300 --warmup-epochs 20 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
+```
+
 ### MMCR
 
 #### MMCR: EfficientNet v2 Small
@@ -506,13 +521,13 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mmcr --network pvt_v2_b1 --b
 #### NEPA: RoPE FlexiViT
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_nepa --network rope_flexivit_reg4_b16_qkn_ls --model-config min_patch_size=10,max_patch_size=30,drop_path_rate=0.0 --batch-size 128 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 1 --lr 0.0003 --lr-scale 256 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --epochs 600 --warmup-epochs 40 --size 240 --rgb-mode none --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --data-path data/training
+torchrun --nproc_per_node=2 -m birder.scripts.train_nepa --network rope_flexivit_reg4_b16_qkn_ls --model-config min_patch_size=10,max_patch_size=30,drop_path_rate=0.0 --batch-size 128 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 1 --lr 0.0002 --lr-scale 256 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler-update step --lr-scheduler cosine --epochs 600 --warmup-epochs 40 --size 240 --rgb-mode none --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --data-path data/training
 ```
 
 #### NEPA: RoPE ViT-5 reg4 b16
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_nepa --network rope_vit5_reg4_b16 --model-config drop_path_rate=0.0 --batch-size 256 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 1 --lr 0.0003 --lr-scale 256 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --epochs 480 --warmup-epochs 40 --rgb-mode none --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --data-path data/training
+torchrun --nproc_per_node=2 -m birder.scripts.train_nepa --network rope_vit5_reg4_b16 --model-config drop_path_rate=0.0 --batch-size 256 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 1 --lr 0.0002 --lr-scale 256 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler-update step --lr-scheduler cosine --epochs 600 --warmup-epochs 40 --rgb-mode none --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --data-path data/training
 ```
 
 ### RotNet
@@ -548,7 +563,7 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_simclr --network convnext_v1
 #### VICReg: ConvNeXt v2 Tiny
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_vicreg --network convnext_v2_tiny --mlp-dim 4096 --opt adamw --lr 0.00015 --opt-betas 0.9 0.95 --lr-scheduler cosine --warmup-epochs 6 --batch-size 192 --epochs 60 --wd 0.000001 --amp --compile --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_vicreg --network convnext_v2_tiny --mlp-dim 4096 --batch-size 192 --opt adamw --opt-betas 0.9 0.95 --lr 0.00015 --wd 0.000001 --lr-scheduler cosine --epochs 60 --warmup-epochs 6 --amp --compile --wds --wds-info data/ssl_packed/_info.json
 ```
 
 #### VICReg: EfficientNet v2 Medium

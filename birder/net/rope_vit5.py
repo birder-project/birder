@@ -827,6 +827,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
+        patch_embedding = x
         x = x + self._get_pos_embed(H, W)
 
         # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
@@ -838,11 +839,18 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         if len(special_tokens) > 0:
             x = torch.concat(special_tokens + [x], dim=1)
 
-        input_embedding = x
+        if return_input_embedding is True:
+            if len(special_tokens) > 0:
+                input_embedding = torch.concat(special_tokens + [patch_embedding], dim=1)
+            else:
+                input_embedding = patch_embedding
+        else:
+            input_embedding = None  # For TorchScript compatibility
+
         x = self.encoder(x, self._get_rope_embed(H, W))
         x = self.norm(x)
 
-        if return_input_embedding is True:
+        if return_input_embedding is True and input_embedding is not None:
             return torch.stack([input_embedding, x], dim=-1)
 
         return x

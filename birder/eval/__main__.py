@@ -6,6 +6,7 @@ from birder.eval import classification
 from birder.eval import spatial
 from birder.eval.benchmarks import awa2
 from birder.eval.benchmarks import bioscan5m
+from birder.eval.benchmarks import cct
 from birder.eval.benchmarks import fishnet
 from birder.eval.benchmarks import flowers102
 from birder.eval.benchmarks import fungiclef
@@ -34,6 +35,8 @@ def main() -> None:
             "results/awa2/*.parquet --dataset-path ~/Datasets/Animals_with_Attributes2 --gpu\n"
             "python -m birder.eval bioscan5m --embeddings "
             "results/bioscan5m/*.parquet --data-path ~/Datasets/BIOSCAN-5M/species/testing_unseen\n"
+            "python -m birder.eval cct --embeddings "
+            "results/cct/*.parquet --dataset-path ~/Datasets/CaltechCameraTraps\n"
             "python -m birder.eval fishnet --embeddings "
             "results/vit_b16_224px_embeddings.parquet --dataset-path ~/Datasets/fishnet --gpu\n"
             "python -m birder.eval flowers102 --embeddings "
@@ -65,6 +68,7 @@ def main() -> None:
 
     awa2.set_parser(subparsers)
     bioscan5m.set_parser(subparsers)
+    cct.set_parser(subparsers)
     fishnet.set_parser(subparsers)
     flowers102.set_parser(subparsers)
     fungiclef.set_parser(subparsers)

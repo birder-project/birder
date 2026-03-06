@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.10 - 2026-03-06
+
+### Added
+
+- **LeJEPA SSL**: Added [LeJEPA](https://arxiv.org/abs/2511.08544) self-supervised training via `birder.net.ssl.LeJEPA` and `train_lejepa`.
+- **Pretrained Models**:
+    - `vit_b16_ls_franca-bioscan5m`: Added [Franca](https://arxiv.org/abs/2507.14137) ViT-B/16 pretrained weights on the [BIOSCAN-5M](https://arxiv.org/abs/2406.12723) pretrain split.
+    - `shvit_s1_il-common`: Added [SHViT](https://arxiv.org/abs/2401.16456) S1 pretrained weights on the `il-common` dataset.
+- **Caltech Camera Traps Datahub**: Added [CaltechCameraTraps](https://beerys.github.io/CaltechCameraTraps/) dataset helper to `birder.datahub.evaluation`.
+- **CCT Eval Benchmark**: Added `cct` benchmark to `birder.eval` for Caltech Camera Traps cross-location evaluation with two scores: cross-location category accuracy and non-empty F1.
+
+### Fixed
+
+- **NEPA EMA Initialization Order**: Fixed an initialization-order bug in `train_nepa`.
+- **Transformer Embedding Decay for Registers**: Included `reg_tokens` in the `--transformer-embedding-decay` parameter key set so register-token parameters receive the configured embedding decay.
+- **ViT-family Input Embedding Semantics**: Updated `forward_features(..., return_input_embedding=True)` to return clean pre-APE input embeddings.
+
 ## 0.4.9 - 2026-02-28
 
 ### Changed

@@ -45,6 +45,7 @@ class NEPA(SSLBaseNet):
         assert isinstance(self.backbone, MaskedTokenOmissionMixin)
 
         self.shift: bool = self.config.get("shift", True)
+        self.remove_reg_tokens: bool = self.config.get("remove_reg_tokens", False)
 
         if hasattr(self.backbone, "set_causal_attention") is False:
             raise ValueError("NEPA requires a backbone with set_causal_attention support")
@@ -54,9 +55,10 @@ class NEPA(SSLBaseNet):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         features = self.backbone.forward_features(x, return_input_embedding=True)  # type: ignore[call-arg]
 
-        # Strip register tokens
-        num_reg = getattr(self.backbone, "num_reg_tokens", 0)
-        features = features[:, num_reg:, :, :]
+        if self.remove_reg_tokens is True:
+            # Strip register tokens
+            num_reg = getattr(self.backbone, "num_reg_tokens", 0)
+            features = features[:, num_reg:, :, :]
 
         target, pred = features.unbind(dim=-1)
 

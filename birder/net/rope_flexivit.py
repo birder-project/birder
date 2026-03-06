@@ -524,6 +524,8 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         x = flex_proj(x, self.conv_proj.weight, self.conv_proj.bias, patch_size)
         x = self.patch_embed(x)
 
+        patch_embedding = x
+
         if self.pos_embed_special_tokens is False:
             x = x + self._get_pos_embed(H, W, patch_size=patch_size)
 
@@ -536,14 +538,21 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         if len(special_tokens) > 0:
             x = torch.concat(special_tokens + [x], dim=1)
 
+        if return_input_embedding is True:
+            if len(special_tokens) > 0:
+                input_embedding = torch.concat(special_tokens + [patch_embedding], dim=1)
+            else:
+                input_embedding = patch_embedding
+        else:
+            input_embedding = None  # For TorchScript compatibility
+
         if self.pos_embed_special_tokens is True:
             x = x + self._get_pos_embed(H, W, patch_size=patch_size)
 
-        input_embedding = x
         x = self.encoder(x, self._get_rope_embed(H, W, patch_size=patch_size))
         x = self.norm(x)
 
-        if return_input_embedding is True:
+        if return_input_embedding is True and input_embedding is not None:
             return torch.stack([input_embedding, x], dim=-1)
 
         return x

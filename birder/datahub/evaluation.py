@@ -155,6 +155,104 @@ class AwA2:
         return self._root.joinpath("testclasses.txt")
 
 
+class CaltechCameraTraps:
+    """
+    Name: Caltech Camera Traps (CCT)
+    Link: https://beerys.github.io/CaltechCameraTraps/
+    Size: 22 categories (e.g. bobcat, coyote, raccoon, deer, bird, car, empty, etc.),
+          ~243K labeled images across 140 camera-trap locations
+    """
+
+    def __init__(
+        self,
+        root: str | Path,
+        download: bool = False,
+        progress_bar: bool = True,
+        download_images: bool = False,
+        require_images: bool = True,
+    ) -> None:
+        if isinstance(root, str):
+            root = Path(root)
+
+        self._root = root
+
+        if download is True:
+            self._root.mkdir(parents=True, exist_ok=True)
+
+            labels_archive = self._root.joinpath("caltech_camera_traps.json.zip")
+            downloaded_labels = download_url(
+                "https://storage.googleapis.com/public-datasets-lila/caltechcameratraps/labels/"
+                "caltech_camera_traps.json.zip",
+                labels_archive,
+                sha256="976bd9bc9380df7a03018ac70b5340bd2ff81d79a99271058f026a539450d1d6",
+                progress_bar=progress_bar,
+            )
+            if downloaded_labels is True or self.annotations_path.exists() is False:
+                extract_archive(labels_archive, self._root)
+
+            download_url(
+                "https://storage.googleapis.com/public-datasets-lila/caltechcameratraps/"
+                "CaltechCameraTrapsSplits_v0.json",
+                self.splits_path,
+                sha256="4deddfc58791124b37db375d45eeccb52d980b40cdd1dbac4881d0aae7ef34b4",
+                progress_bar=progress_bar,
+            )
+            download_url(
+                "https://storage.googleapis.com/public-datasets-lila/caltechcameratraps/labels/"
+                "caltech_bboxes_20200316.json",
+                self.bboxes_path,
+                sha256="9cc208db67b7dcf3fa403920c203a416527628f76a6b838371ab654478bf2ea3",
+                progress_bar=progress_bar,
+            )
+
+            if download_images is True:
+                image_archive = self._root.joinpath("cct_images.tar.gz")
+                downloaded_images = image_archive.exists() is False
+                download_url(
+                    "https://storage.googleapis.com/public-datasets-lila/caltechcameratraps/cct_images.tar.gz",
+                    image_archive,
+                    sha256="ea07ef6413cdbbaf1e80754dd68fc535e21ba1c5973c95b96f51f3b989866e1b",
+                    progress_bar=progress_bar,
+                )
+                if downloaded_images is True or self.images_dir.exists() is False:
+                    extract_archive(image_archive, self._root)
+
+        else:
+            if self._root.exists() is False or self._root.is_dir() is False:
+                raise RuntimeError("Dataset not found, try download=True to download it")
+
+        if self.annotations_path.exists() is False:
+            raise RuntimeError("Dataset seems corrupted: annotations JSON not found")
+
+        if self.splits_path.exists() is False:
+            raise RuntimeError("Dataset seems corrupted: split JSON not found")
+
+        if self.bboxes_path.exists() is False:
+            raise RuntimeError("Dataset seems corrupted: bboxes JSON not found")
+
+        if require_images is True and self.images_dir.exists() is False:
+            raise RuntimeError(
+                "Dataset images directory not found. Re-run with download=True and download_images=True "
+                "or place extracted images under cct_images/"
+            )
+
+    @property
+    def images_dir(self) -> Path:
+        return self._root.joinpath("cct_images")
+
+    @property
+    def annotations_path(self) -> Path:
+        return self._root.joinpath("caltech_images_20210113.json")
+
+    @property
+    def splits_path(self) -> Path:
+        return self._root.joinpath("CaltechCameraTrapsSplits_v0.json")
+
+    @property
+    def bboxes_path(self) -> Path:
+        return self._root.joinpath("caltech_bboxes_20200316.json")
+
+
 class FishNet:
     """
     Name: FishNet

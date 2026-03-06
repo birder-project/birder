@@ -11,6 +11,7 @@ https://arxiv.org/abs/2103.16483
 import argparse
 import logging
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -31,8 +32,16 @@ from birder.eval.methods.svm import evaluate_svm
 
 logger = logging.getLogger(__name__)
 
-NeWTTaskData = tuple[str, npt.NDArray[np.float32], npt.NDArray[np.int_], npt.NDArray[np.float32], npt.NDArray[np.int_]]
-NeWTPredictionsByCluster = dict[str, list[npt.NDArray[np.int_]]]
+
+@dataclass(slots=True)
+class NeWTTaskData:
+    task_name: str
+    cluster: str
+    test_ids: list[str]
+    x_train: npt.NDArray[np.float32]
+    y_train: npt.NDArray[np.int_]
+    x_test: npt.NDArray[np.float32]
+    y_test: npt.NDArray[np.int_]
 
 
 def _print_summary_table(results: list[dict[str, Any]]) -> None:
@@ -101,6 +110,7 @@ def _prepare_newt_task_data(embeddings_path: str, labels_df: pl.DataFrame) -> li
     all_splits = joined.get_column("split").to_numpy()
     all_tasks = joined.get_column("task").to_numpy()
     all_clusters = joined.get_column("task_cluster").to_numpy()
+    all_ids = joined.get_column("id").to_numpy()
 
     task_names = np.unique(all_tasks)
     logger.info(f"Found {len(task_names)} tasks")
@@ -110,13 +120,16 @@ def _prepare_newt_task_data(embeddings_path: str, labels_df: pl.DataFrame) -> li
         task_mask = all_tasks == task_name
         task_features = all_features[task_mask]
         task_labels = all_labels[task_mask]
-        is_train = all_splits[task_mask] == "train"
+        task_splits = all_splits[task_mask]
+        task_ids = all_ids[task_mask]
+        is_train = task_splits == "train"
         cluster = str(all_clusters[task_mask][0])
 
         x_train = task_features[is_train]
         y_train = task_labels[is_train]
         x_test = task_features[~is_train]
         y_test = task_labels[~is_train]
+        test_ids = [str(sample_id) for sample_id in task_ids[~is_train]]
 
         if x_train.size == 0 or x_test.size == 0:
             logger.warning(f"Skipping task {task_name}: empty train or test split")
@@ -124,35 +137,47 @@ def _prepare_newt_task_data(embeddings_path: str, labels_df: pl.DataFrame) -> li
 
         # Per-task centering and L2 normalization
         x_train, x_test = normalize_features(x_train, x_test)
-        task_data.append((cluster, x_train, y_train, x_test, y_test))
+        task_data.append(NeWTTaskData(str(task_name), cluster, test_ids, x_train, y_train, x_test, y_test))
 
     return task_data
 
 
-def _predict_newt(
-    task_data: list[NeWTTaskData], n_iter: int, n_jobs: int, seed: int
-) -> tuple[list[npt.NDArray[np.int_]], list[npt.NDArray[np.int_]], NeWTPredictionsByCluster, NeWTPredictionsByCluster]:
-    y_preds_all: list[npt.NDArray[np.int_]] = []
-    y_trues_all: list[npt.NDArray[np.int_]] = []
-    cluster_preds: NeWTPredictionsByCluster = {}
-    cluster_trues: NeWTPredictionsByCluster = {}
+def _predict_newt_rows(task_data: list[NeWTTaskData], n_iter: int, n_jobs: int, seed: int) -> pl.DataFrame:
+    ids: list[str] = []
+    tasks: list[str] = []
+    clusters: list[str] = []
+    preds: list[npt.NDArray[np.int_]] = []
+    trues: list[npt.NDArray[np.int_]] = []
 
-    for cluster, x_train, y_train, x_test, y_test in task_data:
-        y_pred, y_true = evaluate_svm(x_train, y_train, x_test, y_test, n_iter=n_iter, n_jobs=n_jobs, seed=seed)
-        y_preds_all.append(y_pred)
-        y_trues_all.append(y_true)
+    for td in task_data:
+        y_pred, y_true = evaluate_svm(
+            td.x_train, td.y_train, td.x_test, td.y_test, n_iter=n_iter, n_jobs=n_jobs, seed=seed
+        )
+        n = len(td.test_ids)
+        ids.extend(td.test_ids)
+        tasks.extend([td.task_name] * n)
+        clusters.extend([td.cluster] * n)
+        preds.append(y_pred)
+        trues.append(y_true)
 
-        if cluster not in cluster_preds:
-            cluster_preds[cluster] = []
-            cluster_trues[cluster] = []
+    return pl.DataFrame(
+        {
+            "id": ids,
+            "task": tasks,
+            "task_cluster": clusters,
+            "y_pred": np.concatenate(preds),
+            "y_true": np.concatenate(trues),
+        }
+    ).with_columns(is_error=(pl.col("y_pred") != pl.col("y_true")))
 
-        cluster_preds[cluster].append(y_pred)
-        cluster_trues[cluster].append(y_true)
 
-    return (y_preds_all, y_trues_all, cluster_preds, cluster_trues)
+def predict_newt_single(
+    embeddings_path: str, labels_df: pl.DataFrame, n_iter: int, n_jobs: int, seed: int
+) -> pl.DataFrame:
+    task_data = _prepare_newt_task_data(embeddings_path, labels_df)
+    return _predict_newt_rows(task_data, n_iter=n_iter, n_jobs=n_jobs, seed=seed)
 
 
-# pylint: disable=too-many-locals
 def evaluate_newt_single(
     embeddings_path: str, labels_df: pl.DataFrame, runs: int, n_iter: int, n_jobs: int, seed: int
 ) -> dict[str, Any]:
@@ -163,22 +188,20 @@ def evaluate_newt_single(
     for run in range(runs):
         run_seed = seed + run
 
-        y_preds_all, y_trues_all, cluster_preds, cluster_trues = _predict_newt(
-            task_data, n_iter=n_iter, n_jobs=n_jobs, seed=run_seed
-        )
+        pred_df = _predict_newt_rows(task_data, n_iter=n_iter, n_jobs=n_jobs, seed=run_seed)
 
         # Micro-averaged accuracy
-        y_preds = np.concatenate(y_preds_all)
-        y_trues = np.concatenate(y_trues_all)
-        acc = float(np.mean(y_preds == y_trues))
+        acc = float(pred_df.select((pl.col("y_pred") == pl.col("y_true")).cast(pl.Float64).mean()).item())
         scores.append(acc)
         logger.info(f"Run {run + 1}/{runs} - Accuracy: {acc:.4f}")
 
         # Compute per-cluster accuracy for this run
-        for cluster, preds_list in cluster_preds.items():
-            preds = np.concatenate(preds_list)
-            trues = np.concatenate(cluster_trues[cluster])
-            cluster_acc = float(np.mean(preds == trues))
+        cluster_acc_df = pred_df.group_by("task_cluster").agg(
+            (pl.col("y_pred") == pl.col("y_true")).cast(pl.Float64).mean().alias("accuracy")
+        )
+        for row in cluster_acc_df.to_dicts():
+            cluster = str(row["task_cluster"]).lower()
+            cluster_acc = float(row["accuracy"])
             if cluster not in cluster_scores:
                 cluster_scores[cluster] = []
 

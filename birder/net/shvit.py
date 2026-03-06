@@ -538,3 +538,18 @@ registry.register_model_config(
     SHViT,
     config={"embed_dims": [224, 336, 448], "depths": [4, 7, 6], "partial_dims": [48, 72, 96]},
 )
+
+registry.register_weights(
+    "shvit_s1_il-common",
+    {
+        "description": "SHViT S1 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 23.7,
+                "sha256": "75388c61e8dfa7afc6c7ae3cd2803bc170e76beecf877f960a80d5751774e8b1",
+            }
+        },
+        "net": {"network": "shvit_s1", "tag": "il-common"},
+    },
+)

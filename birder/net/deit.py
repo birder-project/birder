@@ -216,9 +216,9 @@ class DeiT(DetectorBackbone):
         batch_dist_token = self.dist_token.expand(x.shape[0], -1, -1)
 
         x = torch.concat([batch_class_token, batch_dist_token, x], dim=1)
+        input_embedding = x
         x = x + self._get_pos_embed(H, W)
 
-        input_embedding = x
         x = self.encoder(x)
         x = self.norm(x)
 

@@ -14,6 +14,7 @@ jupyter:
 ---
 
 ```{python}
+import json
 import os
 
 import matplotlib.pyplot as plt
@@ -28,8 +29,57 @@ import torch
 
 ```{python}
 from birder.datahub.evaluation import AwA2
+from birder.datahub.evaluation import CaltechCameraTraps
+from birder.datahub.evaluation import NeWT
 from birder.eval._embeddings import load_embeddings
 from birder.eval.benchmarks import awa2
+from birder.eval.benchmarks import cct
+from birder.eval.benchmarks import newt
+```
+
+```{python}
+def _show_image(ax, image_path: str) -> None:
+    if image_path and os.path.exists(image_path):
+        ax.imshow(plt.imread(image_path))
+    else:
+        ax.text(0.5, 0.5, "Image not found", ha="center", va="center", fontsize=8)
+
+    ax.axis("off")
+
+
+def plot_mistake_grid(
+    rows: list[dict],
+    start: int,
+    n: int,
+    cols: int,
+    suptitle_template: str,
+    title_fn,
+    *,
+    fig_scale: float = 3.0,
+    title_fontsize: int = 7,
+) -> None:
+    batch = rows[start : start + n]
+    if len(batch) == 0:
+        return
+
+    n_rows = int(np.ceil(len(batch) / cols))
+    fig, axes = plt.subplots(n_rows, cols, figsize=(cols * fig_scale, n_rows * fig_scale))
+    axes = np.atleast_1d(axes).ravel()
+
+    for ax, row in zip(axes, batch):
+        _show_image(ax, str(row.get("image_path", "")))
+        ax.set_title(title_fn(row), fontsize=title_fontsize)
+
+    for ax in axes[len(batch) :]:
+        ax.axis("off")
+
+    end = start + len(batch)
+    fig.suptitle(suptitle_template.format(start=start + 1, end=end, total=len(rows)), fontsize=12)
+    plt.tight_layout()
+```
+
+```{python}
+DEVICE = torch.device("cuda:1")
 ```
 
 ### AwA2
@@ -37,44 +87,58 @@ from birder.eval.benchmarks import awa2
 ```{python}
 AWA2_DATASET_PATH = "~/Datasets/Animals_with_Attributes2"
 AWA2_EMBEDDINGS_PATH = "results/awa2/awa2_vit_b16_pn_bioclip-v1_512_224px_crop1.0_37322_sc_embeddings.parquet"
+AWA2_SEED = 0
+AWA2_EPOCHS = 100
+AWA2_BATCH_SIZE = 256
 ```
 
 ```{python}
-device = torch.device("cuda:1")
-
-dataset = AwA2(os.path.expanduser(AWA2_DATASET_PATH))
-metadata_df, attribute_matrix, class_names, train_classes, test_classes = awa2._load_awa2_metadata(dataset)
-x_train, y_train, x_test, y_test = awa2._load_embeddings_with_labels(
-    AWA2_EMBEDDINGS_PATH, metadata_df, attribute_matrix, class_names, train_classes, test_classes
+awa2_dataset = AwA2(os.path.expanduser(AWA2_DATASET_PATH))
+awa2_metadata_df, awa2_attribute_matrix, awa2_class_names, awa2_train_classes, awa2_test_classes = (
+    awa2._load_awa2_metadata(awa2_dataset)
+)
+awa2_x_train, awa2_y_train, awa2_x_test, awa2_y_test = awa2._load_embeddings_with_labels(
+    AWA2_EMBEDDINGS_PATH,
+    awa2_metadata_df,
+    awa2_attribute_matrix,
+    awa2_class_names,
+    awa2_train_classes,
+    awa2_test_classes,
 )
 ```
 
 ```{python}
-model = awa2.train_mlp(
-    x_train,
-    y_train,
-    num_classes=len(dataset.attribute_names),
-    device=device,
-    epochs=100,
-    batch_size=256,
+awa2_model = awa2.train_mlp(
+    awa2_x_train,
+    awa2_y_train,
+    num_classes=len(awa2_dataset.attribute_names),
+    device=DEVICE,
+    epochs=AWA2_EPOCHS,
+    batch_size=AWA2_BATCH_SIZE,
     lr=1e-4,
     hidden_dim=512,
     dropout=0.5,
-    seed=0,
+    seed=AWA2_SEED,
 )
-y_pred, y_true, _ = awa2.evaluate_mlp(model, x_test, y_test, batch_size=256, device=device)
+awa2_y_pred, awa2_y_true, _ = awa2.evaluate_mlp(
+    awa2_model,
+    awa2_x_test,
+    awa2_y_test,
+    batch_size=AWA2_BATCH_SIZE,
+    device=DEVICE,
+)
 ```
 
 ```{python}
-present_attrs = np.where(y_true.sum(axis=0) > 0)[0]
-sample_ids = load_embeddings(AWA2_EMBEDDINGS_PATH)["id"]
+awa2_present_attrs = np.where(awa2_y_true.sum(axis=0) > 0)[0]
+awa2_emb_ids_df = load_embeddings(AWA2_EMBEDDINGS_PATH).select(["id"])
 
-test_meta = (
-    metadata_df.join(pl.DataFrame({"id": sample_ids}), on="id", how="inner")
-    .filter(pl.col("class_name").is_in(test_classes))
+awa2_test_meta = (
+    awa2_metadata_df.join(awa2_emb_ids_df, on="id", how="inner")
+    .filter(pl.col("class_name").is_in(awa2_test_classes))
     .with_columns(
         pl.concat_str(
-            pl.lit(f"{dataset.images_dir}/"),
+            pl.lit(f"{awa2_dataset.images_dir}/"),
             pl.col("class_name"),
             pl.lit("/"),
             pl.col("id"),
@@ -84,56 +148,272 @@ test_meta = (
     .select(["class_name", "image_path"])
 )
 
-assert len(test_meta) == y_true.shape[0]
+assert awa2_test_meta.height == awa2_y_true.shape[0], "AwA2 metadata rows are not aligned with prediction vector length"
 ```
 
 ```{python}
-test_rows = test_meta.to_dicts()
-attr_acc = (y_pred == y_true).mean(axis=0)
-mistakes = []
-for attr_idx in present_attrs:
-    mismatch = np.flatnonzero(y_pred[:, attr_idx] != y_true[:, attr_idx])
+awa2_rng = np.random.default_rng(AWA2_SEED)
+awa2_test_rows = awa2_test_meta.to_dicts()
+awa2_attr_acc = (awa2_y_pred == awa2_y_true).mean(axis=0)
+awa2_mistakes: list[dict] = []
+
+for attr_idx in awa2_present_attrs:
+    mismatch = np.flatnonzero(awa2_y_pred[:, attr_idx] != awa2_y_true[:, attr_idx])
     if mismatch.size == 0:
         continue
 
-    sample_idx = int(np.random.choice(mismatch))
-    row = test_rows[sample_idx]
-    mistakes.append(
+    sample_idx = int(awa2_rng.choice(mismatch))
+    assert (
+        awa2_y_pred[sample_idx, attr_idx] != awa2_y_true[sample_idx, attr_idx]
+    ), "AwA2 sampled row is not a real mistake"
+
+    row = awa2_test_rows[sample_idx]
+    actual_value = int(awa2_y_true[sample_idx, attr_idx])
+    predicted_value = int(awa2_y_pred[sample_idx, attr_idx])
+    awa2_mistakes.append(
         {
-            "attribute": dataset.attribute_names[attr_idx],
-            "error": "FN" if y_true[sample_idx, attr_idx] else "FP",
-            "accuracy": float(attr_acc[attr_idx]),
+            "attribute": awa2_dataset.attribute_names[attr_idx],
+            "actual_label": "True" if actual_value == 1 else "False",
+            "predicted_label": "True" if predicted_value == 1 else "False",
+            "accuracy": float(awa2_attr_acc[attr_idx]),
             "class_name": row["class_name"],
             "image_path": row["image_path"],
         }
     )
 
-print(f"Found mistakes for {len(mistakes)}/{len(present_attrs)} present attributes")
-# pl.DataFrame(mistakes).head(10)
+print(f"Found mistakes for {len(awa2_mistakes)}/{len(awa2_present_attrs)} present attributes")
+# pl.DataFrame(awa2_mistakes).head(10)
 ```
 
 ```{python}
-def plot_mistakes(rows: list[dict], start: int, n: int, cols: int) -> None:
-    batch = rows[start : start + n]
-    if len(batch) == 0:
-        return
-
-    n_rows = int(np.ceil(len(batch) / cols))
-    fig, axes = plt.subplots(n_rows, cols, figsize=(cols * 2.8, n_rows * 2.8))
-    axes = np.atleast_1d(axes).ravel()
-
-    for ax, row in zip(axes, batch):
-        ax.imshow(plt.imread(row["image_path"]))
-        ax.set_title(f"{row['attribute']} ({row['error']}, acc={row['accuracy']:.1%})\n{row['class_name']}", fontsize=8)
-        ax.axis("off")
-
-    for ax in axes[len(batch) :]:
-        ax.axis("off")
-
-    end = start + len(batch)
-    fig.suptitle(f"One mistake per attribute ({start + 1}-{end} / {len(rows)})", fontsize=12)
-    plt.tight_layout()
+def plot_awa2_mistakes(rows: list[dict], start: int, n: int, cols: int) -> None:
+    plot_mistake_grid(
+        rows,
+        start,
+        n,
+        cols,
+        suptitle_template="AwA2 mistakes: one per attribute ({start}-{end} / {total})",
+        title_fn=lambda row: (
+            f"{row['attribute']}\n"
+            f"Actual: {row['actual_label']} | Predicted: {row['predicted_label']}\n"
+            f"Class: {row['class_name']} | Attr acc: {row['accuracy']:.1%}"
+        ),
+        fig_scale=2.8,
+        title_fontsize=8,
+    )
 
 
-plot_mistakes(mistakes, start=0, n=20, cols=5)
+plot_awa2_mistakes(awa2_mistakes, start=0, n=20, cols=5)
+```
+
+### NeWT
+
+```{python}
+NEWT_DATASET_PATH = "~/Datasets/NeWT"
+NEWT_EMBEDDINGS_PATH = (
+    "results/newt/newt_vit_reg4_so150m_p14_ls_dino-v2-bio_0_e100_224px_crop1.0_36032_sc_embeddings.parquet"
+)
+NEWT_N_ITER = 30
+NEWT_N_JOBS = 8
+NEWT_SEED = 0
+```
+
+```{python}
+newt_dataset = NeWT(os.path.expanduser(NEWT_DATASET_PATH))
+newt_labels_df = (
+    pl.read_csv(newt_dataset.labels_path).with_row_index(name="index").with_columns(pl.col("id").cast(pl.Utf8))
+)
+
+newt_pred_df = newt.predict_newt_single(
+    NEWT_EMBEDDINGS_PATH,
+    newt_labels_df,
+    n_iter=NEWT_N_ITER,
+    n_jobs=NEWT_N_JOBS,
+    seed=NEWT_SEED,
+).with_columns(
+    pl.concat_str(pl.lit(f"{newt_dataset.images_dir}/"), pl.col("id"), pl.lit(".jpg")).alias("image_path"),
+    pl.when(pl.col("y_pred") == 1).then(pl.lit("True")).otherwise(pl.lit("False")).alias("predicted_label"),
+    pl.when(pl.col("y_true") == 1).then(pl.lit("True")).otherwise(pl.lit("False")).alias("actual_label"),
+)
+
+print(f"Loaded {newt_pred_df.height} NeWT test predictions")
+print("NeWT labels are binary per task: True=positive class, False=negative class")
+```
+
+```{python}
+newt_rng = np.random.default_rng(NEWT_SEED)
+
+assert newt_pred_df.select(
+    ((pl.col("y_pred") != pl.col("y_true")) == pl.col("is_error")).all()
+).item(), "NeWT error flag mismatch: is_error is not consistent with y_pred != y_true"
+
+newt_task_acc_df = newt_pred_df.group_by("task").agg(
+    [
+        ((pl.col("y_pred") == pl.col("y_true")).cast(pl.Float64)).mean().alias("accuracy"),
+        pl.first("task_cluster").alias("task_cluster"),
+    ]
+)
+
+newt_mistakes_df = newt_pred_df.filter(pl.col("is_error")).join(
+    newt_task_acc_df.select(["task", "accuracy"]),
+    on="task",
+    how="left",
+)
+
+newt_task_to_candidates: dict[str, list[dict]] = {}
+for row in newt_mistakes_df.to_dicts():
+    task = str(row["task"])
+    if task not in newt_task_to_candidates:
+        newt_task_to_candidates[task] = []
+
+    newt_task_to_candidates[task].append(row)
+
+newt_task_mistakes: list[dict] = []
+for task, candidates in newt_task_to_candidates.items():
+    chosen = candidates[int(newt_rng.integers(len(candidates)))]
+    newt_task_mistakes.append(chosen)
+
+assert all(bool(row["is_error"]) for row in newt_task_mistakes), "Non-mistake row leaked into NeWT task_mistakes"
+
+newt_task_mistakes = sorted(newt_task_mistakes, key=lambda row: (row["task_cluster"], row["task"]))
+print(f"Found mistakes for {len(newt_task_mistakes)}/{newt_task_acc_df.height} tasks")
+# pl.DataFrame(newt_task_mistakes)
+```
+
+```{python}
+def plot_newt_task_mistakes(rows: list[dict], start: int, n: int, cols: int) -> None:
+    plot_mistake_grid(
+        rows,
+        start,
+        n,
+        cols,
+        suptitle_template="NeWT mistakes: one per task ({start}-{end} / {total})",
+        title_fn=lambda row: (
+            f"{row['task_cluster']} | {row['task']}\n"
+            f"Actual: {row['actual_label']} | Predicted: {row['predicted_label']}\n"
+            f"Task acc: {row['accuracy']:.1%}"
+        ),
+        fig_scale=3.0,
+        title_fontsize=7,
+    )
+
+
+plot_newt_task_mistakes(newt_task_mistakes, start=0, n=20, cols=5)
+```
+
+### CCT
+
+
+```{python}
+CCT_DATASET_PATH = "~/Datasets/CaltechCameraTraps"
+CCT_EMBEDDINGS_PATH = (
+    "results/cct/cct_vit_reg4_so150m_p14_ls_dino-v2-bio_0_e100_224px_crop1.0_244584_sc_embeddings.parquet"
+)
+CCT_SPLIT_SET = "main"
+CCT_K = 20
+CCT_SEED = 0
+```
+
+```{python}
+cct_dataset = CaltechCameraTraps(os.path.expanduser(CCT_DATASET_PATH))
+cct_metadata_df, cct_train_locations, cct_test_locations = cct._load_cct_metadata(cct_dataset, CCT_SPLIT_SET)
+cct_category_data, _, cct_stats = cct._load_embeddings_with_split(CCT_EMBEDDINGS_PATH, cct_metadata_df)
+cct_x_train_category, cct_y_train_category, cct_x_test_category, cct_y_test_category = cct_category_data
+cct_y_pred, cct_y_true = cct.evaluate_knn(
+    cct_x_train_category,
+    cct_y_train_category,
+    cct_x_test_category,
+    cct_y_test_category,
+    k=CCT_K,
+    device=DEVICE,
+)
+print(
+    f"Loaded CCT split with {cct_stats['category_train_samples']:,} train / "
+    f"{cct_stats['category_test_samples']:,} test single-label images"
+)
+```
+
+```{python}
+with open(cct_dataset.annotations_path, encoding="utf-8") as f:
+    cct_payload = json.load(f)
+
+cct_id_to_file_name = {str(img["id"]): str(img["file_name"]) for img in cct_payload["images"]}
+cct_category_id_to_name = {int(cat["id"]): str(cat["name"]) for cat in cct_payload["categories"]}
+
+cct_emb_df = load_embeddings(CCT_EMBEDDINGS_PATH)
+cct_test_category_df = (
+    cct_metadata_df.filter(pl.col("split") == "test")
+    .select(["id", "location", "label", "is_single_label"])
+    .join(cct_emb_df, on="id", how="inner")
+    .filter(pl.col("is_single_label"))
+    .select(["id", "location", "label"])
+)
+
+assert cct_test_category_df.height == cct_y_true.shape[0], "CCT test rows are not aligned with prediction vector length"
+assert np.array_equal(
+    cct_test_category_df.get_column("label").to_numpy().astype(np.int_),
+    cct_y_true,
+), "CCT test metadata order mismatch with y_true"
+
+cct_test_rows = cct_test_category_df.to_dicts()
+for row in cct_test_rows:
+    image_relpath = cct_id_to_file_name.get(str(row["id"]))
+    row["image_path"] = str(cct_dataset.images_dir.joinpath(image_relpath.lstrip("/"))) if image_relpath else ""
+    row["actual_name"] = cct_category_id_to_name.get(int(row["label"]), str(row["label"]))
+
+cct_rng = np.random.default_rng(CCT_SEED)
+cct_present_categories = np.unique(cct_y_true)
+cct_category_acc = {
+    int(category_id): float(np.mean(cct_y_pred[cct_y_true == category_id] == cct_y_true[cct_y_true == category_id]))
+    for category_id in cct_present_categories
+}
+
+cct_mistakes: list[dict] = []
+for category_id in cct_present_categories:
+    mismatch = np.flatnonzero((cct_y_true == category_id) & (cct_y_pred != cct_y_true))
+    if mismatch.size == 0:
+        continue
+
+    sample_idx = int(cct_rng.choice(mismatch))
+    row = cct_test_rows[sample_idx]
+    actual_id = int(row["label"])
+    predicted_id = int(cct_y_pred[sample_idx])
+    assert predicted_id != actual_id, "CCT sampled row is not a real mistake"
+
+    cct_mistakes.append(
+        {
+            "actual_label": row["actual_name"],
+            "predicted_label": cct_category_id_to_name.get(predicted_id, str(predicted_id)),
+            "actual_id": actual_id,
+            "predicted_id": predicted_id,
+            "accuracy": cct_category_acc[int(category_id)],
+            "location": row["location"],
+            "image_path": row["image_path"],
+        }
+    )
+
+cct_mistakes = sorted(cct_mistakes, key=lambda row: row["actual_label"])
+print(f"Found mistakes for {len(cct_mistakes)}/{len(cct_present_categories)} present CCT categories")
+# pl.DataFrame(cct_mistakes)
+```
+
+```{python}
+def plot_cct_mistakes(rows: list[dict], start: int, n: int, cols: int) -> None:
+    plot_mistake_grid(
+        rows,
+        start,
+        n,
+        cols,
+        suptitle_template="CCT mistakes: one per true category ({start}-{end} / {total})",
+        title_fn=lambda row: (
+            f"Actual: {row['actual_label']} (id={row['actual_id']})\n"
+            f"Predicted: {row['predicted_label']} (id={row['predicted_id']})\n"
+            f"Location: {row['location']} | Class acc: {row['accuracy']:.1%}"
+        ),
+        fig_scale=3.0,
+        title_fontsize=7,
+    )
+
+
+plot_cct_mistakes(cct_mistakes, start=0, n=20, cols=5)
 ```

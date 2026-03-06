@@ -376,14 +376,19 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             special_tokens.append(self.reg_tokens.expand(x.size(0), -1, -1))
 
         special_tokens.append(self.class_token.expand(x.size(0), -1, -1))
+        patch_embedding = x
         x = x + self._get_pos_embed(H, W)
         x = torch.concat(special_tokens + [x], dim=1)
 
-        input_embedding = x
+        if return_input_embedding is True:
+            input_embedding = torch.concat(special_tokens + [patch_embedding], dim=1)
+        else:
+            input_embedding = None  # For TorchScript compatibility
+
         x = self.encoder(x, self._get_rope_embed(H, W))
         x = self.norm(x)
 
-        if return_input_embedding is True:
+        if return_input_embedding is True and input_embedding is not None:
             return torch.stack([input_embedding, x], dim=-1)
 
         return x

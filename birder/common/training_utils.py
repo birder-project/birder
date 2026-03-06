@@ -642,6 +642,7 @@ def get_wd_custom_keys(args: argparse.Namespace) -> list[tuple[str, float]]:
         for key in [
             "cls_token",
             "class_token",
+            "reg_tokens",
             "mask_token",
             "pos_embed",
             "pos_embedding",

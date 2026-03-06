@@ -188,8 +188,8 @@ class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         H, W = x.shape[-2:]
         x = self.conv_proj(x)
         x = self.patch_embed(x)
-        x = x + self._get_pos_embed(H, W)
         input_embedding = x
+        x = x + self._get_pos_embed(H, W)
         x = self.encoder(x)
         x = self.norm(x)
 

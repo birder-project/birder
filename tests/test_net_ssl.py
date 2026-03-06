@@ -17,6 +17,7 @@ from birder.net.ssl import dino_v2
 from birder.net.ssl import franca
 from birder.net.ssl import i_jepa
 from birder.net.ssl import ibot
+from birder.net.ssl import lejepa
 from birder.net.ssl import mmcr
 from birder.net.ssl import nepa
 from birder.net.ssl import simclr
@@ -1510,6 +1511,43 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(loss["all"].ndim, 0)
         self.assertEqual(loss["embedding"].ndim, 0)
         self.assertEqual(loss["features"].ndim, 0)
+
+    def test_lejepa(self) -> None:
+        batch_size = 4
+        size = (128, 128)
+        local_size = (96, 96)
+
+        backbone = registry.net_factory("vit_t16", 0, size=size)
+        backbone.set_dynamic_size()
+        net = lejepa.LeJEPA(
+            backbone,
+            config={
+                "projection_dim": 96,
+                "projection_hidden_dim": 192,
+                "projection_layers": 2,
+                "loss_lambda": 0.02,
+                "num_slices": 32,
+                "num_knots": 9,
+                "t_max": 3.0,
+            },
+        )
+
+        images = [
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *local_size)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *local_size)),
+        ]
+
+        loss, sigreg_loss, inv_loss = net(images)
+
+        self.assertFalse(torch.isnan(loss).any())
+        self.assertFalse(torch.isnan(sigreg_loss).any())
+        self.assertFalse(torch.isnan(inv_loss).any())
+
+        self.assertEqual(loss.ndim, 0)
+        self.assertEqual(sigreg_loss.ndim, 0)
+        self.assertEqual(inv_loss.ndim, 0)
 
     def test_mmcr(self) -> None:
         batch_size = 4

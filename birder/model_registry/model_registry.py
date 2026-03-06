@@ -51,25 +51,25 @@ class ModelRegistry:
     def register_model(self, name: str, net_type: "BaseNetType") -> None:
         if net_type.task == Task.IMAGE_CLASSIFICATION:
             if name in self._nets:
-                warnings.warn(f"Network named {name} is already registered", UserWarning)
+                warnings.warn(f"Network '{name}' is already registered and will be overwritten", UserWarning)
 
             self._nets[name] = net_type
 
         elif net_type.task == Task.OBJECT_DETECTION:
             if name in self._detection_nets:
-                warnings.warn(f"Detection network named {name} is already registered", UserWarning)
+                warnings.warn(f"Detection network '{name}' is already registered and will be overwritten", UserWarning)
 
             self._detection_nets[name] = net_type
 
         elif net_type.task == Task.MASKED_IMAGE_MODELING:
             if name in self._mim_nets:
-                warnings.warn(f"MIM network named {name} is already registered", UserWarning)
+                warnings.warn(f"MIM network '{name}' is already registered and will be overwritten", UserWarning)
 
             self._mim_nets[name] = net_type
 
         elif net_type.task == Task.SELF_SUPERVISED_LEARNING:
             if name in self._ssl_nets:
-                warnings.warn(f"SSL network named {name} is already registered", UserWarning)
+                warnings.warn(f"SSL network '{name}' is already registered and will be overwritten", UserWarning)
 
             self._ssl_nets[name] = net_type
 
@@ -94,13 +94,13 @@ class ModelRegistry:
             self.register_model(alias_key, type(alias, (net_type,), {"config": config}))
 
         if alias in self.aliases:
-            warnings.warn(f"Alias {alias} is already registered", UserWarning)
+            warnings.warn(f"Alias '{alias}' is already registered and will be overwritten", UserWarning)
 
         self.aliases[alias_key] = type(alias, (net_type,), {"config": config})
 
     def register_weights(self, name: str, weights_info: manifest.ModelMetadataType) -> None:
         if name in self._pretrained_nets:
-            warnings.warn(f"Weights {name} is already registered", UserWarning)
+            warnings.warn(f"Weights '{name}' are already registered and will be overwritten", UserWarning)
 
         if "task" not in weights_info:
             weights_info["task"] = self.all_nets[weights_info["net"]["network"]].task

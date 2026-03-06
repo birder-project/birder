@@ -742,6 +742,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         # Reshape and permute the input tensor
         x = self.conv_proj(x)
         x = self.patch_embed(x)
+        patch_embedding = x
 
         if self.pos_embed_special_tokens is False:
             x = x + self._get_pos_embed(H, W)
@@ -755,14 +756,21 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         if len(special_tokens) > 0:
             x = torch.concat(special_tokens + [x], dim=1)
 
+        if return_input_embedding is True:
+            if len(special_tokens) > 0:
+                input_embedding = torch.concat(special_tokens + [patch_embedding], dim=1)
+            else:
+                input_embedding = patch_embedding
+        else:
+            input_embedding = None  # For TorchScript compatibility
+
         if self.pos_embed_special_tokens is True:
             x = x + self._get_pos_embed(H, W)
 
-        input_embedding = x
         x = self.encoder(x)
         x = self.norm(x)
 
-        if return_input_embedding is True:
+        if return_input_embedding is True and input_embedding is not None:
             return torch.stack([input_embedding, x], dim=-1)
 
         return x
@@ -815,6 +823,24 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
 # Register model configs (side effects)
 register_vit_configs(ViT)
 
+registry.register_weights(
+    "vit_b16_ls_franca-bioscan5m",
+    {
+        "url": "https://huggingface.co/birder-project/vit_b16_ls_franca-bioscan5m/resolve/main",
+        "description": (
+            "ViT b16 image encoder pre-trained using Franca on the BIOSCAN-5M dataset. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 327.4,
+                "sha256": "2124b590b20fb769e693b1ff31a9f5e77cb449924a3b27fc5a74013af5b2990c",
+            },
+        },
+        "net": {"network": "vit_b16_ls", "tag": "franca-bioscan5m"},
+    },
+)
 registry.register_weights(  # BioCLIP v1: https://arxiv.org/abs/2311.18803
     "vit_b16_pn_bioclip-v1",
     {

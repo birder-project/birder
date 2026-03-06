@@ -69,7 +69,7 @@ def evaluate_ami(
     if l2_normalize_features is True:
         features = l2_normalize(features)
 
-    reducer = umap.UMAP(n_components=umap_dim, min_dist=0.0, n_jobs=n_jobs, random_state=seed)
+    reducer = umap.UMAP(n_neighbors=15, n_components=umap_dim, min_dist=0.0, n_jobs=n_jobs, random_state=seed)
     features_reduced = reducer.fit_transform(features)
 
     clustering = AgglomerativeClustering(n_clusters=n_clusters, linkage="ward")

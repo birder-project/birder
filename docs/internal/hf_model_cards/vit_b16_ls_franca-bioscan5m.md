@@ -9,9 +9,9 @@ datasets:
 - bioscan-ml/BIOSCAN-5M
 ---
 
-# Model Card for rdnet_t_ibot-bioscan5m
+# Model Card for vit_b16_ls_franca-bioscan5m
 
-A RDNet tiny image encoder pre-trained using iBOT.
+A ViT b16 image encoder pre-trained using Franca.
 
 The model is primarily a feature extractor. Separately trained linear probing classification heads for various taxonomic levels (order, family, genus, species) are available for classification tasks.
 
@@ -19,25 +19,25 @@ The model is primarily a feature extractor. Separately trained linear probing cl
 
 - **Model Type:** Image classification and detection backbone
 - **Model Stats:**
-    - Params (M): 22.8
+    - Params (M): 85.8
     - Input image size: 224 x 224
 - **Dataset:** BIOSCAN-5M (pretrain split)
 
 - **Papers:**
-    - DenseNets Reloaded: Paradigm Shift Beyond ResNets and ViTs: <https://arxiv.org/abs/2403.19588>
-    - iBOT: Image BERT Pre-Training with Online Tokenizer: <https://arxiv.org/abs/2111.07832>
+    - An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale: <https://arxiv.org/abs/2010.11929>
+    - Franca: Nested Matryoshka Clustering for Scalable Visual Representation Learning: <https://arxiv.org/abs/2507.14137>
 
 ## Linear Probing Results
 
-The following table shows the Top-1 Accuracy (%) achieved by training a linear classification head on top of the frozen `rdnet_t_ibot-bioscan5m` encoder.
+The following table shows the Top-1 Accuracy (%) achieved by training a linear classification head on top of the frozen `vit_b16_ls_franca-bioscan5m` encoder.
 The linear probing was conducted using 289,203 samples for all taxonomic levels, and the model was evaluated on the validation (14,757 samples) and test (39,373 samples) splits of the BIOSCAN-5M dataset.
 
 | Taxonomic Level | Classes (N) | Val Top-1 Acc. (%) | Test Top-1 Acc. (%) |
 |-----------------|-------------|--------------------|---------------------|
-| Order           | 42          | 99.36              | 99.01               |
-| Family          | 606         | 95.79              | 92.89               |
-| Genus           | 4930        | 88.09              | 78.51               |
-| Species         | 11846       | 79.74              | 65.26               |
+| Order           | 42          | 99.56              | 99.47               |
+| Family          | 606         | 97.61              | 96.44               |
+| Genus           | 4930        | 94.36              | 90.14               |
+| Species         | 11846       | 89.46              | 82.30               |
 
 ## Unsupervised Evaluation (Adjusted Mutual Information)
 
@@ -52,8 +52,8 @@ The AMI score reflects how well the learned representations align with ground-tr
 
 | Taxonomic Level | AMI Score (%) |
 |-----------------|---------------|
-| Genus           | 39.14         |
-| Species         | 26.91         |
+| Genus           | 62.92         |
+| Species         | 43.75         |
 
 ## Model Usage
 
@@ -66,20 +66,14 @@ import torch
 import birder
 from birder.inference.classification import infer_image
 
-(net, model_info) = birder.load_pretrained_model("rdnet_t_ibot-bioscan5m", inference=True)
+(net, model_info, transform) = birder.load_pretrained_model_and_transform("vit_b16_ls_franca-bioscan5m", inference=True)
 
 # Load a linear probing classification head (e.g., for 'family')
-head_data = torch.load("models/rdnet_t_ibot-bioscan5m-family.head.pt")
+head_data = torch.load("models/vit_b16_ls_franca-bioscan5m-family.head.pt")
 
 # Reset the classifier layer and load the head weights
 net.reset_classifier(len(head_data["class_to_idx"]))
 net.classifier.load_state_dict(head_data["state"])
-
-# Get the image size the model was trained on
-size = birder.get_size_from_signature(model_info.signature)
-
-# Create an inference transform
-transform = birder.classification_transform(size, model_info.rgb_stats)
 
 image = "path/to/image.jpeg"  # or a PIL image, must be loaded in RGB format
 (out, _) = infer_image(net, image, transform)
@@ -92,7 +86,8 @@ image = "path/to/image.jpeg"  # or a PIL image, must be loaded in RGB format
 import birder
 from birder.inference.classification import infer_image
 
-(net, model_info) = birder.load_pretrained_model("rdnet_t_ibot-bioscan5m", inference=True)
+# Option 1: manual setup (more control over preprocessing)
+(net, model_info) = birder.load_pretrained_model("vit_b16_ls_franca-bioscan5m", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -100,9 +95,12 @@ size = birder.get_size_from_signature(model_info.signature)
 # Create an inference transform
 transform = birder.classification_transform(size, model_info.rgb_stats)
 
+# Option 2: helper (quick start with default preprocessing)
+(net, model_info, transform) = birder.load_pretrained_model_and_transform("vit_b16_ls_franca-bioscan5m", inference=True)
+
 image = "path/to/image.jpeg"  # or a PIL image
 (out, embedding) = infer_image(net, image, transform, return_embedding=True)
-# embedding is a NumPy array with shape of (1, 1040)
+# embedding is a NumPy array with shape of (1, 768)
 ```
 
 ### Detection Feature Map
@@ -111,46 +109,37 @@ image = "path/to/image.jpeg"  # or a PIL image
 from PIL import Image
 import birder
 
-(net, model_info) = birder.load_pretrained_model("rdnet_t_ibot-bioscan5m", inference=True)
-
-# Get the image size the model was trained on
-size = birder.get_size_from_signature(model_info.signature)
-
-# Create an inference transform
-transform = birder.classification_transform(size, model_info.rgb_stats)
+(net, model_info, transform) = birder.load_pretrained_model_and_transform("vit_b16_ls_franca-bioscan5m", inference=True)
 
 image = Image.open("path/to/image.jpeg")
 features = net.detection_features(transform(image).unsqueeze(0))
 # features is a dict (stage name -> torch.Tensor)
 print([(k, v.size()) for k, v in features.items()])
 # Output example:
-# [('stage1', torch.Size([1, 256, 56, 56])),
-#  ('stage2', torch.Size([1, 440, 28, 28])),
-#  ('stage3', torch.Size([1, 744, 14, 14])),
-#  ('stage4', torch.Size([1, 1040, 7, 7]))]
+# [('stage1', torch.Size([1, 768, 14, 14]))]
 ```
 
 ## Citation
 
 ```bibtex
-@misc{kim2024densenetsreloadedparadigmshift,
-      title={DenseNets Reloaded: Paradigm Shift Beyond ResNets and ViTs},
-      author={Donghyun Kim and Byeongho Heo and Dongyoon Han},
-      year={2024},
-      eprint={2403.19588},
+@misc{dosovitskiy2021imageworth16x16words,
+      title={An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale},
+      author={Alexey Dosovitskiy and Lucas Beyer and Alexander Kolesnikov and Dirk Weissenborn and Xiaohua Zhai and Thomas Unterthiner and Mostafa Dehghani and Matthias Minderer and Georg Heigold and Sylvain Gelly and Jakob Uszkoreit and Neil Houlsby},
+      year={2021},
+      eprint={2010.11929},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2403.19588},
+      url={https://arxiv.org/abs/2010.11929},
 }
 
-@misc{zhou2022ibotimagebertpretraining,
-      title={iBOT: Image BERT Pre-Training with Online Tokenizer},
-      author={Jinghao Zhou and Chen Wei and Huiyu Wang and Wei Shen and Cihang Xie and Alan Yuille and Tao Kong},
-      year={2022},
-      eprint={2111.07832},
+@misc{venkataramanan2026francanestedmatryoshkaclustering,
+      title={Franca: Nested Matryoshka Clustering for Scalable Visual Representation Learning},
+      author={Shashanka Venkataramanan and Valentinos Pariza and Mohammadreza Salehi and Lukas Knobel and Spyros Gidaris and Elias Ramzi and Andrei Bursuc and Yuki M. Asano},
+      year={2026},
+      eprint={2507.14137},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2111.07832},
+      url={https://arxiv.org/abs/2507.14137},
 }
 
 @inproceedings{gharaee2024bioscan5m,
