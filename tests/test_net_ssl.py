@@ -1549,6 +1549,20 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(sigreg_loss.ndim, 0)
         self.assertEqual(inv_loss.ndim, 0)
 
+        proj = torch.rand((len(images), batch_size, 96))
+        sigreg_a = lejepa.SIGReg(num_knots=9, num_slices=32, t_max=3.0)
+        sigreg_b = lejepa.SIGReg(num_knots=9, num_slices=32, t_max=3.0)
+        sigreg_b.load_state_dict(sigreg_a.state_dict())
+
+        torch.manual_seed(123)
+        stat_a = sigreg_a(proj)
+        torch.manual_seed(456)
+        stat_b = sigreg_b(proj)
+
+        self.assertTrue(torch.allclose(stat_a, stat_b))
+        self.assertEqual(sigreg_a.slice_step.item(), 1)
+        self.assertEqual(sigreg_b.slice_step.item(), 1)
+
     def test_mmcr(self) -> None:
         batch_size = 4
         backbone = registry.net_factory("resnet_v1_50", 0)

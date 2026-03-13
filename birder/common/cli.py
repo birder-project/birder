@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import shutil
+import ssl
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
@@ -99,7 +100,12 @@ def calc_sha256(file_path: str | Path) -> str:
 
 
 def download_file(
-    url: str, dst: str | Path, expected_sha256: Optional[str] = None, override: bool = False, progress_bar: bool = True
+    url: str,
+    dst: str | Path,
+    expected_sha256: Optional[str] = None,
+    override: bool = False,
+    progress_bar: bool = True,
+    ignore_ssl_errors: bool = False,
 ) -> None:
     # Adapted from torch.hub download_url_to_file function
 
@@ -124,7 +130,13 @@ def download_file(
 
     file_size = None
     req = Request(url, headers={"User-Agent": "birder.datahub"})
-    u = urlopen(req)  # pylint: disable=consider-using-with  # nosec
+    ssl_context = None
+    if ignore_ssl_errors is True:
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+
+    u = urlopen(req, context=ssl_context)  # pylint: disable=consider-using-with  # nosec
     meta = u.info()
     if hasattr(meta, "getheaders") is True:
         content_length = meta.getheaders("Content-Length")

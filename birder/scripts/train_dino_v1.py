@@ -832,7 +832,7 @@ def validate_args(args: argparse.Namespace) -> None:
     # Script specific checks
     if registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION) is False:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
-    if args.backbone_epoch is True and args.resume_epoch is True:
+    if args.backbone_epoch is not None and args.resume_epoch is not None:
         raise cli.ValidationError("--backbone-epoch cannot be used with --resume-epoch")
 
 

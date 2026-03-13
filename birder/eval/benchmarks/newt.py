@@ -14,6 +14,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from typing import Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -44,6 +45,10 @@ class NeWTTaskData:
     y_test: npt.NDArray[np.int_]
 
 
+def _results_filename(args: argparse.Namespace) -> str:
+    return f"newt_svm_runs{args.runs}_niter{args.n_iter}.csv"
+
+
 def _print_summary_table(results: list[dict[str, Any]]) -> None:
     console = Console()
 
@@ -57,7 +62,7 @@ def _print_summary_table(results: list[dict[str, Any]]) -> None:
     for cluster in cluster_names:
         table.add_column(cluster.replace("_", " ").title(), justify="right")
 
-    for result in results:
+    for result in sorted(results, key=lambda result: Path(result["embeddings_file"]).name):
         row = [
             Path(result["embeddings_file"]).name,
             f"{result['accuracy']:.4f}",
@@ -73,24 +78,65 @@ def _print_summary_table(results: list[dict[str, Any]]) -> None:
     console.print(table)
 
 
-def _write_results_csv(results: list[dict[str, Any]], output_path: Path) -> None:
-    cluster_names = sorted({cluster for result in results for cluster in result["per_cluster_accuracy"].keys()})
-    rows: list[dict[str, Any]] = []
-    for result in results:
-        row: dict[str, Any] = {
-            "embeddings_file": result["embeddings_file"],
-            "method": result["method"],
-            "accuracy": result["accuracy"],
-            "accuracy_std": result["accuracy_std"],
-            "num_runs": result["num_runs"],
-        }
-        for cluster in cluster_names:
-            row[f"cluster_{cluster}"] = result["per_cluster_accuracy"].get(cluster)
+def _result_to_row(result: dict[str, Any], cluster_names: list[str]) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "embeddings_file": result["embeddings_file"],
+        "method": result["method"],
+        "accuracy": result["accuracy"],
+        "accuracy_std": result["accuracy_std"],
+        "num_runs": result["num_runs"],
+    }
+    for cluster in cluster_names:
+        row[f"cluster_{cluster}"] = result["per_cluster_accuracy"].get(cluster)
 
-        rows.append(row)
+    return row
 
-    pl.DataFrame(rows).write_csv(output_path)
-    logger.info(f"Results saved to {output_path}")
+
+def _append_result_csv(result: dict[str, Any], cluster_names: list[str], output_path: Path) -> None:
+    row_df = pl.DataFrame([_result_to_row(result, cluster_names)])
+    file_exists = output_path.exists()
+    mode = "a" if file_exists is True else "w"
+    with open(output_path, mode, encoding="utf-8") as handle:
+        row_df.write_csv(handle, include_header=file_exists is False)
+
+    logger.info(f"Results updated at {output_path}")
+
+
+def _row_to_result(row: dict[str, Any], cluster_names: list[str]) -> dict[str, Any]:
+    per_cluster_accuracy = {
+        cluster: float(value) for cluster in cluster_names if (value := row.get(f"cluster_{cluster}")) is not None
+    }
+
+    return {
+        "embeddings_file": str(row["embeddings_file"]),
+        "method": str(row["method"]),
+        "accuracy": float(row["accuracy"]),
+        "accuracy_std": float(row["accuracy_std"]),
+        "num_runs": int(row["num_runs"]),
+        "per_cluster_accuracy": per_cluster_accuracy,
+    }
+
+
+def _load_cached_result(
+    existing_df: Optional[pl.DataFrame], embeddings_path: str, cluster_names: list[str]
+) -> Optional[dict[str, Any]]:
+    if existing_df is None or existing_df.is_empty() is True:
+        return None
+
+    match_df = existing_df.filter(pl.col("embeddings_file") == embeddings_path)
+    if match_df.is_empty() is True:
+        return None
+
+    return _row_to_result(match_df.row(0, named=True), cluster_names)
+
+
+def _summary_results(
+    existing_df: Optional[pl.DataFrame], current_results: list[dict[str, Any]], cluster_names: list[str]
+) -> list[dict[str, Any]]:
+    if existing_df is None or existing_df.is_empty() is True:
+        return current_results
+
+    return [_row_to_result(row, cluster_names) for row in existing_df.iter_rows(named=True)]
 
 
 def _prepare_newt_task_data(embeddings_path: str, labels_df: pl.DataFrame) -> list[NeWTTaskData]:
@@ -238,23 +284,59 @@ def evaluate_newt(args: argparse.Namespace) -> None:
     labels_path = dataset.labels_path
     logger.info(f"Loading labels from {labels_path}")
     labels_df = pl.read_csv(labels_path).with_row_index(name="index").with_columns(pl.col("id").cast(pl.Utf8))
+    cluster_names = sorted(
+        set(labels_df.get_column("task_cluster").cast(pl.Utf8).str.to_lowercase().unique().to_list())
+    )
+    existing_df: Optional[pl.DataFrame] = None
+    output_path: Optional[Path] = None
+
+    if args.dry_run is False:
+        output_dir = settings.RESULTS_DIR.joinpath(args.dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir.joinpath(_results_filename(args))
+        if output_path.exists() is True:
+            logger.info(f"Loading existing results from {output_path}")
+            existing_df = pl.read_csv(output_path)
+
+    if args.embeddings is None:
+        summary_results = _summary_results(existing_df, [], cluster_names)
+        if len(summary_results) == 0:
+            raise cli.ValidationError("--embeddings is required when no cached results are available")
+
+        logger.info("No embeddings provided, showing cached results")
+        _print_summary_table(summary_results)
+        toc = time.time()
+        logger.info(f"NeWT benchmark completed in {lib.format_duration(toc - tic)}")
+        return
 
     results: list[dict[str, Any]] = []
     total = len(args.embeddings)
     for idx, embeddings_path in enumerate(args.embeddings, start=1):
         logger.info(f"Processing embeddings {idx}/{total}: {embeddings_path}")
+
+        cached_result = _load_cached_result(existing_df, embeddings_path, cluster_names)
+        if cached_result is not None:
+            logger.info(f"Using cached result for {embeddings_path}")
+            results.append(cached_result)
+            continue
+
+        if Path(embeddings_path).exists() is False:
+            logger.warning(f"Embeddings file not found, skipping: {embeddings_path}")
+            continue
+
         result = evaluate_newt_single(
             embeddings_path, labels_df, runs=args.runs, n_iter=args.n_iter, n_jobs=args.n_jobs, seed=args.seed
         )
         results.append(result)
+        if output_path is not None:
+            _append_result_csv(result, cluster_names, output_path)
+            row_df = pl.DataFrame([_result_to_row(result, cluster_names)])
+            if existing_df is None:
+                existing_df = row_df
+            else:
+                existing_df = pl.concat([existing_df, row_df], how="diagonal_relaxed")
 
-    _print_summary_table(results)
-
-    if args.dry_run is False:
-        output_dir = settings.RESULTS_DIR.joinpath(args.dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = output_dir.joinpath("newt.csv")
-        _write_results_csv(results, output_path)
+    _print_summary_table(_summary_results(existing_df, results, cluster_names))
 
     toc = time.time()
     logger.info(f"NeWT benchmark completed in {lib.format_duration(toc - tic)}")
@@ -292,8 +374,6 @@ def set_parser(subparsers: Any) -> None:
 
 
 def validate_args(args: argparse.Namespace) -> None:
-    if args.embeddings is None:
-        raise cli.ValidationError("--embeddings is required")
     if args.dataset_path is None:
         raise cli.ValidationError("--dataset-path is required")
 

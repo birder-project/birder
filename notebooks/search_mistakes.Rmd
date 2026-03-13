@@ -85,7 +85,7 @@ idx_to_class = dict(zip(class_to_idx.values(), class_to_idx.keys()))
 suspected_mistakes = []
 
 
-def batch_callback(file_paths: list[str], out: npt.NDArray[np.float32], batch_labels: list[int]) -> None:
+def batch_callback(file_paths: list[str], out: npt.NDArray[np.float32], batch_labels: npt.NDArray[np.int64]) -> None:
     for img_path, prob, label in zip(file_paths, out, batch_labels):
         if label != settings.NO_LABEL and TOP_PROB > prob.max():
             suspected_mistakes.append(img_path)

@@ -649,7 +649,7 @@ def add_logging_and_debug_args(
 def add_training_data_args(parser: argparse.ArgumentParser, unsupervised: bool = False) -> None:
     group = parser.add_argument_group("Training data parameters", description="WebDataset")
     group.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
-    group.add_argument("--wds-info", type=str, metavar="FILE", help="wds info file path")
+    group.add_argument("--wds-info", type=str, action="append", metavar="FILE", help="one or more wds info file paths")
     group.add_argument("--wds-cache-dir", type=str, metavar="DIR", help="webdataset cache directory")
     if unsupervised is False:
         group.add_argument("--wds-class-file", type=str, metavar="FILE", help="class list file")

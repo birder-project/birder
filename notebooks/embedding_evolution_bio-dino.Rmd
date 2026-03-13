@@ -1,0 +1,188 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.19.1
+  kernelspec:
+    display_name: Python 3 (ipykernel)
+    language: python
+    name: python3
+---
+
+```{python}
+import re
+from pathlib import Path
+from typing import Literal
+
+import matplotlib.pyplot as plt
+import numpy as np
+import polars as pl
+import umap
+from IPython.display import HTML
+from matplotlib.animation import FuncAnimation
+from sklearn.decomposition import PCA
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+```
+
+```{python}
+# %cd ..
+```
+
+```{python}
+METHOD = "pca"
+```
+
+```{python}
+def get_epoch_from_path(p: Path) -> str:
+    return re.search(r"_e(\d+)_", p.stem).group(1)
+
+
+def train_projector(df: pl.DataFrame, method: Literal["pca", "lda", "umap"], dim: int = 2):
+    X = df["embedding"].to_numpy()
+
+    if method == "pca":
+        proj = PCA(n_components=dim)
+        proj.fit(X)
+        return proj
+
+    if method == "lda":
+        y = df["label"].to_numpy()
+        proj = LinearDiscriminantAnalysis(n_components=dim)
+        proj.fit(X, y)
+        return proj
+
+    if method == "umap":
+        proj = umap.UMAP(n_components=dim)
+        proj.fit(X)
+        return proj
+
+    raise ValueError(f"Unknown method: {method}")
+```
+
+```{python}
+path_list = sorted(Path("results/cub200/").glob("cub200_vit_reg4_so150m_p14_ls_dino-v2-bio*.parquet"))
+label_expr = pl.col("sample").str.extract(r"/([^/]+)/[^/]+$").alias("label")
+```
+
+```{python}
+latest_embeddings = pl.read_parquet(path_list[-1]).with_columns(label_expr)
+projector = train_projector(latest_embeddings, method=METHOD)
+
+all_labels = sorted(latest_embeddings["label"].unique().to_list())
+label_to_id = {lab: i for i, lab in enumerate(all_labels)}
+```
+
+```{python}
+def compute_bounds(array_list, n_components: int):
+    mins = np.full(n_components, np.inf)
+    maxs = np.full(n_components, -np.inf)
+
+    for array in array_list:
+        mins = np.minimum(mins, array.min(axis=0))
+        maxs = np.maximum(maxs, array.max(axis=0))
+
+    pad = 0.05 * (maxs - mins)
+    return mins - pad, maxs + pad
+```
+
+```{python}
+projection_list = []
+color_list = []
+for i, p in enumerate(path_list):
+    df = pl.read_parquet(p).with_columns(label_expr)
+    projection_list.append(projector.transform(df["embedding"].to_numpy()))
+
+    labels = df["label"].to_list()
+    color_list.append(np.array([label_to_id[l] for l in labels], dtype=int))
+```
+
+```{python}
+bounds = compute_bounds(projection_list, n_components=2)
+```
+
+```{python}
+n = len(path_list)
+ncols = 3
+nrows = (n + ncols - 1) // ncols
+
+fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(5.5 * ncols, 4.5 * nrows), squeeze=False)
+axes = axes.ravel()
+cmap = "turbo"
+
+for i, (XY, c) in enumerate(zip(projection_list, color_list)):
+
+    ax = axes[i]
+
+    sc = ax.scatter(XY[:, 0], XY[:, 1], c=c, cmap=cmap, s=6, alpha=0.7, linewidths=0)
+    ax.set_title(f"Epoch {get_epoch_from_path(path_list[i])}", fontsize=12)
+    ax.set_xlim(bounds[0][0], bounds[1][0])
+    ax.set_ylim(bounds[0][1], bounds[1][1])
+
+for j in range(n, nrows * ncols):
+    axes[j].axis("off")
+
+fig.tight_layout()
+```
+
+```{python}
+latest_embeddings = pl.read_parquet(path_list[-1]).with_columns(label_expr)
+projector = train_projector(latest_embeddings, method=METHOD, dim=3)
+```
+
+```{python}
+projection_list = []
+color_list = []
+for i, p in enumerate(path_list):
+    df = pl.read_parquet(p).with_columns(label_expr)
+    projection_list.append(projector.transform(df["embedding"].to_numpy()))
+
+    labels = df["label"].to_list()
+    color_list.append(np.array([label_to_id[l] for l in labels], dtype=int))
+```
+
+```{python}
+bounds = compute_bounds(projection_list, n_components=3)
+```
+
+```{python}
+cmap = "turbo"
+interval = 1000
+
+fig = plt.figure(figsize=(8, 6))
+ax = fig.add_subplot(111, projection="3d")
+scatter = ax.scatter(
+    projection_list[0][:, 0],
+    projection_list[0][:, 1],
+    projection_list[0][:, 2],
+    c=color_list[0],
+    cmap=cmap,
+    s=4,
+    alpha=0.65,
+    linewidths=0,
+)
+ax.set_xlim(bounds[0][0], bounds[1][0])
+ax.set_ylim(bounds[0][1], bounds[1][1])
+ax.set_zlim(bounds[0][2], bounds[1][2])
+ax.set_xlabel("Component 1")
+ax.set_ylabel("Component 2")
+ax.set_zlabel("Component 3")
+# ax.view_init(elev=24, azim=35)
+title = ax.set_title(f"Epoch {get_epoch_from_path(path_list[0])}")
+
+
+def update(i: int):
+    scatter._offsets3d = (projection_list[i][:, 0], projection_list[i][:, 1], projection_list[i][:, 2])
+    scatter.set_array(color_list[i])
+    title.set_text(f"Epoch {get_epoch_from_path(path_list[i])}")
+    return scatter, title
+
+
+anim = FuncAnimation(fig, update, frames=len(projection_list), interval=interval, blit=False)
+html = HTML(anim.to_jshtml())
+plt.close(fig)
+html
+```

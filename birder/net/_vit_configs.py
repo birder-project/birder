@@ -270,6 +270,17 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         vit,
         config={"patch_size": 14, **SMALL, "num_reg_tokens": 1},
     )
+    registry.register_model_config(  # For DINOv2 - https://arxiv.org/abs/2304.07193
+        "vit_reg4_s14_nps_ls",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **SMALL,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+        },
+    )
     registry.register_model_config(
         "vit_reg4_m32",
         vit,
@@ -314,6 +325,17 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         "vit_reg8_b14_ap",
         vit,
         config={"patch_size": 14, **BASE, "num_reg_tokens": 8, "class_token": False, "attn_pool_head": True},
+    )
+    registry.register_model_config(  # For DINOv2 - https://arxiv.org/abs/2304.07193
+        "vit_reg4_b14_nps_ls",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **BASE,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+        },
     )
     registry.register_model_config(
         "vit_reg4_so150m_p16_avg",
@@ -424,7 +446,7 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         vit,
         config={"patch_size": 14, **LARGE, "num_reg_tokens": 4},
     )
-    registry.register_model_config(  # DeiT III style
+    registry.register_model_config(  # For DINOv2 - https://arxiv.org/abs/2304.07193
         "vit_reg4_l14_nps_ls",
         vit,
         config={

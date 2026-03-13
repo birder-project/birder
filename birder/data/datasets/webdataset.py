@@ -1,6 +1,7 @@
 import logging
 import os
 from collections.abc import Callable
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 from typing import Literal
@@ -118,7 +119,7 @@ def prepare_wds_args(data_path: str, size: Optional[int], device: torch.device) 
     if "://" not in data_path:
         if ".." not in data_path:
             # Local path without braces, build brace argument
-            (wds_path, _) = fs_ops.wds_braces_from_path(Path(data_path))
+            wds_path, _ = fs_ops.wds_braces_from_path(Path(data_path))
 
         else:
             wds_path = data_path
@@ -139,13 +140,33 @@ def prepare_wds_args(data_path: str, size: Optional[int], device: torch.device) 
     return (wds_path, dataset_size)
 
 
-def wds_args_from_info(info_path: str, split: str) -> tuple[list[str], int]:
-    info = fs_ops.read_wds_info(info_path)
-    root = Path(info_path).parent
+def _resolve_wds_info_filename(info_path: str | Path, filename: str) -> str:
+    if "://" in filename:
+        return filename
 
-    size = info["splits"][split]["num_samples"]
-    filenames = info["splits"][split]["filenames"]
+    info_path = str(info_path)
+    if "://" in info_path:
+        return info_path.rsplit("/", 1)[0] + "/" + filename
 
-    filenames = [os.path.join(root, f) for f in filenames]
+    return os.path.join(Path(info_path).parent, filename)
+
+
+def wds_args_from_info(info_path: str | Path | Sequence[str | Path], split: str) -> tuple[list[str], int]:
+    info_paths: list[str | Path]
+    if isinstance(info_path, (str, Path)):
+        info_paths = [info_path]
+    else:
+        info_paths = list(info_path)
+
+    filenames: list[str] = []
+    size = 0
+    for current_info_path in info_paths:
+        info = fs_ops.read_wds_info(current_info_path)
+        split_info = info["splits"][split]
+
+        size += split_info["num_samples"]
+        filenames.extend(
+            _resolve_wds_info_filename(current_info_path, filename) for filename in split_info["filenames"]
+        )
 
     return (filenames, size)

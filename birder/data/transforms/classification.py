@@ -321,6 +321,7 @@ def training_preset(
     ra_magnitude: int = 9,
     augmix_severity: int = 3,
     simple_crop: bool = False,
+    resize_max_scale: float = 1.0,
 ) -> Callable[..., torch.Tensor]:
     mean = rgv_values["mean"]
     std = rgv_values["std"]
@@ -349,12 +350,12 @@ def training_preset(
         else:
             crop_transform = RandomResizedCropWithRandomInterpolation(
                 size,
-                scale=(resize_min_scale, 1.0),
+                scale=(resize_min_scale, resize_max_scale),
                 ratio=(3 / 4, 4 / 3),
                 interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
             )
 
-        return v2.Compose(  # type:ignore
+        return v2.Compose(  # type: ignore
             [
                 v2.PILToTensor(),
                 crop_transform,
@@ -381,7 +382,7 @@ def training_preset(
         transforms.append(
             RandomResizedCropWithRandomInterpolation(
                 size,
-                scale=(resize_min_scale, 1.0),
+                scale=(resize_min_scale, resize_max_scale),
                 ratio=(3 / 4, 4 / 3),
                 interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
             )
@@ -405,7 +406,7 @@ def training_preset(
     else:
         raise ValueError("Unsupported augmentation type")
 
-    return v2.Compose(  # type:ignore
+    return v2.Compose(  # type: ignore
         [
             *transforms,
             v2.RandomHorizontalFlip(0.5),

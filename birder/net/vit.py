@@ -357,6 +357,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         image_size = self.size
         attention_dropout = 0.0
         dropout = 0.0
+        abs_pos_embed: bool = self.config.get("abs_pos_embed", True)
         pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", True)
         patch_size: int = self.config["patch_size"]
         num_layers: int = self.config["num_layers"]
@@ -403,6 +404,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
+        self.abs_pos_embed = abs_pos_embed
         self.pos_embed_special_tokens = pos_embed_special_tokens
         self.patch_size = patch_size
         self.num_layers = num_layers
@@ -444,7 +446,10 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             self.reg_tokens = None
 
         # Add positional embedding
-        self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, hidden_dim).normal_(std=0.02))  # from BERT
+        if self.abs_pos_embed is True:
+            self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, hidden_dim).normal_(std=0.02))  # from BERT
+        else:
+            self.pos_embedding = None
 
         self.encoder = Encoder(
             num_layers,
@@ -520,7 +525,10 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             nn.init.zeros_(self.classifier.weight)
             nn.init.zeros_(self.classifier.bias)
 
-    def _get_pos_embed(self, H: int, W: int) -> torch.Tensor:
+    def _get_pos_embed(self, H: int, W: int) -> Optional[torch.Tensor]:
+        if self.pos_embedding is None:
+            return None
+
         if self.dynamic_size is False:
             return self.pos_embedding
 
@@ -559,9 +567,10 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         H, W = x.shape[-2:]
         x = self.conv_proj(x)
         x = self.patch_embed(x)
+        pos_embedding = self._get_pos_embed(H, W)
 
-        if self.pos_embed_special_tokens is False:
-            x = x + self._get_pos_embed(H, W)
+        if pos_embedding is not None and self.pos_embed_special_tokens is False:
+            x = x + pos_embedding
 
         # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
         special_tokens: list[torch.Tensor] = []
@@ -572,8 +581,8 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         if len(special_tokens) > 0:
             x = torch.concat(special_tokens + [x], dim=1)
 
-        if self.pos_embed_special_tokens is True:
-            x = x + self._get_pos_embed(H, W)
+        if pos_embedding is not None and self.pos_embed_special_tokens is True:
+            x = x + pos_embedding
 
         if self.out_indices is None:
             xs = [self.encoder(x)]
@@ -594,7 +603,8 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         for param in self.conv_proj.parameters():
             param.requires_grad_(False)
 
-        self.pos_embedding.requires_grad_(False)
+        if self.pos_embedding is not None:
+            self.pos_embedding.requires_grad_(False)
 
         for idx, module in enumerate(self.encoder.children()):
             if idx >= up_to_stage:
@@ -619,10 +629,11 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
 
         # Add pos embedding without special tokens
         pos_embedding = self._get_pos_embed(H, W)
-        if self.pos_embed_special_tokens is True:
-            x = x + pos_embedding[:, self.num_special_tokens :, :]
-        else:
-            x = x + pos_embedding
+        if pos_embedding is not None:
+            if self.pos_embed_special_tokens is True:
+                x = x + pos_embedding[:, self.num_special_tokens :, :]
+            else:
+                x = x + pos_embedding
 
         # Mask tokens
         if ids_keep is not None:
@@ -631,7 +642,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
         special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
-            if self.pos_embed_special_tokens is True:
+            if pos_embedding is not None and self.pos_embed_special_tokens is True:
                 reg_tokens = self.reg_tokens + pos_embedding[:, 0 : self.num_reg_tokens, :]
             else:
                 reg_tokens = self.reg_tokens
@@ -639,7 +650,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             special_tokens.append(reg_tokens.expand(x.size(0), -1, -1))
 
         if self.class_token is not None:
-            if self.pos_embed_special_tokens is True:
+            if pos_embedding is not None and self.pos_embed_special_tokens is True:
                 cls_token = self.class_token + pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
             else:
                 cls_token = self.class_token
@@ -694,9 +705,10 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
 
         # Reshape and permute the input tensor
         x = self.patch_embed(x)
+        pos_embedding = self._get_pos_embed(H, W)
 
-        if self.pos_embed_special_tokens is False:
-            x = x + self._get_pos_embed(H, W)
+        if pos_embedding is not None and self.pos_embed_special_tokens is False:
+            x = x + pos_embedding
 
         # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
         special_tokens: list[torch.Tensor] = []
@@ -707,8 +719,8 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         if len(special_tokens) > 0:
             x = torch.concat(special_tokens + [x], dim=1)
 
-        if self.pos_embed_special_tokens is True:
-            x = x + self._get_pos_embed(H, W)
+        if pos_embedding is not None and self.pos_embed_special_tokens is True:
+            x = x + pos_embedding
 
         x = self.encoder(x)
         x = self.norm(x)
@@ -743,9 +755,10 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         x = self.conv_proj(x)
         x = self.patch_embed(x)
         patch_embedding = x
+        pos_embedding = self._get_pos_embed(H, W)
 
-        if self.pos_embed_special_tokens is False:
-            x = x + self._get_pos_embed(H, W)
+        if pos_embedding is not None and self.pos_embed_special_tokens is False:
+            x = x + pos_embedding
 
         # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
         special_tokens: list[torch.Tensor] = []
@@ -764,8 +777,8 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         else:
             input_embedding = None  # For TorchScript compatibility
 
-        if self.pos_embed_special_tokens is True:
-            x = x + self._get_pos_embed(H, W)
+        if pos_embedding is not None and self.pos_embed_special_tokens is True:
+            x = x + pos_embedding
 
         x = self.encoder(x)
         x = self.norm(x)
@@ -801,6 +814,8 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
 
         old_size = self.size
         super().adjust_size(new_size)
+        if self.pos_embedding is None:
+            return
 
         if self.pos_embed_special_tokens is True:
             num_prefix_tokens = self.num_special_tokens
@@ -857,6 +872,24 @@ registry.register_weights(  # BioCLIP v1: https://arxiv.org/abs/2311.18803
             },
         },
         "net": {"network": "vit_b16_pn", "tag": "bioclip-v1"},
+    },
+)
+registry.register_weights(  # BioTrove: https://arxiv.org/abs/2406.17720
+    "vit_b16_pn_biotrove-clip-o",
+    {
+        "url": "https://huggingface.co/birder-project/vit_b16_pn_biotrove-clip-o/resolve/main",
+        "description": (
+            "ViT b16 image encoder pre-trained by Baskar group using CLIP on the BioTrove dataset. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 328.9,
+                "sha256": "5477a42494efa4122bb8e903ebe7e3fc6278df39074c7d2828063b97652f8bb6",
+            },
+        },
+        "net": {"network": "vit_b16_pn", "tag": "biotrove-clip-o"},
     },
 )
 registry.register_weights(
@@ -951,6 +984,24 @@ registry.register_weights(  # SigLIP 2: https://arxiv.org/abs/2502.14786
 )
 
 # With registers
+registry.register_weights(  # DINO v2: https://arxiv.org/abs/2304.07193
+    "vit_reg4_s14_nps_ls_dino-v2-lvd142m",
+    {
+        "url": "https://huggingface.co/birder-project/vit_reg4_s14_nps_ls_dino-v2-lvd142m/resolve/main",
+        "description": (
+            "ViT reg4 s14 image encoder pre-trained by Facebook AI using DINOv2. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (518, 518),
+        "formats": {
+            "pt": {
+                "file_size": 84.2,
+                "sha256": "c08263b219669d3933ee83f6b3be16ddecde046472b7869862312c6bdf89190f",
+            },
+        },
+        "net": {"network": "vit_reg4_s14_nps_ls", "tag": "dino-v2-lvd142m"},
+    },
+)
 registry.register_weights(
     "vit_reg4_m16_rms_avg_i-jepa",
     {
@@ -1092,6 +1143,24 @@ registry.register_weights(
             },
         },
         "net": {"network": "vit_reg4_b16", "tag": "mim-intermediate-arabian-peninsula"},
+    },
+)
+registry.register_weights(  # DINO v2: https://arxiv.org/abs/2304.07193
+    "vit_reg4_b14_nps_ls_dino-v2-lvd142m",
+    {
+        "url": "https://huggingface.co/birder-project/vit_reg4_b14_nps_ls_dino-v2-lvd142m/resolve/main",
+        "description": (
+            "ViT reg4 b14 image encoder pre-trained by Facebook AI using DINOv2. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (518, 518),
+        "formats": {
+            "pt": {
+                "file_size": 330.4,
+                "sha256": "c091d95be4c0ab6102ed7d4a183b3ab8728e2fb73969c5811381046d34b53944",
+            },
+        },
+        "net": {"network": "vit_reg4_b14_nps_ls", "tag": "dino-v2-lvd142m"},
     },
 )
 registry.register_weights(  # DINO v2: https://arxiv.org/abs/2304.07193

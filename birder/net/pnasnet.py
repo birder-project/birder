@@ -390,3 +390,18 @@ registry.register_model_config(
     PNASNet,
     config={"num_cells": 12, "num_conv_filters": 216, "stem_multiplier": 3.0, "dropout_rate": 0.5},
 )
+
+registry.register_weights(
+    "pnasnet_mobile_il-common",
+    {
+        "description": "PNASNet mobile model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 17.3,
+                "sha256": "a2769d7d5fa1576e8e26132a193f9c0c8bbed7c4b210df9b263d32d0429f2fa9",
+            }
+        },
+        "net": {"network": "pnasnet_mobile", "tag": "il-common"},
+    },
+)

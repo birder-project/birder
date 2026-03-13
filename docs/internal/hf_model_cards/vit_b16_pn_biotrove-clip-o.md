@@ -6,31 +6,31 @@ tags:
 library_name: birder
 license: mit
 base_model:
-- imageomics/bioclip-2
+- BGLab/BioTrove-CLIP
 datasets:
-- imageomics/TreeOfLife-200M
+- BGLab/BioTrove-Train
 ---
 
-# Model Card for vit_l14_pn_bioclip-v2
+# Model Card for vit_b16_pn_biotrove-clip-o
 
-A ViT l14 image encoder from BioCLIP-2 by Gu et al., converted to the Birder format for image feature extraction.
+A ViT b16 image encoder from BioTrove by Yang et al., converted to the Birder format for image feature extraction.
 This version preserves the original model weights and architecture.
-Trained on the large-scale TreeOfLife-200M dataset, it serves as a powerful foundation for downstream computer vision tasks.
+Trained on the large-scale BioTrove dataset, it serves as a powerful foundation for downstream computer vision tasks.
 The model excels at understanding biological imagery across diverse taxonomic groups.
 
-See: <https://huggingface.co/imageomics/bioclip-2> for further details.
+See: <https://huggingface.co/BGLab/BioTrove-CLIP> for further details.
 
 ## Model Details
 
 - **Model Type:** Image classification and detection backbone
 - **Model Stats:**
-    - Params (M): 304.0
+    - Params (M): 86.2
     - Input image size: 224 x 224
-- **Dataset:** Trained on the TreeOfLife-200M dataset
+- **Dataset:** Trained on the BioTrove dataset
 
 - **Papers:**
     - An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale: <https://arxiv.org/abs/2010.11929>
-    - BioCLIP 2: Emergent Properties from Scaling Hierarchical Contrastive Learning: <https://arxiv.org/abs/2505.23883>
+    - BioTrove: A Large Curated Image Dataset Enabling AI for Biodiversity: <https://arxiv.org/abs/2406.17720>
 
 ## Model Usage
 
@@ -40,7 +40,8 @@ See: <https://huggingface.co/imageomics/bioclip-2> for further details.
 import birder
 from birder.inference.classification import infer_image
 
-(net, model_info) = birder.load_pretrained_model("vit_l14_pn_bioclip-v2", inference=True)
+# Option 1: manual setup (more control over preprocessing)
+(net, model_info) = birder.load_pretrained_model("vit_b16_pn_biotrove-clip-o", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -48,9 +49,12 @@ size = birder.get_size_from_signature(model_info.signature)
 # Create an inference transform
 transform = birder.classification_transform(size, model_info.rgb_stats)
 
+# Option 2: helper (quick start with default preprocessing)
+(net, model_info, transform) = birder.load_pretrained_model_and_transform("vit_b16_pn_biotrove-clip-o", inference=True)
+
 image = "path/to/image.jpeg"  # or a PIL image
 (out, embedding) = infer_image(net, image, transform, return_embedding=True)
-# embedding is a NumPy array with shape of (1, 1024)
+# embedding is a NumPy array with shape of (1, 768)
 ```
 
 ### Detection Feature Map
@@ -59,20 +63,14 @@ image = "path/to/image.jpeg"  # or a PIL image
 from PIL import Image
 import birder
 
-(net, model_info) = birder.load_pretrained_model("vit_l14_pn_bioclip-v2", inference=True)
-
-# Get the image size the model was trained on
-size = birder.get_size_from_signature(model_info.signature)
-
-# Create an inference transform
-transform = birder.classification_transform(size, model_info.rgb_stats)
+(net, model_info, transform) = birder.load_pretrained_model_and_transform("vit_b16_pn_biotrove-clip-o", inference=True)
 
 image = Image.open("path/to/image.jpeg")
 features = net.detection_features(transform(image).unsqueeze(0))
 # features is a dict (stage name -> torch.Tensor)
 print([(k, v.size()) for k, v in features.items()])
 # Output example:
-# [('neck', torch.Size([1, 1024, 16, 16]))]
+# [('stage1', torch.Size([1, 768, 14, 14]))]
 ```
 
 ## Citation
@@ -88,14 +86,14 @@ print([(k, v.size()) for k, v in features.items()])
       url={https://arxiv.org/abs/2010.11929},
 }
 
-@misc{gu2025bioclip2emergentproperties,
-      title={BioCLIP 2: Emergent Properties from Scaling Hierarchical Contrastive Learning},
-      author={Jianyang Gu and Samuel Stevens and Elizabeth G Campolongo and Matthew J Thompson and Net Zhang and Jiaman Wu and Andrei Kopanev and Zheda Mai and Alexander E. White and James Balhoff and Wasila Dahdul and Daniel Rubenstein and Hilmar Lapp and Tanya Berger-Wolf and Wei-Lun Chao and Yu Su},
+@misc{yang2025biotrovelargecuratedimage,
+      title={BioTrove: A Large Curated Image Dataset Enabling AI for Biodiversity},
+      author={Chih-Hsuan Yang and Benjamin Feuer and Zaki Jubery and Zi K. Deng and Andre Nakkab and Md Zahid Hasan and Shivani Chiranjeevi and Kelly Marshall and Nirmal Baishnab and Asheesh K Singh and Arti Singh and Soumik Sarkar and Nirav Merchant and Chinmay Hegde and Baskar Ganapathysubramanian},
       year={2025},
-      eprint={2505.23883},
+      eprint={2406.17720},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2505.23883},
+      url={https://arxiv.org/abs/2406.17720},
 }
 
 @software{ilharco_gabriel_2021_5143773,
@@ -105,9 +103,3 @@ print([(k, v.size()) for k, v in features.items()])
   doi={10.5281/zenodo.5143773},
 }
 ```
-
-## Acknowledgments
-
-This model is based on the excellent work by Gu et al. in BioCLIP-2, who developed the training methodology, curated the TreeOfLife-200M dataset, and trained this powerful biological image understanding model.
-The implementation builds upon the OpenCLIP framework by Ilharco et al., which made this scale of contrastive learning possible. All credit for the model's capabilities goes to these original authors.
-This conversion simply adapts their work to the Birder framework format.

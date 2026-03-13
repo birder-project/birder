@@ -250,6 +250,11 @@ registry.register_model_config(
     config={"in_channels": [192, 384, 768, 1536], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.2},
 )
 registry.register_model_config(
+    "convnext_v2_xlarge",  # Not in the original v2, taken from v1
+    ConvNeXt_v2,
+    config={"in_channels": [256, 512, 1024, 2048], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.25},
+)
+registry.register_model_config(
     "convnext_v2_huge",
     ConvNeXt_v2,
     config={"in_channels": [352, 704, 1408, 2816], "num_layers": [3, 3, 27, 3], "drop_path_rate": 0.3},

@@ -374,7 +374,9 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--parallel", default=False, action="store_true", help="use multiple gpus")
     subparser.add_argument("--wds", default=False, action="store_true", help="evaluate a webdataset directory")
     subparser.add_argument("--wds-size", type=int, metavar="N", help="size of the wds dataset")
-    subparser.add_argument("--wds-info", type=str, metavar="FILE", help="wds info file path")
+    subparser.add_argument(
+        "--wds-info", type=str, action="append", metavar="FILE", help="one or more wds info file paths"
+    )
     subparser.add_argument(
         "--wds-split", type=str, default="validation", metavar="NAME", help="wds dataset split to load"
     )

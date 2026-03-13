@@ -190,3 +190,68 @@ class CUB_200_2011(ImageFolder):
             target = self.target_transform(target)
 
         return (path, sample, target)
+
+
+class ButterfliesMothsAustria(ImageFolder):
+    """
+    Name: butterflies-moths-austria
+    Link: https://figshare.com/s/e79493adf7d26352f0c7
+    Source: The original dataset contains 541,677 JPEG images covering 185 butterfly and moth species from Austria.
+    Mirror: This re-encoded 57GB version is pre-split into training/validation/testing (70:20:10) and removes 6 classes
+            with fewer than 10 images, leaving 179 classes.
+            For more information, see https://huggingface.co/datasets/birder-project/butterflies-moths-austria
+    """
+
+    def __init__(
+        self,
+        target_dir: Optional[str | Path] = None,
+        download: bool = False,
+        split: SplitType = "training",
+        transform: Optional[Callable[..., torch.Tensor]] = None,
+        target_transform: Optional[Callable[..., Any]] = None,
+        loader: Callable[[str], Any] = default_loader,
+        is_valid_file: Optional[Callable[[str], bool]] = None,
+        progress_bar: bool = True,
+    ) -> None:
+        if target_dir is None:
+            target_dir = settings.DATA_DIR
+
+        if isinstance(target_dir, str):
+            target_dir = Path(target_dir)
+
+        self._target_dir: Path = target_dir
+        self._root = self._target_dir.joinpath("butterflies-moths-austria")
+        if download is True:
+            src = self._target_dir.joinpath("butterflies-moths-austria.tar")
+            downloaded = download_url(
+                (
+                    "https://huggingface.co/datasets/birder-project/butterflies-moths-austria"
+                    "/resolve/main/butterflies-moths-austria.tar"
+                ),
+                src,
+                sha256="b3ad3f8b4e681328ee843158d8ff533c4cff0e4d777536161af15d3db8f7ff51",
+                progress_bar=progress_bar,
+            )
+            if downloaded is True or self._root.exists() is False:
+                extract_archive(src, self._root)
+
+        else:
+            # Some sanity checks
+            if self._root.exists() is False or self._root.is_dir() is False:
+                raise RuntimeError("Dataset not found, try download=True to download it")
+
+            for split_name in typing.get_args(SplitType):
+                if self._root.joinpath(split_name).exists() is False:
+                    raise RuntimeError("Dataset seems corrupted")
+
+        super().__init__(self._root.joinpath(split), transform, target_transform, loader, is_valid_file)
+
+    def __getitem__(self, index: int) -> tuple[str, torch.Tensor, Any]:
+        path, target = self.samples[index]
+        sample = self.loader(path)
+        if self.transform is not None:
+            sample = self.transform(sample)
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        return (path, sample, target)

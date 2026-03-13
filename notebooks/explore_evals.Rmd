@@ -16,6 +16,10 @@ jupyter:
 ```{python}
 import json
 import os
+import re
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -36,6 +40,528 @@ from birder.eval.benchmarks import awa2
 from birder.eval.benchmarks import cct
 from birder.eval.benchmarks import newt
 ```
+
+### Progress
+
+```{python}
+@dataclass(frozen=True)
+class BenchmarkConfig:
+    title: str
+    metric: str
+    results_path: Path
+    embeddings_column: str = "embeddings_file"
+```
+
+```{python}
+EPOCH_RE = re.compile(r"_e(\d+)(?=_|$)")
+MODEL_SUFFIX_RE = re.compile(r"(?:_(?:e\d+|\d+))?_\d+px_crop[\d.]+(?:_\d+)?(?:_sc)?_embeddings$")
+
+MODEL_LABELS = {
+    "vit_reg4_so150m_p14_ls_dino-v2-bio": "BIO-DINO",
+    # References
+    "convnext_v1_large_fb-imagenet22k": "ConvNeXt Large",
+    "rope_cs_vit_reg4_b16_nape_ls_c1_dino-v3-lvd1689m": "DINOv3 B16",
+    "rope_cs_vit_reg4_l16_nape_ls_c1_dino-v3-lvd1689m": "DINOv3 L16",
+    "rope_i_vit_b16_pn_aps_c1_pe-core": "PE-Core B16",
+    "rope_i_vit_l14_pn_aps_c1_pe-core": "PE-Core L14",
+    "vit_b16_pn_bioclip-v1": "BioCLIP v1 B16",
+    "vit_l14_pn_bioclip-v2": "BioCLIP v2 L14",
+    "vit_b16_pn_biotrove-clip-o": "BioTrove B16",
+    "vit_l14_pn_quick_gelu_openai-clip": "OpenAI CLIP L14",
+    "vit_reg4_b14_nps_ls_dino-v2-lvd142m": "DINOv2 B14",
+    "vit_reg4_l14_nps_ls_dino-v2-lvd142m": "DINOv2 L14",
+    "vit_so400m_p14_ap_siglip-v2-webli": "SigLIP 2 SO400M",
+}
+METRIC_NAMES = {
+    "ami_score": "Adjusted Mutual Information",
+    "macro_f1": "Macro F1 Score",
+    "val_macro_f1": "Macro F1 Score",
+    "accuracy": "Accuracy",
+    "val_accuracy": "Accuracy",
+    "test_accuracy": "Accuracy",
+    "k_1_acc": "k-NN (k=1) Accuracy",
+    "k_3_acc": "k-NN (k=3) Accuracy",
+    "k_5_acc": "k-NN (k=5) Accuracy",
+    "k_10_acc": "k-NN (k=10) Accuracy",
+    "k_100_acc": "k-NN (k=100) Accuracy",
+    "k_10_cross_location_acc": "k-NN (k=10) Cross-location Accuracy",
+    "2_shot_acc": "2 Shot Accuracy",
+    "5_shot_acc": "5 Shot Accuracy",
+    "mean_average_precision": "mAP",
+}
+BENCHMARK_CONFIG = {
+    "awa2": BenchmarkConfig(
+        title="Animals with Attributes 2",
+        metric="macro_f1",
+        results_path=Path("results/awa2/awa2_mlp_metric-present-only_runs3_e100_bs128_lr0p0001_hd512_do0p5.csv"),
+    ),
+    "bioscan5m": BenchmarkConfig(
+        title="BIOSCAN-5M",
+        metric="ami_score",
+        results_path=Path("results/bioscan5m/bioscan5m_ami_umap50_l2-on.csv"),
+    ),
+    "butterflies": BenchmarkConfig(
+        title="Butterflies",
+        metric="val_macro_f1",
+        results_path=Path("results/butterflies/butterflies_knn_k10.csv"),
+    ),
+    "cct": BenchmarkConfig(
+        title="Caltech Camera Traps",
+        metric="k_10_cross_location_acc",
+        results_path=Path("results/cct/cct_split-main_k10-20-100.csv"),
+    ),
+    "cub200": BenchmarkConfig(
+        title="CUB-200-2011",
+        metric="mean_average_precision",
+        results_path=Path("results/cub200/cub200_retrieval_k1-5-10.csv"),
+    ),
+    "fishnet": BenchmarkConfig(
+        title="FishNet",
+        metric="macro_f1",
+        results_path=Path("results/fishnet/fishnet_mlp_runs3_e100_bs128_lr0p0001_hd512_do0p5.csv"),
+    ),
+    "flowers102": BenchmarkConfig(
+        title="Flowers-102",
+        metric="test_accuracy",
+        results_path=Path("results/flowers102/flowers102_simpleshot.csv"),
+    ),
+    "fungiclef": BenchmarkConfig(
+        title="FungiCLEF",
+        metric="k_3_acc",
+        results_path=Path("results/fungiclef/fungiclef_knn_k1-3_runs5.csv"),
+    ),
+    "imagenet1k": BenchmarkConfig(
+        title="ImageNet-1K",
+        metric="k_100_acc",
+        results_path=Path("results/imagenet1k/imagenet1k_simpleshot_k5-10-100_runs5.csv"),
+        embeddings_column="train_embeddings_file",
+    ),
+    "nabirds": BenchmarkConfig(
+        title="NABirds",
+        metric="k_10_acc",
+        results_path=Path("results/nabirds/nabirds_knn_k10-20-100.csv"),
+    ),
+    "newt": BenchmarkConfig(
+        title="NeWT",
+        metric="accuracy",
+        results_path=Path("results/newt/newt_svm_runs3_niter100.csv"),
+    ),
+    "plankton": BenchmarkConfig(
+        title="Plankton",
+        metric="accuracy",
+        results_path=Path("results/plankton/plankton_linear_runs3_e50_bs64_lr0p002.csv"),
+    ),
+    "plantdoc": BenchmarkConfig(
+        title="PlantDoc",
+        metric="2_shot_acc",
+        results_path=Path("results/plantdoc/plantdoc_simpleshot_k2-5_runs5.csv"),
+    ),
+    "plantnet": BenchmarkConfig(
+        title="PlantNet",
+        metric="2_shot_acc",
+        results_path=Path("results/plantnet/plantnet_simpleshot_k2-5_runs3.csv"),
+    ),
+    "snakeclef": BenchmarkConfig(
+        title="SnakeCLEF",
+        metric="accuracy",
+        results_path=Path("results/snakeclef/snakeclef_linear_runs3_e50_bs512_lr0p001.csv"),
+    ),
+}
+```
+
+```{python}
+def pretty_name(name: str, dataset_name: str) -> str:
+    key = name.removeprefix(f"{dataset_name}_")
+    key = MODEL_SUFFIX_RE.sub("", key)
+    key = re.sub(r"(?:_sc)?_embeddings$", "", key)
+
+    return MODEL_LABELS.get(key, key.replace("_", " "))
+
+
+def build_plot_data(
+    df: pl.DataFrame, embeddings_column: str, metric_column: str
+) -> tuple[str, list[tuple[int, float]], list[tuple[str, float]]]:
+    series: list[tuple[int, float]] = []
+    references: list[tuple[str, float]] = []
+    for emb_path, metric in df.select(embeddings_column, metric_column).iter_rows():
+        name = Path(emb_path).name
+        match = EPOCH_RE.search(name)
+
+        if match is None:
+            references.append((Path(name).stem, float(metric)))
+            continue
+
+        epoch = int(match.group(1))
+        key = EPOCH_RE.sub("", Path(name).stem)
+        series.append((epoch, float(metric)))
+
+    return key, sorted(series), references
+
+
+def plot_epoch_curve_vs_references(
+    epochs: list[int],
+    metrics: list[float],
+    main_label: str,
+    reference_rows: list[dict],
+    reference_score_key: str,
+    ylabel: str,
+    title: str,
+) -> None:
+    with plt.style.context("seaborn-v0_8-whitegrid"):
+        fig, ax = plt.subplots(figsize=(14, 8), facecolor="#F8F5EF")
+        ax.set_facecolor("#FCFBF8")
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+
+        ax.plot(epochs, metrics, marker="o", label=main_label)
+
+        cmap = plt.get_cmap("tab10")
+        for i, row in enumerate(reference_rows):
+            ax.axhline(
+                row[reference_score_key],
+                color=cmap(i),
+                linestyle=(0, (2.5, 4)),
+                linewidth=1.1,
+                alpha=0.9,
+                label=row["model_label"],
+            )
+
+        # Axes
+        ax.set_xlabel("Epoch", fontsize=12)
+        ax.set_ylabel(ylabel, fontsize=12)
+
+        min_epoch = min(epochs)
+        max_epoch = max(epochs)
+        x_padding = max(4, int((max_epoch - min_epoch) * 0.1))
+        ax.set_xlim(min_epoch, max_epoch + x_padding)
+
+        # Legend
+        handles, labels = ax.get_legend_handles_labels()
+        legend_entries = [(metrics[-1], handles[0], labels[0])]
+        legend_entries += [
+            (row[reference_score_key], h, l) for row, h, l in zip(reference_rows, handles[1:], labels[1:])
+        ]
+        legend_entries.sort(key=lambda x: x[0], reverse=True)
+
+        ax.legend(
+            [h for _, h, _ in legend_entries],
+            [l for _, _, l in legend_entries],
+            loc="center left",
+            bbox_to_anchor=(1.02, 0.5),
+            frameon=False,
+            fontsize=10,
+            handlelength=2.8,
+        )
+
+        # Rank
+        final_metric = metrics[-1]
+        position = 1 + sum(row[reference_score_key] > final_metric for row in reference_rows)
+        total = len(reference_rows) + 1
+        ax.text(
+            1.0,
+            1.01,
+            f"Rank: {position}/{total}",
+            transform=ax.transAxes,
+            fontsize=11,
+            ha="right",
+            va="bottom",
+            fontweight="bold",
+        )
+
+        # Title
+        ax.set_title(title, fontsize=18, fontweight="bold", color="#262320", pad=18)
+
+        fig.tight_layout(rect=(0, 0, 0.85, 1))
+
+    plt.show()
+    plt.close(fig)
+```
+
+```{python}
+ScoreMethod = Callable[[pl.DataFrame], pl.DataFrame]
+
+
+def build_benchmark_rows(df: pl.DataFrame, benchmark: str, cfg: BenchmarkConfig) -> pl.DataFrame:
+    metric_col = cfg.metric
+    emb_col = cfg.embeddings_column
+
+    rows = []
+    for emb_path, metric in df.select(emb_col, metric_col).iter_rows():
+        stem = Path(emb_path).stem
+        metric = float(metric)
+        epoch_match = EPOCH_RE.search(stem)
+
+        if epoch_match is None:
+            rows.append(
+                {
+                    "benchmark": benchmark,
+                    "benchmark_title": cfg.title,
+                    "kind": "reference",
+                    "model_key": stem,
+                    "model_label": pretty_name(stem, benchmark),
+                    "epoch": None,
+                    "raw_score": metric,
+                }
+            )
+            continue
+
+        epoch = int(epoch_match.group(1))
+        model_key = EPOCH_RE.sub("", stem)
+
+        rows.append(
+            {
+                "benchmark": benchmark,
+                "benchmark_title": cfg.title,
+                "kind": "train",
+                "model_key": model_key,
+                "model_label": pretty_name(model_key, benchmark),
+                "epoch": epoch,
+                "raw_score": metric,
+            }
+        )
+
+    return pl.DataFrame(rows)
+
+
+def score_ref_minmax_clipped(rows_df: pl.DataFrame) -> pl.DataFrame:
+    ref_df = rows_df.filter(pl.col("kind") == "reference")
+    ref_min = ref_df["raw_score"].min()
+    ref_max = ref_df["raw_score"].max()
+    ref_range = ref_max - ref_min
+
+    if ref_range == 0:
+        return rows_df.with_columns(
+            pl.lit(ref_min).alias("ref_min"),
+            pl.lit(ref_max).alias("ref_max"),
+            pl.lit(ref_range).alias("ref_range"),
+            pl.lit(1.0).alias("score"),
+        )
+
+    return rows_df.with_columns(
+        pl.lit(ref_min).alias("ref_min"),
+        pl.lit(ref_max).alias("ref_max"),
+        pl.lit(ref_range).alias("ref_range"),
+        ((pl.col("raw_score") - ref_min) / ref_range).clip(0.0, 1.0).alias("score"),
+    )
+
+
+def score_ref_minmax_raw(rows_df: pl.DataFrame) -> pl.DataFrame:
+    ref_df = rows_df.filter(pl.col("kind") == "reference")
+    ref_min = ref_df["raw_score"].min()
+    ref_max = ref_df["raw_score"].max()
+    ref_range = ref_max - ref_min
+
+    if ref_range == 0:
+        return rows_df.with_columns(
+            pl.lit(ref_min).alias("ref_min"),
+            pl.lit(ref_max).alias("ref_max"),
+            pl.lit(ref_range).alias("ref_range"),
+            pl.lit(1.0).alias("score"),
+        )
+
+    return rows_df.with_columns(
+        pl.lit(ref_min).alias("ref_min"),
+        pl.lit(ref_max).alias("ref_max"),
+        pl.lit(ref_range).alias("ref_range"),
+        ((pl.col("raw_score") - ref_min) / ref_range).alias("score"),
+    )
+
+
+def score_relative_to_best(rows_df: pl.DataFrame) -> pl.DataFrame:
+    ref_df = rows_df.filter(pl.col("kind") == "reference")
+    ref_max = ref_df["raw_score"].max()
+
+    return rows_df.with_columns(
+        pl.lit(ref_max).alias("ref_max"),
+        (pl.col("raw_score") / ref_max).alias("score"),
+    )
+
+
+def score_rank_among_refs(rows_df: pl.DataFrame) -> pl.DataFrame:
+    ref_scores = rows_df.filter(pl.col("kind") == "reference")["raw_score"].to_list()
+    n_refs = len(ref_scores)
+
+    return rows_df.with_columns(
+        pl.struct(["raw_score"])
+        .map_elements(
+            lambda x: sum(s <= x["raw_score"] for s in ref_scores) / n_refs,
+            return_dtype=pl.Float64,
+        )
+        .alias("score")
+    )
+
+
+def build_scores_df(method: str) -> pl.DataFrame:
+    score_fn = SCORING_METHODS[method]
+
+    scored_parts = []
+    for benchmark, cfg in BENCHMARK_CONFIG.items():
+        df = pl.read_csv(cfg.results_path)
+        rows_df = build_benchmark_rows(df, benchmark, cfg)
+        scored_parts.append(score_fn(rows_df))
+
+    return pl.concat(scored_parts, how="vertical")
+
+
+def build_epoch_progress_df(scores_df: pl.DataFrame) -> pl.DataFrame:
+    train_df = scores_df.filter(pl.col("kind") == "train").sort(["benchmark", "epoch"])
+
+    train_with_deltas = train_df.with_columns(
+        pl.col("score").shift(1).over("benchmark").alias("prev_score"),
+        pl.col("raw_score").shift(1).over("benchmark").alias("prev_raw_score"),
+    ).with_columns(
+        (pl.col("score") - pl.col("prev_score")).alias("score_delta"),
+        (pl.col("raw_score") - pl.col("prev_raw_score")).alias("raw_score_delta"),
+        (pl.col("raw_score") > pl.col("prev_raw_score")).alias("improved_vs_prev"),
+        (pl.col("raw_score") < pl.col("prev_raw_score")).alias("declined_vs_prev"),
+        (pl.col("raw_score") == pl.col("prev_raw_score")).alias("unchanged_vs_prev"),
+        (pl.col("raw_score") == pl.col("raw_score").cum_max().over("benchmark")).alias("is_best_so_far"),
+    )
+
+    epoch_progress_df = (
+        train_with_deltas.group_by("epoch")
+        .agg(
+            pl.col("score").mean().alias("mean_score"),
+            pl.col("score").median().alias("median_score"),
+            pl.col("score_delta").mean().alias("mean_score_delta"),
+            pl.col("raw_score_delta").mean().alias("mean_raw_score_delta"),
+            pl.col("improved_vs_prev").sum().alias("n_improved"),
+            pl.col("declined_vs_prev").sum().alias("n_declined"),
+            pl.col("unchanged_vs_prev").sum().alias("n_unchanged"),
+            pl.col("is_best_so_far").sum().alias("n_best_so_far"),
+            pl.col("benchmark").n_unique().alias("n_benchmarks"),
+            pl.col("model_label").first().alias("model_label"),
+        )
+        .sort("epoch")
+        .with_columns(
+            (pl.col("n_improved") / pl.col("n_benchmarks")).alias("improvement_rate"),
+            pl.col("mean_score").cum_max().alias("best_mean_score_so_far"),
+        )
+        .with_columns(
+            (pl.col("best_mean_score_so_far") - pl.col("mean_score")).alias("gap_to_best_mean_score"),
+        )
+    )
+
+    return train_with_deltas, epoch_progress_df
+
+
+def build_reference_agg_df(scores_df: pl.DataFrame, min_benchmarks: int = 8) -> pl.DataFrame:
+    return (
+        scores_df.filter(pl.col("kind") == "reference")
+        .group_by("model_label")
+        .agg(
+            pl.col("score").mean().alias("mean_score"),
+            pl.col("benchmark").n_unique().alias("n_benchmarks"),
+        )
+        .filter(pl.col("n_benchmarks") >= min_benchmarks)
+        .sort("mean_score", descending=True)
+    )
+```
+
+```{python}
+benchmark = "cub200"
+cfg = BENCHMARK_CONFIG[benchmark]
+
+df = pl.read_csv(cfg.results_path)
+dataset_name = cfg.results_path.stem.split("_")[0]
+metric_title = METRIC_NAMES[cfg.metric]
+
+label, points, references = build_plot_data(df, cfg.embeddings_column, cfg.metric)
+epochs, metrics = zip(*points)
+
+reference_rows = [
+    {"model_label": pretty_name(ref_label, dataset_name), "score": ref_metric} for ref_label, ref_metric in references
+]
+
+plot_epoch_curve_vs_references(
+    epochs=list(epochs),
+    metrics=list(metrics),
+    main_label=pretty_name(label, dataset_name),
+    reference_rows=reference_rows,
+    reference_score_key="score",
+    ylabel=metric_title,
+    title=f"{cfg.title} Benchmark",
+)
+```
+
+```{python}
+SCORING_METHODS: dict[str, ScoreMethod] = {
+    "ref_minmax_clipped": score_ref_minmax_clipped,
+    "ref_minmax_raw": score_ref_minmax_raw,
+    "relative_to_best": score_relative_to_best,
+    "rank_among_refs": score_rank_among_refs,
+}
+
+score_method = "ref_minmax_raw"
+exclude_benchmarks = {"imagenet1k"}
+# exclude_benchmarks = exclude_benchmarks.union({"nabirds", "cub200"})
+
+scores_df = build_scores_df(score_method).filter(~pl.col("benchmark").is_in(exclude_benchmarks))
+
+# See if any "runs" are missing
+epoch_counts = (
+    scores_df.filter(pl.col("kind") == "train").group_by("benchmark").agg(pl.col("epoch").n_unique().alias("n_epochs"))
+)
+max_epochs = epoch_counts["n_epochs"].max()
+epoch_counts.filter(pl.col("n_epochs") < max_epochs)
+```
+
+```{python}
+train_scores_df, epoch_progress_df = build_epoch_progress_df(scores_df)
+ref_agg_df = build_reference_agg_df(scores_df, min_benchmarks=8)
+
+reference_rows = list(ref_agg_df.iter_rows(named=True))
+
+plot_epoch_curve_vs_references(
+    epochs=epoch_progress_df["epoch"].to_list(),
+    metrics=epoch_progress_df["mean_score"].to_list(),
+    main_label=epoch_progress_df["model_label"][0],
+    reference_rows=reference_rows,
+    reference_score_key="mean_score",
+    ylabel=f"Mean Score ({score_method})",
+    title=f"Aggregate Benchmark Score - {score_method}",
+)
+```
+
+```{python}
+with plt.style.context("seaborn-v0_8-whitegrid"):
+    fig, ax = plt.subplots(figsize=(14, 6))
+    ax.plot(
+        epoch_progress_df["epoch"].to_list(),
+        epoch_progress_df["improvement_rate"].to_list(),
+        marker="o",
+    )
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Improvement Rate")
+    ax.set_title("Fraction of Benchmarks Improved vs Previous Epoch")
+    plt.show()
+    plt.close(fig)
+```
+
+```{python}
+total_benchmarks = int(epoch_progress_df["n_benchmarks"].max())
+with plt.style.context("seaborn-v0_8-whitegrid"):
+    fig, ax = plt.subplots(figsize=(14, 6))
+    ax.plot(
+        epoch_progress_df["epoch"].to_list(),
+        epoch_progress_df["n_best_so_far"].to_list(),
+        marker="o",
+    )
+    ax.axhline(
+        total_benchmarks,
+        linestyle="--",
+        linewidth=1.5,
+        color="gray",
+        label=f"Total benchmarks ({total_benchmarks})",
+    )
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("# Benchmarks at Best-so-far")
+    ax.set_title("Benchmarks Hitting Best-so-far at Each Epoch")
+    plt.show()
+    plt.close(fig)
+```
+
+### Mistakes
 
 ```{python}
 def _show_image(ax, image_path: str) -> None:
@@ -86,7 +612,9 @@ DEVICE = torch.device("cuda:1")
 
 ```{python}
 AWA2_DATASET_PATH = "~/Datasets/Animals_with_Attributes2"
-AWA2_EMBEDDINGS_PATH = "results/awa2/awa2_vit_b16_pn_bioclip-v1_512_224px_crop1.0_37322_sc_embeddings.parquet"
+AWA2_EMBEDDINGS_PATH = (
+    "results/awa2/awa2_vit_reg4_so150m_p14_ls_dino-v2-bio_0_e150_224px_crop1.0_37322_sc_embeddings.parquet"
+)
 AWA2_SEED = 0
 AWA2_EPOCHS = 100
 AWA2_BATCH_SIZE = 256
@@ -211,7 +739,7 @@ plot_awa2_mistakes(awa2_mistakes, start=0, n=20, cols=5)
 ```{python}
 NEWT_DATASET_PATH = "~/Datasets/NeWT"
 NEWT_EMBEDDINGS_PATH = (
-    "results/newt/newt_vit_reg4_so150m_p14_ls_dino-v2-bio_0_e100_224px_crop1.0_36032_sc_embeddings.parquet"
+    "results/newt/newt_vit_reg4_so150m_p14_ls_dino-v2-bio_0_e150_224px_crop1.0_36032_sc_embeddings.parquet"
 )
 NEWT_N_ITER = 30
 NEWT_N_JOBS = 8
@@ -303,11 +831,10 @@ plot_newt_task_mistakes(newt_task_mistakes, start=0, n=20, cols=5)
 
 ### CCT
 
-
 ```{python}
 CCT_DATASET_PATH = "~/Datasets/CaltechCameraTraps"
 CCT_EMBEDDINGS_PATH = (
-    "results/cct/cct_vit_reg4_so150m_p14_ls_dino-v2-bio_0_e100_224px_crop1.0_244584_sc_embeddings.parquet"
+    "results/cct/cct_vit_reg4_so150m_p14_ls_dino-v2-bio_0_e140_224px_crop1.0_244584_sc_embeddings.parquet"
 )
 CCT_SPLIT_SET = "main"
 CCT_K = 20

@@ -493,13 +493,25 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_ibot --network vit_b16 --sha
 #### LeJEPA: ConvNeXt v1 Small
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_lejepa --network convnext_v1_tiny --batch-size 128 --opt adamw --lr 0.0005 --wd 0.0005 --lr-scheduler cosine --epochs 300 --warmup-epochs 20 --amp --amp-dtype bfloat16 --compile --data-path data/training
+torchrun --nproc_per_node=2 -m birder.scripts.train_lejepa --network convnext_v1_tiny --batch-size 128 --opt adamw --lr 0.0005 --wd 0.0005 --lr-scheduler cosine --epochs 300 --warmup-epochs 20 --use-grayscale --amp --amp-dtype bfloat16 --compile --data-path data/training
 ```
 
 #### LeJEPA: SoViT reg4 150m p14
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_lejepa --network vit_reg4_so150m_p14_ls --projection-dim 512 --loss-lambda 0.05 --num-slices 1024 --local-crop-size 98 --batch-size 64 --opt adamw --lr 0.0005 --wd 0.05 --lr-scheduler cosine --epochs 300 --warmup-epochs 20 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_lejepa --network vit_reg4_so150m_p14_ls --projection-dim 512 --loss-lambda 0.05 --num-slices 1024 --local-crop-size 98 --batch-size 64 --opt adamw --lr 0.0005 --wd 0.05 --lr-scheduler cosine --epochs 300 --warmup-epochs 20 --use-grayscale --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
+```
+
+Domain adaption, frozen backbone
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_lejepa --network vit_reg4_so150m_p14_ls --tag dino-v2-bio --projection-dim 512 --loss-lambda 0.05 --num-slices 1024 --local-crop-size 98 --backbone-epoch 200 --freeze-body --batch-size 256 --opt adamw --lr 0.0001 --wd 0.05 --lr-scheduler cosine --epochs 5 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
+```
+
+Domain adaption, training
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_lejepa --network vit_reg4_so150m_p14_ls --tag dino-v2-bio --projection-dim 512 --loss-lambda 0.05 --num-slices 1024 --local-crop-size 98 --batch-size 64 --opt adamw --lr 0.0005 --wd 0.05 --lr-scheduler cosine --epochs 100 --warmup-epochs 10 --use-grayscale --rgb-mode none --amp --amp-dtype bfloat16 --compile --resume-epoch 0 --wds --wds-info data/ssl_packed/_info.json
 ```
 
 ### MMCR

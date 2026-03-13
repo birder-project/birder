@@ -45,6 +45,15 @@ def _validate_label_names(label_names: list[str]) -> None:
         )
 
 
+def _sanitize_results_labels(labels: npt.NDArray[np.int64], num_labels: int) -> tuple[npt.NDArray[np.int64], int]:
+    invalid_mask = (labels != settings.NO_LABEL) & ((labels < 0) | (labels >= num_labels))
+    num_invalid_labels = int(invalid_mask.sum())
+    sanitized_labels = labels.copy()
+    sanitized_labels[invalid_mask] = settings.NO_LABEL
+
+    return (sanitized_labels, num_invalid_labels)
+
+
 def _metadata_pa_fields(columns: list[str]) -> list[pa.Field]:
     return [pa.field(name, pa.int64()) if name == "label" else pa.field(name, pa.string()) for name in columns]
 
@@ -67,7 +76,7 @@ def save_embeddings_parquet(
     writer: pq.ParquetWriter,
     sample_paths: list[str],
     embedding_list: list[npt.NDArray[np.float32]],
-    labels: Optional[list[int]] = None,
+    labels: Optional[npt.NDArray[np.int64]] = None,
 ) -> None:
     logger.info(f"Writing embeddings at {writer.where}")
     embeddings = np.concatenate(embedding_list, axis=0)
@@ -85,7 +94,7 @@ def save_logits_parquet(
     sample_paths: list[str],
     label_names: list[str],
     logits: npt.NDArray[np.float32],
-    labels: Optional[list[int]] = None,
+    labels: Optional[npt.NDArray[np.int64]] = None,
 ) -> None:
     logger.info(f"Writing logits at {writer.where}")
     data = {"sample": pa.array(sample_paths, type=pa.string())}
@@ -104,7 +113,7 @@ def save_output_parquet(
     sample_paths: list[str],
     label_names: list[str],
     outs: npt.NDArray[np.float32],
-    labels: Optional[list[int]] = None,
+    labels: Optional[npt.NDArray[np.int64]] = None,
 ) -> None:
     logger.info(f"Writing outputs at {writer.where}")
     data = {"sample": pa.array(sample_paths, type=pa.string())}
@@ -134,7 +143,7 @@ def save_embeddings(
     sample_paths: list[str],
     embedding_list: list[npt.NDArray[np.float32]],
     append: bool,
-    labels: Optional[list[int]] = None,
+    labels: Optional[npt.NDArray[np.int64]] = None,
 ) -> None:
     embeddings = np.concatenate(embedding_list, axis=0)
     data: dict[str, Any] = {"sample": sample_paths}
@@ -153,7 +162,7 @@ def save_logits(
     label_names: list[str],
     logits: npt.NDArray[np.float32],
     append: bool,
-    labels: Optional[list[int]] = None,
+    labels: Optional[npt.NDArray[np.int64]] = None,
 ) -> None:
     data: dict[str, Any] = {"sample": sample_paths}
     if labels is not None:
@@ -171,7 +180,7 @@ def save_output(
     label_names: list[str],
     outs: npt.NDArray[np.float32],
     append: bool,
-    labels: Optional[list[int]] = None,
+    labels: Optional[npt.NDArray[np.int64]] = None,
 ) -> None:
     data: dict[str, Any] = {"sample": sample_paths}
     if labels is not None:
@@ -356,7 +365,9 @@ def predict(args: argparse.Namespace) -> None:
         or args.show_class is not None
     )
 
-    def batch_callback(file_paths: list[str], out: npt.NDArray[np.float32], batch_labels: list[int]) -> None:
+    def batch_callback(
+        file_paths: list[str], out: npt.NDArray[np.float32], batch_labels: npt.NDArray[np.int64]
+    ) -> None:
         # Show flags
         if show_flag is True:
             for img_path, prob, label in zip(file_paths, out, batch_labels):
@@ -467,13 +478,20 @@ def predict(args: argparse.Namespace) -> None:
                 else:
                     save_output(output_path, sample_paths, label_names, outs, append=append, labels=labels_to_save)
 
-            if len(class_to_idx) > 0:
+            if len(class_to_idx) > 0 and args.skip_results_analysis is False:
                 # Handle results (Results / SparseResults)
+                results_labels, num_invalid_results_labels = _sanitize_results_labels(labels, outs.shape[1])
+                if num_invalid_results_labels > 0:
+                    logger.warning(
+                        f"Ignoring {num_invalid_results_labels} labels outside model output range "
+                        f"[0, {outs.shape[1] - 1}] for results analysis"
+                    )
+
                 results: Results | SparseResults
                 if args.save_sparse_results is True:
-                    results = SparseResults(sample_paths, labels, label_names, output=outs)
+                    results = SparseResults(sample_paths, results_labels, label_names, output=outs)
                 else:
-                    results = Results(sample_paths, labels, label_names, output=outs)
+                    results = Results(sample_paths, results_labels, label_names, output=outs)
 
                 if results.missing_all_labels is False:
                     if args.save_results is True or args.save_sparse_results is True:
@@ -619,6 +637,12 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="save results object in memory-efficient sparse format (only top-k probabilities)",
     )
+    parser.add_argument(
+        "--skip-results-analysis",
+        default=False,
+        action="store_true",
+        help="skip results analysis and reporting even when labels are available",
+    )
     parser.add_argument("--save-output", default=False, action="store_true", help="save raw output")
     parser.add_argument("--save-logits", default=False, action="store_true", help="save raw model logits")
     parser.add_argument("--save-embeddings", default=False, action="store_true", help="save embedding layer outputs")
@@ -643,7 +667,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--parallel", default=False, action="store_true", help="use multiple gpus")
     parser.add_argument("--wds", default=False, action="store_true", help="predict a webdataset directory")
     parser.add_argument("--wds-size", type=int, metavar="N", help="size of the wds dataset")
-    parser.add_argument("--wds-info", type=str, metavar="FILE", help="wds info file path")
+    parser.add_argument("--wds-info", type=str, action="append", metavar="FILE", help="one or more wds info file paths")
     parser.add_argument("--wds-split", type=str, default="validation", metavar="NAME", help="wds dataset split to load")
     parser.add_argument(
         "--ignore-dir-names",
@@ -678,6 +702,12 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--parallel requires --gpu to be set")
     if args.save_results is True and args.save_sparse_results is True:
         raise cli.ValidationError("--save-results cannot be used with --save-sparse-results")
+    if args.skip_results_analysis is True and args.save_results is True:
+        raise cli.ValidationError("--skip-results-analysis cannot be used with --save-results")
+    if args.skip_results_analysis is True and args.save_sparse_results is True:
+        raise cli.ValidationError("--skip-results-analysis cannot be used with --save-sparse-results")
+    if args.skip_results_analysis is True and args.summary is True:
+        raise cli.ValidationError("--skip-results-analysis cannot be used with --summary")
     if args.save_embeddings is True and args.tta is True:
         raise cli.ValidationError("--save-embeddings cannot be used with --tta")
     if args.amp is True and args.model_dtype != "float32":

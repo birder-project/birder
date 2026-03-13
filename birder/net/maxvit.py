@@ -257,30 +257,12 @@ class PartitionAttentionLayer(nn.Module):
 
         self.n_heads = in_channels // head_dim
         self.head_dim = head_dim
-        self.n_partitions = (grid_size[0] // partition_size[0], grid_size[1] // partition_size[1])
         self.partition_type = partition_type
-        self.grid_size = grid_size
 
         if partition_type not in ["grid", "window"]:
             raise ValueError("partition_type must be either 'grid' or 'window'")
 
-        if partition_type == "window":
-            self.p = partition_size
-            self.g = self.n_partitions
-        else:
-            self.p = self.n_partitions
-            self.g = partition_size
-
-        self.gh = self.grid_size[0] // self.p[0]
-        self.gw = self.grid_size[1] // self.p[1]
-
-        # Undefined behavior if H or W are not divisible by p
-        # https://github.com/google-research/maxvit/blob/da76cf0d8a6ec668cc31b399c4126186da7da944/maxvit/models/maxvit.py#L766
-        torch._assert(
-            self.grid_size[0] % self.p[0] == 0 and self.grid_size[1] % self.p[1] == 0,
-            f"Grid size must be divisible by partition size. Got grid size of "
-            f"{self.grid_size} and partition size of {self.p}",
-        )
+        self.define_partition_geometry(grid_size, partition_size)
 
         self.partition_op = WindowPartition()
         self.departition_op = WindowDepartition()
@@ -304,6 +286,28 @@ class PartitionAttentionLayer(nn.Module):
 
         # layer scale factors
         self.stochastic_dropout = StochasticDepth(p_stochastic_dropout, mode="row")
+
+    def define_partition_geometry(self, grid_size: tuple[int, int], partition_size: tuple[int, int]) -> None:
+        self.grid_size = grid_size
+        self.n_partitions = (grid_size[0] // partition_size[0], grid_size[1] // partition_size[1])
+
+        if self.partition_type == "window":
+            self.p = partition_size
+            self.g = self.n_partitions
+        else:
+            self.p = self.n_partitions
+            self.g = partition_size
+
+        self.gh = self.grid_size[0] // self.p[0]
+        self.gw = self.grid_size[1] // self.p[1]
+
+        # Undefined behavior if H or W are not divisible by p
+        # https://github.com/google-research/maxvit/blob/da76cf0d8a6ec668cc31b399c4126186da7da944/maxvit/models/maxvit.py#L766
+        torch._assert(  # pylint: disable=protected-access
+            self.grid_size[0] % self.p[0] == 0 and self.grid_size[1] % self.p[1] == 0,
+            f"Grid size must be divisible by partition size. Got grid size of "
+            f"{self.grid_size} and partition size of {self.p}",
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.partition_op(x, self.p)
@@ -655,30 +659,7 @@ class MaxViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                 for layer in m.block:
                     for i in range(1, 3):
                         mod = layer.layers[i]  # PartitionAttentionLayer
-                        mod.n_partitions = (
-                            new_grid_size[0] // self.partition_size[0],
-                            new_grid_size[1] // self.partition_size[1],
-                        )
-                        mod.grid_size = new_grid_size
-
-                        if mod.partition_type == "window":
-                            mod.p = self.partition_size
-                            mod.g = mod.n_partitions
-
-                        else:
-                            mod.p = mod.n_partitions
-                            mod.g = self.partition_size
-
-                        mod.gh = mod.grid_size[0] // mod.p[0]
-                        mod.gw = mod.grid_size[1] // mod.p[1]
-
-                        # Undefined behavior if H or W are not divisible by p
-                        # https://github.com/google-research/maxvit/blob/da76cf0d8a6ec668cc31b399c4126186da7da944/maxvit/models/maxvit.py#L766
-                        torch._assert(  # pylint: disable=protected-access
-                            mod.grid_size[0] % mod.p[0] == 0 and mod.grid_size[1] % mod.p[1] == 0,
-                            f"Grid size must be divisible by partition size. Got grid size of "
-                            f"{mod.grid_size} and partition size of {mod.p}",
-                        )
+                        mod.define_partition_geometry(new_grid_size, self.partition_size)
 
                         attn = mod.attn_layer[1]  # RelativePositionalMultiHeadAttention
                         old_attn_size = attn.size
@@ -746,6 +727,7 @@ class MaxViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                                 all_rel_pos_bias.append(r)
 
                             rel_pos_bias = torch.concat(all_rel_pos_bias, dim=-1)
+
                         attn.relative_position_bias_table = nn.Parameter(rel_pos_bias)
 
                 new_grid_size = m.grid_size

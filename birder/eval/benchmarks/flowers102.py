@@ -10,6 +10,7 @@ import logging
 import time
 from pathlib import Path
 from typing import Any
+from typing import Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -27,6 +28,10 @@ from birder.eval.methods.simpleshot import evaluate_simpleshot
 logger = logging.getLogger(__name__)
 
 
+def _results_filename() -> str:
+    return "flowers102_simpleshot.csv"
+
+
 def _print_summary_table(results: list[dict[str, Any]]) -> None:
     console = Console()
 
@@ -35,7 +40,7 @@ def _print_summary_table(results: list[dict[str, Any]]) -> None:
     table.add_column("Val Acc", justify="right")
     table.add_column("Test Acc", justify="right")
 
-    for result in results:
+    for result in sorted(results, key=lambda result: Path(result["embeddings_file"]).name):
         table.add_row(
             Path(result["embeddings_file"]).name,
             f"{result['val_accuracy']:.4f}",
@@ -45,20 +50,52 @@ def _print_summary_table(results: list[dict[str, Any]]) -> None:
     console.print(table)
 
 
-def _write_results_csv(results: list[dict[str, Any]], output_path: Path) -> None:
-    rows: list[dict[str, Any]] = []
-    for result in results:
-        rows.append(
-            {
-                "embeddings_file": result["embeddings_file"],
-                "method": result["method"],
-                "val_accuracy": result["val_accuracy"],
-                "test_accuracy": result["test_accuracy"],
-            }
-        )
+def _result_to_row(result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "embeddings_file": result["embeddings_file"],
+        "method": result["method"],
+        "val_accuracy": result["val_accuracy"],
+        "test_accuracy": result["test_accuracy"],
+    }
 
-    pl.DataFrame(rows).write_csv(output_path)
-    logger.info(f"Results saved to {output_path}")
+
+def _append_result_csv(result: dict[str, Any], output_path: Path) -> None:
+    row_df = pl.DataFrame([_result_to_row(result)])
+    file_exists = output_path.exists()
+    mode = "a" if file_exists is True else "w"
+    with open(output_path, mode, encoding="utf-8") as handle:
+        row_df.write_csv(handle, include_header=file_exists is False)
+
+    logger.info(f"Results updated at {output_path}")
+
+
+def _row_to_result(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "embeddings_file": str(row["embeddings_file"]),
+        "method": str(row["method"]),
+        "val_accuracy": float(row["val_accuracy"]),
+        "test_accuracy": float(row["test_accuracy"]),
+    }
+
+
+def _load_cached_result(existing_df: Optional[pl.DataFrame], embeddings_path: str) -> Optional[dict[str, Any]]:
+    if existing_df is None or existing_df.is_empty() is True:
+        return None
+
+    match_df = existing_df.filter(pl.col("embeddings_file") == embeddings_path)
+    if match_df.is_empty() is True:
+        return None
+
+    return _row_to_result(match_df.row(0, named=True))
+
+
+def _summary_results(
+    existing_df: Optional[pl.DataFrame], current_results: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    if existing_df is None or existing_df.is_empty() is True:
+        return current_results
+
+    return [_row_to_result(row) for row in existing_df.iter_rows(named=True)]
 
 
 def _load_flowers102_metadata(dataset_path: Path) -> pl.DataFrame:
@@ -153,6 +190,28 @@ def evaluate_flowers102(args: argparse.Namespace) -> None:
 
     logger.info(f"Loading Flowers102 dataset from {args.dataset_path}")
     dataset_path = Path(args.dataset_path)
+    existing_df: Optional[pl.DataFrame] = None
+    output_path: Optional[Path] = None
+
+    if args.dry_run is False:
+        output_dir = settings.RESULTS_DIR.joinpath(args.dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir.joinpath(_results_filename())
+        if output_path.exists() is True:
+            logger.info(f"Loading existing results from {output_path}")
+            existing_df = pl.read_csv(output_path)
+
+    if args.embeddings is None:
+        summary_results = _summary_results(existing_df, [])
+        if len(summary_results) == 0:
+            raise cli.ValidationError("--embeddings is required when no cached results are available")
+
+        logger.info("No embeddings provided, showing cached results")
+        _print_summary_table(summary_results)
+        toc = time.time()
+        logger.info(f"Flowers102 benchmark completed in {lib.format_duration(toc - tic)}")
+        return
+
     metadata_df = _load_flowers102_metadata(dataset_path)
     logger.info(f"Loaded metadata for {metadata_df.height} images")
 
@@ -160,18 +219,30 @@ def evaluate_flowers102(args: argparse.Namespace) -> None:
     total = len(args.embeddings)
     for idx, embeddings_path in enumerate(args.embeddings, start=1):
         logger.info(f"Processing embeddings {idx}/{total}: {embeddings_path}")
+
+        cached_result = _load_cached_result(existing_df, embeddings_path)
+        if cached_result is not None:
+            logger.info(f"Using cached result for {embeddings_path}")
+            results.append(cached_result)
+            continue
+
+        if Path(embeddings_path).exists() is False:
+            logger.warning(f"Embeddings file not found, skipping: {embeddings_path}")
+            continue
+
         x_train, y_train, x_val, y_val, x_test, y_test = _load_embeddings_with_split(embeddings_path, metadata_df)
 
         result = evaluate_flowers102_single(x_train, y_train, x_val, y_val, x_test, y_test, embeddings_path)
         results.append(result)
+        if output_path is not None:
+            _append_result_csv(result, output_path)
+            row_df = pl.DataFrame([_result_to_row(result)])
+            if existing_df is None:
+                existing_df = row_df
+            else:
+                existing_df = pl.concat([existing_df, row_df], how="diagonal_relaxed")
 
-    _print_summary_table(results)
-
-    if args.dry_run is False:
-        output_dir = settings.RESULTS_DIR.joinpath(args.dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = output_dir.joinpath("flowers102.csv")
-        _write_results_csv(results, output_path)
+    _print_summary_table(_summary_results(existing_df, results))
 
     toc = time.time()
     logger.info(f"Flowers102 benchmark completed in {lib.format_duration(toc - tic)}")
@@ -204,8 +275,6 @@ def set_parser(subparsers: Any) -> None:
 
 
 def validate_args(args: argparse.Namespace) -> None:
-    if args.embeddings is None:
-        raise cli.ValidationError("--embeddings is required")
     if args.dataset_path is None:
         raise cli.ValidationError("--dataset-path is required")
 

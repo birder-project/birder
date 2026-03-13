@@ -26,7 +26,6 @@ import torchinfo
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets.folder import pil_loader  # Slower but Handles external dataset quirks better
-from torchvision.transforms import v2
 from tqdm import tqdm
 
 from birder.common import cli
@@ -44,8 +43,8 @@ from birder.data.datasets.fake import FakeDataWithPaths
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
-from birder.data.transforms.classification import RGBType
 from birder.data.transforms.classification import get_rgb_stats
+from birder.data.transforms.classification import training_preset
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import get_signature
@@ -59,26 +58,12 @@ class TrainTransform:
     def __init__(
         self,
         global_transform: Callable[..., torch.Tensor],
-        crop_size: tuple[int, int],
-        rgb_values: RGBType,
+        local_transform: Callable[..., torch.Tensor],
         local_crops_number: int,
     ) -> None:
         self.global_transform = global_transform
+        self.local_transform = local_transform
         self.local_crops_number = local_crops_number
-
-        mean = rgb_values["mean"]
-        std = rgb_values["std"]
-        self.local_transform = v2.Compose(
-            [
-                v2.PILToTensor(),
-                v2.RandomResizedCrop(crop_size, scale=(0.05, 0.3), interpolation=v2.InterpolationMode.BICUBIC),
-                v2.RandomHorizontalFlip(p=0.5),
-                v2.RandomApply([v2.ColorJitter(brightness=0.25, contrast=0.15, hue=0.04)], p=0.8),
-                v2.RandomApply([v2.GaussianBlur(kernel_size=(3, 3), sigma=(0.5, 1.2))], p=0.5),
-                v2.ToDtype(torch.float32, scale=True),
-                v2.Normalize(mean=mean, std=std),
-            ]
-        )
 
     def __call__(self, image: Any) -> list[torch.Tensor]:
         crops = []
@@ -108,12 +93,34 @@ def train(args: argparse.Namespace) -> None:
     rgb_stats = get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std)
     logger.debug(f"Using RGB stats: {rgb_stats}")
 
-    training_transform = TrainTransform(
-        training_utils.get_training_transform(args),
-        args.local_crop_size,
+    global_transform = training_preset(
+        args.size,
+        args.aug_type,
+        args.aug_level,
         rgb_stats,
-        args.local_crops_number,
+        args.resize_min_scale,
+        args.re_prob,
+        args.use_grayscale,
+        args.ra_num_ops,
+        args.ra_magnitude,
+        args.augmix_severity,
+        args.simple_crop,
     )
+    local_transform = training_preset(
+        args.local_crop_size,
+        args.aug_type,
+        args.aug_level,
+        rgb_stats,
+        0.05,
+        args.re_prob,
+        args.use_grayscale,
+        args.ra_num_ops,
+        args.ra_magnitude,
+        args.augmix_severity,
+        args.simple_crop,
+        resize_max_scale=0.3,
+    )
+    training_transform = TrainTransform(global_transform, local_transform, args.local_crops_number)
     if args.use_fake_data is True:
         logger.warning("Using fake data")
         training_dataset = FakeDataWithPaths(
@@ -223,6 +230,13 @@ def train(args: argparse.Namespace) -> None:
     network_name = get_mim_network_name("lejepa", encoder=args.network, tag=args.tag)
 
     backbone = registry.net_factory(args.network, 0, sample_shape[1], config=args.model_config, size=args.size)
+    if args.backbone_epoch is not None:
+        backbone, _ = fs_ops.load_simple_checkpoint(
+            device, backbone, backbone_name, epoch=args.backbone_epoch, strict=not args.non_strict_weights
+        )
+    if args.freeze_body is True:
+        backbone.freeze(freeze_classifier=False, unfreeze_features=True)
+
     backbone.set_dynamic_size()
     net = LeJEPA(
         backbone,
@@ -277,6 +291,7 @@ def train(args: argparse.Namespace) -> None:
         custom_keys_weight_decay=custom_keys_weight_decay,
         custom_layer_weight_decay=args.custom_layer_wd,
         layer_decay=args.layer_decay,
+        backbone_layer_decay=args.backbone_layer_decay,
         layer_decay_min_scale=args.layer_decay_min_scale,
         layer_decay_no_opt_scale=args.layer_decay_no_opt_scale,
         bias_lr=args.bias_lr,
@@ -650,13 +665,25 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--local-crop-size", type=int, nargs="+", default=[96, 96], metavar=("H", "W"), help="local view size"
     )
+    parser.add_argument(
+        "--backbone-epoch",
+        type=int,
+        metavar="N",
+        help="load backbone weights from the specified epoch (if not provided, initialize new network)",
+    )
+    parser.add_argument(
+        "--freeze-body",
+        default=False,
+        action="store_true",
+        help="freeze all layers of the backbone except the features layer",
+    )
     training_cli.add_optimization_args(parser)
-    training_cli.add_lr_wd_args(parser)
+    training_cli.add_lr_wd_args(parser, backbone_layer_decay=True)
     training_cli.add_lr_scheduler_args(parser)
     training_cli.add_training_schedule_args(parser, default_epochs=300)
     training_cli.add_batch_norm_args(parser)
     training_cli.add_input_args(parser)
-    training_cli.add_data_aug_args(parser, default_level=1, default_min_scale=0.3, default_re_prob=0.0)
+    training_cli.add_data_aug_args(parser, default_level=4, default_min_scale=0.3, default_re_prob=0.0)
     training_cli.add_dataloader_args(parser, default_drop_last=True)
     training_cli.add_precision_args(parser)
     training_cli.add_compile_args(parser)
@@ -679,6 +706,8 @@ def validate_args(args: argparse.Namespace) -> None:
     # Script specific checks
     if registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION) is False:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
+    if args.backbone_epoch is not None and args.resume_epoch is not None:
+        raise cli.ValidationError("--backbone-epoch cannot be used with --resume-epoch")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

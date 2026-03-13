@@ -21,6 +21,12 @@ from birder.layers import LayerScale
 from birder.layers import MultiHeadAttentionPool
 from birder.layers import SwiGLU_FFN
 from birder.layers.activations import get_activation_module
+from birder.layers.rope import RoPE
+from birder.layers.rope import RoPERotationType
+from birder.layers.rope import RoPEStyleType
+from birder.layers.rope import apply_interleaved_rotary_pos_embed
+from birder.layers.rope import apply_rotary_pos_embed
+from birder.layers.rope import build_rotary_pos_embed
 from birder.model_registry import registry
 from birder.net._vit_configs import BASE
 from birder.net._vit_configs import GIANT
@@ -38,10 +44,6 @@ from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenOmissionResultType
 from birder.net.base import TokenRetentionResultType
 from birder.net.base import normalize_out_indices
-from birder.net.rope_vit import RoPE
-from birder.net.rope_vit import apply_interleaved_rotary_pos_embed
-from birder.net.rope_vit import apply_rotary_pos_embed
-from birder.net.rope_vit import build_rotary_pos_embed
 from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
 
@@ -77,7 +79,7 @@ class RoPEAttention(nn.Module):
         qk_norm: bool = False,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
         norm_layer_eps: float = 1e-6,
-        rope_rot_type: str = "standard",
+        rope_rot_type: RoPERotationType = "standard",
     ) -> None:
         super().__init__()
         assert dim % num_heads == 0, "dim should be divisible by num_heads"
@@ -161,7 +163,7 @@ class EncoderBlock(nn.Module):
         mlp_layer: Callable[..., nn.Module] = FFN,
         qkv_bias: bool = True,
         qk_norm: bool = False,
-        rope_rot_type: str = "standard",
+        rope_rot_type: RoPERotationType = "standard",
     ) -> None:
         super().__init__()
 
@@ -228,7 +230,7 @@ class Encoder(nn.Module):
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
         norm_layer_eps: float = 1e-6,
         mlp_layer: Callable[..., nn.Module] = FFN,
-        rope_rot_type: str = "standard",
+        rope_rot_type: RoPERotationType = "standard",
     ) -> None:
         super().__init__()
         pre_layers = []
@@ -304,7 +306,8 @@ class MAEDecoderBlock(nn.Module):
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
         norm_layer_eps: float = 1e-6,
         mlp_layer: Callable[..., nn.Module] = FFN,
-        rope_rot_type: str = "standard",
+        rope_style: RoPEStyleType = "default",
+        rope_rot_type: RoPERotationType = "standard",
     ) -> None:
         super().__init__()
         mlp_dim = hidden_dim * 4
@@ -314,6 +317,7 @@ class MAEDecoderBlock(nn.Module):
             grid_size=grid_size,
             grid_indexing=rope_grid_indexing,
             grid_offset=rope_grid_offset,
+            rope_style=rope_style,
             rope_rot_type=rope_rot_type,
         )
         if num_reg_tokens == 0:
@@ -325,6 +329,7 @@ class MAEDecoderBlock(nn.Module):
                 grid_size=_register_rope_grid(num_reg_tokens),
                 grid_indexing=rope_grid_indexing,
                 grid_offset=0,
+                rope_style=rope_style,
                 rope_rot_type=rope_rot_type,
             )
 
@@ -379,6 +384,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         image_size = self.size
         attention_dropout = 0.0
         dropout = 0.0
+        abs_pos_embed: bool = self.config.get("abs_pos_embed", True)
         patch_size: int = self.config["patch_size"]
         num_layers: int = self.config["num_layers"]
         num_heads: int = self.config["num_heads"]
@@ -400,7 +406,8 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
         act_layer_type: Optional[str] = self.config.get("act_layer_type", None)  # Default according to mlp type
         out_indices: Optional[list[int]] = self.config.get("out_indices", None)
-        rope_rot_type: Literal["standard", "interleaved"] = self.config.get("rope_rot_type", "standard")
+        rope_style: RoPEStyleType = self.config.get("rope_style", "default")
+        rope_rot_type: RoPERotationType = self.config.get("rope_rot_type", "standard")
         rope_grid_indexing: Literal["ij", "xy"] = self.config.get("rope_grid_indexing", "ij")
         rope_grid_offset: int = self.config.get("rope_grid_offset", 0)
         rope_temperature: float = self.config.get("rope_temperature", 10000.0)
@@ -430,6 +437,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
+        self.abs_pos_embed = abs_pos_embed
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.num_heads = num_heads
@@ -442,6 +450,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         self.mlp_layer = mlp_layer
         self.act_layer = act_layer
         self.out_indices = normalize_out_indices(out_indices, num_layers)
+        self.rope_style = rope_style
         self.rope_rot_type = rope_rot_type
         self.rope_grid_indexing = rope_grid_indexing
         self.rope_grid_offset = rope_grid_offset
@@ -484,7 +493,10 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
             self.reg_tokens = None
 
         # Add positional embedding
-        self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, hidden_dim).normal_(std=0.02))
+        if self.abs_pos_embed is True:
+            self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, hidden_dim).normal_(std=0.02))
+        else:
+            self.pos_embedding = None
 
         # RoPE
         self.rope = RoPE(
@@ -494,6 +506,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
             grid_indexing=rope_grid_indexing,
             grid_offset=rope_grid_offset,
             pt_grid_size=self.pt_grid_size,
+            rope_style=rope_style,
             rope_rot_type=rope_rot_type,
         )
         if self.num_reg_tokens == 0:
@@ -505,6 +518,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
                 grid_size=_register_rope_grid(self.num_reg_tokens),
                 grid_indexing=rope_grid_indexing,
                 grid_offset=0,
+                rope_style=rope_style,
                 rope_rot_type=rope_rot_type,
             )
 
@@ -576,6 +590,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
             norm_layer=norm_layer,
             norm_layer_eps=norm_layer_eps,
             mlp_layer=mlp_layer,
+            rope_style=rope_style,
             rope_rot_type=rope_rot_type,
         )
 
@@ -591,7 +606,10 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
             nn.init.zeros_(self.classifier.weight)
             nn.init.zeros_(self.classifier.bias)
 
-    def _get_pos_embed(self, H: int, W: int) -> torch.Tensor:
+    def _get_pos_embed(self, H: int, W: int) -> Optional[torch.Tensor]:
+        if self.pos_embedding is None:
+            return None
+
         if self.dynamic_size is False:
             return self.pos_embedding
 
@@ -620,6 +638,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
                     grid_indexing=self.rope_grid_indexing,
                     grid_offset=self.rope_grid_offset,
                     pt_grid_size=self.pt_grid_size,
+                    rope_style=self.rope_style,
                 ),
                 dim=-1,
             ).to(self.rope.pos_embed.device, dtype=self.rope.pos_embed.dtype)
@@ -656,7 +675,9 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         x = self.conv_proj(x)
         x = self.patch_embed(x)
 
-        x = x + self._get_pos_embed(H, W)
+        pos_embedding = self._get_pos_embed(H, W)
+        if pos_embedding is not None:
+            x = x + pos_embedding
 
         # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
         special_tokens: list[torch.Tensor] = []
@@ -687,7 +708,8 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         for param in self.conv_proj.parameters():
             param.requires_grad_(False)
 
-        self.pos_embedding.requires_grad_(False)
+        if self.pos_embedding is not None:
+            self.pos_embedding.requires_grad_(False)
 
         for idx, module in enumerate(self.encoder.children()):
             if idx >= up_to_stage:
@@ -711,7 +733,9 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
 
         # Add pos embedding without special tokens
         pos_embedding = self._get_pos_embed(H, W)
-        x = x + pos_embedding
+        if pos_embedding is not None:
+            x = x + pos_embedding
+
         rope, rope_reg = self._get_rope_embed(H, W)
 
         # Mask tokens
@@ -783,7 +807,9 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         # Reshape and permute the input tensor
         x = self.patch_embed(x)
 
-        x = x + self._get_pos_embed(H, W)
+        pos_embedding = self._get_pos_embed(H, W)
+        if pos_embedding is not None:
+            x = x + pos_embedding
 
         # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
         special_tokens: list[torch.Tensor] = []
@@ -828,7 +854,9 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         x = self.patch_embed(x)
 
         patch_embedding = x
-        x = x + self._get_pos_embed(H, W)
+        pos_embedding = self._get_pos_embed(H, W)
+        if pos_embedding is not None:
+            x = x + pos_embedding
 
         # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
         special_tokens: list[torch.Tensor] = []
@@ -882,16 +910,17 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         old_size = self.size
         super().adjust_size(new_size)
 
-        # Add back class tokens
-        with torch.no_grad():
-            pos_embedding = adjust_position_embedding(
-                self.pos_embedding,
-                (old_size[0] // self.patch_size, old_size[1] // self.patch_size),
-                (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
-                0,
-            )
+        if self.pos_embedding is not None:
+            # Add back class tokens
+            with torch.no_grad():
+                pos_embedding = adjust_position_embedding(
+                    self.pos_embedding,
+                    (old_size[0] // self.patch_size, old_size[1] // self.patch_size),
+                    (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
+                    0,
+                )
 
-        self.pos_embedding = nn.Parameter(pos_embedding)
+            self.pos_embedding = nn.Parameter(pos_embedding)
 
         # Adjust RoPE
         self.rope = RoPE(
@@ -901,6 +930,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
             grid_indexing=self.rope_grid_indexing,
             grid_offset=self.rope_grid_offset,
             pt_grid_size=self.pt_grid_size,
+            rope_style=self.rope_style,
             rope_rot_type=self.rope_rot_type,
             device=self.rope.pos_embed.device,
         )
@@ -921,6 +951,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
             norm_layer=self.norm_layer,
             norm_layer_eps=self.norm_layer_eps,
             mlp_layer=self.mlp_layer,
+            rope_style=self.rope_style,
             rope_rot_type=self.rope_rot_type,
         )
 

@@ -143,6 +143,45 @@ class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
             num_special_tokens=self.num_special_tokens,
         ).to(self.pos_embedding.device)
 
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        self.encoder.set_causal_attention(is_causal)
+
+    def transform_to_backbone(self) -> None:
+        super().transform_to_backbone()
+        self.norm = nn.Identity()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        H, W = x.shape[-2:]
+        x = self.conv_proj(x)
+        x = self.patch_embed(x)
+        x = x + self._get_pos_embed(H, W)
+
+        if self.out_indices is None:
+            xs = [self.encoder(x)]
+        else:
+            xs = self.encoder.forward_features(x, out_indices=self.out_indices)
+
+        out: dict[str, torch.Tensor] = {}
+        for stage_name, stage_x in zip(self.return_stages, xs, strict=True):
+            stage_x = stage_x[:, self.num_special_tokens :]
+            stage_x = stage_x.permute(0, 2, 1)
+            B, C, _ = stage_x.size()
+            stage_x = stage_x.reshape(B, C, H // self.patch_size, W // self.patch_size)
+            out[stage_name] = stage_x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.conv_proj.parameters():
+            param.requires_grad_(False)
+
+        for idx, module in enumerate(self.encoder.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad_(False)
+
     def masked_encoding_omission(
         self,
         x: torch.Tensor,
@@ -203,42 +242,6 @@ class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         x = x.permute(0, 2, 1)
         return self.features(x)
 
-    def transform_to_backbone(self) -> None:
-        super().transform_to_backbone()
-        self.norm = nn.Identity()
-
-    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        H, W = x.shape[-2:]
-        x = self.conv_proj(x)
-        x = self.patch_embed(x)
-        x = x + self._get_pos_embed(H, W)
-
-        if self.out_indices is None:
-            xs = [self.encoder(x)]
-        else:
-            xs = self.encoder.forward_features(x, out_indices=self.out_indices)
-
-        out: dict[str, torch.Tensor] = {}
-        for stage_name, stage_x in zip(self.return_stages, xs, strict=True):
-            stage_x = stage_x[:, self.num_special_tokens :]
-            stage_x = stage_x.permute(0, 2, 1)
-            B, C, _ = stage_x.size()
-            stage_x = stage_x.reshape(B, C, H // self.patch_size, W // self.patch_size)
-            out[stage_name] = stage_x
-
-        return out
-
-    def freeze_stages(self, up_to_stage: int) -> None:
-        for param in self.conv_proj.parameters():
-            param.requires_grad_(False)
-
-        for idx, module in enumerate(self.encoder.children()):
-            if idx >= up_to_stage:
-                break
-
-            for param in module.parameters():
-                param.requires_grad_(False)
-
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
@@ -259,9 +262,6 @@ class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
             )
 
         self.pos_embedding = nn.Buffer(pos_embedding)
-
-    def set_causal_attention(self, is_causal: bool = True) -> None:
-        self.encoder.set_causal_attention(is_causal)
 
 
 registry.register_model_config(

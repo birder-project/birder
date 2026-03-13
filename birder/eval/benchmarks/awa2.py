@@ -10,6 +10,7 @@ import logging
 import time
 from pathlib import Path
 from typing import Any
+from typing import Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -31,6 +32,23 @@ from birder.eval.methods.mlp import train_mlp
 logger = logging.getLogger(__name__)
 
 
+def _format_float_for_filename(value: float) -> str:
+    return f"{value:g}".replace(".", "p")
+
+
+def _results_filename(args: argparse.Namespace) -> str:
+    return (
+        f"awa2_mlp_metric-{args.metric_mode}"
+        f"_runs{args.runs}"
+        f"_e{args.epochs}"
+        f"_bs{args.batch_size}"
+        f"_lr{_format_float_for_filename(args.lr)}"
+        f"_hd{args.hidden_dim}"
+        f"_do{_format_float_for_filename(args.dropout)}"
+        ".csv"
+    )
+
+
 def _print_summary_table(results: list[dict[str, Any]]) -> None:
     console = Console()
 
@@ -40,7 +58,7 @@ def _print_summary_table(results: list[dict[str, Any]]) -> None:
     table.add_column("Std", justify="right")
     table.add_column("Runs", justify="right")
 
-    for result in results:
+    for result in sorted(results, key=lambda result: Path(result["embeddings_file"]).name):
         table.add_row(
             Path(result["embeddings_file"]).name,
             f"{result['macro_f1']:.4f}",
@@ -51,24 +69,65 @@ def _print_summary_table(results: list[dict[str, Any]]) -> None:
     console.print(table)
 
 
-def _write_results_csv(results: list[dict[str, Any]], attribute_names: list[str], output_path: Path) -> None:
-    rows: list[dict[str, Any]] = []
-    for result in results:
-        row: dict[str, Any] = {
-            "embeddings_file": result["embeddings_file"],
-            "method": result["method"],
-            "metric_mode": result["metric_mode"],
-            "macro_f1": result["macro_f1"],
-            "macro_f1_std": result["macro_f1_std"],
-            "num_runs": result["num_runs"],
-        }
-        for attr in attribute_names:
-            row[f"f1_{attr}"] = result["per_attribute_f1"].get(attr)
+def _result_to_row(result: dict[str, Any], attribute_names: list[str]) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "embeddings_file": result["embeddings_file"],
+        "method": result["method"],
+        "metric_mode": result["metric_mode"],
+        "macro_f1": result["macro_f1"],
+        "macro_f1_std": result["macro_f1_std"],
+        "num_runs": result["num_runs"],
+    }
+    for attr in attribute_names:
+        row[f"f1_{attr}"] = result["per_attribute_f1"].get(attr)
 
-        rows.append(row)
+    return row
 
-    pl.DataFrame(rows).write_csv(output_path)
-    logger.info(f"Results saved to {output_path}")
+
+def _append_result_csv(result: dict[str, Any], attribute_names: list[str], output_path: Path) -> None:
+    row_df = pl.DataFrame([_result_to_row(result, attribute_names)])
+    file_exists = output_path.exists()
+    mode = "a" if file_exists is True else "w"
+    with open(output_path, mode, encoding="utf-8") as handle:
+        row_df.write_csv(handle, include_header=file_exists is False)
+
+    logger.info(f"Results updated at {output_path}")
+
+
+def _row_to_result(row: dict[str, Any], attribute_names: list[str]) -> dict[str, Any]:
+    per_attribute_f1 = {attr: float(value) for attr in attribute_names if (value := row.get(f"f1_{attr}")) is not None}
+
+    return {
+        "embeddings_file": str(row["embeddings_file"]),
+        "method": str(row["method"]),
+        "metric_mode": str(row["metric_mode"]),
+        "macro_f1": float(row["macro_f1"]),
+        "macro_f1_std": float(row["macro_f1_std"]),
+        "num_runs": int(row["num_runs"]),
+        "per_attribute_f1": per_attribute_f1,
+    }
+
+
+def _load_cached_result(
+    existing_df: Optional[pl.DataFrame], embeddings_path: str, attribute_names: list[str]
+) -> Optional[dict[str, Any]]:
+    if existing_df is None or existing_df.is_empty() is True:
+        return None
+
+    match_df = existing_df.filter(pl.col("embeddings_file") == embeddings_path)
+    if match_df.is_empty() is True:
+        return None
+
+    return _row_to_result(match_df.row(0, named=True), attribute_names)
+
+
+def _summary_results(
+    existing_df: Optional[pl.DataFrame], current_results: list[dict[str, Any]], attribute_names: list[str]
+) -> list[dict[str, Any]]:
+    if existing_df is None or existing_df.is_empty() is True:
+        return current_results
+
+    return [_row_to_result(row, attribute_names) for row in existing_df.iter_rows(named=True)]
 
 
 def _load_awa2_metadata(dataset: AwA2) -> tuple[pl.DataFrame, npt.NDArray[np.float32], list[str], list[str], list[str]]:
@@ -273,6 +332,27 @@ def evaluate_awa2(args: argparse.Namespace) -> None:
     logger.info(f"Metric mode: {args.metric_mode}")
     dataset = AwA2(args.dataset_path)
     attribute_names = dataset.attribute_names
+    existing_df: Optional[pl.DataFrame] = None
+    output_path: Optional[Path] = None
+
+    if args.dry_run is False:
+        output_dir = settings.RESULTS_DIR.joinpath(args.dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir.joinpath(_results_filename(args))
+        if output_path.exists() is True:
+            logger.info(f"Loading existing results from {output_path}")
+            existing_df = pl.read_csv(output_path)
+
+    if args.embeddings is None:
+        summary_results = _summary_results(existing_df, [], attribute_names)
+        if len(summary_results) == 0:
+            raise cli.ValidationError("--embeddings is required when no cached results are available")
+
+        logger.info("No embeddings provided, showing cached results")
+        _print_summary_table(summary_results)
+        toc = time.time()
+        logger.info(f"AwA2 benchmark completed in {lib.format_duration(toc - tic)}")
+        return
 
     metadata_df, attribute_matrix, class_names, train_classes, test_classes = _load_awa2_metadata(dataset)
     logger.info(f"Loaded metadata for {metadata_df.height} images")
@@ -282,20 +362,32 @@ def evaluate_awa2(args: argparse.Namespace) -> None:
     total = len(args.embeddings)
     for idx, embeddings_path in enumerate(args.embeddings, start=1):
         logger.info(f"Processing embeddings {idx}/{total}: {embeddings_path}")
+
+        cached_result = _load_cached_result(existing_df, embeddings_path, attribute_names)
+        if cached_result is not None:
+            logger.info(f"Using cached result for {embeddings_path}")
+            results.append(cached_result)
+            continue
+
+        if Path(embeddings_path).exists() is False:
+            logger.warning(f"Embeddings file not found, skipping: {embeddings_path}")
+            continue
+
         x_train, y_train, x_test, y_test = _load_embeddings_with_labels(
             embeddings_path, metadata_df, attribute_matrix, class_names, train_classes, test_classes
         )
 
         result = evaluate_awa2_single(x_train, y_train, x_test, y_test, attribute_names, args, embeddings_path, device)
         results.append(result)
+        if output_path is not None:
+            _append_result_csv(result, attribute_names, output_path)
+            row_df = pl.DataFrame([_result_to_row(result, attribute_names)])
+            if existing_df is None:
+                existing_df = row_df
+            else:
+                existing_df = pl.concat([existing_df, row_df], how="diagonal_relaxed")
 
-    _print_summary_table(results)
-
-    if args.dry_run is False:
-        output_dir = settings.RESULTS_DIR.joinpath(args.dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = output_dir.joinpath("awa2.csv")
-        _write_results_csv(results, attribute_names, output_path)
+    _print_summary_table(_summary_results(existing_df, results, attribute_names))
 
     toc = time.time()
     logger.info(f"AwA2 benchmark completed in {lib.format_duration(toc - tic)}")
@@ -345,8 +437,6 @@ def set_parser(subparsers: Any) -> None:
 
 
 def validate_args(args: argparse.Namespace) -> None:
-    if args.embeddings is None:
-        raise cli.ValidationError("--embeddings is required")
     if args.dataset_path is None:
         raise cli.ValidationError("--dataset-path is required")
 

@@ -10,6 +10,7 @@ import logging
 import time
 from pathlib import Path
 from typing import Any
+from typing import Optional
 
 import numpy as np
 import polars as pl
@@ -27,6 +28,11 @@ from birder.eval.methods.ami import evaluate_ami
 logger = logging.getLogger(__name__)
 
 
+def _results_filename(args: argparse.Namespace) -> str:
+    l2_mode = "off" if args.no_l2_normalize is True else "on"
+    return f"bioscan5m_ami_umap{args.umap_dim}_l2-{l2_mode}.csv"
+
+
 def _print_summary_table(results: list[dict[str, Any]]) -> None:
     console = Console()
 
@@ -36,7 +42,7 @@ def _print_summary_table(results: list[dict[str, Any]]) -> None:
     table.add_column("Classes", justify="right")
     table.add_column("Samples", justify="right")
 
-    for result in results:
+    for result in sorted(results, key=lambda result: Path(result["embeddings_file"]).name):
         table.add_row(
             Path(result["embeddings_file"]).name,
             f"{result['ami_score']:.4f}",
@@ -47,22 +53,56 @@ def _print_summary_table(results: list[dict[str, Any]]) -> None:
     console.print(table)
 
 
-def _write_results_csv(results: list[dict[str, Any]], output_path: Path) -> None:
-    rows: list[dict[str, Any]] = []
-    for result in results:
-        rows.append(
-            {
-                "embeddings_file": result["embeddings_file"],
-                "method": result["method"],
-                "ami_score": result["ami_score"],
-                "l2_normalize": result["l2_normalize"],
-                "num_classes": result["num_classes"],
-                "num_samples": result["num_samples"],
-            }
-        )
+def _result_to_row(result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "embeddings_file": result["embeddings_file"],
+        "method": result["method"],
+        "ami_score": result["ami_score"],
+        "l2_normalize": result["l2_normalize"],
+        "num_classes": result["num_classes"],
+        "num_samples": result["num_samples"],
+    }
 
-    pl.DataFrame(rows).write_csv(output_path)
-    logger.info(f"Results saved to {output_path}")
+
+def _append_result_csv(result: dict[str, Any], output_path: Path) -> None:
+    row_df = pl.DataFrame([_result_to_row(result)])
+    file_exists = output_path.exists()
+    mode = "a" if file_exists is True else "w"
+    with open(output_path, mode, encoding="utf-8") as handle:
+        row_df.write_csv(handle, include_header=file_exists is False)
+
+    logger.info(f"Results updated at {output_path}")
+
+
+def _row_to_result(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "embeddings_file": str(row["embeddings_file"]),
+        "method": str(row["method"]),
+        "ami_score": float(row["ami_score"]),
+        "l2_normalize": bool(row["l2_normalize"]),
+        "num_classes": int(row["num_classes"]),
+        "num_samples": int(row["num_samples"]),
+    }
+
+
+def _load_cached_result(existing_df: Optional[pl.DataFrame], embeddings_path: str) -> Optional[dict[str, Any]]:
+    if existing_df is None or existing_df.is_empty() is True:
+        return None
+
+    match_df = existing_df.filter(pl.col("embeddings_file") == embeddings_path)
+    if match_df.is_empty() is True:
+        return None
+
+    return _row_to_result(match_df.row(0, named=True))
+
+
+def _summary_results(
+    existing_df: Optional[pl.DataFrame], current_results: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    if existing_df is None or existing_df.is_empty() is True:
+        return current_results
+
+    return [_row_to_result(row) for row in existing_df.iter_rows(named=True)]
 
 
 def _load_bioscan5m_metadata(data_path: str) -> pl.DataFrame:
@@ -105,6 +145,28 @@ def evaluate_bioscan5m(args: argparse.Namespace) -> None:
     tic = time.time()
 
     logger.info(f"Loading dataset from {args.data_path}")
+    existing_df: Optional[pl.DataFrame] = None
+    output_path: Optional[Path] = None
+
+    if args.dry_run is False:
+        output_dir = settings.RESULTS_DIR.joinpath(args.dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir.joinpath(_results_filename(args))
+        if output_path.exists() is True:
+            logger.info(f"Loading existing results from {output_path}")
+            existing_df = pl.read_csv(output_path)
+
+    if args.embeddings is None:
+        summary_results = _summary_results(existing_df, [])
+        if len(summary_results) == 0:
+            raise cli.ValidationError("--embeddings is required when no cached results are available")
+
+        logger.info("No embeddings provided, showing cached results")
+        _print_summary_table(summary_results)
+        toc = time.time()
+        logger.info(f"BIOSCAN-5M benchmark completed in {lib.format_duration(toc - tic)}")
+        return
+
     metadata_df = _load_bioscan5m_metadata(args.data_path)
     logger.info(f"Loaded metadata for {metadata_df.height} images")
 
@@ -112,6 +174,17 @@ def evaluate_bioscan5m(args: argparse.Namespace) -> None:
     total = len(args.embeddings)
     for idx, embeddings_path in enumerate(args.embeddings, start=1):
         logger.info(f"Processing embeddings {idx}/{total}: {embeddings_path}")
+
+        cached_result = _load_cached_result(existing_df, embeddings_path)
+        if cached_result is not None:
+            logger.info(f"Using cached result for {embeddings_path}")
+            results.append(cached_result)
+            continue
+
+        if Path(embeddings_path).exists() is False:
+            logger.warning(f"Embeddings file not found, skipping: {embeddings_path}")
+            continue
+
         features, labels, num_classes = _load_embeddings_with_labels(embeddings_path, metadata_df)
 
         logger.info(
@@ -138,14 +211,16 @@ def evaluate_bioscan5m(args: argparse.Namespace) -> None:
                 "num_samples": len(labels),
             }
         )
+        if output_path is not None:
+            result = results[-1]
+            _append_result_csv(result, output_path)
+            row_df = pl.DataFrame([_result_to_row(result)])
+            if existing_df is None:
+                existing_df = row_df
+            else:
+                existing_df = pl.concat([existing_df, row_df], how="diagonal_relaxed")
 
-    _print_summary_table(results)
-
-    if args.dry_run is False:
-        output_dir = settings.RESULTS_DIR.joinpath(args.dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = output_dir.joinpath("bioscan5m.csv")
-        _write_results_csv(results, output_path)
+    _print_summary_table(_summary_results(existing_df, results))
 
     toc = time.time()
     logger.info(f"BIOSCAN-5M benchmark completed in {lib.format_duration(toc - tic)}")
@@ -186,8 +261,6 @@ def set_parser(subparsers: Any) -> None:
 
 
 def validate_args(args: argparse.Namespace) -> None:
-    if args.embeddings is None:
-        raise cli.ValidationError("--embeddings is required")
     if args.data_path is None:
         raise cli.ValidationError("--data-path is required")
 

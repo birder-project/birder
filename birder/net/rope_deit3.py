@@ -19,6 +19,10 @@ import torch
 from torch import nn
 
 from birder.common.masking import mask_tensor
+from birder.layers.rope import RoPE
+from birder.layers.rope import RoPERotationType
+from birder.layers.rope import RoPEStyleType
+from birder.layers.rope import build_rotary_pos_embed
 from birder.model_registry import registry
 from birder.net._vit_configs import BASE
 from birder.net._vit_configs import LARGE
@@ -34,8 +38,6 @@ from birder.net.base import TokenRetentionResultType
 from birder.net.base import normalize_out_indices
 from birder.net.rope_vit import Encoder
 from birder.net.rope_vit import MAEDecoderBlock
-from birder.net.rope_vit import RoPE
-from birder.net.rope_vit import build_rotary_pos_embed
 from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
 
@@ -67,7 +69,8 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
         layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", 1e-5)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         out_indices: Optional[list[int]] = self.config.get("out_indices", None)
-        rope_rot_type: Literal["standard", "interleaved"] = self.config.get("rope_rot_type", "standard")
+        rope_style: RoPEStyleType = self.config.get("rope_style", "default")
+        rope_rot_type: RoPERotationType = self.config.get("rope_rot_type", "standard")
         rope_grid_indexing: Literal["ij", "xy"] = self.config.get("rope_grid_indexing", "ij")
         rope_grid_offset: int = self.config.get("rope_grid_offset", 0)
         rope_temperature: float = self.config.get("rope_temperature", 100.0)
@@ -85,6 +88,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
         self.num_reg_tokens = num_reg_tokens
         self.num_special_tokens = 1 + self.num_reg_tokens
         self.out_indices = normalize_out_indices(out_indices, num_layers)
+        self.rope_style = rope_style
         self.rope_rot_type = rope_rot_type
         self.rope_grid_indexing = rope_grid_indexing
         self.rope_grid_offset = rope_grid_offset
@@ -129,6 +133,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             grid_indexing=rope_grid_indexing,
             grid_offset=rope_grid_offset,
             pt_grid_size=self.pt_grid_size,
+            rope_style=rope_style,
             rope_rot_type=rope_rot_type,
         )
 
@@ -167,6 +172,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             rope_grid_offset=rope_grid_offset,
             rope_temperature=rope_temperature,
             layer_scale_init_value=layer_scale_init_value,
+            rope_style=rope_style,
             rope_rot_type=rope_rot_type,
         )
 
@@ -212,9 +218,17 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
                 grid_indexing=self.rope_grid_indexing,
                 grid_offset=self.rope_grid_offset,
                 pt_grid_size=self.pt_grid_size,
+                rope_style=self.rope_style,
             ),
             dim=-1,
         ).to(self.rope.pos_embed.device, dtype=self.rope.pos_embed.dtype)
+
+    def set_causal_attention(self, is_causal: bool = True) -> None:
+        self.encoder.set_causal_attention(is_causal)
+
+    def transform_to_backbone(self) -> None:
+        super().transform_to_backbone()
+        self.norm = nn.Identity()
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         H, W = x.shape[-2:]
@@ -258,13 +272,6 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
 
             for param in module.parameters():
                 param.requires_grad_(False)
-
-    def transform_to_backbone(self) -> None:
-        super().transform_to_backbone()
-        self.norm = nn.Identity()
-
-    def set_causal_attention(self, is_causal: bool = True) -> None:
-        self.encoder.set_causal_attention(is_causal)
 
     def masked_encoding_omission(
         self,
@@ -426,6 +433,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             grid_indexing=self.rope_grid_indexing,
             grid_offset=self.rope_grid_offset,
             pt_grid_size=self.pt_grid_size,
+            rope_style=self.rope_style,
             rope_rot_type=self.rope_rot_type,
             device=self.rope.pos_embed.device,
         )
@@ -441,6 +449,7 @@ class RoPE_DeiT3(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Ma
             rope_grid_offset=self.rope_grid_offset,
             rope_temperature=self.rope_temperature,
             layer_scale_init_value=self.layer_scale_init_value,
+            rope_style=self.rope_style,
             rope_rot_type=self.rope_rot_type,
         )
 

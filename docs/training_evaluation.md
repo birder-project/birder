@@ -68,7 +68,7 @@ Fine-tuning, first stage - linear probing (quick)
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag mmcr-inat21 --reset-head --freeze-body --batch-size 384 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 5 --size 224 --aug-level 1 --smoothing-alpha 0.1 --rgb-mode birder --amp --amp-dtype bfloat16 --compile --save-frequency 1 --resume-epoch 0 --data-path ~/Datasets/inat2021/train --val-path ~/Datasets/inat2021/val
 ```
 
-Fine-tuning (family), first stage - linear probing (full)
+Fine-tuning, first stage - linear probing (full)
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag mmcr-inat21 --reset-head --freeze-body --batch-size 512 --lr 0.1 --wd 0.0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 90 --warmup-epochs 10 --size 224 --aug-level 1 --rgb-mode birder --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --data-path ~/Datasets/inat2021/train --val-path ~/Datasets/inat2021/val

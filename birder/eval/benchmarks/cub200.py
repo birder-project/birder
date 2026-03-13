@@ -1,7 +1,7 @@
 """
-NABirds benchmark using KNN for bird species classification
+CUB-200-2011 benchmark using embedding retrieval with mAP and Recall@K
 
-Website: https://dl.allaboutbirds.org/nabirds
+Website: https://www.vision.caltech.edu/datasets/cub_200_2011/
 """
 
 import argparse
@@ -17,35 +17,39 @@ import polars as pl
 import torch
 from rich.console import Console
 from rich.table import Table
+from torchvision.datasets import ImageFolder
 
 from birder.common import cli
 from birder.common import lib
 from birder.conf import settings
-from birder.datahub.evaluation import NABirds
 from birder.eval._embeddings import load_embeddings
-from birder.eval.methods.knn import evaluate_knn
+from birder.eval.methods.retrieval import evaluate_retrieval
 
 logger = logging.getLogger(__name__)
 
 
 def _results_filename(args: argparse.Namespace) -> str:
     k_values = "-".join(str(k) for k in args.k)
-    return f"nabirds_knn_k{k_values}.csv"
+    return f"cub200_retrieval_k{k_values}.csv"
 
 
 def _print_summary_table(results: list[dict[str, Any]], k_values: list[int]) -> None:
     console = Console()
 
     table = Table(show_header=True, header_style="bold dark_magenta")
-    table.add_column("NABirds (KNN)", style="dim")
+    table.add_column("CUB-200-2011 (Retrieval)", style="dim")
+    table.add_column("mAP", justify="right")
     for k in k_values:
-        table.add_column(f"k={k}", justify="right")
+        table.add_column(f"R@{k}", justify="right")
 
     for result in sorted(results, key=lambda result: Path(result["embeddings_file"]).name):
-        row = [Path(result["embeddings_file"]).name]
+        row = [
+            Path(result["embeddings_file"]).name,
+            f"{result['mean_average_precision']:.4f}",
+        ]
         for k in k_values:
-            acc = result["accuracies"].get(k)
-            row.append(f"{acc:.4f}" if acc is not None else "-")
+            recall = result["recall_at_k"].get(k)
+            row.append(f"{recall:.4f}" if recall is not None else "-")
 
         table.add_row(*row)
 
@@ -56,9 +60,13 @@ def _result_to_row(result: dict[str, Any], k_values: list[int]) -> dict[str, Any
     row: dict[str, Any] = {
         "embeddings_file": result["embeddings_file"],
         "method": result["method"],
+        "mean_average_precision": result["mean_average_precision"],
+        "num_classes": result["num_classes"],
+        "gallery_samples": result["gallery_samples"],
+        "query_samples": result["query_samples"],
     }
     for k in k_values:
-        row[f"k_{k}_acc"] = result["accuracies"].get(k)
+        row[f"r_at_{k}"] = result["recall_at_k"].get(k)
 
     return row
 
@@ -74,12 +82,16 @@ def _append_result_csv(result: dict[str, Any], k_values: list[int], output_path:
 
 
 def _row_to_result(row: dict[str, Any], k_values: list[int]) -> dict[str, Any]:
-    accuracies = {k: float(value) for k in k_values if (value := row.get(f"k_{k}_acc")) is not None}
+    recall_at_k = {k: float(value) for k in k_values if (value := row.get(f"r_at_{k}")) is not None}
 
     return {
         "embeddings_file": str(row["embeddings_file"]),
         "method": str(row["method"]),
-        "accuracies": accuracies,
+        "mean_average_precision": float(row["mean_average_precision"]),
+        "num_classes": int(row["num_classes"]),
+        "gallery_samples": int(row["gallery_samples"]),
+        "query_samples": int(row["query_samples"]),
+        "recall_at_k": recall_at_k,
     }
 
 
@@ -105,71 +117,89 @@ def _summary_results(
     return [_row_to_result(row, k_values) for row in existing_df.iter_rows(named=True)]
 
 
-def _load_nabirds_metadata(dataset: NABirds) -> pl.DataFrame:
-    images_df = pl.read_csv(dataset.images_path, separator=" ", has_header=False, new_columns=["image_id", "filepath"])
-    images_df = images_df.with_columns(
-        pl.col("filepath").map_elements(lambda p: Path(p).stem, return_dtype=pl.Utf8).alias("id")
-    )
-    labels_df = pl.read_csv(dataset.labels_path, separator=" ", has_header=False, new_columns=["image_id", "class_id"])
-    classes_df = pl.read_csv(
-        dataset.classes_path, separator=" ", has_header=False, new_columns=["class_id", "class_name"]
-    )
-    split_df = pl.read_csv(
-        dataset.train_test_split_path, separator=" ", has_header=False, new_columns=["image_id", "is_train"]
-    )
+def _load_cub200_metadata(dataset_path: Path) -> pl.DataFrame:
+    rows: list[dict[str, Any]] = []
+    for split in ["training", "validation"]:
+        split_dir = dataset_path.joinpath(split)
+        if split_dir.exists() is False:
+            continue
 
-    metadata_df = (
-        images_df.join(labels_df, on="image_id")
-        .join(classes_df, on="class_id")
-        .join(split_df, on="image_id")
-        .select(["id", "class_id", "class_name", "is_train"])
-    )
+        dataset = ImageFolder(str(split_dir))
+        for path, label in dataset.samples:
+            rows.append({"id": Path(path).stem, "label": label, "split": split})
 
-    # Create contiguous label indices (0 to num_classes-1)
-    unique_classes = metadata_df.get_column("class_id").unique().sort()
-    class_id_to_label = {cid: idx for idx, cid in enumerate(unique_classes.to_list())}
-    metadata_df = metadata_df.with_columns(pl.col("class_id").replace_strict(class_id_to_label).alias("label"))
-
-    return metadata_df
+    return pl.DataFrame(rows)
 
 
 def _load_embeddings_with_split(
     embeddings_path: str, metadata_df: pl.DataFrame
-) -> tuple[npt.NDArray[np.float32], npt.NDArray[np.int_], npt.NDArray[np.float32], npt.NDArray[np.int_]]:
+) -> tuple[
+    npt.NDArray[np.float32], npt.NDArray[np.int_], npt.NDArray[np.float32], npt.NDArray[np.int_], dict[str, int]
+]:
     logger.info(f"Loading embeddings from {embeddings_path}")
     emb_df = load_embeddings(embeddings_path)
 
-    train_meta = metadata_df.filter(pl.col("is_train") == 1).select(["id", "label"])
-    test_meta = metadata_df.filter(pl.col("is_train") == 0).select(["id", "label"])
+    gallery_meta = metadata_df.filter(pl.col("split") == "training").select(["id", "label"])
+    query_meta = metadata_df.filter(pl.col("split") == "validation").select(["id", "label"])
 
-    train_join = train_meta.join(emb_df, on="id", how="inner")
-    test_join = test_meta.join(emb_df, on="id", how="inner")
+    gallery_join = gallery_meta.join(emb_df, on="id", how="inner")
+    query_join = query_meta.join(emb_df, on="id", how="inner")
 
-    dropped_train = train_meta.height - train_join.height
-    dropped_test = test_meta.height - test_join.height
-    dropped_total = dropped_train + dropped_test
+    dropped_gallery = gallery_meta.height - gallery_join.height
+    dropped_query = query_meta.height - query_join.height
+    dropped_total = dropped_gallery + dropped_query
     if dropped_total > 0:
         logger.warning(
-            f"Join dropped {dropped_total} samples (missing embeddings): train={dropped_train}, test={dropped_test}"
+            f"Join dropped {dropped_total} samples (missing embeddings): "
+            f"gallery={dropped_gallery}, query={dropped_query}"
         )
 
-    x_train = train_join.get_column("embedding").to_numpy().astype(np.float32, copy=False)
-    y_train = train_join.get_column("label").to_numpy().astype(np.int_)
-    x_test = test_join.get_column("embedding").to_numpy().astype(np.float32, copy=False)
-    y_test = test_join.get_column("label").to_numpy().astype(np.int_)
+    x_gallery = gallery_join.get_column("embedding").to_numpy().astype(np.float32, copy=False)
+    y_gallery = gallery_join.get_column("label").to_numpy().astype(np.int_)
+    x_query = query_join.get_column("embedding").to_numpy().astype(np.float32, copy=False)
+    y_query = query_join.get_column("label").to_numpy().astype(np.int_)
 
-    num_classes = metadata_df.get_column("label").max() + 1  # type: ignore[operator]
-    total_samples = x_train.shape[0] + x_test.shape[0]
-    embedding_dim = x_train.shape[1]
-    logger.info(f"Loaded {total_samples} samples with {embedding_dim} dimensions, {num_classes} classes")
+    stats = {
+        "num_classes": int(metadata_df.get_column("label").max() + 1),  # type: ignore[operator]
+        "gallery_samples": int(x_gallery.shape[0]),
+        "query_samples": int(x_query.shape[0]),
+    }
+    total_samples = stats["gallery_samples"] + stats["query_samples"]
+    embedding_dim = x_gallery.shape[1]
+    logger.info(f"Loaded {total_samples} samples with {embedding_dim} dimensions, {stats['num_classes']} classes")
+    logger.info(f"Gallery: {stats['gallery_samples']} samples, Query: {stats['query_samples']} samples")
 
-    logger.info(f"Train: {len(y_train)} samples, Test: {len(y_test)} samples")
-
-    return (x_train, y_train, x_test, y_test)
+    return (x_gallery, y_gallery, x_query, y_query, stats)
 
 
-# pylint: disable=too-many-locals
-def evaluate_nabirds(args: argparse.Namespace) -> None:
+def evaluate_cub200_single(
+    x_gallery: npt.NDArray[np.float32],
+    y_gallery: npt.NDArray[np.int_],
+    x_query: npt.NDArray[np.float32],
+    y_query: npt.NDArray[np.int_],
+    embeddings_path: str,
+    k_values: list[int],
+    device: torch.device,
+    stats: dict[str, int],
+) -> dict[str, Any]:
+    logger.info(f"Evaluating retrieval with k={k_values}")
+    mean_average_precision, recall_at_k = evaluate_retrieval(
+        x_gallery, y_gallery, x_query, y_query, k_values, device=device
+    )
+    logger.info(f"mAP: {mean_average_precision:.4f}")
+    for k in k_values:
+        logger.info(f"Recall@{k}: {recall_at_k[k]:.4f}")
+
+    return {
+        "embeddings_file": str(embeddings_path),
+        "method": "retrieval",
+        "mean_average_precision": mean_average_precision,
+        "recall_at_k": recall_at_k,
+        **stats,
+    }
+
+
+def evaluate_cub200(args: argparse.Namespace) -> None:
     tic = time.time()
 
     if args.gpu is True:
@@ -181,8 +211,8 @@ def evaluate_nabirds(args: argparse.Namespace) -> None:
         torch.cuda.set_device(args.gpu_id)
 
     logger.info(f"Using device {device}")
-    logger.info(f"Loading NABirds dataset from {args.dataset_path}")
-    dataset = NABirds(args.dataset_path)
+    logger.info(f"Loading CUB-200-2011 dataset from {args.dataset_path}")
+    dataset_path = Path(args.dataset_path)
     existing_df: Optional[pl.DataFrame] = None
     output_path: Optional[Path] = None
 
@@ -202,10 +232,10 @@ def evaluate_nabirds(args: argparse.Namespace) -> None:
         logger.info("No embeddings provided, showing cached results")
         _print_summary_table(summary_results, args.k)
         toc = time.time()
-        logger.info(f"NABirds benchmark completed in {lib.format_duration(toc - tic)}")
+        logger.info(f"CUB-200-2011 benchmark completed in {lib.format_duration(toc - tic)}")
         return
 
-    metadata_df = _load_nabirds_metadata(dataset)
+    metadata_df = _load_cub200_metadata(dataset_path)
     logger.info(f"Loaded metadata for {metadata_df.height} images")
 
     results: list[dict[str, Any]] = []
@@ -223,25 +253,19 @@ def evaluate_nabirds(args: argparse.Namespace) -> None:
             logger.warning(f"Embeddings file not found, skipping: {embeddings_path}")
             continue
 
-        x_train, y_train, x_test, y_test = _load_embeddings_with_split(embeddings_path, metadata_df)
-
-        accuracies: dict[int, float] = {}
-        for k in args.k:
-            logger.info(f"Evaluating KNN with k={k}")
-            y_pred, y_true = evaluate_knn(x_train, y_train, x_test, y_test, k=k, device=device)
-            acc = float(np.mean(y_pred == y_true))
-            accuracies[k] = acc
-            logger.info(f"k={k} - Accuracy: {acc:.4f}")
-
-        results.append(
-            {
-                "embeddings_file": str(embeddings_path),
-                "method": "knn",
-                "accuracies": accuracies,
-            }
+        x_gallery, y_gallery, x_query, y_query, stats = _load_embeddings_with_split(embeddings_path, metadata_df)
+        result = evaluate_cub200_single(
+            x_gallery,
+            y_gallery,
+            x_query,
+            y_query,
+            embeddings_path,
+            args.k,
+            device,
+            stats,
         )
+        results.append(result)
         if output_path is not None:
-            result = results[-1]
             _append_result_csv(result, args.k, output_path)
             row_df = pl.DataFrame([_result_to_row(result, args.k)])
             if existing_df is None:
@@ -252,36 +276,33 @@ def evaluate_nabirds(args: argparse.Namespace) -> None:
     _print_summary_table(_summary_results(existing_df, results, args.k), args.k)
 
     toc = time.time()
-    logger.info(f"NABirds benchmark completed in {lib.format_duration(toc - tic)}")
+    logger.info(f"CUB-200-2011 benchmark completed in {lib.format_duration(toc - tic)}")
 
 
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
-        "nabirds",
+        "cub200",
         allow_abbrev=False,
-        help="run NABirds benchmark - 555 class classification using KNN",
-        description="run NABirds benchmark - 555 class classification using KNN",
+        help="run CUB-200-2011 benchmark - image retrieval with mAP and Recall@K",
+        description="run CUB-200-2011 benchmark - image retrieval with mAP and Recall@K",
         epilog=(
             "Usage examples:\n"
-            "python -m birder.eval nabirds --embeddings "
-            "results/vit_b16_224px_crop1.0_48562_embeddings.parquet "
-            "--dataset-path ~/Datasets/nabirds --dry-run\n"
-            "python -m birder.eval nabirds --embeddings results/nabirds/*.parquet "
-            "--dataset-path ~/Datasets/nabirds --gpu\n"
+            "python -m birder.eval cub200 --embeddings results/cub200_embeddings.parquet "
+            "--dataset-path ~/Datasets/CUB_200_2011 --dry-run\n"
+            "python -m birder.eval cub200 --embeddings results/cub200/*.parquet "
+            "--dataset-path ~/Datasets/CUB_200_2011 --k 1 5 10 --gpu\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
     subparser.add_argument(
         "--embeddings", type=str, nargs="+", metavar="FILE", help="paths to embeddings parquet files"
     )
-    subparser.add_argument("--dataset-path", type=str, metavar="PATH", help="path to NABirds dataset root")
-    subparser.add_argument(
-        "--k", type=int, nargs="+", default=[10, 20, 100], help="number of nearest neighbors for KNN"
-    )
+    subparser.add_argument("--dataset-path", type=str, metavar="PATH", help="path to CUB-200-2011 dataset root")
+    subparser.add_argument("--k", type=int, nargs="+", default=[1, 5, 10], help="Recall@K values to report")
     subparser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
     subparser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use")
     subparser.add_argument(
-        "--dir", type=str, default="nabirds", help="place all outputs in a sub-directory (relative to results)"
+        "--dir", type=str, default="cub200", help="place all outputs in a sub-directory (relative to results)"
     )
     subparser.add_argument("--dry-run", default=False, action="store_true", help="skip saving results to file")
     subparser.set_defaults(func=main)
@@ -294,4 +315,4 @@ def validate_args(args: argparse.Namespace) -> None:
 
 def main(args: argparse.Namespace) -> None:
     validate_args(args)
-    evaluate_nabirds(args)
+    evaluate_cub200(args)

@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.19.0
+      jupytext_version: 1.19.1
   kernelspec:
     display_name: birder
     language: python
@@ -28,10 +28,10 @@ import torch.nn.functional as F
 ```{python}
 from birder.common import fs_ops
 from birder.common import lib
+from birder.layers.rope import RoPE
+from birder.layers.rope import rotate_half
+from birder.layers.rope import rotate_half_interleaved
 from birder.net.base import pos_embedding_sin_cos_2d
-from birder.net.rope_vit import RoPE
-from birder.net.rope_vit import rotate_half
-from birder.net.rope_vit import rotate_half_interleaved
 ```
 
 ```{python}

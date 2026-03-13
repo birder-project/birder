@@ -9,6 +9,7 @@ import logging
 import time
 from pathlib import Path
 from typing import Any
+from typing import Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -28,6 +29,11 @@ from birder.eval.methods.simpleshot import sample_k_shot
 logger = logging.getLogger(__name__)
 
 
+def _results_filename(args: argparse.Namespace) -> str:
+    k_values = "-".join(str(k) for k in args.k)
+    return f"fungiclef_knn_k{k_values}_runs{args.runs}.csv"
+
+
 def _print_summary_table(results: list[dict[str, Any]], k_values: list[int]) -> None:
     console = Console()
 
@@ -38,7 +44,7 @@ def _print_summary_table(results: list[dict[str, Any]], k_values: list[int]) -> 
 
     table.add_column("Runs", justify="right")
 
-    for result in results:
+    for result in sorted(results, key=lambda result: Path(result["embeddings_file"]).name):
         row = [Path(result["embeddings_file"]).name]
         for k in k_values:
             acc = result["accuracies"].get(k)
@@ -50,22 +56,62 @@ def _print_summary_table(results: list[dict[str, Any]], k_values: list[int]) -> 
     console.print(table)
 
 
-def _write_results_csv(results: list[dict[str, Any]], k_values: list[int], output_path: Path) -> None:
-    rows: list[dict[str, Any]] = []
-    for result in results:
-        row: dict[str, Any] = {
-            "embeddings_file": result["embeddings_file"],
-            "method": result["method"],
-            "num_runs": result["num_runs"],
-        }
-        for k in k_values:
-            row[f"k_{k}_acc"] = result["accuracies"].get(k)
-            row[f"k_{k}_std"] = result["accuracies_std"].get(k)
+def _result_to_row(result: dict[str, Any], k_values: list[int]) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "embeddings_file": result["embeddings_file"],
+        "method": result["method"],
+        "num_runs": result["num_runs"],
+    }
+    for k in k_values:
+        row[f"k_{k}_acc"] = result["accuracies"].get(k)
+        row[f"k_{k}_std"] = result["accuracies_std"].get(k)
 
-        rows.append(row)
+    return row
 
-    pl.DataFrame(rows).write_csv(output_path)
-    logger.info(f"Results saved to {output_path}")
+
+def _append_result_csv(result: dict[str, Any], k_values: list[int], output_path: Path) -> None:
+    row_df = pl.DataFrame([_result_to_row(result, k_values)])
+    file_exists = output_path.exists()
+    mode = "a" if file_exists is True else "w"
+    with open(output_path, mode, encoding="utf-8") as handle:
+        row_df.write_csv(handle, include_header=file_exists is False)
+
+    logger.info(f"Results updated at {output_path}")
+
+
+def _row_to_result(row: dict[str, Any], k_values: list[int]) -> dict[str, Any]:
+    accuracies = {k: float(value) for k in k_values if (value := row.get(f"k_{k}_acc")) is not None}
+    accuracies_std = {k: float(value) for k in k_values if (value := row.get(f"k_{k}_std")) is not None}
+
+    return {
+        "embeddings_file": str(row["embeddings_file"]),
+        "method": str(row["method"]),
+        "num_runs": int(row["num_runs"]),
+        "accuracies": accuracies,
+        "accuracies_std": accuracies_std,
+    }
+
+
+def _load_cached_result(
+    existing_df: Optional[pl.DataFrame], embeddings_path: str, k_values: list[int]
+) -> Optional[dict[str, Any]]:
+    if existing_df is None or existing_df.is_empty() is True:
+        return None
+
+    match_df = existing_df.filter(pl.col("embeddings_file") == embeddings_path)
+    if match_df.is_empty() is True:
+        return None
+
+    return _row_to_result(match_df.row(0, named=True), k_values)
+
+
+def _summary_results(
+    existing_df: Optional[pl.DataFrame], current_results: list[dict[str, Any]], k_values: list[int]
+) -> list[dict[str, Any]]:
+    if existing_df is None or existing_df.is_empty() is True:
+        return current_results
+
+    return [_row_to_result(row, k_values) for row in existing_df.iter_rows(named=True)]
 
 
 def _load_fungiclef_metadata(dataset: FungiCLEF2023) -> pl.DataFrame:
@@ -182,6 +228,7 @@ def _evaluate_single_k(
     return (mean_acc, std_acc)
 
 
+# pylint: disable=too-many-locals
 def evaluate_fungiclef(args: argparse.Namespace) -> None:
     tic = time.time()
 
@@ -196,6 +243,28 @@ def evaluate_fungiclef(args: argparse.Namespace) -> None:
     logger.info(f"Using device {device}")
     logger.info(f"Loading FungiCLEF2023 dataset from {args.dataset_path}")
     dataset = FungiCLEF2023(args.dataset_path)
+    existing_df: Optional[pl.DataFrame] = None
+    output_path: Optional[Path] = None
+
+    if args.dry_run is False:
+        output_dir = settings.RESULTS_DIR.joinpath(args.dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir.joinpath(_results_filename(args))
+        if output_path.exists() is True:
+            logger.info(f"Loading existing results from {output_path}")
+            existing_df = pl.read_csv(output_path)
+
+    if args.embeddings is None:
+        summary_results = _summary_results(existing_df, [], args.k)
+        if len(summary_results) == 0:
+            raise cli.ValidationError("--embeddings is required when no cached results are available")
+
+        logger.info("No embeddings provided, showing cached results")
+        _print_summary_table(summary_results, args.k)
+        toc = time.time()
+        logger.info(f"FungiCLEF2023 benchmark completed in {lib.format_duration(toc - tic)}")
+        return
+
     metadata_df = _load_fungiclef_metadata(dataset)
     logger.info(f"Loaded metadata for {metadata_df.height} images")
 
@@ -203,6 +272,17 @@ def evaluate_fungiclef(args: argparse.Namespace) -> None:
     total = len(args.embeddings)
     for idx, embeddings_path in enumerate(args.embeddings, start=1):
         logger.info(f"Processing embeddings {idx}/{total}: {embeddings_path}")
+
+        cached_result = _load_cached_result(existing_df, embeddings_path, args.k)
+        if cached_result is not None:
+            logger.info(f"Using cached result for {embeddings_path}")
+            results.append(cached_result)
+            continue
+
+        if Path(embeddings_path).exists() is False:
+            logger.warning(f"Embeddings file not found, skipping: {embeddings_path}")
+            continue
+
         x_train, y_train, x_val, y_val = _load_embeddings_with_split(embeddings_path, metadata_df)
 
         accuracies: dict[int, float] = {}
@@ -221,14 +301,16 @@ def evaluate_fungiclef(args: argparse.Namespace) -> None:
                 "accuracies_std": accuracies_std,
             }
         )
+        if output_path is not None:
+            result = results[-1]
+            _append_result_csv(result, args.k, output_path)
+            row_df = pl.DataFrame([_result_to_row(result, args.k)])
+            if existing_df is None:
+                existing_df = row_df
+            else:
+                existing_df = pl.concat([existing_df, row_df], how="diagonal_relaxed")
 
-    _print_summary_table(results, args.k)
-
-    if args.dry_run is False:
-        output_dir = settings.RESULTS_DIR.joinpath(args.dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = output_dir.joinpath("fungiclef.csv")
-        _write_results_csv(results, args.k, output_path)
+    _print_summary_table(_summary_results(existing_df, results, args.k), args.k)
 
     toc = time.time()
     logger.info(f"FungiCLEF2023 benchmark completed in {lib.format_duration(toc - tic)}")
@@ -268,8 +350,6 @@ def set_parser(subparsers: Any) -> None:
 
 
 def validate_args(args: argparse.Namespace) -> None:
-    if args.embeddings is None:
-        raise cli.ValidationError("--embeddings is required")
     if args.dataset_path is None:
         raise cli.ValidationError("--dataset-path is required")
 

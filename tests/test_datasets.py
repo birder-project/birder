@@ -1,5 +1,6 @@
 import logging
 import unittest
+from unittest.mock import patch
 
 from birder.data.datasets import coco
 from birder.data.datasets import directory
@@ -30,6 +31,88 @@ class TestDatasets(unittest.TestCase):
         self.assertEqual(sample_name, "shard1/sample6")
         self.assertEqual(data, b"data")
         self.assertEqual(label, 1)
+
+    def test_wds_args_from_multiple_info(self) -> None:
+        with patch(
+            "birder.data.datasets.webdataset.fs_ops.read_wds_info",
+            side_effect=[
+                {"splits": {"training": {"num_samples": 10, "filenames": ["train-000000.tar", "train-000001.tar"]}}},
+                {"splits": {"training": {"num_samples": 5, "filenames": ["train-000000.tar"]}}},
+            ],
+        ):
+            filenames, size = webdataset.wds_args_from_info(
+                ["/datasets/part1/_info.json", "/datasets/part2/_info.json"], "training"
+            )
+
+        self.assertEqual(
+            filenames,
+            [
+                "/datasets/part1/train-000000.tar",
+                "/datasets/part1/train-000001.tar",
+                "/datasets/part2/train-000000.tar",
+            ],
+        )
+        self.assertEqual(size, 15)
+
+    def test_wds_args_from_remote_info(self) -> None:
+        with patch(
+            "birder.data.datasets.webdataset.fs_ops.read_wds_info",
+            return_value={
+                "splits": {
+                    "validation": {
+                        "num_samples": 2,
+                        "filenames": ["validation-000000.tar", "https://cdn.example.com/custom.tar"],
+                    }
+                }
+            },
+        ):
+            filenames, size = webdataset.wds_args_from_info(
+                "https://huggingface.co/datasets/birder/example/resolve/main/_info.json", "validation"
+            )
+
+        self.assertEqual(
+            filenames,
+            [
+                "https://huggingface.co/datasets/birder/example/resolve/main/validation-000000.tar",
+                "https://cdn.example.com/custom.tar",
+            ],
+        )
+        self.assertEqual(size, 2)
+
+    def test_wds_args_from_non_http_remote_info(self) -> None:
+        with patch(
+            "birder.data.datasets.webdataset.fs_ops.read_wds_info",
+            return_value={"splits": {"validation": {"num_samples": 2, "filenames": ["validation-000000.tar"]}}},
+        ):
+            filenames, size = webdataset.wds_args_from_info("s3://bucket/datasets/example/_info.json", "validation")
+
+        self.assertEqual(filenames, ["s3://bucket/datasets/example/validation-000000.tar"])
+        self.assertEqual(size, 2)
+
+    def test_wds_args_from_mixed_local_and_remote_info(self) -> None:
+        with patch(
+            "birder.data.datasets.webdataset.fs_ops.read_wds_info",
+            side_effect=[
+                {"splits": {"validation": {"num_samples": 3, "filenames": ["val-000000.tar"]}}},
+                {"splits": {"validation": {"num_samples": 4, "filenames": ["val-000001.tar"]}}},
+            ],
+        ):
+            filenames, size = webdataset.wds_args_from_info(
+                [
+                    "/datasets/local/_info.json",
+                    "https://huggingface.co/datasets/birder/example/resolve/main/_info.json",
+                ],
+                "validation",
+            )
+
+        self.assertEqual(
+            filenames,
+            [
+                "/datasets/local/val-000000.tar",
+                "https://huggingface.co/datasets/birder/example/resolve/main/val-000001.tar",
+            ],
+        )
+        self.assertEqual(size, 7)
 
     def test_coco_mapped_class_to_idx(self) -> None:
         class_to_idx = {"class-b": 10, "class-a": 2, "class-c": 40}

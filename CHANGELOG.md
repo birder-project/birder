@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.4.11 - 2026-03-13
+
+### Added
+
+- **ViT-family No-APE Option**: Added `abs_pos_embed` config support.
+- **Axial RoPE Style**: Added `rope_style="axial"` support for RoPE backbones.
+- **Centered-Separate RoPE Style**: Added `rope_style="centered_separate"` support and `rope_cs_*` DINOv3-compatible RoPE ViT presets.
+- **Shared RoPE Module**: Added `birder.layers.rope` to centralize shared rotary position embedding across RoPE backbones.
+- **Butterflies and Moths Austria Datahub**: Added [Butterflies and Moths Austria](https://huggingface.co/datasets/birder-project/butterflies-moths-austria) dataset to `birder.datahub.classification` for butterfly and moth species classification.
+- **Butterflies Eval Benchmark**: Added `butterflies` benchmark to `birder.eval` for butterfly and moth species classification using KNN (macro F1 metric).
+- **SnakeCLEF2023 Datahub**: Added [SnakeCLEF2023](https://www.imageclef.org/SnakeCLEF2023) dataset helper to `birder.datahub.evaluation` for snake species classification.
+- **SnakeCLEF Eval Benchmark**: Added `snakeclef` benchmark to `birder.eval` for observation-level SnakeCLEF2023 species classification.
+- **CUB-200-2011 Eval Benchmark**: Added `cub200` benchmark to `birder.eval` for cross-split image retrieval using mAP and Recall@K.
+- **Retrieval Eval Method**: Added `birder.eval.methods.retrieval` for cosine-similarity embedding retrieval evaluation.
+- **Pretrained Models**:
+    - `vit_b16_pn_biotrove-clip-o`: Added [BioTrove](https://arxiv.org/abs/2406.17720) ViT-B/16 CLIP image encoder pretrained weights.
+    - `vit_reg4_b14_nps_ls_dino-v2-lvd142m`: Added Meta [DINOv2](https://arxiv.org/abs/2304.07193) ViT-B/14 with registers.
+    - `vit_reg4_s14_nps_ls_dino-v2-lvd142m`: Added Meta [DINOv2](https://arxiv.org/abs/2304.07193) ViT-S/14 with registers.
+
+### Changed
+
+- **Eval Benchmark Result Resumption**: Eval benchmark CLIs now reuse previously saved results for matching embedding/config combinations and skip recomputation on reruns.
+- **Multi-Manifest WebDataset Loading**: `--wds-info` now accepts multiple manifest files and merges their shard lists into one logical WebDataset, including relative-path resolution for remote `_info.json` URLs.
+
 ## 0.4.10 - 2026-03-06
 
 ### Added

@@ -94,7 +94,9 @@ def infer_batch(
     return (out.cpu().float().numpy(), embedding)
 
 
-DataloaderInferenceResult = tuple[list[str], npt.NDArray[np.float32], list[int], list[npt.NDArray[np.float32]]]
+DataloaderInferenceResult = tuple[
+    list[str], npt.NDArray[np.float32], npt.NDArray[np.int64], list[npt.NDArray[np.float32]]
+]
 
 
 # pylint: disable=too-many-locals
@@ -110,7 +112,7 @@ def infer_dataloader_iter(
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
     num_samples: Optional[int] = None,
-    batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], list[int]], None]] = None,
+    batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], npt.NDArray[np.int64]], None]] = None,
     chunk_size: Optional[float] = None,
     **kwargs: Any,
 ) -> Iterator[DataloaderInferenceResult]:
@@ -127,7 +129,7 @@ def infer_dataloader_iter(
     net.to(device, dtype=model_dtype)
     embedding_list: list[npt.NDArray[np.float32]] = []
     out_list: list[npt.NDArray[np.float32]] = []
-    labels: list[int] = []
+    labels_list: list[npt.NDArray[np.int64]] = []
     sample_paths: list[str] = []
     sample_count = 0
     with tqdm(total=num_samples, initial=0, unit="images", unit_scale=True, leave=False) as progress:
@@ -150,8 +152,8 @@ def infer_dataloader_iter(
                 embedding_list.append(embedding)
 
             # Set labels and sample list
-            batch_labels = list(targets.cpu().numpy())
-            labels.extend(batch_labels)
+            batch_labels = targets.cpu().numpy()
+            labels_list.append(batch_labels)
             sample_paths.extend(file_paths)
 
             if batch_callback is not None:
@@ -164,17 +166,17 @@ def infer_dataloader_iter(
             sample_count += batch_size
             if sample_count >= chunk_size:
                 with tqdm.external_write_mode(file=sys.stderr):
-                    yield (sample_paths, np.concatenate(out_list, axis=0), labels, embedding_list)
+                    yield (sample_paths, np.concatenate(out_list, axis=0), np.concatenate(labels_list), embedding_list)
 
                 # Reset for next chunk
                 embedding_list = []
                 out_list = []
-                labels = []
+                labels_list = []
                 sample_paths = []
                 sample_count = 0
 
     if len(out_list) > 0:
-        yield (sample_paths, np.concatenate(out_list, axis=0), labels, embedding_list)
+        yield (sample_paths, np.concatenate(out_list, axis=0), np.concatenate(labels_list), embedding_list)
 
 
 @overload
@@ -190,7 +192,7 @@ def infer_dataloader(
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
     num_samples: Optional[int] = None,
-    batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], list[int]], None]] = None,
+    batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], npt.NDArray[np.int64]], None]] = None,
     chunk_size: None = None,
     **kwargs: Any,
 ) -> DataloaderInferenceResult: ...
@@ -209,7 +211,7 @@ def infer_dataloader(
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
     num_samples: Optional[int] = None,
-    batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], list[int]], None]] = None,
+    batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], npt.NDArray[np.int64]], None]] = None,
     chunk_size: int = 0,
     **kwargs: Any,
 ) -> Iterator[DataloaderInferenceResult]: ...
@@ -227,7 +229,7 @@ def infer_dataloader(
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
     num_samples: Optional[int] = None,
-    batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], list[int]], None]] = None,
+    batch_callback: Optional[Callable[[list[str], npt.NDArray[np.float32], npt.NDArray[np.int64]], None]] = None,
     chunk_size: Optional[int] = None,
     **kwargs: Any,
 ) -> Iterator[DataloaderInferenceResult] | DataloaderInferenceResult:

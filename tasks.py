@@ -1,5 +1,6 @@
 # type: ignore
 import pathlib
+import shlex
 import time
 
 import polars as pl
@@ -32,9 +33,34 @@ HF_DOCS_DIR = "docs/internal/hf_model_cards"
 HF_MODEL_CARD_TEMPLATE = "docs/internal/model_card_template.md.j2"
 HF_MODEL_CARD_DETECTION_TEMPLATE = "docs/internal/model_card_detection_template.md.j2"
 
+EVAL_BENCHMARK_PREDICT_RUNS = {
+    "awa2": [{"data_path": "Animals_with_Attributes2/JPEGImages"}],
+    "bioscan5m": [{"data_path": "BIOSCAN-5M/species/testing_unseen"}],
+    "butterflies": [{"data_path": "butterflies-moths-austria"}],
+    "cct": [{"data_path": "CaltechCameraTraps/cct_images"}],
+    "cub200": [{"data_path": "CUB_200_2011"}],
+    "fishnet": [{"data_path": "fishnet/images"}],
+    "flowers102": [{"data_path": "Flowers102"}],
+    "fungiclef": [{"data_path": "FungiCLEF2023"}],
+    "imagenet1k": [
+        {"data_path": "imagenet-1k-wds/training", "wds": True, "wds_size": 1281167, "save_labels": True},
+        {"data_path": "imagenet-1k-wds/validation", "wds": True, "save_labels": True},
+    ],
+    "nabirds": [{"data_path": "nabirds/images"}],
+    "newt": [{"data_path": "NeWT/newt2021_images"}],
+    "plankton": [{"data_path": "plankton", "simple_crop": False}],
+    "plantdoc": [{"data_path": "PlantDoc"}],
+    "plantnet": [{"data_path": "plantnet_300K/images"}],
+    "snakeclef": [{"data_path": "SnakeCLEF2023/SnakeCLEF2023-medium_size"}],
+}
+
 
 def echo(msg: str, color: int = DEFAULT_COLOR) -> None:
     print(f"\033[1;{color}m{msg}\033[0m")
+
+
+def _shell_join(parts: list[str]) -> str:
+    return " ".join(shlex.quote(part) for part in parts)
 
 
 def _class_list() -> list[str]:
@@ -569,6 +595,90 @@ def benchmark_results_check(_ctx, tag):
 
     if len(missing_models) == 0 and len(unknown_files) == 0:
         echo(f"All {len(model_list)} models have at least one results file", color=COLOR_GREEN)
+
+
+@task
+def predict_eval_benchmarks(
+    ctx,
+    network,
+    tag=None,
+    epoch=None,
+    datasets_dir="~/Datasets",
+    benchmarks=None,
+    batch_size=256,
+    parallel=True,
+    simple_crop=True,
+):
+    """
+    Run prediction across evaluation benchmarks with benchmark-specific overrides
+    """
+
+    available_benchmarks = list(EVAL_BENCHMARK_PREDICT_RUNS.keys())
+    if benchmarks is None:
+        selected_benchmarks = available_benchmarks
+    else:
+        selected_benchmarks = [name.strip() for name in benchmarks.split(",") if name.strip() != ""]
+        unknown_benchmarks = sorted(set(selected_benchmarks) - set(available_benchmarks))
+        if len(unknown_benchmarks) > 0:
+            echo(
+                f"Unknown benchmarks: {', '.join(unknown_benchmarks)}. "
+                f"Available benchmarks: {', '.join(available_benchmarks)}",
+                color=COLOR_RED,
+            )
+            raise Exit(code=1)
+
+    datasets_root = pathlib.Path(datasets_dir).expanduser()
+    base_cmd = ["python", "-m", "birder.scripts.predict", "-n", network]
+    if tag is not None:
+        base_cmd += ["-t", tag]
+    if epoch is not None:
+        base_cmd += ["-e", str(epoch)]
+    if parallel is True:
+        base_cmd.append("--parallel")
+
+    base_cmd += [
+        "--gpu",
+        "--batch-size",
+        str(batch_size),
+        "--save-embeddings",
+        "--output-format",
+        "parquet",
+        "--skip-results-analysis",
+        "--fast-matmul",
+        "--chunk-size",
+        "100000",
+    ]
+
+    failed_runs = 0
+    total_runs = sum(len(EVAL_BENCHMARK_PREDICT_RUNS[name]) for name in selected_benchmarks)
+    run_index = 0
+    for benchmark_name in selected_benchmarks:
+        for run_spec in EVAL_BENCHMARK_PREDICT_RUNS[benchmark_name]:
+            run_index += 1
+            cmd = list(base_cmd)
+            if simple_crop is True and run_spec.get("simple_crop", True) is True:
+                cmd.append("--simple-crop")
+            if run_spec.get("save_labels", False) is True:
+                cmd.append("--save-labels")
+            if run_spec.get("wds", False) is True:
+                cmd.append("--wds")
+            if "wds_size" in run_spec:
+                cmd += ["--wds-size", str(run_spec["wds_size"])]
+
+            prefix = run_spec.get("prefix", benchmark_name)
+            cmd += ["--prefix", prefix]
+            cmd.append(str(datasets_root.joinpath(run_spec["data_path"])))
+            echo(f"[{run_index}/{total_runs}] {benchmark_name}")
+            result = ctx.run(_shell_join(cmd), echo=True, pty=True, warn=True)
+            if result.exited != 0:
+                failed_runs += 1
+                echo(f"Failed: {benchmark_name}", color=COLOR_RED)
+
+    if failed_runs > 0:
+        echo(f"{failed_runs}/{total_runs} runs failed", color=COLOR_RED)
+        raise Exit(code=1)
+
+    echo(f"All {total_runs} runs passed", color=COLOR_GREEN)
 
 
 @task

@@ -12,6 +12,7 @@ import logging
 import time
 from pathlib import Path
 from typing import Any
+from typing import Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -34,6 +35,11 @@ logger = logging.getLogger(__name__)
 SplitData = tuple[npt.NDArray[np.float32], npt.NDArray[np.int_], npt.NDArray[np.float32], npt.NDArray[np.int_]]
 
 
+def _results_filename(args: argparse.Namespace) -> str:
+    k_values = "-".join(str(k) for k in args.k)
+    return f"cct_split-{args.split_set}_k{k_values}.csv"
+
+
 def _print_summary_table(results: list[dict[str, Any]], k_values: list[int]) -> None:
     console = Console()
 
@@ -44,7 +50,7 @@ def _print_summary_table(results: list[dict[str, Any]], k_values: list[int]) -> 
 
     table.add_column("Non-empty F1", justify="right")
 
-    for result in results:
+    for result in sorted(results, key=lambda result: Path(result["embeddings_file"]).name):
         row = [Path(result["embeddings_file"]).name]
         for k in k_values:
             acc = result["cross_location_accuracies"].get(k)
@@ -56,31 +62,81 @@ def _print_summary_table(results: list[dict[str, Any]], k_values: list[int]) -> 
     console.print(table)
 
 
-def _write_results_csv(results: list[dict[str, Any]], k_values: list[int], output_path: Path) -> None:
-    rows: list[dict[str, Any]] = []
-    for result in results:
-        row: dict[str, Any] = {
-            "embeddings_file": result["embeddings_file"],
-            "method": result["method"],
-            "split_set": result["split_set"],
-            "non_empty_f1": result["non_empty_f1"],
-            "train_locations": result["train_locations"],
-            "test_locations": result["test_locations"],
-            "category_train_samples": result["category_train_samples"],
-            "category_test_samples": result["category_test_samples"],
-            "non_empty_train_samples": result["non_empty_train_samples"],
-            "non_empty_test_samples": result["non_empty_test_samples"],
-            "category_train_classes": result["category_train_classes"],
-            "category_test_classes": result["category_test_classes"],
-            "category_unseen_test_classes": result["category_unseen_test_classes"],
-        }
-        for k in k_values:
-            row[f"k_{k}_cross_location_acc"] = result["cross_location_accuracies"].get(k)
+def _result_to_row(result: dict[str, Any], k_values: list[int]) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "embeddings_file": result["embeddings_file"],
+        "method": result["method"],
+        "split_set": result["split_set"],
+        "non_empty_f1": result["non_empty_f1"],
+        "train_locations": result["train_locations"],
+        "test_locations": result["test_locations"],
+        "category_train_samples": result["category_train_samples"],
+        "category_test_samples": result["category_test_samples"],
+        "non_empty_train_samples": result["non_empty_train_samples"],
+        "non_empty_test_samples": result["non_empty_test_samples"],
+        "category_train_classes": result["category_train_classes"],
+        "category_test_classes": result["category_test_classes"],
+        "category_unseen_test_classes": result["category_unseen_test_classes"],
+    }
+    for k in k_values:
+        row[f"k_{k}_cross_location_acc"] = result["cross_location_accuracies"].get(k)
 
-        rows.append(row)
+    return row
 
-    pl.DataFrame(rows).write_csv(output_path)
-    logger.info(f"Results saved to {output_path}")
+
+def _append_result_csv(result: dict[str, Any], k_values: list[int], output_path: Path) -> None:
+    row_df = pl.DataFrame([_result_to_row(result, k_values)])
+    file_exists = output_path.exists()
+    mode = "a" if file_exists is True else "w"
+    with open(output_path, mode, encoding="utf-8") as handle:
+        row_df.write_csv(handle, include_header=file_exists is False)
+
+    logger.info(f"Results updated at {output_path}")
+
+
+def _row_to_result(row: dict[str, Any], k_values: list[int]) -> dict[str, Any]:
+    cross_location_accuracies = {
+        k: float(value) for k in k_values if (value := row.get(f"k_{k}_cross_location_acc")) is not None
+    }
+
+    return {
+        "embeddings_file": str(row["embeddings_file"]),
+        "method": str(row["method"]),
+        "split_set": str(row["split_set"]),
+        "non_empty_f1": float(row["non_empty_f1"]),
+        "train_locations": int(row["train_locations"]),
+        "test_locations": int(row["test_locations"]),
+        "category_train_samples": int(row["category_train_samples"]),
+        "category_test_samples": int(row["category_test_samples"]),
+        "non_empty_train_samples": int(row["non_empty_train_samples"]),
+        "non_empty_test_samples": int(row["non_empty_test_samples"]),
+        "category_train_classes": int(row["category_train_classes"]),
+        "category_test_classes": int(row["category_test_classes"]),
+        "category_unseen_test_classes": int(row["category_unseen_test_classes"]),
+        "cross_location_accuracies": cross_location_accuracies,
+    }
+
+
+def _load_cached_result(
+    existing_df: Optional[pl.DataFrame], embeddings_path: str, k_values: list[int]
+) -> Optional[dict[str, Any]]:
+    if existing_df is None or existing_df.is_empty() is True:
+        return None
+
+    match_df = existing_df.filter(pl.col("embeddings_file") == embeddings_path)
+    if match_df.is_empty() is True:
+        return None
+
+    return _row_to_result(match_df.row(0, named=True), k_values)
+
+
+def _summary_results(
+    existing_df: Optional[pl.DataFrame], current_results: list[dict[str, Any]], k_values: list[int]
+) -> list[dict[str, Any]]:
+    if existing_df is None or existing_df.is_empty() is True:
+        return current_results
+
+    return [_row_to_result(row, k_values) for row in existing_df.iter_rows(named=True)]
 
 
 def _load_split_locations(dataset: CaltechCameraTraps, split_set: str) -> tuple[list[str], list[str]]:
@@ -293,12 +349,45 @@ def evaluate_cct(args: argparse.Namespace) -> None:
     logger.info(f"Using device {device}")
     logger.info(f"Loading Caltech Camera Traps dataset from {args.dataset_path}")
     dataset = CaltechCameraTraps(args.dataset_path, require_images=False)
+    existing_df: Optional[pl.DataFrame] = None
+    output_path: Optional[Path] = None
+
+    if args.dry_run is False:
+        output_dir = settings.RESULTS_DIR.joinpath(args.dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir.joinpath(_results_filename(args))
+        if output_path.exists() is True:
+            logger.info(f"Loading existing results from {output_path}")
+            existing_df = pl.read_csv(output_path)
+
+    if args.embeddings is None:
+        summary_results = _summary_results(existing_df, [], args.k)
+        if len(summary_results) == 0:
+            raise cli.ValidationError("--embeddings is required when no cached results are available")
+
+        logger.info("No embeddings provided, showing cached results")
+        _print_summary_table(summary_results, args.k)
+        toc = time.time()
+        logger.info(f"CCT benchmark completed in {lib.format_duration(toc - tic)}")
+        return
+
     metadata_df, train_locations, test_locations = _load_cct_metadata(dataset, args.split_set)
 
     results: list[dict[str, Any]] = []
     total = len(args.embeddings)
     for idx, embeddings_path in enumerate(args.embeddings, start=1):
         logger.info(f"Processing embeddings {idx}/{total}: {embeddings_path}")
+
+        cached_result = _load_cached_result(existing_df, embeddings_path, args.k)
+        if cached_result is not None:
+            logger.info(f"Using cached result for {embeddings_path}")
+            results.append(cached_result)
+            continue
+
+        if Path(embeddings_path).exists() is False:
+            logger.warning(f"Embeddings file not found, skipping: {embeddings_path}")
+            continue
+
         category_data, non_empty_data, stats = _load_embeddings_with_split(embeddings_path, metadata_df)
         result = evaluate_cct_single(
             category_data,
@@ -312,14 +401,15 @@ def evaluate_cct(args: argparse.Namespace) -> None:
             device=device,
         )
         results.append(result)
+        if output_path is not None:
+            _append_result_csv(result, args.k, output_path)
+            row_df = pl.DataFrame([_result_to_row(result, args.k)])
+            if existing_df is None:
+                existing_df = row_df
+            else:
+                existing_df = pl.concat([existing_df, row_df], how="diagonal_relaxed")
 
-    _print_summary_table(results, args.k)
-
-    if args.dry_run is False:
-        output_dir = settings.RESULTS_DIR.joinpath(args.dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = output_dir.joinpath("cct.csv")
-        _write_results_csv(results, args.k, output_path)
+    _print_summary_table(_summary_results(existing_df, results, args.k), args.k)
 
     toc = time.time()
     logger.info(f"CCT benchmark completed in {lib.format_duration(toc - tic)}")
@@ -370,8 +460,6 @@ def set_parser(subparsers: Any) -> None:
 
 
 def validate_args(args: argparse.Namespace) -> None:
-    if args.embeddings is None:
-        raise cli.ValidationError("--embeddings is required")
     if args.dataset_path is None:
         raise cli.ValidationError("--dataset-path is required")
 

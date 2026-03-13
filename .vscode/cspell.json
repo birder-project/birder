@@ -301,6 +301,7 @@
     "skiprows",
     "sklearn",
     "slurm",
+    "snakeclef",
     "softmax",
     "softplus",
     "squareform",

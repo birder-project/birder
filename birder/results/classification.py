@@ -56,7 +56,7 @@ class Results:
     def __init__(
         self,
         sample_list: list[str],
-        labels: list[int],
+        labels: npt.NDArray[np.int64] | list[int],
         label_names: list[str],
         output: npt.NDArray[np.float32],
         predictions: Optional[npt.NDArray[np.int_]] = None,
@@ -512,7 +512,7 @@ class SparseResults(Results):
     def __init__(  # pylint: disable=super-init-not-called
         self,
         sample_list: list[str],
-        labels: list[int],
+        labels: npt.NDArray[np.int64] | list[int],
         label_names: list[str],
         output: Optional[npt.NDArray[np.float32]],
         predictions: Optional[npt.NDArray[np.int_]] = None,

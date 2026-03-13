@@ -687,3 +687,114 @@ class PlantNet:
     @property
     def metadata_path(self) -> Path:
         return self._root.joinpath("plantnet300K_metadata.json")
+
+
+class SnakeCLEF2023:
+    """
+    Name: SnakeCLEF2023
+    Link: https://www.imageclef.org/SnakeCLEF2023
+    Size: 1,784 snake species, 154,301 train images, 14,117 validation images
+
+    Note: Official SnakeCLEF files are hosted behind a self-signed SSL certificate.
+          download=True ignores SSL certificate errors for the official dataset host.
+    """
+
+    _images_dir_name = "SnakeCLEF2023-medium_size"
+
+    def __init__(self, root: str | Path, download: bool = False, progress_bar: bool = True) -> None:
+        if isinstance(root, str):
+            root = Path(root)
+
+        self._root = root
+
+        if download is True:
+            self._root.mkdir(parents=True, exist_ok=True)
+
+            train_archive = self._root.joinpath("SnakeCLEF2023-train-medium_size.tar.gz")
+            val_archive = self._root.joinpath("SnakeCLEF2023-val-medium_size.tar.gz")
+
+            downloaded_train = download_url(
+                "https://ptak.felk.cvut.cz/plants/plants/SnakeCLEF2023/SnakeCLEF2023-train-medium_size.tar.gz",
+                train_archive,
+                sha256="b0aeefcc7925e4148c44b052257fb866ffc7c3f9a763a790f9409a2e7b1c85c6",
+                progress_bar=progress_bar,
+                ignore_ssl_errors=True,
+            )
+            downloaded_val = download_url(
+                "https://ptak.felk.cvut.cz/plants/plants/SnakeCLEF2023/SnakeCLEF2023-val-medium_size.tar.gz",
+                val_archive,
+                sha256="f7ca7d8821647941604e7e885d00d4c7f14db6d815fddef336dd73a19911ee93",
+                progress_bar=progress_bar,
+                ignore_ssl_errors=True,
+            )
+            if downloaded_train is True or downloaded_val is True or self.images_dir.exists() is False:
+                extract_archive(train_archive, self._root)
+                extract_archive(val_archive, self._root)
+
+            download_url(
+                "https://ptak.felk.cvut.cz/plants/plants/SnakeCLEF2023/SnakeCLEF2023-TrainMetadata-iNat.csv",
+                self.train_metadata_path,
+                sha256="0748b85225610459038d5899312e7ca73e89eaa469ffeb56134c4793c5b653a6",
+                progress_bar=progress_bar,
+                ignore_ssl_errors=True,
+            )
+            download_url(
+                "https://ptak.felk.cvut.cz/plants/plants/SnakeCLEF2023/SnakeCLEF2023-TrainMetadata-HM.csv",
+                self.train_hm_metadata_path,
+                sha256="83a93d4972ab4bb9b667fe86dccb66836c2695b67f3df809c777157fd6b9a4c7",
+                progress_bar=progress_bar,
+                ignore_ssl_errors=True,
+            )
+            download_url(
+                "https://ptak.felk.cvut.cz/plants/plants/SnakeCLEF2023/SnakeCLEF2023-ValMetadata.csv",
+                self.val_metadata_path,
+                sha256="dd1ce7c96cb36225675bd7b73b69d083dee9b011e06425f5c064fe6822ff2a68",
+                progress_bar=progress_bar,
+                ignore_ssl_errors=True,
+            )
+            download_url(
+                "https://ptak.felk.cvut.cz/plants/plants/SnakeCLEF2023/SnakeCLEF2023-PubTestMetadata.csv",
+                self.pub_test_metadata_path,
+                sha256="82bed968a1fa66353cde5777affe47d25a1699abdbd4feec741002cbd687a8f0",
+                progress_bar=progress_bar,
+                ignore_ssl_errors=True,
+            )
+
+        else:
+            if self._root.exists() is False or self._root.is_dir() is False:
+                raise RuntimeError("Dataset not found, try download=True to download it")
+
+            if self.images_dir.exists() is False:
+                raise RuntimeError("Dataset seems corrupted: SnakeCLEF2023-medium_size directory not found")
+
+            if self.train_metadata_path.exists() is False:
+                raise RuntimeError("Dataset seems corrupted: train metadata CSV not found")
+
+            if self.train_hm_metadata_path.exists() is False:
+                raise RuntimeError("Dataset seems corrupted: train HM metadata CSV not found")
+
+            if self.val_metadata_path.exists() is False:
+                raise RuntimeError("Dataset seems corrupted: validation metadata CSV not found")
+
+            if self.pub_test_metadata_path.exists() is False:
+                raise RuntimeError("Dataset seems corrupted: public test metadata CSV not found")
+
+    @property
+    def images_dir(self) -> Path:
+        return self._root.joinpath(self._images_dir_name)
+
+    @property
+    def train_metadata_path(self) -> Path:
+        return self._root.joinpath("SnakeCLEF2023-TrainMetadata-iNat.csv")
+
+    @property
+    def train_hm_metadata_path(self) -> Path:
+        return self._root.joinpath("SnakeCLEF2023-TrainMetadata-HM.csv")
+
+    @property
+    def val_metadata_path(self) -> Path:
+        return self._root.joinpath("SnakeCLEF2023-ValMetadata.csv")
+
+    @property
+    def pub_test_metadata_path(self) -> Path:
+        return self._root.joinpath("SnakeCLEF2023-PubTestMetadata.csv")

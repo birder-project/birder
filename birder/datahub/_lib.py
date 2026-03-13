@@ -8,7 +8,9 @@ from birder.common import cli
 logger = logging.getLogger(__name__)
 
 
-def download_url(url: str, target: str | Path, sha256: str, progress_bar: bool = True) -> bool:
+def download_url(
+    url: str, target: str | Path, sha256: str, progress_bar: bool = True, ignore_ssl_errors: bool = False
+) -> bool:
     if isinstance(target, str):
         target = Path(target)
 
@@ -21,7 +23,7 @@ def download_url(url: str, target: str | Path, sha256: str, progress_bar: bool =
 
     target.parent.mkdir(parents=True, exist_ok=True)
     logger.info(f"Downloading {url} to {target}")
-    cli.download_file(url, target, sha256, progress_bar=progress_bar)
+    cli.download_file(url, target, sha256, progress_bar=progress_bar, ignore_ssl_errors=ignore_ssl_errors)
     return True
 
 

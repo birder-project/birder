@@ -26,6 +26,8 @@ from birder.net.base import BaseNet
 #
 # Core Components:
 # - rope_       : Rotary Position Embedding (RoPE) enabled
+# - rope_a_     : Rotary Position Embedding (RoPE) enabled with axial rope style
+# - rope_cs_    : Rotary Position Embedding (RoPE) enabled with centered-separate rope style
 # - rope_i_     : Rotary Position Embedding (RoPE) enabled with interleaved rotation - implies different temp, indexing
 # - vit_        : Vision Transformer base architecture
 # - reg{N}_     : Register tokens (N = number of register tokens, e.g., reg4, reg8)
@@ -34,6 +36,7 @@ from birder.net.base import BaseNet
 #
 # Optional Components:
 #     Position Embeddings:
+#     - nape        : No Absolute Position Embedding
 #     - nps         : No Position embedding on Special tokens
 #
 #     Normalization:
@@ -94,6 +97,24 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         "rope_vit_s16_avg",
         rope_vit,
         config={"patch_size": 16, **SMALL, "class_token": False},
+    )
+    registry.register_model_config(
+        "rope_a_vit_s16",
+        rope_vit,
+        config={"patch_size": 16, **SMALL, "rope_style": "axial", "rope_rot_type": "interleaved"},
+    )
+    registry.register_model_config(
+        "rope_cs_vit_reg4_s16_nape_ls_c1",  # For DINOv3 - https://arxiv.org/abs/2508.10104
+        rope_vit,
+        config={
+            "patch_size": 16,
+            **SMALL,
+            "num_reg_tokens": 4,
+            "abs_pos_embed": False,
+            "layer_scale_init_value": 1e-5,
+            "norm_layer_eps": 1e-5,
+            "rope_style": "centered_separate",
+        },
     )
     registry.register_model_config(
         "rope_i_vit_s16_pn_aps_c1",  # For PE Core - https://arxiv.org/abs/2504.13181
@@ -323,12 +344,25 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         config={"patch_size": 16, **BASE, "num_reg_tokens": 4},
     )
     registry.register_model_config(
+        "rope_cs_vit_reg4_b16_nape_ls_c1",  # For DINOv3 - https://arxiv.org/abs/2508.10104
+        rope_vit,
+        config={
+            "patch_size": 16,
+            **BASE,
+            "num_reg_tokens": 4,
+            "abs_pos_embed": False,
+            "layer_scale_init_value": 1e-5,
+            "norm_layer_eps": 1e-5,
+            "rope_style": "centered_separate",
+        },
+    )
+    registry.register_model_config(
         "rope_vit_reg4_b14",
         rope_vit,
         config={"patch_size": 14, **BASE, "num_reg_tokens": 4},
     )
     registry.register_model_config(
-        "rope_vit_reg8_nps_b14_ap",
+        "rope_vit_reg8_b14_nps_ap",
         rope_vit,
         config={
             "pos_embed_special_tokens": False,
@@ -412,6 +446,19 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         "rope_vit_reg4_l16",
         rope_vit,
         config={"patch_size": 16, **LARGE, "num_reg_tokens": 4},
+    )
+    registry.register_model_config(
+        "rope_cs_vit_reg4_l16_nape_ls_c1",  # For DINOv3 - https://arxiv.org/abs/2508.10104
+        rope_vit,
+        config={
+            "patch_size": 16,
+            **LARGE,
+            "num_reg_tokens": 4,
+            "abs_pos_embed": False,
+            "layer_scale_init_value": 1e-5,
+            "norm_layer_eps": 1e-5,
+            "rope_style": "centered_separate",
+        },
     )
     registry.register_model_config(
         "rope_vit_reg4_l14",

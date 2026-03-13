@@ -93,6 +93,7 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         image_size = self.size
         attention_dropout = 0.0
         dropout = 0.0
+        abs_pos_embed: bool = self.config.get("abs_pos_embed", True)
         pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", False)
         patch_size: int = self.config["patch_size"]
         num_layers: int = self.config["num_layers"]
@@ -141,6 +142,7 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
+        self.abs_pos_embed = abs_pos_embed
         self.pos_embed_special_tokens = pos_embed_special_tokens
         self.patch_size = patch_size
         self.num_layers = num_layers
@@ -183,7 +185,10 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             self.reg_tokens = None
 
         # Add positional embedding
-        self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, hidden_dim).normal_(std=0.02))
+        if self.abs_pos_embed is True:
+            self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, hidden_dim).normal_(std=0.02))
+        else:
+            self.pos_embedding = None
 
         # Encoder
         self.encoder = Encoder(
@@ -262,7 +267,10 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             nn.init.zeros_(self.classifier.weight)
             nn.init.zeros_(self.classifier.bias)
 
-    def _get_pos_embed(self, H: int, W: int, patch_size: Optional[int] = None) -> torch.Tensor:
+    def _get_pos_embed(self, H: int, W: int, patch_size: Optional[int] = None) -> Optional[torch.Tensor]:
+        if self.pos_embedding is None:
+            return None
+
         if patch_size is None:
             patch_size = self.patch_size
 
@@ -301,9 +309,10 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         H, W = x.shape[-2:]
         x = self.conv_proj(x)
         x = self.patch_embed(x)
+        pos_embedding = self._get_pos_embed(H, W)
 
-        if self.pos_embed_special_tokens is False:
-            x = x + self._get_pos_embed(H, W)
+        if pos_embedding is not None and self.pos_embed_special_tokens is False:
+            x = x + pos_embedding
 
         # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
         special_tokens: list[torch.Tensor] = []
@@ -314,8 +323,8 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         if len(special_tokens) > 0:
             x = torch.concat(special_tokens + [x], dim=1)
 
-        if self.pos_embed_special_tokens is True:
-            x = x + self._get_pos_embed(H, W)
+        if pos_embedding is not None and self.pos_embed_special_tokens is True:
+            x = x + pos_embedding
 
         if self.out_indices is None:
             xs = [self.encoder(x)]
@@ -336,7 +345,8 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         for param in self.conv_proj.parameters():
             param.requires_grad_(False)
 
-        self.pos_embedding.requires_grad_(False)
+        if self.pos_embedding is not None:
+            self.pos_embedding.requires_grad_(False)
 
         for idx, module in enumerate(self.encoder.children()):
             if idx >= up_to_stage:
@@ -361,10 +371,11 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
         # Add pos embedding without special tokens
         pos_embedding = self._get_pos_embed(H, W)
-        if self.pos_embed_special_tokens is True:
-            x = x + pos_embedding[:, self.num_special_tokens :, :]
-        else:
-            x = x + pos_embedding
+        if pos_embedding is not None:
+            if self.pos_embed_special_tokens is True:
+                x = x + pos_embedding[:, self.num_special_tokens :, :]
+            else:
+                x = x + pos_embedding
 
         # Mask tokens
         if ids_keep is not None:
@@ -373,7 +384,7 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
         special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
-            if self.pos_embed_special_tokens is True:
+            if pos_embedding is not None and self.pos_embed_special_tokens is True:
                 reg_tokens = self.reg_tokens + pos_embedding[:, 0 : self.num_reg_tokens, :]
             else:
                 reg_tokens = self.reg_tokens
@@ -381,7 +392,7 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             special_tokens.append(reg_tokens.expand(x.size(0), -1, -1))
 
         if self.class_token is not None:
-            if self.pos_embed_special_tokens is True:
+            if pos_embedding is not None and self.pos_embed_special_tokens is True:
                 cls_token = self.class_token + pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
             else:
                 cls_token = self.class_token
@@ -436,9 +447,10 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
         # Reshape and permute the input tensor
         x = self.patch_embed(x)
+        pos_embedding = self._get_pos_embed(H, W)
 
-        if self.pos_embed_special_tokens is False:
-            x = x + self._get_pos_embed(H, W)
+        if pos_embedding is not None and self.pos_embed_special_tokens is False:
+            x = x + pos_embedding
 
         # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
         special_tokens: list[torch.Tensor] = []
@@ -449,8 +461,8 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         if len(special_tokens) > 0:
             x = torch.concat(special_tokens + [x], dim=1)
 
-        if self.pos_embed_special_tokens is True:
-            x = x + self._get_pos_embed(H, W)
+        if pos_embedding is not None and self.pos_embed_special_tokens is True:
+            x = x + pos_embedding
 
         x = self.encoder(x)
         x = self.norm(x)
@@ -491,9 +503,10 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         x = self.patch_embed(x)
 
         patch_embedding = x
+        pos_embedding = self._get_pos_embed(H, W, patch_size=patch_size)
 
-        if self.pos_embed_special_tokens is False:
-            x = x + self._get_pos_embed(H, W, patch_size=patch_size)
+        if pos_embedding is not None and self.pos_embed_special_tokens is False:
+            x = x + pos_embedding
 
         # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
         special_tokens: list[torch.Tensor] = []
@@ -512,8 +525,8 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         else:
             input_embedding = None  # For TorchScript compatibility
 
-        if self.pos_embed_special_tokens is True:
-            x = x + self._get_pos_embed(H, W, patch_size=patch_size)
+        if pos_embedding is not None and self.pos_embed_special_tokens is True:
+            x = x + pos_embedding
 
         x = self.encoder(x)
         x = self.norm(x)
@@ -557,6 +570,8 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
         old_size = self.size
         super().adjust_size(new_size)
+        if self.pos_embedding is None:
+            return
 
         if self.pos_embed_special_tokens is True:
             num_prefix_tokens = self.num_special_tokens
@@ -580,6 +595,9 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
         logger.debug(f"Setting patch size to: {patch_size}")
         self.conv_proj.weight = nn.Parameter(interpolate_proj(self.conv_proj.weight, patch_size))
+        if self.pos_embedding is None:
+            self.patch_size = patch_size
+            return
 
         # Adjust pos_embedding accordingly
         if self.pos_embed_special_tokens is True:
@@ -599,6 +617,11 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         self.patch_size = patch_size
 
     def load_vit_weights(self, state_dict: dict[str, Any]) -> None:
+        if self.pos_embedding is None:
+            state_dict.pop("pos_embedding", None)
+            self.load_state_dict(state_dict, strict=True)
+            return
+
         num_special_tokens = 0
         if "class_token" in state_dict:
             num_special_tokens += 1

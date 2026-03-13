@@ -44,6 +44,7 @@ class SIGReg(nn.Module):
     def __init__(self, num_knots: int, num_slices: int, t_max: float) -> None:
         super().__init__()
         self.num_slices = num_slices
+        self.slice_step = nn.Buffer(torch.zeros((), dtype=torch.long))
 
         t = torch.linspace(0.0, t_max, num_knots, dtype=torch.float32)
         dt = t_max / (num_knots - 1)
@@ -57,12 +58,23 @@ class SIGReg(nn.Module):
         self.phi_gaussian = nn.Buffer(phi_gaussian)
         self.weights = nn.Buffer(weights * phi_gaussian)
 
+    @torch.compiler.disable()  # type: ignore[untyped-decorator]
+    def _sample_directions(self, proj: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            generator = torch.Generator(device=proj.device)
+            generator.manual_seed(self.slice_step.item())
+            directions = torch.randn(
+                proj.size(-1), self.num_slices, device=proj.device, dtype=proj.dtype, generator=generator
+            )
+            self.slice_step.add_(1)
+
+        return F.normalize(directions, dim=0)
+
     def forward(self, proj: torch.Tensor) -> torch.Tensor:
         # Compute in float32
         proj = proj.float()
 
-        directions = torch.randn(proj.size(-1), self.num_slices, device=proj.device, dtype=proj.dtype)
-        directions = F.normalize(directions, dim=0)
+        directions = self._sample_directions(proj)
 
         # [V, B, num_slices]
         x_proj = proj @ directions
@@ -121,12 +133,11 @@ class LeJEPA(SSLBaseNet):
         self.sigreg = SIGReg(num_knots=num_knots, num_slices=num_slices, t_max=t_max)
 
     def forward(self, x: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        projections: list[torch.Tensor] = []
-        for view in x:
-            embedding = self.backbone.embedding(view)
-            projections.append(self.projector(embedding))
-
-        proj = torch.stack(projections, dim=0)  # [V, B, D]
+        embeddings = [self.backbone.embedding(view) for view in x]
+        batch_size = embeddings[0].size(0)
+        combined_embeddings = torch.concat(embeddings, dim=0)
+        combined_projections = self.projector(combined_embeddings)
+        proj = combined_projections.unflatten(0, (len(embeddings), batch_size))  # [V, B, D]
 
         sigreg_loss = self.sigreg(proj)
         inv_loss = (proj.float().mean(dim=0, keepdim=True) - proj.float()).square().mean()

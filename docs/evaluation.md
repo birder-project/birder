@@ -21,7 +21,7 @@ python -m birder.eval <command> --help
 - `classification`: evaluate pre-trained classification models on a dataset
 - `adversarial`: evaluate robustness of a trained model under adversarial attacks
 - `spatial`: evaluate robustness of a trained model under spatial perturbations
-- Benchmarks: `awa2`, `bioscan5m`, `cct`, `fishnet`, `flowers102`, `fungiclef`, `imagenet1k`, `nabirds`, `newt`, `plankton`, `plantdoc`, `plantnet`
+- Benchmarks: `awa2`, `bioscan5m`, `butterflies`, `cct`, `cub200`, `fishnet`, `flowers102`, `fungiclef`, `imagenet1k`, `nabirds`, `newt`, `plankton`, `plantdoc`, `plantnet`, `snakeclef`
 
 ## Minimal Examples
 
@@ -44,13 +44,18 @@ python -m birder.eval nabirds --embeddings results/nabirds/*.parquet --dataset-p
 
 # Caltech Camera Traps benchmark (cross-location + empty-vs-non-empty)
 python -m birder.eval cct --embeddings results/cct/*.parquet --dataset-path ~/Datasets/CaltechCameraTraps
+
+# CUB-200-2011 retrieval benchmark (training gallery, validation queries)
+python -m birder.eval cub200 --embeddings results/cub200/*.parquet --dataset-path ~/Datasets/CUB_200_2011 --k 1 5 10
 ```
 
 ## Inputs and Outputs
 
 - Core commands (`classification`, `adversarial`, `spatial`) read labeled image directories or WebDataset inputs
 - `adversarial` and `spatial` support model selection via `--filter`, `--network` or both in one run
-- Benchmark commands read feature parquet files (embeddings and/or logits) plus a benchmark dataset path
+- Benchmark commands consume parquet features exported by `birder.scripts.predict`
+- Most benchmark commands accept both parquet files with an `embedding` column and numeric-column logits parquet files
+- `cub200` evaluates cross-split image retrieval and reports `mAP` and `Recall@K`
 - Results are written under `results/` in task-specific subdirectories
 
 ## Example Workflow: Compare Models and Feature Types
@@ -85,7 +90,7 @@ For `bioclip-v1` and `bioclip-v2`, logits are the CLIP projection vectors.
 ## Dataset Helpers (Optional)
 
 `birder.datahub.evaluation` provides dataset helper classes used by several benchmarks, including:
-`AwA2`, `CaltechCameraTraps`, `FishNet`, `FungiCLEF2023`, `NABirds`, `NeWT`, `Plankton`, `PlantDoc` and `PlantNet`.
+`AwA2`, `CaltechCameraTraps`, `FishNet`, `FungiCLEF2023`, `NABirds`, `NeWT`, `Plankton`, `PlantDoc`, `PlantNet` and `SnakeCLEF2023`.
 
 Use these helpers if you want programmatic dataset validation/download for supported datasets.
 
