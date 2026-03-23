@@ -105,14 +105,15 @@ class YOLO_v4_Tiny(YOLO_v4):
         nms_thresh = 0.45
         detections_per_img = 300
         ignore_thresh = 0.7
-        noobj_coeff = 0.25
-        coord_coeff = 3.0
+        noobj_coeff = 1.0
+        coord_coeff = 0.07  # iou_normalizer
         obj_coeff = 1.0
         cls_coeff = 1.0
         label_smoothing = 0.1
         anchor_spec = self.config["anchors"]
 
         self.ignore_thresh = ignore_thresh
+        self.iou_thresh = 1.0  # Darknet tiny default keeps extra-positive anchor assignment disabled
         self.noobj_coeff = noobj_coeff
         self.coord_coeff = coord_coeff
         self.obj_coeff = obj_coeff

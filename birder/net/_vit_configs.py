@@ -181,6 +181,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         vit,
         config={"patch_size": 14, **HUGE},
     )
+    registry.register_model_config(
+        "vit_h14_pn",
+        vit,
+        config={"patch_size": 14, **HUGE, "pre_norm": True, "norm_layer_eps": 1e-5},
+    )
     registry.register_model_config(  # From "Scaling Vision Transformers"
         "vit_g16",
         vit,
@@ -269,6 +274,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         "vit_reg1_s14",
         vit,
         config={"patch_size": 14, **SMALL, "num_reg_tokens": 1},
+    )
+    registry.register_model_config(
+        "vit_reg1_s14_ls",
+        vit,
+        config={"patch_size": 14, **SMALL, "layer_scale_init_value": 1e-5, "num_reg_tokens": 1},
     )
     registry.register_model_config(  # For DINOv2 - https://arxiv.org/abs/2304.07193
         "vit_reg4_s14_nps_ls",

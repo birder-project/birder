@@ -354,6 +354,9 @@ def train(args: argparse.Namespace) -> None:
         net.backbone.freeze()
     elif args.freeze_backbone_stages is not None:
         net.backbone.freeze_stages(up_to_stage=args.freeze_backbone_stages)
+    elif args.freeze_backbone_layers is not None:
+        frozen_layers = training_utils.freeze_layers_by_block_group_regex(net.backbone, args.freeze_backbone_layers)
+        logger.info(f"Froze {frozen_layers} backbone layers using block_group_regex")
 
     if args.freeze_bn is True:
         net = training_utils.freeze_batchnorm2d(net)
@@ -958,14 +961,6 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--reset-head", default=False, action="store_true", help="reset the classification head")
     parser.add_argument(
-        "--freeze-body",
-        default=False,
-        action="store_true",
-        help="freeze all layers of the model except the classification head",
-    )
-    parser.add_argument("--freeze-backbone", default=False, action="store_true", help="freeze backbone")
-    parser.add_argument("--freeze-backbone-stages", type=int, help="number of backbone stages to freeze")
-    parser.add_argument(
         "--binary-mode",
         default=False,
         action="store_true",
@@ -974,6 +969,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--binary-class-name", default="Object", type=str, help="single class name used with --binary-mode"
     )
+    training_cli.add_freeze_args(parser, model=True, scope_name="backbone")
     training_cli.add_optimization_args(parser, default_batch_size=16)
     training_cli.add_lr_wd_args(parser, backbone_lr=True, backbone_layer_decay=True)
     training_cli.add_lr_scheduler_args(parser)
@@ -1016,12 +1012,21 @@ def validate_args(args: argparse.Namespace) -> None:
             f"--backbone {args.backbone} not supported, see list-models tool for available options"
         )
 
-    if args.freeze_backbone is True and args.freeze_backbone_stages is not None:
-        raise cli.ValidationError("--freeze-backbone cannot be used with --freeze-backbone-stages")
-    if args.freeze_backbone is True and args.freeze_body is True:
-        raise cli.ValidationError("--freeze-backbone cannot be used with --freeze-body")
-    if args.freeze_body is True and args.freeze_backbone_stages is not None:
-        raise cli.ValidationError("--freeze-body cannot be used with --freeze-backbone-stages")
+    active_model_freeze: Optional[str] = None
+    if args.freeze_body is True:
+        active_model_freeze = "--freeze-body"
+
+    active_backbone_freeze: Optional[str] = None
+    if args.freeze_backbone is True:
+        active_backbone_freeze = "--freeze-backbone"
+    elif args.freeze_backbone_stages is not None:
+        active_backbone_freeze = "--freeze-backbone-stages"
+    elif args.freeze_backbone_layers is not None:
+        active_backbone_freeze = "--freeze-backbone-layers"
+
+    if active_model_freeze is not None and active_backbone_freeze is not None:
+        raise cli.ValidationError(f"{active_model_freeze} cannot be used with {active_backbone_freeze}")
+
     if args.multiscale is True and args.aug_type != "birder":
         raise cli.ValidationError(f"--multiscale only supported with --aug-type birder, got {args.aug_type}")
     if args.batch_multiscale is True:

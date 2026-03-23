@@ -228,7 +228,7 @@ class MultiScaleProjector(nn.Module):
                 elif scale == 0.5:
                     # 2x downsample
                     layers = Conv2dNormActivation(
-                        in_dim, in_dim, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), activation_layer=nn.SiLU
+                        in_dim, in_dim, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), activation_layer=nn.ReLU
                     )
                     out_dim = in_dim
                 elif scale == 0.25:
@@ -411,6 +411,7 @@ class LW_DETRDecoder(nn.Module):
             group_detr,
         )
         self.layers = _get_clones(decoder_layer, num_decoder_layers)
+        self.decoder_norm = nn.LayerNorm(hidden_dim)
 
         # Sinusoidal embeddings: 4D coords -> 4 * (hidden_dim/2) = 2 * hidden_dim
         self.query_pos_head = MLP(2 * hidden_dim, [hidden_dim, hidden_dim], activation_layer=nn.ReLU)
@@ -423,6 +424,19 @@ class LW_DETRDecoder(nn.Module):
         bias_value = -math.log((1 - prior_prob) / prior_prob)
         nn.init.xavier_uniform_(self.content_queries)
         nn.init.zeros_(self.reference_point_embed)
+        for module in self.query_pos_head.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+
+        nn.init.xavier_uniform_(self.class_embed.weight)
+        for module in self.bbox_embed.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+
+        for layer in self.layers:
+            nn.init.xavier_uniform_(layer.linear1.weight)
+            nn.init.xavier_uniform_(layer.linear2.weight)
+
         nn.init.constant_(self.class_embed.bias, bias_value)
         nn.init.zeros_(self.bbox_embed[-2].weight)
         nn.init.zeros_(self.bbox_embed[-2].bias)
@@ -431,30 +445,20 @@ class LW_DETRDecoder(nn.Module):
         self.class_embed = nn.Linear(self.hidden_dim, num_classes)
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)
+        nn.init.xavier_uniform_(self.class_embed.weight)
         nn.init.constant_(self.class_embed.bias, bias_value)
 
     # pylint: disable=too-many-locals,too-many-branches
     def forward(
         self,
-        feats: list[torch.Tensor],
+        memory: torch.Tensor,
         spatial_shapes: list[list[int]],
         level_start_index: list[int],
         valid_ratios: torch.Tensor,
-        padding_mask: Optional[list[torch.Tensor]] = None,
         enc_reference_points: Optional[torch.Tensor] = None,
+        memory_padding_mask: Optional[torch.Tensor] = None,
         return_intermediates: bool = True,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        memory = []
-        mask_flatten = []
-        for idx, feat in enumerate(feats):
-            feat = feat.flatten(2).permute(0, 2, 1)
-            memory.append(feat)
-            if padding_mask is not None:
-                mask_flatten.append(padding_mask[idx].flatten(1))
-
-        memory = torch.concat(memory, dim=1)
-        memory_padding_mask = torch.concat(mask_flatten, dim=1) if len(mask_flatten) > 0 else None
-
         # Two-stage mode: combine learned reference point deltas with encoder proposals
         if self.two_stage is True:
             assert enc_reference_points is not None
@@ -495,8 +499,8 @@ class LW_DETRDecoder(nn.Module):
 
             init_ref_points_unact = refpoint_embed_weight.unsqueeze(0).expand(memory.size(0), -1, -1)
 
-            # One-stage mode: reference points are un-activated, need sigmoid
-            reference_points = init_ref_points_unact.sigmoid()
+            # One-stage mode: reference points are un-activated
+            reference_points = init_ref_points_unact
 
         target = content_queries_weight.unsqueeze(0).expand(memory.size(0), -1, -1)
 
@@ -533,10 +537,11 @@ class LW_DETRDecoder(nn.Module):
             )
 
             if return_intermediates is True or layer_idx == last_idx:
+                normed_target = self.decoder_norm(target)
                 # Each layer predicts boxes from the same initial reference points
-                bbox_delta = self.bbox_embed(target)
+                bbox_delta = self.bbox_embed(normed_target)
                 layer_bboxes = _apply_reference_delta(reference_points, bbox_delta)
-                class_logits = self.class_embed(target)
+                class_logits = self.class_embed(normed_target)
                 if return_intermediates is True:
                     bboxes_list.append(layer_bboxes)
                     logits_list.append(class_logits)
@@ -551,7 +556,7 @@ class LW_DETRDecoder(nn.Module):
         return (out_bboxes, out_logits)
 
 
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,too-many-instance-attributes
 class LW_DETR(DetectionBaseNet):
     default_size = (640, 640)
 
@@ -576,11 +581,14 @@ class LW_DETR(DetectionBaseNet):
         projector_scale_factors: list[float] = self.config["projector_scale_factors"]
         projector_num_blocks: int = self.config.get("projector_num_blocks", 3)
         decoder_dim: int = self.config.get("decoder_dim", 256)
+        dim_feedforward: int = self.config.get("dim_feedforward", 2048)
         decoder_self_heads: int = self.config.get("decoder_self_heads", 8)
         decoder_cross_heads: int = self.config.get("decoder_cross_heads", decoder_self_heads)
         decoder_points: int = self.config.get("decoder_points", 2)
         num_queries: int = self.config.get("num_queries", 300)
+        num_select: int = self.config.get("num_select", 300)
         two_stage: bool = self.config.get("two_stage", False)
+        group_detr: int = self.config.get("group_detr", 13)
         soft_nms: bool = self.config.get("soft_nms", False)
 
         self.soft_nms = None
@@ -591,10 +599,12 @@ class LW_DETR(DetectionBaseNet):
         self.loss_class = 1.0
         self.loss_bbox = 5.0
         self.loss_giou = 2.0
+        self.match_cost_class = 2.0
         self.aux_loss = True
         self.num_queries = num_queries
+        self.num_select = num_select
         self.two_stage = two_stage
-        self.group_detr = 13
+        self.group_detr = group_detr
 
         self.backbone.return_channels = self.backbone.return_channels[-3:]
         self.backbone.return_stages = self.backbone.return_stages[-3:]
@@ -625,7 +635,7 @@ class LW_DETR(DetectionBaseNet):
             num_levels=num_decoder_levels,
             num_self_heads=decoder_self_heads,
             num_cross_heads=decoder_cross_heads,
-            dim_feedforward=decoder_dim * 4,
+            dim_feedforward=dim_feedforward,
             dropout=dropout,
             num_decoder_points=decoder_points,
             group_detr=self.group_detr,
@@ -661,7 +671,9 @@ class LW_DETR(DetectionBaseNet):
             self.enc_out_bbox_embed = nn.ModuleList([nn.Identity()])
 
         self.decoder_dim = decoder_dim
-        self.matcher = HungarianMatcher(cost_class=self.loss_class, cost_bbox=self.loss_bbox, cost_giou=self.loss_giou)
+        self.matcher = HungarianMatcher(
+            cost_class=self.match_cost_class, cost_bbox=self.loss_bbox, cost_giou=self.loss_giou
+        )
 
         if self.export_mode is False:
             self.forward = torch.compiler.disable(recursive=False)(self.forward)  # type: ignore[method-assign]
@@ -715,6 +727,7 @@ class LW_DETR(DetectionBaseNet):
             iou = iou.clamp(min=0).detach()
             mixed_target = pred_scores.detach()[idx[0], idx[1], target_classes] ** self.ia_alpha
             mixed_target = mixed_target * (iou ** (1.0 - self.ia_alpha))
+            mixed_target = mixed_target.clamp(min=0.01)
             target_scores[idx[0], idx[1], target_classes] = mixed_target.to(target_scores.dtype)
             pos_mask[idx[0], idx[1], target_classes] = True
 
@@ -962,7 +975,7 @@ class LW_DETR(DetectionBaseNet):
         self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_sizes: torch.Tensor
     ) -> list[dict[str, torch.Tensor]]:
         prob = class_logits.sigmoid()
-        topk = min(self.num_queries, prob.shape[1] * prob.shape[2])
+        topk = min(self.num_select, prob.shape[1] * prob.shape[2])
         topk_values, topk_indexes = torch.topk(prob.view(prob.shape[0], -1), k=topk, dim=1)
         scores = topk_values
         topk_boxes = topk_indexes // prob.shape[2]
@@ -997,7 +1010,7 @@ class LW_DETR(DetectionBaseNet):
         stages = self.backbone.return_stages
         feature_list = [features[stage] for stage in stages]
 
-        # Align multi-scale backbone features to a common resolution (LW-DETR expects same spatial size here)
+        # Align multi-scale backbone features to a common resolution
         if len(feature_list) > 1:
             ref_idx = len(feature_list) // 2
             ref_h, ref_w = feature_list[ref_idx].shape[-2:]
@@ -1038,23 +1051,24 @@ class LW_DETR(DetectionBaseNet):
             num_levels = len(decoder_feats)
             valid_ratios = torch.ones((B, num_levels, 2), device=proj_feats[0].device, dtype=torch.float32)
 
+        valid_ratios = valid_ratios.to(decoder_feats[0].dtype)
+
+        # Flatten decoder features once and reuse for both two-stage proposal selection and decoder input
+        memory_list = []
+        mask_flatten_list = []
+        for idx, feat in enumerate(decoder_feats):
+            memory_list.append(feat.flatten(2).permute(0, 2, 1))
+            if mask_list is not None:
+                mask_flatten_list.append(mask_list[idx].flatten(1))
+
+        memory = torch.concat(memory_list, dim=1)
+        memory_padding_mask = torch.concat(mask_flatten_list, dim=1) if len(mask_flatten_list) > 0 else None
+
         # Two-stage: generate encoder proposals and select top-k per group
         enc_cls_logits: Optional[torch.Tensor] = None
         enc_box_output: Optional[torch.Tensor] = None
         enc_reference_points: Optional[torch.Tensor] = None
-
         if self.two_stage is True:
-            # Flatten decoder features to create memory
-            memory_list = []
-            mask_flatten_list = []
-            for idx, feat in enumerate(decoder_feats):
-                memory_list.append(feat.flatten(2).permute(0, 2, 1))
-                if mask_list is not None:
-                    mask_flatten_list.append(mask_list[idx].flatten(1))
-
-            memory = torch.concat(memory_list, dim=1)
-            memory_padding_mask = torch.concat(mask_flatten_list, dim=1) if len(mask_flatten_list) > 0 else None
-
             # Generate encoder output proposals
             output_memory, output_proposals = self.gen_encoder_output_proposals(
                 memory, memory_padding_mask, spatial_shapes
@@ -1124,12 +1138,12 @@ class LW_DETR(DetectionBaseNet):
                 enc_reference_points = enc_box_output.detach()
 
         out_bboxes, out_logits = self.decoder(
-            decoder_feats,
+            memory,
             spatial_shapes,
             level_start_index,
             valid_ratios,
-            padding_mask=mask_list,
             enc_reference_points=enc_reference_points,
+            memory_padding_mask=memory_padding_mask,
             return_intermediates=self.training is True,
         )
 

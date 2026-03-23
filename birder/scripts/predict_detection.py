@@ -383,7 +383,7 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--backbone is required")
     if registry.exists(args.backbone, net_type=DetectorBackbone) is False:
         raise cli.ValidationError(
-            f"--backbone {args.network} not supported, see list-models tool for available options"
+            f"--backbone {args.backbone} not supported, see list-models tool for available options"
         )
     if args.min_score >= 1 or args.min_score <= 0.0:
         raise cli.ValidationError(f"--min-score must be in range of (0, 1.0), got {args.min_score}")

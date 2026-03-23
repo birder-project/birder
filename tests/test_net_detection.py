@@ -309,3 +309,18 @@ class TestNetDetection(unittest.TestCase):
     #                 (torch.randn(1, DEFAULT_NUM_CHANNELS, *size),),
     #                 dynamic_shapes={"x": {2: height_dim, 3: width_dim}},
     #             )
+
+    def test_fcos_infers_anchor_sizes_from_max_stride(self) -> None:
+        size = (256, 256)
+
+        backbone = registry.net_factory("resnet_d_50", 10, size=size)
+        n = registry.detection_net_factory("fcos", 10, backbone, size=size, export_mode=True)
+        self.assertEqual(n.anchor_generator.sizes, [[s] for s in [8, 16, 32, 64, 128]])
+
+        backbone = registry.net_factory("vit_s16", 10, size=size)
+        n = registry.detection_net_factory("fcos", 10, backbone, size=size, export_mode=True)
+        self.assertEqual(n.anchor_generator.sizes, [[s] for s in [16, 32, 64]])
+
+        backbone = registry.net_factory("vit_s32", 10, size=size)
+        n = registry.detection_net_factory("fcos", 10, backbone, size=size, export_mode=True)
+        self.assertEqual(n.anchor_generator.sizes, [[s] for s in [32, 64, 128]])

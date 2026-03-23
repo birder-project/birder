@@ -146,8 +146,8 @@ class DINOLoss(nn.Module):
     def forward(
         self, student_output_list: list[torch.Tensor], teacher_out_softmax_centered_list: list[torch.Tensor]
     ) -> torch.Tensor:
-        s = torch.stack(student_output_list, 0)
-        t = torch.stack(teacher_out_softmax_centered_list, 0)
+        s = torch.stack(student_output_list, 0).float()
+        t = torch.stack(teacher_out_softmax_centered_list, 0).float()
         lsm = F.log_softmax(s / self.student_temp, dim=-1)
         loss = -(torch.einsum("tbk,sbk->tsb", t, lsm).mean(-1).sum())
 
@@ -158,9 +158,9 @@ class DINOLoss(nn.Module):
     ) -> torch.Tensor:
         total_loss = 0.0
         for s in student_output_list:
-            lsm = F.log_softmax(s / self.student_temp, dim=-1)
+            lsm = F.log_softmax(s.float() / self.student_temp, dim=-1)
             for t in teacher_out_softmax_centered_list:
-                loss = torch.sum(t * lsm, dim=-1)
+                loss = torch.sum(t.float() * lsm, dim=-1)
                 total_loss -= loss.mean()
 
         return total_loss
@@ -279,8 +279,8 @@ class iBOTPatchLoss(nn.Module):
         masks_weight: torch.Tensor,
         n_masked_patches: Optional[int] = None,
     ) -> torch.Tensor:
-        t = teacher_patch_tokens_masked
-        s = student_patch_tokens_masked
+        t = teacher_patch_tokens_masked.float()
+        s = student_patch_tokens_masked.float()
         loss = torch.sum(t * F.log_softmax(s / self.student_temp, dim=-1), dim=-1)
         if n_masked_patches is not None:
             loss = loss[:n_masked_patches]
@@ -292,7 +292,10 @@ class iBOTPatchLoss(nn.Module):
     def forward_no_masks(
         self, student_patch_tokens: torch.Tensor, teacher_patch_tokens: torch.Tensor, student_masks_flat: torch.Tensor
     ) -> torch.Tensor:
-        loss = torch.sum(teacher_patch_tokens * F.log_softmax(student_patch_tokens / self.student_temp, dim=-1), dim=-1)
+        loss = torch.sum(
+            teacher_patch_tokens.float() * F.log_softmax(student_patch_tokens.float() / self.student_temp, dim=-1),
+            dim=-1,
+        )
         loss = torch.sum(loss * student_masks_flat.float(), dim=-1) / student_masks_flat.sum(dim=-1).clamp(min=1.0)
 
         return -loss.mean()

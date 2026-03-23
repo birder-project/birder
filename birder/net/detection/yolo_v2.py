@@ -33,7 +33,7 @@ def decode_predictions(
     num_classes: int,
 ) -> torch.Tensor:
     """
-    Decode YOLO predictions to bounding boxes.
+    Decode YOLO predictions to bounding boxes
 
     Parameters
     ----------
@@ -279,7 +279,7 @@ class YOLO_v2(DetectionBaseNet):
 
     def _compute_anchor_iou(self, box_wh: torch.Tensor, anchor_wh: torch.Tensor) -> torch.Tensor:
         """
-        Compute IoU between boxes and anchors using only width/height (centered at origin).
+        Compute IoU between boxes and anchors using only width/height (centered at origin)
 
         Parameters
         ----------
@@ -311,7 +311,6 @@ class YOLO_v2(DetectionBaseNet):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Build targets for YOLO loss computation.
-
         Returns target tensor, object mask and no-object mask.
         """
 

@@ -164,6 +164,7 @@ def wds_write_worker(
 
     sink.post = wds_info
 
+    start_number = args.start_number
     count = 0
     buf = {}
     more = True
@@ -190,7 +191,7 @@ def wds_write_worker(
 
                     sink.write(
                         {
-                            "__key__": f"sample{count:09d}",
+                            "__key__": f"sample{count + start_number:09d}",
                             suffix: sample,
                             **cls,
                         }
@@ -228,8 +229,9 @@ def wds_write_worker(
 
 
 def directory_write_worker(
-    q_out: Any, error_event: Any, pack_path: Path, total: int, _: argparse.Namespace, idx_to_class: dict[int, str]
+    q_out: Any, error_event: Any, pack_path: Path, total: int, args: argparse.Namespace, idx_to_class: dict[int, str]
 ) -> None:
+    start_number = args.start_number
     count = 0
     buf = {}
     more = True
@@ -249,7 +251,8 @@ def directory_write_worker(
                     sample, suffix, target = buf[count]
                     del buf[count]
                     with open(
-                        pack_path.joinpath(idx_to_class[target]).joinpath(f"{count:06d}.{suffix}"), "wb"
+                        pack_path.joinpath(idx_to_class[target]).joinpath(f"{count + start_number:06d}.{suffix}"),
+                        "wb",
                     ) as handle:
                         handle.write(sample)
 
@@ -477,6 +480,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--format", type=str, choices=["webp", "png", "jpeg"], default="webp", help="file format")
     subparser.add_argument("--class-file", type=str, help="class list file")
     subparser.add_argument("--no-cls", default=False, action="store_true", help="pack without class information")
+    subparser.add_argument("--start-number", type=int, default=0, help="starting number for output file naming")
     subparser.add_argument("--suffix", type=str, default=settings.PACK_PATH_SUFFIX, help="directory suffix")
     subparser.add_argument("--split", type=str, default="training", help="dataset split used for _info.json")
     subparser.add_argument("--append", default=False, action="store_true", help="add split to existing wds")

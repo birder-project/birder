@@ -30,6 +30,18 @@ from birder.net.detection.base import clip_boxes_to_image
 from birder.ops.soft_nms import SoftNMS
 
 
+def _infer_anchor_sizes(input_stride: int, num_backbone_levels: int) -> list[list[int]]:
+    divisor = 2 ** (num_backbone_levels - 1)
+    if input_stride % divisor != 0:
+        raise ValueError(
+            f"FCOS cannot infer anchor sizes from input_stride={input_stride} "
+            f"and num_backbone_levels={num_backbone_levels}"
+        )
+
+    first_stride = input_stride // divisor
+    return [[first_stride * (2**level_idx)] for level_idx in range(num_backbone_levels + 2)]
+
+
 class BoxLinearCoder:
     """
     The linear box-to-box transform defined in FCOS. The transformation is parameterized
@@ -307,11 +319,13 @@ class FCOS(DetectionBaseNet):
             # Skip stage1
             self.backbone,
             fpn_width,
-            extra_blocks=LastLevelP6P7(256, 256),
+            extra_blocks=LastLevelP6P7(fpn_width, fpn_width),
         )
 
-        anchor_sizes = [[8], [16], [32], [64], [128]]  # Equal to strides of multi-level feature map
-        anchor_sizes = anchor_sizes[-len(self.backbone.return_stages) - 2 :]
+        # FCOS expects one anchor per location, with level size matching the stride schedule of the pyramid.
+        # We infer that schedule backwards from the backbone's final stride and the number of retained backbone levels.
+        input_stride = getattr(self.backbone, "max_stride", 32)
+        anchor_sizes = _infer_anchor_sizes(input_stride, len(self.backbone.return_stages))
         aspect_ratios = [[1.0]] * len(anchor_sizes)  # Set only one anchor
         self.anchor_generator = AnchorGenerator(anchor_sizes, aspect_ratios)
         assert (

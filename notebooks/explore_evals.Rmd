@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 import torch
+from matplotlib.figure import Figure
 ```
 
 ```{python}
@@ -44,6 +45,9 @@ from birder.eval.benchmarks import newt
 ### Progress
 
 ```{python}
+PLOT_PATH = Path("/tmp")
+
+
 @dataclass(frozen=True)
 class BenchmarkConfig:
     title: str
@@ -65,6 +69,7 @@ MODEL_LABELS = {
     "rope_i_vit_b16_pn_aps_c1_pe-core": "PE-Core B16",
     "rope_i_vit_l14_pn_aps_c1_pe-core": "PE-Core L14",
     "vit_b16_pn_bioclip-v1": "BioCLIP v1 B16",
+    "vit_h14_pn_bioclip-v25": "BioCLIP v2.5 H14",
     "vit_l14_pn_bioclip-v2": "BioCLIP v2 L14",
     "vit_b16_pn_biotrove-clip-o": "BioTrove B16",
     "vit_l14_pn_quick_gelu_openai-clip": "OpenAI CLIP L14",
@@ -206,7 +211,7 @@ def plot_epoch_curve_vs_references(
     reference_score_key: str,
     ylabel: str,
     title: str,
-) -> None:
+) -> Figure:
     with plt.style.context("seaborn-v0_8-whitegrid"):
         fig, ax = plt.subplots(figsize=(14, 8), facecolor="#F8F5EF")
         ax.set_facecolor("#FCFBF8")
@@ -273,8 +278,7 @@ def plot_epoch_curve_vs_references(
 
         fig.tight_layout(rect=(0, 0, 0.85, 1))
 
-    plt.show()
-    plt.close(fig)
+    return fig
 ```
 
 ```{python}
@@ -377,6 +381,42 @@ def score_relative_to_best(rows_df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+def score_ref_percentile_interp(rows_df: pl.DataFrame) -> pl.DataFrame:
+    ref_scores = sorted(rows_df.filter(pl.col("kind") == "reference")["raw_score"].to_list())
+
+    if len(ref_scores) == 0:
+        raise ValueError("Expected at least one reference score per benchmark")
+
+    if len(ref_scores) == 1:
+        ref_score = ref_scores[0]
+        return rows_df.with_columns(
+            pl.lit(ref_score).alias("ref_min"),
+            pl.lit(ref_score).alias("ref_max"),
+            pl.lit(0.0).alias("score"),
+        ).with_columns(pl.when(pl.col("raw_score") >= ref_score).then(1.0).otherwise(0.0).alias("score"))
+
+    ref_min = ref_scores[0]
+    ref_max = ref_scores[-1]
+    ref_positions = np.linspace(0.0, 1.0, num=len(ref_scores))
+
+    # Collapse duplicate anchors to their mean percentile so interpolation stays well-defined
+    unique_scores, inverse = np.unique(np.asarray(ref_scores), return_inverse=True)
+    unique_positions = np.zeros(len(unique_scores), dtype=float)
+    for idx in range(len(unique_scores)):
+        unique_positions[idx] = float(ref_positions[inverse == idx].mean())
+
+    return rows_df.with_columns(
+        pl.lit(ref_min).alias("ref_min"),
+        pl.lit(ref_max).alias("ref_max"),
+        pl.struct(["raw_score"])
+        .map_elements(
+            lambda x: float(np.interp(x["raw_score"], unique_scores, unique_positions)),
+            return_dtype=pl.Float64,
+        )
+        .alias("score"),
+    )
+
+
 def score_rank_among_refs(rows_df: pl.DataFrame) -> pl.DataFrame:
     ref_scores = rows_df.filter(pl.col("kind") == "reference")["raw_score"].to_list()
     n_refs = len(ref_scores)
@@ -459,29 +499,36 @@ def build_reference_agg_df(scores_df: pl.DataFrame, min_benchmarks: int = 8) -> 
 ```
 
 ```{python}
-benchmark = "cub200"
-cfg = BENCHMARK_CONFIG[benchmark]
+# awa2 bioscan5m butterflies cct cub200 fishnet flowers102 fungiclef
+# imagenet1k nabirds newt plankton plantdoc plantnet snakeclef
+benchmark = "awa2"
+for benchmark in BENCHMARK_CONFIG:
+    cfg = BENCHMARK_CONFIG[benchmark]
 
-df = pl.read_csv(cfg.results_path)
-dataset_name = cfg.results_path.stem.split("_")[0]
-metric_title = METRIC_NAMES[cfg.metric]
+    df = pl.read_csv(cfg.results_path)
+    dataset_name = cfg.results_path.stem.split("_")[0]
+    metric_title = METRIC_NAMES[cfg.metric]
 
-label, points, references = build_plot_data(df, cfg.embeddings_column, cfg.metric)
-epochs, metrics = zip(*points)
+    label, points, references = build_plot_data(df, cfg.embeddings_column, cfg.metric)
+    epochs, metrics = zip(*points)
 
-reference_rows = [
-    {"model_label": pretty_name(ref_label, dataset_name), "score": ref_metric} for ref_label, ref_metric in references
-]
+    reference_rows = [
+        {"model_label": pretty_name(ref_label, dataset_name), "score": ref_metric}
+        for ref_label, ref_metric in references
+    ]
 
-plot_epoch_curve_vs_references(
-    epochs=list(epochs),
-    metrics=list(metrics),
-    main_label=pretty_name(label, dataset_name),
-    reference_rows=reference_rows,
-    reference_score_key="score",
-    ylabel=metric_title,
-    title=f"{cfg.title} Benchmark",
-)
+    fig = plot_epoch_curve_vs_references(
+        epochs=list(epochs),
+        metrics=list(metrics),
+        main_label=pretty_name(label, dataset_name),
+        reference_rows=reference_rows,
+        reference_score_key="score",
+        ylabel=metric_title,
+        title=f"{cfg.title} Benchmark",
+    )
+    fig.savefig(PLOT_PATH.joinpath(f"benchmark_{benchmark}"))
+    plt.show()
+    plt.close(fig)
 ```
 
 ```{python}
@@ -489,11 +536,18 @@ SCORING_METHODS: dict[str, ScoreMethod] = {
     "ref_minmax_clipped": score_ref_minmax_clipped,
     "ref_minmax_raw": score_ref_minmax_raw,
     "relative_to_best": score_relative_to_best,
+    "ref_percentile_interp": score_ref_percentile_interp,
     "rank_among_refs": score_rank_among_refs,
 }
 
-score_method = "ref_minmax_raw"
-exclude_benchmarks = {"imagenet1k"}
+score_method = "ref_percentile_interp"
+exclude_benchmarks = {
+    "imagenet1k",  # OOD
+    "flowers102",  # Too easy
+    "plankton",  # Not natural photography
+    # "nabirds",  # Birds
+    # "cub200",  # Birds
+}
 # exclude_benchmarks = exclude_benchmarks.union({"nabirds", "cub200"})
 
 scores_df = build_scores_df(score_method).filter(~pl.col("benchmark").is_in(exclude_benchmarks))
@@ -512,7 +566,7 @@ ref_agg_df = build_reference_agg_df(scores_df, min_benchmarks=8)
 
 reference_rows = list(ref_agg_df.iter_rows(named=True))
 
-plot_epoch_curve_vs_references(
+fig = plot_epoch_curve_vs_references(
     epochs=epoch_progress_df["epoch"].to_list(),
     metrics=epoch_progress_df["mean_score"].to_list(),
     main_label=epoch_progress_df["model_label"][0],
@@ -521,6 +575,9 @@ plot_epoch_curve_vs_references(
     ylabel=f"Mean Score ({score_method})",
     title=f"Aggregate Benchmark Score - {score_method}",
 )
+fig.savefig(PLOT_PATH.joinpath(f"benchmark_summary_{score_method}"))
+plt.show()
+plt.close(fig)
 ```
 
 ```{python}
@@ -534,6 +591,7 @@ with plt.style.context("seaborn-v0_8-whitegrid"):
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Improvement Rate")
     ax.set_title("Fraction of Benchmarks Improved vs Previous Epoch")
+    fig.savefig(PLOT_PATH.joinpath("benchmark_summary_improvement_rate"))
     plt.show()
     plt.close(fig)
 ```
@@ -557,6 +615,7 @@ with plt.style.context("seaborn-v0_8-whitegrid"):
     ax.set_xlabel("Epoch")
     ax.set_ylabel("# Benchmarks at Best-so-far")
     ax.set_title("Benchmarks Hitting Best-so-far at Each Epoch")
+    fig.savefig(PLOT_PATH.joinpath("benchmark_summary_best_so_far"))
     plt.show()
     plt.close(fig)
 ```

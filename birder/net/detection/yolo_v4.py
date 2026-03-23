@@ -61,7 +61,7 @@ def decode_predictions(
     """
 
     N, _, H, W = predictions.size()
-    num_anchors = anchors.shape[0]
+    num_anchors = anchors.size(0)
     stride_h = strides[0]
     stride_w = strides[1]
 
@@ -390,14 +390,16 @@ class YOLO_v4(DetectionBaseNet):
         nms_thresh = 0.45
         detections_per_img = 300
         ignore_thresh = 0.7
-        noobj_coeff = 0.25
-        coord_coeff = 3.0
+        iou_thresh = 0.213
+        noobj_coeff = 1.0
+        coord_coeff = 0.07  # iou_normalizer
         obj_coeff = 1.0
         cls_coeff = 1.0
         label_smoothing = 0.1
         anchor_spec = self.config["anchors"]
 
         self.ignore_thresh = ignore_thresh
+        self.iou_thresh = iou_thresh
         self.noobj_coeff = noobj_coeff
         self.coord_coeff = coord_coeff
         self.obj_coeff = obj_coeff
@@ -475,6 +477,52 @@ class YOLO_v4(DetectionBaseNet):
 
         return iou
 
+    def _prepare_predictions_for_ignore(
+        self,
+        prediction: torch.Tensor,
+        anchors: torch.Tensor,
+        strides: torch.Tensor,
+        scale_xy: float,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Decode prediction boxes and class-confidence summaries for ignore-mask computation
+
+        Returns
+        -------
+        Boxes in [x1, y1, x2, y2] format with shape (N, num_anchors, H, W, 4),
+        and max class score per prediction with shape (N, num_anchors, H, W).
+        """
+
+        N, _, H, W = prediction.size()
+        num_anchors = anchors.size(0)
+        stride_h = strides[0]
+        stride_w = strides[1]
+
+        prediction = prediction.view(N, num_anchors, 5 + self.num_classes, H, W)
+        prediction = prediction.permute(0, 1, 3, 4, 2).contiguous()
+
+        grid_y, grid_x = torch.meshgrid(
+            torch.arange(H, device=prediction.device, dtype=prediction.dtype),
+            torch.arange(W, device=prediction.device, dtype=prediction.dtype),
+            indexing="ij",
+        )
+
+        pred_xy = torch.sigmoid(prediction[..., :2]) * scale_xy - (scale_xy - 1) / 2
+        pred_x = (pred_xy[..., 0] + grid_x.view(1, 1, H, W)) * stride_w
+        pred_y = (pred_xy[..., 1] + grid_y.view(1, 1, H, W)) * stride_h
+
+        anchor_w = anchors[:, 0].view(1, num_anchors, 1, 1)
+        anchor_h = anchors[:, 1].view(1, num_anchors, 1, 1)
+        pred_w = torch.exp(prediction[..., 2]) * anchor_w
+        pred_h = torch.exp(prediction[..., 3]) * anchor_h
+
+        pred_boxes = torch.stack(
+            [pred_x - pred_w / 2, pred_y - pred_h / 2, pred_x + pred_w / 2, pred_y + pred_h / 2], dim=-1
+        )
+        max_class_scores = torch.sigmoid(prediction[..., 5:].amax(dim=-1))
+
+        return (pred_boxes, max_class_scores)
+
     def _build_targets(  # pylint: disable=too-many-locals
         self,
         predictions: list[torch.Tensor],
@@ -483,17 +531,17 @@ class YOLO_v4(DetectionBaseNet):
         strides: list[torch.Tensor],
     ) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]:
         """
-        Build targets for YOLO loss computation.
+        Build targets for YOLO loss computation
 
-        Uses global anchor assignment: each ground truth box is assigned to the single
-        best-matching anchor across all scales, following the original YOLO v3 paper.
+        Each ground truth box is assigned to its global best-matching anchor,
+        and additional anchors with IoU above 'iou_thresh' are also assigned as positives.
 
         Returns target tensors, object masks and no-object masks for each scale.
         """
 
         device = predictions[0].device
         dtype = predictions[0].dtype
-        batch_size = predictions[0].shape[0]
+        batch_size = predictions[0].size(0)
         num_scales = len(predictions)
 
         # Build flat list of all anchors with their scale indices
@@ -508,6 +556,15 @@ class YOLO_v4(DetectionBaseNet):
             _, _, H, W = predictions[scale_idx].size()
             grid_sizes.append((H, W))
             stride_tensors.append(strides[scale_idx])
+
+        # Decode current predictions once per scale so ignore masks reflect model outputs
+        with torch.no_grad():
+            decoded_ignore_inputs = [
+                self._prepare_predictions_for_ignore(
+                    predictions[scale_idx], anchors[scale_idx], strides[scale_idx], self.scale_xy[scale_idx]
+                )
+                for scale_idx in range(num_scales)
+            ]
 
         # Initialize targets and masks for each scale
         target_tensors: list[torch.Tensor] = []
@@ -526,7 +583,7 @@ class YOLO_v4(DetectionBaseNet):
         for batch_idx, target_per_image in enumerate(targets):
             boxes = target_per_image["boxes"]
             labels = target_per_image["labels"] - 1  # Remove background offset
-            num_boxes = boxes.shape[0]
+            num_boxes = boxes.size(0)
 
             if num_boxes == 0:
                 continue
@@ -535,19 +592,18 @@ class YOLO_v4(DetectionBaseNet):
             box_wh = boxes[:, 2:] - boxes[:, :2]
             box_centers = (boxes[:, :2] + boxes[:, 2:]) / 2
 
-            # Compute IoU with ALL anchors globally and find best anchor per box
+            # Compute IoU with all anchors and keep the best anchor plus any extra
+            # anchors above the positive-assignment threshold
             iou_with_all_anchors = self._compute_anchor_iou(box_wh, all_anchors)
             best_anchor_global = iou_with_all_anchors.argmax(dim=1)
+            positive_anchor_mask = iou_with_all_anchors > self.iou_thresh
+            positive_anchor_mask.scatter_(1, best_anchor_global.unsqueeze(1), True)
+            positive_anchor_indices = torch.nonzero(positive_anchor_mask, as_tuple=False)
 
-            # Determine scale index for each box
-            scale_indices = torch.bucketize(best_anchor_global, cumsum_anchors[1:-1], right=True)
-
-            # Local anchor index within each scale
-            local_anchor_indices = best_anchor_global - cumsum_anchors[scale_indices]
-
-            # Assign targets for each scale
             for scale_idx in range(num_scales):
-                mask = scale_indices == scale_idx
+                scale_start = cumsum_anchors[scale_idx]
+                scale_end = cumsum_anchors[scale_idx + 1]
+                mask = (positive_anchor_indices[:, 1] >= scale_start) & (positive_anchor_indices[:, 1] < scale_end)
                 if not mask.any():
                     continue
 
@@ -555,12 +611,13 @@ class YOLO_v4(DetectionBaseNet):
                 stride_h, stride_w = stride_tensors[scale_idx][0], stride_tensors[scale_idx][1]
                 anchors_scale = anchors[scale_idx]
 
-                # Get boxes assigned to this scale
-                scale_boxes = boxes[mask]
-                scale_box_wh = box_wh[mask]
-                scale_box_centers = box_centers[mask]
-                scale_labels = labels[mask]
-                scale_local_anchors = local_anchor_indices[mask]
+                assigned = positive_anchor_indices[mask]
+                box_indices = assigned[:, 0]
+                scale_local_anchors = assigned[:, 1] - scale_start
+
+                scale_box_wh = box_wh[box_indices]
+                scale_box_centers = box_centers[box_indices]
+                scale_labels = labels[box_indices]
 
                 # Compute grid coordinates
                 grid_x = (scale_box_centers[:, 0] / stride_w).clamp(0, W - 1)
@@ -577,9 +634,8 @@ class YOLO_v4(DetectionBaseNet):
                 tw = torch.log(scale_box_wh[:, 0] / anchor_wh[:, 0] + 1e-7).to(dtype)
                 th = torch.log(scale_box_wh[:, 1] / anchor_wh[:, 1] + 1e-7).to(dtype)
 
-                # Build indices for scatter
-                num_scale_boxes = scale_boxes.shape[0]
-                batch_indices = torch.full((num_scale_boxes,), batch_idx, device=device, dtype=torch.long)
+                num_assignments = assigned.size(0)
+                batch_indices = torch.full((num_assignments,), batch_idx, device=device, dtype=torch.long)
 
                 # Assign targets using advanced indexing
                 target_tensors[scale_idx][batch_indices, scale_local_anchors, gj, gi, 0] = tx
@@ -590,10 +646,7 @@ class YOLO_v4(DetectionBaseNet):
 
                 # Class assignment
                 class_indices = 5 + scale_labels.long()
-                for i in range(num_scale_boxes):
-                    target_tensors[scale_idx][
-                        batch_indices[i], scale_local_anchors[i], gj[i], gi[i], class_indices[i]
-                    ] = 1.0
+                target_tensors[scale_idx][batch_indices, scale_local_anchors, gj, gi, class_indices] = 1.0
 
                 obj_masks[scale_idx][batch_indices, scale_local_anchors, gj, gi] = True
                 noobj_masks[scale_idx][batch_indices, scale_local_anchors, gj, gi] = False
@@ -601,38 +654,20 @@ class YOLO_v4(DetectionBaseNet):
             # Compute ignore mask: anchors with IoU > ignore_thresh should not contribute to noobj_loss
             for scale_idx in range(num_scales):
                 H, W = grid_sizes[scale_idx]
-                stride_h, stride_w = stride_tensors[scale_idx][0], stride_tensors[scale_idx][1]
-                anchors_scale = anchors[scale_idx]
                 num_anchors_scale = anchors_per_scale[scale_idx]
 
-                # Create grid of anchor box centers
-                grid_y, grid_x = torch.meshgrid(
-                    torch.arange(H, device=device, dtype=dtype),
-                    torch.arange(W, device=device, dtype=dtype),
-                    indexing="ij",
-                )
-                centers_x = (grid_x + 0.5) * stride_w  # (H, W)
-                centers_y = (grid_y + 0.5) * stride_h  # (H, W)
-
-                # Build all anchor boxes
-                anchor_w = anchors_scale[:, 0].view(-1, 1, 1)
-                anchor_h = anchors_scale[:, 1].view(-1, 1, 1)
-                pred_boxes = torch.stack(
-                    [
-                        centers_x.unsqueeze(0) - anchor_w / 2,
-                        centers_y.unsqueeze(0) - anchor_h / 2,
-                        centers_x.unsqueeze(0) + anchor_w / 2,
-                        centers_y.unsqueeze(0) + anchor_h / 2,
-                    ],
-                    dim=-1,
-                )
-
                 # Compute IoU for all anchors
+                pred_boxes, max_class_scores = decoded_ignore_inputs[scale_idx]
+                pred_boxes = pred_boxes[batch_idx]
                 iou = box_ops.box_iou(pred_boxes.view(-1, 4), boxes)
                 max_iou = iou.max(dim=1)[0].view(num_anchors_scale, H, W)
+                max_class_score = max_class_scores[batch_idx]
 
-                # Mark as ignore where IoU > threshold (and not already an object)
-                ignore_mask = (max_iou > self.ignore_thresh) & ~obj_masks[scale_idx][batch_idx]
+                # A prediction is ignored only when it overlaps a target
+                # strongly and predicts any class with score > 0.25
+                ignore_mask = (
+                    (max_iou > self.ignore_thresh) & (max_class_score > 0.25) & ~obj_masks[scale_idx][batch_idx]
+                )
                 noobj_masks[scale_idx][batch_idx] = noobj_masks[scale_idx][batch_idx] & ~ignore_mask
 
         return (target_tensors, obj_masks, noobj_masks)
@@ -702,6 +737,8 @@ class YOLO_v4(DetectionBaseNet):
                 t_y = (t_ty + grid_y) * stride_h
                 t_w = torch.exp(t_tw) * anchor_w
                 t_h = torch.exp(t_th) * anchor_h
+                image_h = H * stride_h
+                image_w = W * stride_w
 
                 # Convert center-wh to x1y1x2y2
                 pred_boxes = torch.stack([p_x - p_w / 2, p_y - p_h / 2, p_x + p_w / 2, p_y + p_h / 2], dim=1)
@@ -709,7 +746,8 @@ class YOLO_v4(DetectionBaseNet):
 
                 # Calculate CIoU loss
                 ciou = compute_ciou_loss(pred_boxes, target_boxes)
-                coord_loss = coord_loss + ciou.sum()
+                box_loss_scale = 2.0 - (t_w * t_h) / (image_w * image_h)
+                coord_loss = coord_loss + (ciou * box_loss_scale).sum()
 
                 # Objectness loss
                 obj_loss = obj_loss + F.binary_cross_entropy_with_logits(
@@ -746,7 +784,7 @@ class YOLO_v4(DetectionBaseNet):
         decoded_predictions: torch.Tensor,
         image_sizes: torch.Tensor,
     ) -> list[dict[str, torch.Tensor]]:
-        batch_size = decoded_predictions.shape[0]
+        batch_size = decoded_predictions.size(0)
         detections: list[dict[str, torch.Tensor]] = []
 
         for idx in range(batch_size):
@@ -755,16 +793,13 @@ class YOLO_v4(DetectionBaseNet):
             objectness = pred[:, 4]
             class_scores = pred[:, 5:]
 
-            # Combine objectness and class scores
+            # Keep per-class detections
             scores = objectness.unsqueeze(-1) * class_scores
-            scores, labels = scores.max(dim=-1)
-            labels = labels + 1  # Add background offset
-
-            # Filter by score threshold
             keep = scores > self.score_thresh
-            boxes = boxes[keep]
-            scores = scores[keep]
-            labels = labels[keep]
+            box_indices, class_indices = torch.where(keep)
+            boxes = boxes[box_indices]
+            scores = scores[box_indices, class_indices]
+            labels = class_indices + 1  # Add background offset
 
             # Clip boxes to image
             image_shape = image_sizes[idx]

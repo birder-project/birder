@@ -321,6 +321,45 @@ def group_by_regex(strings: list[str], pattern: str) -> list[list[str]]:
     return groups
 
 
+def freeze_layers_by_block_group_regex(model: torch.nn.Module, num_layers: int) -> int:
+    """
+    Freeze the first N regex-matched block groups defined by model.block_group_regex
+
+    Any parameter groups that appear before the last frozen regex-matched block
+    (for example a stem, patch embedding, positional embedding, or stage transition
+    group) are frozen as part of the frozen prefix, but do not count toward N.
+    """
+
+    model = unwrap_compiled_module(model)
+    block_group_regex = getattr(model, "block_group_regex", None)
+    if block_group_regex is None:
+        raise ValueError(f"{model.__class__.__name__} does not define block_group_regex")
+
+    groups = group_by_regex([name for name, _ in model.named_parameters()], block_group_regex)
+    matched_groups = [group for group in groups if re.search(block_group_regex, group[0]) is not None]
+    if len(matched_groups) == 0:
+        raise ValueError(f"{model.__class__.__name__} block_group_regex did not match any parameters")
+
+    if num_layers > len(matched_groups):
+        logger.warning(
+            f"Requested freezing {num_layers} layers, but only {len(matched_groups)} are available, freezing all layers"
+        )
+        num_layers = len(matched_groups)
+
+    frozen_groups = matched_groups[:num_layers]
+    if len(frozen_groups) > 0:
+        frozen_group_names = {group[0] for group in frozen_groups}
+        last_frozen_group_idx = max(idx for idx, group in enumerate(groups) if group[0] in frozen_group_names)
+        frozen_groups = groups[: last_frozen_group_idx + 1]
+
+    frozen_parameter_names = {name for group in frozen_groups for name in group}
+    for name, parameter in model.named_parameters():
+        if name in frozen_parameter_names:
+            parameter.requires_grad_(False)
+
+    return num_layers
+
+
 def unwrap_compiled_module(module: torch.nn.Module) -> torch.nn.Module:
     """
     Unwrap a torch.compile wrapper and return the original module
@@ -374,10 +413,11 @@ def optimizer_parameter_groups(
     layer_decay_no_opt_scale: Optional[float] = None,
     bias_lr: Optional[float] = None,
     backbone_lr: Optional[float] = None,
+    backbone_prefix: str = "backbone",
     custom_layer_lr_scale: Optional[dict[str, float]] = None,
 ) -> list[dict[str, Any]]:
     """
-    Return parameter groups for optimizers with per-parameter group weight decay.
+    Return parameter groups for optimizers with per-parameter group weight decay
 
     This function creates parameter groups with customizable weight decay, layer-wise
     learning rate scaling and special handling for different parameter types. It supports
@@ -415,7 +455,9 @@ def optimizer_parameter_groups(
     bias_lr
         Custom learning rate for bias parameters (parameters ending with '.bias').
     backbone_lr
-        Custom learning rate for backbone parameters (parameters starting with 'backbone.').
+        Custom learning rate for backbone parameters (parameters starting with the configured backbone_prefix).
+    backbone_prefix
+        Dotted module path used to identify the backbone subtree for backbone-specific LR rules.
     custom_layer_lr_scale
         Dictionary mapping layer name substrings to custom lr_scale values.
         Applied to parameters whose names contain the specified keys.
@@ -459,24 +501,19 @@ def optimizer_parameter_groups(
     backbone_group_map: dict[str, int] = {}
     backbone_num_layers = 0
     if backbone_layer_decay is not None:
-        backbone_module = getattr(model, "backbone", None)
-        if backbone_module is None:
-            logger.warning("Backbone layer decay requested but model has no backbone")
-            backbone_layer_decay = None
+        backbone_module = unwrap_compiled_module(model.get_submodule(backbone_prefix))
+        backbone_block_group_regex = getattr(backbone_module, "block_group_regex", None)
+        if backbone_block_group_regex is not None:
+            names = [n for n, _ in backbone_module.named_parameters()]
+            groups = group_by_regex(names, backbone_block_group_regex)
+            backbone_group_map = {
+                f"{backbone_prefix}.{item}": index for index, sublist in enumerate(groups) for item in sublist
+            }
+            backbone_num_layers = len(groups)
         else:
-            backbone_module = unwrap_compiled_module(backbone_module)
-            backbone_block_group_regex = getattr(backbone_module, "block_group_regex", None)
-            if backbone_block_group_regex is not None:
-                names = [n for n, _ in backbone_module.named_parameters()]
-                groups = group_by_regex(names, backbone_block_group_regex)
-                backbone_group_map = {
-                    f"backbone.{item}": index for index, sublist in enumerate(groups) for item in sublist
-                }
-                backbone_num_layers = len(groups)
-            else:
-                backbone_group_map = {}
-                backbone_num_layers = count_layers(backbone_module)
-                logger.warning("Assigning lr scaling (backbone layer decay) without a block group map")
+            backbone_group_map = {}
+            backbone_num_layers = count_layers(backbone_module)
+            logger.warning("Assigning lr scaling (backbone layer decay) without a block group map")
 
     # Build layer scale
     if layer_decay_min_scale is None:
@@ -497,7 +534,8 @@ def optimizer_parameter_groups(
         ]
         logger.info(
             "Backbone layer scaling ranges from "
-            f"{min(backbone_layer_scales)} to {max(backbone_layer_scales)} across {backbone_num_layers} layers"
+            f"{min(backbone_layer_scales)} to {max(backbone_layer_scales)} across {backbone_num_layers} layers "
+            f"for {backbone_prefix}"
         )
 
     # Set weight decay and layer decay
@@ -509,7 +547,7 @@ def optimizer_parameter_groups(
     while len(module_stack_with_prefix) > 0:  # pylint: disable=too-many-nested-blocks
         skip_module = False
         module, prefix = module_stack_with_prefix.pop()
-        is_backbone_module = prefix == "backbone" or prefix.startswith("backbone.")
+        is_backbone_module = prefix == backbone_prefix or prefix.startswith(f"{backbone_prefix}.")
         if id(module) in visited_modules:
             skip_module = True
 
@@ -518,7 +556,7 @@ def optimizer_parameter_groups(
         for name, p in module.named_parameters(recurse=False):
             target_name = f"{prefix}.{name}" if prefix != "" else name
             idx = group_map.get(target_name, idx)
-            is_backbone_param = target_name.startswith("backbone.")
+            is_backbone_param = target_name.startswith(f"{backbone_prefix}.")
             if backbone_layer_decay is not None and is_backbone_param is True:
                 backbone_idx = backbone_group_map.get(target_name, backbone_idx)
             if skip_module is True:

@@ -192,7 +192,7 @@ torchrun --nproc_per_node=2 train_detection.py --network lw_detr_l --tag coco --
 #### Plain DETR: RoPEi ViT reg1 s16 pn c1 (PE-Spatial)
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network plain_detr --tag coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-pretrained --batch-size 2 --opt adamw --opt-fused --clip-grad-norm 0.1 --grad-accum-steps 8 --lr 0.0002 --backbone-lr 0.00002 --wd 0.05 --norm-wd 0 --layer-decay 0.9 --lr-scheduler step --lr-step-size 40 --lr-step-gamma 0.1 --epochs 50 --max-size 1152 --aug-type detr --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+torchrun --nproc_per_node=2 train_detection.py --network plain_detr --tag coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-pretrained --batch-size 2 --opt adamw --opt-fused --clip-grad-norm 0.1 --grad-accum-steps 8 --lr 0.0002 --backbone-lr 0.00002 --wd 0.05 --norm-wd 0 --backbone-layer-decay 0.95 --lr-scheduler step --lr-step-size 40 --lr-step-gamma 0.1 --epochs 50 --max-size 1152 --aug-type detr --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 ### RetinaNet
@@ -255,6 +255,12 @@ Intermediate training (COCO) - Dynamic
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network rt_detr_v2 --tag coco --backbone hieradet_small --backbone-tag sam2_1 --backbone-pretrained --batch-size 24 --opt adamw --opt-fused --clip-grad-norm 0.1 --grad-accum-steps 2 --lr 0.0001 --backbone-lr 0.00001 --wd 0.0001 --norm-wd 0 --lr-scheduler step --lr-step-size 50 --lr-step-gamma 0.1 --epochs 72 --warmup-epochs 4 --model-ema --model-ema-decay 0.9999 --model-ema-warmup 60 --size 640 --batch-multiscale --multiscale-min-size 384 --aug-level 5 --rgb-mode imagenet --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+```
+
+IL-Common family - Warmup
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_detection --network rt_detr_v2 --tag il-common-family --backbone hieradet_small --backbone-tag sam2_1 --backbone-pretrained --freeze-backbone --batch-size 64 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.0001 --wd 0.0001 --norm-wd 0 --lr-scheduler cosine --epochs 100 --size 640 --batch-multiscale --multiscale-min-size 384 --aug-level 6 --rgb-mode imagenet --mosaic-prob 0.5 --amp --amp-dtype bfloat16 --compile --coco-json-path data/detection_data/training_annotations_il-common_classes_coco.json --coco-val-json-path data/detection_data/validation_annotations_il-common_classes_coco.json --label-mapping data/il-common_family-mapping.json
 ```
 
 ### SSD
@@ -340,6 +346,14 @@ torchrun --nproc_per_node=2 train_detection.py --network yolo_v3 --tag coco --ba
 ```
 
 ### YOLO v4
+
+#### YOLO v4: CSP ResNet 50
+
+Intermediate training (COCO)
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network yolo_v4 --tag coco --backbone csp_resnet_50 --backbone-tag imagenet1k  --backbone-epoch 0 --backbone-model-config drop_block=0.1 --batch-size 32 --grad-accum-steps 2 --lr 0.001 --wd 0.0005 --lr-scheduler multistep --lr-steps 300 350 --lr-step-gamma 0.1 --epochs 400 --warmup-epochs 5 --size 608 --batch-multiscale --multiscale-min-size 384 --aug-type yolo --mosaic-prob 0.5 --mosaic-stop-epoch 360 --rgb-mode imagenet --amp --amp-dtype float16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+```
 
 #### YOLO v4: CSP Darknet 53
 

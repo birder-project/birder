@@ -208,7 +208,9 @@ def train(args: argparse.Namespace) -> None:
         student = fsdp_utils.setup_fsdp(student, args, wrap_modules=student_wrap_modules, mesh=fsdp_mesh)
 
         teacher_wrap_modules = _capi_fsdp_wrap_modules(teacher, args)
-        teacher = fsdp_utils.setup_fsdp(teacher, args, wrap_modules=teacher_wrap_modules, mesh=fsdp_mesh)
+        teacher = fsdp_utils.setup_fsdp(
+            teacher, args, wrap_modules=teacher_wrap_modules, mesh=fsdp_mesh, reshard_after_forward=True
+        )
 
         net["student"] = student
         net["teacher"] = teacher

@@ -249,6 +249,71 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertEqual(len(groups[-1]), 1)
         self.assertEqual(groups[-1][0], "anything")
 
+    def test_freeze_layers_by_block_group_regex(self) -> None:
+        model = ViT(
+            3,
+            2,
+            config={
+                "patch_size": 32,
+                "num_layers": 12,
+                "num_heads": 8,
+                "hidden_dim": 128,
+                "mlp_dim": 512,
+                "num_reg_tokens": 0,
+                "drop_path_rate": 0.0,
+            },
+        )
+        frozen_layers = training_utils.freeze_layers_by_block_group_regex(model, 2)
+
+        self.assertEqual(frozen_layers, 2)
+        self.assertFalse(model.class_token.requires_grad)
+        self.assertFalse(model.pos_embedding.requires_grad)
+        self.assertFalse(model.conv_proj.weight.requires_grad)
+        self.assertFalse(model.encoder.block[0].norm1.weight.requires_grad)
+        self.assertFalse(model.encoder.block[1].norm1.weight.requires_grad)
+        self.assertTrue(model.encoder.block[2].norm1.weight.requires_grad)
+        self.assertTrue(model.classifier.weight.requires_grad)
+
+        model = torch.nn.Sequential(
+            torch.nn.Linear(4, 4),
+            torch.nn.ReLU(),
+            torch.nn.Linear(4, 2),
+        )
+
+        with self.assertRaises(ValueError):
+            training_utils.freeze_layers_by_block_group_regex(model, 1)
+
+    def test_freeze_layers_by_block_group_regex_with_interleaved_transition(self) -> None:
+        class ToyNet(torch.nn.Module):
+            block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
+
+            def __init__(self) -> None:
+                super().__init__()
+                self.stem = torch.nn.Linear(4, 4)
+                self.body = torch.nn.Module()
+
+                self.body.stage1 = torch.nn.Module()
+                self.body.stage1.blocks = torch.nn.ModuleList([torch.nn.Linear(4, 4)])
+
+                self.body.stage2 = torch.nn.Module()
+                self.body.stage2.downsample = torch.nn.Linear(4, 4)
+                self.body.stage2.blocks = torch.nn.ModuleList([torch.nn.Linear(4, 4)])
+
+                self.head = torch.nn.Linear(4, 2)
+
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                raise NotImplementedError
+
+        model = ToyNet()
+        frozen_layers = training_utils.freeze_layers_by_block_group_regex(model, 2)
+
+        self.assertEqual(frozen_layers, 2)
+        self.assertFalse(model.stem.weight.requires_grad)
+        self.assertFalse(model.body.stage1.blocks[0].weight.requires_grad)
+        self.assertFalse(model.body.stage2.downsample.weight.requires_grad)
+        self.assertFalse(model.body.stage2.blocks[0].weight.requires_grad)
+        self.assertTrue(model.head.weight.requires_grad)
+
     def test_fsdp_modules_from_min_num_params(self) -> None:
         class ToyNet(torch.nn.Module):
             def __init__(self) -> None:
@@ -564,6 +629,58 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertAlmostEqual(params[2]["lr"], 0.01)
         self.assertAlmostEqual(params[3]["lr"], 0.01)
         self.assertNotIn("lr", params[4])
+
+        model = torch.nn.ModuleDict(
+            {
+                "student": torch.nn.Sequential(
+                    OrderedDict(
+                        {
+                            "backbone": torch.nn.Sequential(
+                                OrderedDict(
+                                    {
+                                        "linear": torch.nn.Linear(1, 2),
+                                        "norm": torch.nn.BatchNorm1d(2),
+                                    }
+                                )
+                            ),
+                            "head": torch.nn.Linear(2, 1, bias=False),
+                        }
+                    )
+                ),
+                "teacher": torch.nn.Sequential(
+                    OrderedDict(
+                        {
+                            "backbone": torch.nn.Sequential(
+                                OrderedDict(
+                                    {
+                                        "linear": torch.nn.Linear(1, 2),
+                                        "norm": torch.nn.BatchNorm1d(2),
+                                    }
+                                )
+                            ),
+                            "head": torch.nn.Linear(2, 1, bias=False),
+                        }
+                    )
+                ),
+            }
+        )
+        params = training_utils.optimizer_parameter_groups(
+            model, 0, 0.1, backbone_layer_decay=0.1, backbone_prefix="student.backbone"
+        )
+        self.assertAlmostEqual(params[0]["lr_scale"], 0.1)
+        self.assertAlmostEqual(params[1]["lr_scale"], 0.1)
+        self.assertEqual(params[2]["lr_scale"], 1.0)
+        self.assertEqual(params[3]["lr_scale"], 1.0)
+        self.assertEqual(params[4]["lr_scale"], 1.0)
+        self.assertEqual(params[5]["lr_scale"], 1.0)
+        self.assertEqual(params[6]["lr_scale"], 1.0)
+        self.assertEqual(params[7]["lr_scale"], 1.0)
+        self.assertEqual(params[8]["lr_scale"], 1.0)
+        self.assertEqual(params[9]["lr_scale"], 1.0)
+        self.assertAlmostEqual(params[0]["lr"], 0.01)
+        self.assertAlmostEqual(params[1]["lr"], 0.01)
+        self.assertNotIn("lr", params[4])
+        self.assertNotIn("lr", params[5])
 
         # Test bias
         model = torch.nn.Sequential(

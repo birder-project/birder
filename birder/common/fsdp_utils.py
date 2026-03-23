@@ -120,6 +120,7 @@ def setup_fsdp(
     args: argparse.Namespace,
     wrap_modules: Optional[Sequence[torch.nn.Module]] = None,
     mesh: Optional[DeviceMesh] = None,
+    reshard_after_forward: Optional[bool] = None,
 ) -> FSDPModule:
     sync_module_states(net)
     param_dtype = None if args.fsdp_param_dtype is None else getattr(torch, args.fsdp_param_dtype)
@@ -133,7 +134,8 @@ def setup_fsdp(
     else:
         raise ValueError(f"Unsupported FSDP offload policy: {args.fsdp_offload_policy}")
 
-    reshard_after_forward = _reshard_after_forward(args.fsdp_sharding_strategy)
+    if reshard_after_forward is None:
+        reshard_after_forward = _reshard_after_forward(args.fsdp_sharding_strategy)
     if mesh is None:
         mesh = init_device_mesh("cuda", (args.world_size,), mesh_dim_names=("dp",))
 

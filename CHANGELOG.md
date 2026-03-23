@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.4.12 - 2026-03-23
+
+### Added
+
+- **Pack Start Number**: Added `--start-number` to `python -m birder.tools pack` to offset output file numbering.
+- **Train Layer Freezing**: Added `--freeze-layers` to freeze the first N layers using a model's `block_group_regex`.
+- **MIM Encoder Freezing**: Added `--freeze-encoder`, `--freeze-encoder-stages` and `--freeze-encoder-layers` to `train_mim.py`.
+- **Pretrained Models**:
+    - `vit_h14_pn_bioclip-v25`: Added [BioCLIP 2.5](https://arxiv.org/abs/2505.23883) ViT-H/14 pretrained weights.
+
+### Changed
+
+- **Compatibility**: Tested with PyTorch 2.11.
+
+### Fixed
+
+- **FSDP Teacher EMA Update**: Fixed mixed `torch.Tensor` / `DTensor` `_foreach_lerp_` crash in DINOv2 and CAPI FSDP training.
+- **DINOv2 / Franca Sinkhorn Mixed Dtypes**: Fixed `float32` teacher targets from Sinkhorn queueing / assignment colliding with student logits during DINO and iBOT loss computation under mixed-precision training.
+- **DINOv2 Distillation DDP EMA**: Fixed `student.backbone` attribute access through the DDP wrapper in `train_dino_v2_dist` EMA update.
+- **FCOS Anchor Schedule**: Fixed FCOS anchor sizes to follow the backbone-reported `max_stride`, including 16- and 32-stride backbones.
+- **RT-DETR v1/v2 Decoder Aux BBox Training**: Restored the upstream gradient path through previous reference-point refinements when forming deeper auxiliary bbox outputs during training.
+- **LW-DETR Upstream Fidelity**: Restored the upstream matcher class-cost weight, decoder output normalization, IA-BCE positive-target clamp, targeted decoder/query-position Xavier init and the projector's 0.5x ReLU downsample path.
+- **Plain-DETR Upstream Fidelity**: Restored the hybrid one-to-one/one-to-many self-attention mask, upstream-style stride-aligned backbone upsampling and input projection, global top-k inference selection and valid-ratio scaling for BoxRPB reference points.
+- **YOLO v4 / v4 Tiny Darknet Fidelity**: Updated target assignment, ignore-mask computation, box-loss weighting and per-class postprocessing to better match Darknet YOLOv4 behavior.
+- **YOLO v3 Darknet Fidelity**: Switched ignore-mask computation to decoded prediction boxes, restored YOLO-style box-area weighting in the coordinate loss, kept per-class detections at postprocess time and cleaned up `_build_targets()` to avoid repeated per-image ignore-box construction.
+
 ## 0.4.11 - 2026-03-13
 
 ### Added

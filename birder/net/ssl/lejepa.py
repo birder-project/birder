@@ -133,11 +133,24 @@ class LeJEPA(SSLBaseNet):
         self.sigreg = SIGReg(num_knots=num_knots, num_slices=num_slices, t_max=t_max)
 
     def forward(self, x: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        embeddings = [self.backbone.embedding(view) for view in x]
-        batch_size = embeddings[0].size(0)
+        idx_crops = torch.cumsum(
+            torch.unique_consecutive(
+                torch.tensor([view.size(-1) for view in x]),
+                return_counts=True,
+            )[1],
+            0,
+        )
+
+        batch_size = x[0].size(0)
+        embeddings: list[torch.Tensor] = []
+        start_idx = 0
+        for end_idx in idx_crops.tolist():
+            embeddings.append(self.backbone.embedding(torch.concat(x[start_idx:end_idx], dim=0)))
+            start_idx = end_idx
+
         combined_embeddings = torch.concat(embeddings, dim=0)
         combined_projections = self.projector(combined_embeddings)
-        proj = combined_projections.unflatten(0, (len(embeddings), batch_size))  # [V, B, D]
+        proj = combined_projections.unflatten(0, (len(x), batch_size))  # [V, B, D]
 
         sigreg_loss = self.sigreg(proj)
         inv_loss = (proj.float().mean(dim=0, keepdim=True) - proj.float()).square().mean()

@@ -51,6 +51,7 @@ from birder.data.transforms.classification import RGBType
 from birder.data.transforms.classification import get_rgb_stats
 from birder.model_registry import Task
 from birder.model_registry import registry
+from birder.net.base import DetectorBackbone
 from birder.net.base import get_signature
 from birder.net.ssl.base import get_ssl_signature
 from birder.net.ssl.dino_v1 import DINO_v1
@@ -242,9 +243,16 @@ def train(args: argparse.Namespace) -> None:
     teacher_backbone = registry.net_factory(
         args.network, 0, sample_shape[1], config=teacher_model_config, size=args.size
     )
-    if args.freeze_body is True:
+    if args.freeze_encoder is True:
         student_backbone.freeze(freeze_classifier=False, unfreeze_features=True)
         teacher_backbone.freeze(freeze_classifier=False, unfreeze_features=True)
+    elif args.freeze_encoder_stages is not None:
+        student_backbone.freeze_stages(up_to_stage=args.freeze_encoder_stages)
+        teacher_backbone.freeze_stages(up_to_stage=args.freeze_encoder_stages)
+    elif args.freeze_encoder_layers is not None:
+        frozen_layers = training_utils.freeze_layers_by_block_group_regex(student_backbone, args.freeze_encoder_layers)
+        logger.info(f"Froze {frozen_layers} encoder layers using block_group_regex")
+        training_utils.freeze_layers_by_block_group_regex(teacher_backbone, args.freeze_encoder_layers)
 
     student_backbone.set_dynamic_size()
     teacher_backbone.set_dynamic_size()
@@ -797,12 +805,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="load backbone weights from the specified epoch (if not provided, initialize new network)",
     )
-    parser.add_argument(
-        "--freeze-body",
-        default=False,
-        action="store_true",
-        help="freeze all layers of the backbone except the features layer",
-    )
+    training_cli.add_freeze_args(parser, scope_name="encoder")
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser, wd_end=True)
     training_cli.add_lr_scheduler_args(parser)
@@ -834,6 +837,11 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
     if args.backbone_epoch is not None and args.resume_epoch is not None:
         raise cli.ValidationError("--backbone-epoch cannot be used with --resume-epoch")
+    if args.freeze_encoder_stages is not None and registry.exists(args.network, net_type=DetectorBackbone) is False:
+        raise cli.ValidationError(
+            "--freeze-encoder-stages only supported on detector backbone type networks, "
+            "see list-models tool for available options"
+        )
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

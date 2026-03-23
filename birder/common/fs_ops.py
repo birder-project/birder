@@ -371,6 +371,7 @@ class TrainingStates(NamedTuple):
 
 def _load_states(states_path: Path, device: torch.device) -> TrainingStates:
     if states_path.exists() is True:
+        logger.info(f"Loading states from {states_path} on device {device}...")
         states_dict: dict[str, Any] = torch.load(states_path, map_location=device, weights_only=True)
         optimizer_state = states_dict.pop("optimizer_state")
         scheduler_state = states_dict.pop("scheduler_state")

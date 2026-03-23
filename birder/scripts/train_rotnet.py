@@ -42,6 +42,7 @@ from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import get_rgb_stats
 from birder.model_registry import Task
 from birder.model_registry import registry
+from birder.net.base import DetectorBackbone
 from birder.net.base import get_signature
 
 logger = logging.getLogger(__name__)
@@ -223,6 +224,11 @@ def train(args: argparse.Namespace) -> None:
     net.to(device, dtype=model_dtype)
     if args.freeze_body is True:
         net.freeze(freeze_classifier=False, unfreeze_features=args.unfreeze_features)
+    elif args.freeze_stages is not None:
+        net.freeze_stages(up_to_stage=args.freeze_stages)
+    elif args.freeze_layers is not None:
+        frozen_layers = training_utils.freeze_layers_by_block_group_regex(net, args.freeze_layers)
+        logger.info(f"Froze {frozen_layers} layers using block_group_regex")
 
     if args.freeze_bn is True:
         net = training_utils.freeze_batchnorm2d(net)
@@ -596,18 +602,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         default=0.75,
         help="probability of applying a non-zero rotation (90, 180, or 270 degrees)",
     )
-    parser.add_argument(
-        "--freeze-body",
-        default=False,
-        action="store_true",
-        help="freeze all layers of the model except the classification head",
-    )
-    parser.add_argument(
-        "--unfreeze-features",
-        default=False,
-        action="store_true",
-        help="unfreeze features layer (only relevant when freezing body)",
-    )
+    training_cli.add_freeze_args(parser, model=True, unfreeze_features=True)
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser)
     training_cli.add_lr_scheduler_args(parser)
@@ -638,6 +633,11 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
     if 0.0 >= args.rotation_prob and args.rotation_prob >= 1.0:
         raise cli.ValidationError("--rotation-prob must be between 0.0 and 1.0")
+    if args.freeze_stages is not None and registry.exists(args.network, net_type=DetectorBackbone) is False:
+        raise cli.ValidationError(
+            "--freeze-stages only supported on detector backbone type networks, "
+            "see list-models tool for available options"
+        )
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

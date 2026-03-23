@@ -175,7 +175,8 @@ class DPN(BaseNet):
             bw = bw_list[idx] * 4
             inc = inc_sec[idx]
             r = (k_r * bw) // (64 * 4)
-            layers.append(DualPathBlock(num_features, r, r, bw, inc, groups, "proj"))
+            block_type: Literal["proj", "down"] = "proj" if idx == 0 else "down"
+            layers.append(DualPathBlock(num_features, r, r, bw, inc, groups, block_type))
             num_features = bw + 3 * inc
             for _ in range(2, k_sec[idx] + 1):
                 layers.append(DualPathBlock(num_features, r, r, bw, inc, groups, "normal"))

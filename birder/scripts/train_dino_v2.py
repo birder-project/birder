@@ -345,7 +345,9 @@ def train(args: argparse.Namespace) -> None:
         student = fsdp_utils.setup_fsdp(student, args, wrap_modules=student_wrap_modules, mesh=fsdp_mesh)
 
         teacher_wrap_modules = _dino_v2_fsdp_wrap_modules(teacher, args)
-        teacher = fsdp_utils.setup_fsdp(teacher, args, wrap_modules=teacher_wrap_modules, mesh=fsdp_mesh)
+        teacher = fsdp_utils.setup_fsdp(
+            teacher, args, wrap_modules=teacher_wrap_modules, mesh=fsdp_mesh, reshard_after_forward=True
+        )
 
         net["student"] = student
         net["teacher"] = teacher
@@ -491,9 +493,11 @@ def train(args: argparse.Namespace) -> None:
         custom_keys_weight_decay=custom_keys_weight_decay,
         custom_layer_weight_decay=args.custom_layer_wd,
         layer_decay=args.layer_decay,
+        backbone_layer_decay=args.backbone_layer_decay,
         layer_decay_min_scale=args.layer_decay_min_scale,
         layer_decay_no_opt_scale=args.layer_decay_no_opt_scale,
         bias_lr=args.bias_lr,
+        backbone_prefix="student.backbone",
         custom_layer_lr_scale=args.custom_layer_lr_scale,
     )
 
@@ -721,10 +725,8 @@ def train(args: argparse.Namespace) -> None:
             teacher_temp = teacher_temp_schedule[global_iter]
             if fsdp_mode is True and grad_accum_steps > 1:
                 student.set_requires_gradient_sync(requires_gradient_sync=optimizer_update)
-                teacher.set_requires_gradient_sync(requires_gradient_sync=optimizer_update)
             if fsdp_mode is True and args.no_broadcast_buffers is False:
                 fsdp_utils.broadcast_module_buffers(student)
-                fsdp_utils.broadcast_module_buffers(teacher)
 
             global_crops = data["collated_global_crops"].to(device, dtype=model_dtype, non_blocking=True)
             local_crops = data["collated_local_crops"].to(device, dtype=model_dtype, non_blocking=True)
@@ -1223,7 +1225,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--adapt-size", type=int, nargs="+", metavar=("H", "W"), help="resize after loading")
     training_cli.add_optimization_args(parser)
-    training_cli.add_lr_wd_args(parser, wd_end=True)
+    training_cli.add_lr_wd_args(parser, wd_end=True, backbone_layer_decay=True)
     training_cli.add_lr_scheduler_args(parser)
     training_cli.add_training_schedule_args(parser, default_epochs=200)
     training_cli.add_batch_norm_args(parser)

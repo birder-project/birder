@@ -28,6 +28,7 @@ classifiers = [
     "Topic :: Software Development",
     "Topic :: Software Development :: Libraries",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
 ]
 dynamic = ["dependencies", "optional-dependencies", "version"]
 
@@ -35,6 +36,7 @@ dynamic = ["dependencies", "optional-dependencies", "version"]
 Homepage = "https://gitlab.com/birder/birder"
 Documentation = "https://birder.gitlab.io/birder/"
 Issues = "https://gitlab.com/birder/birder/-/issues"
+Changelog = "https://gitlab.com/birder/birder/-/blob/main/CHANGELOG.md"
 
 [project.scripts]
 birder-predict = "birder.scripts.predict:main"

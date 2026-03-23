@@ -982,6 +982,24 @@ registry.register_weights(  # SigLIP 2: https://arxiv.org/abs/2502.14786
         "net": {"network": "vit_so400m_p14_ap", "tag": "siglip-v2-webli"},
     },
 )
+registry.register_weights(  # BioCLIP v2.5: https://arxiv.org/abs/2505.23883
+    "vit_h14_pn_bioclip-v25",
+    {
+        "url": "https://huggingface.co/birder-project/vit_h14_pn_bioclip-v25/resolve/main",
+        "description": (
+            "ViT h14 image encoder pre-trained by Imageomics using CLIP on the TreeOfLife-200M dataset. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 2411.4,
+                "sha256": "f0b6b49e06078100395945a866ee4bd2cb38011a263d6a2b8d27bc1be2d0502f",
+            },
+        },
+        "net": {"network": "vit_h14_pn", "tag": "bioclip-v25"},
+    },
+)
 
 # With registers
 registry.register_weights(  # DINO v2: https://arxiv.org/abs/2304.07193

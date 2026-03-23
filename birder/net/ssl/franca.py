@@ -203,15 +203,15 @@ class DINOLossMRL(nn.Module):
         total_loss = 0.0
         if teacher_global is False:
             for student_outputs, teacher_outputs in zip(student_output_list, teacher_out_softmax_centered_list):
-                s = torch.stack(student_outputs.chunk(n_crops[0]), 0)  # type: ignore[index]
-                t = teacher_outputs.view(n_crops[1], -1, teacher_outputs.shape[-1])  # type: ignore[index]
+                s = torch.stack(student_outputs.chunk(n_crops[0]), 0).float()  # type: ignore[index]
+                t = teacher_outputs.view(n_crops[1], -1, teacher_outputs.shape[-1]).float()  # type: ignore[index]
                 lsm = F.log_softmax(s / self.student_temp, dim=-1)
                 total_loss -= torch.einsum("tbk,sbk->tsb", t, lsm).mean(-1).sum()
 
         else:
             for student_outputs, teacher_outputs in zip(student_output_list, teacher_out_softmax_centered_list):
-                teacher_outputs = teacher_outputs.view(n_crops, -1, teacher_outputs.shape[-1])
-                lsm = F.log_softmax(student_outputs / self.student_temp, dim=-1)
+                teacher_outputs = teacher_outputs.view(n_crops, -1, teacher_outputs.shape[-1]).float()
+                lsm = F.log_softmax(student_outputs.float() / self.student_temp, dim=-1)
                 loss = torch.sum(teacher_outputs.flatten(0, 1) * lsm, dim=-1)
                 total_loss -= loss.mean()
 
@@ -230,15 +230,15 @@ class DINOLossMRL(nn.Module):
                 student_feat = student_outputs.chunk(n_crops[0])  # type: ignore[index]
                 teacher_feat = teacher_outputs.view(n_crops[1], -1, teacher_outputs.shape[-1])  # type: ignore[index]
                 for s in student_feat:
-                    lsm = F.log_softmax(s / self.student_temp, dim=-1)
+                    lsm = F.log_softmax(s.float() / self.student_temp, dim=-1)
                     for t in teacher_feat:
-                        loss = torch.sum(t * lsm, dim=-1)
+                        loss = torch.sum(t.float() * lsm, dim=-1)
                         total_loss -= loss.mean()
 
         else:
             for student_outputs, teacher_outputs in zip(student_output_list, teacher_out_softmax_centered_list):
-                teacher_outputs = teacher_outputs.view(n_crops, -1, teacher_outputs.shape[-1])
-                lsm = F.log_softmax(student_outputs / self.student_temp, dim=-1)
+                teacher_outputs = teacher_outputs.view(n_crops, -1, teacher_outputs.shape[-1]).float()
+                lsm = F.log_softmax(student_outputs.float() / self.student_temp, dim=-1)
                 loss = torch.sum(teacher_outputs.flatten(0, 1) * lsm, dim=-1)
                 total_loss -= loss.mean()
 
@@ -331,7 +331,7 @@ class iBOTPatchLossMRL(nn.Module):
     ) -> torch.Tensor:
         total_loss = 0.0
         for s, t in zip(student_patch_tokens_masked, teacher_patch_tokens_masked):
-            loss = torch.sum(t * F.log_softmax(s / self.student_temp, dim=-1), dim=-1)
+            loss = torch.sum(t.float() * F.log_softmax(s.float() / self.student_temp, dim=-1), dim=-1)
             if masks_weight is None:
                 masks_weight = (
                     (1 / student_masks_flat.sum(-1).clamp(min=1.0))

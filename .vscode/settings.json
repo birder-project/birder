@@ -4,10 +4,37 @@
     "**/.DS_Store": true,
     "**/.git": true,
     "**/.mypy_cache": true,
+    "**/.pytest_cache": true,
     ".venv/": true,
-    "data": true
+    "data": true,
+    "logs": true,
+    "models": true,
+    "results": true,
+    "runs": true
   },
-  "search.exclude": {},
+  "search.exclude": {
+    "**/__pycache__": true,
+    "**/.mypy_cache": true,
+    "**/.pytest_cache": true,
+    ".venv": true,
+    "data": true,
+    "logs": true,
+    "models": true,
+    "results": true,
+    "runs": true
+  },
+  "files.watcherExclude": {
+    "**/.git/**": true,
+    "**/__pycache__/**": true,
+    "**/.mypy_cache/**": true,
+    "**/.pytest_cache/**": true,
+    ".venv/**": true,
+    "data/**": true,
+    "logs/**": true,
+    "models/**": true,
+    "results/**": true,
+    "runs/**": true
+  },
   "[json]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
@@ -28,7 +55,11 @@
     "**/.*",
     "**/.mypy_cache",
     ".venv",
-    "data"
+    "data",
+    "logs",
+    "models",
+    "results",
+    "runs"
   ],
   "python.testing.unittestArgs": ["discover", "-s", "tests", "-v"],
   "python.testing.pytestEnabled": false,

@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import typing
+from typing import Literal
 from typing import Optional
 from typing import get_args
 
@@ -17,6 +18,8 @@ from birder.data.transforms.detection import MULTISCALE_STEP
 from birder.data.transforms.detection import AugType as DetAugType
 
 logger = logging.getLogger(__name__)
+
+FreezeScopeName = Literal["backbone", "encoder"]
 
 
 def add_compile_args(parser: argparse.ArgumentParser, teacher: bool = False, backbone: bool = False) -> None:
@@ -237,6 +240,53 @@ def add_training_schedule_args(parser: argparse.ArgumentParser, default_epochs: 
     group.add_argument(
         "--cooldown-steps", type=int, metavar="N", help="number of cooldown optimizer steps (linear to zero)"
     )
+
+
+def add_freeze_args(
+    parser: argparse.ArgumentParser,
+    model: bool = False,
+    scope_name: Optional[FreezeScopeName] = None,
+    unfreeze_features: bool = False,
+) -> None:
+    group = parser.add_argument_group("Freeze parameters")
+    if model is True:
+        group.add_argument(
+            "--freeze-body",
+            default=False,
+            action="store_true",
+            help="freeze all layers of the model except the classification head",
+        )
+        if scope_name is None:
+            group.add_argument("--freeze-stages", type=int, metavar="N", help="number of model stages to freeze")
+            group.add_argument(
+                "--freeze-layers",
+                type=int,
+                metavar="N",
+                help="number of regex-matched block groups to freeze (requires model block_group_regex support)",
+            )
+
+    if scope_name is not None:
+        group.add_argument(f"--freeze-{scope_name}", default=False, action="store_true", help=f"freeze {scope_name}")
+        group.add_argument(
+            f"--freeze-{scope_name}-stages", type=int, metavar="N", help=f"number of {scope_name} stages to freeze"
+        )
+        group.add_argument(
+            f"--freeze-{scope_name}-layers",
+            type=int,
+            metavar="N",
+            help=(
+                f"number of regex-matched {scope_name} block groups to freeze "
+                "(requires model block_group_regex support)"
+            ),
+        )
+
+    if unfreeze_features is True:
+        group.add_argument(
+            "--unfreeze-features",
+            default=False,
+            action="store_true",
+            help="unfreeze features layer (only relevant when freezing body)",
+        )
 
 
 def add_batch_norm_args(parser: argparse.ArgumentParser, backbone_freeze: bool = False) -> None:
@@ -838,6 +888,42 @@ def common_args_validation(args: argparse.Namespace) -> None:
     if hasattr(args, "freeze_bn") is True and hasattr(args, "sync_bn"):
         if args.freeze_bn is True and args.sync_bn is True:
             raise ValidationError("--freeze-bn cannot be used with --sync-bn")
+
+    # Freeze args, shared by some scripts
+    if hasattr(args, "freeze_layers") is True and args.freeze_layers is not None and args.freeze_layers < 0:
+        raise ValidationError(f"--freeze-layers must be greater than or equal to 0, got {args.freeze_layers}")
+
+    if hasattr(args, "freeze_body") is True and hasattr(args, "freeze_stages") is True:
+        if args.freeze_body is True and args.freeze_stages is not None:
+            raise ValidationError("--freeze-body cannot be used with --freeze-stages")
+    if hasattr(args, "freeze_body") is True and hasattr(args, "freeze_layers") is True:
+        if args.freeze_body is True and args.freeze_layers is not None:
+            raise ValidationError("--freeze-body cannot be used with --freeze-layers")
+    if hasattr(args, "freeze_stages") is True and hasattr(args, "freeze_layers") is True:
+        if args.freeze_stages is not None and args.freeze_layers is not None:
+            raise ValidationError("--freeze-stages cannot be used with --freeze-layers")
+
+    for scope_name in get_args(FreezeScopeName):
+        freeze_name = f"freeze_{scope_name}"
+        freeze_stages_name = f"freeze_{scope_name}_stages"
+        freeze_layers_name = f"freeze_{scope_name}_layers"
+
+        if hasattr(args, freeze_layers_name) is True:
+            freeze_layers = getattr(args, freeze_layers_name)
+            if freeze_layers is not None and freeze_layers < 0:
+                raise ValidationError(
+                    f"--freeze-{scope_name}-layers must be greater than or equal to 0, got {freeze_layers}"
+                )
+
+        if hasattr(args, freeze_name) is True and hasattr(args, freeze_stages_name) is True:
+            if getattr(args, freeze_name) is True and getattr(args, freeze_stages_name) is not None:
+                raise ValidationError(f"--freeze-{scope_name} cannot be used with --freeze-{scope_name}-stages")
+        if hasattr(args, freeze_name) is True and hasattr(args, freeze_layers_name) is True:
+            if getattr(args, freeze_name) is True and getattr(args, freeze_layers_name) is not None:
+                raise ValidationError(f"--freeze-{scope_name} cannot be used with --freeze-{scope_name}-layers")
+        if hasattr(args, freeze_stages_name) is True and hasattr(args, freeze_layers_name) is True:
+            if getattr(args, freeze_stages_name) is not None and getattr(args, freeze_layers_name) is not None:
+                raise ValidationError(f"--freeze-{scope_name}-stages cannot be used with --freeze-{scope_name}-layers")
 
     # FSDP mode checks
     if hasattr(args, "distributed_mode") is True and args.distributed_mode == "fsdp":

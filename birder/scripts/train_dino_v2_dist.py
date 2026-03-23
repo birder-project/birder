@@ -202,6 +202,9 @@ def train(args: argparse.Namespace) -> None:
         student = torch.nn.SyncBatchNorm.convert_sync_batchnorm(student)
         teacher = torch.nn.SyncBatchNorm.convert_sync_batchnorm(teacher)
 
+    # There is no backpropagation through the teacher (freeze the teacher before building optimizer parameter groups)
+    net["teacher"].requires_grad_(False)
+
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
@@ -416,10 +419,6 @@ def train(args: argparse.Namespace) -> None:
     #
     # Distributed (DDP)
     #
-
-    # There is no backpropagation through the teacher
-    for p in teacher.parameters():
-        p.requires_grad_(False)
 
     student_without_ddp = student
     no_sync_cm = nullcontext
@@ -711,7 +710,9 @@ def train(args: argparse.Namespace) -> None:
                 with torch.no_grad():
                     m = 0.999
                     torch._foreach_lerp_(  # pylint: disable=protected-access
-                        list(student_backbone_ema.parameters()), list(student.backbone.parameters()), weight=1 - m
+                        list(student_backbone_ema.parameters()),
+                        list(student_without_ddp.backbone.parameters()),
+                        weight=1 - m,
                     )
 
                 # Weight decay update

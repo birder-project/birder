@@ -26,6 +26,7 @@ from torchvision.ops import boxes as box_ops
 from torchvision.ops import sigmoid_focal_loss
 
 from birder.common import training_utils
+from birder.layers import LayerNorm2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import DetectionBaseNet
@@ -37,6 +38,46 @@ from birder.ops.soft_nms import SoftNMS
 
 def _get_clones(module: nn.Module, N: int) -> nn.ModuleList:
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
+
+
+class BackboneUpsample(nn.Module):
+    def __init__(self, in_channels: int, input_stride: int, output_stride: int) -> None:
+        super().__init__()
+        assert (
+            output_stride <= input_stride
+        ), f"output_stride ({output_stride}) must be <= input_stride ({input_stride})"
+
+        self.output_stride = output_stride
+        if output_stride == input_stride:
+            self.proj = nn.Identity()
+            self.out_channels = in_channels
+            return
+
+        scale = int(math.log2(input_stride // output_stride))
+        assert (
+            2**scale == input_stride // output_stride
+        ), "Plain-DETR backbone upsample expects power-of-two stride ratios"
+
+        dim = in_channels
+        layers: list[nn.Module] = []
+        for _ in range(scale - 1):
+            next_dim = dim // 2
+            layers.extend(
+                [
+                    nn.ConvTranspose2d(dim, next_dim, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0)),
+                    LayerNorm2d(next_dim, eps=1e-6),
+                    nn.GELU(),
+                ]
+            )
+            dim = next_dim
+
+        next_dim = dim // 2
+        layers.append(nn.ConvTranspose2d(dim, next_dim, kernel_size=(2, 2), stride=(2, 2), padding=(0, 0)))
+        self.proj = nn.Sequential(*layers)
+        self.out_channels = next_dim
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.proj(x)
 
 
 class MultiheadAttention(nn.Module):
@@ -74,21 +115,30 @@ class MultiheadAttention(nn.Module):
         key: torch.Tensor,
         value: torch.Tensor,
         key_padding_mask: Optional[torch.Tensor] = None,
+        attn_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         B, l_q, C = query.size()
         q = self.q_proj(query).reshape(B, l_q, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.k_proj(key).reshape(B, key.size(1), self.num_heads, self.head_dim).transpose(1, 2)
         v = self.v_proj(value).reshape(B, value.size(1), self.num_heads, self.head_dim).transpose(1, 2)
 
+        attn_bias: Optional[torch.Tensor] = None
+        if attn_mask is not None:
+            if attn_mask.dtype == torch.bool:
+                attn_bias = torch.zeros((1, 1, l_q, key.size(1)), dtype=q.dtype, device=q.device)
+                attn_bias = attn_bias.masked_fill(attn_mask[None, None], float("-inf"))
+            else:
+                attn_bias = attn_mask.to(device=q.device, dtype=q.dtype)
+                if attn_bias.dim() == 2:
+                    attn_bias = attn_bias[None, None]
+
         if key_padding_mask is not None:
-            # key_padding_mask is expected to be boolean (True = masked)
-            # SDPA expects True = attend, so we invert
-            attn_mask = ~key_padding_mask[:, None, None, :]
-        else:
-            attn_mask = None
+            key_padding_bias = torch.zeros((B, 1, 1, key.size(1)), dtype=q.dtype, device=q.device)
+            key_padding_bias = key_padding_bias.masked_fill(key_padding_mask[:, None, None, :], float("-inf"))
+            attn_bias = key_padding_bias if attn_bias is None else attn_bias + key_padding_bias
 
         attn = F.scaled_dot_product_attention(  # pylint: disable=not-callable
-            q, k, v, attn_mask=attn_mask, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
+            q, k, v, attn_mask=attn_bias, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
         )
 
         attn = attn.transpose(1, 2).reshape(B, l_q, C)
@@ -170,6 +220,10 @@ class GlobalCrossAttention(nn.Module):
 
         if key_padding_mask is not None:
             attn = attn.masked_fill(key_padding_mask[:, None, None, :], float("-inf"))
+
+        # f_min = torch.finfo(attn.dtype).min
+        # f_max = torch.finfo(attn.dtype).max
+        # torch.clip_(attn, min=f_min, max=f_max)
 
         attn = F.softmax(attn, dim=-1)
         attn = self.attn_drop(attn)
@@ -278,10 +332,11 @@ class GlobalDecoderLayer(nn.Module):
         reference_points: torch.Tensor,
         spatial_shape: tuple[int, int],
         memory_key_padding_mask: Optional[torch.Tensor] = None,
+        self_attn_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         tgt2 = self.norm1(tgt)
         qk = tgt2 + query_pos
-        tgt2 = self.self_attn(qk, qk, tgt2)
+        tgt2 = self.self_attn(qk, qk, tgt2, attn_mask=self_attn_mask)
         tgt = tgt + self.dropout1(tgt2)
 
         tgt2 = self.cross_attn(
@@ -323,10 +378,6 @@ class GlobalDecoder(nn.Module):
                 nn.init.zeros_(m.bias)
                 nn.init.ones_(m.weight)
 
-        for m in self.modules():
-            if m is not self and hasattr(m, "reset_parameters") is True and callable(m.reset_parameters) is True:
-                m.reset_parameters()
-
     def forward(
         self,
         tgt: torch.Tensor,
@@ -336,6 +387,8 @@ class GlobalDecoder(nn.Module):
         reference_points: torch.Tensor,
         spatial_shape: tuple[int, int],
         memory_key_padding_mask: Optional[torch.Tensor] = None,
+        self_attn_mask: Optional[torch.Tensor] = None,
+        valid_ratios: Optional[torch.Tensor] = None,
         return_intermediates: bool = True,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         output = tgt
@@ -345,6 +398,10 @@ class GlobalDecoder(nn.Module):
         if self.bbox_embed is not None:
             for layer, bbox_embed in zip(self.layers, self.bbox_embed):
                 reference_points_input = reference_points.detach().clamp(0, 1)
+                if valid_ratios is not None:
+                    reference_points_input = (
+                        reference_points_input * torch.concat([valid_ratios, valid_ratios], dim=-1)[:, None]
+                    )
 
                 output = layer(
                     output,
@@ -354,6 +411,7 @@ class GlobalDecoder(nn.Module):
                     reference_points=reference_points_input,
                     spatial_shape=spatial_shape,
                     memory_key_padding_mask=memory_key_padding_mask,
+                    self_attn_mask=self_attn_mask,
                 )
 
                 output_for_pred = self.norm(output)
@@ -373,6 +431,10 @@ class GlobalDecoder(nn.Module):
 
         for layer in self.layers:
             reference_points_input = reference_points.detach().clamp(0, 1)
+            if valid_ratios is not None:
+                reference_points_input = (
+                    reference_points_input * torch.concat([valid_ratios, valid_ratios], dim=-1)[:, None]
+                )
 
             output = layer(
                 output,
@@ -382,6 +444,7 @@ class GlobalDecoder(nn.Module):
                 reference_points=reference_points_input,
                 spatial_shape=spatial_shape,
                 memory_key_padding_mask=memory_key_padding_mask,
+                self_attn_mask=self_attn_mask,
             )
 
             output_for_pred = self.norm(output)
@@ -441,7 +504,7 @@ class TransformerEncoder(nn.Module):
         return out
 
 
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,too-many-instance-attributes
 class Plain_DETR(DetectionBaseNet):
     default_size = (640, 640)
     block_group_regex = r"encoder\.layers\.(\d+)|decoder\.layers\.(\d+)"
@@ -475,6 +538,7 @@ class Plain_DETR(DetectionBaseNet):
         rpe_hidden_dim: int = self.config.get("rpe_hidden_dim", 512)
         rpe_type: Literal["linear", "log"] = self.config.get("rpe_type", "linear")
         box_refine: bool = self.config.get("box_refine", True)
+        topk: int = self.config.get("topk", 100)
         soft_nms: bool = self.config.get("soft_nms", False)
 
         self.soft_nms = None
@@ -487,11 +551,11 @@ class Plain_DETR(DetectionBaseNet):
         self.k_one2many = k_one2many
         self.lambda_one2many = lambda_one2many
         self.box_refine = box_refine
+        self.topk = topk
         self.num_queries = self.num_queries_one2one + self.num_queries_one2many
-        if hasattr(self.backbone, "max_stride") is True:
-            self.feature_stride = self.backbone.max_stride
-        else:
-            self.feature_stride = 32
+        input_stride = getattr(self.backbone, "max_stride", 32)
+        self.feature_stride = min(16, input_stride)
+        self.backbone_upsample = BackboneUpsample(self.backbone.return_channels[-1], input_stride, self.feature_stride)
 
         if num_encoder_layers == 0:
             self.encoder = None
@@ -520,9 +584,15 @@ class Plain_DETR(DetectionBaseNet):
         self.bbox_embed = MLP(hidden_dim, [hidden_dim, hidden_dim, 4], activation_layer=nn.ReLU)
         self.query_embed = nn.Parameter(torch.empty(self.num_queries, hidden_dim * 2))
         self.reference_point_head = MLP(hidden_dim, [hidden_dim, hidden_dim, 4], activation_layer=nn.ReLU)
-        self.input_proj = nn.Conv2d(
-            self.backbone.return_channels[-1], hidden_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)
+        self.input_proj = nn.Sequential(
+            nn.Conv2d(
+                self.backbone_upsample.out_channels, hidden_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)
+            ),
+            nn.GroupNorm(32, hidden_dim),
         )
+        # Upstream uses level_embed to distinguish between multi-scale feature levels,
+        # with a single level, it reduces to a spatially-uniform bias absorbed by other layers
+        # self.level_embed = nn.Parameter(torch.empty(1, hidden_dim, 1, 1))
         self.pos_enc = PositionEmbeddingSine(hidden_dim // 2, normalize=True)
         self.matcher = HungarianMatcher(cost_class=2.0, cost_bbox=5.0, cost_giou=2.0)
 
@@ -552,8 +622,12 @@ class Plain_DETR(DetectionBaseNet):
 
         nn.init.normal_(self.query_embed)
         ref_last_linear = [m for m in self.reference_point_head.modules() if isinstance(m, nn.Linear)][-1]
-        nn.init.zeros_(ref_last_linear.weight)
+        nn.init.xavier_uniform_(ref_last_linear.weight)
         nn.init.zeros_(ref_last_linear.bias)
+        nn.init.constant_(ref_last_linear.bias[2:], -2.0)  # Small initial wh for query reference boxes
+        nn.init.xavier_uniform_(self.input_proj[0].weight)
+        nn.init.zeros_(self.input_proj[0].bias)
+        # nn.init.normal_(self.level_embed)
 
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes
@@ -698,11 +772,14 @@ class Plain_DETR(DetectionBaseNet):
         self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_sizes: torch.Tensor
     ) -> list[dict[str, torch.Tensor]]:
         prob = class_logits.sigmoid()
-        scores, labels = prob.max(-1)
-        labels = labels + 1  # Background offset
-
-        # Convert to [x0, y0, x1, y1] format
         boxes = box_ops.box_convert(box_regression, in_fmt="cxcywh", out_fmt="xyxy")
+        topk_values, topk_indexes = torch.topk(
+            prob.view(prob.shape[0], -1), k=min(self.topk, prob.shape[1] * prob.shape[2]), dim=1
+        )
+        scores = topk_values
+        topk_boxes = topk_indexes // prob.shape[2]
+        labels = (topk_indexes % prob.shape[2]) + 1  # Background offset
+        boxes = torch.gather(boxes, 1, topk_boxes.unsqueeze(-1).expand(-1, -1, 4))
 
         # Convert from relative [0, 1] to absolute [0, height] coordinates
         img_h, img_w = image_sizes.unbind(1)
@@ -733,16 +810,22 @@ class Plain_DETR(DetectionBaseNet):
     def forward_net(self, x: torch.Tensor, masks: Optional[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         features: dict[str, torch.Tensor] = self.backbone.detection_features(x)
         src = features[self.backbone.return_stages[-1]]
+        src = self.backbone_upsample(src)
         src = self.input_proj(src)
         B, _, H, W = src.size()
 
         if masks is not None:
             masks = F.interpolate(masks[None].float(), size=(H, W), mode="nearest").to(torch.bool)[0]
             mask_flatten = masks.flatten(1)
+            valid_h = torch.sum(~masks[:, :, 0], dim=1)
+            valid_w = torch.sum(~masks[:, 0, :], dim=1)
+            valid_ratios = torch.stack([valid_w.float() / W, valid_h.float() / H], dim=-1)
         else:
             mask_flatten = None
+            valid_ratios = torch.ones((B, 2), device=src.device, dtype=src.dtype)
 
         pos = self.pos_enc(src, masks)
+        # pos = pos + self.level_embed
         src = src.flatten(2).permute(0, 2, 1)
         pos = pos.flatten(2).permute(0, 2, 1)
 
@@ -761,6 +844,11 @@ class Plain_DETR(DetectionBaseNet):
         query_embed, query_pos = torch.split(query_embed, self.hidden_dim, dim=1)
         query_embed = query_embed.unsqueeze(0).expand(B, -1, -1)
         query_pos = query_pos.unsqueeze(0).expand(B, -1, -1)
+        self_attn_mask: Optional[torch.Tensor] = None
+        if self.training is True and self.num_queries_one2many > 0:
+            self_attn_mask = torch.zeros((num_queries_to_use, num_queries_to_use), dtype=torch.bool, device=src.device)
+            self_attn_mask[self.num_queries_one2one :, : self.num_queries_one2one] = True
+            self_attn_mask[: self.num_queries_one2one, self.num_queries_one2one :] = True
 
         reference_points = self.reference_point_head(query_pos).sigmoid()
 
@@ -772,6 +860,8 @@ class Plain_DETR(DetectionBaseNet):
             reference_points=reference_points,
             spatial_shape=(H, W),
             memory_key_padding_mask=mask_flatten,
+            self_attn_mask=self_attn_mask,
+            valid_ratios=valid_ratios,
             return_intermediates=self.training is True,
         )
 

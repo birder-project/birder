@@ -277,6 +277,9 @@ def train(args: argparse.Namespace) -> None:
         net.freeze(freeze_classifier=False, unfreeze_features=args.unfreeze_features)
     elif args.freeze_stages is not None:
         net.freeze_stages(up_to_stage=args.freeze_stages)
+    elif args.freeze_layers is not None:
+        frozen_layers = training_utils.freeze_layers_by_block_group_regex(net, args.freeze_layers)
+        logger.info(f"Froze {frozen_layers} layers using block_group_regex")
 
     if args.freeze_bn is True:
         net = training_utils.freeze_batchnorm2d(net)
@@ -884,23 +887,10 @@ def get_args_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--reset-head", default=False, action="store_true", help="reset the classification head")
-    parser.add_argument(
-        "--freeze-body",
-        default=False,
-        action="store_true",
-        help="freeze all layers of the model except the classification head",
-    )
-    parser.add_argument("--freeze-stages", type=int, help="number of model stages to freeze (for supported models)")
-    parser.add_argument(
-        "--unfreeze-features",
-        default=False,
-        action="store_true",
-        help="unfreeze features layer (only relevant when freezing body)",
-    )
-
     group = parser.add_argument_group("Loss parameters")
     group.add_argument("--bce-loss", default=False, action="store_true", help="enable BCE loss")
     group.add_argument("--bce-threshold", type=float, default=0.0, help="threshold for binarizing soft BCE targets")
+    training_cli.add_freeze_args(parser, model=True, unfreeze_features=True)
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser)
     training_cli.add_lr_scheduler_args(parser)
@@ -937,8 +927,6 @@ def validate_args(args: argparse.Namespace) -> None:
     if args.bce_loss is True and args.smoothing_alpha != 0.0:
         raise cli.ValidationError("--bce-loss can only be used with --smoothing-alpha 0.0")
 
-    if args.freeze_body is True and args.freeze_stages is not None:
-        raise cli.ValidationError("--freeze-body cannot be used with --freeze-stages")
     if args.freeze_stages is not None and registry.exists(args.network, net_type=DetectorBackbone) is False:
         raise cli.ValidationError(
             "--freeze-stages only supported on detector backbone type networks, "

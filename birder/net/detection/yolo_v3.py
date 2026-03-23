@@ -54,7 +54,7 @@ def decode_predictions(
     """
 
     N, _, H, W = predictions.size()
-    num_anchors = anchors.shape[0]
+    num_anchors = anchors.size(0)
     stride_h = strides[0]
     stride_w = strides[1]
 
@@ -395,6 +395,53 @@ class YOLO_v3(DetectionBaseNet):
 
         return iou
 
+    def _prepare_predictions_for_ignore(
+        self,
+        prediction: torch.Tensor,
+        anchors: torch.Tensor,
+        strides: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Decode prediction boxes for ignore-mask computation
+
+        Returns
+        -------
+        Boxes in [x1, y1, x2, y2] format with shape (N, num_anchors, H, W, 4).
+        """
+
+        N, _, H, W = prediction.size()
+        stride_h = strides[0]
+        stride_w = strides[1]
+        num_anchors = anchors.size(0)
+
+        prediction = prediction.view(N, num_anchors, 5 + self.num_classes, H, W)
+        prediction = prediction.permute(0, 1, 3, 4, 2).contiguous()
+
+        grid_y, grid_x = torch.meshgrid(
+            torch.arange(H, device=prediction.device, dtype=prediction.dtype),
+            torch.arange(W, device=prediction.device, dtype=prediction.dtype),
+            indexing="ij",
+        )
+
+        pred_xy = torch.sigmoid(prediction[..., :2])
+        pred_x = (pred_xy[..., 0] + grid_x.view(1, 1, H, W)) * stride_w
+        pred_y = (pred_xy[..., 1] + grid_y.view(1, 1, H, W)) * stride_h
+
+        anchor_w = anchors[:, 0].view(num_anchors, 1, 1)
+        anchor_h = anchors[:, 1].view(num_anchors, 1, 1)
+        pred_w = torch.exp(prediction[..., 2]) * anchor_w
+        pred_h = torch.exp(prediction[..., 3]) * anchor_h
+
+        return torch.stack(
+            [
+                pred_x - pred_w / 2,
+                pred_y - pred_h / 2,
+                pred_x + pred_w / 2,
+                pred_y + pred_h / 2,
+            ],
+            dim=-1,
+        )
+
     def _build_targets(  # pylint: disable=too-many-locals
         self,
         predictions: list[torch.Tensor],
@@ -403,7 +450,7 @@ class YOLO_v3(DetectionBaseNet):
         strides: list[torch.Tensor],
     ) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]:
         """
-        Build targets for YOLO loss computation.
+        Build targets for YOLO loss computation
 
         Uses global anchor assignment: each ground truth box is assigned to the single
         best-matching anchor across all scales, following the original YOLO v3 paper.
@@ -413,7 +460,7 @@ class YOLO_v3(DetectionBaseNet):
 
         device = predictions[0].device
         dtype = predictions[0].dtype
-        batch_size = predictions[0].shape[0]
+        batch_size = predictions[0].size(0)
         num_scales = len(predictions)
 
         # Build flat list of all anchors with their scale indices
@@ -428,6 +475,16 @@ class YOLO_v3(DetectionBaseNet):
             _, _, H, W = predictions[scale_idx].size()
             grid_sizes.append((H, W))
             stride_tensors.append(strides[scale_idx])
+
+        with torch.no_grad():
+            ignore_boxes = [
+                self._prepare_predictions_for_ignore(
+                    predictions[scale_idx],
+                    anchors[scale_idx],
+                    strides[scale_idx],
+                )
+                for scale_idx in range(num_scales)
+            ]
 
         # Initialize targets and masks for each scale
         target_tensors: list[torch.Tensor] = []
@@ -446,7 +503,7 @@ class YOLO_v3(DetectionBaseNet):
         for batch_idx, target_per_image in enumerate(targets):
             boxes = target_per_image["boxes"]
             labels = target_per_image["labels"] - 1  # Remove background offset
-            num_boxes = boxes.shape[0]
+            num_boxes = boxes.size(0)
 
             if num_boxes == 0:
                 continue
@@ -475,8 +532,6 @@ class YOLO_v3(DetectionBaseNet):
                 stride_h, stride_w = stride_tensors[scale_idx][0], stride_tensors[scale_idx][1]
                 anchors_scale = anchors[scale_idx]
 
-                # Get boxes assigned to this scale
-                scale_boxes = boxes[mask]
                 scale_box_wh = box_wh[mask]
                 scale_box_centers = box_centers[mask]
                 scale_labels = labels[mask]
@@ -497,8 +552,7 @@ class YOLO_v3(DetectionBaseNet):
                 tw = torch.log(scale_box_wh[:, 0] / anchor_wh[:, 0] + 1e-7).to(dtype)
                 th = torch.log(scale_box_wh[:, 1] / anchor_wh[:, 1] + 1e-7).to(dtype)
 
-                # Build indices for scatter
-                num_scale_boxes = scale_boxes.shape[0]
+                num_scale_boxes = scale_local_anchors.size(0)
                 batch_indices = torch.full((num_scale_boxes,), batch_idx, device=device, dtype=torch.long)
 
                 # Assign targets using advanced indexing
@@ -510,10 +564,7 @@ class YOLO_v3(DetectionBaseNet):
 
                 # Class assignment
                 class_indices = 5 + scale_labels.long()
-                for i in range(num_scale_boxes):
-                    target_tensors[scale_idx][
-                        batch_indices[i], scale_local_anchors[i], gj[i], gi[i], class_indices[i]
-                    ] = 1.0
+                target_tensors[scale_idx][batch_indices, scale_local_anchors, gj, gi, class_indices] = 1.0
 
                 obj_masks[scale_idx][batch_indices, scale_local_anchors, gj, gi] = True
                 noobj_masks[scale_idx][batch_indices, scale_local_anchors, gj, gi] = False
@@ -521,33 +572,10 @@ class YOLO_v3(DetectionBaseNet):
             # Compute ignore mask: anchors with IoU > ignore_thresh should not contribute to noobj_loss
             for scale_idx in range(num_scales):
                 H, W = grid_sizes[scale_idx]
-                stride_h, stride_w = stride_tensors[scale_idx][0], stride_tensors[scale_idx][1]
-                anchors_scale = anchors[scale_idx]
                 num_anchors_scale = anchors_per_scale[scale_idx]
 
-                # Create grid of anchor box centers
-                grid_y, grid_x = torch.meshgrid(
-                    torch.arange(H, device=device, dtype=dtype),
-                    torch.arange(W, device=device, dtype=dtype),
-                    indexing="ij",
-                )
-                centers_x = (grid_x + 0.5) * stride_w  # (H, W)
-                centers_y = (grid_y + 0.5) * stride_h  # (H, W)
-
-                # Build all anchor boxes
-                anchor_w = anchors_scale[:, 0].view(-1, 1, 1)
-                anchor_h = anchors_scale[:, 1].view(-1, 1, 1)
-                pred_boxes = torch.stack(
-                    [
-                        centers_x.unsqueeze(0) - anchor_w / 2,
-                        centers_y.unsqueeze(0) - anchor_h / 2,
-                        centers_x.unsqueeze(0) + anchor_w / 2,
-                        centers_y.unsqueeze(0) + anchor_h / 2,
-                    ],
-                    dim=-1,
-                )
-
                 # Compute IoU for all anchors
+                pred_boxes = ignore_boxes[scale_idx][batch_idx]
                 iou = box_ops.box_iou(pred_boxes.view(-1, 4), boxes)
                 max_iou = iou.max(dim=1)[0].view(num_anchors_scale, H, W)
 
@@ -579,6 +607,8 @@ class YOLO_v3(DetectionBaseNet):
         for scale_idx, pred in enumerate(predictions):
             N, _, H, W = pred.size()
             num_anchors_scale = anchors_per_scale[scale_idx]
+            stride_h = strides[scale_idx][0]
+            stride_w = strides[scale_idx][1]
 
             pred = pred.view(N, num_anchors_scale, 5 + self.num_classes, H, W)
             pred = pred.permute(0, 1, 3, 4, 2).contiguous()
@@ -588,17 +618,29 @@ class YOLO_v3(DetectionBaseNet):
             noobj_mask = noobj_masks[scale_idx]
 
             if obj_mask.any():
+                indices = torch.nonzero(obj_mask)
+                anchors_scale = anchors[scale_idx].to(device)
+                anchor_w = anchors_scale[indices[:, 1], 0]
+                anchor_h = anchors_scale[indices[:, 1], 1]
+                target_wh = target[..., 2:4][obj_mask]
+                image_h = H * stride_h
+                image_w = W * stride_w
+                box_loss_scale = 2.0 - (
+                    (torch.exp(target_wh[:, 0]) * anchor_w) * (torch.exp(target_wh[:, 1]) * anchor_h)
+                ) / (image_w * image_h)
+
                 # XY loss: BCE with logits (targets are in [0,1], predictions are logits)
                 pred_xy = pred[..., :2]
                 target_xy = target[..., :2]
-                xy_loss = F.binary_cross_entropy_with_logits(pred_xy[obj_mask], target_xy[obj_mask], reduction="sum")
+                xy_loss = F.binary_cross_entropy_with_logits(
+                    pred_xy[obj_mask], target_xy[obj_mask], reduction="none"
+                ).sum(dim=1)
 
                 # WH loss: MSE on raw values (both are in log-space)
                 pred_wh = pred[..., 2:4]
-                target_wh = target[..., 2:4]
-                wh_loss = F.mse_loss(pred_wh[obj_mask], target_wh[obj_mask], reduction="sum")
+                wh_loss = F.mse_loss(pred_wh[obj_mask], target_wh, reduction="none").sum(dim=1)
 
-                coord_loss = coord_loss + xy_loss + wh_loss
+                coord_loss = coord_loss + ((xy_loss + wh_loss) * box_loss_scale).sum()
 
                 # Object confidence loss
                 obj_loss = obj_loss + F.binary_cross_entropy_with_logits(
@@ -633,7 +675,7 @@ class YOLO_v3(DetectionBaseNet):
         decoded_predictions: torch.Tensor,
         image_sizes: torch.Tensor,
     ) -> list[dict[str, torch.Tensor]]:
-        batch_size = decoded_predictions.shape[0]
+        batch_size = decoded_predictions.size(0)
         detections: list[dict[str, torch.Tensor]] = []
 
         for idx in range(batch_size):
@@ -642,16 +684,13 @@ class YOLO_v3(DetectionBaseNet):
             objectness = pred[:, 4]
             class_scores = pred[:, 5:]
 
-            # Combine objectness and class scores
+            # Keep per-class detections
             scores = objectness.unsqueeze(-1) * class_scores
-            scores, labels = scores.max(dim=-1)
-            labels = labels + 1  # Add background offset
-
-            # Filter by score threshold
             keep = scores > self.score_thresh
-            boxes = boxes[keep]
-            scores = scores[keep]
-            labels = labels[keep]
+            box_indices, class_indices = torch.where(keep)
+            boxes = boxes[box_indices]
+            scores = scores[box_indices, class_indices]
+            labels = class_indices + 1  # Add background offset
 
             # Clip boxes to image
             image_shape = image_sizes[idx]

@@ -104,6 +104,18 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         config={"patch_size": 16, **SMALL, "rope_style": "axial", "rope_rot_type": "interleaved"},
     )
     registry.register_model_config(
+        "rope_cs_vit_reg4_s16_nape_ls",
+        rope_vit,
+        config={
+            "patch_size": 16,
+            **SMALL,
+            "num_reg_tokens": 4,
+            "abs_pos_embed": False,
+            "layer_scale_init_value": 1e-5,
+            "rope_style": "centered_separate",
+        },
+    )
+    registry.register_model_config(
         "rope_cs_vit_reg4_s16_nape_ls_c1",  # For DINOv3 - https://arxiv.org/abs/2508.10104
         rope_vit,
         config={
@@ -344,6 +356,18 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         config={"patch_size": 16, **BASE, "num_reg_tokens": 4},
     )
     registry.register_model_config(
+        "rope_cs_vit_reg4_b16_nape_ls",
+        rope_vit,
+        config={
+            "patch_size": 16,
+            **BASE,
+            "num_reg_tokens": 4,
+            "abs_pos_embed": False,
+            "layer_scale_init_value": 1e-5,
+            "rope_style": "centered_separate",
+        },
+    )
+    registry.register_model_config(
         "rope_cs_vit_reg4_b16_nape_ls_c1",  # For DINOv3 - https://arxiv.org/abs/2508.10104
         rope_vit,
         config={
@@ -371,6 +395,18 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
             "num_reg_tokens": 8,
             "class_token": False,
             "attn_pool_head": True,
+        },
+    )
+    registry.register_model_config(
+        "rope_cs_vit_reg4_so150m_p16_nape_ls",
+        rope_vit,
+        config={
+            "patch_size": 16,
+            **SO150,
+            "num_reg_tokens": 4,
+            "abs_pos_embed": False,
+            "layer_scale_init_value": 1e-5,
+            "rope_style": "centered_separate",
         },
     )
     registry.register_model_config(

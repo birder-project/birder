@@ -173,6 +173,7 @@ class MultiScaleDeformableAttention(nn.Module):
         input_flatten: torch.Tensor,
         input_spatial_shapes: torch.Tensor,
         src_shapes: list[list[int]],
+        src_split_sizes: list[int],
         input_level_start_index: torch.Tensor,
         input_padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
@@ -233,7 +234,7 @@ class MultiScaleDeformableAttention(nn.Module):
 
         if self.method == "discrete":
             output = self._forward_fallback(
-                value, input_spatial_shapes, src_shapes, sampling_locations, attention_weights, method="discrete"
+                value, src_shapes, src_split_sizes, sampling_locations, attention_weights, method="discrete"
             )
         else:
             if self.uniform_points is True:
@@ -251,7 +252,7 @@ class MultiScaleDeformableAttention(nn.Module):
                 )
             else:
                 output = self._forward_fallback(
-                    value, input_spatial_shapes, src_shapes, sampling_locations, attention_weights, method="default"
+                    value, src_shapes, src_split_sizes, sampling_locations, attention_weights, method="default"
                 )
 
         output = self.output_proj(output)
@@ -260,8 +261,8 @@ class MultiScaleDeformableAttention(nn.Module):
     def _forward_fallback(
         self,
         value: torch.Tensor,
-        spatial_shapes: torch.Tensor,
         src_shapes: list[list[int]],
+        src_split_sizes: list[int],
         sampling_locations: torch.Tensor,
         attention_weights: torch.Tensor,
         method: str = "default",
@@ -270,8 +271,7 @@ class MultiScaleDeformableAttention(nn.Module):
         num_queries = sampling_locations.size(1)
 
         sampling_grids = 2 * sampling_locations - 1
-        split_shape: list[int] = (spatial_shapes[:, 0] * spatial_shapes[:, 1]).tolist()
-        value_list = value.permute(0, 2, 3, 1).flatten(0, 1).split(split_shape, dim=-1)
+        value_list = value.permute(0, 2, 3, 1).flatten(0, 1).split(src_split_sizes, dim=-1)
         sampling_grids = sampling_grids.permute(0, 2, 1, 3, 4).flatten(0, 1)
         sampling_locations_list = sampling_grids.split(self.num_points, dim=-2)
 
@@ -357,6 +357,10 @@ class TransformerDecoderLayer(nn.Module):
         self.activation = nn.ReLU()
         self.dropout = nn.Dropout(dropout)
 
+        # Weights initialization
+        nn.init.xavier_uniform_(self.linear1.weight)
+        nn.init.xavier_uniform_(self.linear2.weight)
+
     def forward(
         self,
         tgt: torch.Tensor,
@@ -365,6 +369,7 @@ class TransformerDecoderLayer(nn.Module):
         src: torch.Tensor,
         src_spatial_shapes: torch.Tensor,
         src_shapes: list[list[int]],
+        src_split_sizes: list[int],
         level_start_index: torch.Tensor,
         src_padding_mask: Optional[torch.Tensor],
         self_attn_mask: Optional[torch.Tensor] = None,
@@ -378,7 +383,14 @@ class TransformerDecoderLayer(nn.Module):
 
         # Cross attention
         tgt2 = self.cross_attn(
-            tgt + query_pos, reference_points, src, src_spatial_shapes, src_shapes, level_start_index, src_padding_mask
+            tgt + query_pos,
+            reference_points,
+            src,
+            src_spatial_shapes,
+            src_shapes,
+            src_split_sizes,
+            level_start_index,
+            src_padding_mask,
         )
         tgt = tgt + self.dropout(tgt2)
         tgt = self.norm2(tgt)
@@ -578,16 +590,20 @@ class RT_DETRDecoder(nn.Module):
             init_ref_points_unact = torch.concat([denoising_bbox_unact, init_ref_points_unact], dim=1)
 
         # Prepare spatial shapes and level start index as tensors
-        spatial_shapes_tensor = torch.tensor(spatial_shapes, dtype=torch.long, device=memory.device)
-        level_start_index_tensor = torch.tensor(level_start_index, dtype=torch.long, device=memory.device)
+        spatial_shapes_tensor = torch.as_tensor(spatial_shapes, dtype=torch.long, device=memory.device)
+        level_start_index_tensor = torch.as_tensor(level_start_index, dtype=torch.long, device=memory.device)
+        src_split_sizes = [h * w for h, w in spatial_shapes]
 
         # Decoder forward
         bboxes_list: list[torch.Tensor] = []
         logits_list: list[torch.Tensor] = []
         reference_points = init_ref_points_unact.sigmoid()
-        for decoder_layer, bbox_head, class_head in zip(self.layers, self.bbox_embed, self.class_embed):
-            query_pos = self.query_pos_head(reference_points)
-            reference_points_input = reference_points.unsqueeze(2).expand(-1, -1, len(spatial_shapes), -1)
+        reference_points_detached = reference_points.detach()
+        for layer_idx, (decoder_layer, bbox_head, class_head) in enumerate(
+            zip(self.layers, self.bbox_embed, self.class_embed)
+        ):
+            query_pos = self.query_pos_head(reference_points_detached)
+            reference_points_input = reference_points_detached.unsqueeze(2).expand(-1, -1, len(spatial_shapes), -1)
             target = decoder_layer(
                 target,
                 query_pos,
@@ -595,30 +611,37 @@ class RT_DETRDecoder(nn.Module):
                 memory,
                 spatial_shapes_tensor,
                 spatial_shapes,
+                src_split_sizes,
                 level_start_index_tensor,
                 memory_padding_mask,
                 attn_mask,
             )
 
             bbox_delta = bbox_head(target)
-            new_reference_points = inverse_sigmoid(reference_points) + bbox_delta
-            new_reference_points = new_reference_points.sigmoid()
+            inter_ref_bbox = inverse_sigmoid(reference_points_detached) + bbox_delta
+            inter_ref_bbox = inter_ref_bbox.sigmoid()
 
             # Classification
             class_logits = class_head(target)
 
             if return_intermediates is True:
-                bboxes_list.append(new_reference_points)
+                if layer_idx == 0:
+                    bboxes_list.append(inter_ref_bbox)
+                else:
+                    bboxes_list.append((inverse_sigmoid(reference_points) + bbox_delta).sigmoid())
+
                 logits_list.append(class_logits)
 
-            # Update reference points for next layer
-            reference_points = new_reference_points.detach()
+            # Detached refs are used for iterative decoding, while aux box outputs for
+            # deeper layers keep the upstream training gradient path through previous refs.
+            reference_points = inter_ref_bbox
+            reference_points_detached = inter_ref_bbox.detach()
 
         if return_intermediates is True:
             out_bboxes = torch.stack(bboxes_list)
             out_logits = torch.stack(logits_list)
         else:
-            out_bboxes = new_reference_points
+            out_bboxes = inter_ref_bbox
             out_logits = class_logits
 
         return (out_bboxes, out_logits, enc_topk_bboxes, enc_topk_logits)

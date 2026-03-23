@@ -234,8 +234,6 @@ def train(args: argparse.Namespace) -> None:
         backbone, _ = fs_ops.load_simple_checkpoint(
             device, backbone, backbone_name, epoch=args.backbone_epoch, strict=not args.non_strict_weights
         )
-    if args.freeze_body is True:
-        backbone.freeze(freeze_classifier=False, unfreeze_features=True)
 
     backbone.set_dynamic_size()
     net = LeJEPA(
@@ -670,12 +668,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         type=int,
         metavar="N",
         help="load backbone weights from the specified epoch (if not provided, initialize new network)",
-    )
-    parser.add_argument(
-        "--freeze-body",
-        default=False,
-        action="store_true",
-        help="freeze all layers of the backbone except the features layer",
     )
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser, backbone_layer_decay=True)

@@ -130,5 +130,5 @@ Notes:
 import torch
 
 # Load a model using Torch Hub
-net = torch.hub.load("birder-project/birder", "mvit_v2_t_il_all")
+net = torch.hub.load("birder-project/birder", "mvit_v2_t_il_all", trust_repo=True)
 ```

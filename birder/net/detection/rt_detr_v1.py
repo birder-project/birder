@@ -649,9 +649,12 @@ class RT_DETRDecoder(nn.Module):
         bboxes_list: list[torch.Tensor] = []
         logits_list: list[torch.Tensor] = []
         reference_points = init_ref_points_unact.sigmoid()
-        for decoder_layer, bbox_head, class_head in zip(self.layers, self.bbox_embed, self.class_embed):
-            query_pos = self.query_pos_head(reference_points)
-            reference_points_input = reference_points.unsqueeze(2).expand(-1, -1, len(spatial_shapes), -1)
+        reference_points_detached = reference_points.detach()
+        for layer_idx, (decoder_layer, bbox_head, class_head) in enumerate(
+            zip(self.layers, self.bbox_embed, self.class_embed)
+        ):
+            query_pos = self.query_pos_head(reference_points_detached)
+            reference_points_input = reference_points_detached.unsqueeze(2).expand(-1, -1, len(spatial_shapes), -1)
             target = decoder_layer(
                 target,
                 query_pos,
@@ -665,24 +668,29 @@ class RT_DETRDecoder(nn.Module):
             )
 
             bbox_delta = bbox_head(target)
-            new_reference_points = inverse_sigmoid(reference_points) + bbox_delta
-            new_reference_points = new_reference_points.sigmoid()
+            inter_ref_bbox = inverse_sigmoid(reference_points_detached) + bbox_delta
+            inter_ref_bbox = inter_ref_bbox.sigmoid()
 
             # Classification
             class_logits = class_head(target)
 
             if return_intermediates is True:
-                bboxes_list.append(new_reference_points)
+                if layer_idx == 0:
+                    bboxes_list.append(inter_ref_bbox)
+                else:
+                    bboxes_list.append((inverse_sigmoid(reference_points) + bbox_delta).sigmoid())
                 logits_list.append(class_logits)
 
-            # Update reference points for next layer
-            reference_points = new_reference_points.detach()
+            # Detached refs are used for iterative decoding, while aux box outputs for
+            # deeper layers keep the upstream training gradient path through previous refs.
+            reference_points = inter_ref_bbox
+            reference_points_detached = inter_ref_bbox.detach()
 
         if return_intermediates is True:
             out_bboxes = torch.stack(bboxes_list)
             out_logits = torch.stack(logits_list)
         else:
-            out_bboxes = new_reference_points
+            out_bboxes = inter_ref_bbox
             out_logits = class_logits
 
         return (out_bboxes, out_logits, enc_topk_bboxes, enc_topk_logits)

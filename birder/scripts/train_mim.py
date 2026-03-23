@@ -36,6 +36,7 @@ from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import get_rgb_stats
 from birder.model_registry import Task
 from birder.model_registry import registry
+from birder.net.base import DetectorBackbone
 from birder.net.base import PreTrainEncoder
 from birder.net.base import get_signature
 from birder.net.mim.base import get_mim_signature
@@ -216,6 +217,14 @@ def train(args: argparse.Namespace) -> None:
         training_states = fs_ops.TrainingStates.empty()
 
     net.to(device, dtype=model_dtype)
+    if args.freeze_encoder is True:
+        net.encoder.freeze(freeze_classifier=False)
+    elif args.freeze_encoder_stages is not None:
+        net.encoder.freeze_stages(up_to_stage=args.freeze_encoder_stages)
+    elif args.freeze_encoder_layers is not None:
+        frozen_layers = training_utils.freeze_layers_by_block_group_regex(net.encoder, args.freeze_encoder_layers)
+        logger.info(f"Froze {frozen_layers} encoder layers using block_group_regex")
+
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
@@ -600,6 +609,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--mask-ratio", type=float, help="mask ratio for MIM training (default: model-specific)")
     parser.add_argument("--min-mask-size", type=int, default=1, help="minimum mask unit size in patches")
+    training_cli.add_freeze_args(parser, scope_name="encoder")
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser)
     training_cli.add_lr_scheduler_args(parser)
@@ -630,6 +640,11 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
     if registry.exists(args.encoder, net_type=PreTrainEncoder) is False:
         raise cli.ValidationError(f"--encoder {args.network} not supported, see list-models tool for available options")
+    if args.freeze_encoder_stages is not None and registry.exists(args.encoder, net_type=DetectorBackbone) is False:
+        raise cli.ValidationError(
+            "--freeze-encoder-stages only supported on detector backbone type networks, "
+            "see list-models tool for available options"
+        )
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:
