@@ -310,7 +310,6 @@ class InceptionTransformerStage(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class iFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
 

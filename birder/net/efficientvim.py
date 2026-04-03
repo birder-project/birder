@@ -170,7 +170,6 @@ class PatchMerging(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class HSMSSD(nn.Module):
     def __init__(self, d_model: int, ssd_expand: float, A_init_range: tuple[int, int], state_dim: int) -> None:
         super().__init__()
@@ -450,8 +449,9 @@ class EfficientViM(DetectorBackbone):
 
         return (x, hs)
 
-    # pylint: disable=arguments-differ
     def classify(self, x: torch.Tensor, hs: list[torch.Tensor]) -> torch.Tensor:  # type: ignore[override]
+        # pylint: disable=arguments-differ
+
         weights = F.softmax(self.weights, dim=-1)
         z = torch.zeros((x.size(0), self.num_classes), device=x.device)
         for i, (norm, classifier) in enumerate(zip(self.state_norms, self.state_classifiers)):

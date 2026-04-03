@@ -95,7 +95,7 @@ def get_network_config(
     rgb_stats: RGBType,
 ) -> dict[str, Any]:
     model_name = registry.get_model_base_name(net)
-    alias = registry.get_model_alias(net)
+    registered_name = registry.get_registered_name(net)
     model_config = None
     if net.config is not None:
         model_config = net.config
@@ -103,7 +103,7 @@ def get_network_config(
     backbone_config: dict[str, Any] = {}
     if isinstance(net, DetectionBaseNet):
         backbone_config["backbone"] = registry.get_model_base_name(net.backbone)
-        backbone_config["backbone_alias"] = registry.get_model_alias(net.backbone)
+        backbone_config["backbone_registered_name"] = registry.get_registered_name(net.backbone)
         if net.backbone.config is not None:
             backbone_config["backbone_config"] = net.backbone.config
         if reparameterize_available(net.backbone) is True:
@@ -112,7 +112,7 @@ def get_network_config(
     encoder_config: dict[str, Any] = {}
     if isinstance(net, MIMBaseNet):
         encoder_config["encoder"] = registry.get_model_base_name(net.encoder)
-        encoder_config["encoder_alias"] = registry.get_model_alias(net.encoder)
+        encoder_config["encoder_registered_name"] = registry.get_registered_name(net.encoder)
         if net.encoder.config is not None:
             encoder_config["encoder_config"] = net.encoder.config
         if reparameterize_available(net.encoder) is True:
@@ -121,7 +121,7 @@ def get_network_config(
     base_net_config: dict[str, Any] = {}
     if isinstance(net, SSLBaseNet):
         base_net_config["base_net"] = registry.get_model_base_name(net.backbone)
-        base_net_config["base_net_alias"] = registry.get_model_alias(net.backbone)
+        base_net_config["base_net_registered_name"] = registry.get_registered_name(net.backbone)
         if net.backbone.config is not None:
             base_net_config["base_net_config"] = net.backbone.config
         if reparameterize_available(net.backbone) is True:
@@ -130,7 +130,7 @@ def get_network_config(
     net_config = {
         "birder_version": __version__,
         "name": model_name,
-        "alias": alias,
+        "registered_name": registered_name,
         "task": net.task,
         "model_config": model_config,
         **backbone_config,

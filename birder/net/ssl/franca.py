@@ -300,7 +300,6 @@ class DINOLossMRL(nn.Module):
         return tuple(results)
 
 
-# pylint: disable=invalid-name
 class iBOTPatchLossMRL(nn.Module):
     def __init__(
         self, student_temp: float, nesting_levels: int, queue_size: Optional[int] = None, out_dim: Optional[int] = None

@@ -242,7 +242,6 @@ def _compute_macro_f1(
     raise ValueError(f"Unsupported metric mode: {metric_mode}")
 
 
-# pylint: disable=too-many-locals
 def evaluate_awa2_single(
     x_train: npt.NDArray[np.float32],
     y_train: npt.NDArray[np.float32],

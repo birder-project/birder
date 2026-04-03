@@ -17,13 +17,15 @@ DEFAULT_MULTISCALE_MAX_SIZE = 800
 
 
 def build_multiscale_sizes(
-    min_size: Optional[int] = None, max_size: int = DEFAULT_MULTISCALE_MAX_SIZE, multiscale_step: int = MULTISCALE_STEP
+    min_size: Optional[int] = None, max_size: Optional[int] = None, multiscale_step: int = MULTISCALE_STEP
 ) -> tuple[int, ...]:
     if multiscale_step <= 0:
         raise ValueError("multiscale_step must be positive")
 
     if min_size is None:
         min_size = DEFAULT_MULTISCALE_MIN_SIZE
+    if max_size is None:
+        max_size = DEFAULT_MULTISCALE_MAX_SIZE
 
     start = int(math.ceil(min_size / multiscale_step) * multiscale_step)
     end = int(math.floor(max_size / multiscale_step) * multiscale_step)
@@ -54,6 +56,22 @@ class ResizeWithRandomInterpolation(nn.Module):
         return t(x)
 
 
+class RandomSizeCrop(nn.Module):
+    def __init__(self, min_size: int, max_size: int) -> None:
+        super().__init__()
+        self.min_size = min_size
+        self.max_size = max_size
+
+    def forward(self, *x: Any) -> torch.Tensor:
+        image = x[0]
+        image_h = int(image.shape[-2])
+        image_w = int(image.shape[-1])
+        crop_h = random.randint(self.min_size, min(image_h, self.max_size))
+        crop_w = random.randint(self.min_size, min(image_w, self.max_size))
+
+        return v2.RandomCrop((crop_h, crop_w))(x)
+
+
 def get_birder_augment(
     size: tuple[int, int],
     level: int,
@@ -62,6 +80,7 @@ def get_birder_augment(
     multiscale: bool,
     max_size: Optional[int],
     multiscale_min_size: Optional[int],
+    multiscale_max_size: Optional[int],
     multiscale_step: int = MULTISCALE_STEP,
     post_mosaic: bool = False,
 ) -> Callable[..., torch.Tensor]:
@@ -103,7 +122,9 @@ def get_birder_augment(
     if multiscale is True:
         transformations.append(
             v2.RandomShortestSize(
-                min_size=build_multiscale_sizes(multiscale_min_size, multiscale_step=multiscale_step),
+                min_size=build_multiscale_sizes(
+                    multiscale_min_size, multiscale_max_size, multiscale_step=multiscale_step
+                ),
                 max_size=max_size or 1333,
             ),
         )
@@ -154,10 +175,9 @@ def get_birder_augment(
     return v2.Compose(transformations)  # type: ignore
 
 
-AugType = Literal["birder", "lsj", "multiscale", "ssd", "ssdlite", "yolo", "detr"]
+AugType = Literal["birder", "lsj", "multiscale", "ssd", "ssdlite", "yolo", "detr", "fixed_detr"]
 
 
-# pylint: disable=too-many-return-statements
 def training_preset(
     size: tuple[int, int],
     aug_type: AugType,
@@ -167,6 +187,7 @@ def training_preset(
     multiscale: bool = False,
     max_size: Optional[int] = None,
     multiscale_min_size: Optional[int] = None,
+    multiscale_max_size: Optional[int] = None,
     multiscale_step: int = MULTISCALE_STEP,
     post_mosaic: bool = False,
 ) -> Callable[..., torch.Tensor]:
@@ -184,7 +205,7 @@ def training_preset(
         if 0 > level or level > 10:
             raise ValueError("Unsupported aug level")
 
-        return v2.Compose(  # type:ignore
+        return v2.Compose(  # type: ignore
             [
                 v2.ToImage(),
                 get_birder_augment(
@@ -195,6 +216,7 @@ def training_preset(
                     multiscale,
                     max_size,
                     multiscale_min_size,
+                    multiscale_max_size,
                     multiscale_step,
                     post_mosaic,
                 ),
@@ -229,7 +251,9 @@ def training_preset(
             [
                 v2.ToImage(),
                 v2.RandomShortestSize(
-                    min_size=build_multiscale_sizes(multiscale_min_size, multiscale_step=multiscale_step),
+                    min_size=build_multiscale_sizes(
+                        multiscale_min_size, multiscale_max_size, multiscale_step=multiscale_step
+                    ),
                     max_size=max_size or 1333,
                 ),
                 v2.RandomHorizontalFlip(0.5),
@@ -303,7 +327,9 @@ def training_preset(
         )
 
     if aug_type == "detr":
-        multiscale_sizes = build_multiscale_sizes(multiscale_min_size, multiscale_step=multiscale_step)
+        multiscale_sizes = build_multiscale_sizes(
+            multiscale_min_size, multiscale_max_size, multiscale_step=multiscale_step
+        )
         return v2.Compose(  # type: ignore
             [
                 v2.ToImage(),
@@ -315,6 +341,30 @@ def training_preset(
                                 v2.RandomShortestSize((400, 500, 600)),
                                 v2.RandomIoUCrop() if post_mosaic is False else v2.Identity(),  # RandomSizeCrop
                                 v2.RandomShortestSize(min_size=multiscale_sizes, max_size=max_size or 1333),
+                            ]
+                        ),
+                    ]
+                ),
+                v2.RandomHorizontalFlip(0.5),
+                v2.SanitizeBoundingBoxes(),
+                v2.ToDtype(torch.float32, scale=True),
+                v2.Normalize(mean=mean, std=std),
+                v2.ToPureTensor(),
+            ]
+        )
+
+    if aug_type == "fixed_detr":
+        return v2.Compose(  # type: ignore
+            [
+                v2.ToImage(),
+                v2.RandomChoice(
+                    [
+                        v2.Resize(size, interpolation=v2.InterpolationMode.BILINEAR, antialias=True),
+                        v2.Compose(
+                            [
+                                v2.RandomShortestSize((400, 500, 600)),
+                                RandomSizeCrop(384, 600) if post_mosaic is False else v2.Identity(),
+                                v2.Resize(size, interpolation=v2.InterpolationMode.BILINEAR, antialias=True),
                             ]
                         ),
                     ]
@@ -405,7 +455,7 @@ class InferenceTransform:
 
             boxes = detection["boxes"]
 
-            (orig_h, orig_w) = original_size
+            orig_h, orig_w = original_size
             h_ratio = orig_h / image_size[0]
             w_ratio = orig_w / image_size[1]
             adjusted_boxes = boxes * torch.tensor([w_ratio, h_ratio, w_ratio, h_ratio], device=boxes.device)

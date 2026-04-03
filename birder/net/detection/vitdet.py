@@ -31,7 +31,6 @@ class ViTDet(Faster_RCNN):
     default_size = (640, 640)
     auto_register = True
 
-    # pylint: disable=too-many-locals
     def __init__(
         self,
         num_classes: int,

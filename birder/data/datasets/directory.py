@@ -178,7 +178,7 @@ class ImageListDataset(torch.utils.data.Dataset):
 
         # Avoid yielding Python objects
         # see: https://ppwwyyxx.com/blog/2022/Demystify-RAM-Usage-in-Multiprocess-DataLoader/
-        (paths, labels) = list(zip(*samples))
+        paths, labels = list(zip(*samples))
         self.labels = np.array(labels, dtype=np.int32)
         self.paths = np.array(paths, dtype=np.bytes_)
 

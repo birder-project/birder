@@ -16,6 +16,7 @@ nav:
       - Ensemble Model: tools/ensemble-model.md
       - Introspection: tools/introspection.md
       - Pack: tools/pack.md
+      - Pack Detection: tools/pack-detection.md
       - Results: tools/results.md
   - API:
       - Overview: api/index.md

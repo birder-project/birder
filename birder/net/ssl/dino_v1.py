@@ -60,7 +60,7 @@ class DINOLoss(nn.Module):
         total_loss = 0.0
         n_loss_terms = 0
         for iq, q in enumerate(teacher_out):
-            for v in range(len(student_out)):  # pylint: disable=consider-using-enumerate
+            for v in range(len(student_out)):
                 if v == iq:
                     # Skip cases where student and teacher operate on the same view
                     continue
@@ -141,7 +141,6 @@ class DINOHead(nn.Module):
         self.last_layer.zero_grad()
 
 
-# pylint: disable=invalid-name
 class DINO_v1(SSLBaseNet):
     def __init__(
         self,

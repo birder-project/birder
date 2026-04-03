@@ -362,7 +362,6 @@ class LWDeformableTransformerDecoderLayer(nn.Module):
         return tgt
 
 
-# pylint: disable=invalid-name
 class LW_DETRDecoder(nn.Module):
     """
     LW-DETR Decoder with learned queries and fixed reference points
@@ -448,7 +447,6 @@ class LW_DETRDecoder(nn.Module):
         nn.init.xavier_uniform_(self.class_embed.weight)
         nn.init.constant_(self.class_embed.bias, bias_value)
 
-    # pylint: disable=too-many-locals,too-many-branches
     def forward(
         self,
         memory: torch.Tensor,
@@ -509,7 +507,7 @@ class LW_DETRDecoder(nn.Module):
 
         # lite_refpoint_refine mode: compute query_pos ONCE from initial reference points
         # Reference points stay fixed throughout all decoder layers
-        if reference_points.shape[-1] == 4:
+        if reference_points.size(-1) == 4:
             reference_points_input = (
                 reference_points[:, :, None] * torch.concat([valid_ratios, valid_ratios], dim=-1)[:, None]
             )
@@ -556,7 +554,6 @@ class LW_DETRDecoder(nn.Module):
         return (out_bboxes, out_logits)
 
 
-# pylint: disable=invalid-name,too-many-instance-attributes
 class LW_DETR(DetectionBaseNet):
     default_size = (640, 640)
 
@@ -576,6 +573,7 @@ class LW_DETR(DetectionBaseNet):
         self.num_classes = self.num_classes - 1
 
         dropout = 0.0
+        num_backbone_levels: int = self.config.get("num_backbone_levels", 3)
         num_decoder_layers: int = self.config.get("num_decoder_layers", 3)
         projector_dim: int = self.config.get("projector_dim", 256)
         projector_scale_factors: list[float] = self.config["projector_scale_factors"]
@@ -606,8 +604,8 @@ class LW_DETR(DetectionBaseNet):
         self.two_stage = two_stage
         self.group_detr = group_detr
 
-        self.backbone.return_channels = self.backbone.return_channels[-3:]
-        self.backbone.return_stages = self.backbone.return_stages[-3:]
+        self.backbone.return_channels = self.backbone.return_channels[-num_backbone_levels:]
+        self.backbone.return_stages = self.backbone.return_stages[-num_backbone_levels:]
 
         num_decoder_levels = len(projector_scale_factors)
 
@@ -771,8 +769,8 @@ class LW_DETR(DetectionBaseNet):
         """
         Perform Hungarian matching with Group-DETR support
 
-        Reshapes queries into a larger batch (B * G) so a single matcher call
-        can be used, then combines indices with proper group offsets.
+        Runs matching independently for each query group and merges the source
+        indices back into the original query space.
         """
 
         if self.group_detr <= 1:
@@ -783,31 +781,20 @@ class LW_DETR(DetectionBaseNet):
         total_queries = cls_logits.size(1)
         num_queries_per_group = total_queries // group_detr
 
-        # Reshape from (B, G*Q, C) to (B*G, Q, C) to batch all groups together
-        cls_logits_grouped = cls_logits.reshape(batch_size * group_detr, num_queries_per_group, -1)
-        box_output_grouped = box_output.reshape(batch_size * group_detr, num_queries_per_group, -1)
+        all_indices: list[tuple[list[torch.Tensor], list[torch.Tensor]]] = [([], []) for _ in range(batch_size)]
+        for group_idx in range(group_detr):
+            start = group_idx * num_queries_per_group
+            end = start + num_queries_per_group
+            grouped_indices = self.matcher(cls_logits[:, start:end], box_output[:, start:end], targets)
+            for batch_idx, (src_idx, tgt_idx) in enumerate(grouped_indices):
+                all_indices[batch_idx][0].append(src_idx + start)
+                all_indices[batch_idx][1].append(tgt_idx)
 
-        # Duplicate targets for each group: each group within a batch matches against the same targets
-        targets_grouped = [targets[batch_idx] for batch_idx in range(batch_size) for _ in range(group_detr)]
+        merged_indices: list[tuple[torch.Tensor, torch.Tensor]] = []
+        for src_indices_list, tgt_indices_list in all_indices:
+            merged_indices.append((torch.concat(src_indices_list), torch.concat(tgt_indices_list)))
 
-        grouped_indices = self.matcher(cls_logits_grouped, box_output_grouped, targets_grouped)
-
-        all_indices: list[tuple[torch.Tensor, torch.Tensor]] = []
-        for batch_idx in range(batch_size):
-            src_indices_list: list[torch.Tensor] = []
-            tgt_indices_list: list[torch.Tensor] = []
-
-            base = batch_idx * group_detr
-            for group_idx in range(group_detr):
-                src_idx, tgt_idx = grouped_indices[base + group_idx]
-                # Adjust source indices by group offset to map back to original query positions
-                src_indices_list.append(src_idx + group_idx * num_queries_per_group)
-                tgt_indices_list.append(tgt_idx)
-
-            # Combine indices from all groups for this batch element
-            all_indices.append((torch.concat(src_indices_list), torch.concat(tgt_indices_list)))
-
-        return all_indices
+        return merged_indices
 
     def _compute_loss_from_outputs(
         self, targets: list[dict[str, torch.Tensor]], cls_logits: torch.Tensor, box_output: torch.Tensor
@@ -974,12 +961,12 @@ class LW_DETR(DetectionBaseNet):
     def postprocess_detections(
         self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_sizes: torch.Tensor
     ) -> list[dict[str, torch.Tensor]]:
-        prob = class_logits.sigmoid()
-        topk = min(self.num_select, prob.shape[1] * prob.shape[2])
-        topk_values, topk_indexes = torch.topk(prob.view(prob.shape[0], -1), k=topk, dim=1)
-        scores = topk_values
-        topk_boxes = topk_indexes // prob.shape[2]
-        labels = topk_indexes % prob.shape[2]
+        num_classes = class_logits.size(2)
+        topk = min(self.num_select, class_logits.size(1) * num_classes)
+        topk_logits, topk_indexes = torch.topk(class_logits.view(class_logits.size(0), -1), k=topk, dim=1)
+        scores = topk_logits.sigmoid()
+        topk_boxes = topk_indexes // num_classes
+        labels = topk_indexes % num_classes
         labels += 1  # background offset
 
         boxes = box_ops.box_convert(box_regression, in_fmt="cxcywh", out_fmt="xyxy")
@@ -1002,13 +989,11 @@ class LW_DETR(DetectionBaseNet):
 
         return detections
 
-    # pylint: disable=too-many-locals
     def forward_net(
         self, x: torch.Tensor, masks: Optional[torch.Tensor]
     ) -> tuple[Optional[torch.Tensor], Optional[torch.Tensor], torch.Tensor, torch.Tensor]:
         features: dict[str, torch.Tensor] = self.backbone.detection_features(x)
-        stages = self.backbone.return_stages
-        feature_list = [features[stage] for stage in stages]
+        feature_list = list(features.values())
 
         # Align multi-scale backbone features to a common resolution
         if len(feature_list) > 1:
@@ -1038,7 +1023,7 @@ class LW_DETR(DetectionBaseNet):
 
         spatial_shapes: list[list[int]] = []
         for feat in decoder_feats:
-            spatial_shapes.append([feat.shape[-2], feat.shape[-1]])
+            spatial_shapes.append([feat.size(-2), feat.size(-1)])
 
         level_start_index = [0]
         for shape in spatial_shapes[:-1]:
@@ -1090,22 +1075,24 @@ class LW_DETR(DetectionBaseNet):
                     # Apply per-group encoder output projection
                     output_memory_g = enc_output_norm(enc_output(output_memory))
 
-                    # Compute class and bbox predictions using bbox_reparam formula
+                    # Select proposals using encoder class scores, then run the heavier bbox head only on top-k
                     enc_cls_g = enc_out_class(output_memory_g)
-                    enc_box_delta_g = enc_out_bbox(output_memory_g)
-                    # bbox_reparam: delta * proposal_wh + proposal_xy for center, exp(delta) * proposal_wh for size
-                    enc_box_cxcy_g = enc_box_delta_g[..., :2] * output_proposals[..., 2:] + output_proposals[..., :2]
-                    enc_box_wh_g = enc_box_delta_g[..., 2:].exp() * output_proposals[..., 2:]
-                    enc_box_g = torch.concat([enc_box_cxcy_g, enc_box_wh_g], dim=-1)
-
-                    # Select top-k proposals for this group
                     _, topk_indices_g = torch.topk(enc_cls_g.max(dim=-1)[0], topk, dim=1)
 
                     # Gather selected proposals for this group
                     topk_cls_g = torch.gather(
                         enc_cls_g, 1, topk_indices_g.unsqueeze(-1).expand(-1, -1, enc_cls_g.size(-1))
                     )
-                    topk_box_g = torch.gather(enc_box_g, 1, topk_indices_g.unsqueeze(-1).expand(-1, -1, 4))
+                    topk_memory_g = torch.gather(
+                        output_memory_g, 1, topk_indices_g.unsqueeze(-1).expand(-1, -1, output_memory_g.size(-1))
+                    )
+                    topk_proposals_g = torch.gather(output_proposals, 1, topk_indices_g.unsqueeze(-1).expand(-1, -1, 4))
+
+                    enc_box_delta_g = enc_out_bbox(topk_memory_g)
+                    # bbox_reparam: delta * proposal_wh + proposal_xy for center, exp(delta) * proposal_wh for size
+                    enc_box_cxcy_g = enc_box_delta_g[..., :2] * topk_proposals_g[..., 2:] + topk_proposals_g[..., :2]
+                    enc_box_wh_g = enc_box_delta_g[..., 2:].exp() * topk_proposals_g[..., 2:]
+                    topk_box_g = torch.concat([enc_box_cxcy_g, enc_box_wh_g], dim=-1)
 
                     enc_cls_list.append(topk_cls_g)
                     enc_box_list.append(topk_box_g)
@@ -1125,16 +1112,19 @@ class LW_DETR(DetectionBaseNet):
 
                 output_memory_g = enc_output_norm(enc_output(output_memory))
                 enc_cls_g = enc_out_class(output_memory_g)
-                enc_box_delta_g = enc_out_bbox(output_memory_g)
-                enc_box_cxcy_g = enc_box_delta_g[..., :2] * output_proposals[..., 2:] + output_proposals[..., :2]
-                enc_box_wh_g = enc_box_delta_g[..., 2:].exp() * output_proposals[..., 2:]
-                enc_box_g = torch.concat([enc_box_cxcy_g, enc_box_wh_g], dim=-1)
-
                 _, topk_indices_g = torch.topk(enc_cls_g.max(dim=-1)[0], topk, dim=1)
                 enc_cls_logits = torch.gather(
                     enc_cls_g, 1, topk_indices_g.unsqueeze(-1).expand(-1, -1, enc_cls_g.size(-1))
                 )
-                enc_box_output = torch.gather(enc_box_g, 1, topk_indices_g.unsqueeze(-1).expand(-1, -1, 4))
+                topk_memory_g = torch.gather(
+                    output_memory_g, 1, topk_indices_g.unsqueeze(-1).expand(-1, -1, output_memory_g.size(-1))
+                )
+                topk_proposals_g = torch.gather(output_proposals, 1, topk_indices_g.unsqueeze(-1).expand(-1, -1, 4))
+
+                enc_box_delta_g = enc_out_bbox(topk_memory_g)
+                enc_box_cxcy_g = enc_box_delta_g[..., :2] * topk_proposals_g[..., 2:] + topk_proposals_g[..., :2]
+                enc_box_wh_g = enc_box_delta_g[..., 2:].exp() * topk_proposals_g[..., 2:]
+                enc_box_output = torch.concat([enc_box_cxcy_g, enc_box_wh_g], dim=-1)
                 enc_reference_points = enc_box_output.detach()
 
         out_bboxes, out_logits = self.decoder(

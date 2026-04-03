@@ -108,7 +108,6 @@ class Lamb(Optimizer):
         clip_global_norm = (global_norm / max_grad_norm).clamp_(min=1.0)
         return clip_global_norm
 
-    # pylint: disable=too-many-branches
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def step(self, closure: Optional[Callable[[], float]] = None) -> Optional[float]:
         loss = None

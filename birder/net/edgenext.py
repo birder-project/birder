@@ -248,7 +248,6 @@ class EdgeNeXtStage(nn.Module):
 class EdgeNeXt(DetectorBackbone):
     default_size = (256, 256)
 
-    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,

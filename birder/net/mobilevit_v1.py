@@ -138,7 +138,6 @@ class MobileVitBlock(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class MobileViT_v1(BaseNet):
     default_size = (256, 256)
 

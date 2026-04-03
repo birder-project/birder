@@ -18,8 +18,9 @@ from birder.net.base import BaseNet
 from birder.net.ssl.base import SSLBaseNet
 
 
-# pylint: disable=abstract-method,arguments-differ
 class FullGatherLayer(torch.autograd.Function):
+    # pylint: disable=abstract-method,arguments-differ
+
     @staticmethod
     def forward(_ctx, x):  # type: ignore
         if training_utils.is_dist_available_and_initialized() is False:
@@ -85,8 +86,9 @@ class SimCLR(SSLBaseNet):
 
         return loss
 
-    # pylint: disable=arguments-differ
     def forward(self, x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
+        # pylint: disable=arguments-differ
+
         h1 = self.backbone.embedding(x1)
         h2 = self.backbone.embedding(x2)
 

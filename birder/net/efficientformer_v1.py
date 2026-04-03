@@ -232,7 +232,6 @@ class EfficientFormerStage(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class EfficientFormer_v1(BaseNet):
     def __init__(
         self,

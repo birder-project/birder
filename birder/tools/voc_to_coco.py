@@ -43,7 +43,6 @@ def _create_annotation(
     return annotation
 
 
-# pylint: disable=too-many-locals
 def voc_to_coco(args: argparse.Namespace) -> None:
     prefix = str(settings.DETECTION_DATA_PATH) + "/"
     target_path = Path(args.ann_dir).parent.joinpath(f"{Path(args.class_file).stem}_coco.json")

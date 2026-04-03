@@ -251,11 +251,9 @@ class UniversalInvertedBottleneck(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class MobileNet_v4(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
-    # pylint: disable=too-many-branches
     def __init__(
         self,
         input_channels: int,

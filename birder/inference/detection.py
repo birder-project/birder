@@ -35,7 +35,7 @@ def _hflip_inputs(inputs: torch.Tensor, image_sizes: list[tuple[int, int]]) -> t
 
 def _resize_batch(
     inputs: torch.Tensor, image_sizes: list[tuple[int, int]], scale: float, size_divisible: int
-) -> tuple[torch.Tensor, torch.Tensor, list[tuple[int, int]]]:
+) -> tuple[torch.Tensor, Optional[torch.Tensor], list[tuple[int, int]]]:
     resized_images: list[torch.Tensor] = []
     for idx, (height, width) in enumerate(image_sizes):
         target_h = make_divisible(height * scale, size_divisible)
@@ -261,7 +261,8 @@ def infer_dataloader(
             else:
                 inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
 
-            masks = masks.to(device, non_blocking=True)
+            if masks is not None:
+                masks = masks.to(device, non_blocking=True)
 
             with torch.amp.autocast(device.type, enabled=amp, dtype=amp_dtype):
                 detections = infer_batch(

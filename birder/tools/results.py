@@ -212,7 +212,6 @@ def set_parser(subparsers: Any) -> None:
     subparser.set_defaults(func=main)
 
 
-# pylint: disable=too-many-branches
 def main(args: argparse.Namespace) -> None:
     if args.to_sparse is True:
         # Type conversion exits early, no further flag handling is done

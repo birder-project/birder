@@ -235,7 +235,6 @@ class CrossStage(nn.Module):
 
 
 class CSPNet(DetectorBackbone):
-    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,

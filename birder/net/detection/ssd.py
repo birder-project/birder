@@ -351,7 +351,6 @@ class SSD(DetectionBaseNet):
             for param in self.head.classification_head.parameters():
                 param.requires_grad_(True)
 
-    # pylint: disable=too-many-locals
     @torch.jit.unused  # type: ignore[untyped-decorator]
     @torch.compiler.disable()  # type: ignore[untyped-decorator]
     def compute_loss(

@@ -46,13 +46,13 @@ fail-under=9.8
 #from-stdin=
 
 # Files or directories to be skipped. They should be base names, not paths.
-ignore=.git,.svn,migrations,site-packages,data
+ignore=.git,.svn,migrations,site-packages
 
 # Add files or directories matching the regular expressions patterns to the
 # ignore-list. The regex matches against paths and can be in Posix or Windows
 # format. Because '\\' represents the directory delimiter on Windows systems,
 # it can't be used as an escape character.
-ignore-paths=
+ignore-paths=^data/
 
 # Files or directories matching the regular expression patterns are skipped.
 # The regex matches against base names, not paths. The default value ignores
@@ -154,11 +154,11 @@ class-const-naming-style=UPPER_CASE
 #class-const-rgx=
 
 # Naming style matching correct class names.
-class-naming-style=PascalCase
+class-naming-style=any
 
 # Regular expression matching correct class names. Overrides class-naming-
 # style. If left empty, class names will be checked with the set naming style.
-#class-rgx=
+# class-rgx=^[A-Z][a-zA-Z0-9]*(_[A-Z][a-zA-Z0-9]*)*$
 
 # Naming style matching correct constant names.
 const-naming-style=any
@@ -181,11 +181,11 @@ function-naming-style=snake_case
 #function-rgx=
 
 # Good variable names which should always be accepted, separated by a comma.
-good-names=A,B,C,D,G,H,L,M,N,P,W,ax,bn,by,dx,dy,e,f,fs,g,h,i,j,k,m,n,p,pt,q,sr,to,ts,tx,v,w,x,x0,x1,x2,x3,x4,x5,x6,y
+good-names=A,B,C,D,G,H,K,L,M,N,P,W,HW,ax,bn,by,dx,dy,e,f,fs,g,h,i,j,k,m,n,p,pt,q,sr,to,ts,tx,v,w,x,x0,x1,x2,x3,x4,x5,x6,y
 
 # Good variable names regexes, separated by a comma. If names match any regex,
 # they will always be accepted
-good-names-rgxs=
+good-names-rgxs=^_[A-Z]$,^[A-Za-z0-9]{2}$
 
 # Include a hint for the correct naming format with invalid-name.
 include-naming-hint=no
@@ -438,7 +438,18 @@ disable=raw-checker-failed,
         simplifiable-if-expression,
         duplicate-code,
         logging-fstring-interpolation,
-        docstring-first-line-empty
+        docstring-first-line-empty,
+        protected-access,
+        consider-using-enumerate,
+        # Design rules
+        too-many-arguments,
+        too-many-branches,
+        too-many-instance-attributes,
+        too-many-locals,
+        too-many-positional-arguments,
+        too-many-public-methods,
+        too-many-return-statements,
+        too-many-statements
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option

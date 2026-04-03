@@ -18,7 +18,6 @@ from typing import Optional
 
 import torch
 import torch.nn.functional as F
-from scipy.optimize import linear_sum_assignment
 from torch import nn
 from torchvision.ops import MLP
 from torchvision.ops import boxes as box_ops
@@ -27,6 +26,7 @@ from birder.common import training_utils
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import DetectionBaseNet
+from birder.ops.linear_assignment import LinearAssignment
 from birder.ops.soft_nms import SoftNMS
 
 
@@ -45,6 +45,7 @@ class HungarianMatcher(nn.Module):
         self.cost_class = cost_class
         self.cost_bbox = cost_bbox
         self.cost_giou = cost_giou
+        self.linear_assignment = LinearAssignment()
 
     @torch.jit.unused  # type: ignore[untyped-decorator]
     def forward(
@@ -77,16 +78,34 @@ class HungarianMatcher(nn.Module):
 
             # Final cost matrix
             C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
-            C = C.view(B, num_queries, -1).cpu()
+            C = C.view(B, num_queries, -1)
             finite = torch.isfinite(C)
             if not torch.all(finite):
                 penalty = C[finite].max().item() + 1.0 if finite.any().item() else 1.0
                 C.nan_to_num_(nan=penalty, posinf=penalty, neginf=penalty)
 
             sizes = [len(v["boxes"]) for v in targets]
-            indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]
+            empty_indices = torch.empty(0, dtype=torch.int64, device=C.device)
+            indices: list[tuple[torch.Tensor, torch.Tensor]] = [(empty_indices, empty_indices) for _ in range(B)]
+            grouped_ranges: dict[int, list[tuple[int, int, int]]] = {}
+            start = 0
+            for batch_idx, size in enumerate(sizes):
+                end = start + size
+                if size > 0:
+                    grouped_ranges.setdefault(size, []).append((batch_idx, start, end))
 
-            return [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]
+                start = end
+
+            for size, entries in grouped_ranges.items():
+                bucket_cost = torch.stack([C[batch_idx, :, start:end] for batch_idx, start, end in entries], dim=0)
+                col4row_batch, _row4col = self.linear_assignment(bucket_cost)
+                for row_idx, (batch_idx, _start, _end) in enumerate(entries):
+                    col4row = col4row_batch[row_idx]
+                    src_indices = torch.nonzero(col4row >= 0, as_tuple=False).flatten()
+                    tgt_indices = col4row[src_indices].to(torch.int64)
+                    indices[batch_idx] = (src_indices.to(torch.int64), tgt_indices)
+
+            return indices
 
 
 class TransformerEncoderLayer(nn.Module):

@@ -260,7 +260,6 @@ class VisionTransformerPredictor(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class I_JEPA(SSLBaseNet):
     def __init__(
         self,

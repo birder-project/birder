@@ -34,6 +34,8 @@ NET_DETECTION_TEST_CASES = [
     ("retinanet", "mobilenet_v3_small_1_0"),
     ("retinanet", "efficientvit_msft_m0"),  # 3 stage network
     ("retinanet_sfp", "vit_det_m16_rms"),
+    ("rf_detr_nano", "vit_t16", (384, 384)),  # 1 stage network
+    ("rf_detr_nano", "resnet_v1_18", (384, 384)),
     ("rt_detr_v1", "resnet_v1_50"),
     ("rt_detr_v2", "se_resnet_d_50"),
     ("rt_detr_v2_s_dsp", "vovnet_v2_19"),
@@ -62,6 +64,8 @@ DETECTION_DYNAMIC_SIZE_CASES = [
     ("plain_detr", "vit_s16"),
     ("retinanet", "mobilenet_v3_small_1_0"),
     ("retinanet_sfp", "vit_s16"),
+    ("rf_detr_nano", "vit_t16", (384, 384)),
+    ("rf_detr_nano", "resnet_v1_18", (384, 384)),
     ("rt_detr_v1", "resnet_v1_50"),
     ("rt_detr_v2", "se_resnet_d_50"),
     ("rt_detr_v2_s_dsp", "vovnet_v2_19"),

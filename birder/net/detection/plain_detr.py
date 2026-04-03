@@ -235,7 +235,6 @@ class GlobalCrossAttention(nn.Module):
 
         return out
 
-    # pylint: disable=too-many-locals
     def _compute_box_rpe(self, reference_points: torch.Tensor, H: int, W: int, device: torch.device) -> torch.Tensor:
         B, n_q, _ = reference_points.size()
         stride = self.feature_stride
@@ -504,12 +503,10 @@ class TransformerEncoder(nn.Module):
         return out
 
 
-# pylint: disable=invalid-name,too-many-instance-attributes
 class Plain_DETR(DetectionBaseNet):
     default_size = (640, 640)
     block_group_regex = r"encoder\.layers\.(\d+)|decoder\.layers\.(\d+)"
 
-    # pylint: disable=too-many-locals
     def __init__(
         self,
         num_classes: int,
@@ -771,14 +768,14 @@ class Plain_DETR(DetectionBaseNet):
     def postprocess_detections(
         self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_sizes: torch.Tensor
     ) -> list[dict[str, torch.Tensor]]:
-        prob = class_logits.sigmoid()
+        num_classes = class_logits.size(2)
         boxes = box_ops.box_convert(box_regression, in_fmt="cxcywh", out_fmt="xyxy")
-        topk_values, topk_indexes = torch.topk(
-            prob.view(prob.shape[0], -1), k=min(self.topk, prob.shape[1] * prob.shape[2]), dim=1
+        topk_logits, topk_indexes = torch.topk(
+            class_logits.view(class_logits.size(0), -1), k=min(self.topk, class_logits.size(1) * num_classes), dim=1
         )
-        scores = topk_values
-        topk_boxes = topk_indexes // prob.shape[2]
-        labels = (topk_indexes % prob.shape[2]) + 1  # Background offset
+        scores = topk_logits.sigmoid()
+        topk_boxes = topk_indexes // num_classes
+        labels = (topk_indexes % num_classes) + 1  # Background offset
         boxes = torch.gather(boxes, 1, topk_boxes.unsqueeze(-1).expand(-1, -1, 4))
 
         # Convert from relative [0, 1] to absolute [0, height] coordinates

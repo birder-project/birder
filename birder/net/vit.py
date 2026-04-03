@@ -9,6 +9,8 @@ https://arxiv.org/abs/2010.11929
 and
 Paper "Vision Transformers Need Registers", https://arxiv.org/abs/2309.16588
 and
+Paper "DeiT III: Revenge of the ViT", https://arxiv.org/abs/2204.07118
+and
 Paper "Getting ViT in Shape: Scaling Laws for Compute-Optimal Model Design", https://arxiv.org/abs/2305.13035
 """
 
@@ -338,11 +340,9 @@ class Encoder(nn.Module):
             b.set_causal_attention(is_causal)
 
 
-# pylint: disable=too-many-instance-attributes
 class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
-    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def __init__(
         self,
         input_channels: int,
@@ -613,7 +613,6 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             for param in module.parameters():
                 param.requires_grad_(False)
 
-    # pylint: disable=too-many-branches
     def masked_encoding_omission(
         self,
         x: torch.Tensor,
@@ -1197,5 +1196,35 @@ registry.register_weights(  # DINO v2: https://arxiv.org/abs/2304.07193
             },
         },
         "net": {"network": "vit_reg4_l14_nps_ls", "tag": "dino-v2-lvd142m"},
+    },
+)
+
+# DeiT III
+registry.register_weights(
+    "deit3_t16_il-common",
+    {
+        "description": "DeiT3 tiny model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 21.5,
+                "sha256": "a04141c7f6c459ae075a48ccdee5b82d191bbaa82337673140c06ef82f0a8dc5",
+            }
+        },
+        "net": {"network": "deit3_t16", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "deit3_reg4_t16_il-common",
+    {
+        "description": "DeiT3 reg4 tiny model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 21.5,
+                "sha256": "d26320462da64df6d62b307f7fb35d09c86a5f073002dfb24a51f014074e65c3",
+            }
+        },
+        "net": {"network": "deit3_reg4_t16", "tag": "il-common"},
     },
 )

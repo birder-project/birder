@@ -323,7 +323,6 @@ class MetaFormerStage(nn.Module):
 class MetaFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
 
-    # pylint: disable=too-many-locals,too-many-branches
     def __init__(
         self,
         input_channels: int,

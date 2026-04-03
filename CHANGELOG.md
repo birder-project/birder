@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.4.13 - 2026-04-03
+
+### Added
+
+- **RF-DETR Detector**: Added [RF-DETR](https://arxiv.org/abs/2511.09554) detection models.
+- **Windowed ViT**: Added Windowed Vision Transformer variants with windowed attention and dynamic-size support.
+- **Linear Assignment Custom CUDA Op**: Added `birder.ops.linear_assignment` with a batched CUDA linear-assignment kernel adapted from [torch-linear-assignment](https://github.com/ivan-chai/torch-linear-assignment).
+- **Detection Packing Tool**: Added `python -m birder.tools pack-detection` to pack COCO-style detection datasets into WebDataset shards with packed annotation metadata.
+- **Detection WebDataset Support**: Added `--wds` support to `python -m birder.scripts.train_detection`, `python -m birder.scripts.predict_detection` and `python -m birder.tools show-det-iterator` for training, prediction and visualization on packed detection WebDataset shards.
+- **Detection Multiscale Max Size**: Added `--multiscale-max-size` to detection training and iterator tooling to let transform and batch multiscale ranges exceed the model's base `--size`.
+- **Pretrained Models**:
+    - `rope_i_vit_reg1_t16_pn_npn_avg_c1_pe-spatial`: Added Meta [Perception Encoder](https://arxiv.org/abs/2504.13181) ViT-T/16 CLIP image encoder pretrained weights.
+    - `rope_i_vit_reg1_b16_pn_npn_avg_c1_pe-spatial`: Added Meta [Perception Encoder](https://arxiv.org/abs/2504.13181) ViT-B/16 CLIP image encoder pretrained weights.
+
+### Changed
+
+- **Hungarian Matcher Batched Assignment**: Optimized `HungarianMatcher` in DETR and Deformable DETR by grouping batch items with the same target count and running linear assignment in a single batched call per group.
+- **DeiT3 API Consolidation (Breaking)**: Removed the `DeiT3` and `RoPE_DeiT3` classes and folded their model registrations into `ViT` and `RoPE_ViT`.
+- **Registry Registered-Config Naming (Breaking)**: Renamed registry terminology from "alias" to "registered name" / "registered config" for configured model entries. `ModelRegistry.aliases` is now `ModelRegistry.registered_configs`, `get_model_alias()` is now `get_registered_name()` and `register_model_config(...)` now uses `name` as its first parameter.
+- **Saved Model Config Keys (Breaking)**: Model config metadata emitted by `get_network_config()` and consumed by `load_model_with_cfg()` now uses `registered_name`, `backbone_registered_name`, `encoder_registered_name` and `base_net_registered_name` instead of the previous `alias`, `backbone_alias`, `encoder_alias` and `base_net_alias`. Existing saved configs using the old keys must be updated before calling `load_model_with_cfg()`.
+
+### Fixed
+
+- **COCO Mosaic Probability in Virtual-Epoch Mode**: Fixed mosaic probability decay not propagating to DataLoader workers in virtual-epoch mode with `num_workers > 0`.
+
 ## 0.4.12 - 2026-03-23
 
 ### Added
@@ -131,7 +156,7 @@
 - **Custom Kernel Memory Leak (PyTorch 2.10)**: Attempted fix for memory leak in custom CUDA ops (MSDA, SWAttention) during training with PyTorch 2.10.
 - **RA Sampler Epoch Length**: Fixed `RASampler` so `--ra-sampler` no longer inflates epoch length by `--ra-reps`.
 - **Detection Parallel Inference**: Fixed multi-GPU `predict_detection --parallel` handling.
-- **Detection Parallel + Compile**: `predict_detection` now supports `--parallel` with `--compile` (replica compilation); `--compile-backbone` remains unsupported with `--parallel`.
+- **Detection Parallel + Compile**: `predict_detection` now supports `--parallel` with `--compile` (replica compilation), `--compile-backbone` remains unsupported with `--parallel`.
 
 ## 0.4.5 - 2026-02-08
 

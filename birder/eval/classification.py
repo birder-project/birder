@@ -18,7 +18,6 @@ from birder.inference.data_parallel import InferenceDataParallel
 logger = logging.getLogger(__name__)
 
 
-# pylint: disable=too-many-branches
 def evaluate(args: argparse.Namespace) -> None:
     if args.gpu is True:
         device = torch.device("cuda")

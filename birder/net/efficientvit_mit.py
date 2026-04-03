@@ -522,9 +522,7 @@ class Stem(nn.Sequential):
             )
 
 
-# pylint: disable=invalid-name
 class EfficientViT_MIT(DetectorBackbone):
-    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,

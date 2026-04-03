@@ -180,6 +180,7 @@
     "LLRD",
     "logit",
     "logits",
+    "logsigmoid",
     "loguniform",
     "majorticklabels",
     "matmul",

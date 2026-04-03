@@ -8,7 +8,6 @@ import torch
 import torch.nn.functional as F
 
 
-# pylint: disable=too-many-locals
 def evaluate_retrieval(
     gallery_features: npt.NDArray[np.float32],
     gallery_labels: npt.NDArray[np.int_],

@@ -168,7 +168,6 @@ def _load_embeddings_with_split(
     return (x_train, y_train, x_test, y_test)
 
 
-# pylint: disable=too-many-locals
 def evaluate_nabirds(args: argparse.Namespace) -> None:
     tic = time.time()
 

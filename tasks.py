@@ -134,7 +134,7 @@ def pylint(ctx):
         echo("Passed", color=COLOR_GREEN)
 
     # flake8
-    result = ctx.run("python -m flake8 .", echo=True, pty=True, warn=True)
+    result = ctx.run("python -m flake8 . birder/data/", echo=True, pty=True, warn=True)
     if result.exited != 0:
         return_code = 1
         echo("Failed", color=COLOR_RED)
@@ -682,7 +682,7 @@ def predict_eval_benchmarks(
 
 
 @task
-def model_pre_publish(  # pylint: disable=too-many-locals
+def model_pre_publish(
     _ctx,
     model,
     tag=None,

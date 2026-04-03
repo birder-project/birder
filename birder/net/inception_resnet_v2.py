@@ -193,7 +193,6 @@ class InceptionBlockC(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class Inception_ResNet_v2(DetectorBackbone):
     default_size = (299, 299)
     auto_register = True

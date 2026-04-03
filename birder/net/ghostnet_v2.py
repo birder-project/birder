@@ -25,7 +25,6 @@ from birder.net.base import make_divisible
 from birder.net.ghostnet_v1 import GhostModule
 
 
-# pylint: disable=invalid-name
 class GhostModule_v2(nn.Module):
     def __init__(
         self,
@@ -198,7 +197,6 @@ class GhostBottleneck(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class GhostNet_v2(DetectorBackbone):
     def __init__(
         self,

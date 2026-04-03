@@ -210,7 +210,6 @@ class EncoderBlock(nn.Module):
 
 
 class Encoder(nn.Module):
-    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         num_layers: int,
@@ -365,11 +364,9 @@ class MAEDecoderBlock(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name,too-many-instance-attributes
 class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
-    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def __init__(
         self,
         input_channels: int,

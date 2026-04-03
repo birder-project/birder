@@ -93,9 +93,7 @@ class Stem(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class HGNet_v2(DetectorBackbone):
-    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,

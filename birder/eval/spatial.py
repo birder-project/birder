@@ -126,7 +126,6 @@ def _apply_spatial_transform(inputs: torch.Tensor, config: SpatialConfig, fill: 
     )
 
 
-# pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def evaluate_spatial_robustness(args: argparse.Namespace) -> None:
     if args.gpu is True:
         device = torch.device("cuda")

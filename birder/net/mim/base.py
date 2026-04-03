@@ -35,7 +35,7 @@ class MIMBaseNet(nn.Module):
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
         if cls.auto_register is False:
-            # Exclude networks with custom config (initialized only with aliases)
+            # Exclude networks with custom config (initialized only with registered configs)
             return
 
         registry.register_model(cls.__name__.lower(), cls)
@@ -54,7 +54,7 @@ class MIMBaseNet(nn.Module):
         self.encoder = encoder
         self.mask_ratio = mask_ratio if mask_ratio is not None else self.default_mask_ratio
         self.min_mask_size = min_mask_size
-        if hasattr(self, "config") is False:  # Avoid overriding aliases
+        if hasattr(self, "config") is False:  # Avoid overriding registered configs
             self.config = config
         elif config is not None:
             assert self.config is not None

@@ -73,7 +73,6 @@ def set_parser(subparsers: Any) -> None:
     subparser.set_defaults(func=main)
 
 
-# pylint: disable=too-many-branches
 def main(args: argparse.Namespace) -> None:
     types: list[type] = []
     if args.detector_backbone is True:
@@ -138,7 +137,7 @@ def main(args: argparse.Namespace) -> None:
             # table.add_column("Model name")
             # table.add_column("Description")
             # for model_name in model_list:
-            #     if model_name in registry.aliases:
+            #     if model_name in registry.registered_configs:
             #         desc = ""
 
             #     else:

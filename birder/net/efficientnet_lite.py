@@ -107,7 +107,6 @@ class MBConv(nn.Module):
         return branch
 
 
-# pylint: disable=invalid-name,too-many-locals
 class EfficientNet_Lite(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"body\.stage(\d+)\.(\d+)"
 

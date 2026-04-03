@@ -159,7 +159,6 @@ class AdditiveBlock(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class CAS_ViTStage(nn.Module):
     def __init__(
         self,
@@ -196,7 +195,6 @@ class CAS_ViTStage(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class CAS_ViT(DetectorBackbone):
     def __init__(
         self,

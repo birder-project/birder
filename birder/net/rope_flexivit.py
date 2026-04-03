@@ -46,12 +46,10 @@ from birder.net.vit import adjust_position_embedding
 logger = logging.getLogger(__name__)
 
 
-# pylint: disable=invalid-name,too-many-instance-attributes
 class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMixin):
     default_size = (240, 240)
     block_group_regex = r"encoder\.block\.(\d+)"
 
-    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def __init__(
         self,
         input_channels: int,
@@ -390,7 +388,6 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             for param in module.parameters():
                 param.requires_grad_(False)
 
-    # pylint: disable=too-many-branches
     def masked_encoding_omission(
         self,
         x: torch.Tensor,

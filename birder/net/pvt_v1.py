@@ -195,7 +195,6 @@ class PyramidVisionTransformerStage(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class PVT_v1(DetectorBackbone):
     def __init__(
         self,

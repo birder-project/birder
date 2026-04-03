@@ -224,7 +224,6 @@ def handle_show_flags(
                 show_top_k(img_path, prob, class_to_idx, label)
 
 
-# pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def predict(args: argparse.Namespace) -> None:
     if args.gpu is True:
         device = torch.device("cuda")

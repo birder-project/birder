@@ -64,6 +64,7 @@
   "python.testing.unittestArgs": ["discover", "-s", "tests", "-v"],
   "python.testing.pytestEnabled": false,
   "python.testing.unittestEnabled": true,
+  "flake8.importStrategy": "fromEnvironment",
   "pylint.importStrategy": "fromEnvironment",
   "mypy-type-checker.importStrategy": "fromEnvironment"
 }

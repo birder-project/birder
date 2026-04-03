@@ -214,7 +214,6 @@ class Downsample(nn.Module):
 
 
 class VOLO(BaseNet):
-    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,

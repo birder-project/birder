@@ -28,7 +28,6 @@ class FFN(MLP):
         )
 
 
-# pylint: disable=invalid-name
 class SwiGLU_FFN(nn.Module):
     """
     Paper "GLU Variants Improve Transformer", https://arxiv.org/abs/2002.05202

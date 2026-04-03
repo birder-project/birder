@@ -74,7 +74,6 @@ class GlobalLocalFilter(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class gnConv(nn.Module):
     def __init__(self, dim: int, order: int, gf_layer: bool, h: int, w: int, scale: float) -> None:
         super().__init__()

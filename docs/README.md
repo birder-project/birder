@@ -35,6 +35,7 @@ Whether you're a researcher in ornithology, a conservation scientist, or a wildl
     - [Ensemble Model](tools/ensemble-model.md)
     - [Introspection](tools/introspection.md)
     - [Pack](tools/pack.md)
+    - [Pack Detection](tools/pack-detection.md)
     - [Results](tools/results.md)
 
 1. [API Reference](api/index.md)

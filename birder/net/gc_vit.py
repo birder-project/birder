@@ -406,7 +406,6 @@ class GlobalContextVitStage(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class GC_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
 

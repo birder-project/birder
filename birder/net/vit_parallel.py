@@ -188,7 +188,6 @@ class Encoder(nn.Module):
             b.set_causal_attention(is_causal)
 
 
-# pylint: disable=invalid-name,too-many-instance-attributes
 class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 

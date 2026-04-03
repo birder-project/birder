@@ -213,7 +213,6 @@ class SpatialBlock(nn.Module):
         self.mlp = MLP(dim, [int(dim * mlp_ratio), dim], activation_layer=nn.GELU)
         self.drop_path = StochasticDepth(drop_path, mode="row")
 
-    # pylint: disable=invalid-name
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, C, H, W = x.shape
 

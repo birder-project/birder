@@ -94,7 +94,6 @@ class ShuffleUnit(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class ShuffleNet_v2(DetectorBackbone):
     def __init__(
         self,

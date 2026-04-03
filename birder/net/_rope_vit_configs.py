@@ -109,9 +109,9 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         config={
             "patch_size": 16,
             **SMALL,
-            "num_reg_tokens": 4,
             "abs_pos_embed": False,
             "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
             "rope_style": "centered_separate",
         },
     )
@@ -121,9 +121,9 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         config={
             "patch_size": 16,
             **SMALL,
-            "num_reg_tokens": 4,
             "abs_pos_embed": False,
             "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
             "norm_layer_eps": 1e-5,
             "rope_style": "centered_separate",
         },
@@ -284,6 +284,23 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         config={"patch_size": 16, **TINY, "num_reg_tokens": 1},
     )
     registry.register_model_config(
+        "rope_i_vit_reg1_t16_pn_npn_avg_c1",  # For PE Spatial - https://arxiv.org/abs/2504.13181
+        rope_vit,
+        config={
+            "patch_size": 16,
+            **TINY,
+            "num_reg_tokens": 1,
+            "class_token": False,
+            "pre_norm": True,
+            "post_norm": False,
+            "norm_layer_eps": 1e-5,
+            "rope_rot_type": "interleaved",
+            "rope_grid_indexing": "xy",
+            "rope_grid_offset": 1,
+            "rope_temperature": 10000.0,
+        },
+    )
+    registry.register_model_config(
         "rope_vit_reg1_t14",
         rope_vit,
         config={"patch_size": 14, **TINY, "num_reg_tokens": 1},
@@ -356,14 +373,31 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         config={"patch_size": 16, **BASE, "num_reg_tokens": 4},
     )
     registry.register_model_config(
+        "rope_i_vit_reg1_b16_pn_npn_avg_c1",  # For PE Spatial - https://arxiv.org/abs/2504.13181
+        rope_vit,
+        config={
+            "patch_size": 16,
+            **BASE,
+            "num_reg_tokens": 1,
+            "class_token": False,
+            "pre_norm": True,
+            "post_norm": False,
+            "norm_layer_eps": 1e-5,
+            "rope_rot_type": "interleaved",
+            "rope_grid_indexing": "xy",
+            "rope_grid_offset": 1,
+            "rope_temperature": 10000.0,
+        },
+    )
+    registry.register_model_config(
         "rope_cs_vit_reg4_b16_nape_ls",
         rope_vit,
         config={
             "patch_size": 16,
             **BASE,
-            "num_reg_tokens": 4,
             "abs_pos_embed": False,
             "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
             "rope_style": "centered_separate",
         },
     )
@@ -373,9 +407,9 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         config={
             "patch_size": 16,
             **BASE,
-            "num_reg_tokens": 4,
             "abs_pos_embed": False,
             "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
             "norm_layer_eps": 1e-5,
             "rope_style": "centered_separate",
         },
@@ -403,9 +437,9 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         config={
             "patch_size": 16,
             **SO150,
-            "num_reg_tokens": 4,
             "abs_pos_embed": False,
             "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
             "rope_style": "centered_separate",
         },
     )
@@ -489,9 +523,9 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         config={
             "patch_size": 16,
             **LARGE,
-            "num_reg_tokens": 4,
             "abs_pos_embed": False,
             "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
             "norm_layer_eps": 1e-5,
             "rope_style": "centered_separate",
         },
@@ -533,3 +567,218 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         rope_vit,
         config={"patch_size": 14, **GIANT, "num_reg_tokens": 4},
     )
+
+    # DeiT III
+    ####################
+
+    registry.register_model_config(
+        "rope_deit3_t16",
+        rope_vit,
+        config={"pos_embed_special_tokens": False, "patch_size": 16, **TINY, "layer_scale_init_value": 1e-5},
+    )
+    registry.register_model_config(
+        "rope_deit3_s16",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **SMALL,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.05,
+        },
+    )
+    registry.register_model_config(
+        "rope_deit3_s14",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **SMALL,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.05,
+        },
+    )
+    registry.register_model_config(
+        "rope_deit3_m16",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **MEDIUM,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.1,
+        },
+    )
+    registry.register_model_config(
+        "rope_deit3_m14",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **MEDIUM,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.1,
+        },
+    )
+    registry.register_model_config(
+        "rope_deit3_b16",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **BASE,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.2,
+        },
+    )
+    registry.register_model_config(
+        "rope_deit3_b14",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **BASE,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.2,
+        },
+    )
+    registry.register_model_config(
+        "rope_deit3_l16",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **LARGE,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.45,
+        },
+    )
+    registry.register_model_config(
+        "rope_deit3_l14",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **LARGE,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.45,
+        },
+    )
+
+    # With registers
+    ####################
+
+    registry.register_model_config(
+        "rope_deit3_reg4_t16",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **TINY,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+        },
+    )
+    registry.register_model_config(
+        "rope_deit3_reg4_s16",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **SMALL,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.05,
+        },
+    )
+    registry.register_model_config(
+        "rope_deit3_reg4_s14",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **SMALL,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.05,
+        },
+    )
+    registry.register_model_config(
+        "rope_deit3_reg4_m16",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **MEDIUM,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.1,
+        },
+    )
+    registry.register_model_config(
+        "rope_deit3_reg4_m14",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **MEDIUM,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.1,
+        },
+    )
+    registry.register_model_config(
+        "rope_deit3_reg4_b16",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **BASE,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.2,
+        },
+    )
+    registry.register_model_config(
+        "rope_deit3_reg4_b14",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **BASE,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.2,
+        },
+    )
+    registry.register_model_config(
+        "rope_deit3_reg4_l16",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **LARGE,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.45,
+        },
+    )
+    registry.register_model_config(
+        "rope_deit3_reg4_l14",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **LARGE,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.45,
+        },
+    )
+
+    # Aliases
+    ####################
+
+    registry.register_name_alias("pe_spatial_t16", "rope_i_vit_reg1_t16_pn_npn_avg_c1")
+    registry.register_name_alias("pe_spatial_s16", "rope_i_vit_reg1_s16_pn_npn_avg_c1")
+    registry.register_name_alias("pe_spatial_b16", "rope_i_vit_reg1_b16_pn_npn_avg_c1")

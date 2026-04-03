@@ -252,7 +252,6 @@ class DINOLoss(nn.Module):
             self.updated = True
 
 
-# pylint: disable=invalid-name
 class iBOTPatchLoss(nn.Module):
     def __init__(
         self, patch_out_dim: int, student_temp: float, center_momentum: float, queue_size: Optional[int] = None

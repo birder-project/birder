@@ -390,7 +390,6 @@ class EfficientFormerStage(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class EfficientFormer_v2(DetectorBackbone):
     def __init__(
         self,
@@ -690,5 +689,20 @@ registry.register_model_config(
             [4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4],
             [4, 4, 4, 3, 3, 3, 3, 4, 4, 4],
         ],
+    },
+)
+
+registry.register_weights(
+    "efficientformer_v2_s0_il-common",
+    {
+        "description": "EfficientFormer v2 S0 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 13.2,
+                "sha256": "f2f529e24be773d23d18309463df008a54352aee9e37a17a726dd9e5a611cda2",
+            }
+        },
+        "net": {"network": "efficientformer_v2_s0", "tag": "il-common"},
     },
 )

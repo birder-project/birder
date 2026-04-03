@@ -478,7 +478,7 @@ class FastRCNNPredictor(nn.Module):
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         if x.dim() == 4:
-            torch._assert(  # pylint: disable=protected-access
+            torch._assert(
                 list(x.shape[2:]) == [1, 1],
                 "x has the wrong shape, expecting the last two dimensions "
                 f"to be [1,1] instead of {list(x.shape[2:])}",
@@ -779,13 +779,11 @@ class RoIHeads(nn.Module):
         return (result, losses)
 
 
-# pylint: disable=invalid-name
 class Faster_RCNN(DetectionBaseNet):
     default_size = (640, 640)
     auto_register = True
     exportable = False
 
-    # pylint: disable=too-many-locals
     def __init__(
         self,
         num_classes: int,

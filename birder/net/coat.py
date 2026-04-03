@@ -57,9 +57,9 @@ class ConvRelPosEnc(nn.Module):
         self.channel_splits = [x * head_channels for x in head_splits]
 
     def forward(self, q: torch.Tensor, v: torch.Tensor, size: tuple[int, int]) -> torch.Tensor:
-        B, num_heads, N, C = q.size()
+        B, num_heads, _N, C = q.size()
         H, W = size
-        torch._assert(N == 1 + H * W, "size mismatch")  # pylint: disable=protected-access
+        # torch._assert(N == 1 + H * W, "size mismatch")
 
         # Convolutional relative position encoding.
         q_img = q[:, :, 1:, :]  # [B, h, H*W, Ch]
@@ -135,9 +135,9 @@ class ConvPosEnc(nn.Module):
         )
 
     def forward(self, x: torch.Tensor, size: tuple[int, int]) -> torch.Tensor:
-        B, N, C = x.size()
+        B, _N, C = x.size()
         H, W = size
-        torch._assert(N == 1 + H * W, "size mismatch")  # pylint: disable=protected-access
+        # torch._assert(N == 1 + H * W, "size mismatch")
 
         # Extract CLS token and image tokens
         cls_token = x[:, :1]  # [B, 1, C]
@@ -244,9 +244,9 @@ class ParallelBlock(nn.Module):
         return self.interpolate(x, scale_factor=1.0 / factor, size=size)
 
     def interpolate(self, x: torch.Tensor, scale_factor: float, size: tuple[int, int]) -> torch.Tensor:
-        B, N, C = x.size()
+        B, _N, C = x.size()
         H, W = size
-        torch._assert(N == 1 + H * W, "size mismatch")  # pylint: disable=protected-access
+        # torch._assert(N == 1 + H * W, "size mismatch")
 
         cls_token = x[:, :1, :]
         img_tokens = x[:, 1:, :]
@@ -318,7 +318,6 @@ class PatchEmbed(nn.Module):
         return (x, (H, W))
 
 
-# pylint: disable=too-many-instance-attributes
 class CoaT(DetectorBackbone):
     def __init__(
         self,

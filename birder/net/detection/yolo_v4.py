@@ -102,7 +102,6 @@ def decode_predictions(
     return torch.concat([pred_boxes, pred_conf, pred_cls], dim=-1)
 
 
-# pylint: disable=too-many-locals
 def compute_ciou_loss(pred_boxes: torch.Tensor, target_boxes: torch.Tensor, eps: float = 1e-7) -> torch.Tensor:
     """
     Compute Complete IoU (CIoU) loss.
@@ -368,7 +367,6 @@ class YOLONeck(nn.Module):
         return [n3_out, n4_out, n5_out]
 
 
-# pylint: disable=invalid-name
 class YOLO_v4(DetectionBaseNet):
     default_size = (608, 608)
 
@@ -523,7 +521,7 @@ class YOLO_v4(DetectionBaseNet):
 
         return (pred_boxes, max_class_scores)
 
-    def _build_targets(  # pylint: disable=too-many-locals
+    def _build_targets(
         self,
         predictions: list[torch.Tensor],
         targets: list[dict[str, torch.Tensor]],
@@ -674,7 +672,7 @@ class YOLO_v4(DetectionBaseNet):
 
     @torch.jit.unused  # type: ignore[untyped-decorator]
     @torch.compiler.disable()  # type: ignore[untyped-decorator]
-    def compute_loss(  # pylint: disable=too-many-locals
+    def compute_loss(
         self,
         predictions: list[torch.Tensor],
         targets: list[dict[str, torch.Tensor]],

@@ -27,8 +27,9 @@ def off_diagonal(x: torch.Tensor) -> torch.Tensor:
     return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
 
 
-# pylint: disable=abstract-method,arguments-differ
 class FullGatherLayer(torch.autograd.Function):
+    # pylint: disable=abstract-method,arguments-differ
+
     @staticmethod
     def forward(_ctx, x):  # type: ignore
         if training_utils.is_dist_available_and_initialized() is False:
@@ -84,6 +85,8 @@ class VICReg(SSLBaseNet):
         )
 
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
+        # pylint: disable=arguments-differ
+
         x = self.projector(self.backbone.embedding(x))
         y = self.projector(self.backbone.embedding(y))
 

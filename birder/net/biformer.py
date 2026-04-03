@@ -49,7 +49,6 @@ def _seq2grid(x: torch.Tensor, region_h: int, region_w: int, region_size: tuple[
     return x
 
 
-# pylint: disable=too-many-locals
 def regional_routing_attention_torch(
     query: torch.Tensor,
     key: torch.Tensor,

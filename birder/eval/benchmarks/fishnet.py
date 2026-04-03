@@ -210,7 +210,6 @@ def _load_embeddings_with_labels(
     return (x_train, y_train, x_test, y_test)
 
 
-# pylint: disable=too-many-locals
 def evaluate_fishnet_single(
     x_train: npt.NDArray[np.float32],
     y_train: npt.NDArray[np.float32],

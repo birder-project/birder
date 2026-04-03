@@ -162,7 +162,6 @@ class RelativePositionalMultiHeadAttention(nn.Module):
         relative_bias = relative_bias.permute(2, 0, 1).contiguous()
         return relative_bias.unsqueeze(dim=0)
 
-    # pylint: disable=invalid-name
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, G, P, D = x.size()
         H = self.n_heads
@@ -202,7 +201,7 @@ class SwapAxes(nn.Module):
 class WindowPartition(nn.Module):
     def forward(self, x: torch.Tensor, p: tuple[int, int]) -> torch.Tensor:
         B, C, H, W = x.size()
-        PH, PW = p  # pylint: disable=invalid-name
+        PH, PW = p
 
         # Chunk up H and W dimensions
         x = x.reshape(B, C, H // PH, PH, W // PW, PW)
@@ -215,10 +214,9 @@ class WindowPartition(nn.Module):
 
 
 class WindowDepartition(nn.Module):
-    # pylint: disable=invalid-name
     def forward(self, x: torch.Tensor, p: tuple[int, int], h_partitions: int, w_partitions: int) -> torch.Tensor:
-        B, _G, _PP, C = x.size()
-        PH, PW = p  # pylint: disable=invalid-name
+        B, _G, _PP, C = x.size()  # pylint: disable=invalid-name
+        PH, PW = p
         HP = h_partitions
         WP = w_partitions
 
@@ -303,7 +301,7 @@ class PartitionAttentionLayer(nn.Module):
 
         # Undefined behavior if H or W are not divisible by p
         # https://github.com/google-research/maxvit/blob/da76cf0d8a6ec668cc31b399c4126186da7da944/maxvit/models/maxvit.py#L766
-        torch._assert(  # pylint: disable=protected-access
+        torch._assert(
             self.grid_size[0] % self.p[0] == 0 and self.grid_size[1] % self.p[1] == 0,
             f"Grid size must be divisible by partition size. Got grid size of "
             f"{self.grid_size} and partition size of {self.p}",
@@ -449,7 +447,6 @@ class MaxVitBlock(nn.Module):
 class MaxViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"body\.stage(\d+)\.block\.(\d+)\.layers\.(\d+)"
 
-    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,

@@ -114,8 +114,9 @@ def _build_attack(
     raise ValueError(f"Unsupported attack method '{method}'")
 
 
-# pylint: disable=too-many-locals,too-many-branches,too-many-statements
-def evaluate_adversarial_robustness(args: argparse.Namespace) -> None:
+def evaluate_adversarial_robustness(
+    args: argparse.Namespace,
+) -> None:
     if args.gpu is True:
         device = torch.device("cuda")
     elif args.mps is True:

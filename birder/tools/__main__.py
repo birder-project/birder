@@ -13,6 +13,7 @@ from birder.tools import labelme_to_coco
 from birder.tools import list_models
 from birder.tools import model_info
 from birder.tools import pack
+from birder.tools import pack_detection
 from birder.tools import quantize_model
 from birder.tools import results
 from birder.tools import show_det_iterator
@@ -47,6 +48,8 @@ def main() -> None:
             "python -m birder.tools list-models --pretrained\n"
             "python -m birder.tools model-info -n deit_s16 -t intermediate -e 0\n"
             "python -m birder.tools pack data/training\n"
+            "python -m birder.tools pack-detection --data-path ~/Datasets/cocodataset/train2017 "
+            "--coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json\n"
             "python -m birder.tools quantize-model -n convnext_v2_base -e 0 --qbackend x86\n"
             "python -m birder.tools results results/inception_resnet_v2_105_e100_3150.csv --print --pr-curve\n"
             "python -m birder.tools show-det-iterator --mode inference --size 640 --batch\n"
@@ -74,6 +77,7 @@ def main() -> None:
     list_models.set_parser(subparsers)
     model_info.set_parser(subparsers)
     pack.set_parser(subparsers)
+    pack_detection.set_parser(subparsers)
     quantize_model.set_parser(subparsers)
     results.set_parser(subparsers)
     show_det_iterator.set_parser(subparsers)

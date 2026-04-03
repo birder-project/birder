@@ -133,7 +133,6 @@ class NCB(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class E_MHSA(nn.Module):
     """
     Efficient Multi-Head Self Attention
@@ -247,7 +246,6 @@ class NTB(nn.Module):
 class NextViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
-    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,

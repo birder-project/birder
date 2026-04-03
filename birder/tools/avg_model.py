@@ -15,7 +15,6 @@ from birder.net.base import SignatureType
 logger = logging.getLogger(__name__)
 
 
-# pylint: disable=too-many-locals
 def avg_models(
     network: str, tag: Optional[str], reparameterized: bool, epochs: list[int], accum_dtype: torch.dtype, force: bool
 ) -> None:

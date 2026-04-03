@@ -357,7 +357,6 @@ class EfficientVitStage(torch.nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class EfficientViT_MSFT(DetectorBackbone):
     def __init__(
         self,

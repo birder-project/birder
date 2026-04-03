@@ -163,7 +163,6 @@ class InceptionNeXtStage(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class Inception_NeXt(DetectorBackbone):
     def __init__(
         self,

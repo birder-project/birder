@@ -165,7 +165,6 @@ class MultiScaleDeformableAttention(nn.Module):
         nn.init.xavier_uniform_(self.output_proj.weight)
         nn.init.zeros_(self.output_proj.bias)
 
-    # pylint: disable=too-many-locals
     def forward(
         self,
         query: torch.Tensor,
@@ -403,7 +402,6 @@ class TransformerDecoderLayer(nn.Module):
         return tgt
 
 
-# pylint: disable=invalid-name
 class RT_DETRDecoder(nn.Module):
     """
     RT-DETR v2 Decoder with top-k query selection
@@ -557,7 +555,7 @@ class RT_DETRDecoder(nn.Module):
 
         return (target, reference_points_unact.detach(), enc_topk_bboxes, enc_topk_logits)
 
-    def forward(  # pylint: disable=too-many-locals
+    def forward(
         self,
         feats: list[torch.Tensor],
         spatial_shapes: list[list[int]],
@@ -647,7 +645,6 @@ class RT_DETRDecoder(nn.Module):
         return (out_bboxes, out_logits, enc_topk_bboxes, enc_topk_logits)
 
 
-# pylint: disable=invalid-name
 class RT_DETR_v2(DetectionBaseNet):
     default_size = (640, 640)
 
@@ -990,11 +987,13 @@ class RT_DETR_v2(DetectionBaseNet):
     def postprocess_detections(
         self, class_logits: torch.Tensor, box_regression: torch.Tensor, image_sizes: torch.Tensor
     ) -> list[dict[str, torch.Tensor]]:
-        prob = class_logits.sigmoid()
-        topk_values, topk_indexes = torch.topk(prob.view(class_logits.shape[0], -1), k=self.decoder.num_queries, dim=1)
-        scores = topk_values
-        topk_boxes = topk_indexes // class_logits.shape[2]
-        labels = topk_indexes % class_logits.shape[2]
+        num_classes = class_logits.size(2)
+        topk_logits, topk_indexes = torch.topk(
+            class_logits.view(class_logits.size(0), -1), k=self.decoder.num_queries, dim=1
+        )
+        scores = topk_logits.sigmoid()
+        topk_boxes = topk_indexes // num_classes
+        labels = topk_indexes % num_classes
         labels += 1  # Background offset
 
         # Convert to [x0, y0, x1, y1] format

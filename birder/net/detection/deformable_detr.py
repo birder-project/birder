@@ -21,7 +21,6 @@ from typing import Optional
 
 import torch
 import torch.nn.functional as F
-from scipy.optimize import linear_sum_assignment
 from torch import nn
 from torchvision.ops import MLP
 from torchvision.ops import boxes as box_ops
@@ -32,6 +31,7 @@ from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.detr import PositionEmbeddingSine
+from birder.ops.linear_assignment import LinearAssignment
 from birder.ops.msda import MultiScaleDeformableAttention as MSDA
 from birder.ops.soft_nms import SoftNMS
 
@@ -52,6 +52,7 @@ class HungarianMatcher(nn.Module):
         self.cost_bbox = cost_bbox
         self.cost_giou = cost_giou
         self.use_giou = use_giou
+        self.linear_assignment = LinearAssignment()
 
     @torch.jit.unused  # type: ignore[untyped-decorator]
     def forward(
@@ -61,7 +62,8 @@ class HungarianMatcher(nn.Module):
             B, num_queries = class_logits.shape[:2]
 
             # We flatten to compute the cost matrices in a batch
-            out_prob = class_logits.flatten(0, 1).sigmoid()  # [batch_size * num_queries, num_classes]
+            flat_logits = class_logits.flatten(0, 1)  # [batch_size * num_queries, num_classes]
+            out_prob = flat_logits.sigmoid()
             out_bbox = box_regression.flatten(0, 1)  # [batch_size * num_queries, 4]
 
             # Also concat the target labels and boxes
@@ -71,8 +73,12 @@ class HungarianMatcher(nn.Module):
             # Compute the classification cost
             alpha = 0.25
             gamma = 2.0
-            neg_cost_class = (1 - alpha) * (out_prob**gamma) * (-(1 - out_prob + 1e-8).log())
-            pos_cost_class = alpha * ((1 - out_prob) ** gamma) * (-(out_prob + 1e-8).log())
+            neg_cost_class = (
+                (1 - alpha) * (out_prob**gamma) * (-F.logsigmoid(-flat_logits))  # pylint: disable=not-callable
+            )
+            pos_cost_class = (
+                alpha * ((1 - out_prob) ** gamma) * (-F.logsigmoid(flat_logits))  # pylint: disable=not-callable
+            )
             cost_class = pos_cost_class[:, tgt_ids] - neg_cost_class[:, tgt_ids]
 
             # Compute the L1 cost between boxes
@@ -88,16 +94,34 @@ class HungarianMatcher(nn.Module):
 
             # Final cost matrix
             C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
-            C = C.view(B, num_queries, -1).cpu()
+            C = C.view(B, num_queries, -1)
             finite = torch.isfinite(C)
             if not torch.all(finite):
                 penalty = C[finite].max().item() + 1.0 if finite.any().item() else 1.0
                 C.nan_to_num_(nan=penalty, posinf=penalty, neginf=penalty)
 
             sizes = [len(v["boxes"]) for v in targets]
-            indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]
+            empty_indices = torch.empty(0, dtype=torch.int64, device=C.device)
+            indices: list[tuple[torch.Tensor, torch.Tensor]] = [(empty_indices, empty_indices) for _ in range(B)]
+            grouped_ranges: dict[int, list[tuple[int, int, int]]] = {}
+            start = 0
+            for batch_idx, size in enumerate(sizes):
+                end = start + size
+                if size > 0:
+                    grouped_ranges.setdefault(size, []).append((batch_idx, start, end))
 
-            return [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]
+                start = end
+
+            for size, entries in grouped_ranges.items():
+                bucket_cost = torch.stack([C[batch_idx, :, start:end] for batch_idx, start, end in entries], dim=0)
+                col4row_batch, _row4col = self.linear_assignment(bucket_cost)
+                for row_idx, (batch_idx, _start, _end) in enumerate(entries):
+                    col4row = col4row_batch[row_idx]
+                    src_indices = torch.nonzero(col4row >= 0, as_tuple=False).flatten()
+                    tgt_indices = col4row[src_indices].to(torch.int64)
+                    indices[batch_idx] = (src_indices.to(torch.int64), tgt_indices)
+
+            return indices
 
 
 def inverse_sigmoid(x: torch.Tensor, eps: float = 1e-5) -> torch.Tensor:
@@ -474,7 +498,6 @@ class DeformableTransformer(nn.Module):
 
         return valid_ratio
 
-    # pylint: disable=too-many-locals
     def forward(
         self,
         srcs: list[torch.Tensor],
@@ -540,7 +563,6 @@ class DeformableTransformer(nn.Module):
         return (hs, reference_points, inter_references)
 
 
-# pylint: disable=invalid-name
 class Deformable_DETR(DetectionBaseNet):
     default_size = (640, 640)
 
@@ -793,7 +815,6 @@ class Deformable_DETR(DetectionBaseNet):
 
         return detections
 
-    # pylint: disable=too-many-locals
     def forward_net(self, x: torch.Tensor, masks: Optional[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         features: dict[str, torch.Tensor] = self.backbone.detection_features(x)
         feature_list = list(features.values())

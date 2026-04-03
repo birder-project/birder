@@ -127,6 +127,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [ViT](#vit)
 - [ViT Parallel](#vit-parallel)
 - [ViT SAM](#vit-sam)
+- [ViT Windowed](#vit-windowed)
 - [VOLO](#volo)
 - [VoVNet v1](#vovnet-v1)
 - [VoVNet v2](#vovnet-v2)
@@ -2638,6 +2639,14 @@ torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls --tag in
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_sam_b16 --batch-size 64 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0005 --wd 0.1 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
+```
+
+### ViT Windowed
+
+#### ViT Windowed: s16
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_windowed_s16 --batch-size 128 --opt adamw --opt-fused --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0005 --wd 0.1 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 224 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile
 ```
 
 ### VOLO

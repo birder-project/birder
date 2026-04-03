@@ -228,7 +228,6 @@ def _evaluate_single_k(
     return (mean_acc, std_acc)
 
 
-# pylint: disable=too-many-locals
 def evaluate_fungiclef(args: argparse.Namespace) -> None:
     tic = time.time()
 

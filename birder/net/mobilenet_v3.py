@@ -115,7 +115,6 @@ class InvertedResidual(nn.Module):
         return self.block(x)
 
 
-# pylint: disable=invalid-name
 class MobileNet_v3(DetectorBackbone):
     def __init__(
         self,

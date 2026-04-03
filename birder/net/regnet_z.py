@@ -102,7 +102,6 @@ class AnyStage(nn.Module):
         return self.block(x)
 
 
-# pylint: disable=invalid-name
 class RegNet_Z(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"body\.stage(\d+)\.block\.(\d+)"
 

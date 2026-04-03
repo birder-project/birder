@@ -32,7 +32,6 @@ class MLPProbe(nn.Module):
         return self.model(x)
 
 
-# pylint: disable=too-many-locals
 def train_mlp(
     train_features: npt.NDArray[np.float32],
     train_labels: npt.NDArray[np.float32],

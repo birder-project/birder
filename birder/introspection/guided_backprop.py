@@ -26,8 +26,9 @@ from birder.introspection.base import preprocess_image
 from birder.introspection.base import validate_target_class
 
 
-# pylint: disable=abstract-method,arguments-differ
 class GuidedBackpropReLU(Function):
+    # pylint: disable=abstract-method,arguments-differ
+
     @staticmethod
     def forward(ctx: Any, input_img: torch.Tensor) -> torch.Tensor:
         positive_mask = (input_img > 0).type_as(input_img)
@@ -51,8 +52,9 @@ class GuidedBackpropReLU(Function):
         return grad_input
 
 
-# pylint: disable=abstract-method,arguments-differ
 class GuidedBackpropSiLU(Function):
+    # pylint: disable=abstract-method,arguments-differ
+
     @staticmethod
     def forward(ctx: Any, input_img: torch.Tensor) -> torch.Tensor:
         result = input_img * torch.sigmoid(input_img)
@@ -71,8 +73,9 @@ class GuidedBackpropSiLU(Function):
         return grad_input
 
 
-# pylint: disable=abstract-method,arguments-differ
 class GuidedBackpropGELU(Function):
+    # pylint: disable=abstract-method,arguments-differ
+
     @staticmethod
     def forward(ctx: Any, input_img: torch.Tensor) -> torch.Tensor:
         result = F.gelu(input_img, approximate="none")  # pylint:disable=not-callable
@@ -99,8 +102,9 @@ class GuidedBackpropGELU(Function):
         return grad_input
 
 
-# pylint: disable=abstract-method,arguments-differ
 class GuidedBackpropHardswish(Function):
+    # pylint: disable=abstract-method,arguments-differ
+
     @staticmethod
     def forward(ctx: Any, input_img: torch.Tensor) -> torch.Tensor:
         result = F.hardswish(input_img)
@@ -162,10 +166,10 @@ def replace_activations_recursive(model: nn.Module, replacements: dict[type, typ
     It will NOT affect functional calls inside forward methods, such as F.relu(x) or F.gelu(x).
     """
 
-    for name, module in list(model._modules.items()):  # pylint: disable=protected-access
+    for name, module in list(model._modules.items()):
         for old_type, new_type in replacements.items():
             if isinstance(module, old_type):
-                model._modules[name] = new_type()  # pylint: disable=protected-access
+                model._modules[name] = new_type()
                 break
         else:
             # Recurse into submodules
@@ -174,10 +178,10 @@ def replace_activations_recursive(model: nn.Module, replacements: dict[type, typ
 
 def restore_activations_recursive(model: nn.Module, guided_types: dict[type, type]) -> None:
     reverse_mapping = {v: k for k, v in guided_types.items()}
-    for name, module in list(model._modules.items()):  # pylint: disable=protected-access
+    for name, module in list(model._modules.items()):
         for guided_type, original_type in reverse_mapping.items():
             if isinstance(module, guided_type):
-                model._modules[name] = original_type()  # pylint: disable=protected-access
+                model._modules[name] = original_type()
                 break
         else:
             restore_activations_recursive(module, guided_types)

@@ -9,6 +9,7 @@ from typing import Optional
 
 import torch
 import webdataset as wds
+from torchvision import tv_tensors
 from torchvision.datasets.folder import IMG_EXTENSIONS
 from torchvision.io import ImageReadMode
 from torchvision.io import decode_image
@@ -97,11 +98,101 @@ def make_wds_dataset(
     return dataset
 
 
-def wds_size(wds_path: str, device: torch.device) -> int:
+def decode_detection_target(item: tuple[Any, ...], label_remap: Optional[dict[int, int]] = None) -> tuple[Any, ...]:
+    image = item[0]
+    target = item[1]
+    canvas_size = tuple(image.shape[-2:])
+
+    if len(target["boxes"]) > 0:
+        raw_labels = target["labels"]
+        if label_remap is not None:
+            raw_labels = [label_remap[label] for label in raw_labels]
+
+        boxes = tv_tensors.BoundingBoxes(
+            target["boxes"],
+            format=tv_tensors.BoundingBoxFormat.XYXY,
+            canvas_size=canvas_size,
+        )
+        labels = torch.tensor(raw_labels, dtype=torch.int64)
+    else:
+        boxes = tv_tensors.BoundingBoxes(
+            torch.zeros((0, 4), dtype=torch.float32),
+            format=tv_tensors.BoundingBoxFormat.XYXY,
+            canvas_size=canvas_size,
+        )
+        labels = torch.zeros((0,), dtype=torch.int64)
+
+    return (image, {"image_id": target["image_id"], "boxes": boxes, "labels": labels})
+
+
+def decode_detection_sample(item: tuple[Any, ...], label_remap: Optional[dict[int, int]] = None) -> tuple[Any, ...]:
+    if len(item) == 4:
+        sample_name = item[0] + "/" + item[1]
+        image, target = decode_detection_target((item[2], item[3]), label_remap=label_remap)
+        orig_size = tuple(image.shape[-2:])
+        return (sample_name, image, target, orig_size)
+
+    image, target = decode_detection_target(item, label_remap=label_remap)
+    orig_size = tuple(image.shape[-2:])
+    return (image, target, orig_size)
+
+
+def make_wds_detection_dataset(
+    wds_path: str | list[str],
+    dataset_size: int,
+    shuffle: bool,
+    transform: Callable[..., torch.Tensor],
+    *,
+    samples_names: bool = False,
+    return_orig_sizes: bool = False,
+    label_remap: Optional[dict[int, int]] = None,
+    cache_dir: Optional[str] = None,
+    shuffle_buffer_size: Optional[int] = None,
+    shuffle_initial_size: Optional[int] = None,
+) -> torch.utils.data.IterableDataset:
+    if shuffle is True:
+        shardshuffle = 500
+    else:
+        shardshuffle = False
+
+    dataset = wds.WebDataset(
+        wds_path, shardshuffle=shardshuffle, nodesplitter=wds.split_by_node, cache_dir=cache_dir, empty_check=False
+    )
+    if shuffle is True:
+        if shuffle_buffer_size is None:
+            shuffle_buffer_size = WDS_SHUFFLE_SIZE
+        if shuffle_initial_size is None:
+            shuffle_initial_size = WDS_INITIAL_SIZE
+
+        logger.debug(f"Using buffer size of {shuffle_buffer_size} for shuffle with {shuffle_initial_size} initial size")
+        dataset = dataset.shuffle(shuffle_buffer_size, initial=shuffle_initial_size)
+
+    return_keys = ["jpeg;jpg;png;webp", "json"]
+    if samples_names is True:
+        return_keys = ["__url__", "__key__"] + return_keys
+
+    dataset = dataset.with_length(dataset_size, silent=True).decode(wds_image_decoder).to_tuple(*return_keys)
+    dataset = dataset.map(lambda item: decode_detection_sample(item, label_remap=label_remap))
+
+    if samples_names is True:
+        if return_orig_sizes is True:
+            dataset = dataset.map(lambda item: (item[0], *transform(item[1], item[2]), item[3]))
+        else:
+            dataset = dataset.map(lambda item: (item[0], *transform(item[1], item[2])))
+    else:
+        if return_orig_sizes is True:
+            dataset = dataset.map(lambda item: (*transform(item[0], item[1]), item[2]))
+        else:
+            dataset = dataset.map(lambda item: transform(item[0], item[1]))
+
+    return dataset
+
+
+def wds_size(wds_path: str, device: torch.device, select_suffix: str = "cls") -> int:
     dataset = wds.WebDataset(
         wds_path,
         shardshuffle=False,
-        select_files=lambda key_name: key_name.endswith("cls"),
+        select_files=lambda key_name: key_name.endswith(select_suffix),
         nodesplitter=wds.split_by_node,
         empty_check=False,
     ).batched(64, collation_fn=None, partial=True)
@@ -115,7 +206,9 @@ def wds_size(wds_path: str, device: torch.device) -> int:
     return size
 
 
-def prepare_wds_args(data_path: str, size: Optional[int], device: torch.device) -> tuple[str, int]:
+def prepare_wds_args(
+    data_path: str, size: Optional[int], device: torch.device, select_suffix: str = "cls"
+) -> tuple[str, int]:
     if "://" not in data_path:
         if ".." not in data_path:
             # Local path without braces, build brace argument
@@ -126,7 +219,7 @@ def prepare_wds_args(data_path: str, size: Optional[int], device: torch.device) 
 
         if size is None:
             # If size not provided, we scan all tar files
-            dataset_size = wds_size(wds_path, device)
+            dataset_size = wds_size(wds_path, device, select_suffix=select_suffix)
         else:
             dataset_size = size
 

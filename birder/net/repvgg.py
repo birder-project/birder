@@ -262,7 +262,7 @@ class RepVgg(DetectorBackbone):
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
         prev_blocks = 1  # Due to stem
-        for idx in range(len(num_blocks_per_stage)):  # pylint: disable=consider-using-enumerate
+        for idx in range(len(num_blocks_per_stage)):
             out_planes = int(widths[idx] * width_multipliers[idx])
             stages[f"stage{idx+1}"] = RepVggStage(
                 in_planes,

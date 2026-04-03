@@ -275,7 +275,6 @@ class CSWinStage(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class CSWin_Transformer(DetectorBackbone):
     square_only = True
 

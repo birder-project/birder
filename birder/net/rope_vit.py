@@ -317,11 +317,9 @@ class MAEDecoderBlock(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name,too-many-instance-attributes
 class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
-    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def __init__(
         self,
         input_channels: int,
@@ -1033,6 +1031,24 @@ registry.register_weights(
 # Perception Encoder: The best visual embeddings are not at the output of the network, by Meta FAIR
 # https://arxiv.org/abs/2504.13181
 registry.register_weights(
+    "rope_i_vit_reg1_t16_pn_npn_avg_c1_pe-spatial",
+    {
+        "url": "https://huggingface.co/birder-project/rope_i_vit_reg1_t16_pn_npn_avg_c1_pe-spatial/resolve/main",
+        "description": (
+            "ViT t16 image encoder pre-trained by Meta FAIR using CLIP. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (512, 512),
+        "formats": {
+            "pt": {
+                "file_size": 21.7,
+                "sha256": "f7c7968f31eccbc5593b28217f2ad0a5a28e416838188c5b0c7602d3d58155b3",
+            },
+        },
+        "net": {"network": "rope_i_vit_reg1_t16_pn_npn_avg_c1", "tag": "pe-spatial"},
+    },
+)
+registry.register_weights(
     "rope_i_vit_s16_pn_aps_c1_pe-core",
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_s16_pn_aps_c1_pe-core/resolve/main",
@@ -1087,6 +1103,24 @@ registry.register_weights(
     },
 )
 registry.register_weights(
+    "rope_i_vit_reg1_b16_pn_npn_avg_c1_pe-spatial",
+    {
+        "url": "https://huggingface.co/birder-project/rope_i_vit_reg1_b16_pn_npn_avg_c1_pe-spatial/resolve/main",
+        "description": (
+            "ViT b16 image encoder pre-trained by Meta FAIR using CLIP. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (512, 512),
+        "formats": {
+            "pt": {
+                "file_size": 329.8,
+                "sha256": "f1ad844e3e28d52f15d8edf9ebdb1dbc0d333f81edd5c4fddd8602ae55e0f2a7",
+            },
+        },
+        "net": {"network": "rope_i_vit_reg1_b16_pn_npn_avg_c1", "tag": "pe-spatial"},
+    },
+)
+registry.register_weights(
     "rope_i_vit_l14_pn_aps_c1_pe-core",
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_l14_pn_aps_c1_pe-core/resolve/main",
@@ -1102,5 +1136,36 @@ registry.register_weights(
             },
         },
         "net": {"network": "rope_i_vit_l14_pn_aps_c1", "tag": "pe-core"},
+    },
+)
+
+# DeiT III
+registry.register_weights(
+    "rope_deit3_reg4_t16_il-common",
+    {
+        "description": "RoPE DeiT3 reg4 tiny p16 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 21.5,
+                "sha256": "3c0e1500d062d75f1b3c5f1aae5015c48b0736521c5289d039da133eefc3519f",
+            }
+        },
+        "net": {"network": "rope_deit3_reg4_t16", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "rope_deit3_reg4_m14_arabian-peninsula",
+    {
+        "url": "https://huggingface.co/birder-project/rope_deit3_reg4_m14_arabian-peninsula/resolve/main",
+        "description": "RoPE DeiT3 reg4 medium p14 model trained on the arabian-peninsula dataset",
+        "resolution": (252, 252),
+        "formats": {
+            "pt": {
+                "file_size": 147.7,
+                "sha256": "596223dde050561e2045352d4c0816ef874b9e8ccc6e5157f9e112cecfa9fb8c",
+            }
+        },
+        "net": {"network": "rope_deit3_reg4_m14", "tag": "arabian-peninsula"},
     },
 )

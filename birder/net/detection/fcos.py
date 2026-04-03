@@ -201,7 +201,6 @@ class FCOSHead(nn.Module):
         self.classification_head = FCOSClassificationHead(in_channels, num_anchors, num_classes, num_convs)
         self.regression_head = FCOSRegressionHead(in_channels, num_anchors, num_convs)
 
-    # pylint: disable=too-many-locals
     def compute_loss(
         self,
         targets: list[dict[str, torch.Tensor]],
@@ -414,7 +413,6 @@ class FCOS(DetectionBaseNet):
 
         return self.head.compute_loss(targets, head_outputs, anchors, matched_idxs)
 
-    # pylint: disable=too-many-locals
     def postprocess_detections(
         self,
         head_outputs: dict[str, list[torch.Tensor]],

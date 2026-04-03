@@ -48,7 +48,7 @@ class TestClassification(unittest.TestCase):
         self.assertFalse(results.missing_labels)
         self.assertAlmostEqual(results.accuracy, 1.0 / 6.0)
         self.assertAlmostEqual(results.top_k, 5.0 / 6.0)
-        self.assertEqual(results._top_k_indices, [1, 2, 3, 4, 5])  # pylint: disable=protected-access
+        self.assertEqual(results._top_k_indices, [1, 2, 3, 4, 5])
         self.assertEqual(results.predictions.tolist(), [2, 1, 2, 2, 2, 2])
         self.assertEqual(results.prediction_names.to_list(), ["l2", "l1", "l2", "l2", "l2", "l2"])
 
@@ -120,10 +120,10 @@ class TestClassification(unittest.TestCase):
 
         self.assertTrue(results.missing_labels)
         self.assertFalse(results.missing_all_labels)
-        self.assertEqual(results._valid_length, 4)  # pylint: disable=protected-access
+        self.assertEqual(results._valid_length, 4)
         self.assertAlmostEqual(results.accuracy, 1.0 / 4.0)
         self.assertAlmostEqual(results.top_k, 3.0 / 4.0)
-        self.assertEqual(results._top_k_indices, [2, 4, 5])  # pylint: disable=protected-access
+        self.assertEqual(results._top_k_indices, [2, 4, 5])
         self.assertEqual(results.predictions.tolist(), [2, 1, 2, 2, 2, 2])
         self.assertEqual(results.prediction_names.to_list(), ["l2", "l1", "l2", "l2", "l2", "l2"])
 
@@ -149,7 +149,7 @@ class TestClassification(unittest.TestCase):
         self.assertFalse(results.missing_labels)
         self.assertAlmostEqual(results.accuracy, 1.0 / 6.0)
         self.assertAlmostEqual(results.top_k, 5.0 / 6.0)
-        self.assertEqual(results._top_k_indices, [1, 2, 3, 4, 5])  # pylint: disable=protected-access
+        self.assertEqual(results._top_k_indices, [1, 2, 3, 4, 5])
         self.assertEqual(results.predictions.tolist(), [2, 1, 2, 2, 2, 2])
         self.assertEqual(results.prediction_names.to_list(), ["l2", "l1", "l2", "l2", "l2", "l2"])
 
@@ -200,10 +200,10 @@ class TestClassification(unittest.TestCase):
 
         self.assertTrue(results.missing_labels)
         self.assertFalse(results.missing_all_labels)
-        self.assertEqual(results._valid_length, 4)  # pylint: disable=protected-access
+        self.assertEqual(results._valid_length, 4)
         self.assertAlmostEqual(results.accuracy, 1.0 / 4.0)
         self.assertAlmostEqual(results.top_k, 3.0 / 4.0)
-        self.assertEqual(results._top_k_indices, [2, 4, 5])  # pylint: disable=protected-access
+        self.assertEqual(results._top_k_indices, [2, 4, 5])
         self.assertEqual(results.predictions.tolist(), [2, 1, 2, 2, 2, 2])
         self.assertEqual(results.prediction_names.to_list(), ["l2", "l1", "l2", "l2", "l2", "l2"])
 

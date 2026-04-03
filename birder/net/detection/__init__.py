@@ -6,6 +6,7 @@ from birder.net.detection.fcos import FCOS
 from birder.net.detection.lw_detr import LW_DETR
 from birder.net.detection.plain_detr import Plain_DETR
 from birder.net.detection.retinanet import RetinaNet
+from birder.net.detection.rf_detr import RF_DETR
 from birder.net.detection.rt_detr_v1 import RT_DETR_v1
 from birder.net.detection.rt_detr_v2 import RT_DETR_v2
 from birder.net.detection.ssd import SSD
@@ -25,6 +26,7 @@ __all__ = [
     "LW_DETR",
     "Plain_DETR",
     "RetinaNet",
+    "RF_DETR",
     "RT_DETR_v1",
     "RT_DETR_v2",
     "SSD",

@@ -73,7 +73,6 @@ class SimBA:
             num_queries=total_queries,
         )
 
-    # pylint: disable=too-many-locals
     def _attack_single(
         self, inputs: torch.Tensor, label: torch.Tensor, target_label: Optional[torch.Tensor]
     ) -> tuple[torch.Tensor, int]:

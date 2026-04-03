@@ -7,7 +7,6 @@ from PIL import Image
 from torchvision import tv_tensors
 
 
-# pylint: disable=too-many-locals
 def mosaic_random_center(
     images: list[Image.Image],
     targets: list[dict[str, Any]],
@@ -45,7 +44,7 @@ def mosaic_random_center(
 
     assert len(images) == 4 and len(targets) == 4
 
-    (output_w, output_h) = output_size
+    output_w, output_h = output_size
 
     fill_color: tuple[int, int, int]
     if isinstance(fill_value, int):
@@ -83,8 +82,8 @@ def mosaic_random_center(
             boxes = torch.zeros((0, 4), dtype=torch.float32)
             labels = torch.zeros((0,), dtype=torch.int64)
 
-        (w, h) = img.size
-        (q_x1, q_y1, q_x2, q_y2) = quadrants[i]
+        w, h = img.size
+        q_x1, q_y1, q_x2, q_y2 = quadrants[i]
 
         scale = min(output_w / w, output_h / h)
         new_w = int(w * scale)
@@ -149,7 +148,6 @@ def mosaic_random_center(
     return (mosaic_img, {"boxes": boxes, "labels": labels})
 
 
-# pylint: disable=too-many-locals,too-many-statements,too-many-branches
 def mosaic_fixed_grid(
     images: list[Image.Image],
     targets: list[dict[str, Any]],
@@ -195,7 +193,7 @@ def mosaic_fixed_grid(
 
     assert len(images) == 4 and len(targets) == 4
 
-    (output_w, output_h) = output_size
+    output_w, output_h = output_size
 
     fill_color: tuple[int, int, int]
     if isinstance(fill_value, int):
@@ -234,7 +232,7 @@ def mosaic_fixed_grid(
             boxes = torch.zeros((0, 4), dtype=torch.float32)
             labels = torch.zeros((0,), dtype=torch.int64)
 
-        (w, h) = img.size
+        w, h = img.size
 
         if crop_to_square:
             min_dim = min(w, h)
@@ -250,7 +248,7 @@ def mosaic_fixed_grid(
                 boxes[:, [0, 2]] = boxes[:, [0, 2]].clamp(0, min_dim)
                 boxes[:, [1, 3]] = boxes[:, [1, 3]].clamp(0, min_dim)
 
-            (w, h) = img.size
+            w, h = img.size
 
         elif max_aspect_ratio is not None:
             aspect = max(w, h) / max(min(w, h), 1)
@@ -265,7 +263,7 @@ def mosaic_fixed_grid(
                             boxes[:, 2] -= left
                             boxes[:, [0, 2]] = boxes[:, [0, 2]].clamp(0, new_w)
 
-                        (w, h) = img.size
+                        w, h = img.size
                 else:
                     new_h = int(w * max_aspect_ratio)
                     if new_h < h:
@@ -276,7 +274,7 @@ def mosaic_fixed_grid(
                             boxes[:, 3] -= top
                             boxes[:, [1, 3]] = boxes[:, [1, 3]].clamp(0, new_h)
 
-                        (w, h) = img.size
+                        w, h = img.size
 
         # Pad to square (content towards center, padding towards edges)
         max_dim = max(w, h)
@@ -309,7 +307,7 @@ def mosaic_fixed_grid(
         if len(boxes) > 0:
             boxes *= scale
 
-        (px, py) = positions[i]
+        px, py = positions[i]
         grid_img.paste(img, (px, py))
 
         if len(boxes) > 0:

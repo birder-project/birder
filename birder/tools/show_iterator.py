@@ -31,7 +31,6 @@ from birder.data.transforms.classification import training_preset
 logger = logging.getLogger(__name__)
 
 
-# pylint: disable=too-many-locals,too-many-branches
 def show_iterator(args: argparse.Namespace) -> None:
     reverse_transform = reverse_preset(get_rgb_stats("birder"))
     if args.mode == "training":

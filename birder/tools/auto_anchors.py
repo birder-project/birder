@@ -242,7 +242,6 @@ def _validate_args(
     return (size, num_scales, num_anchors, output_format, strides)
 
 
-# pylint: disable=too-many-locals
 def auto_anchors(args: argparse.Namespace) -> None:
     size, num_scales, num_anchors, output_format, strides = _validate_args(args)
 

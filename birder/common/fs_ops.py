@@ -593,7 +593,6 @@ class ModelInfo(NamedTuple):
     custom_config: Optional[dict[str, Any]] = None
 
 
-# pylint: disable=too-many-locals,too-many-branches
 def load_model(
     device: torch.device,
     network: str,
@@ -727,7 +726,6 @@ class DetectionModelInfo(NamedTuple):
     backbone_custom_config: Optional[dict[str, Any]] = None
 
 
-# pylint: disable=too-many-locals,too-many-arguments,too-many-statements
 def load_detection_model(
     device: torch.device,
     network: str,
@@ -1095,8 +1093,8 @@ def load_model_with_cfg(
     if not isinstance(cfg, dict):
         cfg = read_config_from_path(cfg)
 
-    if cfg["alias"] is not None:
-        name = cfg["alias"]
+    if cfg["registered_name"] is not None:
+        name = cfg["registered_name"]
     else:
         name = cfg["name"]
 
@@ -1108,8 +1106,8 @@ def load_model_with_cfg(
     size = lib.get_size_from_signature(signature)
 
     if cfg["task"] == Task.MASKED_IMAGE_MODELING:
-        if cfg["encoder_alias"] is not None:
-            encoder_name = cfg["encoder_alias"]
+        if cfg["encoder_registered_name"] is not None:
+            encoder_name = cfg["encoder_registered_name"]
         else:
             encoder_name = cfg["encoder"]
 
@@ -1118,8 +1116,8 @@ def load_model_with_cfg(
         net = registry.mim_net_factory(name, encoder, config=model_config, size=size)
 
     elif cfg["task"] == Task.OBJECT_DETECTION:
-        if cfg["backbone_alias"] is not None:
-            backbone_name = cfg["backbone_alias"]
+        if cfg["backbone_registered_name"] is not None:
+            backbone_name = cfg["backbone_registered_name"]
         else:
             backbone_name = cfg["backbone"]
 

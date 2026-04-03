@@ -172,8 +172,7 @@ class FactorizedReduction(nn.Module):
         return out
 
 
-# pylint: disable=abstract-method
-class CellBase(nn.Module):
+class CellBase(nn.Module):  # pylint: disable=abstract-method
     def cell_forward(self, x_left: torch.Tensor, x_right: torch.Tensor) -> torch.Tensor:
         x_comb_iter_0_left = self.comb_iter_0_left(x_left)
         x_comb_iter_0_right = self.comb_iter_0_right(x_left)

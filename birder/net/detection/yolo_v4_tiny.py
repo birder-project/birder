@@ -83,7 +83,6 @@ class YOLOTinyNeck(nn.Module):
         return [out_medium, out_large]
 
 
-# pylint: disable=invalid-name
 class YOLO_v4_Tiny(YOLO_v4):
     default_size = (416, 416)
 

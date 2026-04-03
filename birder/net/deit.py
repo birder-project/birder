@@ -26,7 +26,6 @@ from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
 
 
-# pylint: disable=too-many-instance-attributes
 class DeiT(DetectorBackbone):
     block_group_regex = r"encoder\.block\.(\d+)"
 

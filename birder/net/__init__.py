@@ -15,7 +15,6 @@ from birder.net.cswin_transformer import CSWin_Transformer
 from birder.net.darknet import Darknet
 from birder.net.davit import DaViT
 from birder.net.deit import DeiT
-from birder.net.deit3 import DeiT3
 from birder.net.densenet import DenseNet
 from birder.net.dpn import DPN
 from birder.net.edgenext import EdgeNeXt
@@ -82,7 +81,6 @@ from birder.net.resnest import ResNeSt
 from birder.net.resnet_v1 import ResNet_v1
 from birder.net.resnet_v2 import ResNet_v2
 from birder.net.resnext import ResNeXt
-from birder.net.rope_deit3 import RoPE_DeiT3
 from birder.net.rope_flexivit import RoPE_FlexiViT
 from birder.net.rope_vit import RoPE_ViT
 from birder.net.rope_vit5 import RoPE_ViT5
@@ -107,6 +105,7 @@ from birder.net.vgg_reduced import Vgg_Reduced
 from birder.net.vit import ViT
 from birder.net.vit_parallel import ViT_Parallel
 from birder.net.vit_sam import ViT_SAM
+from birder.net.vit_windowed import ViT_Windowed
 from birder.net.volo import VOLO
 from birder.net.vovnet_v1 import VoVNet_v1
 from birder.net.vovnet_v2 import VoVNet_v2
@@ -132,7 +131,6 @@ __all__ = [
     "Darknet",
     "DaViT",
     "DeiT",
-    "DeiT3",
     "DenseNet",
     "DPN",
     "EdgeNeXt",
@@ -199,7 +197,6 @@ __all__ = [
     "ResNet_v1",
     "ResNet_v2",
     "ResNeXt",
-    "RoPE_DeiT3",
     "RoPE_FlexiViT",
     "RoPE_ViT",
     "RoPE_ViT5",
@@ -224,6 +221,7 @@ __all__ = [
     "ViT",
     "ViT_Parallel",
     "ViT_SAM",
+    "ViT_Windowed",
     "VOLO",
     "VoVNet_v1",
     "VoVNet_v2",

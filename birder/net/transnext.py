@@ -170,7 +170,6 @@ class Attention(nn.Module):
         return x
 
 
-# pylint: disable=too-many-instance-attributes
 class AggregatedAttention(nn.Module):
     def __init__(
         self,

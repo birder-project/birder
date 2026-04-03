@@ -196,7 +196,7 @@ class CrossFormerBlock(nn.Module):
         x = x.view(B, H, W, C)
 
         # Group embeddings
-        GH, GW = self.group_size  # pylint: disable=invalid-name
+        GH, GW = self.group_size
         if self.use_lda is False:
             x = x.reshape(B, H // GH, GH, W // GW, GW, C).permute(0, 1, 3, 2, 4, 5)
         else:

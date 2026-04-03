@@ -17,7 +17,6 @@ from birder.net.mim.base import MIMBaseNet
 logging.disable(logging.CRITICAL)
 
 
-# pylint: disable=protected-access
 class TestRegistry(unittest.TestCase):
     def test_group_sort(self) -> None:
         model_list = group_sort(
@@ -69,7 +68,6 @@ class TestRegistry(unittest.TestCase):
                     self.assertGreater(int(resp.headers["Content-Length"]), 100000)
 
 
-# pylint: disable=protected-access
 class TestModelRegistry(unittest.TestCase):
     def test_model_registry(self) -> None:
         model_registry = ModelRegistry()
@@ -91,3 +89,46 @@ class TestModelRegistry(unittest.TestCase):
             model_registry.register_model("net1", BaseNet)
             self.assertEqual(len(w), 1)
             self.assertTrue(issubclass(w[0].category, UserWarning))
+
+    def test_name_alias_resolution(self) -> None:
+        model_registry = ModelRegistry()
+        model_registry.register_model_config("net_cfg", BaseNet, config={"a": 1})
+        model_registry.register_model_config("detector_cfg", DetectionBaseNet, config={"d": 1})
+
+        model_registry.register_name_alias("friendly_net", "net_cfg")
+        model_registry.register_name_alias("friendly_detector", "detector_cfg")
+
+        self.assertTrue(model_registry.exists("friendly_net"))
+        self.assertTrue(model_registry.exists("friendly_detector", task=Task.OBJECT_DETECTION))
+        self.assertFalse(model_registry.exists("friendly_net", task=Task.OBJECT_DETECTION))
+        self.assertEqual(model_registry.get_default_size("friendly_net"), BaseNet.default_size)
+
+        net = model_registry.net_factory("friendly_net", 3)
+        self.assertEqual(net.__class__.__name__, "net_cfg")
+        self.assertEqual(net.config, {"a": 1})
+        self.assertEqual(model_registry.get_registered_name(net), "net_cfg")
+
+    def test_name_alias_restrictions(self) -> None:
+        model_registry = ModelRegistry()
+        model_registry.register_model_config("net_cfg", BaseNet, config={"a": 1})
+        model_registry.register_name_alias("friendly_net", "net_cfg")
+
+        with self.assertRaises(ValueError):
+            # Duplicate
+            model_registry.register_name_alias("friendly_net", "net_cfg")
+
+        with self.assertRaises(ValueError):
+            # Collusion
+            model_registry.register_name_alias("net_cfg", "net_cfg")
+
+        with self.assertRaises(ValueError):
+            # Non existent
+            model_registry.register_name_alias("missing_target_alias", "missing_cfg")
+
+        with self.assertRaises(ValueError):
+            # Alias to alias
+            model_registry.register_name_alias("alias_to_alias", "friendly_net")
+
+        with self.assertRaises(ValueError):
+            # Already defined as alias
+            model_registry.register_model_config("friendly_net", BaseNet, config={"b": 2})

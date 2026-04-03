@@ -34,6 +34,7 @@ python -m birder.tools [TOOL_NAME] --help
 - list-models
 - model-info
 - [pack](pack.md)
+- [pack-detection](pack-detection.md)
 - quantize-model
 - [results](results.md)
 - show-det-iterator

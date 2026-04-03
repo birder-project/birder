@@ -243,7 +243,6 @@ class PyramidVisionTransformerStage(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class PVT_v2(DetectorBackbone):
     block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
 

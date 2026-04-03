@@ -614,7 +614,6 @@ class EfficientDet(DetectionBaseNet):
             "bbox_regression": self.box_net.compute_loss(targets, box_output, anchors, matched_idxs),
         }
 
-    # pylint: disable=too-many-locals
     def postprocess_detections(
         self,
         class_logits: list[torch.Tensor],
@@ -704,7 +703,6 @@ class EfficientDet(DetectionBaseNet):
 
         return (cls_logits, box_output, feature_list)
 
-    # pylint: disable=invalid-name
     def forward(
         self,
         x: torch.Tensor,
@@ -734,7 +732,7 @@ class EfficientDet(DetectionBaseNet):
             for v in num_anchors_per_level:
                 HW += v
 
-            HWA = cls_logits.size(1)
+            HWA = cls_logits.size(1)  # pylint: disable=invalid-name
             A = HWA // HW
             num_anchors_per_level = [hw * A for hw in num_anchors_per_level]
 

@@ -200,11 +200,9 @@ class MultiQueryAttentionBlock(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class MobileNet_v4_Hybrid(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
-    # pylint: disable=too-many-branches
     def __init__(
         self,
         input_channels: int,

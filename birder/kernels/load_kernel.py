@@ -150,3 +150,40 @@ def load_soft_nms() -> Optional[ModuleType]:
         logger.debug("soft_nms custom kernel NOT loaded")
 
     return soft_nms
+
+
+def load_linear_assignment() -> Optional[ModuleType]:
+    name = "linear_assignment"
+    if torch.cuda.is_available() is False or is_custom_kernels_enabled() is False:
+        return None
+
+    if name in _CACHED_KERNELS:
+        return _CACHED_KERNELS[name]
+
+    root = Path(birder.__file__).resolve().parent.joinpath("kernels/linear_assignment")
+    src_files = [
+        root.joinpath("op.cpp"),
+        root.joinpath("linear_assignment_cuda.cu"),
+    ]
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UserWarning)
+        lib_path = load(
+            "linear_assignment",
+            src_files,
+            with_cuda=True,
+            extra_cflags=["-O3"],
+            extra_cuda_cflags=["-O3"],
+            is_python_module=False,
+        )
+
+    ops_namespace = Path(lib_path).stem
+    linear_assignment: Optional[ModuleType] = getattr(torch.ops, ops_namespace, None)
+
+    if linear_assignment is not None:
+        logger.info("linear assignment custom kernel loaded")
+        _CACHED_KERNELS[name] = linear_assignment
+    else:
+        logger.debug("linear assignment custom kernel NOT loaded")
+
+    return linear_assignment

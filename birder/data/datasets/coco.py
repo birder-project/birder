@@ -87,6 +87,28 @@ def _mapped_class_to_idx(class_to_idx: dict[str, int], label_mapping: dict[str, 
     return mapped_class_to_idx
 
 
+def build_label_mapping_indices(
+    class_to_idx: dict[str, int],
+    label_mapping: dict[str, str],
+    target_class_to_idx: Optional[dict[str, int]] = None,
+) -> tuple[dict[str, int], dict[int, int]]:
+    if target_class_to_idx is None:
+        target_class_to_idx = _mapped_class_to_idx(class_to_idx, label_mapping)
+
+    source_idx_to_target_idx = {}
+    for class_name, idx in class_to_idx.items():
+        if class_name not in label_mapping:
+            raise ValueError(f"Missing label mapping for class '{class_name}'")
+
+        mapped_name = label_mapping[class_name]
+        if mapped_name not in target_class_to_idx:
+            raise ValueError(f"Missing target class '{mapped_name}' for class '{class_name}'")
+
+        source_idx_to_target_idx[idx] = target_class_to_idx[mapped_name]
+
+    return (target_class_to_idx, source_idx_to_target_idx)
+
+
 class CocoBase(torch.utils.data.Dataset):
     def __init__(
         self, root: str | Path, ann_file: str, transforms: Optional[Callable[..., torch.Tensor]] = None
@@ -119,13 +141,9 @@ class CocoBase(torch.utils.data.Dataset):
     def convert_annotations_with_label_mapping(
         self, label_mapping: dict[str, str], target_class_to_idx: Optional[dict[str, int]] = None
     ) -> dict[str, int]:
-        if target_class_to_idx is None:
-            target_class_to_idx = _mapped_class_to_idx(self.class_to_idx, label_mapping)
-
-        source_idx_to_target_idx = {
-            idx: target_class_to_idx[label_mapping[class_name]] for class_name, idx in self.class_to_idx.items()
-        }
-
+        target_class_to_idx, source_idx_to_target_idx = build_label_mapping_indices(
+            self.class_to_idx, label_mapping, target_class_to_idx=target_class_to_idx
+        )
         self.dataset = _map_annotations_to_targets(self.dataset, source_idx_to_target_idx)
         self.class_to_idx = target_class_to_idx
 
@@ -185,27 +203,33 @@ class CocoMosaicTraining(CocoBase):
         self._mosaic_decay_epochs = decay_epochs
         self._mosaic_decay_start = max(1, total_epochs - decay_epochs + 1)
 
-    def update_mosaic_prob(self, epoch: int) -> Optional[float]:
-        if self._mosaic_base_prob is None or self._mosaic_decay_epochs is None or self._mosaic_decay_start is None:
-            return None
-
-        if epoch >= self._mosaic_decay_start:
-            if self._mosaic_decay_epochs <= 1:
-                self.mosaic_prob = 0.0
-            else:
-                progress = (epoch - self._mosaic_decay_start) / (self._mosaic_decay_epochs - 1)
-                self.mosaic_prob = max(0.0, self._mosaic_base_prob * (1 - progress))
-        else:
-            self.mosaic_prob = self._mosaic_base_prob
-
-        return self.mosaic_prob
+    def update_mosaic_prob(self, epoch: int) -> None:
+        self.mosaic_prob = self.mosaic_prob_for_epoch(epoch)
 
     @property
     def mosaic_decay_start(self) -> Optional[int]:
         return self._mosaic_decay_start
 
-    def __getitem__(self, index: int) -> tuple[torch.Tensor, Any]:
-        if torch.rand(1) < self.mosaic_prob:
+    def mosaic_prob_for_epoch(self, epoch: int) -> float:
+        if self._mosaic_base_prob is None or self._mosaic_decay_epochs is None or self._mosaic_decay_start is None:
+            return self.mosaic_prob
+
+        if epoch >= self._mosaic_decay_start:
+            if self._mosaic_decay_epochs <= 1:
+                return 0.0
+
+            progress = (epoch - self._mosaic_decay_start) / (self._mosaic_decay_epochs - 1)
+            return max(0.0, self._mosaic_base_prob * (1 - progress))
+
+        return self._mosaic_base_prob
+
+    def __getitem__(self, index: int | tuple[int, bool]) -> tuple[torch.Tensor, Any]:
+        if isinstance(index, tuple):
+            index, should_mosaic = index
+        else:
+            should_mosaic = bool(torch.rand(()) < self.mosaic_prob)
+
+        if should_mosaic is True:
             indices = [index] + torch.randint(len(self), (3,)).tolist()
             images = []
             targets = []

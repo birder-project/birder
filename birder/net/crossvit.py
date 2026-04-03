@@ -221,7 +221,6 @@ def _compute_num_patches(img_size: list[tuple[int, int]], patches: list[int]) ->
 class CrossViT(BaseNet):
     default_size = (240, 240)
 
-    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,

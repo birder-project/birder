@@ -14,7 +14,6 @@ from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 
 
-# pylint: disable=invalid-name
 class Vgg_Reduced(DetectorBackbone):
     def __init__(
         self,

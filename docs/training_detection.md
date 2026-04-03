@@ -15,6 +15,7 @@ Examples use repo-root script names (e.g., `train_detection.py`). If you install
 - [LW-DETR](#lw-detr)
 - [Plain DETR](#plain-detr)
 - [RetinaNet](#retinanet)
+- [RF-DETR](#rf-detr)
 - [RT-DETR v1](#rt-detr-v1)
 - [RT-DETR v2](#rt-detr-v2)
 - [SSD](#ssd)
@@ -170,15 +171,39 @@ torchrun --nproc_per_node=2 train_detection.py --network lw_detr --tag coco --ba
 #### LW-DETR: RoPEi ViT reg1 s16 pn c1 (PE-Spatial)
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network lw_detr --tag coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-model-config '{"out_indices":[7,9,11]}' --backbone-pretrained --batch-size 16 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.0001 --backbone-lr 0.00015 --wd 0.0001 --norm-wd 0 --backbone-layer-decay 0.75 --lr-scheduler step --lr-step-size 50 --lr-step-gamma 0.1 --epochs 60 --size 640 --batch-multiscale --multiscale-min-size 384 --aug-level 4 --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+torchrun --nproc_per_node=2 train_detection.py --network lw_detr --tag coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-model-config '{"out_indices":[5,8,11]}' --backbone-pretrained --batch-size 16 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.0001 --backbone-lr 0.00015 --wd 0.0001 --norm-wd 0 --backbone-layer-decay 0.75 --lr-scheduler step --lr-step-size 50 --lr-step-gamma 0.1 --epochs 60 --size 640 --batch-multiscale --multiscale-min-size 384 --aug-level 4 --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 #### LW-DETR 2-Stage: RoPEi ViT reg1 s16 pn c1 (PE-Spatial)
 
+Intermediate training (Objects365-2020) - Dynamic, warmup
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network lw_detr_2stg --tag objects365 --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-model-config '{"out_indices":[5,8,11]}' --backbone-pretrained --freeze-backbone --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.0001 --wd 0.0001 --norm-wd 0 --lr-scheduler cosine --epochs 10 --steps-per-epoch 10000 --size 640 --batch-multiscale --multiscale-min-size 416 --multiscale-max-size 672 --aug-level 4 --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/Objects365-2020/train --val-path ~/Datasets/Objects365-2020/val --coco-json-path ~/Datasets/Objects365-2020/train/zhiyuan_objv2_train.json --coco-val-json-path ~/Datasets/Objects365-2020/val/zhiyuan_objv2_val.json --ignore-file public_datasets_metadata/objects365_ignore.txt
+```
+
+Intermediate training (Objects365-2020)
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network lw_detr_2stg --tag objects365 --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-model-config '{"out_indices":[5,8,11]}' --batch-size 16 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.0001 --backbone-lr 0.00015 --wd 0.0001 --norm-wd 0 --backbone-layer-decay 0.75 --lr-scheduler step --lr-step-size 50 --lr-step-gamma 0.1 --epochs 60 --model-ema --size 640 --batch-multiscale --multiscale-min-size 416 --multiscale-max-size 672 --aug-level 6 --rgb-mode none --mosaic-prob 0.5 --mosaic-stop-epoch 36 --amp --amp-dtype bfloat16 --compile --resume-epoch 0 --data-path ~/Datasets/Objects365-2020/train --val-path ~/Datasets/Objects365-2020/val --coco-json-path ~/Datasets/Objects365-2020/train/zhiyuan_objv2_train.json --coco-val-json-path ~/Datasets/Objects365-2020/val/zhiyuan_objv2_val.json --ignore-file public_datasets_metadata/objects365_ignore.txt
+```
+
 Intermediate training (COCO) - Dynamic, warmup
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network lw_detr_2stg --tag coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-model-config '{"out_indices":[7,9,11]}' --backbone-pretrained --freeze-backbone --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.0001 --wd 0.0001 --norm-wd 0 --lr-scheduler cosine --epochs 10 --size 640 --batch-multiscale --multiscale-min-size 384 --aug-level 4 --rgb-mode none --amp --amp-dtype bfloat16 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+torchrun --nproc_per_node=2 train_detection.py --network lw_detr_2stg --tag coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-model-config '{"out_indices":[5,8,11]}' --backbone-pretrained --freeze-backbone --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.0001 --wd 0.0001 --norm-wd 0 --lr-scheduler cosine --epochs 10 --size 640 --batch-multiscale --multiscale-min-size 384 --multiscale-max-size 672 --aug-level 4 --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+```
+
+Intermediate training (COCO)
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network lw_detr_2stg --tag coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-model-config '{"out_indices":[5,8,11]}' --batch-size 24 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.0001 --backbone-lr 0.00015 --wd 0.0001 --norm-wd 0 --backbone-layer-decay 0.75 --lr-scheduler step --lr-step-size 50 --lr-step-gamma 0.1 --epochs 60 --model-ema --size 640 --batch-multiscale --multiscale-min-size 512 --multiscale-max-size 672 --aug-level 4 --rgb-mode none --amp --amp-dtype bfloat16 --compile --resume-epoch 0 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+```
+
+Intermediate training (COCO) - Native aspect ratio
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network lw_detr_2stg --tag coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-model-config '{"out_indices":[5,8,11]}' --batch-size 2 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.0001 --wd 0.0001 --norm-wd 0 --backbone-layer-decay 0.8 --lr-scheduler step --lr-step-size 20 --lr-step-gamma 0.1 --epochs 30 --model-ema --max-size 1152 --multiscale --aug-level 4 --rgb-mode none --amp --amp-dtype bfloat16 --compile --resume-epoch 0 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 #### LW-DETR Large: HieraDet Small (SAM 2.1)
@@ -209,6 +234,22 @@ torchrun --nproc_per_node=2 train_detection.py --network retinanet --tag coco --
 
 ```sh
 torchrun --nproc_per_node=2 train_detection.py --network retinanet --backbone csp_resnet_50 --backbone-epoch 0 --freeze-backbone-stages 1 --batch-size 32 --opt adamw --lr 0.0001 --wd 0.05 --norm-wd 0 --lr-scheduler multistep --lr-steps 16 22 --lr-step-gamma 0.1 --epochs 26 --freeze-backbone-bn --amp --compile --compile-opt
+```
+
+### RF-DETR
+
+#### RF-DETR: RoPEi ViT reg1 s16 pn c1 (PE-Spatial)
+
+Intermediate training (COCO) - Dynamic, warmup
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network rf_detr --tag coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-model-config '{"out_indices":[2,5,8,11]}' --backbone-pretrained --freeze-backbone --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.0001 --wd 0.0001 --norm-wd 0 --epochs 10 --size 576 --batch-multiscale --multiscale-min-size 384 --multiscale-max-size 672 --aug-type fixed_detr --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+```
+
+Intermediate training (COCO)
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network rf_detr --tag coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-model-config '{"out_indices":[2,5,8,11]}' --batch-size 24 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.0001 --backbone-lr 0.00015 --wd 0.0001 --norm-wd 0 --backbone-layer-decay 0.8 --epochs 100 --model-ema --model-ema-decay 0.993 --size 576 --batch-multiscale --multiscale-min-size 384 --multiscale-max-size 672 --aug-type fixed_detr --rgb-mode none --amp --amp-dtype bfloat16 --compile --resume-epoch 0 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 ### RT-DETR v1
@@ -352,7 +393,7 @@ torchrun --nproc_per_node=2 train_detection.py --network yolo_v3 --tag coco --ba
 Intermediate training (COCO)
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network yolo_v4 --tag coco --backbone csp_resnet_50 --backbone-tag imagenet1k  --backbone-epoch 0 --backbone-model-config drop_block=0.1 --batch-size 32 --grad-accum-steps 2 --lr 0.001 --wd 0.0005 --lr-scheduler multistep --lr-steps 300 350 --lr-step-gamma 0.1 --epochs 400 --warmup-epochs 5 --size 608 --batch-multiscale --multiscale-min-size 384 --aug-type yolo --mosaic-prob 0.5 --mosaic-stop-epoch 360 --rgb-mode imagenet --amp --amp-dtype float16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+torchrun --nproc_per_node=2 train_detection.py --network yolo_v4 --tag coco --backbone csp_resnet_50 --backbone-tag imagenet1k --backbone-model-config drop_block=0.1 --backbone-epoch 0 --batch-size 32 --grad-accum-steps 2 --lr 0.001 --wd 0.0005 --lr-scheduler multistep --lr-steps 300 350 --lr-step-gamma 0.1 --epochs 400 --warmup-epochs 5 --size 608 --batch-multiscale --multiscale-min-size 384 --aug-type yolo --rgb-mode imagenet --mosaic-prob 0.5 --mosaic-stop-epoch 360 --amp --amp-dtype float16 --compile --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
 #### YOLO v4: CSP Darknet 53
@@ -408,13 +449,13 @@ torchrun --nproc_per_node=2 train_detection.py --network deformable_detr_boxref 
 Step 2: Reset to binary head
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network deformable_detr_boxref --tag binary --backbone convnext_v2_tiny --backbone-tag imagenet21k --reset-head --freeze-body --binary-mode --batch-size 2 --opt adamw --clip-grad-norm 0.1 --grad-accum-steps 16 --lr 0.0001 --wd 0.0001 --epochs 10 --multiscale --amp --amp-dtype bfloat16 --compile-backbone --compile-opt --resume-epoch 0
+torchrun --nproc_per_node=2 train_detection.py --network deformable_detr_boxref --tag binary --backbone convnext_v2_tiny --backbone-tag imagenet21k --reset-head --binary-mode --freeze-body --batch-size 2 --opt adamw --clip-grad-norm 0.1 --grad-accum-steps 16 --lr 0.0001 --wd 0.0001 --epochs 10 --multiscale --amp --amp-dtype bfloat16 --compile-backbone --compile-opt --resume-epoch 0
 ```
 
 Step 3: Fine-tuning
 
 ```sh
-torchrun --nproc_per_node=2 train_detection.py --network deformable_detr_boxref --tag binary --backbone convnext_v2_tiny --backbone-tag imagenet21k --freeze-backbone --binary-mode --batch-size 1 --opt adamw --clip-grad-norm 0.1 --grad-accum-steps 16 --lr 0.00005 --wd 0.0001 --lr-scheduler step --lr-step-size 10 --lr-step-gamma 0.2 --epochs 20 --multiscale --amp --amp-dtype bfloat16 --compile-backbone --compile-opt --resume-epoch 0
+torchrun --nproc_per_node=2 train_detection.py --network deformable_detr_boxref --tag binary --backbone convnext_v2_tiny --backbone-tag imagenet21k --binary-mode --freeze-backbone --batch-size 1 --opt adamw --clip-grad-norm 0.1 --grad-accum-steps 16 --lr 0.00005 --wd 0.0001 --lr-scheduler step --lr-step-size 10 --lr-step-gamma 0.2 --epochs 20 --multiscale --amp --amp-dtype bfloat16 --compile-backbone --compile-opt --resume-epoch 0
 ```
 
 ### FCOS: EfficientNet v2 Medium Backbone

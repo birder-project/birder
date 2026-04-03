@@ -27,7 +27,6 @@ from birder.net.ssl import vicreg
 logging.disable(logging.CRITICAL)
 
 
-# pylint: disable=too-many-public-methods
 class TestNetSSL(unittest.TestCase):
     def test_barlow_twins(self) -> None:
         batch_size = 4
@@ -191,7 +190,7 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(pred.size(), (masks.count_nonzero().item(), num_clusters))
         self.assertFalse(torch.isnan(pred).any())
 
-    def test_capi_queue(self) -> None:  # pylint: disable=too-many-locals
+    def test_capi_queue(self) -> None:
         batch_size = 4
         size = (192, 192)
         num_clusters = 320
@@ -477,7 +476,6 @@ class TestNetSSL(unittest.TestCase):
         self.assertFalse(torch.isnan(loss).any())
         self.assertEqual(loss.ndim, 0)
 
-    # pylint: disable=too-many-locals
     def test_dino_v2(self) -> None:
         batch_size = 4
         size = (192, 192)
@@ -873,7 +871,6 @@ class TestNetSSL(unittest.TestCase):
             )
             self.assertTrue(torch.equal(patch_output, patch_output_clone))
 
-    # pylint: disable=too-many-locals
     def test_franca(self) -> None:
         batch_size = 4
         size = (192, 192)

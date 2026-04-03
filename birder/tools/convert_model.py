@@ -286,7 +286,6 @@ def set_parser(subparsers: Any) -> None:
     subparser.set_defaults(func=main)
 
 
-# pylint: disable=too-many-branches
 def main(args: argparse.Namespace) -> None:
     args.resize = cli.parse_size(args.resize)
 
@@ -442,7 +441,7 @@ def main(args: argparse.Namespace) -> None:
             scripted_module = torch.jit.script(net)
             optimized_scripted_module = optimize_for_mobile(scripted_module)
 
-        optimized_scripted_module._save_for_lite_interpreter(  # pylint: disable=protected-access
+        optimized_scripted_module._save_for_lite_interpreter(
             str(model_path),
             _extra_files={
                 "birder_version": __version__,

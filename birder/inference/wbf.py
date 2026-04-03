@@ -47,7 +47,6 @@ class BoxCluster:
         self.boxes_count += 1
 
 
-# pylint: disable=too-many-locals,too-many-branches
 def weighted_boxes_fusion(
     boxes_list: list[torch.Tensor],
     scores_list: list[torch.Tensor],

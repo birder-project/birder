@@ -212,7 +212,6 @@ class YOLOHead(nn.Module):
         return self.conv(x)
 
 
-# pylint: disable=invalid-name
 class YOLO_v2(DetectionBaseNet):
     default_size = (416, 416)
 
@@ -302,7 +301,7 @@ class YOLO_v2(DetectionBaseNet):
 
         return iou
 
-    def _build_targets(  # pylint: disable=too-many-locals
+    def _build_targets(
         self,
         predictions: torch.Tensor,
         targets: list[dict[str, torch.Tensor]],

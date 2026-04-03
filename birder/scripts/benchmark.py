@@ -71,16 +71,24 @@ def throughput_benchmark(
     )
 
     batch_size = sample_shape[0]
+    pool_size = args.pool_size
+    input_pool: list[torch.Tensor] = []
     while batch_size > 0:
+        input_pool = [_make_sample() for _ in range(pool_size)]
         with torch.inference_mode():
             with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
                 try:
-                    output = net(_make_sample())
-                    output = net(_make_sample())
+                    for sample in input_pool:
+                        output = net(sample)
                     break
-                except Exception:  # pylint: disable=broad-exception-caught
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    input_pool = []
+                    if device.type == "cuda":
+                        torch.cuda.empty_cache()
+
                     batch_size -= 32
                     sample_shape = (batch_size, *sample_shape[1:])
+                    logger.info(f"Error in sanity check: {e}")
                     logger.info(f"Reducing batch size to {batch_size}")
 
     if batch_size <= 0:
@@ -92,12 +100,7 @@ def throughput_benchmark(
     with torch.inference_mode():
         with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
             for _ in range(args.warmup):
-                output = net(_make_sample())
-
-    # Create a pool of inputs to cycle through
-    # This prevents "hot cache" effects while avoiding allocation overhead
-    pool_size = 2
-    input_pool = [_make_sample() for _ in range(pool_size)]
+                output = net(input_pool[_ % pool_size])
 
     # Benchmark
     logger.info(f"Throughput benchmark for {model_name}: repeats={args.repeats} bench_iter={args.bench_iter}")
@@ -169,7 +172,6 @@ def memory_benchmark(
     sync_peak_memory.value = peak_memory
 
 
-# pylint: disable=too-many-branches,too-many-locals,too-many-statements
 def benchmark(args: argparse.Namespace) -> None:
     mp.set_start_method("spawn")
 
@@ -381,6 +383,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--warmup", type=int, default=20, metavar="N", help="number of warmup iterations")
     parser.add_argument("--repeats", type=int, default=3, metavar="N", help="number of repetitions")
     parser.add_argument("--bench-iter", type=int, default=300, metavar="N", help="number of benchmark iterations")
+    parser.add_argument("--pool-size", type=int, default=1, metavar="N", help="number of input tensors to rotate")
     parser.add_argument("--memory", default=False, action="store_true", help="benchmark memory instead of throughput")
     parser.add_argument("--append", default=False, action="store_true", help="append to existing output file")
     parser.add_argument("--dry-run", default=False, action="store_true", help="run without reading or writing results")

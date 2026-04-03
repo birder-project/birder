@@ -135,9 +135,7 @@ class RandomMixup(nn.Module):
         target_rolled = target.roll(1, 0)
 
         # Implemented as on mixup paper, page 3.
-        lambda_param = float(
-            torch._sample_dirichlet(torch.tensor([self.alpha, self.alpha]))[0]  # pylint: disable=protected-access
-        )
+        lambda_param = float(torch._sample_dirichlet(torch.tensor([self.alpha, self.alpha]))[0])
         batch_rolled.mul_(1.0 - lambda_param)
         batch.mul_(lambda_param).add_(batch_rolled)
 
@@ -308,7 +306,6 @@ class BirderAugment(nn.Module):
 AugType = Literal["birder", "aa", "ra", "ta_wide", "augmix", "3aug"]
 
 
-# pylint: disable=too-many-branches
 def training_preset(
     size: tuple[int, int],
     aug_type: AugType,

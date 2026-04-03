@@ -48,7 +48,6 @@ from birder.net.base import get_signature
 logger = logging.getLogger(__name__)
 
 
-# pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
     #
     # Initialize
@@ -401,9 +400,7 @@ def train(args: argparse.Namespace) -> None:
         if args.load_states is True and training_states.ema_model_state is not None:
             logger.info("Setting model EMA weights...")
             if args.compile is True and hasattr(model_ema.module, "_orig_mod") is True:
-                model_ema.module._orig_mod.load_state_dict(  # pylint: disable=protected-access
-                    training_states.ema_model_state
-                )
+                model_ema.module._orig_mod.load_state_dict(training_states.ema_model_state)
             else:
                 model_ema.module.load_state_dict(training_states.ema_model_state)
 
@@ -418,9 +415,9 @@ def train(args: argparse.Namespace) -> None:
         eval_model = net
 
     if args.compile is True and hasattr(model_to_save, "_orig_mod") is True:
-        model_to_save = model_to_save._orig_mod  # pylint: disable=protected-access
+        model_to_save = model_to_save._orig_mod
     if args.compile is True and hasattr(model_base, "_orig_mod") is True:
-        model_base = model_base._orig_mod  # type: ignore[union-attr] # pylint: disable=protected-access
+        model_base = model_base._orig_mod  # type: ignore[union-attr]
 
     #
     # Misc
@@ -429,7 +426,7 @@ def train(args: argparse.Namespace) -> None:
     # Print network summary
     net_for_info = net_without_ddp
     if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
-        net_for_info = net_without_ddp._orig_mod  # pylint: disable=protected-access
+        net_for_info = net_without_ddp._orig_mod
 
     if args.no_summary is False:
         summary = torchinfo.summary(

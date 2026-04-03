@@ -294,7 +294,6 @@ class YOLONeck(nn.Module):
         return [out1, out2, out3]
 
 
-# pylint: disable=invalid-name
 class YOLO_v3(DetectionBaseNet):
     default_size = (416, 416)
 
@@ -442,7 +441,7 @@ class YOLO_v3(DetectionBaseNet):
             dim=-1,
         )
 
-    def _build_targets(  # pylint: disable=too-many-locals
+    def _build_targets(
         self,
         predictions: list[torch.Tensor],
         targets: list[dict[str, torch.Tensor]],
@@ -587,7 +586,7 @@ class YOLO_v3(DetectionBaseNet):
 
     @torch.jit.unused  # type: ignore[untyped-decorator]
     @torch.compiler.disable()  # type: ignore[untyped-decorator]
-    def compute_loss(  # pylint: disable=too-many-locals
+    def compute_loss(
         self,
         predictions: list[torch.Tensor],
         targets: list[dict[str, torch.Tensor]],

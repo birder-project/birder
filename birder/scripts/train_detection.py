@@ -8,6 +8,7 @@ import time
 import types
 from collections.abc import Iterator
 from contextlib import nullcontext
+from pathlib import Path
 from typing import Any
 from typing import Optional
 
@@ -29,8 +30,13 @@ from birder.common import training_utils
 from birder.conf import settings
 from birder.data.collators.detection import BatchRandomResizeCollator
 from birder.data.collators.detection import DetectionCollator
+from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.coco import CocoMosaicTraining
 from birder.data.datasets.coco import CocoTraining
+from birder.data.datasets.coco import build_label_mapping_indices
+from birder.data.datasets.webdataset import make_wds_detection_dataset
+from birder.data.datasets.webdataset import prepare_wds_args
+from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.detection import InferenceTransform
 from birder.data.transforms.detection import training_preset
@@ -42,6 +48,40 @@ from birder.net.detection.base import get_detection_signature
 logger = logging.getLogger(__name__)
 
 
+class VirtualEpochMosaicSampler(torch.utils.data.Sampler[tuple[int, bool]]):
+    """
+    Wrap a sampler and attach a main-process mosaic decision to each sample
+
+    This is intended for virtual-epoch training with a long-lived DataLoader iterator.
+    Calling set_epoch() updates the mosaic probability for subsequently generated samples,
+    but with num_workers > 0 already-prefetched batches may still reflect the previous epoch.
+    """
+
+    def __init__(
+        self,
+        sampler: torch.utils.data.Sampler[int],
+        mosaic_dataset: CocoMosaicTraining,
+    ) -> None:
+        super().__init__()
+        self.sampler = sampler
+        self.mosaic_dataset = mosaic_dataset
+        self.epoch = 1
+
+    def __iter__(self) -> Iterator[tuple[int, bool]]:
+        for index in self.sampler:
+            mosaic_prob = self.mosaic_dataset.mosaic_prob_for_epoch(self.epoch)
+            should_mosaic = bool(torch.rand(()) < mosaic_prob)
+            yield (index, should_mosaic)
+
+    def __len__(self) -> int:
+        return len(self.sampler)
+
+    def set_epoch(self, epoch: int) -> None:
+        self.epoch = epoch
+        if hasattr(self.sampler, "set_epoch") is True:
+            self.sampler.set_epoch(epoch)
+
+
 def _rebind_forward_functions(model: torch.nn.Module) -> None:
     # EMA deep-copies models that monkey-patch instance forwards (e.g. torch.compiler.disable),
     # leaving the wrapper bound to the original instance. Rebind to keep eval_model correct.
@@ -50,7 +90,37 @@ def _rebind_forward_functions(model: torch.nn.Module) -> None:
             module.forward = types.MethodType(type(module).forward, module)
 
 
-# pylint: disable=too-many-locals,too-many-branches,too-many-statements
+def _make_validation_subset(
+    dataset: torch.utils.data.Dataset, subset_size: int, seed: Optional[int]
+) -> torch.utils.data.Dataset:
+    dataset_len = len(dataset)
+    if subset_size >= dataset_len:
+        return dataset
+
+    generator = torch.Generator()
+    generator.manual_seed(0 if seed is None else seed)
+    indices = torch.randperm(dataset_len, generator=generator)[:subset_size].tolist()
+    indices.sort()
+
+    return torch.utils.data.Subset(dataset, indices)
+
+
+def _resolve_wds_labels(
+    class_file: str, binary_mode: bool, binary_class_name: str, label_mapping: Optional[dict[str, str]]
+) -> tuple[dict[str, int], Optional[dict[int, int]]]:
+    source_class_to_idx = lib.detection_class_to_idx(fs_ops.read_class_file(class_file))
+    if binary_mode is True:
+        label_remap = {idx: 1 for idx in source_class_to_idx.values()}
+        return ({binary_class_name: 1}, label_remap)
+
+    if label_mapping is None:
+        return (source_class_to_idx, None)
+
+    class_to_idx, label_remap = build_label_mapping_indices(source_class_to_idx, label_mapping)
+
+    return (class_to_idx, label_remap)
+
+
 def train(args: argparse.Namespace) -> None:
     #
     # Initialize
@@ -81,6 +151,10 @@ def train(args: argparse.Namespace) -> None:
     #
     rgb_stats = get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std)
     logger.debug(f"Using RGB stats: {rgb_stats}")
+    label_mapping: Optional[dict[str, str]] = None
+    if args.label_mapping is not None:
+        with open(args.label_mapping, "r", encoding="utf-8") as handle:
+            label_mapping = json.load(handle)
 
     transforms = training_preset(
         args.size,
@@ -91,66 +165,102 @@ def train(args: argparse.Namespace) -> None:
         args.multiscale,
         args.max_size,
         args.multiscale_min_size,
+        args.multiscale_max_size,
         args.multiscale_step,
     )
     mosaic_dataset = None
-    if args.mosaic_prob > 0.0:
-        mosaic_transforms = training_preset(
-            args.size,
-            args.aug_type,
-            args.aug_level,
-            rgb_stats,
-            args.dynamic_size,
-            args.multiscale,
-            args.max_size,
-            args.multiscale_min_size,
-            args.multiscale_step,
-            post_mosaic=True,
-        )
-        if args.dynamic_size is True or args.multiscale is True:
-            # Dynamic/Multiscale: args.size is the short-side target
-            if args.max_size is not None:
-                mosaic_dim = args.max_size
-            else:
-                mosaic_dim = min(args.size) * 2
-
+    if args.wds is True:
+        training_wds_path: str | list[str]
+        val_wds_path: str | list[str]
+        if args.wds_info is not None:
+            training_wds_path, training_size = wds_args_from_info(args.wds_info, args.wds_training_split)
+            val_wds_path, val_size = wds_args_from_info(args.wds_info, args.wds_val_split)
+            if args.wds_train_size is not None:
+                training_size = args.wds_train_size
+            if args.wds_val_size is not None:
+                val_size = args.wds_val_size
         else:
-            # Fixed size
-            mosaic_dim = max(args.size) * 2
-
-        training_dataset = CocoMosaicTraining(
-            args.data_path,
-            args.coco_json_path,
-            transforms=transforms,
-            mosaic_transforms=mosaic_transforms,
-            output_size=(mosaic_dim, mosaic_dim),
-            fill_value=114,
-            mosaic_prob=args.mosaic_prob,
-            mosaic_type=args.mosaic_type,
-        )
-        mosaic_dataset = training_dataset
-        if args.mosaic_stop_epoch is not None:
-            training_dataset.configure_mosaic_linear_decay(args.mosaic_prob, args.mosaic_stop_epoch, decay_fraction=0.1)
-            logger.info(
-                "Mosaic schedule: "
-                f"base_prob={args.mosaic_prob}, "
-                f"stop_epoch={args.mosaic_stop_epoch}, "
-                f"decay_start={training_dataset.mosaic_decay_start}, "
-                "decay_fraction=0.1"
+            training_wds_path, training_size = prepare_wds_args(
+                args.data_path, args.wds_train_size, device, select_suffix="json"
             )
+            val_wds_path, val_size = prepare_wds_args(args.val_path, args.wds_val_size, device, select_suffix="json")
+
+        class_to_idx, label_remap = _resolve_wds_labels(
+            args.wds_class_file, args.binary_mode, args.binary_class_name, label_mapping
+        )
+        training_dataset = make_wds_detection_dataset(
+            training_wds_path,
+            dataset_size=training_size,
+            shuffle=True,
+            transform=transforms,
+            label_remap=label_remap,
+            cache_dir=args.wds_cache_dir,
+        )
+        validation_dataset = make_wds_detection_dataset(
+            val_wds_path,
+            dataset_size=val_size,
+            shuffle=False,
+            transform=InferenceTransform(args.size, rgb_stats, transform_dynamic_size, args.max_size),
+            label_remap=label_remap,
+            cache_dir=args.wds_cache_dir,
+        )
+
     else:
-        training_dataset = CocoTraining(args.data_path, args.coco_json_path, transforms=transforms)
+        if args.mosaic_prob > 0.0:
+            mosaic_transforms = training_preset(
+                args.size,
+                args.aug_type,
+                args.aug_level,
+                rgb_stats,
+                args.dynamic_size,
+                args.multiscale,
+                args.max_size,
+                args.multiscale_min_size,
+                args.multiscale_max_size,
+                args.multiscale_step,
+                post_mosaic=True,
+            )
+            if args.dynamic_size is True or args.multiscale is True:
+                # Dynamic/Multiscale: args.size is the short-side target
+                if args.max_size is not None:
+                    mosaic_dim = args.max_size
+                else:
+                    mosaic_dim = min(args.size) * 2
 
-    validation_dataset = CocoTraining(
-        args.val_path,
-        args.coco_val_json_path,
-        transforms=InferenceTransform(args.size, rgb_stats, transform_dynamic_size, args.max_size),
-    )
+            else:
+                # Fixed size
+                mosaic_dim = max(args.size) * 2
 
-    label_mapping: Optional[dict[str, str]] = None
-    if args.label_mapping is not None:
-        with open(args.label_mapping, "r", encoding="utf-8") as handle:
-            label_mapping = json.load(handle)
+            training_dataset = CocoMosaicTraining(
+                args.data_path,
+                args.coco_json_path,
+                transforms=transforms,
+                mosaic_transforms=mosaic_transforms,
+                output_size=(mosaic_dim, mosaic_dim),
+                fill_value=114,
+                mosaic_prob=args.mosaic_prob,
+                mosaic_type=args.mosaic_type,
+            )
+            mosaic_dataset = training_dataset
+            if args.mosaic_stop_epoch is not None:
+                training_dataset.configure_mosaic_linear_decay(
+                    args.mosaic_prob, args.mosaic_stop_epoch, decay_fraction=0.1
+                )
+                logger.info(
+                    "Mosaic schedule: "
+                    f"base_prob={args.mosaic_prob}, "
+                    f"stop_epoch={args.mosaic_stop_epoch}, "
+                    f"decay_start={training_dataset.mosaic_decay_start}, "
+                    "decay_fraction=0.1"
+                )
+        else:
+            training_dataset = CocoTraining(args.data_path, args.coco_json_path, transforms=transforms)
+
+        validation_dataset = CocoTraining(
+            args.val_path,
+            args.coco_val_json_path,
+            transforms=InferenceTransform(args.size, rgb_stats, transform_dynamic_size, args.max_size),
+        )
 
     if args.ignore_file is not None:
         with open(args.ignore_file, "r", encoding="utf-8") as handle:
@@ -158,28 +268,38 @@ def train(args: argparse.Namespace) -> None:
     else:
         ignore_list = []
 
-    if args.binary_mode is True:
-        training_dataset.convert_to_binary_annotations(args.binary_class_name)
-        validation_dataset.convert_to_binary_annotations(args.binary_class_name)
-        class_to_idx = training_dataset.class_to_idx
-    elif label_mapping is not None:
-        original_num_labels = len(training_dataset.class_to_idx)
-        class_to_idx = training_dataset.convert_annotations_with_label_mapping(label_mapping)
-        validation_dataset.convert_annotations_with_label_mapping(label_mapping, target_class_to_idx=class_to_idx)
-        logger.info(f"Applied label mapping: {original_num_labels} -> {len(class_to_idx)} labels")
-    else:
-        if args.class_file is not None:
-            class_to_idx = fs_ops.read_class_file(args.class_file)
+    if args.wds is False:
+        if args.binary_mode is True:
+            training_dataset.convert_to_binary_annotations(args.binary_class_name)
+            validation_dataset.convert_to_binary_annotations(args.binary_class_name)
+            class_to_idx = training_dataset.class_to_idx
+        elif label_mapping is not None:
+            original_num_labels = len(training_dataset.class_to_idx)
+            class_to_idx = training_dataset.convert_annotations_with_label_mapping(label_mapping)
+            validation_dataset.convert_annotations_with_label_mapping(label_mapping, target_class_to_idx=class_to_idx)
+            logger.info(f"Applied label mapping: {original_num_labels} -> {len(class_to_idx)} labels")
         else:
-            class_to_idx = lib.class_to_idx_from_coco(training_dataset.dataset.coco.cats)
+            if args.class_file is not None:
+                class_to_idx = fs_ops.read_class_file(args.class_file)
+            else:
+                class_to_idx = lib.class_to_idx_from_coco(training_dataset.dataset.coco.cats)
 
-        class_to_idx = lib.detection_class_to_idx(class_to_idx)
+            class_to_idx = lib.detection_class_to_idx(class_to_idx)
 
-    training_dataset.remove_images_without_annotations(ignore_list)
+        training_dataset.remove_images_without_annotations(ignore_list)
+        if args.val_subset_size is not None:
+            validation_dataset = _make_validation_subset(validation_dataset, args.val_subset_size, args.seed)
 
+    full_validation_dataset_len = len(validation_dataset)
     logger.info(f"Using device {device}:{device_id}")
     logger.info(f"Training dataset has {len(training_dataset):,} samples")
-    logger.info(f"Validation dataset has {len(validation_dataset):,} samples")
+    if len(validation_dataset) == full_validation_dataset_len:
+        logger.info(f"Validation dataset has {len(validation_dataset):,} samples")
+    else:
+        logger.info(
+            f"Validation dataset has {len(validation_dataset):,} samples "
+            f"(subset of {full_validation_dataset_len:,})"
+        )
 
     num_outputs = len(class_to_idx)  # Does not include background class
     batch_size: int = args.batch_size
@@ -199,6 +319,7 @@ def train(args: argparse.Namespace) -> None:
             args.size,
             size_divisible=args.multiscale_step,
             multiscale_min_size=args.multiscale_min_size,
+            multiscale_max_size=args.multiscale_max_size,
             multiscale_step=args.multiscale_step,
         )
     else:
@@ -206,26 +327,54 @@ def train(args: argparse.Namespace) -> None:
 
     validation_collate_fn = DetectionCollator(0, size_divisible=args.multiscale_step)
 
-    training_loader = DataLoader(
-        training_dataset,
-        batch_size=batch_size,
-        sampler=train_sampler,
-        num_workers=args.num_workers,
-        prefetch_factor=args.prefetch_factor,
-        collate_fn=train_collate_fn,
-        pin_memory=True,
-        drop_last=args.drop_last,
-    )
-    validation_loader = DataLoader(
-        validation_dataset,
-        batch_size=batch_size,
-        sampler=validation_sampler,
-        num_workers=args.num_workers,
-        prefetch_factor=args.prefetch_factor,
-        collate_fn=validation_collate_fn,
-        pin_memory=True,
-        drop_last=args.drop_last,
-    )
+    if args.wds is True:
+        training_loader = make_wds_loader(
+            training_dataset,
+            batch_size,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
+            collate_fn=train_collate_fn,
+            world_size=args.world_size,
+            pin_memory=True,
+            drop_last=args.drop_last,
+            shuffle=args.wds_extra_shuffle,
+            infinite=virtual_epoch_mode,
+        )
+        validation_loader = make_wds_loader(
+            validation_dataset,
+            batch_size,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
+            collate_fn=validation_collate_fn,
+            world_size=args.world_size,
+            pin_memory=True,
+            drop_last=args.drop_last,
+        )
+    else:
+        if virtual_epoch_mode is True and mosaic_dataset is not None:
+            train_sampler = VirtualEpochMosaicSampler(train_sampler, mosaic_dataset)
+
+        training_loader = DataLoader(
+            training_dataset,
+            batch_size=batch_size,
+            sampler=train_sampler,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
+            collate_fn=train_collate_fn,
+            pin_memory=True,
+            drop_last=args.drop_last,
+        )
+
+        validation_loader = DataLoader(
+            validation_dataset,
+            batch_size=batch_size,
+            sampler=validation_sampler,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
+            collate_fn=validation_collate_fn,
+            pin_memory=True,
+            drop_last=args.drop_last,
+        )
 
     if virtual_epoch_mode is True:
         optimizer_steps_per_epoch = args.steps_per_epoch
@@ -481,16 +630,14 @@ def train(args: argparse.Namespace) -> None:
         if args.load_states is True and training_states.ema_model_state is not None:
             logger.info("Setting model EMA weights...")
             if args.compile is True and hasattr(model_ema.module, "_orig_mod") is True:
-                model_ema.module._orig_mod.load_state_dict(  # pylint: disable=protected-access
-                    training_states.ema_model_state
-                )
+                model_ema.module._orig_mod.load_state_dict(training_states.ema_model_state)
             else:
                 model_ema.module.load_state_dict(training_states.ema_model_state)
 
             model_ema.n_averaged += 1  # pylint:disable=no-member
 
         if args.compile is True and hasattr(model_ema.module, "_orig_mod") is True:
-            _rebind_forward_functions(model_ema.module._orig_mod)  # pylint: disable=protected-access
+            _rebind_forward_functions(model_ema.module._orig_mod)
         else:
             _rebind_forward_functions(model_ema.module)
 
@@ -503,9 +650,9 @@ def train(args: argparse.Namespace) -> None:
         eval_model = net
 
     if args.compile is True and hasattr(model_to_save, "_orig_mod") is True:
-        model_to_save = model_to_save._orig_mod  # pylint: disable=protected-access
+        model_to_save = model_to_save._orig_mod
     if args.compile is True and hasattr(model_base, "_orig_mod") is True:
-        model_base = model_base._orig_mod  # type: ignore[union-attr] # pylint: disable=protected-access
+        model_base = model_base._orig_mod  # type: ignore[union-attr]
 
     #
     # Misc
@@ -518,7 +665,7 @@ def train(args: argparse.Namespace) -> None:
     # Print network summary
     net_for_info = net_without_ddp
     if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
-        net_for_info = net_without_ddp._orig_mod  # pylint: disable=protected-access
+        net_for_info = net_without_ddp._orig_mod
 
     if args.no_summary is False:
         summary = torchinfo.summary(
@@ -579,7 +726,7 @@ def train(args: argparse.Namespace) -> None:
 
         if args.distributed is True or virtual_epoch_mode is True:
             train_sampler.set_epoch(epoch)
-        if mosaic_dataset is not None:
+        if mosaic_dataset is not None and not isinstance(train_sampler, VirtualEpochMosaicSampler):
             mosaic_dataset.update_mosaic_prob(epoch)
 
         progress = tqdm(
@@ -613,7 +760,8 @@ def train(args: argparse.Namespace) -> None:
                 {k: v.to(device, non_blocking=True) if isinstance(v, torch.Tensor) else v for k, v in t.items()}
                 for t in targets
             ]
-            masks = masks.to(device, non_blocking=True)
+            if masks is not None:
+                masks = masks.to(device, non_blocking=True)
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
             sync_context = no_sync_cm if optimizer_update is False else nullcontext
@@ -748,7 +896,8 @@ def train(args: argparse.Namespace) -> None:
                     {k: v.to(device, non_blocking=True) if isinstance(v, torch.Tensor) else v for k, v in t.items()}
                     for t in targets
                 ]
-                masks = masks.to(device, non_blocking=True)
+                if masks is not None:
+                    masks = masks.to(device, non_blocking=True)
 
                 with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
                     detections, losses = eval_model(inputs, masks=masks, image_sizes=image_sizes)
@@ -929,6 +1078,19 @@ def get_args_parser() -> argparse.ArgumentParser:
             "    --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json \\\n"
             "    --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json \\\n"
             "    --class-file public_datasets_metadata/coco-classes.txt\n"
+            "\n"
+            "A WebDataset detection training example:\n"
+            "torchrun --nproc_per_node=2 -m birder.scripts.train_detection \\\n"
+            "    --network faster_rcnn \\\n"
+            "    --backbone efficientnet_v2_s \\\n"
+            "    --backbone-epoch 0 \\\n"
+            "    --batch-size 8 \\\n"
+            "    --epochs 26 \\\n"
+            "    --wds \\\n"
+            "    --wds-info data/coco_detection_wds/_info.json \\\n"
+            "    --wds-class-file data/coco_detection_wds/classes.txt \\\n"
+            "    --wds-training-split training \\\n"
+            "    --wds-val-split validation\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -1046,6 +1208,17 @@ def validate_args(args: argparse.Namespace) -> None:
             raise cli.ValidationError(
                 f"--mosaic-stop-epoch must be <= --epochs ({args.epochs}), got {args.mosaic_stop_epoch}"
             )
+    if args.wds is True:
+        if args.mosaic_prob > 0.0:
+            raise cli.ValidationError("--mosaic-prob is not supported with --wds")
+        if args.mosaic_stop_epoch is not None:
+            raise cli.ValidationError("--mosaic-stop-epoch is not supported with --wds")
+        if args.class_file is not None:
+            raise cli.ValidationError("--class-file cannot be used with --wds, use --wds-class-file")
+        if args.ignore_file is not None:
+            raise cli.ValidationError("--ignore-file is not supported with --wds")
+        if args.val_subset_size is not None:
+            raise cli.ValidationError("--val-subset-size is not supported with --wds")
     if args.backbone_pretrained is True and args.backbone_epoch is not None:
         raise cli.ValidationError("--backbone-pretrained cannot be used with --backbone-epoch")
     if args.label_mapping is not None and args.binary_mode is True:
@@ -1075,9 +1248,13 @@ def main() -> None:
     args = parser.parse_args()
     validate_args(args)
 
+    if args.wds_cache_dir is not None and Path(args.wds_cache_dir).exists() is False:
+        logger.info(f"Creating {args.wds_cache_dir} directory...")
+        Path(args.wds_cache_dir).mkdir(parents=True, exist_ok=True)
+
     if settings.MODELS_DIR.exists() is False:
         logger.info(f"Creating {settings.MODELS_DIR} directory...")
-        settings.MODELS_DIR.mkdir(parents=True)
+        settings.MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
     train(args)
 

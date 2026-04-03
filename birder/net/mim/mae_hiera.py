@@ -39,7 +39,6 @@ def apply_fusion_head(head: nn.Module, x: torch.Tensor) -> torch.Tensor:
     return x
 
 
-# pylint: disable=invalid-name
 class MAE_Hiera(MIMBaseNet):
     default_size = (224, 224)
     default_mask_ratio = 0.6

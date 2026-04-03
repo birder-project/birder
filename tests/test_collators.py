@@ -23,11 +23,26 @@ class TestTransforms(unittest.TestCase):
         self.assertEqual(images[0][0][10][0].item(), 0)
         self.assertEqual(images[0][0][9][9].item(), 1)
 
+        assert masks is not None
         self.assertTrue(torch.all(masks[0, :10, :10] == False))  # pylint: disable=singleton-comparison # noqa: E712
         self.assertTrue(torch.all(masks[0, 11:, 11:] == True))  # pylint: disable=singleton-comparison # noqa: E712
         self.assertTrue(torch.all(masks[1] == False))  # pylint: disable=singleton-comparison # noqa: E712
 
         self.assertEqual(size_list[0], (10, 10))
+        self.assertEqual(size_list[1], (12, 12))
+
+    def test_detection_no_padding_omits_masks(self) -> None:
+        images, masks, size_list = detection.batch_images(
+            [
+                torch.ones((3, 12, 12)),
+                torch.ones((3, 12, 12)),
+            ],
+            size_divisible=4,
+        )
+
+        self.assertSequenceEqual(images.size(), (2, 3, 12, 12))
+        self.assertIsNone(masks)
+        self.assertEqual(size_list[0], (12, 12))
         self.assertEqual(size_list[1], (12, 12))
 
     def test_batch_random_resize_collator_scales_boxes(self) -> None:

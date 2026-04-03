@@ -151,7 +151,6 @@ class GhostBottleneck(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class GhostNet_v1(DetectorBackbone):
     def __init__(
         self,

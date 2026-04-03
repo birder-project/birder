@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 from typing import Literal
 from typing import Optional
+from typing import TypeAlias
 
 from birder.conf.settings import DEFAULT_NUM_CHANNELS
 from birder.model_registry import manifest
@@ -17,8 +18,8 @@ if TYPE_CHECKING is True:
     from birder.net.mim.base import MIMBaseNet  # pylint: disable=cyclic-import
     from birder.net.ssl.base import SSLBaseNet  # pylint: disable=cyclic-import
 
-    BaseNetObjType = BaseNet | DetectionBaseNet | MIMBaseNet | SSLBaseNet
-    BaseNetType = type[BaseNet] | type[DetectionBaseNet] | type[MIMBaseNet] | type[SSLBaseNet]
+    BaseNetObjType: TypeAlias = BaseNet | DetectionBaseNet | MIMBaseNet | SSLBaseNet
+    BaseNetType: TypeAlias = type[BaseNet] | type[DetectionBaseNet] | type[MIMBaseNet] | type[SSLBaseNet]
 
 
 def group_sort(model_list: list[str]) -> list[str]:
@@ -37,7 +38,8 @@ class Task(StrEnum):
 
 class ModelRegistry:
     def __init__(self) -> None:
-        self.aliases: dict[str, "BaseNetType"] = {}
+        self.registered_configs: dict[str, "BaseNetType"] = {}
+        self.name_aliases: dict[str, str] = {}
         self._nets: dict[str, type["BaseNet"]] = {}
         self._detection_nets: dict[str, type["DetectionBaseNet"]] = {}
         self._mim_nets: dict[str, type["MIMBaseNet"]] = {}
@@ -48,7 +50,13 @@ class ModelRegistry:
     def all_nets(self) -> dict[str, "BaseNetType"]:
         return {**self._nets, **self._detection_nets, **self._mim_nets, **self._ssl_nets}
 
+    def _assert_name_not_alias(self, name: str) -> None:
+        if name in self.name_aliases:
+            raise ValueError(f"Registered model name '{name}' is reserved by a name alias")
+
     def register_model(self, name: str, net_type: "BaseNetType") -> None:
+        self._assert_name_not_alias(name)
+
         if net_type.task == Task.IMAGE_CLASSIFICATION:
             if name in self._nets:
                 warnings.warn(f"Network '{name}' is already registered and will be overwritten", UserWarning)
@@ -78,25 +86,45 @@ class ModelRegistry:
 
     def register_model_config(
         self,
-        alias: str,
+        name: str,
         net_type: "BaseNetType",
         *,
         config: Optional[dict[str, Any]] = None,
     ) -> None:
         """
-        When auto_register is active, just by defining the `type(alias, (net_type,), ...) the network is registered
+        When auto_register is active, just by defining the `type(name, (net_type,), ...) the network is registered
         no further registration is needed.
         """
 
-        alias_key = alias.lower()
+        name_key = name.lower()
+        self._assert_name_not_alias(name_key)
+        registered_net_type = type(name, (net_type,), {"config": config})
         if net_type.auto_register is False:
             # Register the model manually, as the base class doesn't take care of that for us
-            self.register_model(alias_key, type(alias, (net_type,), {"config": config}))
+            self.register_model(name_key, registered_net_type)
 
-        if alias in self.aliases:
-            warnings.warn(f"Alias '{alias}' is already registered and will be overwritten", UserWarning)
+        if name_key in self.registered_configs:
+            warnings.warn(f"Registered config '{name}' is already registered and will be overwritten", UserWarning)
 
-        self.aliases[alias_key] = type(alias, (net_type,), {"config": config})
+        self.registered_configs[name_key] = registered_net_type
+
+    def register_name_alias(self, alias_name: str, registered_name: str) -> None:
+        alias_key = alias_name.lower()
+        registered_name_key = registered_name.lower()
+
+        if alias_key in self.all_nets:
+            raise ValueError(f"Alias '{alias_name}' collides with an existing registered model name")
+
+        if alias_key in self.name_aliases:
+            raise ValueError(f"Alias '{alias_name}' is already registered")
+
+        if registered_name_key in self.name_aliases:
+            raise ValueError(f"Alias names must target a canonical registered name, got alias '{registered_name}'")
+
+        if registered_name_key not in self.all_nets:
+            raise ValueError(f"Registered name '{registered_name}' not found")
+
+        self.name_aliases[alias_key] = registered_name_key
 
     def register_weights(self, name: str, weights_info: manifest.ModelMetadataType) -> None:
         if name in self._pretrained_nets:
@@ -108,15 +136,23 @@ class ModelRegistry:
         manifest.REGISTRY_MANIFEST[name] = weights_info
         self._pretrained_nets[name] = weights_info
 
+    def _resolve_name(self, name: str) -> str:
+        name_key = name.lower()
+        if name_key in self.name_aliases:
+            return self.name_aliases[name_key]
+
+        return name_key
+
     def _get_model_by_name(self, name: str) -> "BaseNetType":
-        if name in self._nets:
-            net = self._nets[name]
-        elif name in self._detection_nets:
-            net = self._detection_nets[name]
-        elif name in self._mim_nets:
-            net = self._mim_nets[name]
-        elif name in self._ssl_nets:
-            net = self._ssl_nets[name]
+        resolved_name = self._resolve_name(name)
+        if resolved_name in self._nets:
+            net = self._nets[resolved_name]
+        elif resolved_name in self._detection_nets:
+            net = self._detection_nets[resolved_name]
+        elif resolved_name in self._mim_nets:
+            net = self._mim_nets[resolved_name]
+        elif resolved_name in self._ssl_nets:
+            net = self._ssl_nets[resolved_name]
         else:
             raise ValueError(f"Network with name: {name} not found")
 
@@ -173,7 +209,7 @@ class ModelRegistry:
         if net_type is not None:
             nets = {name: t for name, t in nets.items() if issubclass(t, net_type) is True}
 
-        return name in nets
+        return self._resolve_name(name) in nets
 
     def _metadata_type_name(self, model: "BaseNetObjType") -> str:
         cls = model.__class__
@@ -185,14 +221,14 @@ class ModelRegistry:
 
     def get_model_base_name(self, model: "BaseNetObjType") -> str:
         type_name = self._metadata_type_name(model)
-        if type_name in self.aliases:
-            type_name = self.aliases[type_name].__bases__[0].__name__.lower()
+        if type_name in self.registered_configs:
+            type_name = self.registered_configs[type_name].__bases__[0].__name__.lower()
 
         return type_name
 
-    def get_model_alias(self, model: "BaseNetObjType") -> Optional[str]:
+    def get_registered_name(self, model: "BaseNetObjType") -> Optional[str]:
         type_name = self._metadata_type_name(model)
-        if type_name in self.aliases:
+        if type_name in self.registered_configs:
             return type_name
 
         return None
@@ -244,7 +280,7 @@ class ModelRegistry:
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> "BaseNet":
-        return self._nets[name](input_channels, num_classes, config=config, size=size)
+        return self._nets[self._resolve_name(name)](input_channels, num_classes, config=config, size=size)
 
     def detection_net_factory(
         self,
@@ -256,7 +292,9 @@ class ModelRegistry:
         size: Optional[tuple[int, int]] = None,
         export_mode: bool = False,
     ) -> "DetectionBaseNet":
-        return self._detection_nets[name](num_classes, backbone, config=config, size=size, export_mode=export_mode)
+        return self._detection_nets[self._resolve_name(name)](
+            num_classes, backbone, config=config, size=size, export_mode=export_mode
+        )
 
     def mim_net_factory(
         self,
@@ -268,7 +306,7 @@ class ModelRegistry:
         mask_ratio: Optional[float] = None,
         min_mask_size: int = 1,
     ) -> "MIMBaseNet":
-        return self._mim_nets[name](
+        return self._mim_nets[self._resolve_name(name)](
             encoder, config=config, size=size, mask_ratio=mask_ratio, min_mask_size=min_mask_size
         )
 

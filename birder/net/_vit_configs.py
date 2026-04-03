@@ -196,6 +196,18 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         vit,
         config={"patch_size": 14, **GIANT},
     )
+    registry.register_model_config(  # From "Scaling Language-Free Visual Representation Learning"
+        "vit_1b_p16",  # AKA vit_giant2 from DINOv2
+        vit,
+        config={
+            "patch_size": 16,
+            "num_layers": 40,
+            "num_heads": 24,
+            "hidden_dim": 1536,
+            "mlp_dim": 6144,
+            "drop_path_rate": 0.1,
+        },
+    )
     registry.register_model_config(  # From "Scaling Vision Transformers"
         "vit_gigantic14",
         vit,
@@ -210,18 +222,6 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
             "num_heads": 16,
             "hidden_dim": 1792,
             "mlp_dim": 15360,
-            "drop_path_rate": 0.1,
-        },
-    )
-    registry.register_model_config(  # From "Scaling Language-Free Visual Representation Learning"
-        "vit_1b_p16",  # AKA vit_giant2 from DINOv2
-        vit,
-        config={
-            "patch_size": 16,
-            "num_layers": 40,
-            "num_heads": 24,
-            "hidden_dim": 1536,
-            "mlp_dim": 6144,
             "drop_path_rate": 0.1,
         },
     )
@@ -513,4 +513,274 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         "vit_reg4_gigantic14",
         vit,
         config={"patch_size": 14, **GIGANTIC, "num_reg_tokens": 4},
+    )
+
+    # DeiT III
+    ####################
+
+    registry.register_model_config(
+        "deit3_t16",
+        vit,
+        config={"pos_embed_special_tokens": False, "patch_size": 16, **TINY, "layer_scale_init_value": 1e-5},
+    )
+    registry.register_model_config(
+        "deit3_t14",
+        vit,
+        config={"pos_embed_special_tokens": False, "patch_size": 14, **TINY, "layer_scale_init_value": 1e-5},
+    )
+    registry.register_model_config(
+        "deit3_s16",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **SMALL,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.05,
+        },
+    )
+    registry.register_model_config(
+        "deit3_s14",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **SMALL,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.05,
+        },
+    )
+    registry.register_model_config(
+        "deit3_m16",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **MEDIUM,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.1,
+        },
+    )
+    registry.register_model_config(
+        "deit3_m14",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **MEDIUM,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.1,
+        },
+    )
+    registry.register_model_config(
+        "deit3_b16",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **BASE,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.2,
+        },
+    )
+    registry.register_model_config(
+        "deit3_b14",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **BASE,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.2,
+        },
+    )
+    registry.register_model_config(
+        "deit3_l16",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **LARGE,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.45,
+        },
+    )
+    registry.register_model_config(
+        "deit3_l14",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **LARGE,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.45,
+        },
+    )
+    registry.register_model_config(
+        "deit3_h16",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **HUGE,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.55,
+        },
+    )
+    registry.register_model_config(
+        "deit3_h14",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **HUGE,
+            "layer_scale_init_value": 1e-5,
+            "drop_path_rate": 0.55,
+        },
+    )
+
+    # With registers
+    ####################
+
+    registry.register_model_config(
+        "deit3_reg4_t16",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **TINY,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+        },
+    )
+    registry.register_model_config(
+        "deit3_reg4_t14",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **TINY,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+        },
+    )
+    registry.register_model_config(
+        "deit3_reg4_s16",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **SMALL,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.05,
+        },
+    )
+    registry.register_model_config(
+        "deit3_reg4_s14",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **SMALL,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.05,
+        },
+    )
+    registry.register_model_config(
+        "deit3_reg4_m16",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **MEDIUM,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.1,
+        },
+    )
+    registry.register_model_config(
+        "deit3_reg4_m14",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **MEDIUM,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.1,
+        },
+    )
+    registry.register_model_config(
+        "deit3_reg4_b16",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **BASE,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.2,
+        },
+    )
+    registry.register_model_config(
+        "deit3_reg4_b14",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **BASE,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.2,
+        },
+    )
+    registry.register_model_config(
+        "deit3_reg4_l16",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **LARGE,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.45,
+        },
+    )
+    registry.register_model_config(
+        "deit3_reg4_l14",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **LARGE,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.45,
+        },
+    )
+    registry.register_model_config(
+        "deit3_reg4_h16",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 16,
+            **HUGE,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.55,
+        },
+    )
+    registry.register_model_config(
+        "deit3_reg4_h14",
+        vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **HUGE,
+            "layer_scale_init_value": 1e-5,
+            "num_reg_tokens": 4,
+            "drop_path_rate": 0.55,
+        },
     )

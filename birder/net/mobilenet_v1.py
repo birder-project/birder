@@ -47,7 +47,6 @@ class DepthwiseSeparableNormConv2d(nn.Module):
         return self.dpw_bn_conv(x)
 
 
-# pylint: disable=invalid-name
 class MobileNet_v1(DetectorBackbone):
     def __init__(
         self,

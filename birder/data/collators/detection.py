@@ -17,7 +17,7 @@ def collate_fn(batch: list[tuple[Any, ...]]) -> tuple[Any, ...]:
 
 def batch_images(
     images: list[torch.Tensor], size_divisible: int
-) -> tuple[torch.Tensor, torch.Tensor, list[tuple[int, int]]]:
+) -> tuple[torch.Tensor, Optional[torch.Tensor], list[tuple[int, int]]]:
     """
     Batch list of image tensors of different sizes into a single batch.
     Pad with zeros all images to the shape of the largest image in the list.
@@ -36,12 +36,15 @@ def batch_images(
     max_size[2] = int(math.ceil(float(max_size[2]) / stride) * stride)
 
     batch_shape = [len(images)] + max_size
-    (B, _, H, W) = batch_shape
+    B, _, H, W = batch_shape
     batched_imgs = images[0].new_full(batch_shape, 0)
     masks = images[0].new_full((B, H, W), 1).to(torch.bool)
     for img, pad_img, mask in zip(images, batched_imgs, masks):
         pad_img[: img.shape[0], : img.shape[1], : img.shape[2]].copy_(img)
         mask[: img.shape[1], : img.shape[2]] = False
+
+    if bool(masks.any()) is False:
+        masks = None
 
     return (batched_imgs, masks, image_sizes)
 
@@ -60,7 +63,7 @@ class DetectionCollator:
         images: list[torch.Tensor] = data[self.offset]
         assert images[0].ndim == 3
 
-        (batched_imgs, masks, size_list) = batch_images(images, self.size_divisible)
+        batched_imgs, masks, size_list = batch_images(images, self.size_divisible)
 
         return data[: self.offset] + (batched_imgs,) + data[self.offset + 1 :] + (masks, size_list)
 
@@ -72,25 +75,27 @@ class BatchRandomResizeCollator(DetectionCollator):
         size: tuple[int, int],
         size_divisible: int = 32,
         multiscale_min_size: Optional[int] = None,
+        multiscale_max_size: Optional[int] = None,
         multiscale_step: Optional[int] = None,
     ) -> None:
         super().__init__(input_offset, size_divisible=size_divisible)
         if size is None:
             raise ValueError("size must be provided for batch multiscale")
 
-        max_side = max(size)
+        if multiscale_max_size is None:
+            multiscale_max_size = max(size)
+
         if multiscale_step is None:
             multiscale_step = size_divisible
 
-        sizes = []
-        for side in build_multiscale_sizes(multiscale_min_size, multiscale_step=multiscale_step):
-            if side <= max_side:
-                sizes.append(side)
+        sizes = build_multiscale_sizes(
+            multiscale_min_size, max_size=multiscale_max_size, multiscale_step=multiscale_step
+        )
 
         if len(sizes) == 0:
-            sizes = [max_side]
+            sizes = (multiscale_max_size,)
 
-        self.sizes = [int(side) for side in sizes]
+        self.sizes = [int(s) for s in sizes]
 
     def __call__(self, batch: list[tuple[Any, ...]]) -> tuple[Any, ...]:
         data = list(collate_fn(batch))
@@ -114,14 +119,14 @@ class BatchRandomResizeCollator(DetectionCollator):
                     )
                     target = {**target, "boxes": boxes}
 
-            (image, target) = resize(image, target)
+            image, target = resize(image, target)
             resized_images.append(image)
             resized_targets.append(target)
 
         data[self.offset] = resized_images
         data[self.offset + 1] = resized_targets
 
-        (batched_imgs, masks, size_list) = batch_images(resized_images, self.size_divisible)
+        batched_imgs, masks, size_list = batch_images(resized_images, self.size_divisible)
 
         return tuple(data[: self.offset]) + (batched_imgs,) + tuple(data[self.offset + 1 :]) + (masks, size_list)
 

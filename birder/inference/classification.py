@@ -99,7 +99,6 @@ DataloaderInferenceResult = tuple[
 ]
 
 
-# pylint: disable=too-many-locals
 def infer_dataloader_iter(
     device: torch.device,
     net: torch.nn.Module | torch.ScriptModule,

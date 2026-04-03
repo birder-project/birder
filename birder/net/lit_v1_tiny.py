@@ -153,7 +153,6 @@ class LITStage(nn.Module):
         return (x, H, W)
 
 
-# pylint: disable=invalid-name
 class LIT_v1_Tiny(DetectorBackbone):
     block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
 

@@ -27,7 +27,6 @@ from birder.inference import classification
 logger = logging.getLogger(__name__)
 
 
-# pylint: disable=too-many-locals
 def similarity(args: argparse.Namespace) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device {device}")

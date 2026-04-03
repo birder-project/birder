@@ -259,11 +259,9 @@ class LITStage(nn.Module):
         return (x, H, W)
 
 
-# pylint: disable=invalid-name
 class LIT_v2(DetectorBackbone):
     block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
 
-    # pylint:disable=too-many-locals
     def __init__(
         self,
         input_channels: int,

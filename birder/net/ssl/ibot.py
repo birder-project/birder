@@ -23,7 +23,6 @@ from birder.net.ssl.base import SSLBaseNet
 from birder.net.ssl.dino_v1 import DINOHead
 
 
-# pylint: disable=invalid-name
 class iBOTLoss(nn.Module):
     def __init__(
         self,
@@ -83,7 +82,6 @@ class iBOTLoss(nn.Module):
                 dim=0,
             )
 
-    # pylint: disable=too-many-locals
     def forward(
         self,
         student_embedding: torch.Tensor,
@@ -159,7 +157,6 @@ class iBOTLoss(nn.Module):
         self.center2 = self.center2 * self.center_momentum2 + features_center * (1 - self.center_momentum2)
 
 
-# pylint: disable=invalid-name
 class iBOTHead(DINOHead):
     def __init__(
         self,
@@ -222,7 +219,6 @@ class iBOTHead(DINOHead):
         return (x1, x2)
 
 
-# pylint: disable=invalid-name
 class iBOT(SSLBaseNet):
     def __init__(
         self,

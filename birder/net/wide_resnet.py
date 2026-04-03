@@ -80,7 +80,6 @@ class ResidualBlock(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class Wide_ResNet(DetectorBackbone):
     def __init__(
         self,

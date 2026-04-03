@@ -95,14 +95,14 @@ def normalize_out_indices(out_indices: Optional[list[int]], num_layers: int) -> 
 
 #     def __init_subclass__(cls) -> None:
 #         if cls.auto_register is False:
-#             # Exclude networks with custom config (initialized only with aliases)
+#             # Exclude networks with custom config (initialized only with registered configs)
 #             return
 
 #         registry.register_model(cls.__name__.lower(), cls)
 
 #     def __init__(self, *, config: Optional[dict[str, Any]] = None) -> None:
 #         super().__init__()
-#         if hasattr(self, "config") is False:  # Avoid overriding aliases
+#         if hasattr(self, "config") is False:  # Avoid overriding registered configs
 #             self.config = config
 #         elif config is not None:
 #             assert self.config is not None
@@ -127,7 +127,7 @@ class BaseNet(nn.Module):
             return
 
         if cls.auto_register is False:
-            # Exclude networks with custom config (initialized only with aliases)
+            # Exclude networks with custom config (initialized only with registered configs)
             return
 
         registry.register_model(cls.__name__.lower(), cls)
@@ -143,7 +143,7 @@ class BaseNet(nn.Module):
         super().__init__()
         self.input_channels = input_channels
         self.num_classes = num_classes
-        if hasattr(self, "config") is False:  # Avoid overriding aliases
+        if hasattr(self, "config") is False:  # Avoid overriding registered configs
             self.config = config
         elif config is not None:
             assert self.config is not None

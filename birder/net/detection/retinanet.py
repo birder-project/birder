@@ -361,7 +361,6 @@ class RetinaNet(DetectionBaseNet):
 
         return self.head.compute_loss(targets, head_outputs, anchors, matched_idxs)
 
-    # pylint: disable=too-many-locals
     def postprocess_detections(
         self, head_outputs: dict[str, list[torch.Tensor]], anchors: list[list[torch.Tensor]], image_sizes: torch.Tensor
     ) -> list[dict[str, torch.Tensor]]:
@@ -448,7 +447,6 @@ class RetinaNet(DetectionBaseNet):
 
         return (feature_list, head_outputs)
 
-    # pylint: disable=invalid-name
     def forward(
         self,
         x: torch.Tensor,
@@ -475,7 +473,7 @@ class RetinaNet(DetectionBaseNet):
             for v in num_anchors_per_level:
                 HW += v
 
-            HWA = head_outputs["cls_logits"].size(1)
+            HWA = head_outputs["cls_logits"].size(1)  # pylint: disable=invalid-name
             A = HWA // HW
             num_anchors_per_level = [hw * A for hw in num_anchors_per_level]
 

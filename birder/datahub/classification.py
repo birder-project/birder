@@ -132,7 +132,6 @@ class Flowers102(ImageFolder):
         return (path, sample, target)
 
 
-# pylint: disable=invalid-name
 class CUB_200_2011(ImageFolder):
     """
     Name: CUB_200_2011

@@ -6,6 +6,7 @@ from typing import get_args
 
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 import torchvision.transforms.v2.functional as F
 from torch.utils.data import DataLoader
 from torchvision import tv_tensors
@@ -17,11 +18,15 @@ from birder.common import lib
 from birder.conf import settings
 from birder.data.collators.detection import BatchRandomResizeCollator
 from birder.data.collators.detection import collate_fn
+from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.coco import CocoInference
 from birder.data.datasets.coco import CocoMosaicTraining
 from birder.data.datasets.coco import CocoTraining
 from birder.data.datasets.coco import MosaicType
 from birder.data.datasets.directory import tv_loader
+from birder.data.datasets.webdataset import make_wds_detection_dataset
+from birder.data.datasets.webdataset import prepare_wds_args
+from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.classification import reverse_preset
 from birder.data.transforms.detection import MULTISCALE_STEP
@@ -30,7 +35,6 @@ from birder.data.transforms.detection import InferenceTransform
 from birder.data.transforms.detection import training_preset
 
 
-# pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def show_det_iterator(args: argparse.Namespace) -> None:
     reverse_transform = reverse_preset(get_rgb_stats("birder"))
     root_path = Path(args.data_path)
@@ -45,56 +49,86 @@ def show_det_iterator(args: argparse.Namespace) -> None:
             args.multiscale,
             args.max_size,
             args.multiscale_min_size,
+            args.multiscale_max_size,
             args.multiscale_step,
         )
-        mosaic_transforms = training_preset(
-            args.size,
-            args.aug_type,
-            args.aug_level,
-            get_rgb_stats("birder"),
-            args.dynamic_size,
-            args.multiscale,
-            args.max_size,
-            args.multiscale_min_size,
-            args.multiscale_step,
-            post_mosaic=True,
-        )
-        if args.mosaic_prob > 0.0:
-            if args.dynamic_size is True or args.multiscale is True:
-                # Dynamic/Multiscale: args.size is the short-side target
-                if args.max_size is not None:
-                    mosaic_dim = args.max_size
-                else:
-                    mosaic_dim = min(args.size) * 2
-
-            else:
-                # Fixed size
-                mosaic_dim = max(args.size) * 2
-
-            dataset = CocoMosaicTraining(
-                args.data_path,
-                args.coco_json_path,
-                transforms=transform,
-                mosaic_transforms=mosaic_transforms,
-                output_size=(mosaic_dim, mosaic_dim),
-                fill_value=114,
-                mosaic_prob=args.mosaic_prob,
-                mosaic_type=args.mosaic_type,
-            )
-        else:
-            dataset = CocoTraining(args.data_path, args.coco_json_path, transforms=transform)
     elif args.mode == "inference":
         offset = 1
         transform = InferenceTransform(args.size, get_rgb_stats("birder"), args.dynamic_size, args.max_size)
-        dataset = CocoInference(args.data_path, args.coco_json_path, transforms=transform)
     else:
         raise ValueError(f"Unknown mode={args.mode}")
 
-    if args.class_file is not None:
-        class_to_idx = fs_ops.read_class_file(args.class_file)
+    if args.wds is True:
+        offset = 0
+        wds_path: str | list[str]
+        if args.wds_info is not None:
+            wds_path, dataset_size = wds_args_from_info(args.wds_info, args.wds_split)
+            if args.wds_size is not None:
+                dataset_size = args.wds_size
+        else:
+            wds_path, dataset_size = prepare_wds_args(
+                args.data_path, args.wds_size, torch.device("cpu"), select_suffix="json"
+            )
+
+        dataset = make_wds_detection_dataset(
+            wds_path,
+            dataset_size=dataset_size,
+            shuffle=True,
+            transform=transform,
+        )
+        if args.wds_class_file is None:
+            args.wds_class_file = Path(args.data_path).joinpath(settings.CLASS_LIST_NAME)
+
+        class_to_idx = fs_ops.read_class_file(args.wds_class_file)
         class_to_idx = lib.detection_class_to_idx(class_to_idx)
+
     else:
-        class_to_idx = lib.class_to_idx_from_coco(dataset.dataset.coco.cats)
+        if args.mode == "training":
+            mosaic_transforms = training_preset(
+                args.size,
+                args.aug_type,
+                args.aug_level,
+                get_rgb_stats("birder"),
+                args.dynamic_size,
+                args.multiscale,
+                args.max_size,
+                args.multiscale_min_size,
+                args.multiscale_max_size,
+                args.multiscale_step,
+                post_mosaic=True,
+            )
+            if args.mosaic_prob > 0.0:
+                if args.dynamic_size is True or args.multiscale is True:
+                    # Dynamic/Multiscale: args.size is the short-side target
+                    if args.max_size is not None:
+                        mosaic_dim = args.max_size
+                    else:
+                        mosaic_dim = min(args.size) * 2
+
+                else:
+                    # Fixed size
+                    mosaic_dim = max(args.size) * 2
+
+                dataset = CocoMosaicTraining(
+                    args.data_path,
+                    args.coco_json_path,
+                    transforms=transform,
+                    mosaic_transforms=mosaic_transforms,
+                    output_size=(mosaic_dim, mosaic_dim),
+                    fill_value=114,
+                    mosaic_prob=args.mosaic_prob,
+                    mosaic_type=args.mosaic_type,
+                )
+            else:
+                dataset = CocoTraining(args.data_path, args.coco_json_path, transforms=transform)
+        else:
+            dataset = CocoInference(args.data_path, args.coco_json_path, transforms=transform)
+
+        if args.class_file is not None:
+            class_to_idx = fs_ops.read_class_file(args.class_file)
+            class_to_idx = lib.detection_class_to_idx(class_to_idx)
+        else:
+            class_to_idx = lib.class_to_idx_from_coco(dataset.dataset.coco.cats)
 
     class_list = list(class_to_idx.keys())
     class_list.insert(0, "Background")
@@ -170,17 +204,30 @@ def show_det_iterator(args: argparse.Namespace) -> None:
                 args.size,
                 size_divisible=args.multiscale_step,
                 multiscale_min_size=args.multiscale_min_size,
+                multiscale_max_size=args.multiscale_max_size,
                 multiscale_step=args.multiscale_step,
             )
         else:
             data_collate_fn = collate_fn
 
-        data_loader = DataLoader(
-            dataset,
-            batch_size=batch_size,
-            shuffle=True,
-            collate_fn=data_collate_fn,
-        )
+        if args.wds is True:
+            data_loader = make_wds_loader(
+                dataset,
+                batch_size,
+                num_workers=1,
+                prefetch_factor=1,
+                collate_fn=data_collate_fn,
+                world_size=1,
+                pin_memory=False,
+                shuffle=args.wds_extra_shuffle,
+            )
+        else:
+            data_loader = DataLoader(
+                dataset,
+                batch_size=batch_size,
+                shuffle=True,
+                collate_fn=data_collate_fn,
+            )
 
         cols = 2
         rows = 1
@@ -238,6 +285,9 @@ def set_parser(subparsers: Any) -> None:
             "python tool.py show-det-iterator --mode training --aug-level 4 --multiscale "
             "--coco-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json "
             "--data-path ~/Datasets/cocodataset/val2017 --class-file public_datasets_metadata/coco-classes.txt\n"
+            "python tool.py show-det-iterator --mode inference --size 640 --aug-level 5 --batch "
+            "--wds --wds-info ~/Datasets/cocodataset/val2017_packed/_info.json "
+            "--wds-split validation --wds-class-file ~/Datasets/cocodataset/val2017_packed/classes.txt\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -288,6 +338,14 @@ def set_parser(subparsers: Any) -> None:
         help="minimum short-edge size for multiscale lists (rounded up to nearest multiple of --multiscale-step)",
     )
     subparser.add_argument(
+        "--multiscale-max-size",
+        type=int,
+        help=(
+            "maximum short-edge size for multiscale lists, rounded down to nearest multiple of "
+            "--multiscale-step (defaults to the preset or max(--size) for --batch-multiscale)"
+        ),
+    )
+    subparser.add_argument(
         "--aug-type",
         type=str,
         choices=list(get_args(AugType)),
@@ -318,12 +376,31 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--mosaic-type", type=str, choices=get_args(MosaicType), default="fixed_grid", help="mosaic augmentation type"
     )
+    subparser.add_argument("--wds", default=False, action="store_true", help="use webdataset")
+    subparser.add_argument(
+        "--wds-info", type=str, action="append", metavar="FILE", help="one or more wds info file paths"
+    )
+    subparser.add_argument("--wds-class-file", type=str, metavar="FILE", help="class list file")
+    subparser.add_argument("--wds-size", type=int, metavar="N", help="size of the wds directory")
+    subparser.add_argument(
+        "--wds-split", type=str, default="training", metavar="NAME", help="wds dataset split to load"
+    )
+    subparser.add_argument(
+        "--wds-extra-shuffle",
+        default=False,
+        action="store_true",
+        help="enable cross-worker batch shuffling after batching",
+    )
     subparser.set_defaults(func=main)
 
 
 def main(args: argparse.Namespace) -> None:
     args.size = cli.parse_size(args.size)
 
+    if args.wds is True and args.batch is False:
+        raise cli.ValidationError("--wds requires --batch to be set")
+    if args.wds is True and args.mosaic_prob > 0.0:
+        raise cli.ValidationError("--wds does not support mosaic augmentation")
     if args.multiscale is True and args.aug_type != "birder":
         raise cli.ValidationError(f"--multiscale only supported with --aug-type birder, got {args.aug_type}")
     if args.batch_multiscale is True:

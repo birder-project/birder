@@ -170,6 +170,7 @@ NET_TEST_CASES = [
     ("vit_parallel_s16_18x2_ls"),
     ("vit_det_s16"),
     ("vit_sam_b16"),
+    ("vit_windowed_reg4_s14_nps_ls_avg", False, False, 1, 14),
     ("volo_d1"),
     ("vovnet_v1_27s"),
     ("vovnet_v2_19"),
@@ -216,6 +217,7 @@ DYNAMIC_SIZE_CASES = [
     ("vit_parallel_s16_18x2_ls"),
     ("vit_det_s16"),
     ("vit_sam_b16"),
+    ("vit_windowed_reg4_s14_nps_ls_avg"),
     ("volo_d1"),
 ]
 
@@ -541,6 +543,7 @@ class TestNet(unittest.TestCase):
             ("vit_parallel_s16_18x2_ls"),
             ("vit_det_b16"),
             ("vit_sam_b16"),
+            ("vit_windowed_reg4_s14_nps_ls_avg"),
             ("vovnet_v1_27s"),
             ("vovnet_v2_19"),
             ("wide_resnet_50"),
@@ -957,6 +960,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("vit_parallel_s16_18x2_ls"),
             ("vit_det_b16"),
             ("vit_sam_b16"),
+            ("vit_windowed_reg4_s14_nps_ls_avg", 1, 14, 14),
             ("volo_d1"),
             ("vovnet_v1_27s"),
             ("vovnet_v2_19"),
@@ -1181,6 +1185,13 @@ class TestSpecialFunctions(unittest.TestCase):
         # ViT with register tokens
         vit_reg4_b16 = registry.net_factory("vit_reg4_b16", 100, size=(192, 192))
         vit_sam_b16.load_vit_weights(vit_reg4_b16.state_dict())
+
+    def test_vit_windowed_state_dict_compatibility(self) -> None:
+        vit_s16 = registry.net_factory("vit_s16", 100, size=(192, 192))
+        vit_windowed_s16 = registry.net_factory("vit_windowed_s16", 100, size=(192, 192))
+
+        # Supported plain ViT variants should stay exactly load-compatible.
+        vit_windowed_s16.load_state_dict(vit_s16.state_dict())
 
     def test_hieradet_weight_import(self) -> None:
         hiera_abswin_tiny = registry.net_factory("hiera_abswin_tiny", 100, size=(192, 192))

@@ -135,7 +135,6 @@ def _swattention_av_backward_fake(  # pylint: disable=unused-argument
     return (d_attn_weight, d_value)
 
 
-# pylint: disable=invalid-name
 class SWAttention_QK_RPB(nn.Module):
     """
     TransNeXt: Robust Foveal Visual Perception for Vision Transformers: https://arxiv.org/abs/2311.17132
@@ -202,7 +201,6 @@ class SWAttention_QK_RPB(nn.Module):
         return (attn_local, v_local)
 
 
-# pylint: disable=invalid-name
 class SWAttention_AV(nn.Module):
     """
     TransNeXt: Robust Foveal Visual Perception for Vision Transformers: https://arxiv.org/abs/2311.17132

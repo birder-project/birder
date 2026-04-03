@@ -1,5 +1,3 @@
-# pylint: disable=protected-access
-
 import argparse
 import itertools
 import logging
@@ -147,7 +145,6 @@ class TestFSOps(unittest.TestCase):
         self.assertEqual(path, settings.MODELS_DIR.joinpath("net_17.pt"))
 
 
-# pylint: disable=too-many-public-methods
 class TestTrainingUtils(unittest.TestCase):
     def test_misc(self) -> None:
         self.assertFalse(training_utils.is_dist_available_and_initialized())
@@ -450,7 +447,6 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertEqual(samples[1024], 0)
         self.assertEqual(samples[1025], 0)
 
-    # pylint: disable=too-many-branches,too-many-statements
     def test_optimizer_parameter_groups(self) -> None:
         model = torch.nn.Sequential(
             torch.nn.Linear(1, 2),
@@ -737,7 +733,6 @@ class TestTrainingUtils(unittest.TestCase):
             elif param_name is not None and param_name in ("0.weight", "0.bias"):
                 self.assertEqual(pg["weight_decay"], 0.1)
 
-    # pylint: disable=too-many-branches
     def test_lr_scale_with_optimizer_and_scheduler(self) -> None:
         model = torch.nn.Sequential(
             torch.nn.Linear(10, 20),
@@ -850,7 +845,7 @@ class TestTrainingUtils(unittest.TestCase):
             scheduler.step()
 
             # Verify relative ratios between groups are maintained
-            for i in range(len(optimizer.param_groups)):  # pylint: disable=consider-using-enumerate
+            for i in range(len(optimizer.param_groups)):
                 for j in range(i + 1, len(optimizer.param_groups)):
                     if initial_lrs[j] > 0:  # Avoid division by zero
                         expected_ratio = initial_lrs[i] / initial_lrs[j]
@@ -1118,8 +1113,9 @@ class TestTrainingUtils(unittest.TestCase):
         y_pred = torch.tensor([0, 2, 2, 1])
         self.assertAlmostEqual(training_utils.accuracy(y_true, y_pred).item(), 2 / 4, places=6)
 
-    # pylint: disable=unbalanced-tuple-unpacking
     def test_topk_accuracy(self) -> None:
+        # pylint: disable=unbalanced-tuple-unpacking
+
         y_true = torch.tensor([0, 1, 2, 0])
         y_pred = torch.tensor(
             [

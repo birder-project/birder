@@ -204,7 +204,6 @@ def set_parser(subparsers: Any) -> None:
     subparser.set_defaults(func=main)
 
 
-# pylint: disable=too-many-branches
 def main(args: argparse.Namespace) -> None:
     results_dict: dict[str, Results] = {}
     for results_file in args.result_files:

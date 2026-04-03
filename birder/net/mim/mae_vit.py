@@ -23,7 +23,6 @@ from birder.net.base import pos_embedding_sin_cos_2d
 from birder.net.mim.base import MIMBaseNet
 
 
-# pylint: disable=invalid-name
 class MAE_ViT(MIMBaseNet):
     default_size = (224, 224)
     default_mask_ratio: float = 0.75

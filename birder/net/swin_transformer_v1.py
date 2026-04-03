@@ -60,7 +60,6 @@ def get_relative_position_bias(
 torch.fx.wrap("get_relative_position_bias")
 
 
-# pylint: disable=too-many-locals
 def shifted_window_attention(
     x: torch.Tensor,
     qkv_weight: torch.Tensor,
@@ -279,7 +278,6 @@ class SwinTransformerBlock(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class Swin_Transformer_v1(DetectorBackbone):
     block_group_regex = r"body\.stage(\d+)\.(\d+)"
 

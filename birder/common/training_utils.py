@@ -399,7 +399,6 @@ def count_layers(model: torch.nn.Module) -> int:
     return num_layers
 
 
-# pylint: disable=protected-access,too-many-locals,too-many-branches,too-many-statements
 def optimizer_parameter_groups(
     model: torch.nn.Module,
     weight_decay: float,

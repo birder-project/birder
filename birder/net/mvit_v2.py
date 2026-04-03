@@ -426,11 +426,9 @@ class MultiScaleVitStage(nn.Module):
         return (x, hw_shape)
 
 
-# pylint: disable=invalid-name
 class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
 
-    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,

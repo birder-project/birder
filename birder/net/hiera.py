@@ -302,12 +302,10 @@ class HieraBlock(nn.Module):
         return x
 
 
-# pylint: disable=too-many-instance-attributes
 class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
     scriptable = False
     block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
-    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def __init__(
         self,
         input_channels: int,
@@ -516,7 +514,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         return_all_features: bool = False,
         return_keys: Literal["all", "tokens", "embedding"] = "tokens",
     ) -> TokenOmissionResultType:
-        torch._assert(return_all_features is False, "not supported")  # pylint: disable=protected-access
+        torch._assert(return_all_features is False, "not supported")
         if ids_keep is not None:
             num_windows = math.prod(self.mask_spatial_shape)
 

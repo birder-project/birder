@@ -140,7 +140,6 @@ def set_parser(subparsers: Any) -> None:
     subparser.set_defaults(func=main)
 
 
-# pylint: disable=too-many-locals
 def main(args: argparse.Namespace) -> None:
     if args.pte is True and args.qbackend != "xnnpack":
         raise cli.ValidationError("--pte requires --qbackend xnnpack")

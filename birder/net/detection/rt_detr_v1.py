@@ -38,7 +38,7 @@ def _get_clones(module: nn.Module, N: int) -> nn.ModuleList:
 
 
 @torch.jit.unused  # type: ignore[untyped-decorator]
-def get_contrastive_denoising_training_group(  # pylint: disable=too-many-locals
+def get_contrastive_denoising_training_group(
     targets: list[dict[str, torch.Tensor]],
     num_classes: int,
     num_queries: int,
@@ -462,7 +462,6 @@ class HybridEncoder(nn.Module):
         self.encoder.clear_cache()
 
 
-# pylint: disable=invalid-name
 class RT_DETRDecoder(nn.Module):
     """
     RT-DETR Decoder with uncertainty-minimal query selection.
@@ -609,7 +608,7 @@ class RT_DETRDecoder(nn.Module):
 
         return (target, reference_points_unact.detach(), enc_topk_bboxes, enc_topk_logits)
 
-    def forward(  # pylint: disable=too-many-locals
+    def forward(
         self,
         feats: list[torch.Tensor],
         spatial_shapes: list[list[int]],
@@ -696,7 +695,6 @@ class RT_DETRDecoder(nn.Module):
         return (out_bboxes, out_logits, enc_topk_bboxes, enc_topk_logits)
 
 
-# pylint: disable=invalid-name
 class RT_DETR_v1(DetectionBaseNet):
     default_size = (640, 640)
 
@@ -940,7 +938,7 @@ class RT_DETR_v1(DetectionBaseNet):
 
         return (loss_ce_dn, loss_bbox_dn, loss_giou_dn)
 
-    def _compute_loss_from_outputs(  # pylint: disable=too-many-locals
+    def _compute_loss_from_outputs(
         self,
         targets: list[dict[str, torch.Tensor]],
         out_bboxes: torch.Tensor,

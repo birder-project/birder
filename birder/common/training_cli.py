@@ -207,7 +207,7 @@ def add_detection_input_args(parser: argparse.ArgumentParser) -> None:
         "--batch-multiscale",
         default=False,
         action="store_true",
-        help="enable random square resize once per batch (capped by max(--size))",
+        help="enable random square resize once per batch (capped by --multiscale-max-size or max(--size))",
     )
     group.add_argument(
         "--multiscale-step",
@@ -219,6 +219,14 @@ def add_detection_input_args(parser: argparse.ArgumentParser) -> None:
         "--multiscale-min-size",
         type=int,
         help="minimum short-edge size for multiscale lists (rounded up to nearest multiple of --multiscale-step)",
+    )
+    group.add_argument(
+        "--multiscale-max-size",
+        type=int,
+        help=(
+            "maximum short-edge size for multiscale lists, rounded down to nearest multiple of "
+            "--multiscale-step (defaults to the preset or max(--size) for --batch-multiscale)"
+        ),
     )
 
 
@@ -756,7 +764,30 @@ def add_training_data_args(parser: argparse.ArgumentParser, unsupervised: bool =
 
 
 def add_detection_training_data_args(parser: argparse.ArgumentParser) -> None:
-    group = parser.add_argument_group("Training data parameters")
+    group = parser.add_argument_group("Training data parameters", description="WebDataset")
+    group.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
+    group.add_argument("--wds-info", type=str, action="append", metavar="FILE", help="one or more wds info file paths")
+    group.add_argument("--wds-cache-dir", type=str, metavar="DIR", help="webdataset cache directory")
+    group.add_argument("--wds-class-file", type=str, metavar="FILE", help="class list file")
+    group.add_argument("--wds-train-size", type=int, metavar="N", help="size of the wds training set")
+    group.add_argument("--wds-val-size", type=int, metavar="N", help="size of the wds validation set")
+    group.add_argument(
+        "--wds-training-split", type=str, default="training", metavar="NAME", help="wds dataset train split"
+    )
+    group.add_argument(
+        "--wds-val-split", type=str, default="validation", metavar="NAME", help="wds dataset validation split"
+    )
+    group.add_argument(
+        "--wds-extra-shuffle",
+        default=False,
+        action="store_true",
+        help=(
+            "enable cross-worker batch shuffling after batching. Provides maximum sample diversity but incurs a "
+            "notable performance penalty. Use with caution"
+        ),
+    )
+
+    group = parser.add_argument_group(description="COCO")
     group.add_argument(
         "--data-path",
         type=str,
@@ -795,9 +826,13 @@ def add_detection_training_data_args(parser: argparse.ArgumentParser) -> None:
         metavar="FILE",
         help="JSON mapping of source labels to target labels for grouped detection training",
     )
+    group.add_argument(
+        "--val-subset-size",
+        type=int,
+        help="run validation on a deterministic random subset of this many samples",
+    )
 
 
-# pylint: disable=too-many-branches
 def common_args_validation(args: argparse.Namespace) -> None:
     # Some scripts like train_kd do not have a network argument,
     # but if it exists, it's mandatory all around
@@ -860,7 +895,7 @@ def common_args_validation(args: argparse.Namespace) -> None:
         if args.resize_min_scale is not None and (args.resize_min_scale <= 0.0 or args.resize_min_scale >= 1.0):
             raise ValidationError(f"--resize-min-scale must be in range of (0, 1.0), got {args.resize_min_scale}")
 
-    # Training data args have a standard and a detection version. The detection version does not have WDS
+    # Training data args have a standard and a detection version
     if hasattr(args, "wds") is True:
         # Supervised WDS
         if hasattr(args, "wds_class_file") is True and args.wds is True and args.wds_class_file is None:
@@ -883,6 +918,9 @@ def common_args_validation(args: argparse.Namespace) -> None:
                 raise ValidationError("Must provide at least one data source, --data-path or --wds")
             if args.wds is True and len(args.data_path) > 1:
                 raise ValidationError(f"--wds can have at most 1 --data-path, got {len(args.data_path)}")
+
+    if hasattr(args, "val_subset_size") is True and args.val_subset_size is not None and args.val_subset_size <= 0:
+        raise ValidationError("--val-subset-size must be positive")
 
     # BatchNorm args, shared by some scripts
     if hasattr(args, "freeze_bn") is True and hasattr(args, "sync_bn"):

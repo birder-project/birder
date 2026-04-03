@@ -57,7 +57,6 @@ class ConvNeXtBlock(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class ConvNeXt_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"body\.stage(\d+)\.(\d+)"
 

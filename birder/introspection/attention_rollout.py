@@ -24,7 +24,6 @@ from birder.introspection.base import show_mask_on_image
 from birder.net.vit import Encoder
 
 
-# pylint: disable=too-many-locals
 def compute_rollout(
     attentions: list[torch.Tensor],
     discard_ratio: float,

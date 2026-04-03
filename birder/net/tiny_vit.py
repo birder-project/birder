@@ -268,10 +268,10 @@ class TinyVitBlock(nn.Module):
                 x = F.pad(x, (0, 0, 0, pad_r, 0, pad_b))
 
             # Window partition
-            pH = H + pad_b  # pylint: disable=invalid-name
-            pW = W + pad_r  # pylint: disable=invalid-name
-            nH = pH // self.window_size[0]  # pylint: disable=invalid-name
-            nW = pW // self.window_size[1]  # pylint: disable=invalid-name
+            pH = H + pad_b
+            pW = W + pad_r
+            nH = pH // self.window_size[0]
+            nW = pW // self.window_size[1]
             x = (
                 x.view(B, nH, self.window_size[0], nW, self.window_size[1], C)
                 .transpose(2, 3)
@@ -343,7 +343,6 @@ class TinyVitStage(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class Tiny_ViT(DetectorBackbone):
     block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
 

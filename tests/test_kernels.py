@@ -20,6 +20,7 @@ class TestKernels(unittest.TestCase):
             self.assertIsNone(load_kernel.load_soft_nms())
             self.assertIsNone(load_kernel.load_msda())
             self.assertIsNone(load_kernel.load_swattention())
+            self.assertIsNone(load_kernel.load_linear_assignment())
             load_mock.assert_not_called()
 
     @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
@@ -166,3 +167,44 @@ class TestKernels(unittest.TestCase):
         updated_scores, keep = soft_nms.soft_nms(boxes, scores, sigma, score_threshold)  # type: ignore
         self.assertEqual(len(keep), 3)
         self.assertTrue(torch.isfinite(updated_scores).all().item())
+
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+    def test_linear_assignment(self) -> None:
+        device = torch.device("cuda")
+        linear_assignment = load_kernel.load_linear_assignment()
+        self.assertIsNotNone(linear_assignment)
+
+        wide_cost = torch.tensor(
+            [
+                [
+                    [1.0, 9.0, 9.0, 9.0],
+                    [9.0, 2.0, 9.0, 9.0],
+                    [9.0, 9.0, 3.0, 4.0],
+                ],
+            ],
+            device=device,
+        )
+        wide_col4row, wide_row4col = linear_assignment.batch_linear_assignment(wide_cost)  # type: ignore
+
+        self.assertEqual(wide_col4row.shape, (1, 3))
+        self.assertEqual(wide_row4col.shape, (1, 4))
+        self.assertTrue(torch.equal(wide_col4row[0], torch.tensor([0, 1, 2], device=device, dtype=torch.int32)))
+        self.assertTrue(torch.equal(wide_row4col[0], torch.tensor([0, 1, 2, -1], device=device, dtype=torch.int32)))
+
+        tall_cost = torch.tensor(
+            [
+                [
+                    [8.0, 4.0, 7.0],
+                    [5.0, 2.0, 3.0],
+                    [9.0, 6.0, 7.0],
+                    [9.0, 4.0, 8.0],
+                ],
+            ],
+            device=device,
+        )
+        tall_col4row, tall_row4col = linear_assignment.batch_linear_assignment(tall_cost)  # type: ignore
+
+        self.assertEqual(tall_col4row.shape, (1, 4))
+        self.assertEqual(tall_row4col.shape, (1, 3))
+        self.assertTrue(torch.equal(tall_col4row[0], torch.tensor([0, 2, -1, 1], device=device, dtype=torch.int32)))
+        self.assertTrue(torch.equal(tall_row4col[0], torch.tensor([0, 3, 1], device=device, dtype=torch.int32)))

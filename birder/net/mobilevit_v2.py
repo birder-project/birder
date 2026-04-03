@@ -193,7 +193,6 @@ class MobileVitBlock(nn.Module):
         return x
 
 
-# pylint: disable=invalid-name
 class MobileViT_v2(DetectorBackbone):
     default_size = (256, 256)
 

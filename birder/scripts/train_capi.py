@@ -115,7 +115,6 @@ def _capi_fsdp_wrap_modules(module: CAPIStudent | CAPITeacher, args: argparse.Na
     return matched_modules
 
 
-# pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
     #
     # Initialize
@@ -461,9 +460,9 @@ def train(args: argparse.Namespace) -> None:
 
     model_to_save = net
     if args.compile is True and hasattr(model_to_save["teacher"], "_orig_mod") is True:
-        model_to_save["teacher"] = model_to_save["teacher"]._orig_mod  # pylint: disable=protected-access
+        model_to_save["teacher"] = model_to_save["teacher"]._orig_mod
     if args.compile is True and hasattr(model_to_save["student"], "_orig_mod") is True:
-        model_to_save["student"] = model_to_save["student"]._orig_mod  # pylint: disable=protected-access
+        model_to_save["student"] = model_to_save["student"]._orig_mod
 
     #
     # Misc
@@ -472,7 +471,7 @@ def train(args: argparse.Namespace) -> None:
     # Print network summary
     net_for_info = student_without_ddp
     if args.compile is True and hasattr(student_without_ddp, "_orig_mod") is True:
-        net_for_info = student_without_ddp._orig_mod  # pylint: disable=protected-access
+        net_for_info = student_without_ddp._orig_mod
 
     if args.no_summary is False:
         all_ids = torch.arange(seq_len, device=device).unsqueeze(0)
@@ -642,7 +641,7 @@ def train(args: argparse.Namespace) -> None:
                 # EMA update for the teacher
                 with torch.no_grad():
                     m = momentum_schedule[global_iter]
-                    torch._foreach_lerp_(  # pylint: disable=protected-access
+                    torch._foreach_lerp_(
                         list(teacher_without_ddp.backbone.parameters()),
                         list(student_without_ddp.backbone.parameters()),
                         weight=1 - m,

@@ -44,7 +44,6 @@ from birder.net.mim.base import get_mim_signature
 logger = logging.getLogger(__name__)
 
 
-# pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
     #
     # Initialize
@@ -321,7 +320,7 @@ def train(args: argparse.Namespace) -> None:
 
     model_to_save = net_without_ddp
     if args.compile is True and hasattr(model_to_save, "_orig_mod") is True:
-        model_to_save = model_to_save._orig_mod  # pylint: disable=protected-access
+        model_to_save = model_to_save._orig_mod
 
     #
     # Misc
@@ -330,7 +329,7 @@ def train(args: argparse.Namespace) -> None:
     # Print network summary
     net_for_info = net_without_ddp
     if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
-        net_for_info = net_without_ddp._orig_mod  # pylint: disable=protected-access
+        net_for_info = net_without_ddp._orig_mod
 
     if args.no_summary is False:
         summary = torchinfo.summary(

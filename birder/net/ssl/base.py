@@ -34,7 +34,7 @@ class SSLBaseNet(nn.Module):
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
         if cls.auto_register is False:
-            # Exclude networks with custom config (initialized only with aliases)
+            # Exclude networks with custom config (initialized only with registered configs)
             return
 
         registry.register_model(cls.__name__.lower(), cls)
@@ -50,7 +50,7 @@ class SSLBaseNet(nn.Module):
         self.input_channels = backbone.input_channels
         self.backbone = backbone
 
-        if hasattr(self, "config") is False:  # Avoid overriding aliases
+        if hasattr(self, "config") is False:  # Avoid overriding registered configs
             self.config = config
         elif config is not None:
             assert self.config is not None

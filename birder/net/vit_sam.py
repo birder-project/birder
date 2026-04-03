@@ -33,50 +33,18 @@ from birder.net._vit_configs import SMALL
 from birder.net.base import DetectorBackbone
 from birder.net.base import normalize_out_indices
 from birder.net.vit import EncoderBlock as MAEDecoderBlock
-
-
-# pylint: disable=invalid-name
-def window_partition(x: torch.Tensor, window_size: int) -> tuple[torch.Tensor, tuple[int, int]]:
-    B, H, W, C = x.shape
-
-    pad_h = (window_size - H % window_size) % window_size
-    pad_w = (window_size - W % window_size) % window_size
-    if pad_h > 0 or pad_w > 0:
-        x = F.pad(x, (0, 0, 0, pad_w, 0, pad_h))
-
-    Hp = H + pad_h
-    Wp = W + pad_w
-
-    x = x.view(B, Hp // window_size, window_size, Wp // window_size, window_size, C)
-    windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, window_size, window_size, C)
-
-    return (windows, (Hp, Wp))
-
-
-# pylint: disable=invalid-name
-def window_unpartition(
-    windows: torch.Tensor, window_size: int, pad_hw: tuple[int, int], hw: tuple[int, int]
-) -> torch.Tensor:
-    Hp, Wp = pad_hw
-    H, W = hw
-    B = windows.shape[0] // (Hp * Wp // window_size // window_size)
-    x = windows.view(B, Hp // window_size, Wp // window_size, window_size, window_size, -1)
-    x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(B, Hp, Wp, -1)
-
-    if Hp > H or Wp > W:
-        x = x[:, :H, :W, :].contiguous()
-
-    return x
+from birder.net.vit_windowed import window_partition
+from birder.net.vit_windowed import window_unpartition
 
 
 def get_rel_pos(q_size: int, k_size: int, rel_pos: torch.Tensor) -> torch.Tensor:
     max_rel_dist = int(2 * max(q_size, k_size) - 1)
 
     # Interpolate rel pos if needed
-    if rel_pos.shape[0] != max_rel_dist:
+    if rel_pos.size(0) != max_rel_dist:
         # Only reached in dynamic-size mode (rel-pos table resized on the fly)
         rel_pos_resized = F.interpolate(
-            rel_pos.reshape(1, rel_pos.shape[0], -1).permute(0, 2, 1), size=max_rel_dist, mode="linear"
+            rel_pos.reshape(1, rel_pos.size(0), -1).permute(0, 2, 1), size=max_rel_dist, mode="linear"
         )
         rel_pos_resized = rel_pos_resized.reshape(-1, max_rel_dist).permute(1, 0)
     else:
@@ -183,7 +151,7 @@ class EncoderBlock(nn.Module):
         qkv_bias: bool,
         drop_path: float,
         use_rel_pos: bool,
-        window_size: int,
+        window_size: tuple[int, int],
         input_size: Optional[tuple[int, int]] = None,
         activation_layer: Callable[..., nn.Module] = nn.GELU,
         layer_scale_init_value: Optional[float] = None,
@@ -200,7 +168,7 @@ class EncoderBlock(nn.Module):
             num_heads=num_heads,
             qkv_bias=qkv_bias,
             use_rel_pos=use_rel_pos,
-            input_size=input_size if window_size == 0 else (window_size, window_size),
+            input_size=input_size if window_size == (0, 0) else window_size,
         )
         self.drop_path1 = StochasticDepth(drop_path, mode="row")
         if layer_scale_init_value is not None:
@@ -223,11 +191,11 @@ class EncoderBlock(nn.Module):
 
         x = self.norm1(x)
         pad_hw = (0, 0)
-        if self.window_size > 0:
+        if self.window_size[0] > 0 or self.window_size[1] > 0:
             x, pad_hw = window_partition(x, self.window_size)
 
         x = self.attn(x)
-        if self.window_size > 0:
+        if self.window_size[0] > 0 or self.window_size[1] > 0:
             x = window_unpartition(x, self.window_size, pad_hw, (H, W))
 
         x = self.layer_scale_1(x)
@@ -240,11 +208,9 @@ class EncoderBlock(nn.Module):
         self.attn.set_causal_attention(is_causal)
 
 
-# pylint: disable=invalid-name
 class ViT_SAM(DetectorBackbone):
     block_group_regex = r"body\.(\d+)"
 
-    # pylint: disable=too-many-locals
     def __init__(
         self,
         input_channels: int,
@@ -266,7 +232,7 @@ class ViT_SAM(DetectorBackbone):
         layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", None)
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
         mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
-        window_size: int = self.config["window_size"]
+        window_size: tuple[int, int] = self.config["window_size"]
         global_attn_indexes: list[int] = self.config["global_attn_indexes"]
         neck_channels: Optional[int] = self.config.get("neck_channels", None)
         out_indices: Optional[list[int]] = self.config.get("out_indices", None)
@@ -321,7 +287,7 @@ class ViT_SAM(DetectorBackbone):
                     qkv_bias=True,
                     drop_path=dpr[i],
                     use_rel_pos=use_rel_pos,
-                    window_size=window_size if i not in global_attn_indexes else 0,
+                    window_size=window_size if i not in global_attn_indexes else (0, 0),
                     input_size=(image_size[0] // patch_size, image_size[1] // patch_size),
                     activation_layer=act_layer,
                     layer_scale_init_value=layer_scale_init_value,
@@ -575,7 +541,7 @@ class ViT_SAM(DetectorBackbone):
 registry.register_model_config(
     "vit_det_s16",
     ViT_SAM,
-    config={"patch_size": 16, **SMALL, "window_size": 14, "global_attn_indexes": [2, 5, 8, 11]},
+    config={"patch_size": 16, **SMALL, "window_size": (14, 14), "global_attn_indexes": [2, 5, 8, 11]},
 )
 registry.register_model_config(
     "vit_det_m16_rms",
@@ -584,21 +550,27 @@ registry.register_model_config(
         "patch_size": 16,
         **MEDIUM,
         "norm_layer_type": "RMSNorm",
-        "window_size": 14,
+        "window_size": (14, 14),
         "global_attn_indexes": [2, 5, 8, 11],
     },
 )
 registry.register_model_config(
     "vit_det_b16",
     ViT_SAM,
-    config={"patch_size": 16, **BASE, "window_size": 14, "global_attn_indexes": [2, 5, 8, 11]},
+    config={"patch_size": 16, **BASE, "window_size": (14, 14), "global_attn_indexes": [2, 5, 8, 11]},
 )
 
 # ViT SAM (with neck)
 registry.register_model_config(
     "vit_sam_b16",
     ViT_SAM,
-    config={"patch_size": 16, **BASE, "window_size": 14, "global_attn_indexes": [2, 5, 8, 11], "neck_channels": 256},
+    config={
+        "patch_size": 16,
+        **BASE,
+        "window_size": (14, 14),
+        "global_attn_indexes": [2, 5, 8, 11],
+        "neck_channels": 256,
+    },
 )
 registry.register_model_config(
     "vit_sam_l16",
@@ -606,7 +578,7 @@ registry.register_model_config(
     config={
         "patch_size": 16,
         **LARGE,
-        "window_size": 14,
+        "window_size": (14, 14),
         "global_attn_indexes": [5, 11, 17, 23],
         "neck_channels": 256,
         "drop_path_rate": 0.4,
@@ -618,7 +590,7 @@ registry.register_model_config(
     config={
         "patch_size": 16,
         **HUGE,
-        "window_size": 14,
+        "window_size": (14, 14),
         "global_attn_indexes": [7, 15, 23, 31],
         "neck_channels": 256,
         "drop_path_rate": 0.5,

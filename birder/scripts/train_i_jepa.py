@@ -78,7 +78,6 @@ class TrainCollator:
         return (collated_batch, enc_masks, pred_masks)
 
 
-# pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def train(args: argparse.Namespace) -> None:
     #
     # Initialize
@@ -381,7 +380,7 @@ def train(args: argparse.Namespace) -> None:
 
     model_to_save = net
     if args.compile is True and hasattr(model_to_save["target_encoder"], "_orig_mod") is True:
-        model_to_save["target_encoder"] = model_to_save["target_encoder"]._orig_mod  # pylint: disable=protected-access
+        model_to_save["target_encoder"] = model_to_save["target_encoder"]._orig_mod
 
     #
     # Misc
@@ -390,7 +389,7 @@ def train(args: argparse.Namespace) -> None:
     # Print network summary
     net_for_info = encoder_without_ddp.backbone
     if args.compile is True and hasattr(encoder_without_ddp, "_orig_mod") is True:
-        net_for_info = encoder_without_ddp._orig_mod.backbone  # pylint: disable=protected-access
+        net_for_info = encoder_without_ddp._orig_mod.backbone
 
     if args.no_summary is False:
         summary = torchinfo.summary(
@@ -531,9 +530,7 @@ def train(args: argparse.Namespace) -> None:
                 # EMA update for the target encoder
                 with torch.no_grad():
                     m = momentum_schedule[global_iter]
-                    torch._foreach_lerp_(  # pylint: disable=protected-access
-                        list(target_encoder.parameters()), list(encoder.parameters()), weight=1 - m
-                    )
+                    torch._foreach_lerp_(list(target_encoder.parameters()), list(encoder.parameters()), weight=1 - m)
 
             # Statistics
             running_loss.update(raw_loss.detach())

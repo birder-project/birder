@@ -50,7 +50,7 @@ class DetectionBaseNet(nn.Module):
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
         if cls.auto_register is False:
-            # Exclude networks with custom config (initialized only with aliases)
+            # Exclude networks with custom config (initialized only with registered configs)
             return
 
         registry.register_model(cls.__name__.lower(), cls)
@@ -69,7 +69,7 @@ class DetectionBaseNet(nn.Module):
         self.num_classes = num_classes + 1  # Background always at index 0
         self.backbone = backbone
         self.backbone.transform_to_backbone()
-        if hasattr(self, "config") is False:  # Avoid overriding aliases
+        if hasattr(self, "config") is False:  # Avoid overriding registered configs
             self.config = config
         elif config is not None:
             assert self.config is not None
@@ -106,7 +106,6 @@ class DetectionBaseNet(nn.Module):
     def freeze(self, freeze_classifier: bool = True) -> None:
         raise NotImplementedError
 
-    # pylint: disable=protected-access
     def _input_check(self, targets: Optional[list[dict[str, torch.Tensor]]]) -> None:
         if self.training is True:
             if targets is None:
@@ -347,7 +346,6 @@ class SimpleFeaturePyramidNetwork(nn.Module):
 # Reference license: BSD 3-Clause
 
 
-# pylint: disable=protected-access,too-many-locals
 @torch.jit._script_if_tracing  # type: ignore[untyped-decorator]
 def encode_boxes(reference_boxes: torch.Tensor, proposals: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
     """
@@ -424,7 +422,6 @@ class BoxCoder:
 
         return targets
 
-    # pylint: disable=protected-access
     def decode(self, rel_codes: torch.Tensor, boxes: list[torch.Tensor]) -> torch.Tensor:
         torch._assert(isinstance(boxes, (list, tuple)), "This function expects boxes of type list or tuple.")
         torch._assert(isinstance(rel_codes, torch.Tensor), "This function expects rel_codes of type torch.Tensor.")
@@ -520,7 +517,6 @@ class AnchorGenerator(nn.Module):
 
     # For every combination of (a, (g, s), i) in (self.cell_anchors, zip(grid_sizes, strides), 0:2),
     # output g[i] anchors that are s[i] distance apart in direction i, with the same dimensions as a.
-    # pylint: disable=protected-access
     def grid_anchors(self, grid_sizes: list[list[int]], strides: list[list[torch.Tensor]]) -> list[torch.Tensor]:
         anchors = []
         cell_anchors = self.cell_anchors
@@ -653,7 +649,7 @@ class Matcher(nn.Module):
 
         if self.allow_low_quality_matches is True:
             if all_matches is None:
-                torch._assert(False, "all_matches should not be None")  # pylint: disable=protected-access
+                torch._assert(False, "all_matches should not be None")
             else:
                 self.set_low_quality_matches_(matches, all_matches, match_quality_matrix)
 

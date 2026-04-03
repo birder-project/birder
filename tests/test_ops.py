@@ -3,6 +3,8 @@ import unittest
 
 import torch
 
+from birder.ops.linear_assignment import LinearAssignment
+from birder.ops.linear_assignment import batch_linear_assignment
 from birder.ops.msda import MultiScaleDeformableAttention
 from birder.ops.msda import multi_scale_deformable_attention
 from birder.ops.soft_nms import SoftNMS
@@ -17,6 +19,45 @@ logging.disable(logging.CRITICAL)
 
 
 class TestOps(unittest.TestCase):
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+    def test_linear_assignment(self) -> None:
+        linear_assignment = LinearAssignment()
+
+        wide_cost = torch.tensor(
+            [
+                [1.0, 9.0, 9.0, 9.0],
+                [9.0, 2.0, 9.0, 9.0],
+                [9.0, 9.0, 3.0, 4.0],
+            ]
+        )
+        op_col4row, op_row4col = linear_assignment(wide_cost)
+        fb_col4row, fb_row4col = batch_linear_assignment(wide_cost)
+
+        torch.testing.assert_close(op_col4row, fb_col4row, rtol=0, atol=0)
+        torch.testing.assert_close(op_row4col, fb_row4col, rtol=0, atol=0)
+
+        tall_cost = torch.tensor(
+            [
+                [
+                    [8.0, 4.0, 7.0],
+                    [5.0, 2.0, 3.0],
+                    [9.0, 6.0, 7.0],
+                    [9.0, 4.0, 8.0],
+                ],
+                [
+                    [3.0, 8.0, 5.0],
+                    [4.0, 2.0, 6.0],
+                    [7.0, 6.0, 9.0],
+                    [5.0, 4.0, 3.0],
+                ],
+            ]
+        )
+        op_col4row, op_row4col = linear_assignment(tall_cost)
+        fb_col4row, fb_row4col = batch_linear_assignment(tall_cost)
+
+        torch.testing.assert_close(op_col4row, fb_col4row, rtol=0, atol=0)
+        torch.testing.assert_close(op_row4col, fb_row4col, rtol=0, atol=0)
+
     @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
     def test_msda(self) -> None:
         device = torch.device("cuda")

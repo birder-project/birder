@@ -37,7 +37,6 @@ from birder.net.vit import EncoderBlock
 from birder.net.vit import PatchEmbed
 
 
-# pylint: disable=invalid-name,too-many-instance-attributes
 class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 

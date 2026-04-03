@@ -95,7 +95,6 @@ class OSAStage(nn.Module):
         return self.blocks(x)
 
 
-# pylint: disable=invalid-name
 class VoVNet_v1(DetectorBackbone):
     block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
 

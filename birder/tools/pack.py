@@ -266,7 +266,6 @@ def directory_write_worker(
         raise
 
 
-# pylint: disable=too-many-locals,too-many-branches,too-many-statements
 def pack(args: argparse.Namespace, pack_path: Path) -> None:
     if args.sampling_file is not None:
         with open(args.sampling_file, "r", encoding="utf-8") as handle:

@@ -98,8 +98,6 @@ class DualPathBlock(nn.Module):
             num_3x3_b, num_1x1_c + increase, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False
         )
 
-    # pylint: disable=protected-access
-
     @overload
     @torch.jit._overload_method  # type: ignore[untyped-decorator]
     def forward(self, x: tuple[torch.Tensor, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
@@ -109,8 +107,6 @@ class DualPathBlock(nn.Module):
     @torch.jit._overload_method  # type: ignore[untyped-decorator]
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         pass
-
-    # pylint: enable=protected-access
 
     def forward(self, x: torch.Tensor | tuple[torch.Tensor, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         if isinstance(x, tuple):

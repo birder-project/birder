@@ -45,7 +45,6 @@ def top_k_accuracy_score(y_true: npt.NDArray[Any], y_pred: npt.NDArray[np.float6
     return indices
 
 
-# pylint: disable=too-many-public-methods
 class Results:
     """
     Classification result analysis class
@@ -840,7 +839,7 @@ def compare_results(results_dict: dict[str, Results | SparseResults], include_to
             {
                 "Macro F1-score": results.macro_f1_score,
                 "Samples": len(results),
-                "Mistakes": results._num_mistakes,  # pylint: disable=protected-access
+                "Mistakes": results._num_mistakes,
             }
         )
         result_list.append(result_entry)
