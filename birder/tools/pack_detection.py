@@ -114,6 +114,7 @@ def _load_coco_targets(
     coco_json_path: str | Path,
     drop_empty: bool = False,
     preserve_category_ids: bool = False,
+    ignore_list: Optional[set[str]] = None,
 ) -> tuple[list[tuple[str, dict[str, Any]]], list[str], int]:
     with open(coco_json_path, "r", encoding="utf-8") as handle:
         doc = json.load(handle)
@@ -136,6 +137,10 @@ def _load_coco_targets(
     base_path = Path(data_path)
     samples: list[tuple[str, dict[str, Any]]] = []
     for image in images:
+        file_name = image["file_name"]
+        if ignore_list is not None and file_name in ignore_list:
+            continue
+
         image_id = image["id"]
         image_annotations = annotations_by_image_id.get(image_id, [])
 
@@ -163,7 +168,6 @@ def _load_coco_targets(
         if drop_empty is True and len(boxes) == 0:
             continue
 
-        file_name = image["file_name"]
         samples.append(
             (
                 str(base_path.joinpath(file_name)),
@@ -306,9 +310,18 @@ def wds_write_worker(q_out: Any, error_event: Any, pack_path: Path, total: int, 
 
 
 def pack(args: argparse.Namespace, pack_path: Path) -> None:
+    ignore_list: Optional[set[str]] = None
+    if args.ignore_file is not None:
+        with open(args.ignore_file, "r", encoding="utf-8") as handle:
+            ignore_list = {line for line in handle.read().splitlines() if line != ""}
+
     if args.class_file is not None:
         samples, _class_list, max_category_id = _load_coco_targets(
-            args.data_path, args.coco_json_path, drop_empty=args.drop_empty, preserve_category_ids=True
+            args.data_path,
+            args.coco_json_path,
+            drop_empty=args.drop_empty,
+            preserve_category_ids=True,
+            ignore_list=ignore_list,
         )
         class_file_list = list(fs_ops.read_class_file(args.class_file).keys())
         if len(class_file_list) < max_category_id:
@@ -316,7 +329,12 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
 
         class_list = class_file_list
     else:
-        samples, class_list, _ = _load_coco_targets(args.data_path, args.coco_json_path, drop_empty=args.drop_empty)
+        samples, class_list, _ = _load_coco_targets(
+            args.data_path, args.coco_json_path, drop_empty=args.drop_empty, ignore_list=ignore_list
+        )
+
+    if ignore_list is not None:
+        logger.info(f"Ignoring {len(ignore_list):,} file names from {args.ignore_file}")
 
     if args.append is True:
         existing_class_list = list(fs_ops.read_class_file(pack_path.joinpath("classes.txt")).keys())
@@ -469,10 +487,14 @@ def set_parser(subparsers: Any) -> None:
             "--target-path data/coco_detection_wds --suffix coco "
             "--data-path ~/Datasets/cocodataset/val2017 "
             "--coco-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json\n"
-            "python -m birder.tools pack-detection --drop-empty --size 1024 --format jpeg "
-            "--target-path data/objects365_training_wds "
-            "--data-path ~/Datasets/Objects365-2020/train "
-            "--coco-json-path ~/Datasets/Objects365-2020/train/zhiyuan_objv2_train.json\n"
+            "python -m birder.tools pack-detection --target-path /mnt/data/Objects365-2020-wds "
+            "--data-path /mnt/data/Objects365-2020/train --coco-json-path "
+            "/mnt/data/Objects365-2020/train/zhiyuan_objv2_train.json -j 24 --shuffle --drop-empty "
+            "--ignore-file public_datasets_metadata/objects365_ignore.txt --size 896\n"
+            "python -m birder.tools pack-detection --target-path /mnt/data/Objects365-2020-wds "
+            "--data-path /mnt/data/Objects365-2020/val --coco-json-path "
+            "/mnt/data/Objects365-2020/val/zhiyuan_objv2_val.json -j 24 --ignore-file "
+            "public_datasets_metadata/objects365_ignore.txt --size 896 --split validation --append\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -496,6 +518,7 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--shuffle", default=False, action="store_true", help="shuffle the dataset during packing")
     subparser.add_argument("--drop-empty", default=False, action="store_true", help="skip images without annotations")
+    subparser.add_argument("--ignore-file", type=str, help="ignore list file, list of image file names to skip")
     subparser.add_argument("--size", type=int, help="resize image short dimension to size if bigger")
     subparser.add_argument("--format", type=str, choices=["webp", "png", "jpeg"], default="webp", help="file format")
     subparser.add_argument("--class-file", type=str, help="class list file")
@@ -509,6 +532,8 @@ def set_parser(subparsers: Any) -> None:
 def main(args: argparse.Namespace) -> None:
     args.data_path = os.path.expanduser(args.data_path)
     args.coco_json_path = os.path.expanduser(args.coco_json_path)
+    if args.ignore_file is not None:
+        args.ignore_file = os.path.expanduser(args.ignore_file)
     if args.target_path is not None:
         args.target_path = os.path.expanduser(args.target_path)
 

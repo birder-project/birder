@@ -40,7 +40,7 @@ The same principle applies to Birder. We stand on the shoulders of giants in the
 
 1. Ensure your environment meets the minimum requirements:
    - Python 3.11 or newer
-   - PyTorch 2.7 or newer (installed for your hardware/driver stack)
+   - PyTorch 2.10 or newer (installed for your hardware/driver stack)
 
 1. Install the latest Birder version:
 

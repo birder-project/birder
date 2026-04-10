@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.14 - 2026-04-10
+
+### Added
+
+- **EfficientMod**: Added [EfficientMod](https://arxiv.org/abs/2403.19963) classification models.
+- **Detection WDS Mosaic Support**: Added mosaic augmentation support for WebDataset detection.
+- **Predict Feature Exports**: Added `--save-features` and `--save-detection-features` to `python -m birder.scripts.predict` to save `forward_features()` and `detection_features()` outputs.
+- **Training Compile Recompile Limits**: Added `--compile-recompile-limit` and `--compile-accumulated-recompile-limit` to training scripts, plus `COMPILE_RECOMPILE_LIMIT` and `COMPILE_ACCUMULATED_RECOMPILE_LIMIT` environment-variable overrides.
+
+### Changed
+
+- **Compatibility**: Raised the minimum supported PyTorch version to 2.10.
+- **Similarity Tool CLI Overhaul**: Refactored `python -m birder.tools similarity` to use the modern inference CLI pattern with explicit runtime controls (`--batch-size`, worker/device/AMP and dtype flags), simplified embedding distance selection via `--distance-metric` and removed the legacy t-SNE-based path.
+
+### Fixed
+
+- **Detection Packing Ignore List**: Added `--ignore-file` to `python -m birder.tools pack-detection` so listed image file names are skipped while packing COCO-style detection datasets into WebDataset shards.
+
 ## 0.4.13 - 2026-04-03
 
 ### Added

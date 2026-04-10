@@ -56,6 +56,16 @@ def set_random_seeds(seed: int) -> None:
     random.seed(seed)
 
 
+def configure_torch_compiler(args: argparse.Namespace) -> None:
+    # Persist the effective values on args so it reflects the actual runtime configuration
+    args.compile_recompile_limit = int(os.environ.get("COMPILE_RECOMPILE_LIMIT", args.compile_recompile_limit))
+    args.compile_accumulated_recompile_limit = int(
+        os.environ.get("COMPILE_ACCUMULATED_RECOMPILE_LIMIT", args.compile_accumulated_recompile_limit)
+    )
+    torch.compiler.config.recompile_limit = args.compile_recompile_limit
+    torch.compiler.config.accumulated_recompile_limit = args.compile_accumulated_recompile_limit
+
+
 ###############################################################################
 # Data Sampling
 ###############################################################################
@@ -1329,6 +1339,8 @@ def init_training(
         disable_tqdm = True
     else:
         disable_tqdm = False
+
+    configure_torch_compiler(args)
 
     # Enable or disable the autograd anomaly detection.
     torch.autograd.set_detect_anomaly(args.grad_anomaly_detection)

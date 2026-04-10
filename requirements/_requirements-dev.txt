@@ -23,10 +23,10 @@ pytest
 requests~=2.33.1
 safetensors~=0.7.0
 setuptools
-torchao~=0.17.0
 torchprofile==0.1.0
 twine~=6.2.0
-types-requests~=2.32.4
+types-requests~=2.33.0
+# umap-learn~=0.5.12
 unidecode
 urllib3~=2.6.2
 wheel

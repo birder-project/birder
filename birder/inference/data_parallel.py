@@ -202,6 +202,31 @@ class InferenceDataParallel(nn.Module):
 
         return torch.concat(gathered, dim=0)
 
+    def _gather_mapping(self, outputs: list[Optional[dict[Any, torch.Tensor]]]) -> dict[Any, torch.Tensor]:
+        # Filter out None outputs (from devices with no data)
+        valid_outputs = [out for out in outputs if out is not None]
+
+        if len(valid_outputs) == 0:
+            raise ValueError("No valid outputs to gather")
+
+        if len(valid_outputs) == 1:
+            output = valid_outputs[0]
+            return {key: value.to(self.output_device) for key, value in output.items()}
+
+        # Move all outputs to output device and concatenate
+        keys = list(valid_outputs[0].keys())
+        non_blocking = self.output_device.type == "cuda"
+        gathered = {}
+        for key in keys:
+            gathered[key] = torch.concat(
+                [output[key].to(self.output_device, non_blocking=non_blocking) for output in valid_outputs], dim=0
+            )
+
+        if self.output_device.type == "cuda":
+            torch.cuda.synchronize(self.output_device)
+
+        return gathered
+
     def forward(self, inputs: torch.Tensor, **kwargs: Any) -> torch.Tensor:
         """
         Forward pass distributed across GPUs
@@ -219,7 +244,8 @@ class InferenceDataParallel(nn.Module):
         """
 
         if len(self.device_ids) == 1:
-            return self.module(inputs.to(self.src_device), **kwargs)
+            output = self.module(inputs.to(self.src_device), **kwargs)
+            return self._gather([output])
 
         scattered = self._scatter(inputs, kwargs)
 
@@ -252,7 +278,7 @@ class InferenceDataParallel(nn.Module):
 
             raise
 
-    def _make_parallel_method(self, method_name: str) -> Callable[..., torch.Tensor]:
+    def _make_parallel_method(self, method_name: str) -> Callable[..., torch.Tensor | dict[Any, torch.Tensor]]:
         """
         Creates a parallelized wrapper for a specified method of the wrapped module
 
@@ -270,10 +296,14 @@ class InferenceDataParallel(nn.Module):
         A new callable that performs the specified method in parallel across the available devices.
         """
 
-        def parallel_method(inputs: torch.Tensor, **kwargs: Any) -> torch.Tensor:
+        def parallel_method(inputs: torch.Tensor, **kwargs: Any) -> torch.Tensor | dict[Any, torch.Tensor]:
             if len(self.device_ids) == 1:
                 method = getattr(self.module, method_name)
-                return method(inputs.to(self.src_device), **kwargs)
+                output = method(inputs.to(self.src_device), **kwargs)
+                if isinstance(output, dict):
+                    return self._gather_mapping([output])
+
+                return self._gather([output])
 
             scattered = self._scatter(inputs, kwargs)
 
@@ -286,6 +316,9 @@ class InferenceDataParallel(nn.Module):
                         outputs.append(output)
                 else:
                     outputs.append(None)
+
+            if isinstance(outputs[0], dict):
+                return self._gather_mapping(outputs)
 
             return self._gather(outputs)
 

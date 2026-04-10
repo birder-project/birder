@@ -358,10 +358,10 @@ BIO, 8x R6000 training (2500x8x8x48 = 7.68M epoch, 7.68Mx250 = 1.92B)
 torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --tag bio --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --warmup-teacher-temp-epochs 20 --local-crop-size 98 --batch-size 48 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0004 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 250 --steps-per-epoch 2500 --warmup-epochs 40 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_bio_packed/_info.json
 ```
 
-High resolution adaption (2500x8x8x32 = 5.12M epoch, 5.12Mx30 = 153.6M)
+High resolution adaption (2500x8x8x40 = 6.4M epoch, 6.4Mx30 = 192M)
 
 ```sh
-torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --tag bio-252px --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --momentum-teacher 0.998 --warmup-teacher-temp-epochs 20 --freeze-last-layer-epochs 0 --local-crop-size 112 --adapt-size 252 --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0001 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --backbone-layer-decay 0.98 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 30 --steps-per-epoch 2500 --size 224 --rgb-mode none --fast-matmul --compile --resume-epoch 0 --distributed-mode fsdp --fsdp-sharding-strategy shard-grad-op --fsdp-param-dtype bfloat16 --fsdp-reduce-dtype float32 --no-broadcast-buffers --wds --wds-info data/ssl_bio_packed/_info.json
+torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --tag bio-252px --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --momentum-teacher 0.998 --warmup-teacher-temp-epochs 15 --freeze-last-layer-epochs 0 --local-crop-size 112 --adapt-size 252 --batch-size 40 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0001 --lr-scale 1024 --lr-scale-type sqrt --wd 0.1 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 30 --steps-per-epoch 2500 --size 224 --rgb-mode none --fast-matmul --compile --resume-epoch 0 --distributed-mode fsdp --fsdp-sharding-strategy shard-grad-op --fsdp-param-dtype bfloat16 --fsdp-reduce-dtype float32 --no-broadcast-buffers --wds --wds-info data/ssl_bio_packed/_info.json
 ```
 
 Distillation, ViT reg1 s14 LS

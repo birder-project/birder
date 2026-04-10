@@ -25,6 +25,7 @@ from birder.data.datasets.coco import CocoTraining
 from birder.data.datasets.coco import MosaicType
 from birder.data.datasets.directory import tv_loader
 from birder.data.datasets.webdataset import make_wds_detection_dataset
+from birder.data.datasets.webdataset import make_wds_mosaic_detection_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import get_rgb_stats
@@ -70,12 +71,45 @@ def show_det_iterator(args: argparse.Namespace) -> None:
                 args.data_path, args.wds_size, torch.device("cpu"), select_suffix="json"
             )
 
-        dataset = make_wds_detection_dataset(
-            wds_path,
-            dataset_size=dataset_size,
-            shuffle=True,
-            transform=transform,
-        )
+        if args.mode == "training" and args.mosaic_prob > 0.0:
+            mosaic_transforms = training_preset(
+                args.size,
+                args.aug_type,
+                args.aug_level,
+                get_rgb_stats("birder"),
+                args.dynamic_size,
+                args.multiscale,
+                args.max_size,
+                args.multiscale_min_size,
+                args.multiscale_max_size,
+                args.multiscale_step,
+                post_mosaic=True,
+            )
+            if args.dynamic_size is True or args.multiscale is True:
+                if args.max_size is not None:
+                    mosaic_dim = args.max_size
+                else:
+                    mosaic_dim = min(args.size) * 2
+            else:
+                mosaic_dim = max(args.size) * 2
+
+            dataset = make_wds_mosaic_detection_dataset(
+                wds_path,
+                dataset_size=dataset_size,
+                transform=transform,
+                mosaic_transforms=mosaic_transforms,
+                mosaic_prob=args.mosaic_prob,
+                mosaic_type=args.mosaic_type,
+                output_size=(mosaic_dim, mosaic_dim),
+                fill_value=114,
+            )
+        else:
+            dataset = make_wds_detection_dataset(
+                wds_path,
+                dataset_size=dataset_size,
+                shuffle=True,
+                transform=transform,
+            )
         if args.wds_class_file is None:
             args.wds_class_file = Path(args.data_path).joinpath(settings.CLASS_LIST_NAME)
 
@@ -399,8 +433,6 @@ def main(args: argparse.Namespace) -> None:
 
     if args.wds is True and args.batch is False:
         raise cli.ValidationError("--wds requires --batch to be set")
-    if args.wds is True and args.mosaic_prob > 0.0:
-        raise cli.ValidationError("--wds does not support mosaic augmentation")
     if args.multiscale is True and args.aug_type != "birder":
         raise cli.ValidationError(f"--multiscale only supported with --aug-type birder, got {args.aug_type}")
     if args.batch_multiscale is True:

@@ -97,6 +97,8 @@ def infer_batch(
 DataloaderInferenceResult = tuple[
     list[str], npt.NDArray[np.float32], npt.NDArray[np.int64], list[npt.NDArray[np.float32]]
 ]
+FeatureDict = dict[str, list[npt.NDArray[np.float32]]]
+FeaturesInferenceResult = tuple[list[str], npt.NDArray[np.int64], FeatureDict]
 
 
 def infer_dataloader_iter(
@@ -176,6 +178,74 @@ def infer_dataloader_iter(
 
     if len(out_list) > 0:
         yield (sample_paths, np.concatenate(out_list, axis=0), np.concatenate(labels_list), embedding_list)
+
+
+def infer_dataloader_features_iter(
+    device: torch.device,
+    net: torch.nn.Module | torch.ScriptModule,
+    dataloader: DataLoader,
+    feature_method: Literal["forward_features", "detection_features"] = "forward_features",
+    channels_last: bool = False,
+    model_dtype: torch.dtype = torch.float32,
+    amp: bool = False,
+    amp_dtype: Optional[torch.dtype] = None,
+    num_samples: Optional[int] = None,
+    chunk_size: Optional[float] = None,
+    **kwargs: Any,
+) -> Iterator[FeaturesInferenceResult]:
+    if chunk_size is None:
+        chunk_size = float("inf")
+
+    net.to(device, dtype=model_dtype)
+    feature_dict: FeatureDict = {}
+    labels_list: list[npt.NDArray[np.int64]] = []
+    sample_paths: list[str] = []
+    sample_count = 0
+    with tqdm(total=num_samples, initial=0, unit="images", unit_scale=True, leave=False) as progress:
+        for file_paths, inputs, targets in dataloader:
+            batch_size = inputs.size(0)
+
+            # Inference
+            if channels_last is True:
+                inputs = inputs.to(device, dtype=model_dtype, memory_format=torch.channels_last)
+            else:
+                inputs = inputs.to(device, dtype=model_dtype)
+
+            with torch.amp.autocast(device.type, enabled=amp, dtype=amp_dtype):
+                if feature_method == "forward_features":
+                    batch_feature_dict = {"features": net.forward_features(inputs, **kwargs)}
+                else:
+                    batch_feature_dict = net.detection_features(inputs, **kwargs)
+
+            for key, features in batch_feature_dict.items():
+                if features.ndim == 4:
+                    features = features.flatten(2).transpose(1, 2).contiguous()
+
+                value = features.cpu().float().numpy()
+                feature_dict.setdefault(key, []).append(value)
+
+            # Set labels and sample list
+            batch_labels = targets.cpu().numpy()
+            labels_list.append(batch_labels)
+            sample_paths.extend(file_paths)
+
+            # Update progress bar
+            progress.update(n=batch_size)
+
+            # Yield results when we reach chunk_size
+            sample_count += batch_size
+            if sample_count >= chunk_size:
+                with tqdm.external_write_mode(file=sys.stderr):
+                    yield (sample_paths, np.concatenate(labels_list), feature_dict)
+
+                # Reset for next chunk
+                feature_dict = {}
+                labels_list = []
+                sample_paths = []
+                sample_count = 0
+
+    if len(feature_dict) > 0:
+        yield (sample_paths, np.concatenate(labels_list), feature_dict)
 
 
 @overload

@@ -346,7 +346,7 @@ class AIFI(nn.Module):
 
 class HybridEncoder(nn.Module):
     """
-    RT-DETR Hybrid Encoder: AIFI + CCFM (CNN-based Cross-scale Feature-fusion Module).
+    RT-DETR Hybrid Encoder: AIFI + CCFM (CNN-based Cross-scale Feature-fusion Module)
 
     Architecture:
     1. Input projection for each scale

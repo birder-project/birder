@@ -42,6 +42,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [EdgeViT](#edgevit)
 - [EfficientFormer v1](#efficientformer-v1)
 - [EfficientFormer v2](#efficientformer-v2)
+- [EfficientMod](#efficientmod)
 - [EfficientNet Lite](#efficientnet-lite)
 - [EfficientNet v1](#efficientnet-v1)
 - [EfficientNet v2](#efficientnet-v2)
@@ -837,6 +838,14 @@ torchrun --nproc_per_node=2 train.py --network efficientformer_v2_s2 --batch-siz
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network efficientformer_v2_l --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.001 --wd 0.025 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
+```
+
+### EfficientMod
+
+### EfficientMod: XS
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientmod_xs --batch-size 256 --opt adamw --lr 0.004 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --fast-matmul --compile
 ```
 
 ### EfficientNet Lite

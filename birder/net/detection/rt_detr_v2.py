@@ -1106,42 +1106,28 @@ class RT_DETR_v2(DetectionBaseNet):
 registry.register_model_config(
     "rt_detr_v2_s",
     RT_DETR_v2,
-    config={
-        "num_decoder_layers": 3,
-        "expansion": 0.5,
-    },
+    config={"num_decoder_layers": 3, "expansion": 0.5},
 )
 registry.register_model_config(
     "rt_detr_v2_s_dsp",
     RT_DETR_v2,
-    config={
-        "num_decoder_layers": 3,
-        "expansion": 0.5,
-        "method": "discrete",
-    },
+    config={"num_decoder_layers": 3, "expansion": 0.5, "method": "discrete"},
 )
 registry.register_model_config(
     "rt_detr_v2",
     RT_DETR_v2,
-    config={
-        "num_decoder_layers": 6,
-    },
+    config={"num_decoder_layers": 6},
 )
 registry.register_model_config(
     "rt_detr_v2_dsp",
     RT_DETR_v2,
-    config={
-        "num_decoder_layers": 6,
-        "method": "discrete",
-    },
+    config={"num_decoder_layers": 6, "method": "discrete"},
 )
 registry.register_model_config(
     "rt_detr_v2_l",
     RT_DETR_v2,
     config={
         "num_decoder_layers": 6,
-        "expansion": 1.0,
-        "depth_multiplier": 1.0,
         "num_heads": 12,  # Deviates from upstream to keep head_dim=32 (power of 2) for MSDA kernel
         "hidden_dim": 384,
         "dim_feedforward": 2048,
@@ -1152,8 +1138,6 @@ registry.register_model_config(
     RT_DETR_v2,
     config={
         "num_decoder_layers": 6,
-        "expansion": 1.0,
-        "depth_multiplier": 1.0,
         "num_heads": 12,  # Deviates from upstream to keep head_dim=32 (power of 2) for MSDA kernel
         "hidden_dim": 384,
         "dim_feedforward": 2048,

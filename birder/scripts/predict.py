@@ -26,6 +26,7 @@ from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import inference_preset
+from birder.inference.classification import infer_dataloader_features_iter
 from birder.inference.classification import infer_dataloader_iter
 from birder.inference.data_parallel import InferenceDataParallel
 from birder.results.classification import Results
@@ -67,6 +68,20 @@ def _init_array_parquet_writer(
     return pq.ParquetWriter(path, schema)
 
 
+def _init_feature_parquet_writer(
+    metadata_columns: list[str], feature_dict: dict[str, list[npt.NDArray[np.float32]]], path: Path
+) -> pq.ParquetWriter:
+    schema_fields = _metadata_pa_fields(metadata_columns)
+    for name, feature_list in feature_dict.items():
+        _, seq_len, features_dim = feature_list[0].shape
+        schema_fields.append(
+            pa.field(name, pa.list_(pa.list_(pa.float32(), list_size=features_dim), list_size=seq_len))
+        )
+
+    schema = pa.schema(schema_fields)
+    return pq.ParquetWriter(path, schema)
+
+
 def _init_parquet_writer(metadata_columns: list[str], label_names: list[str], path: Path) -> pq.ParquetWriter:
     schema = pa.schema(_metadata_pa_fields(metadata_columns) + [pa.field(name, pa.float32()) for name in label_names])
     return pq.ParquetWriter(path, schema)
@@ -85,6 +100,25 @@ def save_embeddings_parquet(
         data["label"] = pa.array(labels, type=pa.int64())
 
     data["embedding"] = pa.array(embeddings.tolist(), type=pa.list_(pa.float32()))
+    table = pa.Table.from_pydict(data, schema=writer.schema)
+    writer.write_table(table)
+
+
+def save_features_parquet(
+    writer: pq.ParquetWriter,
+    sample_paths: list[str],
+    feature_dict: dict[str, list[npt.NDArray[np.float32]]],
+    labels: Optional[npt.NDArray[np.int64]] = None,
+) -> None:
+    logger.info(f"Writing features at {writer.where}")
+    data = {"sample": pa.array(sample_paths, type=pa.string())}
+    if labels is not None:
+        data["label"] = pa.array(labels, type=pa.int64())
+
+    for name, feature_list in feature_dict.items():
+        features = np.concatenate(feature_list, axis=0)
+        data[name] = pa.array(features.tolist(), type=writer.schema.field(name).type)
+
     table = pa.Table.from_pydict(data, schema=writer.schema)
     writer.write_table(table)
 
@@ -297,7 +331,14 @@ def predict(args: argparse.Namespace) -> None:
         logger.debug("Using channels-last memory format")
 
     if args.parallel is True and torch.cuda.device_count() > 1:
-        compile_methods = ["embedding"] if args.save_embeddings is True else None
+        compile_methods = None
+        if args.save_embeddings is True:
+            compile_methods = ["embedding"]
+        elif args.save_features is True:
+            compile_methods = ["forward_features"]
+        elif args.save_detection_features is True:
+            compile_methods = ["detection_features"]
+
         net = InferenceDataParallel(
             net, output_device="cpu", compile_replicas=args.compile, compile_methods=compile_methods
         )
@@ -305,6 +346,10 @@ def predict(args: argparse.Namespace) -> None:
         net = torch.compile(net)
         if args.save_embeddings is True:
             net.embedding = torch.compile(net.embedding)
+        elif args.save_features is True:
+            net.forward_features = torch.compile(net.forward_features)
+        elif args.save_detection_features is True:
+            net.detection_features = torch.compile(net.detection_features)
 
     if args.size is None:
         args.size = lib.get_size_from_signature(signature)
@@ -411,6 +456,7 @@ def predict(args: argparse.Namespace) -> None:
             _validate_label_names(label_names)
 
     # Define Parquet writers
+    features_writer: Optional[pq.ParquetWriter] = None
     embeddings_writer: Optional[pq.ParquetWriter] = None
     logits_writer: Optional[pq.ParquetWriter] = None
     output_writer: Optional[pq.ParquetWriter] = None
@@ -420,6 +466,41 @@ def predict(args: argparse.Namespace) -> None:
 
     # Inference
     tic = time.time()
+    if args.save_features is True or args.save_detection_features is True:
+        # Features export bypasses the regular classification/results flow and returns after writing the parquet file
+        feature_suffix = "_detection_features.parquet" if args.save_detection_features is True else "_features.parquet"
+        features_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}{feature_suffix}")
+        feature_method = "detection_features" if args.save_detection_features is True else "forward_features"
+        feature_iter = infer_dataloader_features_iter(
+            device,
+            net,
+            inference_loader,
+            feature_method=feature_method,  # type: ignore[arg-type]
+            channels_last=args.channels_last,
+            model_dtype=model_dtype,
+            amp=args.amp,
+            amp_dtype=amp_dtype,
+            num_samples=num_samples,
+            chunk_size=args.chunk_size,
+            **args.forward_kwargs,
+        )
+
+        with torch.inference_mode():
+            for sample_paths, labels, feature_dict in feature_iter:
+                labels_to_save = labels if args.save_labels is True else None
+                if features_writer is None:
+                    features_writer = _init_feature_parquet_writer(metadata_columns, feature_dict, features_path)
+
+                save_features_parquet(features_writer, sample_paths, feature_dict, labels=labels_to_save)
+
+        if features_writer is not None:
+            features_writer.close()
+
+        toc = time.time()
+        rate = num_samples / (toc - tic)
+        logger.info(f"{lib.format_duration(toc-tic)} to extract {num_samples:,} samples ({rate:.2f} samples/sec)")
+        return
+
     infer_iter = infer_dataloader_iter(
         device,
         net,
@@ -646,17 +727,32 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--save-logits", default=False, action="store_true", help="save raw model logits")
     parser.add_argument("--save-embeddings", default=False, action="store_true", help="save embedding layer outputs")
     parser.add_argument(
+        "--save-features",
+        default=False,
+        action="store_true",
+        help="save feature outputs from forward_features() for supported models",
+    )
+    parser.add_argument(
+        "--save-detection-features",
+        default=False,
+        action="store_true",
+        help="save feature outputs from detection_features() for supported models",
+    )
+    parser.add_argument(
         "--save-labels",
         default=False,
         action="store_true",
-        help="include the label column in raw outputs (embeddings, logits, output)",
+        help="include the label column in raw outputs (embeddings, features, detection features, logits, output)",
     )
     parser.add_argument(
         "--output-format",
         type=str,
         choices=["csv", "parquet"],
         default="csv",
-        help="output format for raw data (embeddings, logits, output) - does not affect results files",
+        help=(
+            "output format for raw data (embeddings, features, detection features, logits, output) - "
+            "does not affect results files"
+        ),
     )
     parser.add_argument("--prefix", type=str, help="add prefix to output file")
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
@@ -693,6 +789,16 @@ def validate_args(args: argparse.Namespace) -> None:
     if args.forward_kwargs is None:
         args.forward_kwargs = {}
 
+    show_flags_requested = (
+        args.show is True
+        or args.show_top_below is not None
+        or args.show_target_below is not None
+        or args.show_mistakes is True
+        or args.show_out_of_k is True
+        or args.show_class is not None
+    )
+    saving_features = args.save_features is True or args.save_detection_features is True
+
     if args.network is None:
         raise cli.ValidationError("--network is required")
     if args.center_crop > 1 or args.center_crop <= 0.0:
@@ -707,10 +813,29 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--skip-results-analysis cannot be used with --save-sparse-results")
     if args.skip_results_analysis is True and args.summary is True:
         raise cli.ValidationError("--skip-results-analysis cannot be used with --summary")
+    if args.save_features is True and args.save_detection_features is True:
+        raise cli.ValidationError("--save-features cannot be used with --save-detection-features")
+
     if args.save_embeddings is True and args.tta is True:
         raise cli.ValidationError("--save-embeddings cannot be used with --tta")
+    if saving_features is True and args.tta is True:
+        raise cli.ValidationError("--save-features/--save-detection-features cannot be used with --tta")
     if args.amp is True and args.model_dtype != "float32":
         raise cli.ValidationError("--amp can only be used with --model-dtype float32")
+    if saving_features is True and args.output_format != "parquet":
+        raise cli.ValidationError("--save-features/--save-detection-features requires --output-format parquet")
+    if saving_features is True and args.save_embeddings is True:
+        raise cli.ValidationError("--save-features/--save-detection-features cannot be used with --save-embeddings")
+    if saving_features is True and args.save_logits is True:
+        raise cli.ValidationError("--save-features/--save-detection-features cannot be used with --save-logits")
+    if saving_features is True and args.save_output is True:
+        raise cli.ValidationError("--save-features/--save-detection-features cannot be used with --save-output")
+    if saving_features is True and args.save_results is True:
+        raise cli.ValidationError("--save-features/--save-detection-features cannot be used with --save-results")
+    if saving_features is True and args.save_sparse_results is True:
+        raise cli.ValidationError("--save-features/--save-detection-features cannot be used with --save-sparse-results")
+    if saving_features is True and args.summary is True:
+        raise cli.ValidationError("--save-features/--save-detection-features cannot be used with --summary")
 
     if args.save_logits is True and args.save_results is True:
         raise cli.ValidationError("--save-logits cannot be used with --save-results")
@@ -721,16 +846,13 @@ def validate_args(args: argparse.Namespace) -> None:
     if args.save_logits is True and args.summary is True:
         raise cli.ValidationError("--save-logits cannot be used with --summary")
 
-    if args.save_logits is True and (  # pylint: disable=too-many-boolean-expressions
-        args.show is True
-        or args.show_top_below is not None
-        or args.show_target_below is not None
-        or args.show_mistakes is True
-        or args.show_out_of_k is True
-        or args.show_class is not None
-    ):
+    if args.save_logits is True and show_flags_requested is True:
         # Results are not calculated
         raise cli.ValidationError("--save-logits cannot be used with any of the 'show' flags")
+    if saving_features is True and show_flags_requested is True:
+        raise cli.ValidationError(
+            "--save-features/--save-detection-features cannot be used with any of the 'show' flags"
+        )
 
     if args.wds is False and len(args.data_path) == 0:
         raise cli.ValidationError("Must provide at least one data source, --data-path or --wds")
@@ -747,14 +869,7 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--wds cannot be used with --hierarchical")
     if args.wds is True and args.ignore_dir_names is True:
         raise cli.ValidationError("--wds cannot be used with --ignore-dir-names")
-    if args.wds is True and (  # pylint: disable=too-many-boolean-expressions
-        args.show is True
-        or args.show_top_below is not None
-        or args.show_target_below is not None
-        or args.show_mistakes is True
-        or args.show_out_of_k is True
-        or args.show_class is not None
-    ):
+    if args.wds is True and show_flags_requested is True:
         raise cli.ValidationError("--wds cannot be used with any of the 'show' flags")
 
 

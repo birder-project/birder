@@ -16,5 +16,5 @@ tqdm>=4.67.0
 webdataset>=0.2.111
 
 # PyTorch, you should install a version suitable for your hardware and drivers
-torch>=2.7.0
+torch>=2.10.0
 torchvision

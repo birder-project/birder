@@ -283,3 +283,18 @@ registry.register_model_config(
         "expansion": 4,
     },
 )
+
+registry.register_weights(
+    "mobilevit_v1_xxs_il-common",
+    {
+        "description": "MobileViT v1 XXS model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 4.2,
+                "sha256": "d8599ddf67faea311898756c1cd6ef816990b551a2e94fcae10a9396b2e850a3",
+            }
+        },
+        "net": {"network": "mobilevit_v1_xxs", "tag": "il-common"},
+    },
+)

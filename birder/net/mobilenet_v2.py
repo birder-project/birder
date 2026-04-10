@@ -238,3 +238,18 @@ registry.register_model_config("mobilenet_v2_1_25", MobileNet_v2, config={"alpha
 registry.register_model_config("mobilenet_v2_1_5", MobileNet_v2, config={"alpha": 1.5})
 registry.register_model_config("mobilenet_v2_1_75", MobileNet_v2, config={"alpha": 1.75})
 registry.register_model_config("mobilenet_v2_2_0", MobileNet_v2, config={"alpha": 2.0})
+
+registry.register_weights(
+    "mobilenet_v2_1_0_il-common",
+    {
+        "description": "MobileNet v2 large (1.0 multiplier) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 10.5,
+                "sha256": "395c1932e8dd3fac7bf6559a8707a8e0a3e983c950af7f4090358cb304f6a5b1",
+            }
+        },
+        "net": {"network": "mobilenet_v2_1_0", "tag": "il-common"},
+    },
+)

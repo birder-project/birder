@@ -71,7 +71,7 @@ torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag mmcr-inat
 Fine-tuning, first stage - linear probing (full)
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_v2_s --tag mmcr-inat21 --reset-head --freeze-body --batch-size 512 --lr 0.1 --wd 0.0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 90 --warmup-epochs 10 --size 224 --aug-level 1 --rgb-mode birder --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --data-path ~/Datasets/inat2021/train --val-path ~/Datasets/inat2021/val
+torchrun --nproc_per_node=2 train.py --network vit_reg4_so150m_p14_ls --tag dino-v2-bio-inat21 --reset-head --freeze-body --batch-size 512 --lr 0.1 --wd 0.0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 90 --warmup-epochs 10 --size 224 --aug-level 1 --rgb-mode none --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --data-path ~/Datasets/inat2021/train --val-path ~/Datasets/inat2021/val
 ```
 
 #### iNaturalist 2021 - Attentive Probing (AVG -> AP)

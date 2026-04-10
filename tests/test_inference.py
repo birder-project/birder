@@ -236,6 +236,42 @@ class TestInferenceDataParallel(unittest.TestCase):
             self.assertEqual(logits.size(), (batch_size, self.num_classes))
 
     @unittest.skipUnless(torch.cuda.device_count() >= 2, "Requires at least 2 GPUs")
+    def test_custom_func_mapping_output(self) -> None:
+        model_parallel = InferenceDataParallel(self.model)
+        x = torch.randn(8, 3, *self.size)
+        with torch.inference_mode():
+            out_parallel = model_parallel.detection_features(x)
+            model_single = self.model.to(self.device)
+
+            chunk_sizes = []
+            batch_size = x.size(0)
+            base_chunk_size = batch_size // self.num_devices
+            remainder = batch_size % self.num_devices
+            for i in range(self.num_devices):
+                chunk_sizes.append(base_chunk_size + (1 if i < remainder else 0))
+
+            out_single: dict[str, list[torch.Tensor]] = {}
+            offset = 0
+            for chunk_size in chunk_sizes:
+                if chunk_size == 0:
+                    continue
+
+                chunk = x[offset : offset + chunk_size].to(self.device)
+                chunk_out = model_single.detection_features(chunk)
+                for key, value in chunk_out.items():
+                    out_single.setdefault(key, []).append(value)
+
+                offset += chunk_size
+
+            expected = {key: torch.concat(values, dim=0) for key, values in out_single.items()}
+
+        self.assertEqual(set(out_parallel.keys()), set(expected.keys()))
+        for key in expected:
+            self.assertEqual(out_parallel[key].size(), expected[key].size())
+            diff = (out_parallel[key] - expected[key]).abs().max()
+            self.assertLess(diff.item(), 1e-5, f"Output mismatch for key={key}")
+
+    @unittest.skipUnless(torch.cuda.device_count() >= 2, "Requires at least 2 GPUs")
     def test_integration_with_infer_batch(self) -> None:
         model_parallel = InferenceDataParallel(self.model)
 

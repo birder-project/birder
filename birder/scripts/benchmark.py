@@ -2,7 +2,11 @@ import argparse
 import logging
 import multiprocessing as mp
 import time
+from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
+from typing import NamedTuple
+from typing import Optional
 
 import polars as pl
 import torch
@@ -10,12 +14,20 @@ import torch.amp
 
 import birder
 from birder.common import cli
+from birder.common import fs_ops
+from birder.common import lib
 from birder.conf import settings
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 
 logger = logging.getLogger(__name__)
+
+
+class WeightsSpec(NamedTuple):
+    model_name: str
+    weights_path: Path
+    cfg_path: Path
 
 
 def dummy(arg: Any) -> None:
@@ -40,6 +52,44 @@ def init_plain_model(
         net = registry.net_factory(model_name, args.num_classes, input_channels, size=size)
 
     net.to(device)
+    if args.channels_last is True:
+        net = net.to(memory_format=torch.channels_last)
+        logger.debug("Using channels-last memory format")
+
+    prepare_model(net)
+
+    return net
+
+
+def resolve_weights_specs(weights: Optional[list[str]]) -> list[WeightsSpec]:
+    if weights is None:
+        return []
+
+    resolved_specs = []
+    for weight_path in weights:
+        weights_path = Path(weight_path)
+        cfg_path = weights_path.with_suffix(".json")
+        if weights_path.exists() is False:
+            raise cli.ValidationError(f"weights file not found: {weights_path}")
+        if cfg_path.exists() is False:
+            raise cli.ValidationError(f"config file not found for {weights_path}: expected {cfg_path}")
+
+        resolved_specs.append(WeightsSpec(model_name=weights_path.stem, weights_path=weights_path, cfg_path=cfg_path))
+
+    return resolved_specs
+
+
+def get_weights_size(spec: WeightsSpec) -> tuple[int, int]:
+    cfg = fs_ops.read_config_from_path(spec.cfg_path)
+
+    return lib.get_size_from_signature(cfg["signature"])
+
+
+def init_weights_model(spec: WeightsSpec, device: torch.device, args: argparse.Namespace) -> torch.nn.Module:
+    net, _ = fs_ops.load_model_with_cfg(spec.cfg_path, spec.weights_path)
+    net.to(device)
+    if args.size is not None:
+        net.adjust_size(args.size)
     if args.channels_last is True:
         net = net.to(memory_format=torch.channels_last)
         logger.debug("Using channels-last memory format")
@@ -126,7 +176,7 @@ def throughput_benchmark(
 
 
 def memory_benchmark(
-    sync_peak_memory: Any, sample_shape: tuple[int, ...], model_name: str, args: argparse.Namespace
+    sync_peak_memory: Any, sample_shape: tuple[int, ...], model_spec: str | WeightsSpec, args: argparse.Namespace
 ) -> None:
     if args.gpu is True:
         device = torch.device("cuda")
@@ -141,6 +191,11 @@ def memory_benchmark(
     else:
         amp_dtype = getattr(torch, args.amp_dtype)
 
+    if isinstance(model_spec, WeightsSpec):
+        model_name = model_spec.model_name
+    else:
+        model_name = model_spec
+
     logger.info(
         f"Memory benchmark for {model_name}: batch={sample_shape[0]} size={sample_shape[2:]} device={device.type} "
         f"compile={args.compile} amp={args.amp} amp_dtype={amp_dtype} channels_last={args.channels_last}"
@@ -148,6 +203,8 @@ def memory_benchmark(
 
     if args.plain is True:
         net = init_plain_model(model_name, sample_shape, device, args)
+    elif isinstance(model_spec, WeightsSpec):
+        net = init_weights_model(model_spec, device, args)
 
     else:
         net, _ = birder.load_pretrained_model(model_name, inference=True, device=device)
@@ -214,9 +271,11 @@ def benchmark(args: argparse.Namespace) -> None:
         torch.set_num_threads(1)
         torch.set_num_interop_threads(1)
 
-    input_channels = 3
     results = []
-    if args.plain is True:
+    model_list: Sequence[str | WeightsSpec]
+    if len(args.weights) > 0:
+        model_list = args.weights
+    elif args.plain is True:
         model_list = args.models or []
         if len(model_list) == 0:
             task = Task.OBJECT_DETECTION if args.backbone is not None else Task.IMAGE_CLASSIFICATION
@@ -226,8 +285,22 @@ def benchmark(args: argparse.Namespace) -> None:
         model_list = birder.list_pretrained_models(args.filter)
 
     logger.info(f"Found {len(model_list)} models to benchmark")
-    for model_name in model_list:
-        if args.plain is True:
+    for model_spec in model_list:
+        if isinstance(model_spec, WeightsSpec):
+            model_name = model_spec.model_name
+        else:
+            model_name = model_spec
+
+        if isinstance(model_spec, WeightsSpec):
+            cfg = fs_ops.read_config_from_path(model_spec.cfg_path)
+            input_channels = lib.get_channels_from_signature(cfg["signature"])
+            if args.size is not None:
+                size = args.size
+            else:
+                size = lib.get_size_from_signature(cfg["signature"])
+
+        elif args.plain is True:
+            input_channels = settings.DEFAULT_NUM_CHANNELS
             if args.size is not None:
                 size = args.size
             else:
@@ -235,6 +308,7 @@ def benchmark(args: argparse.Namespace) -> None:
 
         else:
             model_metadata = registry.get_pretrained_metadata(model_name)
+            input_channels = settings.DEFAULT_NUM_CHANNELS
             if args.size is not None:
                 size = args.size
             else:
@@ -265,14 +339,16 @@ def benchmark(args: argparse.Namespace) -> None:
         if args.memory is True:
             samples_per_sec = None
             sync_peak_memory = mp.Value("d", 0.0)
-            p = mp.Process(target=memory_benchmark, args=(sync_peak_memory, sample_shape, model_name, args))
+            p = mp.Process(target=memory_benchmark, args=(sync_peak_memory, sample_shape, model_spec, args))
             p.start()
             p.join()
             peak_memory = sync_peak_memory.value / (1024 * 1024)
             logger.info(f"{model_name} peak memory: {peak_memory:.2f} MB")
         else:
             # Initialize model
-            if args.plain is True:
+            if isinstance(model_spec, WeightsSpec):
+                net = init_weights_model(model_spec, device, args)
+            elif args.plain is True:
                 net = init_plain_model(model_name, sample_shape, device, args)
             else:
                 net, _ = birder.load_pretrained_model(model_name, inference=True, device=device)
@@ -348,10 +424,13 @@ def get_args_parser() -> argparse.ArgumentParser:
             "--gpu --size 416 --dry-run\n"
             "python -m birder.scripts.benchmark --plain --models retinanet --backbone resnet_v1_50 --num-classes 91 "
             "--size 640 --gpu --dry-run\n"
+            "python -m birder.scripts.benchmark --weights models/vit_reg4_s14_nps_ls_dino-v2-lvd142m.pt "
+            "--gpu --dry-run\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
     parser.add_argument("--filter", type=str, help="models to benchmark (fnmatch type filter)")
+    parser.add_argument("--weights", nargs="+", help="weight files to benchmark using sibling .json configs")
     parser.add_argument("--models", nargs="+", help="plain network names to benchmark")
     parser.add_argument("--plain", default=False, action="store_true", help="benchmark plain networks without weights")
     parser.add_argument("--backbone", type=str, help="backbone name for plain detection benchmarks")
@@ -393,6 +472,7 @@ def get_args_parser() -> argparse.ArgumentParser:
 
 def validate_args(args: argparse.Namespace) -> None:
     args.size = cli.parse_size(args.size)
+    args.weights = resolve_weights_specs(args.weights)
 
     if args.single_thread is True and args.gpu is True:
         raise cli.ValidationError("--single-thread cannot be used with --gpu")
@@ -400,6 +480,12 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--memory requires --gpu")
     if args.memory is True and args.compile is True:
         raise cli.ValidationError("--memory cannot be used with --compile")
+    if len(args.weights) > 0 and args.plain is True:
+        raise cli.ValidationError("--weights cannot be used with --plain")
+    if len(args.weights) > 0 and args.filter is not None:
+        raise cli.ValidationError("--weights cannot be used with --filter")
+    if len(args.weights) > 0 and args.models is not None:
+        raise cli.ValidationError("--weights cannot be used with --models")
     if args.plain is False and args.models is not None:
         raise cli.ValidationError("--models can only be used with --plain")
     if args.backbone is not None and args.plain is False:

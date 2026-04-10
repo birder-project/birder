@@ -238,6 +238,14 @@ torchrun --nproc_per_node=2 train_detection.py --network retinanet --backbone cs
 
 ### RF-DETR
 
+#### RF-DETR Small: RoPEi ViT reg1 t16 pn c1 (PE-Spatial)
+
+Intermediate training (Objects365-2020) - Dynamic, warmup
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network rf_detr_small --tag objects365 --backbone rope_i_vit_reg1_t16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-model-config '{"out_indices":[2,5,8,11]}' --backbone-pretrained --freeze-backbone --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.0001 --wd 0.0001 --norm-wd 0 --epochs 10 --size 576 --batch-multiscale --multiscale-min-size 384 --multiscale-max-size 672 --aug-type fixed_detr --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info ~/Datasets/Objects365-2020-wds/_info.json --wds-class-file public_datasets_metadata/objects365-classes.txt
+```
+
 #### RF-DETR: RoPEi ViT reg1 s16 pn c1 (PE-Spatial)
 
 Intermediate training (COCO) - Dynamic, warmup

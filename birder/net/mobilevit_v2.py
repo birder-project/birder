@@ -338,3 +338,18 @@ registry.register_model_config("mobilevit_v2_1_25", MobileViT_v2, config={"width
 registry.register_model_config("mobilevit_v2_1_5", MobileViT_v2, config={"width_factor": 1.5})
 registry.register_model_config("mobilevit_v2_1_75", MobileViT_v2, config={"width_factor": 1.75})
 registry.register_model_config("mobilevit_v2_2_0", MobileViT_v2, config={"width_factor": 2.0})
+
+registry.register_weights(
+    "mobilevit_v2_1_0_il-common",
+    {
+        "description": "MobileViT v2 (1.0 width factor) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 17.6,
+                "sha256": "69cc3b1afe67d6d98fbe27a280a353bdd92f8df7bb4518da91bfdc3aa0f4376a",
+            }
+        },
+        "net": {"network": "mobilevit_v2_1_0", "tag": "il-common"},
+    },
+)

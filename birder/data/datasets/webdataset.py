@@ -1,6 +1,8 @@
 import logging
 import os
 from collections.abc import Callable
+from collections.abc import Iterable
+from collections.abc import Iterator
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -9,14 +11,18 @@ from typing import Optional
 
 import torch
 import webdataset as wds
+from PIL import Image
 from torchvision import tv_tensors
 from torchvision.datasets.folder import IMG_EXTENSIONS
 from torchvision.io import ImageReadMode
 from torchvision.io import decode_image
+from torchvision.transforms.v2 import functional as F
 
 from birder.common import fs_ops
 from birder.common.training_utils import reduce_across_processes
 from birder.conf import settings
+from birder.data.transforms.mosaic import mosaic_fixed_grid
+from birder.data.transforms.mosaic import mosaic_random_center
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +141,107 @@ def decode_detection_sample(item: tuple[Any, ...], label_remap: Optional[dict[in
     image, target = decode_detection_target(item, label_remap=label_remap)
     orig_size = tuple(image.shape[-2:])
     return (image, target, orig_size)
+
+
+class WdsMosaicBuffer:
+    """
+    Per-worker mosaic buffer for WebDataset streaming detection pipelines
+
+    Maintains a small buffer of decoded samples per DataLoader worker. When a mosaic
+    is triggered, the incoming image is combined with 3 randomly sampled buffer images.
+    One of the 3 sampled images is evicted, and the incoming image does not enter the
+    buffer. When no mosaic occurs, the incoming image may enter the buffer (always if
+    not full, with probability 0.5 if full - evicting a random entry).
+    """
+
+    def __init__(
+        self,
+        mosaic_prob: float,
+        mosaic_fn: Callable[..., tuple[Image.Image, dict[str, Any]]],
+        output_size: tuple[int, int],
+        fill_value: int | tuple[int, int, int],
+        transforms: Callable[..., Any],
+        mosaic_transforms: Callable[..., Any],
+        buffer_size: int = 32,
+    ) -> None:
+        self.mosaic_prob = mosaic_prob
+        self.mosaic_fn = mosaic_fn
+        self.output_size = output_size
+        self.fill_value = fill_value
+        self.transforms = transforms
+        self.mosaic_transforms = mosaic_transforms
+        self.buffer_size = buffer_size
+        self.min_buffer_for_mosaic = 3
+        self.buffer: list[tuple[torch.Tensor, dict[str, Any]]] = []
+
+    def __call__(self, source: Iterable[tuple[torch.Tensor, dict[str, Any]]]) -> Iterator[tuple[Any, ...]]:
+        for image, target in source:
+            if len(self.buffer) >= self.min_buffer_for_mosaic and torch.rand(()).item() < self.mosaic_prob:
+                indices = torch.randperm(len(self.buffer))[: self.min_buffer_for_mosaic].tolist()
+                images = [F.to_pil_image(image)] + [F.to_pil_image(self.buffer[i][0]) for i in indices]
+                targets = [target] + [self.buffer[i][1] for i in indices]
+
+                # Evict one of the sampled entries; incoming image does not enter buffer
+                evict_idx = indices[torch.randint(self.min_buffer_for_mosaic, (1,)).item()]
+                del self.buffer[evict_idx]
+
+                mosaic_img, mosaic_tgt = self.mosaic_fn(images, targets, self.output_size, self.fill_value)
+                yield self.mosaic_transforms(mosaic_img, mosaic_tgt)
+            else:
+                # Try to insert the incoming image into the buffer
+                if len(self.buffer) < self.buffer_size:
+                    self.buffer.append((image, target))
+                elif torch.rand(()).item() < 0.5:
+                    evict_idx = torch.randint(len(self.buffer), (1,)).item()
+                    self.buffer[evict_idx] = (image, target)
+
+                yield self.transforms(image, target)
+
+
+def make_wds_mosaic_detection_dataset(
+    wds_path: str | list[str],
+    dataset_size: int,
+    transform: Callable[..., Any],
+    mosaic_transforms: Callable[..., Any],
+    mosaic_prob: float,
+    mosaic_type: Literal["fixed_grid", "random_center"],
+    output_size: tuple[int, int],
+    fill_value: int | tuple[int, int, int],
+    *,
+    label_remap: Optional[dict[int, int]] = None,
+    cache_dir: Optional[str] = None,
+    shuffle_buffer_size: Optional[int] = None,
+    shuffle_initial_size: Optional[int] = None,
+    mosaic_buffer_size: int = 32,
+) -> torch.utils.data.IterableDataset:
+    if shuffle_buffer_size is None:
+        shuffle_buffer_size = WDS_SHUFFLE_SIZE
+    if shuffle_initial_size is None:
+        shuffle_initial_size = WDS_INITIAL_SIZE
+
+    logger.debug(f"Using buffer size of {shuffle_buffer_size} for shuffle with {shuffle_initial_size} initial size")
+
+    dataset = wds.WebDataset(
+        wds_path, shardshuffle=500, nodesplitter=wds.split_by_node, cache_dir=cache_dir, empty_check=False
+    )
+    dataset = dataset.shuffle(shuffle_buffer_size, initial=shuffle_initial_size)
+    dataset = dataset.decode(wds_image_decoder).to_tuple("jpeg;jpg;png;webp", "json")
+    dataset = dataset.map(lambda item: decode_detection_target(item, label_remap=label_remap))
+
+    mosaic_fn = mosaic_fixed_grid if mosaic_type == "fixed_grid" else mosaic_random_center
+    buffer = WdsMosaicBuffer(
+        mosaic_prob=mosaic_prob,
+        mosaic_fn=mosaic_fn,
+        output_size=output_size,
+        fill_value=fill_value,
+        transforms=transform,
+        mosaic_transforms=mosaic_transforms,
+        buffer_size=mosaic_buffer_size,
+    )
+    dataset = dataset.compose(buffer)
+    dataset = dataset.with_length(dataset_size, silent=True)
+
+    return dataset
 
 
 def make_wds_detection_dataset(

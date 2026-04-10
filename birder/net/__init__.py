@@ -21,6 +21,7 @@ from birder.net.edgenext import EdgeNeXt
 from birder.net.edgevit import EdgeViT
 from birder.net.efficientformer_v1 import EfficientFormer_v1
 from birder.net.efficientformer_v2 import EfficientFormer_v2
+from birder.net.efficientmod import EfficientMod
 from birder.net.efficientnet_lite import EfficientNet_Lite
 from birder.net.efficientnet_v1 import EfficientNet_v1
 from birder.net.efficientnet_v2 import EfficientNet_v2
@@ -137,6 +138,7 @@ __all__ = [
     "EdgeViT",
     "EfficientFormer_v1",
     "EfficientFormer_v2",
+    "EfficientMod",
     "EfficientNet_Lite",
     "EfficientNet_v1",
     "EfficientNet_v2",

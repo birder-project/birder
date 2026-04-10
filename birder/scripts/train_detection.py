@@ -17,6 +17,7 @@ import numpy as np
 import torch
 import torch.amp
 import torchinfo
+import webdataset as wds
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
@@ -35,6 +36,7 @@ from birder.data.datasets.coco import CocoMosaicTraining
 from birder.data.datasets.coco import CocoTraining
 from birder.data.datasets.coco import build_label_mapping_indices
 from birder.data.datasets.webdataset import make_wds_detection_dataset
+from birder.data.datasets.webdataset import make_wds_mosaic_detection_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import get_rgb_stats
@@ -103,6 +105,14 @@ def _make_validation_subset(
     indices.sort()
 
     return torch.utils.data.Subset(dataset, indices)
+
+
+def _make_wds_validation_subset(dataset: wds.WebDataset, subset_size: int) -> Any:
+    dataset_len = len(dataset)
+    if subset_size >= dataset_len:
+        return dataset
+
+    return dataset.slice(subset_size).with_length(subset_size, silent=True)
 
 
 def _resolve_wds_labels(
@@ -188,14 +198,50 @@ def train(args: argparse.Namespace) -> None:
         class_to_idx, label_remap = _resolve_wds_labels(
             args.wds_class_file, args.binary_mode, args.binary_class_name, label_mapping
         )
-        training_dataset = make_wds_detection_dataset(
-            training_wds_path,
-            dataset_size=training_size,
-            shuffle=True,
-            transform=transforms,
-            label_remap=label_remap,
-            cache_dir=args.wds_cache_dir,
-        )
+        if args.mosaic_prob > 0.0:
+            mosaic_transforms = training_preset(
+                args.size,
+                args.aug_type,
+                args.aug_level,
+                rgb_stats,
+                args.dynamic_size,
+                args.multiscale,
+                args.max_size,
+                args.multiscale_min_size,
+                args.multiscale_max_size,
+                args.multiscale_step,
+                post_mosaic=True,
+            )
+            if args.dynamic_size is True or args.multiscale is True:
+                if args.max_size is not None:
+                    mosaic_dim = args.max_size
+                else:
+                    mosaic_dim = min(args.size) * 2
+            else:
+                mosaic_dim = max(args.size) * 2
+
+            training_dataset = make_wds_mosaic_detection_dataset(
+                training_wds_path,
+                dataset_size=training_size,
+                transform=transforms,
+                mosaic_transforms=mosaic_transforms,
+                mosaic_prob=args.mosaic_prob,
+                mosaic_type=args.mosaic_type,
+                output_size=(mosaic_dim, mosaic_dim),
+                fill_value=114,
+                label_remap=label_remap,
+                cache_dir=args.wds_cache_dir,
+            )
+            logger.info(f"WDS mosaic: prob={args.mosaic_prob}, type={args.mosaic_type}")
+        else:
+            training_dataset = make_wds_detection_dataset(
+                training_wds_path,
+                dataset_size=training_size,
+                shuffle=True,
+                transform=transforms,
+                label_remap=label_remap,
+                cache_dir=args.wds_cache_dir,
+            )
         validation_dataset = make_wds_detection_dataset(
             val_wds_path,
             dataset_size=val_size,
@@ -287,10 +333,14 @@ def train(args: argparse.Namespace) -> None:
             class_to_idx = lib.detection_class_to_idx(class_to_idx)
 
         training_dataset.remove_images_without_annotations(ignore_list)
-        if args.val_subset_size is not None:
-            validation_dataset = _make_validation_subset(validation_dataset, args.val_subset_size, args.seed)
 
     full_validation_dataset_len = len(validation_dataset)
+    if args.val_subset_size is not None:
+        if args.wds is True:
+            validation_dataset = _make_wds_validation_subset(validation_dataset, args.val_subset_size)
+        else:
+            validation_dataset = _make_validation_subset(validation_dataset, args.val_subset_size, args.seed)
+
     logger.info(f"Using device {device}:{device_id}")
     logger.info(f"Training dataset has {len(training_dataset):,} samples")
     if len(validation_dataset) == full_validation_dataset_len:
@@ -1209,16 +1259,12 @@ def validate_args(args: argparse.Namespace) -> None:
                 f"--mosaic-stop-epoch must be <= --epochs ({args.epochs}), got {args.mosaic_stop_epoch}"
             )
     if args.wds is True:
-        if args.mosaic_prob > 0.0:
-            raise cli.ValidationError("--mosaic-prob is not supported with --wds")
         if args.mosaic_stop_epoch is not None:
             raise cli.ValidationError("--mosaic-stop-epoch is not supported with --wds")
         if args.class_file is not None:
             raise cli.ValidationError("--class-file cannot be used with --wds, use --wds-class-file")
         if args.ignore_file is not None:
             raise cli.ValidationError("--ignore-file is not supported with --wds")
-        if args.val_subset_size is not None:
-            raise cli.ValidationError("--val-subset-size is not supported with --wds")
     if args.backbone_pretrained is True and args.backbone_epoch is not None:
         raise cli.ValidationError("--backbone-pretrained cannot be used with --backbone-epoch")
     if args.label_mapping is not None and args.binary_mode is True:

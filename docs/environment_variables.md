@@ -35,6 +35,14 @@ Number of samples to pre-fill WebDataset shuffle buffer.
 **`DISABLE_CUSTOM_KERNELS`**  
 Set to `1` to disable custom CUDA/CPU kernels. Useful for debugging or compatibility issues.
 
+**`COMPILE_RECOMPILE_LIMIT`**  
+Overrides `torch.compiler.config.recompile_limit` in Birder training scripts.
+If set, this takes precedence over `--compile-recompile-limit`.
+
+**`COMPILE_ACCUMULATED_RECOMPILE_LIMIT`**  
+Overrides `torch.compiler.config.accumulated_recompile_limit` in Birder training scripts.
+If set, this takes precedence over `--compile-accumulated-recompile-limit`.
+
 ## Testing Environment Variables
 
 These environment variables control which tests are executed when running the Birder test suite. They are intended for use during development and continuous integration to selectively enable slower or more resource-dependent tests.

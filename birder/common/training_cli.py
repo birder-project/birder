@@ -6,6 +6,8 @@ from typing import Literal
 from typing import Optional
 from typing import get_args
 
+import torch
+
 from birder.common.cli import FlexibleDictAction
 from birder.common.cli import ValidationError
 from birder.common.training_utils import OptimizerType
@@ -37,6 +39,20 @@ def add_compile_args(parser: argparse.ArgumentParser, teacher: bool = False, bac
 
     group.add_argument(
         "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
+    )
+    group.add_argument(
+        "--compile-recompile-limit",
+        type=int,
+        default=torch.compiler.config.recompile_limit,
+        metavar="N",
+        help="maximum recompilations per compiled function before eager fallback",
+    )
+    group.add_argument(
+        "--compile-accumulated-recompile-limit",
+        type=int,
+        default=torch.compiler.config.accumulated_recompile_limit,
+        metavar="N",
+        help="maximum total recompilations across compiled functions",
     )
 
 

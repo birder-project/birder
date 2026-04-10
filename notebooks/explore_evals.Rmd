@@ -501,7 +501,7 @@ def build_reference_agg_df(scores_df: pl.DataFrame, min_benchmarks: int = 8) -> 
 ```{python}
 # awa2 bioscan5m butterflies cct cub200 fishnet flowers102 fungiclef
 # imagenet1k nabirds newt plankton plantdoc plantnet snakeclef
-benchmark = "awa2"
+
 for benchmark in BENCHMARK_CONFIG:
     cfg = BENCHMARK_CONFIG[benchmark]
 

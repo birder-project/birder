@@ -142,6 +142,14 @@ torchrun --nproc_per_node=2 train.py --network efficientformer_v2_s0 --tag il-co
 torchrun --nproc_per_node=2 train.py --network efficientformer_v2_s1 --tag il-common --batch-size 256 --opt adamw --clip-grad-norm 1 --lr 0.001 --wd 0.025 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### EfficientMod
+
+### EfficientMod: XXS
+
+```sh
+torchrun --nproc_per_node=2 train.py --network efficientmod_xxs --tag il-common --batch-size 256 --opt adamw --lr 0.004 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### EfficientNet Lite
 
 #### EfficientNet Lite: 0
