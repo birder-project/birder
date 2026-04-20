@@ -350,3 +350,32 @@ registry.register_model_config("repghost_0_5", RepGhost, config={"width": 0.5})
 registry.register_model_config("repghost_1_0", RepGhost, config={"width": 1.0})
 registry.register_model_config("repghost_1_3", RepGhost, config={"width": 1.3})
 registry.register_model_config("repghost_1_5", RepGhost, config={"width": 1.5})
+
+registry.register_weights(
+    "repghost_1_0_il-common",
+    {
+        "description": "RepGhost (width 1.0) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 12.8,
+                "sha256": "85af296dc43e1816d962c7dc88a66820ea899369bade2b6e2d6bd9cefb87e008",
+            }
+        },
+        "net": {"network": "repghost_1_0", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "repghost_1_0_il-common_reparameterized",
+    {
+        "description": "RepGhost (width 1.0 reparameterized) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 12.6,
+                "sha256": "09cf4132b33618c4f28aec54beb1108250c89f567979db05e35fc7a500e72f27",
+            }
+        },
+        "net": {"network": "repghost_1_0", "tag": "il-common_reparameterized", "reparameterized": True},
+    },
+)

@@ -36,8 +36,11 @@ SO400 = {
 }
 
 # From "Scaling Vision Transformers"
-GIANT = {"num_layers": 40, "num_heads": 16, "hidden_dim": 1408, "mlp_dim": 6144, "drop_path_rate": 0.1}
-GIGANTIC = {"num_layers": 48, "num_heads": 16, "hidden_dim": 1664, "mlp_dim": 8192, "drop_path_rate": 0.1}
+GIANT = {"num_layers": 40, "num_heads": 16, "hidden_dim": 1408, "mlp_dim": 6144, "drop_path_rate": 0.1}  # ~1B
+GIGANTIC = {"num_layers": 48, "num_heads": 16, "hidden_dim": 1664, "mlp_dim": 8192, "drop_path_rate": 0.1}  # ~1.8B
+
+# From "PaLI: A Jointly-Scaled Multilingual Language-Image Model"
+ENORMOUS = {"num_layers": 56, "num_heads": 16, "hidden_dim": 1792, "mlp_dim": 15360, "drop_path_rate": 0.1}  # ~3.8B
 
 
 def register_vit_configs(vit: type[BaseNet]) -> None:
@@ -197,7 +200,7 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         config={"patch_size": 14, **GIANT},
     )
     registry.register_model_config(  # From "Scaling Language-Free Visual Representation Learning"
-        "vit_1b_p16",  # AKA vit_giant2 from DINOv2
+        "vit_1b_p16",  # AKA vit_giant2 from DINOv2 (same as g-opt but with 24 heads)
         vit,
         config={
             "patch_size": 16,
@@ -216,14 +219,7 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
     registry.register_model_config(  # From "PaLI: A Jointly-Scaled Multilingual Language-Image Model"
         "vit_e14",
         vit,
-        config={
-            "patch_size": 14,
-            "num_layers": 56,
-            "num_heads": 16,
-            "hidden_dim": 1792,
-            "mlp_dim": 15360,
-            "drop_path_rate": 0.1,
-        },
+        config={"patch_size": 14, **ENORMOUS},
     )
 
     # With registers
@@ -325,6 +321,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         "vit_reg4_b16_avg",
         vit,
         config={"patch_size": 16, **BASE, "num_reg_tokens": 4, "class_token": False},
+    )
+    registry.register_model_config(  # For TIPS v2 - https://arxiv.org/abs/2604.12012
+        "vit_reg1_b14",
+        vit,
+        config={"patch_size": 14, **BASE, "num_reg_tokens": 1},
     )
     registry.register_model_config(
         "vit_reg4_b14",

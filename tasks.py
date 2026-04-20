@@ -606,6 +606,7 @@ def predict_eval_benchmarks(
     datasets_dir="~/Datasets",
     benchmarks=None,
     batch_size=256,
+    size=None,
     parallel=True,
     simple_crop=True,
 ):
@@ -633,6 +634,8 @@ def predict_eval_benchmarks(
         base_cmd += ["-t", tag]
     if epoch is not None:
         base_cmd += ["-e", str(epoch)]
+    if size is not None:
+        base_cmd += ["--size", str(size)]
     if parallel is True:
         base_cmd.append("--parallel")
 

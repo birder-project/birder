@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.15 - 2026-04-20
+
+### Changed
+
+- **Franca FSDP (Beta)**: Added `--distributed-mode fsdp` support to `train_franca` with two FSDP roots (student + teacher).
+
+### Fixed
+
+- **EMA Teacher Resume / Optimizer-State Loading**: Freeze EMA teachers earlier in `train_dino_v2`, `train_dino_v2_dist`, `train_franca` and `train_capi` so teacher-only parameters do not participate in optimizer-state matching or optimizer parameter-group construction during resume.
+- **NEPA Loss Precision**: Cast `pred` and `target` to float32 in `prediction_loss` so `F.normalize` and the cosine-similarity dot product run in full precision under autocast.
+- **SmoothedValue Count Reduction**: Use `round()` instead of `int()` on the reduced count to fix off-by-one from `ReduceOp.AVG` floating-point imprecision on non-power-of-2 world sizes.
+
 ## 0.4.14 - 2026-04-10
 
 ### Added

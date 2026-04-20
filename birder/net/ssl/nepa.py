@@ -26,8 +26,8 @@ def prediction_loss(pred: torch.Tensor, target: torch.Tensor, shift: bool = True
 
     target = target.detach()
 
-    pred = F.normalize(pred, dim=-1)
-    target = F.normalize(target, dim=-1)
+    pred = F.normalize(pred.float(), dim=-1)
+    target = F.normalize(target.float(), dim=-1)
 
     return -(pred * target).sum(dim=-1).mean()
 

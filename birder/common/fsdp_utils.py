@@ -215,6 +215,7 @@ def load_full_optimizer_state_dict(
     optimizer: torch.optim.Optimizer,
     optimizer_state: dict[str, Any],
     broadcast_from_rank0: bool = False,
+    strict: bool = True,
 ) -> None:
-    options = StateDictOptions(full_state_dict=True, broadcast_from_rank0=broadcast_from_rank0)
+    options = StateDictOptions(full_state_dict=True, broadcast_from_rank0=broadcast_from_rank0, strict=strict)
     set_optimizer_state_dict(net, optimizer, optimizer_state, options=options)

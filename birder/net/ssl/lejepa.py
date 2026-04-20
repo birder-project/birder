@@ -43,8 +43,12 @@ class SIGReg(nn.Module):
 
     def __init__(self, num_knots: int, num_slices: int, t_max: float) -> None:
         super().__init__()
+        assert num_knots % 2 == 1, f"num_knots must be odd, got {num_knots}"
+
         self.num_slices = num_slices
         self.slice_step = nn.Buffer(torch.zeros((), dtype=torch.long))
+        self._generator: Optional[torch.Generator] = None
+        self._generator_device: Optional[torch.device] = None
 
         t = torch.linspace(0.0, t_max, num_knots, dtype=torch.float32)
         dt = t_max / (num_knots - 1)
@@ -61,10 +65,14 @@ class SIGReg(nn.Module):
     @torch.compiler.disable()  # type: ignore[untyped-decorator]
     def _sample_directions(self, proj: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
-            generator = torch.Generator(device=proj.device)
-            generator.manual_seed(self.slice_step.item())
+            device = proj.device
+            if self._generator is None or self._generator_device != device:
+                self._generator = torch.Generator(device=device)
+                self._generator_device = device
+
+            self._generator.manual_seed(self.slice_step.item())
             directions = torch.randn(
-                proj.size(-1), self.num_slices, device=proj.device, dtype=proj.dtype, generator=generator
+                proj.size(-1), self.num_slices, device=device, dtype=proj.dtype, generator=self._generator
             )
             self.slice_step.add_(1)
 

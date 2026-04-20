@@ -543,7 +543,6 @@ SCORING_METHODS: dict[str, ScoreMethod] = {
 score_method = "ref_percentile_interp"
 exclude_benchmarks = {
     "imagenet1k",  # OOD
-    "flowers102",  # Too easy
     "plankton",  # Not natural photography
     # "nabirds",  # Birds
     # "cub200",  # Birds

@@ -201,7 +201,7 @@ def train(args: argparse.Namespace) -> None:
         student = torch.nn.SyncBatchNorm.convert_sync_batchnorm(student)
         teacher = torch.nn.SyncBatchNorm.convert_sync_batchnorm(teacher)
 
-    # There is no backpropagation through the teacher (freeze the teacher before building optimizer parameter groups)
+    # There is no backpropagation through the teacher
     net["teacher"].requires_grad_(False)
 
     if args.fast_matmul is True or args.amp is True:

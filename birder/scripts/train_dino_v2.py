@@ -533,6 +533,10 @@ def train(args: argparse.Namespace) -> None:
     # Gradient scaler and AMP related tasks
     scaler, amp_dtype = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
 
+    # There is no backpropagation through the teacher
+    for p in teacher.parameters():
+        p.requires_grad_(False)
+
     # Load states
     if args.load_states is True:
         if fsdp_mode is True:
@@ -571,10 +575,6 @@ def train(args: argparse.Namespace) -> None:
     #
     # Distributed (DDP)
     #
-
-    # There is no backpropagation through the teacher
-    for p in teacher.parameters():
-        p.requires_grad_(False)
 
     student_without_ddp = student
     no_sync_cm = nullcontext

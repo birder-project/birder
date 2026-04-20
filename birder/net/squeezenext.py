@@ -190,3 +190,18 @@ registry.register_model_config("squeezenext_0_5", SqueezeNext, config={"width_sc
 registry.register_model_config("squeezenext_1_0", SqueezeNext, config={"width_scale": 1.0})
 registry.register_model_config("squeezenext_1_5", SqueezeNext, config={"width_scale": 1.5})
 registry.register_model_config("squeezenext_2_0", SqueezeNext, config={"width_scale": 2.0})
+
+registry.register_weights(
+    "squeezenext_1_0_il-common",
+    {
+        "description": "SqueezeNext (1.0 width scale) model trained on the il-common dataset",
+        "resolution": (259, 259),
+        "formats": {
+            "pt": {
+                "file_size": 3.5,
+                "sha256": "6a9e102a8d332a0f417cc65ee62019b7d999365562f17691167711249415fec1",
+            }
+        },
+        "net": {"network": "squeezenext_1_0", "tag": "il-common"},
+    },
+)

@@ -219,6 +219,10 @@ def train(args: argparse.Namespace) -> None:
         student = torch.compile(student, fullgraph=args.compile_fullgraph)
         teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph)
 
+    # There is no backpropagation through the teacher backbone
+    for p in teacher.backbone.parameters():
+        p.requires_grad_(False)
+
     #
     # Data
     #
@@ -434,10 +438,6 @@ def train(args: argparse.Namespace) -> None:
     #
     # Distributed (DDP)
     #
-
-    # There is no backpropagation through the teacher backbone
-    for p in teacher.backbone.parameters():
-        p.requires_grad_(False)
 
     teacher_without_ddp = teacher
     student_without_ddp = student

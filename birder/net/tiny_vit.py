@@ -509,3 +509,18 @@ registry.register_model_config(
         "drop_path_rate": 0.2,
     },
 )
+
+registry.register_weights(
+    "tiny_vit_5m_il-common",
+    {
+        "description": "TinyViT 5M model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 20.0,
+                "sha256": "7b57dcdf94094fa69cd52b14043eb9df38ca873a2e99296204e989dd24e7e09b",
+            }
+        },
+        "net": {"network": "tiny_vit_5m", "tag": "il-common"},
+    },
+)

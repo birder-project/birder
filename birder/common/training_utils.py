@@ -1037,7 +1037,7 @@ class SmoothedValue:
         t = torch.concat([count, total, tensor_deque], dim=0)
         dist.barrier()
         dist.all_reduce(t, op=op)
-        self.count = int(t[0].cpu().item())
+        self.count = round(t[0].cpu().item())
         self.total = t[1]
         self.deque = deque(list(t[2:]), maxlen=self.window_size)
 
