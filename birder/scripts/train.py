@@ -161,8 +161,9 @@ def train(args: argparse.Namespace) -> None:
             prefetch_factor=args.prefetch_factor,
             collate_fn=collate_fn,
             world_size=args.world_size,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
             drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
             shuffle=args.wds_extra_shuffle,
             infinite=virtual_epoch_mode,
         )
@@ -174,7 +175,8 @@ def train(args: argparse.Namespace) -> None:
             prefetch_factor=args.prefetch_factor,
             collate_fn=None,
             world_size=args.world_size,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
+            persistent_workers=args.persistent_workers,
         )
 
     else:
@@ -185,8 +187,9 @@ def train(args: argparse.Namespace) -> None:
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
             collate_fn=collate_fn,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
             drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
         )
         validation_loader = DataLoader(
             validation_dataset,
@@ -194,7 +197,8 @@ def train(args: argparse.Namespace) -> None:
             sampler=validation_sampler,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
+            persistent_workers=args.persistent_workers,
         )
 
     if virtual_epoch_mode is True:
@@ -233,7 +237,7 @@ def train(args: argparse.Namespace) -> None:
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
-        net, class_to_idx_saved, training_states = fs_ops.load_checkpoint(
+        net, class_to_idx_saved, checkpoint_rgb_stats, training_states = fs_ops.load_checkpoint(
             device,
             args.network,
             config=args.model_config,
@@ -242,6 +246,11 @@ def train(args: argparse.Namespace) -> None:
             new_size=args.size,
             strict=not args.non_strict_weights,
         )
+        if checkpoint_rgb_stats != rgb_stats:
+            logger.warning(
+                f"Resuming training with RGB stats {rgb_stats}, "
+                f"but checkpoint was saved with {checkpoint_rgb_stats}"
+            )
         if args.reset_head is True:
             net.reset_classifier(len(class_to_idx))
         else:
@@ -249,7 +258,7 @@ def train(args: argparse.Namespace) -> None:
 
     elif args.pretrained is True:
         fs_ops.download_model_by_weights(network_name, progress_bar=training_utils.is_local_primary(args))
-        net, class_to_idx_saved, training_states = fs_ops.load_checkpoint(
+        net, class_to_idx_saved, checkpoint_rgb_stats, training_states = fs_ops.load_checkpoint(
             device,
             args.network,
             config=args.model_config,
@@ -258,6 +267,11 @@ def train(args: argparse.Namespace) -> None:
             new_size=args.size,
             strict=not args.non_strict_weights,
         )
+        if checkpoint_rgb_stats != rgb_stats:
+            logger.warning(
+                f"Training with RGB stats {rgb_stats}, "
+                f"but pretrained checkpoint was saved with {checkpoint_rgb_stats}"
+            )
         if args.reset_head is True:
             net.reset_classifier(len(class_to_idx))
         else:
@@ -290,7 +304,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Compile network
     if args.compile is True:
-        net = torch.compile(net, fullgraph=args.compile_fullgraph)
+        net = torch.compile(net, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups

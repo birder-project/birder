@@ -60,7 +60,7 @@ import torch
 from birder.common import fs_ops
 
 device = torch.device("cuda")
-(net, training_states) = fs_ops.load_mim_checkpoint(
+(net, rgb_stats, training_states) = fs_ops.load_mim_checkpoint(
     device,
     "mae_hiera",
     encoder="hiera_abswin_base",

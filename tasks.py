@@ -475,14 +475,19 @@ def print_datasets_stats(_ctx):
 
 
 @task
-def benchmark_append(ctx, fn, suffix, gpu_id=0):
+def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False):
     """
     Append models to benchmark
     """
 
+    if weights is True:
+        model_selector = f"--weights {fn}"
+    else:
+        model_selector = f"--filter '{fn}'"
+
     # CPU
     ctx.run(
-        f"python -m birder.scripts.benchmark --filter '{fn}' --suffix {suffix} --append",
+        f"python -m birder.scripts.benchmark {model_selector} --suffix {suffix} --append",
         echo=True,
         pty=True,
         warn=True,
@@ -490,7 +495,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
     # CPU single thread
     ctx.run(
-        f"python -m birder.scripts.benchmark --filter '{fn}' --repeats 2 --bench-iter 50 --single-thread "
+        f"python -m birder.scripts.benchmark {model_selector} --repeats 2 --bench-iter 50 --single-thread "
         f"--suffix {suffix} --append",
         echo=True,
         pty=True,
@@ -499,7 +504,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
     # Compiled CPU
     ctx.run(
-        f"python -m birder.scripts.benchmark --filter '{fn}' --compile --suffix {suffix} --append",
+        f"python -m birder.scripts.benchmark {model_selector} --compile --suffix {suffix} --append",
         echo=True,
         pty=True,
         warn=True,
@@ -507,7 +512,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
     # Compiled CPU with AMP
     ctx.run(
-        f"python -m birder.scripts.benchmark --filter '{fn}' --compile --amp --suffix {suffix} --append",
+        f"python -m birder.scripts.benchmark {model_selector} --compile --amp --suffix {suffix} --append",
         echo=True,
         pty=True,
         warn=True,
@@ -515,7 +520,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
     # CUDA
     ctx.run(
-        f"python -m birder.scripts.benchmark --filter '{fn}' --bench-iter 50 --max-batch-size 512 "
+        f"python -m birder.scripts.benchmark {model_selector} --bench-iter 50 --max-batch-size 512 "
         f"--gpu --gpu-id {gpu_id} --fast-matmul --suffix {suffix} --append",
         echo=True,
         pty=True,
@@ -524,7 +529,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
     # Compiled CUDA
     ctx.run(
-        f"python -m birder.scripts.benchmark --filter '{fn}' --bench-iter 50 --max-batch-size 512 "
+        f"python -m birder.scripts.benchmark {model_selector} --bench-iter 50 --max-batch-size 512 "
         f"--compile --gpu --gpu-id {gpu_id} --fast-matmul --suffix {suffix} --append",
         echo=True,
         pty=True,
@@ -533,7 +538,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
     # Compiled CUDA with AMP
     ctx.run(
-        f"python -m birder.scripts.benchmark --filter '{fn}' --bench-iter 50 --max-batch-size 512 "
+        f"python -m birder.scripts.benchmark {model_selector} --bench-iter 50 --max-batch-size 512 "
         f"--compile --gpu --gpu-id {gpu_id} --amp --suffix {suffix} --append",
         echo=True,
         pty=True,
@@ -542,7 +547,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0):
 
     # CUDA Memory
     ctx.run(
-        f"python -m birder.scripts.benchmark --filter '{fn}' --max-batch-size 1 "
+        f"python -m birder.scripts.benchmark {model_selector} --max-batch-size 1 "
         f"--gpu --gpu-id {gpu_id} --fast-matmul --memory --suffix {suffix} --append",
         echo=True,
         pty=True,

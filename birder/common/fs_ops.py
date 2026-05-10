@@ -426,6 +426,7 @@ def load_simple_checkpoint(
 class CheckpointStates(NamedTuple):
     net: BaseNet
     class_to_idx: dict[str, int]
+    rgb_stats: RGBType
     training_states: TrainingStates
 
 
@@ -451,6 +452,7 @@ def load_checkpoint(
     # Extract auxiliary data
     class_to_idx: dict[str, int] = model_dict["class_to_idx"]
     signature: SignatureType = model_dict["signature"]
+    rgb_stats: RGBType = model_dict["rgb_stats"]
     input_channels = lib.get_channels_from_signature(signature)
     num_classes = lib.get_num_labels_from_signature(signature)
     size = lib.get_size_from_signature(signature)
@@ -478,11 +480,12 @@ def load_checkpoint(
 
     net.to(device)
 
-    return CheckpointStates(net, class_to_idx, training_states)
+    return CheckpointStates(net, class_to_idx, rgb_stats, training_states)
 
 
 class MIMCheckpointStates(NamedTuple):
     net: MIMBaseNet
+    rgb_stats: RGBType
     training_states: TrainingStates
 
 
@@ -510,9 +513,14 @@ def load_mim_checkpoint(
 
     # Extract auxiliary data
     signature: MIMSignatureType = model_dict["signature"]
+    rgb_stats: RGBType = model_dict["rgb_stats"]
     input_channels = lib.get_channels_from_signature(signature)
     num_classes = 0
     size = lib.get_size_from_signature(signature)
+
+    # Debug logs
+    logger.debug(f"Loaded model with RGB stats: {rgb_stats}")
+    logger.debug(f"Loaded model with {input_channels} input channels. Model input size is {size}")
 
     # Initialize network and restore checkpoint state
     net_encoder = registry.net_factory(encoder, num_classes, input_channels, config=encoder_config, size=size)
@@ -522,12 +530,13 @@ def load_mim_checkpoint(
     net.load_state_dict(model_dict["state"], strict=strict)
     net.to(device)
 
-    return MIMCheckpointStates(net, training_states)
+    return MIMCheckpointStates(net, rgb_stats, training_states)
 
 
 class DetectionCheckpointStates(NamedTuple):
     net: DetectionBaseNet
     class_to_idx: dict[str, int]
+    rgb_stats: RGBType
     training_states: TrainingStates
 
 
@@ -561,9 +570,16 @@ def load_detection_checkpoint(
     # Extract auxiliary data
     class_to_idx: dict[str, int] = model_dict["class_to_idx"]
     signature: DetectionSignatureType = model_dict["signature"]
+    rgb_stats: RGBType = model_dict["rgb_stats"]
     input_channels = lib.get_channels_from_signature(signature)
     num_classes = lib.get_num_labels_from_signature(signature)
     size = lib.get_size_from_signature(signature)
+
+    # Debug logs
+    logger.debug(f"Loaded model with RGB stats: {rgb_stats}")
+    logger.debug(
+        f"Loaded model with {num_classes} classes and {input_channels} input channels. Model input size is {size}"
+    )
 
     # Initialize network and restore checkpoint state
     net_backbone = registry.net_factory(backbone, num_classes, input_channels, config=backbone_config, size=size)
@@ -583,7 +599,7 @@ def load_detection_checkpoint(
 
     net.to(device)
 
-    return DetectionCheckpointStates(net, class_to_idx, training_states)
+    return DetectionCheckpointStates(net, class_to_idx, rgb_stats, training_states)
 
 
 class ModelInfo(NamedTuple):

@@ -46,7 +46,9 @@ from birder.net.base import BaseNet
 #     - qkn         : QK Norm
 #
 #     Feed-Forward Network:
-#     - swiglu      : SwiGLU FFN layer type (instead of standard FFN)
+#     - swiglu             : SwiGLU FFN layer type (instead of standard FFN)
+#     - soft_moe_{N}e      : Soft MoE FFN with N experts, e.g. soft_moe_32e
+#     - soft_moe_{N}e_{S}s : Soft MoE FFN with N experts and S slots per expert, e.g. soft_moe_32e_4s
 #
 #     Activation:
 #     - quick_gelu  : QuickGELU activation type
@@ -773,6 +775,22 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
             "layer_scale_init_value": 1e-5,
             "num_reg_tokens": 4,
             "drop_path_rate": 0.45,
+        },
+    )
+
+    # Soft MoE
+    ####################
+
+    registry.register_model_config(
+        "rope_vit_s16_soft_moe_32e_4s_avg",
+        rope_vit,
+        config={
+            "patch_size": 16,
+            **SMALL,
+            "class_token": False,
+            "mlp_layer_type": "SoftMoE_FFN",
+            "soft_moe_num_experts": 32,
+            "soft_moe_num_slots": 4,
         },
     )
 

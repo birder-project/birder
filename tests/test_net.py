@@ -141,6 +141,7 @@ NET_TEST_CASES = [
     ("rope_vit_reg8_b14_nps_ap", False, False, 1, 14),
     ("rope_vit_so150m_p14_ap", False, False, 1, 14),
     ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", False, False, 1, 14),
+    ("rope_vit_s16_soft_moe_32e_4s_avg"),
     ("rope_vit5_reg4_s16"),
     ("sequencer2d_s"),
     ("shufflenet_v1_8"),
@@ -168,6 +169,7 @@ NET_TEST_CASES = [
     ("vit_reg4_m16_rms_avg"),
     ("vit_so150m_p14_ap", False, False, 1, 14),
     ("vit_reg8_so150m_p14_swiglu_avg", False, False, 1, 14),
+    ("vit_s16_soft_moe_32e_4s_avg"),
     ("vit_parallel_s16_18x2_ls"),
     ("vit_det_s16"),
     ("vit_sam_b16"),
@@ -203,6 +205,7 @@ DYNAMIC_SIZE_CASES = [
     ("rope_vit_reg8_b14_nps_ap", 1, 14),
     ("rope_vit_so150m_p14_ap", 1, 14),
     ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", 1, 14),
+    ("rope_vit_s16_soft_moe_32e_4s_avg"),
     ("rope_vit5_reg4_s16"),
     ("simple_vit_b32"),
     ("swin_transformer_v1_t"),
@@ -215,6 +218,7 @@ DYNAMIC_SIZE_CASES = [
     ("vit_reg4_m16_rms_avg"),
     ("vit_so150m_p14_ap", 1, 14),
     ("vit_reg8_so150m_p14_swiglu_avg", 1, 14),
+    ("vit_s16_soft_moe_32e_4s_avg"),
     ("vit_parallel_s16_18x2_ls"),
     ("vit_det_s16"),
     ("vit_sam_b16"),
@@ -519,6 +523,7 @@ class TestNet(unittest.TestCase):
             ("rope_vit_reg8_b14_nps_ap"),
             ("rope_vit_so150m_p14_ap"),
             ("rope_vit_reg8_so150m_p14_swiglu_rms_avg"),
+            ("rope_vit_s16_soft_moe_32e_4s_avg"),
             ("rope_vit5_reg4_s16"),
             ("shufflenet_v1_8"),
             ("shufflenet_v2_0_5"),
@@ -542,6 +547,7 @@ class TestNet(unittest.TestCase):
             ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap"),
             ("vit_reg8_so150m_p14_swiglu_avg"),
+            ("vit_s16_soft_moe_32e_4s_avg"),
             ("vit_parallel_s16_18x2_ls"),
             ("vit_det_b16"),
             ("vit_sam_b16"),
@@ -669,6 +675,7 @@ class TestNet(unittest.TestCase):
             ("rope_vit_reg8_b14_nps_ap"),
             ("rope_vit_so150m_p14_ap"),
             ("rope_vit_reg8_so150m_p14_swiglu_rms_avg"),
+            ("rope_vit_s16_soft_moe_32e_4s_avg"),
             ("rope_vit5_reg4_s16"),
             ("swin_transformer_v2_t"),
             ("swin_transformer_v2_w2_t"),
@@ -679,6 +686,7 @@ class TestNet(unittest.TestCase):
             ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap"),
             ("vit_reg8_so150m_p14_swiglu_avg"),
+            ("vit_s16_soft_moe_32e_4s_avg"),
             ("vit_parallel_s16_18x2_ls"),
             ("xcit_nano12_p16"),
         ]
@@ -750,6 +758,7 @@ class TestNet(unittest.TestCase):
             ("rope_vit_reg8_b14_nps_ap"),
             ("rope_vit_so150m_p14_ap"),
             ("rope_vit_reg8_so150m_p14_swiglu_rms_avg"),
+            ("rope_vit_s16_soft_moe_32e_4s_avg"),
             ("rope_vit5_reg4_s16"),
             ("simple_vit_b32"),
             ("vit_s32"),
@@ -759,6 +768,7 @@ class TestNet(unittest.TestCase):
             ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap"),
             ("vit_reg8_so150m_p14_swiglu_avg"),
+            ("vit_s16_soft_moe_32e_4s_avg"),
             ("vit_parallel_s16_18x2_ls"),
         ]
     )
@@ -933,6 +943,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("rope_vit_reg8_b14_nps_ap", 1, 14, 14),
             ("rope_vit_so150m_p14_ap", 1, 14, 14),
             ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", 1, 14, 14),
+            ("rope_vit_s16_soft_moe_32e_4s_avg"),
             ("rope_vit5_reg4_s16"),
             ("sequencer2d_s"),
             ("shufflenet_v1_8"),
@@ -960,6 +971,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap", 1, 14, 14),
             ("vit_reg8_so150m_p14_swiglu_avg", 1, 14, 14),
+            ("vit_s16_soft_moe_32e_4s_avg"),
             ("vit_parallel_s16_18x2_ls"),
             ("vit_det_b16"),
             ("vit_sam_b16"),
@@ -1104,6 +1116,7 @@ class TestSpecialFunctions(unittest.TestCase):
             ("simple_vit_s32"),
             ("vit_s32"),
             ("vit_b16_qkn_ls"),
+            ("vit_s16_soft_moe_32e_4s_avg"),
             ("vit_parallel_s16_18x2_ls"),
         ]
     )
@@ -1295,3 +1308,18 @@ class TestSpecialFunctions(unittest.TestCase):
         out = n(x)
         self.assertEqual(out.numel(), 10)
         self.assertFalse(torch.isnan(out).any())
+
+    def test_set_causal_attention_soft_moe(self) -> None:
+        n = registry.net_factory("vit_s16_soft_moe_32e_4s_avg", 10)
+
+        with self.assertRaisesRegex(ValueError, "SoftMoE_FFN does not support causal attention"):
+            n.set_causal_attention(True)
+
+        n.set_causal_attention(False)
+
+        n = registry.net_factory("rope_vit_s16_soft_moe_32e_4s_avg", 10)
+
+        with self.assertRaisesRegex(ValueError, "SoftMoE_FFN does not support causal attention"):
+            n.set_causal_attention(True)
+
+        n.set_causal_attention(False)

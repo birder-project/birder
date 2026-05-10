@@ -44,6 +44,12 @@ class TestLayers(unittest.TestCase):
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.size(), (2, 8))
 
+    def test_soft_moe_ffn(self) -> None:
+        soft_moe_ffn = layers.SoftMoE_FFN(8, 16, num_experts=3, num_slots=2)
+        out = soft_moe_ffn(torch.rand(2, 5, 8))
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.size(), (2, 5, 8))
+
     def test_gem(self) -> None:
         fixed_gem = layers.FixedGeMPool2d(3)
         out = fixed_gem(torch.rand(2, 8, 16, 16))

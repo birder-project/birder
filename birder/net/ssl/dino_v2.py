@@ -19,6 +19,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from birder.common import training_utils
+from birder.model_registry import registry
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.ssl.base import SSLBaseNet
@@ -599,3 +600,37 @@ class DINOv2Teacher(SSLBaseNet):
             masked_patch_tokens_after_head = self.ibot_head(buffer_teacher)[:n_masked_patches]
 
         return (embedding_after_head, masked_patch_tokens_after_head)
+
+
+registry.register_weights(
+    "dino_v2_vit_reg4_so150m_p14_ls_bio-224px",
+    {
+        "url": "https://huggingface.co/birder-project/dino_v2_vit_reg4_so150m_p14_ls_bio/resolve/main",
+        "description": "DINOv2 with a ViT reg4 SO150m p14 image encoder, trained on natural biological images",
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 1604.0,
+                "sha256": "6dd6a1c8408b423826495a92e840c49aa44f90c7dda42790645716bad1c8ea03",
+            }
+        },
+        "net": {"network": "dinov2teacher", "tag": "bio"},  # Just a placeholder
+        "encoder": {"network": "vit_reg4_so150m_p14_ls"},
+    },
+)
+registry.register_weights(
+    "dino_v2_vit_reg4_so150m_p14_ls_bio-252px",
+    {
+        "url": "https://huggingface.co/birder-project/dino_v2_vit_reg4_so150m_p14_ls_bio/resolve/main",
+        "description": "DINOv2 with a ViT reg4 SO150m p14 image encoder, trained on natural biological images",
+        "resolution": (252, 252),
+        "formats": {
+            "pt": {
+                "file_size": 1604.5,
+                "sha256": "0ca38ef9f2296fb48b8fcaee913fff680b842d7f88d32ed8c6ff66594db5cce8",
+            }
+        },
+        "net": {"network": "dinov2teacher", "tag": "bio"},  # Just a placeholder
+        "encoder": {"network": "vit_reg4_so150m_p14_ls"},
+    },
+)

@@ -440,3 +440,32 @@ registry.register_model_config(
         "drop_path_rate": 0.75,
     },
 )
+
+registry.register_weights(
+    "volo_d1_eu-common256px",
+    {
+        "description": "VOLO D1 model trained on the eu-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 99.9,
+                "sha256": "cd83457171f2e61744f38ffa6862e254bff8bd716429fc0348124922837e746f",
+            }
+        },
+        "net": {"network": "volo_d1", "tag": "eu-common256px"},
+    },
+)
+registry.register_weights(
+    "volo_d1_eu-common",
+    {
+        "description": "VOLO D1 model trained on the eu-common dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 100.4,
+                "sha256": "866daf7d8945d1fef0717154ef65d144d6762d472d4e8fda2615b770ab50dea8",
+            }
+        },
+        "net": {"network": "volo_d1", "tag": "eu-common"},
+    },
+)

@@ -163,7 +163,7 @@ def train(args: argparse.Namespace) -> None:
     # Compile network
     if args.compile is True:
         # encoder = torch.compile(encoder)  # Dynamic sequence length not handled well by dynamo
-        target_encoder = torch.compile(target_encoder, fullgraph=args.compile_fullgraph)
+        target_encoder = torch.compile(target_encoder, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
         # predictor = torch.compile(predictor)
 
     #
@@ -235,8 +235,9 @@ def train(args: argparse.Namespace) -> None:
             prefetch_factor=args.prefetch_factor,
             collate_fn=mask_collator,
             world_size=args.world_size,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
             drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
             shuffle=args.wds_extra_shuffle,
             infinite=virtual_epoch_mode,
         )
@@ -249,8 +250,9 @@ def train(args: argparse.Namespace) -> None:
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
             collate_fn=mask_collator,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
             drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
         )
 
     if virtual_epoch_mode is True:

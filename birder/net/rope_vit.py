@@ -26,6 +26,7 @@ from birder.layers import FFN
 from birder.layers import EfficientProbing
 from birder.layers import LayerScale
 from birder.layers import MultiHeadAttentionPool
+from birder.layers import SoftMoE_FFN
 from birder.layers import SwiGLU_FFN
 from birder.layers.activations import get_activation_module
 from birder.layers.rope import RoPE
@@ -200,6 +201,8 @@ class Encoder(nn.Module):
         norm_layer_eps: float = 1e-6,
         mlp_layer: Callable[..., nn.Module] = FFN,
         rope_rot_type: RoPERotationType = "standard",
+        soft_moe_num_experts: Optional[int] = None,
+        soft_moe_num_slots: int = 1,
     ) -> None:
         super().__init__()
         pre_layers = []
@@ -209,9 +212,22 @@ class Encoder(nn.Module):
             pre_layers.append(norm_layer(hidden_dim, eps=norm_layer_eps))
 
         self.pre_block = nn.Sequential(*pre_layers)
+        self.has_soft_moe = soft_moe_num_experts is not None
 
         layers = []
         for i in range(num_layers):
+            block_mlp_layer = mlp_layer
+            if soft_moe_num_experts is not None:
+                if i < num_layers // 2:
+                    block_mlp_layer = FFN
+                else:
+                    block_mlp_layer = partial(
+                        mlp_layer,
+                        num_experts=soft_moe_num_experts,
+                        num_slots=soft_moe_num_slots,
+                        norm_eps=norm_layer_eps,
+                    )
+
             layers.append(
                 EncoderBlock(
                     num_heads,
@@ -225,7 +241,7 @@ class Encoder(nn.Module):
                     layer_scale_init_value=layer_scale_init_value,
                     norm_layer=norm_layer,
                     norm_layer_eps=norm_layer_eps,
-                    mlp_layer=mlp_layer,
+                    mlp_layer=block_mlp_layer,
                     qkv_bias=qkv_bias,
                     qk_norm=qk_norm,
                     rope_rot_type=rope_rot_type,
@@ -253,6 +269,9 @@ class Encoder(nn.Module):
         return xs
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
+        if is_causal is True and self.has_soft_moe is True:
+            raise ValueError("SoftMoE_FFN does not support causal attention")
+
         for b in self.block:
             b.set_causal_attention(is_causal)
 
@@ -355,6 +374,8 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
         norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
+        soft_moe_num_experts: Optional[int] = self.config.get("soft_moe_num_experts", None)
+        soft_moe_num_slots: int = self.config.get("soft_moe_num_slots", 1)
         act_layer_type: Optional[str] = self.config.get("act_layer_type", None)  # Default according to mlp type
         out_indices: Optional[list[int]] = self.config.get("out_indices", None)
         rope_style: RoPEStyleType = self.config.get("rope_style", "default")
@@ -378,6 +399,12 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         elif mlp_layer_type == "SwiGLU_FFN":
             mlp_layer = SwiGLU_FFN
             act_layer = nn.SiLU
+        elif mlp_layer_type == "SoftMoE_FFN":
+            if soft_moe_num_experts is None:
+                raise ValueError("soft_moe_num_experts must be set when mlp_layer_type is 'SoftMoE_FFN'")
+
+            mlp_layer = SoftMoE_FFN
+            act_layer = nn.GELU
         else:
             raise ValueError(f"Unknown mlp_layer_type '{mlp_layer_type}'")
 
@@ -399,6 +426,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         self.norm_layer = norm_layer
         self.norm_layer_eps = norm_layer_eps
         self.mlp_layer = mlp_layer
+        self.decoder_mlp_layer = FFN if mlp_layer_type == "SoftMoE_FFN" else mlp_layer
         self.act_layer = act_layer
         self.out_indices = normalize_out_indices(out_indices, num_layers)
         self.rope_rot_type = rope_rot_type
@@ -483,6 +511,8 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             norm_layer_eps=norm_layer_eps,
             mlp_layer=mlp_layer,
             rope_rot_type=rope_rot_type,
+            soft_moe_num_experts=soft_moe_num_experts,
+            soft_moe_num_slots=soft_moe_num_slots,
         )
 
         if post_norm is True:
@@ -528,7 +558,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
             norm_layer_eps=norm_layer_eps,
-            mlp_layer=mlp_layer,
+            mlp_layer=self.decoder_mlp_layer,
             rope_style=rope_style,
             rope_rot_type=rope_rot_type,
         )
@@ -905,7 +935,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             layer_scale_init_value=self.layer_scale_init_value,
             norm_layer=self.norm_layer,
             norm_layer_eps=self.norm_layer_eps,
-            mlp_layer=self.mlp_layer,
+            mlp_layer=self.decoder_mlp_layer,
             rope_style=self.rope_style,
             rope_rot_type=self.rope_rot_type,
         )
@@ -990,6 +1020,24 @@ registry.register_weights(
             }
         },
         "net": {"network": "rope_vit_reg4_b14", "tag": "capi-imagenet21k"},
+    },
+)
+registry.register_weights(
+    "rope_vit_reg4_b14_capi-intermediate-eu-common",
+    {
+        "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-intermediate-eu-common/resolve/main",
+        "description": (
+            "RoPE ViT b14 model pre-trained using CAPI and intermediate training, "
+            "then fine-tuned on the eu-common dataset"
+        ),
+        "resolution": (336, 336),
+        "formats": {
+            "pt": {
+                "file_size": 330.1,
+                "sha256": "5f9529dbb354ac755ee7c584fdc9227f469233ca35a09998ddf57afa54199e44",
+            }
+        },
+        "net": {"network": "rope_vit_reg4_b14", "tag": "capi-intermediate-eu-common"},
     },
 )
 registry.register_weights(

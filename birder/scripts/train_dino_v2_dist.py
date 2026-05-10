@@ -210,13 +210,13 @@ def train(args: argparse.Namespace) -> None:
     # Compile networks
     teacher_compile_flag = args.compile is True or args.compile_teacher is True
     if args.compile is True:
-        student = torch.compile(student, fullgraph=args.compile_fullgraph)
-        teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph)
-        dino_loss = torch.compile(dino_loss, fullgraph=args.compile_fullgraph)
-        koleo_loss = torch.compile(koleo_loss, fullgraph=args.compile_fullgraph)
-        ibot_patch_loss = torch.compile(ibot_patch_loss, fullgraph=args.compile_fullgraph)
+        student = torch.compile(student, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
+        teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
+        dino_loss = torch.compile(dino_loss, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
+        koleo_loss = torch.compile(koleo_loss, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
+        ibot_patch_loss = torch.compile(ibot_patch_loss, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
     elif args.compile_teacher is True:
-        teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph)
+        teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
 
     #
     # Data
@@ -292,8 +292,9 @@ def train(args: argparse.Namespace) -> None:
             prefetch_factor=args.prefetch_factor,
             collate_fn=collator,
             world_size=args.world_size,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
             drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
             shuffle=args.wds_extra_shuffle,
             infinite=virtual_epoch_mode,
         )
@@ -306,8 +307,9 @@ def train(args: argparse.Namespace) -> None:
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
             collate_fn=collator,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
             drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
         )
 
     if virtual_epoch_mode is True:

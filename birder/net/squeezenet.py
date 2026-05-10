@@ -14,6 +14,7 @@ from typing import Optional
 import torch
 from torch import nn
 
+from birder.model_registry import registry
 from birder.net.base import BaseNet
 
 
@@ -104,3 +105,19 @@ class SqueezeNet(BaseNet):
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+
+
+registry.register_weights(
+    "squeezenet_il-common",
+    {
+        "description": "SqueezeNet model trained on the il-common dataset",
+        "resolution": (259, 259),
+        "formats": {
+            "pt": {
+                "file_size": 3.5,
+                "sha256": "98b66aabfe237dbfd5379e82aedb754bc055fb9f4b6496e130ec274184eb9c1a",
+            }
+        },
+        "net": {"network": "squeezenet", "tag": "il-common"},
+    },
+)

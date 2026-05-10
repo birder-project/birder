@@ -12,6 +12,8 @@ and
 Paper "DeiT III: Revenge of the ViT", https://arxiv.org/abs/2204.07118
 and
 Paper "Getting ViT in Shape: Scaling Laws for Compute-Optimal Model Design", https://arxiv.org/abs/2305.13035
+and
+Paper "From Sparse to Soft Mixtures of Experts", https://arxiv.org/abs/2308.00951
 """
 
 # Reference license: BSD 3-Clause and Apache-2.0
@@ -33,6 +35,7 @@ from birder.layers import FFN
 from birder.layers import EfficientProbing
 from birder.layers import LayerScale
 from birder.layers import MultiHeadAttentionPool
+from birder.layers import SoftMoE_FFN
 from birder.layers import SwiGLU_FFN
 from birder.layers.activations import get_activation_module
 from birder.model_registry import registry
@@ -283,6 +286,8 @@ class Encoder(nn.Module):
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
         norm_layer_eps: float = 1e-6,
         mlp_layer: Callable[..., nn.Module] = FFN,
+        soft_moe_num_experts: Optional[int] = None,
+        soft_moe_num_slots: int = 1,
     ) -> None:
         super().__init__()
         pre_layers = []
@@ -292,9 +297,22 @@ class Encoder(nn.Module):
             pre_layers.append(norm_layer(hidden_dim, eps=norm_layer_eps))
 
         self.pre_block = nn.Sequential(*pre_layers)
+        self.has_soft_moe = soft_moe_num_experts is not None
 
         layers = []
         for i in range(num_layers):
+            block_mlp_layer = mlp_layer
+            if soft_moe_num_experts is not None:
+                if i < num_layers // 2:
+                    block_mlp_layer = FFN
+                else:
+                    block_mlp_layer = partial(
+                        mlp_layer,
+                        num_experts=soft_moe_num_experts,
+                        num_slots=soft_moe_num_slots,
+                        norm_eps=norm_layer_eps,
+                    )
+
             layers.append(
                 EncoderBlock(
                     num_heads,
@@ -307,7 +325,7 @@ class Encoder(nn.Module):
                     layer_scale_init_value=layer_scale_init_value,
                     norm_layer=norm_layer,
                     norm_layer_eps=norm_layer_eps,
-                    mlp_layer=mlp_layer,
+                    mlp_layer=block_mlp_layer,
                     qkv_bias=qkv_bias,
                     qk_norm=qk_norm,
                 )
@@ -336,6 +354,9 @@ class Encoder(nn.Module):
             b.set_need_attn(need_attn)
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
+        if is_causal is True and self.has_soft_moe is True:
+            raise ValueError("SoftMoE_FFN does not support causal attention")
+
         for b in self.block:
             b.set_causal_attention(is_causal)
 
@@ -378,6 +399,8 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
         norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
+        soft_moe_num_experts: Optional[int] = self.config.get("soft_moe_num_experts", None)
+        soft_moe_num_slots: int = self.config.get("soft_moe_num_slots", 1)
         act_layer_type: Optional[str] = self.config.get("act_layer_type", None)  # Default according to mlp type
         out_indices: Optional[list[int]] = self.config.get("out_indices", None)
         drop_path_rate: float = self.config["drop_path_rate"]
@@ -395,6 +418,12 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         elif mlp_layer_type == "SwiGLU_FFN":
             mlp_layer = SwiGLU_FFN
             act_layer = nn.SiLU
+        elif mlp_layer_type == "SoftMoE_FFN":
+            if soft_moe_num_experts is None:
+                raise ValueError("soft_moe_num_experts must be set when mlp_layer_type is 'SoftMoE_FFN'")
+
+            mlp_layer = SoftMoE_FFN
+            act_layer = nn.GELU
         else:
             raise ValueError(f"Unknown mlp_layer_type '{mlp_layer_type}'")
 
@@ -467,6 +496,8 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             norm_layer=norm_layer,
             norm_layer_eps=norm_layer_eps,
             mlp_layer=mlp_layer,
+            soft_moe_num_experts=soft_moe_num_experts,
+            soft_moe_num_slots=soft_moe_num_slots,
         )
 
         if post_norm is True:
@@ -500,6 +531,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         self.stem_stride = patch_size
         self.stem_width = hidden_dim
         self.encoding_size = hidden_dim
+        decoder_mlp_layer = FFN if mlp_layer_type == "SoftMoE_FFN" else mlp_layer
         self.decoder_block = partial(
             EncoderBlock,
             16,
@@ -510,7 +542,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             activation_layer=act_layer,
             norm_layer=norm_layer,
             norm_layer_eps=norm_layer_eps,
-            mlp_layer=mlp_layer,
+            mlp_layer=decoder_mlp_layer,
         )
 
         # Weight initialization
@@ -1196,6 +1228,62 @@ registry.register_weights(  # DINO v2: https://arxiv.org/abs/2304.07193
             },
         },
         "net": {"network": "vit_reg4_l14_nps_ls", "tag": "dino-v2-lvd142m"},
+    },
+)
+
+# BIO-DINO
+registry.register_weights(
+    "vit_reg4_so150m_p14_ls_dino-v2-bio-224px",
+    {
+        "url": "https://huggingface.co/birder-project/vit_reg4_so150m_p14_ls_dino-v2-bio/resolve/main",
+        "description": (
+            "SoViT reg4 150m p14 image encoder pre-trained using DINOv2 on natural biological images. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 509.8,
+                "sha256": "cabfd49ca3d934a8a7df006060988aff138d079d9952a2af441b3eba7c662c90",
+            },
+        },
+        "net": {"network": "vit_reg4_so150m_p14_ls", "tag": "dino-v2-bio-224px"},
+    },
+)
+registry.register_weights(
+    "vit_reg4_so150m_p14_ls_dino-v2-bio-252px",
+    {
+        "url": "https://huggingface.co/birder-project/vit_reg4_so150m_p14_ls_dino-v2-bio/resolve/main",
+        "description": (
+            "SoViT reg4 150m p14 image encoder pre-trained using DINOv2 on natural biological images. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (252, 252),
+        "formats": {
+            "pt": {
+                "file_size": 510.1,
+                "sha256": "a47cb23593eb9f750ecdd51bbaf29c8bc23923980bf624024db8b8a5ab4be145",
+            },
+        },
+        "net": {"network": "vit_reg4_so150m_p14_ls", "tag": "dino-v2-bio-252px"},
+    },
+)
+registry.register_weights(
+    "vit_reg4_so150m_p14_ls_dino-v2-bio-336px",
+    {
+        "url": "https://huggingface.co/birder-project/vit_reg4_so150m_p14_ls_dino-v2-bio/resolve/main",
+        "description": (
+            "SoViT reg4 150m p14 image encoder pre-trained using DINOv2 on natural biological images. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (336, 336),
+        "formats": {
+            "pt": {
+                "file_size": 510.9,
+                "sha256": "f7873db83482a4afd7c0863cc499cdb14a4cd4190e4c104a2aafb40df87df3fc",
+            },
+        },
+        "net": {"network": "vit_reg4_so150m_p14_ls", "tag": "dino-v2-bio-336px"},
     },
 )
 

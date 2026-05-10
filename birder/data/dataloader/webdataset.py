@@ -19,6 +19,7 @@ def make_wds_loader(
     world_size: int,
     pin_memory: bool,
     drop_last: bool = False,
+    persistent_workers: bool = False,
     shuffle: bool = False,
     *,
     exact: bool = False,
@@ -41,6 +42,7 @@ def make_wds_loader(
         collate_fn=collate_fn,
         pin_memory=pin_memory,
         drop_last=drop_last,
+        persistent_workers=persistent_workers,
     )
     if shuffle is True:
         logger.info("WDS extra shuffle enabled: applying global batch-level shuffling")

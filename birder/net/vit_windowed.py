@@ -412,6 +412,7 @@ class ViT_Windowed(DetectorBackbone):
         self.stem_stride = patch_size
         self.stem_width = hidden_dim
 
+        # Weight initialization
         fan_in = self.conv_proj.in_channels * self.conv_proj.kernel_size[0] * self.conv_proj.kernel_size[1]
         nn.init.trunc_normal_(self.conv_proj.weight, std=math.sqrt(1 / fan_in))
         if self.conv_proj.bias is not None:

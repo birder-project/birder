@@ -59,9 +59,13 @@ class BenchmarkConfig:
 ```{python}
 EPOCH_RE = re.compile(r"_e(\d+)(?=_|$)")
 MODEL_SUFFIX_RE = re.compile(r"(?:_(?:e\d+|\d+))?_\d+px_crop[\d.]+(?:_\d+)?(?:_sc)?_embeddings$")
+PREFIX = "bio-dino-"
+# PREFIX = ""
+MARK_EPOCHS = {185: "224px", 245: "252px", 250: "336px"}
 
 MODEL_LABELS = {
     "vit_reg4_so150m_p14_ls_dino-v2-bio": "BIO-DINO",
+    # "vit_reg1_s14_ls_dino-v2-dist-bio": "BIO-DINO-DIST",
     # References
     "convnext_v1_large_fb-imagenet22k": "ConvNeXt Large",
     "rope_cs_vit_reg4_b16_nape_ls_c1_dino-v3-lvd1689m": "DINOv3 B16",
@@ -76,6 +80,7 @@ MODEL_LABELS = {
     "vit_reg4_b14_nps_ls_dino-v2-lvd142m": "DINOv2 B14",
     "vit_reg4_l14_nps_ls_dino-v2-lvd142m": "DINOv2 L14",
     "vit_so400m_p14_ap_siglip-v2-webli": "SigLIP 2 SO400M",
+    "vit_reg1_b14_tips-v2": "TIPS v2 B14",
 }
 METRIC_NAMES = {
     "ami_score": "Adjusted Mutual Information",
@@ -98,78 +103,80 @@ BENCHMARK_CONFIG = {
     "awa2": BenchmarkConfig(
         title="Animals with Attributes 2",
         metric="macro_f1",
-        results_path=Path("results/awa2/awa2_mlp_metric-present-only_runs3_e100_bs128_lr0p0001_hd512_do0p5.csv"),
+        results_path=Path(
+            f"results/awa2/{PREFIX}awa2_mlp_metric-present-only_runs3_e100_bs128_lr0p0001_hd512_do0p5.csv"
+        ),
     ),
     "bioscan5m": BenchmarkConfig(
         title="BIOSCAN-5M",
         metric="ami_score",
-        results_path=Path("results/bioscan5m/bioscan5m_ami_umap50_l2-on.csv"),
+        results_path=Path(f"results/bioscan5m/{PREFIX}bioscan5m_ami_umap50_l2-on.csv"),
     ),
     "butterflies": BenchmarkConfig(
         title="Butterflies",
         metric="val_macro_f1",
-        results_path=Path("results/butterflies/butterflies_knn_k10.csv"),
+        results_path=Path(f"results/butterflies/{PREFIX}butterflies_knn_k10.csv"),
     ),
     "cct": BenchmarkConfig(
         title="Caltech Camera Traps",
         metric="k_10_cross_location_acc",
-        results_path=Path("results/cct/cct_split-main_k10-20-100.csv"),
+        results_path=Path(f"results/cct/{PREFIX}cct_split-main_k10-20-100.csv"),
     ),
     "cub200": BenchmarkConfig(
         title="CUB-200-2011",
         metric="mean_average_precision",
-        results_path=Path("results/cub200/cub200_retrieval_k1-5-10.csv"),
+        results_path=Path(f"results/cub200/{PREFIX}cub200_retrieval_k1-5-10.csv"),
     ),
     "fishnet": BenchmarkConfig(
         title="FishNet",
         metric="macro_f1",
-        results_path=Path("results/fishnet/fishnet_mlp_runs3_e100_bs128_lr0p0001_hd512_do0p5.csv"),
+        results_path=Path(f"results/fishnet/{PREFIX}fishnet_mlp_runs3_e100_bs128_lr0p0001_hd512_do0p5.csv"),
     ),
     "flowers102": BenchmarkConfig(
         title="Flowers-102",
         metric="test_accuracy",
-        results_path=Path("results/flowers102/flowers102_simpleshot.csv"),
+        results_path=Path(f"results/flowers102/{PREFIX}flowers102_simpleshot.csv"),
     ),
     "fungiclef": BenchmarkConfig(
         title="FungiCLEF",
         metric="k_3_acc",
-        results_path=Path("results/fungiclef/fungiclef_knn_k1-3_runs5.csv"),
+        results_path=Path(f"results/fungiclef/{PREFIX}fungiclef_knn_k1-3_runs5.csv"),
     ),
     "imagenet1k": BenchmarkConfig(
         title="ImageNet-1K",
         metric="k_100_acc",
-        results_path=Path("results/imagenet1k/imagenet1k_simpleshot_k5-10-100_runs5.csv"),
+        results_path=Path(f"results/imagenet1k/{PREFIX}imagenet1k_simpleshot_k5-10-100_runs5.csv"),
         embeddings_column="train_embeddings_file",
     ),
     "nabirds": BenchmarkConfig(
         title="NABirds",
         metric="k_10_acc",
-        results_path=Path("results/nabirds/nabirds_knn_k10-20-100.csv"),
+        results_path=Path(f"results/nabirds/{PREFIX}nabirds_knn_k10-20-100.csv"),
     ),
     "newt": BenchmarkConfig(
         title="NeWT",
         metric="accuracy",
-        results_path=Path("results/newt/newt_svm_runs3_niter100.csv"),
+        results_path=Path(f"results/newt/{PREFIX}newt_svm_runs3_niter100.csv"),
     ),
     "plankton": BenchmarkConfig(
         title="Plankton",
         metric="accuracy",
-        results_path=Path("results/plankton/plankton_linear_runs3_e50_bs64_lr0p002.csv"),
+        results_path=Path(f"results/plankton/{PREFIX}plankton_linear_runs3_e50_bs64_lr0p002.csv"),
     ),
     "plantdoc": BenchmarkConfig(
         title="PlantDoc",
         metric="2_shot_acc",
-        results_path=Path("results/plantdoc/plantdoc_simpleshot_k2-5_runs5.csv"),
+        results_path=Path(f"results/plantdoc/{PREFIX}plantdoc_simpleshot_k2-5_runs5.csv"),
     ),
     "plantnet": BenchmarkConfig(
         title="PlantNet",
         metric="2_shot_acc",
-        results_path=Path("results/plantnet/plantnet_simpleshot_k2-5_runs3.csv"),
+        results_path=Path(f"results/plantnet/{PREFIX}plantnet_simpleshot_k2-5_runs3.csv"),
     ),
     "snakeclef": BenchmarkConfig(
         title="SnakeCLEF",
         metric="accuracy",
-        results_path=Path("results/snakeclef/snakeclef_linear_runs3_e50_bs512_lr0p001.csv"),
+        results_path=Path(f"results/snakeclef/{PREFIX}snakeclef_linear_runs3_e50_bs512_lr0p001.csv"),
     ),
 }
 ```
@@ -211,6 +218,7 @@ def plot_epoch_curve_vs_references(
     reference_score_key: str,
     ylabel: str,
     title: str,
+    mark_epochs: dict[int, str] | None = None,
 ) -> Figure:
     with plt.style.context("seaborn-v0_8-whitegrid"):
         fig, ax = plt.subplots(figsize=(14, 8), facecolor="#F8F5EF")
@@ -218,7 +226,35 @@ def plot_epoch_curve_vs_references(
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
 
-        ax.plot(epochs, metrics, marker="o", label=main_label)
+        (main_line,) = ax.plot(epochs, metrics, marker="o", label=main_label)
+        if mark_epochs is not None:
+            marked_points = [
+                (epoch, metric, mark_epochs[epoch]) for epoch, metric in zip(epochs, metrics) if epoch in mark_epochs
+            ]
+            marked_epochs, marked_metrics, marked_labels = zip(*marked_points)
+            ax.scatter(
+                marked_epochs,
+                marked_metrics,
+                marker="*",
+                s=90,
+                # color=main_line.get_color(),
+                color="red",
+                edgecolor="#262320",
+                linewidth=0.6,
+                zorder=4,
+            )
+            for epoch, metric, label in zip(marked_epochs, marked_metrics, marked_labels):
+                ax.annotate(
+                    label,
+                    xy=(epoch, metric),
+                    xytext=(0, 6),
+                    textcoords="offset points",
+                    ha="center",
+                    va="bottom",
+                    fontsize=8,
+                    fontweight="bold",
+                    color="#262320",
+                )
 
         cmap = plt.get_cmap("tab10")
         for i, row in enumerate(reference_rows):
@@ -506,7 +542,7 @@ for benchmark in BENCHMARK_CONFIG:
     cfg = BENCHMARK_CONFIG[benchmark]
 
     df = pl.read_csv(cfg.results_path)
-    dataset_name = cfg.results_path.stem.split("_")[0]
+    dataset_name = benchmark
     metric_title = METRIC_NAMES[cfg.metric]
 
     label, points, references = build_plot_data(df, cfg.embeddings_column, cfg.metric)
@@ -525,6 +561,7 @@ for benchmark in BENCHMARK_CONFIG:
         reference_score_key="score",
         ylabel=metric_title,
         title=f"{cfg.title} Benchmark",
+        mark_epochs=MARK_EPOCHS,
     )
     fig.savefig(PLOT_PATH.joinpath(f"benchmark_{benchmark}"))
     plt.show()
@@ -540,7 +577,7 @@ SCORING_METHODS: dict[str, ScoreMethod] = {
     "rank_among_refs": score_rank_among_refs,
 }
 
-score_method = "ref_percentile_interp"
+score_method = "ref_minmax_raw"
 exclude_benchmarks = {
     "imagenet1k",  # OOD
     "plankton",  # Not natural photography
@@ -573,6 +610,7 @@ fig = plot_epoch_curve_vs_references(
     reference_score_key="mean_score",
     ylabel=f"Mean Score ({score_method})",
     title=f"Aggregate Benchmark Score - {score_method}",
+    mark_epochs=MARK_EPOCHS,
 )
 fig.savefig(PLOT_PATH.joinpath(f"benchmark_summary_{score_method}"))
 plt.show()

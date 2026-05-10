@@ -28,6 +28,9 @@ def add_compile_args(parser: argparse.ArgumentParser, teacher: bool = False, bac
     group = parser.add_argument_group("Compilation parameters")
     group.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     group.add_argument("--compile-fullgraph", default=False, action="store_true", help="compile using fullgraph=True")
+    group.add_argument(
+        "--compile-mode", type=str, choices=list(torch._inductor.list_mode_options().keys()), help="torch.compile mode"
+    )
     if teacher is True:
         group.add_argument(
             "--compile-teacher", default=False, action="store_true", help="enable teacher only compilation"
@@ -540,6 +543,19 @@ def add_dataloader_args(
     group.add_argument(
         "--prefetch-factor", type=int, metavar="N", help="number of batches loaded in advance by each worker"
     )
+    group.add_argument(
+        "--no-pin-memory",
+        dest="pin_memory",
+        default=True,
+        action="store_false",
+        help="disable memory pinning in dataloaders",
+    )
+    group.add_argument(
+        "--persistent-workers",
+        default=False,
+        action="store_true",
+        help="keep dataloader worker processes alive between epochs",
+    )
     if default_drop_last is True:
         group.add_argument(
             "--no-drop-last",
@@ -897,6 +913,13 @@ def common_args_validation(args: argparse.Namespace) -> None:
     if hasattr(args, "compile_backbone") is True:
         if args.compile is True and args.compile_backbone is True:
             raise ValidationError("--compile cannot be used with --compile-backbone")
+    if hasattr(args, "compile_mode") is True and args.compile_mode is not None:
+        if (
+            args.compile is False
+            and (hasattr(args, "compile_teacher") is False or args.compile_teacher is False)
+            and (hasattr(args, "compile_backbone") is False or args.compile_backbone is False)
+        ):
+            raise ValidationError("--compile-mode requires --compile, --compile-teacher or --compile-backbone")
 
     # Checkpoint args, shared by all scripts
     if args.load_states is True and args.resume_epoch is None:
@@ -934,6 +957,9 @@ def common_args_validation(args: argparse.Namespace) -> None:
                 raise ValidationError("Must provide at least one data source, --data-path or --wds")
             if args.wds is True and len(args.data_path) > 1:
                 raise ValidationError(f"--wds can have at most 1 --data-path, got {len(args.data_path)}")
+
+    if hasattr(args, "persistent_workers") is True and args.persistent_workers is True and args.num_workers == 0:
+        raise ValidationError("--persistent-workers requires --num-workers to be greater than 0")
 
     if hasattr(args, "val_subset_size") is True and args.val_subset_size is not None and args.val_subset_size <= 0:
         raise ValidationError("--val-subset-size must be positive")

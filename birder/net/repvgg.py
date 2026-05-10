@@ -406,3 +406,32 @@ registry.register_model_config(
         "use_se": True,
     },
 )
+
+registry.register_weights(
+    "repvgg_a0_il-common",
+    {
+        "description": "RepVGG A0 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 31.9,
+                "sha256": "751f4138bb8ff08a4940c86e41bc47d08b3d83ae92bbed052ca55ea409f6695c",
+            }
+        },
+        "net": {"network": "repvgg_a0", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "repvgg_a0_il-common_reparameterized",
+    {
+        "description": "RepVGG A0 (reparameterized) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 28.7,
+                "sha256": "cdefd78d5bc2f316416f8a832a395bb911617e1c15d934bfcd45590a54cb9f88",
+            }
+        },
+        "net": {"network": "repvgg_a0", "tag": "il-common_reparameterized", "reparameterized": True},
+    },
+)

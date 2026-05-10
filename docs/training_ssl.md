@@ -370,10 +370,10 @@ High resolution adaption (1000x8x8x32 = 2M epoch, 2Mx30 = 61.4M)
 torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --tag bio-336px --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --momentum-teacher 0.999 --warmup-teacher-temp-epochs 0 --freeze-last-layer-epochs 0 --local-crop-size 140 --adapt-size 336 --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.00005 --lr-scale 1024 --lr-scale-type sqrt --wd 0.1 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 30 --steps-per-epoch 1000 --size 252 --rgb-mode none --fast-matmul --compile --resume-epoch 0 --distributed-mode fsdp --fsdp-sharding-strategy full-shard --fsdp-param-dtype bfloat16 --fsdp-reduce-dtype float32 --no-broadcast-buffers --wds --wds-info data/ssl_bio_packed/_info.json
 ```
 
-Distillation, ViT reg1 s14 LS
+Distillation, ViT reg1 s14 LS (2500x8x4x96 = 7.68M epoch, 7.68Mx300 = 2.3B)
 
 ```sh
-torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2_dist --network vit_reg1_s14_ls --tag bio --teacher vit_reg4_so150m_p14_ls --teacher-tag bio --teacher-epoch 250 --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --warmup-teacher-temp-epochs 20 --local-crop-size 98 --batch-size 128 --opt adamw --opt-fused --lr 0.0004 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --steps-per-epoch 2500 --warmup-epochs 50 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_bio_packed/_info.json
+torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2_dist --network vit_reg1_s14_ls --tag bio --teacher vit_reg4_so150m_p14_ls --teacher-tag bio-252px --teacher-epoch 250 --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --warmup-teacher-temp-epochs 20 --local-crop-size 112 --batch-size 96 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 4 --lr 0.0004 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --steps-per-epoch 2500 --size 252 --warmup-epochs 50 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_bio_packed/_info.json
 ```
 
 #### DINO v2: RoPE SoViT reg8 150m p14 AP

@@ -216,8 +216,8 @@ def train(args: argparse.Namespace) -> None:
 
     # Compile networks
     if args.compile is True:
-        student = torch.compile(student, fullgraph=args.compile_fullgraph)
-        teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph)
+        student = torch.compile(student, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
+        teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
 
     # There is no backpropagation through the teacher backbone
     for p in teacher.backbone.parameters():
@@ -292,8 +292,9 @@ def train(args: argparse.Namespace) -> None:
             prefetch_factor=args.prefetch_factor,
             collate_fn=mask_collator,
             world_size=args.world_size,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
             drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
             shuffle=args.wds_extra_shuffle,
             infinite=virtual_epoch_mode,
         )
@@ -306,8 +307,9 @@ def train(args: argparse.Namespace) -> None:
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
             collate_fn=mask_collator,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
             drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
         )
 
     if virtual_epoch_mode is True:

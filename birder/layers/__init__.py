@@ -2,6 +2,7 @@ from birder.layers.activations import QuickGELU
 from birder.layers.attention_pool import EfficientProbing
 from birder.layers.attention_pool import MultiHeadAttentionPool
 from birder.layers.ffn import FFN
+from birder.layers.ffn import SoftMoE_FFN
 from birder.layers.ffn import SwiGLU_FFN
 from birder.layers.gem import FixedGeMPool2d
 from birder.layers.gem import GeMPool2d
@@ -14,6 +15,7 @@ __all__ = [
     "EfficientProbing",
     "MultiHeadAttentionPool",
     "FFN",
+    "SoftMoE_FFN",
     "SwiGLU_FFN",
     "FixedGeMPool2d",
     "GeMPool2d",

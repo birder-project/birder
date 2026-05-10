@@ -76,7 +76,7 @@ device = torch.device("cpu")
 
 for e in range(epoch_start, epoch_end + 1):
     try:
-        net, _ = fs_ops.load_mim_checkpoint(
+        net, _, _ = fs_ops.load_mim_checkpoint(
             device,
             network,
             encoder=encoder,

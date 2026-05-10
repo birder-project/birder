@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 - 2026-05-10
+
+### Added
+
+- **Training Runtime Knobs**: Added `--no-pin-memory`, `--persistent-workers` and `--compile-mode` to training scripts.
+- **Soft MoE FFN Layer**: Added `SoftMoE_FFN` for [soft mixture-of-experts](https://arxiv.org/abs/2308.00951) feed-forward blocks.
+- **Soft MoE ViT**: Added Soft MoE ViT variant.
+- **Pretrained Models**:
+    - `vit_reg4_so150m_p14_ls_dino-v2-bio-224px`: Added Birder BIO-DINO SoViT-150M/14 image encoder pretrained weights.
+    - `vit_reg4_so150m_p14_ls_dino-v2-bio-252px`: Added Birder BIO-DINO SoViT-150M/14 image encoder pretrained weights.
+    - `vit_reg4_so150m_p14_ls_dino-v2-bio-336px`: Added Birder BIO-DINO SoViT-150M/14 image encoder pretrained weights.
+
 ## 0.4.15 - 2026-04-20
 
 ### Changed

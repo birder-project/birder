@@ -242,7 +242,7 @@ registry.register_model_config("mobilenet_v2_2_0", MobileNet_v2, config={"alpha"
 registry.register_weights(
     "mobilenet_v2_1_0_il-common",
     {
-        "description": "MobileNet v2 large (1.0 multiplier) model trained on the il-common dataset",
+        "description": "MobileNet v2 (1.0 multiplier) model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

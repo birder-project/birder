@@ -64,7 +64,7 @@ def train_projector(df: pl.DataFrame, method: Literal["pca", "lda", "umap"], dim
 ```
 
 ```{python}
-path_list = sorted(Path("results/cub200/").glob("cub200_vit_reg4_so150m_p14_ls_dino-v2-bio*.parquet"))
+path_list = sorted(Path("results/cub200/embeddings/").glob("cub200_vit_reg4_so150m_p14_ls_dino-v2-bio*.parquet"))
 label_expr = pl.col("sample").str.extract(r"/([^/]+)/[^/]+$").alias("label")
 ```
 

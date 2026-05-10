@@ -188,6 +188,12 @@ Intermediate training (Objects365-2020)
 torchrun --nproc_per_node=2 train_detection.py --network lw_detr_2stg --tag objects365 --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-model-config '{"out_indices":[5,8,11]}' --batch-size 16 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.0001 --backbone-lr 0.00015 --wd 0.0001 --norm-wd 0 --backbone-layer-decay 0.75 --lr-scheduler step --lr-step-size 50 --lr-step-gamma 0.1 --epochs 60 --model-ema --size 640 --batch-multiscale --multiscale-min-size 416 --multiscale-max-size 672 --aug-level 6 --rgb-mode none --mosaic-prob 0.5 --mosaic-stop-epoch 36 --amp --amp-dtype bfloat16 --compile --resume-epoch 0 --data-path ~/Datasets/Objects365-2020/train --val-path ~/Datasets/Objects365-2020/val --coco-json-path ~/Datasets/Objects365-2020/train/zhiyuan_objv2_train.json --coco-val-json-path ~/Datasets/Objects365-2020/val/zhiyuan_objv2_val.json --ignore-file public_datasets_metadata/objects365_ignore.txt
 ```
 
+Fine-tune (COCO) - first stage
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network lw_detr_2stg --tag objects365-coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-model-config '{"out_indices":[5,8,11]}' --reset-head --freeze-body --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.0001 --wd 0.0001 --norm-wd 0 --lr-scheduler cosine --epochs 10 --size 640 --batch-multiscale --multiscale-min-size 384 --multiscale-max-size 672 --aug-level 4 --rgb-mode none --amp --amp-dtype bfloat16 --compile --resume-epoch 0 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+```
+
 Intermediate training (COCO) - Dynamic, warmup
 
 ```sh

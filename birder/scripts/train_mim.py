@@ -118,8 +118,9 @@ def train(args: argparse.Namespace) -> None:
             prefetch_factor=args.prefetch_factor,
             collate_fn=None,
             world_size=args.world_size,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
             drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
             shuffle=args.wds_extra_shuffle,
             infinite=virtual_epoch_mode,
         )
@@ -131,8 +132,9 @@ def train(args: argparse.Namespace) -> None:
             sampler=train_sampler,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
             drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
         )
 
     if virtual_epoch_mode is True:
@@ -173,7 +175,7 @@ def train(args: argparse.Namespace) -> None:
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
-        net, training_states = fs_ops.load_mim_checkpoint(
+        net, checkpoint_rgb_stats, training_states = fs_ops.load_mim_checkpoint(
             device,
             args.network,
             config=args.model_config,
@@ -185,10 +187,15 @@ def train(args: argparse.Namespace) -> None:
             epoch=args.resume_epoch,
             strict=not args.non_strict_weights,
         )
+        if checkpoint_rgb_stats != rgb_stats:
+            logger.warning(
+                f"Resuming training with RGB stats {rgb_stats}, "
+                f"but checkpoint was saved with {checkpoint_rgb_stats}"
+            )
 
     elif args.pretrained is True:
         fs_ops.download_model_by_weights(network_name, progress_bar=training_utils.is_local_primary(args))
-        net, training_states = fs_ops.load_mim_checkpoint(
+        net, checkpoint_rgb_stats, training_states = fs_ops.load_mim_checkpoint(
             device,
             args.network,
             config=args.model_config,
@@ -200,6 +207,11 @@ def train(args: argparse.Namespace) -> None:
             epoch=None,
             strict=not args.non_strict_weights,
         )
+        if checkpoint_rgb_stats != rgb_stats:
+            logger.warning(
+                f"Training with RGB stats {rgb_stats}, "
+                f"but pretrained checkpoint was saved with {checkpoint_rgb_stats}"
+            )
 
     else:
         encoder = registry.net_factory(
@@ -229,7 +241,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Compile network
     if args.compile is True:
-        net = torch.compile(net, fullgraph=args.compile_fullgraph)
+        net = torch.compile(net, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
 
     logger.info(f"Training with mask ratio of {net.mask_ratio} and min mask size of {net.min_mask_size}")
 

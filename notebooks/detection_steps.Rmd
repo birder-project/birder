@@ -56,7 +56,7 @@ reverse_transform = reverse_preset(get_rgb_stats("birder"))
 
 ```{python}
 device = torch.device("cpu")
-net, class_to_idx, _, _, _ = fs_ops.load_detection_checkpoint(
+net, class_to_idx, _, _ = fs_ops.load_detection_checkpoint(
     device,
     "faster_rcnn",
     tag=None,

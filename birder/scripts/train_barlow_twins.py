@@ -136,8 +136,9 @@ def train(args: argparse.Namespace) -> None:
             prefetch_factor=args.prefetch_factor,
             collate_fn=None,
             world_size=args.world_size,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
             drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
             shuffle=args.wds_extra_shuffle,
             infinite=virtual_epoch_mode,
         )
@@ -149,8 +150,9 @@ def train(args: argparse.Namespace) -> None:
             sampler=train_sampler,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
             drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
         )
 
     if virtual_epoch_mode is True:
@@ -212,7 +214,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Compile backbone
     if args.compile is True:
-        net = torch.compile(net, fullgraph=args.compile_fullgraph)
+        net = torch.compile(net, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
 
     #
     # Optimizer, learning rate scheduler and training parameter groups

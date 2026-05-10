@@ -4,6 +4,72 @@ Examples use repo-root script names (e.g., `train.py`). If you installed Birder 
 
 ## Compact Madness
 
+- [CaiT](#cait)
+- [CAS-ViT](#cas-vit)
+- [CoaT](#coat)
+- [Conv2Former](#conv2former)
+- [ConvNeXt v2](#convnext-v2)
+- [CrossViT](#crossvit)
+- [DeiT](#deit)
+- [DeiT3](#deit3)
+- [EdgeNeXt](#edgenext)
+- [EdgeViT](#edgevit)
+- [EfficientFormer v1](#efficientformer-v1)
+- [EfficientFormer v2](#efficientformer-v2)
+- [EfficientMod](#efficientmod)
+- [EfficientNet Lite](#efficientnet-lite)
+- [EfficientNet v1](#efficientnet-v1)
+- [EfficientNet v2](#efficientnet-v2)
+- [EfficientViM](#efficientvim)
+- [EfficientViT MIT](#efficientvit-mit)
+- [EfficientViT MSFT](#efficientvit-msft)
+- [FasterNet](#fasternet)
+- [FastViT](#fastvit)
+- [GC ViT](#gc-vit)
+- [GhostNet v1](#ghostnet-v1)
+- [GhostNet v2](#ghostnet-v2)
+- [GroupMixFormer](#groupmixformer)
+- [HGNet v1](#hgnet-v1)
+- [HGNet v2](#hgnet-v2)
+- [InceptionNeXt](#inceptionnext)
+- [LeViT](#levit)
+- [LIT v1](#lit-v1)
+- [MetaFormer](#metaformer)
+- [MnasNet](#mnasnet)
+- [Mobilenet v1](#mobilenet-v1)
+- [Mobilenet v2](#mobilenet-v2)
+- [Mobilenet v3](#mobilenet-v3)
+- [Mobilenet v4](#mobilenet-v4)
+- [Mobilenet v4 Hybrid](#mobilenet-v4-hybrid)
+- [MobileOne](#mobileone)
+- [MobileViT v1](#mobilevit-v1)
+- [MobileViT v2](#mobilevit-v2)
+- [MogaNet](#moganet)
+- [PiT](#pit)
+- [PNASNet](#pnasnet)
+- [PVT v2](#pvt-v2)
+- [RegionViT](#regionvit)
+- [RegNet](#regnet)
+- [RepGhost](#repghost)
+- [RepVgg](#repvgg)
+- [RepViT](#repvit)
+- [ResNeSt](#resnest)
+- [ShuffleNet v1](#shufflenet-v1)
+- [ShuffleNet v2](#shufflenet-v2)
+- [SHViT](#shvit)
+- [SqueezeNet](#squeezenet)
+- [SqueezeNext](#squeezenext)
+- [StarNet](#starnet)
+- [SwiftFormer](#swiftformer)
+- [Tiny ViT](#tiny-vit)
+- [TransNeXt](#transnext)
+- [VAN](#van)
+- [VoVNet v1](#vovnet-v1)
+- [VoVNet v2](#vovnet-v2)
+- [XCiT](#xcit)
+
+- [Knowledge Distillation](#knowledge-distillation)
+
 ### CaiT
 
 #### CaiT: Extra Extra Small 24
@@ -367,7 +433,7 @@ torchrun --nproc_per_node=2 train.py --network mnasnet_1_0 --tag il-common --bat
 #### Mobilenet v1: Original
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network mobilenet_v1_0_5 --tag orig_il-common --batch-size 256 --opt rmsprop --lr 0.045 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.94 --aug-level 4 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+torchrun --nproc_per_node=2 train.py --network mobilenet_v1_0_5 --tag orig_il-common --batch-size 256 --opt rmsprop --lr 0.045 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.94 --size 256 --aug-level 4 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 #### Mobilenet v1: v4 procedure
@@ -578,6 +644,14 @@ torchrun --nproc_per_node=2 train.py --network regnet_z_500m --tag il-common --b
 torchrun --nproc_per_node=2 train.py --network repghost_1_0 --tag il-common --batch-size 256 --lr 0.6 --wd 0.00001 --lr-scheduler cosine --epochs 300 --warmup-epochs 5 --model-ema --model-ema-steps 1 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
+### RepVgg
+
+#### RepVgg: A0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network repvgg_a0 --tag il-common --batch-size 256 --lr 0.1 --wd 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --fast-matmul --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
 ### RepViT
 
 #### RepViT: M0.6
@@ -641,7 +715,7 @@ torchrun --nproc_per_node=2 train.py --network smt_t --tag il-common --batch-siz
 ### SqueezeNet
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network squeezenet --tag il-common --batch-size 256 --lr 0.04 --wd 0.0002 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.95 --size 259 --aug-level 4 --smoothing-alpha 0.1 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+torchrun --nproc_per_node=2 train.py --network squeezenet --tag il-common --batch-size 256 --lr 0.04 --wd 0.0002 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.95 --epochs 120 --size 259 --aug-level 4 --smoothing-alpha 0.1 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### SqueezeNext
@@ -649,7 +723,7 @@ torchrun --nproc_per_node=2 train.py --network squeezenet --tag il-common --batc
 #### SqueezeNext: Width 1.0
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network squeezenext_1_0 --tag il-common --batch-size 256 --lr 0.4 --wd 0.0001 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.8 --epochs 120 --warmup-epochs 5 --size 259 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+torchrun --nproc_per_node=2 train.py --network squeezenext_1_0 --tag il-common --batch-size 256 --lr 0.4 --wd 0.0001 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.8 --epochs 140 --warmup-epochs 5 --size 259 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 #### SqueezeNext: Width 2.0

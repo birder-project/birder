@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.19.0
+      jupytext_version: 1.19.1
   kernelspec:
     display_name: birder
     language: python
@@ -21,25 +21,15 @@ Compare compact models on multiple Birder data sets.
 ## Imports and Configuration
 
 ```{python}
+import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
+from typing import Optional
 
 import altair as alt
 import polars as pl
-```
-
-```{python}
-sys.path.append("..")
-```
-
-```{python}
-from birder.common import cli
-from birder.conf import settings
-from birder.model_registry import registry
-from birder.net.base import reparameterize_available
-from birder.results.classification import Results
-from birder.results.classification import compare_results
-from birder.tools.model_info import get_model_info
 ```
 
 ```{python}
@@ -47,222 +37,292 @@ from birder.tools.model_info import get_model_info
 ```
 
 ```{python}
+from birder.common import cli
+from birder.conf import settings
+from birder.model_registry import Task
+from birder.model_registry import registry
+from birder.net.base import reparameterize_available
+from birder.tools.model_info import get_model_info
+```
+
+```{python}
 PATTERN = "il-common"
-RESULTS_PATH = PATTERN
+SUMMARY_PATH = f"results/summary_{PATTERN}.csv"
+BENCHMARK_PATH = f"results/benchmark_{PATTERN}.csv"
+MODEL_NAME_ATTR = "architecture_id"
+# MODEL_NAME_ATTR = "model_id"
+```
+
+```{python}
+RESULT_FILE_RE = re.compile(
+    r"^(?P<model_id>.+?)_"
+    r"(?P<num_classes>\d+)"
+    r"(?:_e(?P<epoch>\d+))?"
+    r"_(?P<resolution>\d+)px"
+    r"_crop(?P<center_crop>[0-9.]+)"
+    r"_(?P<num_samples>\d+)"
+    r"(?P<options>(?:_[A-Za-z0-9.]+)*)$"
+)
+
+SSL_METHODS = {
+    "barlow-twins",
+    "byol",
+    "capi",
+    "data2vec",
+    "data2vec2",
+    "dino-v1",
+    "dino-v2",
+    "dino-v2-dist",
+    "dino-v3",
+    "franca",
+    "i-jepa",
+    "ibot",
+    "lejepa",
+    "mmcr",
+    "nepa",
+    "rotnet",
+    "simclr",
+    "vicreg",
+}
+
+NON_SSL_TAG_PREFIXES = {
+    "bioclip-v1",
+    "bioclip-v2",
+    "bioclip-v25",
+    "biotrove-clip-o",
+    "mim",
+    "openai-clip",
+    "pe-core",
+    "siglip-v2",
+    "tips-v2",
+}
+
+TAG_PREFIXES = sorted(SSL_METHODS | NON_SSL_TAG_PREFIXES, key=len, reverse=True)
 ```
 
 ## Helper Functions
 
 ```{python}
-def get_model_name_and_num_parameters(
-    file_name: str, tag: str = PATTERN
-) -> tuple[str, str, int, bool, bool, bool, bool]:
-    reparameterized = False
-    intermediate = False
-    mim = False
-    dist = False
-    ssl = False
-    prop_list = []
+@dataclass(frozen=True)
+class ParsedResultName:
+    file_name: str
+    model_id: str
+    num_classes: int
+    epoch: Optional[int]
+    resolution: int
+    center_crop: float
+    num_samples: int
+    options: list[str]
 
-    def mark_ssl(ssl_name: str) -> bool:
-        nonlocal file_name
-        nonlocal prop_list
 
-        if file_name.find(ssl_name) != -1:
-            file_name = file_name.replace(f"_{ssl_name}", "")
-            file_name = file_name.replace(f"-{ssl_name}", "")
-            if "ssl" not in prop_list:
-                prop_list.append("ssl")
+@dataclass(frozen=True)
+class ModelMetadata:
+    model_id: str
+    architecture_id: str
+    tag: Optional[str]
+    training_method: Optional[str]
+    training_tag: Optional[str]
+    reparameterized: bool
+    intermediate: bool
+    mim: bool
+    distilled: bool
+    ssl: bool
+```
 
-            return True
-
-        return False
-
-    for ssl_name in [
-        "barlow-twins",
-        "byol",
-        "capi",
-        "data2vec",
-        "dino-v1",
-        "dino-v2",
-        "dino-v2-dist",
-        "i-jepa",
-        "ibot",
-        "mmcr",
-        "simclr",
-        "vicreg",
-    ]:
-        ssl |= mark_ssl(ssl_name)
-
-    if file_name.find("reparameterized") != -1:
-        reparameterized = True
-        file_name = file_name.replace("_reparameterized", "")
-        prop_list.append("r")
-    if file_name.find("mim") != -1:
-        mim = True
-        file_name = file_name.replace("_mim", "")
-        file_name = file_name.replace("-mim", "")
-        prop_list.append("mim")
-    if file_name.find("dist") != -1:
-        dist = True
-        file_name = file_name.replace("_dist", "")
-        file_name = file_name.replace("-dist", "")
-        prop_list.append("d")
-    if file_name.find("intermediate") != -1:
-        intermediate = True
-        file_name = file_name.replace("_intermediate", "")
-        file_name = file_name.replace("-intermediate", "")
-        prop_list.append("i")
-
-    file_name = file_name.split("/")[-1]
-    tag_end_idx = file_name.find("_", file_name.find(tag))
-    num_classes_str = file_name[tag_end_idx + 1 :]
-    num_classes = int(num_classes_str.split("_")[0])
-    model_name = file_name[: file_name.find(tag) - 1]
-    model = registry.net_factory(model_name, num_classes=num_classes, input_channels=3)
-
-    if reparameterize_available(model) is True and reparameterized is True:
-        model.reparameterize_model()
-
-    if len(prop_list) > 0:
-        model_name += " (" + ", ".join(prop_list) + ")"
-
-    info = get_model_info(model)
-    if "model_registry.model_registry" in model.__class__.__module__:
-        model_type = model.__class__.__bases__[0].__name__
+```{python}
+def _strip_result_suffix(file_name: str) -> str:
+    name = Path(file_name).name
+    if name.endswith(".csv.gz") is True:
+        name = name.removesuffix(".csv.gz")
     else:
-        model_type = model.__class__.__name__
+        name = Path(name).stem
 
-    return (
-        model_name.replace("_", " "),
-        model_type.replace("_", " "),
-        info["num_params"],
-        intermediate,
-        mim,
-        dist,
-        ssl,
+    return name.removesuffix("_sparse")
+```
+
+```{python}
+def parse_result_file_name(file_name: str) -> ParsedResultName:
+    stem = _strip_result_suffix(file_name)
+    match = RESULT_FILE_RE.match(stem)
+    if match is None:
+        raise ValueError(f"Cannot parse result file name: {file_name}")
+
+    options = [item for item in match.group("options").split("_") if item != ""]
+    epoch = match.group("epoch")
+
+    return ParsedResultName(
+        file_name=Path(file_name).name,
+        model_id=match.group("model_id"),
+        num_classes=int(match.group("num_classes")),
+        epoch=int(epoch) if epoch is not None else None,
+        resolution=int(match.group("resolution")),
+        center_crop=float(match.group("center_crop")),
+        num_samples=int(match.group("num_samples")),
+        options=options,
     )
 ```
 
 ```{python}
-def get_resolution(file_name: str, tag: str = PATTERN) -> int:
-    tag_end_idx = file_name.find("_", file_name.find(tag))
-    file_name = file_name[: file_name.find("px", tag_end_idx)]
-    resolution = file_name.rsplit("_", 1)[1]
+def _find_architecture_id(model_id: str, registered_architectures: list[str]) -> str:
+    for architecture_id in registered_architectures:
+        if model_id == architecture_id or model_id.startswith(f"{architecture_id}_"):
+            return architecture_id
 
-    return int(resolution)
+    return model_id
 ```
 
 ```{python}
-def get_pretrained_name(file_name: str) -> str:
-    if file_name.find("reparameterized") != -1:
-        pattern = "reparameterized"
-    else:
-        pattern = PATTERN
+def _split_tag_prefix(tag: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    if tag is None:
+        return (None, None)
 
-    pretrained_name = file_name[: file_name.find(pattern) + len(pattern)]
+    for prefix in TAG_PREFIXES:
+        if tag == prefix:
+            return (prefix, None)
+        if tag.startswith(f"{prefix}-"):
+            return (prefix, tag.removeprefix(f"{prefix}-"))
+        if tag.startswith(f"{prefix}_"):
+            return (prefix, tag.removeprefix(f"{prefix}_"))
+        if prefix == "mim" and tag.startswith(prefix) and tag[len(prefix) :].isdigit() is True:
+            return (prefix, tag.removeprefix(prefix))
 
-    return pretrained_name
+    return (None, tag)
+```
+
+```{python}
+def infer_model_metadata(model_id: str, registered_architectures: list[str]) -> ModelMetadata:
+    architecture_id = _find_architecture_id(model_id, registered_architectures)
+    tag = None
+    if architecture_id != model_id:
+        tag = model_id.removeprefix(f"{architecture_id}_")
+
+    training_method, training_tag = _split_tag_prefix(tag)
+    tag_tokens = set(re.split(r"[_-]", tag or ""))
+    reparameterized = "reparameterized" in tag_tokens
+    intermediate = "intermediate" in tag_tokens
+    mim = training_method == "mim" or "mim" in tag_tokens
+    distilled = "dist" in tag_tokens or training_method == "dino-v2-dist"
+    ssl = training_method in SSL_METHODS
+
+    return ModelMetadata(
+        model_id=model_id,
+        architecture_id=architecture_id,
+        tag=tag,
+        training_method=training_method,
+        training_tag=training_tag,
+        reparameterized=reparameterized,
+        intermediate=intermediate,
+        mim=mim,
+        distilled=distilled,
+        ssl=ssl,
+    )
+```
+
+```{python}
+def _model_info(architecture_id: str, num_classes: int, reparameterized: bool) -> tuple[str, float]:
+    model = registry.net_factory(architecture_id, num_classes=num_classes, input_channels=3)
+    if reparameterized is True and reparameterize_available(model) is True:
+        model.reparameterize_model()
+
+    info = get_model_info(model)
+    result = (_model_type(model), info["num_params"] / 1e6)
+
+    return result
+```
+
+```{python}
+def _model_type(model: Any) -> str:
+    if "model_registry.model_registry" in model.__class__.__module__:
+        return model.__class__.__bases__[0].__name__.replace("_", " ")
+
+    return model.__class__.__name__.replace("_", " ")
+```
+
+```{python}
+def _model_name(parsed_name: ParsedResultName, name_attr: str) -> str:
+    model_name = getattr(parsed_name, name_attr)
+    attr = []
+    if parsed_name.training_method is not None:
+        attr.append(parsed_name.training_method)
+    if parsed_name.intermediate is True:
+        attr.append("i")
+    if parsed_name.distilled is True:
+        attr.append("dist")
+    if parsed_name.reparameterized is True:
+        attr.append("r")
+
+    if len(attr) > 0:
+        attr_str = ", ".join(attr)
+        model_name += f" ({attr_str})"
+
+    return model_name.replace("_", " ")
 ```
 
 ## Data Loading and Processing
 
 ```{python}
-# results_dict = {}
-# for result_file in settings.RESULTS_DIR.joinpath(RESULTS_PATH).glob(f"*{PATTERN}*"):
-#     results_dict[result_file.stem] = Results.load(result_file)
+compare_results_df = pl.read_csv(SUMMARY_PATH)
+registered_architectures = sorted(registry.list_models(task=Task.IMAGE_CLASSIFICATION), key=len, reverse=True)
 
-# compare_results_df = compare_results(results_dict)
-compare_results_df = pl.read_csv(f"results/summary_{PATTERN}.csv")
+parsed_names = [parse_result_file_name(file_name) for file_name in compare_results_df["File name"]]
+metadata_by_model = {
+    parsed.model_id: infer_model_metadata(parsed.model_id, registered_architectures) for parsed in parsed_names
+}
 ```
 
 ```{python}
+model_type = []
 num_param = []
-model_names = []
-model_types = []
-pretrained_names = []
-resolution = []
-intermediate = []
-mim = []
-dist = []
-ssl = []
-for file_name in compare_results_df["File name"]:
-    model_name, model_type, count, intermediate_trn, mim_trn, dist_trn, ssl_trn = get_model_name_and_num_parameters(
-        file_name
+for parsed in parsed_names:
+    metadata = metadata_by_model[parsed.model_id]
+    parsed_model_type, parsed_num_param = _model_info(
+        metadata.architecture_id, parsed.num_classes, metadata.reparameterized
     )
-    num_param.append(count / 1e6)
-    model_names.append(model_name)
-    model_types.append(model_type)
-    pretrained_names.append(get_pretrained_name(file_name))
-    resolution.append(get_resolution(file_name))
-    intermediate.append(intermediate_trn)
-    mim.append(mim_trn)
-    dist.append(dist_trn)
-    ssl.append(ssl_trn)
-
-compare_results_df = compare_results_df.with_columns(
-    pl.Series("Parameters (M)", num_param),
-    pl.Series("Resolution", resolution),
-    pl.Series("Model name", model_names),
-    pl.Series("Model type", model_types),
-    pl.Series("Pretrained name", pretrained_names),
-    pl.Series("Intermediate", intermediate),
-    pl.Series("MIM", mim),
-    pl.Series("Distilled", dist),
-    pl.Series("Self-supervised learning", ssl),
-)
+    model_type.append(parsed_model_type)
+    num_param.append(parsed_num_param)
 ```
 
 ```{python}
-# Drop non-reparameterized versions when both available
-df = compare_results_df.with_columns(
-    [
-        pl.col("Model name").str.replace(" \(r\)$", "").alias("base_name"),
-        pl.col("Model name").str.ends_with(" (r)").alias("has_r_suffix"),
-    ]
+compare_results_df = compare_results_df.with_columns(
+    pl.Series(
+        "Model name", [_model_name(metadata_by_model[parsed.model_id], MODEL_NAME_ATTR) for parsed in parsed_names]
+    ),
+    pl.Series("Model id", [parsed.model_id for parsed in parsed_names]),
+    pl.Series("Architecture id", [metadata_by_model[parsed.model_id].architecture_id for parsed in parsed_names]),
+    pl.Series("Tag", [metadata_by_model[parsed.model_id].tag for parsed in parsed_names]),
+    pl.Series("Training method", [metadata_by_model[parsed.model_id].training_method for parsed in parsed_names]),
+    pl.Series("Training tag", [metadata_by_model[parsed.model_id].training_tag for parsed in parsed_names]),
+    pl.Series("Num classes", [parsed.num_classes for parsed in parsed_names]),
+    pl.Series("Epoch", [parsed.epoch for parsed in parsed_names]),
+    pl.Series("Resolution", [parsed.resolution for parsed in parsed_names]),
+    pl.Series("Center crop", [parsed.center_crop for parsed in parsed_names]),
+    pl.Series("Prediction samples", [parsed.num_samples for parsed in parsed_names]),
+    pl.Series("Prediction options", [",".join(parsed.options) for parsed in parsed_names]),
+    pl.Series("Model type", model_type),
+    pl.Series("Parameters (M)", num_param),
+    pl.Series("Reparameterized", [metadata_by_model[parsed.model_id].reparameterized for parsed in parsed_names]),
+    pl.Series("Intermediate", [metadata_by_model[parsed.model_id].intermediate for parsed in parsed_names]),
+    pl.Series("MIM", [metadata_by_model[parsed.model_id].mim for parsed in parsed_names]),
+    pl.Series("Distilled", [metadata_by_model[parsed.model_id].distilled for parsed in parsed_names]),
+    pl.Series("Self-supervised learning", [metadata_by_model[parsed.model_id].ssl for parsed in parsed_names]),
 )
-df = df.filter(df[["base_name", "Resolution"]].is_duplicated()).sort(
-    by=["base_name", "has_r_suffix"], descending=[False, False]
-)
-names_to_drop = df.unique("base_name", keep="first")["File name"]
-compare_results_df = compare_results_df.filter(~pl.col("File name").is_in(names_to_drop.implode()))
 ```
 
 ### Join Benchmark Data
 
 ```{python}
-benchmark_df = pl.read_csv(settings.RESULTS_DIR.joinpath(f"benchmark_{PATTERN}.csv"))
-benchmark_df = benchmark_df.with_columns(pl.col("model_name").str.replace(r"\d+px$", ""))
-benchmark_df = benchmark_df.with_columns(pl.col("model_name").str.replace(r"-$", ""))  # remove trailing "-"
+benchmark_df = pl.read_csv(BENCHMARK_PATH)
+benchmark_df = benchmark_df.with_columns(
+    pl.col("samples_per_sec").cast(pl.Float64, strict=False),
+    pl.col("peak_memory").cast(pl.Float64, strict=False),
+)
 compare_results_df = compare_results_df.join(
-    benchmark_df, left_on=["Pretrained name", "Resolution"], right_on=["model_name", "size"], how="left"
+    benchmark_df, left_on=["Model id", "Resolution"], right_on=["model_name", "size"], how="left"
 )
-compare_results_df = compare_results_df.with_columns(
-    (1000 * (1 / pl.col("samples_per_sec"))).alias("ms / sample"),
-)
-
-# Filter relevant benchmark data
-# compare_results_df = compare_results_df.filter((pl.col("ms / sample").is_null() & pl.col("peak_memory").is_null()))
+compare_results_df = compare_results_df.with_columns((1000 * (1 / pl.col("samples_per_sec"))).alias("ms / sample"))
 ```
 
 ```{python}
-# Rearrange columns
-compare_results_df = compare_results_df.select(
-    "Model name",
-    "Model type",
-    pl.all().exclude(
-        "File name", "Model name", "Model type", "Pretrained name", "Parameters (M)", *benchmark_df.columns
-    ),
-    "Parameters (M)",
-    "samples_per_sec",
-    "peak_memory",
-    "device",
-    "max_batch_size",
-    "compile",
-    "amp",
-    "single_thread",
-    "torch_version",
-)
 compare_results_df = compare_results_df.rename(
     {"samples_per_sec": "Samples / sec", "peak_memory": "Peak GPU memory (MB)"}
 )
@@ -413,8 +473,6 @@ def plot_acc_rate(rate_compare_results_df: pl.DataFrame, width: int = 900, heigh
 ```
 
 ```{python}
-compare_results_df = pl.read_csv(settings.RESULTS_DIR.joinpath(f"results_{PATTERN}.csv"))
-
 # Parameter count
 param_compare_results_df = compare_results_df.unique(subset=["Model name", "Resolution"]).sort(
     "Parameters (M)", descending=False

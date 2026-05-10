@@ -126,6 +126,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [VGG](#vgg)
 - [VGG Reduced](#vgg-reduced)
 - [ViT](#vit)
+- [ViT Soft MoE](#vit-soft-moe)
 - [ViT Parallel](#vit-parallel)
 - [ViT SAM](#vit-sam)
 - [ViT Windowed](#vit-windowed)
@@ -2620,6 +2621,14 @@ torchrun --nproc_per_node=2 train.py --network vit_h14 --batch-size 32 --opt ada
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_so150m_p14_ap --batch-size 256 --opt adamw --clip-grad-norm 1 --lr 0.0005 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
+```
+
+### ViT Soft MoE
+
+#### ViT Soft MoE: s16 32e 4s AVG
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_s16_soft_moe_32e_4s_avg --batch-size 128 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0005 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --amp-dtype bfloat16 --compile
 ```
 
 ### ViT Parallel

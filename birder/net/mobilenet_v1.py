@@ -148,3 +148,32 @@ registry.register_model_config("mobilenet_v1_0_25", MobileNet_v1, config={"alpha
 registry.register_model_config("mobilenet_v1_0_5", MobileNet_v1, config={"alpha": 0.5})
 registry.register_model_config("mobilenet_v1_0_75", MobileNet_v1, config={"alpha": 0.75})
 registry.register_model_config("mobilenet_v1_1_0", MobileNet_v1, config={"alpha": 1.0})
+
+registry.register_weights(
+    "mobilenet_v1_0_5_il-common",
+    {
+        "description": "MobileNet v1 (0.5 multiplier) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 4.0,
+                "sha256": "909267dabb00351011e2d47b44209df1b107f4f135c2ad74ad5094626d375221",
+            }
+        },
+        "net": {"network": "mobilenet_v1_0_5", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "mobilenet_v1_1_0_il-common",
+    {
+        "description": "MobileNet v1 (1.0 multiplier) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 13.8,
+                "sha256": "c7641dc0f7a3605a0d5cd4bca8c8ab5e9ee6b076226aca0aea105b6d5979ec58",
+            }
+        },
+        "net": {"network": "mobilenet_v1_1_0", "tag": "il-common"},
+    },
+)

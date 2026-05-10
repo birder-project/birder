@@ -385,8 +385,9 @@ def train(args: argparse.Namespace) -> None:
             prefetch_factor=args.prefetch_factor,
             collate_fn=train_collate_fn,
             world_size=args.world_size,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
             drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
             shuffle=args.wds_extra_shuffle,
             infinite=virtual_epoch_mode,
         )
@@ -397,8 +398,9 @@ def train(args: argparse.Namespace) -> None:
             prefetch_factor=args.prefetch_factor,
             collate_fn=validation_collate_fn,
             world_size=args.world_size,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
             drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
         )
     else:
         if virtual_epoch_mode is True and mosaic_dataset is not None:
@@ -411,8 +413,9 @@ def train(args: argparse.Namespace) -> None:
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
             collate_fn=train_collate_fn,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
             drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
         )
 
         validation_loader = DataLoader(
@@ -422,8 +425,9 @@ def train(args: argparse.Namespace) -> None:
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
             collate_fn=validation_collate_fn,
-            pin_memory=True,
+            pin_memory=args.pin_memory,
             drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
         )
 
     if virtual_epoch_mode is True:
@@ -464,7 +468,7 @@ def train(args: argparse.Namespace) -> None:
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
-        net, class_to_idx_saved, training_states = fs_ops.load_detection_checkpoint(
+        net, class_to_idx_saved, checkpoint_rgb_stats, training_states = fs_ops.load_detection_checkpoint(
             device,
             args.network,
             config=args.model_config,
@@ -476,6 +480,11 @@ def train(args: argparse.Namespace) -> None:
             new_size=args.size,
             strict=not args.non_strict_weights,
         )
+        if checkpoint_rgb_stats != rgb_stats:
+            logger.warning(
+                f"Resuming training with RGB stats {rgb_stats}, "
+                f"but checkpoint was saved with {checkpoint_rgb_stats}"
+            )
         if args.reset_head is True:
             net.reset_classifier(len(class_to_idx))
         else:
@@ -483,7 +492,7 @@ def train(args: argparse.Namespace) -> None:
 
     elif args.pretrained is True:
         fs_ops.download_model_by_weights(network_name, progress_bar=training_utils.is_local_primary(args))
-        net, class_to_idx_saved, training_states = fs_ops.load_detection_checkpoint(
+        net, class_to_idx_saved, checkpoint_rgb_stats, training_states = fs_ops.load_detection_checkpoint(
             device,
             args.network,
             config=args.model_config,
@@ -495,6 +504,11 @@ def train(args: argparse.Namespace) -> None:
             new_size=args.size,
             strict=not args.non_strict_weights,
         )
+        if checkpoint_rgb_stats != rgb_stats:
+            logger.warning(
+                f"Training with RGB stats {rgb_stats}, "
+                f"but pretrained checkpoint was saved with {checkpoint_rgb_stats}"
+            )
         if args.reset_head is True:
             net.reset_classifier(len(class_to_idx))
         else:
@@ -503,7 +517,7 @@ def train(args: argparse.Namespace) -> None:
     else:
         if args.backbone_epoch is not None:
             backbone: DetectorBackbone
-            backbone, class_to_idx_saved, _ = fs_ops.load_checkpoint(
+            backbone, class_to_idx_saved, checkpoint_rgb_stats, _ = fs_ops.load_checkpoint(
                 device,
                 args.backbone,
                 config=args.backbone_model_config,
@@ -512,13 +526,18 @@ def train(args: argparse.Namespace) -> None:
                 new_size=args.size,
                 strict=not args.non_strict_weights,
             )
+            if checkpoint_rgb_stats != rgb_stats:
+                logger.warning(
+                    f"Training with RGB stats {rgb_stats}, "
+                    f"but backbone checkpoint was saved with {checkpoint_rgb_stats}"
+                )
 
         elif args.backbone_pretrained is True:
             fs_ops.download_model_by_weights(
                 lib.get_network_name(args.backbone, tag=args.backbone_tag),
                 progress_bar=training_utils.is_global_primary(args),
             )
-            backbone, class_to_idx_saved, _ = fs_ops.load_checkpoint(
+            backbone, class_to_idx_saved, checkpoint_rgb_stats, _ = fs_ops.load_checkpoint(
                 device,
                 args.backbone,
                 config=args.backbone_model_config,
@@ -527,6 +546,11 @@ def train(args: argparse.Namespace) -> None:
                 new_size=args.size,
                 strict=not args.non_strict_weights,
             )
+            if checkpoint_rgb_stats != rgb_stats:
+                logger.warning(
+                    f"Training with RGB stats {rgb_stats}, "
+                    f"but pretrained backbone checkpoint was saved with {checkpoint_rgb_stats}"
+                )
 
         else:
             backbone = registry.net_factory(
@@ -570,10 +594,10 @@ def train(args: argparse.Namespace) -> None:
 
     # Compile network
     if args.compile is True:
-        net = torch.compile(net, fullgraph=args.compile_fullgraph)
+        net = torch.compile(net, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
     elif args.compile_backbone is True:
         net.backbone.detection_features = torch.compile(  # type: ignore[method-assign]
-            net.backbone.detection_features, fullgraph=args.compile_fullgraph
+            net.backbone.detection_features, fullgraph=args.compile_fullgraph, mode=args.compile_mode
         )
 
     #
