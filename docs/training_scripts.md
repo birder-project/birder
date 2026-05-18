@@ -44,6 +44,129 @@ You can also run the same command as a module:
 torchrun --nproc_per_node=2 -m birder.scripts.train --network resnet_v2_50 --batch-size 64
 ```
 
+## Training Script Customization
+
+For small changes to selected training scripts, use `TrainOverrides` instead of copying training scripts or monkey patching internal functions.
+This keeps Birder's CLI arguments, validation, distributed setup, checkpoint handling, and training loop unchanged while replacing selected construction defaults.
+
+Transform overrides receive the parsed training arguments and return the transform that should be used by the
+training script. Loader and decoder overrides are called directly for each image.
+
+```python
+import torch
+from torchvision.transforms import v2
+
+from birder.common import training_utils
+from birder.scripts import train
+from birder.scripts.train import TrainOverrides
+
+
+class AddGaussianNoise:
+    def __init__(self, sigma: float) -> None:
+        self.sigma = sigma
+
+    def __call__(self, image: torch.Tensor) -> torch.Tensor:
+        return image + torch.randn_like(image) * self.sigma
+
+
+def training_transform(args):
+    return v2.Compose(
+        [
+            training_utils.get_training_transform(args),
+            AddGaussianNoise(0.02),
+        ]
+    )
+
+
+if __name__ == "__main__":
+    train.main(
+        TrainOverrides(training_transform=training_transform)
+    )
+```
+
+Run the custom script with the same arguments as the standard training script:
+
+```sh
+python custom_train.py --network resnet_v2_50 --batch-size 64
+```
+
+Distributed training works the same way:
+
+```sh
+torchrun --nproc_per_node=4 custom_train.py --network resnet_v2_50 --batch-size 64
+```
+
+Import `TrainOverrides` from the training script module being customized.
+
+Supported fields vary by script. Most training scripts support replacing:
+
+- `training_transform`: builds the transform used for training samples
+- `image_loader`: loads an image from a filesystem path
+- `wds_image_decoder`: decodes a WebDataset image from its sample key and bytes
+
+Classification-style scripts can also support `validation_transform` and scripts with custom batch assembly can expose a `training_collator` override.
+
+For example, a custom MIM entry point can pre-train on log-mel spectrogram tensors using `torchaudio`:
+
+```python
+import torch
+import torch.nn.functional as F
+import torchaudio
+import torchvision
+
+from birder.scripts import train_mim
+from birder.scripts.train_mim import TrainOverrides
+
+
+TARGET_SAMPLE_RATE = 16_000
+
+
+def audio_loader(path: str):
+    return torchaudio.load(path)
+
+
+class WaveformToLogMel:
+    def __init__(self, args) -> None:
+        self.size = args.size
+        self.mel = torchaudio.transforms.MelSpectrogram(
+            sample_rate=TARGET_SAMPLE_RATE,
+            n_fft=1024,
+            hop_length=160,
+            n_mels=96,
+            center=True,
+        )
+        self.to_db = torchaudio.transforms.AmplitudeToDB()
+
+    def __call__(self, sample) -> torch.Tensor:
+        waveform, sample_rate = sample
+        waveform = waveform.mean(dim=0, keepdim=True)
+        waveform = waveform[..., :223 * 160]
+        if sample_rate != TARGET_SAMPLE_RATE:
+            waveform = torchaudio.functional.resample(waveform, sample_rate, TARGET_SAMPLE_RATE)
+
+        spec = self.to_db(self.mel(waveform))
+        spec = (spec - spec.mean()) / spec.std().clamp_min(1e-6)
+
+        return spec.squeeze(0)
+
+
+if __name__ == "__main__":
+    torchvision.datasets.folder.IMG_EXTENSIONS = (".wav", ".flac", ".mp3")
+
+    train_mim.main(
+        TrainOverrides(
+            image_loader=audio_loader,
+            training_transform=WaveformToLogMel,
+        )
+    )
+```
+
+Run it like the standard MIM script, using a single input channel:
+
+```sh
+python custom_train_msm.py --network mae_vit --encoder vit_reg4_b16 --channels 1 --rgb-mean 0.0 --rgb-std 1.0 --size 96 224 --data-path data/audio
+```
+
 ## Key Features
 
 ### WebDataset Integration

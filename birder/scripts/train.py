@@ -4,8 +4,10 @@ import logging
 import math
 import sys
 import time
+from collections.abc import Callable
 from collections.abc import Iterator
 from contextlib import nullcontext
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from typing import Optional
@@ -21,7 +23,6 @@ from torch.utils.data.dataloader import default_collate
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets import FakeData
 from torchvision.datasets import ImageFolder
-from torchvision.datasets.folder import pil_loader  # Slower but Handles external dataset quirks better
 from tqdm import tqdm
 
 from birder.common import cli
@@ -33,7 +34,8 @@ from birder.common.lib import get_network_name
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import HierarchicalImageFolder
-from birder.data.datasets.directory import tv_loader
+from birder.data.datasets.directory import get_image_loader
+from birder.data.datasets.webdataset import WDSImageDecoder
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
@@ -47,8 +49,23 @@ from birder.net.base import get_signature
 
 logger = logging.getLogger(__name__)
 
+ImageLoader = Callable[[str], Any]
+ImageTransform = Callable[[Any], torch.Tensor]
+TransformFactory = Callable[[argparse.Namespace], ImageTransform]
 
-def train(args: argparse.Namespace) -> None:
+
+@dataclass(frozen=True)
+class TrainOverrides:
+    training_transform: Optional[TransformFactory] = None
+    validation_transform: Optional[TransformFactory] = None
+    image_loader: Optional[ImageLoader] = None
+    wds_image_decoder: Optional[WDSImageDecoder] = None
+
+
+def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) -> None:
+    if overrides is None:
+        overrides = TrainOverrides()
+
     #
     # Initialize
     #
@@ -65,8 +82,16 @@ def train(args: argparse.Namespace) -> None:
     rgb_stats = get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std)
     logger.debug(f"Using RGB stats: {rgb_stats}")
 
-    training_transform = training_utils.get_training_transform(args)
-    val_transform = inference_preset(args.size, rgb_stats, 1.0)
+    if overrides.training_transform is not None:
+        training_transform = overrides.training_transform(args)
+    else:
+        training_transform = training_utils.get_training_transform(args)
+
+    if overrides.validation_transform is not None:
+        val_transform = overrides.validation_transform(args)
+    else:
+        val_transform = inference_preset(args.size, rgb_stats, 1.0)
+
     if args.use_fake_data is True:
         logger.warning("Using fake data")
         training_dataset = FakeData(10000, (args.channels, *args.size), num_classes=10, transform=training_transform)
@@ -74,6 +99,11 @@ def train(args: argparse.Namespace) -> None:
         class_to_idx = {str(i): i for i in range(10)}
 
     elif args.wds is True:
+        if overrides.wds_image_decoder is not None:
+            wds_image_decoder = overrides.wds_image_decoder
+        else:
+            wds_image_decoder = args.img_loader
+
         training_wds_path: str | list[str]
         val_wds_path: str | list[str]
         if args.wds_info is not None:
@@ -93,7 +123,8 @@ def train(args: argparse.Namespace) -> None:
             shuffle=True,
             samples_names=False,
             transform=training_transform,
-            img_loader=args.img_loader,
+            image_decoder=wds_image_decoder,
+            channels=args.channels,
             cache_dir=args.wds_cache_dir,
         )
         validation_dataset = make_wds_dataset(
@@ -102,25 +133,29 @@ def train(args: argparse.Namespace) -> None:
             shuffle=False,
             samples_names=False,
             transform=val_transform,
-            img_loader=args.img_loader,
+            image_decoder=wds_image_decoder,
+            channels=args.channels,
             cache_dir=args.wds_cache_dir,
         )
 
         class_to_idx = fs_ops.read_class_file(args.wds_class_file)
 
     else:
+        if overrides.image_loader is not None:
+            image_loader = overrides.image_loader
+        else:
+            image_loader = get_image_loader(args.img_loader, args.channels)
+
         if args.hierarchical is True:
             dataset_cls = HierarchicalImageFolder
         else:
             dataset_cls = ImageFolder
 
-        training_dataset = dataset_cls(
-            args.data_path, transform=training_transform, loader=pil_loader if args.img_loader == "pil" else tv_loader
-        )
+        training_dataset = dataset_cls(args.data_path, transform=training_transform, loader=image_loader)
         validation_dataset = dataset_cls(
             args.val_path,
             transform=val_transform,
-            loader=pil_loader if args.img_loader == "pil" else tv_loader,
+            loader=image_loader,
             allow_empty=True,
         )
         assert training_dataset.class_to_idx == validation_dataset.class_to_idx
@@ -954,7 +989,7 @@ def args_from_dict(**kwargs: Any) -> argparse.Namespace:
     return args
 
 
-def main() -> None:
+def main(overrides: Optional[TrainOverrides] = None) -> None:
     parser = get_args_parser()
     args = parser.parse_args()
     validate_args(args)
@@ -967,7 +1002,7 @@ def main() -> None:
         logger.info(f"Creating {args.wds_cache_dir} directory...")
         Path(args.wds_cache_dir).mkdir(parents=True, exist_ok=True)
 
-    train(args)
+    train(args, overrides=overrides)
 
 
 if __name__ == "__main__":

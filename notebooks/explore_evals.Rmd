@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.19.1
+      jupytext_version: 1.19.2
   kernelspec:
     display_name: birder
     language: python
@@ -59,13 +59,15 @@ class BenchmarkConfig:
 ```{python}
 EPOCH_RE = re.compile(r"_e(\d+)(?=_|$)")
 MODEL_SUFFIX_RE = re.compile(r"(?:_(?:e\d+|\d+))?_\d+px_crop[\d.]+(?:_\d+)?(?:_sc)?_embeddings$")
-PREFIX = "bio-dino-"
-# PREFIX = ""
-MARK_EPOCHS = {185: "224px", 245: "252px", 250: "336px"}
+# PREFIX = "bio-dino-"
+PREFIX = ""
+# MARK_EPOCHS = {185: "224px", 245: "252px", 250: "336px"}
+MARK_EPOCHS = {260: "252px"}
+# MARK_EPOCHS = None
 
 MODEL_LABELS = {
-    "vit_reg4_so150m_p14_ls_dino-v2-bio": "BIO-DINO",
-    # "vit_reg1_s14_ls_dino-v2-dist-bio": "BIO-DINO-DIST",
+    # "vit_reg4_so150m_p14_ls_dino-v2-bio": "BIO-DINO",
+    "vit_reg1_s14_ls_dino-v2-dist-bio": "BIO-DINO-DIST",
     # References
     "convnext_v1_large_fb-imagenet22k": "ConvNeXt Large",
     "rope_cs_vit_reg4_b16_nape_ls_c1_dino-v3-lvd1689m": "DINOv3 B16",

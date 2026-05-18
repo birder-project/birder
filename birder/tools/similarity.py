@@ -3,6 +3,7 @@ import logging
 import time
 from itertools import combinations
 from typing import Any
+from typing import get_args
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,6 +16,8 @@ from torch.utils.data import DataLoader
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
+from birder.data.datasets.directory import ImageLoaderName
+from birder.data.datasets.directory import get_image_loader
 from birder.data.datasets.directory import make_image_dataset
 from birder.data.transforms.classification import inference_preset
 from birder.inference import classification
@@ -85,8 +88,11 @@ def similarity(args: argparse.Namespace) -> None:
         args.size = lib.get_size_from_signature(signature)
         logger.debug(f"Using size={args.size}")
 
+    input_channels = lib.get_channels_from_signature(signature)
     transform = inference_preset(args.size, rgb_stats, args.center_crop, args.simple_crop)
-    dataset = make_image_dataset(args.data_path, class_to_idx, transforms=transform)
+    dataset = make_image_dataset(
+        args.data_path, class_to_idx, transforms=transform, loader=get_image_loader(args.img_loader, input_channels)
+    )
     num_samples = len(dataset)
 
     inference_loader = DataLoader(
@@ -202,6 +208,13 @@ def set_parser(subparsers: Any) -> None:
         "--size", type=int, nargs="+", metavar=("H", "W"), help="image size for inference (defaults to model signature)"
     )
     subparser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
+    subparser.add_argument(
+        "--img-loader",
+        type=str,
+        choices=get_args(ImageLoaderName),
+        default="tv",
+        help="backend to load and decode images",
+    )
     subparser.add_argument(
         "-j", "--num-workers", type=int, default=8, metavar="N", help="number of preprocessing workers"
     )

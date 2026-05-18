@@ -4,6 +4,7 @@ import random
 from pathlib import Path
 from typing import Any
 from typing import Optional
+from typing import get_args
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,6 +20,8 @@ from birder.common import masking
 from birder.common import training_cli
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
+from birder.data.datasets.directory import ImageLoaderName
+from birder.data.datasets.directory import get_image_loader
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
@@ -32,13 +35,14 @@ logger = logging.getLogger(__name__)
 
 
 def show_iterator(args: argparse.Namespace) -> None:
-    reverse_transform = reverse_preset(get_rgb_stats("birder"))
+    rgb_stats = get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std)
+    reverse_transform = reverse_preset(rgb_stats)
     if args.mode == "training":
         transform = training_preset(
             args.size,
             args.aug_type,
             args.aug_level,
-            get_rgb_stats("birder"),
+            rgb_stats,
             args.resize_min_scale,
             args.re_prob,
             args.use_grayscale,
@@ -48,7 +52,7 @@ def show_iterator(args: argparse.Namespace) -> None:
             args.simple_crop,
         )
     elif args.mode == "inference":
-        transform = inference_preset(args.size, get_rgb_stats("birder"), args.center_crop, args.simple_crop)
+        transform = inference_preset(args.size, rgb_stats, args.center_crop, args.simple_crop)
     else:
         raise ValueError(f"Unknown mode={args.mode}")
 
@@ -68,6 +72,8 @@ def show_iterator(args: argparse.Namespace) -> None:
             shuffle=True,
             samples_names=False,
             transform=transform,
+            image_decoder=args.img_loader,
+            channels=args.channels,
         )
         if args.wds_class_file is None:
             args.wds_class_file = Path(args.data_path).joinpath(settings.CLASS_LIST_NAME)
@@ -75,7 +81,11 @@ def show_iterator(args: argparse.Namespace) -> None:
         class_to_idx = fs_ops.read_class_file(args.wds_class_file)
 
     else:
-        dataset = ImageFolder(args.data_path, transform=transform)
+        dataset = ImageFolder(
+            args.data_path,
+            transform=transform,
+            loader=get_image_loader(args.img_loader, args.channels),
+        )
         class_to_idx = dataset.class_to_idx
 
     no_iterations = 6
@@ -90,7 +100,7 @@ def show_iterator(args: argparse.Namespace) -> None:
 
             # Show original
             ax = fig.add_subplot(grid_spec[0, 0:cols])
-            ax.imshow(img)
+            ax.imshow(np.asarray(F.to_pil_image(img)))
             ax.set_title(f"Original, aug type: {args.aug_type}")
 
             # Show transformed
@@ -225,6 +235,16 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--data-path", type=str, default=str(settings.TRAINING_DATA_PATH), help="image directory path"
     )
+    subparser.add_argument(
+        "--img-loader",
+        type=str,
+        choices=get_args(ImageLoaderName),
+        default="tv",
+        help="backend to load and decode images",
+    )
+    subparser.add_argument(
+        "--channels", type=int, default=settings.DEFAULT_NUM_CHANNELS, metavar="N", help="no. of image channels"
+    )
     subparser.add_argument("--wds", default=False, action="store_true", help="use webdataset")
     subparser.add_argument(
         "--wds-info", type=str, action="append", metavar="FILE", help="one or more wds info file paths"
@@ -248,6 +268,10 @@ def main(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--wds requires --batch to be set")
     if args.masking is not None and args.batch is False:
         raise cli.ValidationError("--wds requires --batch to be set")
+    if args.rgb_mean is not None and len(args.rgb_mean) != args.channels:
+        raise cli.ValidationError(f"--rgb-mean must have {args.channels} values, got {len(args.rgb_mean)}")
+    if args.rgb_std is not None and len(args.rgb_std) != args.channels:
+        raise cli.ValidationError(f"--rgb-std must have {args.channels} values, got {len(args.rgb_std)}")
 
     args.size = cli.parse_size(args.size)
     show_iterator(args)

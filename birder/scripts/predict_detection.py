@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from typing import Any
 from typing import Optional
+from typing import get_args
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,6 +20,8 @@ from birder.data.collators.detection import inference_collate_fn
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.coco import CocoInference
 from birder.data.datasets.coco import build_label_mapping_indices
+from birder.data.datasets.directory import ImageLoaderName
+from birder.data.datasets.directory import get_image_loader
 from birder.data.datasets.directory import make_image_dataset
 from birder.data.datasets.webdataset import make_wds_detection_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
@@ -134,6 +137,7 @@ def predict(args: argparse.Namespace) -> None:
         args.size = lib.get_size_from_signature(signature)
         logger.debug(f"Using size={args.size}")
 
+    input_channels = lib.get_channels_from_signature(signature)
     score_threshold = args.min_score
 
     label_mapping: Optional[dict[str, str]] = None
@@ -234,6 +238,7 @@ def predict(args: argparse.Namespace) -> None:
             args.data_path,
             {},
             transforms=inference_transform,
+            loader=get_image_loader(args.img_loader, input_channels),
             return_orig_sizes=True,
         )
 
@@ -436,6 +441,13 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--no-resize", default=False, action="store_true", help="process images at original size without resizing"
     )
     parser.add_argument("--batch-size", type=int, default=8, metavar="N", help="the batch size")
+    parser.add_argument(
+        "--img-loader",
+        type=str,
+        choices=get_args(ImageLoaderName),
+        default="tv",
+        help="backend to load and decode directory and WDS images",
+    )
     parser.add_argument("-j", "--num-workers", type=int, default=4, metavar="N", help="number of preprocessing workers")
     parser.add_argument(
         "--prefetch-factor", type=int, metavar="N", help="number of batches loaded in advance by each worker"

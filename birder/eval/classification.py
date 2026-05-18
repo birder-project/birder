@@ -1,6 +1,7 @@
 import argparse
 import logging
 from typing import Any
+from typing import get_args
 
 import torch
 from torch.utils.data import DataLoader
@@ -9,6 +10,8 @@ import birder
 from birder.common import cli
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
+from birder.data.datasets.directory import ImageLoaderName
+from birder.data.datasets.directory import get_image_loader
 from birder.data.datasets.directory import make_image_dataset
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
@@ -59,6 +62,7 @@ def evaluate(args: argparse.Namespace) -> None:
             size = args.size
 
         transform = birder.classification_transform(size, rgb_stats, args.center_crop, args.simple_crop)
+        input_channels = birder.get_channels_from_signature(signature)
 
         if args.wds is True:
             wds_path: str | list[str]
@@ -76,6 +80,8 @@ def evaluate(args: argparse.Namespace) -> None:
                 shuffle=False,
                 samples_names=True,
                 transform=transform,
+                image_decoder=args.img_loader,
+                channels=input_channels,
             )
             inference_loader = make_wds_loader(
                 dataset,
@@ -88,7 +94,12 @@ def evaluate(args: argparse.Namespace) -> None:
                 exact=True,
             )
         else:
-            dataset = make_image_dataset(args.data_path, class_to_idx, transforms=transform)
+            dataset = make_image_dataset(
+                args.data_path,
+                class_to_idx,
+                transforms=transform,
+                loader=get_image_loader(args.img_loader, input_channels),
+            )
             num_samples = len(dataset)
             inference_loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.num_workers)
 
@@ -175,6 +186,13 @@ def set_parser(subparsers: Any) -> None:
         default=False,
         action="store_true",
         help="use a simple crop that preserves aspect ratio but may trim parts of the image",
+    )
+    subparser.add_argument(
+        "--img-loader",
+        type=str,
+        choices=get_args(ImageLoaderName),
+        default="tv",
+        help="backend to load and decode images",
     )
     subparser.add_argument(
         "--dir", type=str, default="evaluate", help="place all outputs in a sub-directory (relative to results)"

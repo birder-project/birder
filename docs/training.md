@@ -73,6 +73,8 @@ Most networks train more effectively with growing resolution and augmentation as
 - [LIT v2](#lit-v2)
 - [MaxViT](#maxvit)
 - [MetaFormer](#metaformer)
+- [MicroViT v1](#microvit-v1)
+- [MicroViT v2](#microvit-v2)
 - [MnasNet](#mnasnet)
 - [Mobilenet v1](#mobilenet-v1)
 - [Mobilenet v2](#mobilenet-v2)
@@ -1428,31 +1430,19 @@ torchrun --nproc_per_node=2 train.py --network lit_v2_s --batch-size 128 --opt a
 #### MaxViT: Tiny
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network maxvit_t --batch-size 64 --opt adamw --clip-grad-norm 1 --lr 0.003 --wd 0.05 --transformer-embedding-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --model-ema --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile
+torchrun --nproc_per_node=2 train.py --network maxvit_t --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.003 --wd 0.05 --transformer-embedding-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 30 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --amp --amp-dtype bfloat16 --compile
 ```
 
 #### MaxViT: Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network maxvit_s --batch-size 64 --opt adamw --clip-grad-norm 1 --lr 0.003 --wd 0.05 --transformer-embedding-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --stop-epoch 150 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile
-```
-
-At epoch 150 increase resolution again
-
-```sh
-torchrun --nproc_per_node=2 train.py --network maxvit_s --batch-size 16 --opt adamw --clip-grad-norm 1 --lr 0.003 --wd 0.05 --transformer-embedding-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --stop-epoch 180 --warmup-epochs 20 --model-ema --size 384 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile --resume-epoch 140 --load-scheduler
-```
-
-At epoch 180 increase resolution again
-
-```sh
-torchrun --nproc_per_node=2 train.py --network maxvit_s --batch-size 16 --opt adamw --clip-grad-norm 1 --lr 0.003 --wd 0.05 --transformer-embedding-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --model-ema --size 448 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile --resume-epoch 180 --load-scheduler
+torchrun --nproc_per_node=2 train.py --network maxvit_s --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.003 --wd 0.05 --transformer-embedding-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 30 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --amp --amp-dtype bfloat16 --compile
 ```
 
 #### MaxViT: Base
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network maxvit_b --batch-size 32 --opt adamw --clip-grad-norm 1 --lr 0.0014 --wd 0.05 --transformer-embedding-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 32 --model-ema --size 288 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile
+torchrun --nproc_per_node=2 train.py --network maxvit_b --batch-size 48 --opt adamw --clip-grad-norm 1 --lr 0.003 --wd 0.05 --transformer-embedding-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 30 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --amp --amp-dtype bfloat16 --compile
 ```
 
 ### MetaFormer
@@ -1491,6 +1481,34 @@ At epoch 250 increase resolution
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network caformer_s18 --batch-size 64 --opt adamw --lr 0.004 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 384 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --resume-epoch 250 --load-states
+```
+
+### MicroViT v1
+
+#### MicroViT v1: S1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network microvit_v1_s1 --batch-size 512 --opt adamw --clip-grad-norm 1 --lr 0.001 --wd 0.025 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --fast-matmul --compile
+```
+
+#### MicroViT v1: S2
+
+```sh
+torchrun --nproc_per_node=2 train.py --network microvit_v1_s2 --batch-size 384 --opt adamw --clip-grad-norm 1 --lr 0.001 --wd 0.025 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --fast-matmul --compile
+```
+
+### MicroViT v2
+
+#### MicroViT v2: S1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network microvit_v2_s1 --batch-size 512 --opt adamw --clip-grad-norm 1 --lr 0.004 --wd 0.025 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --fast-matmul --compile
+```
+
+#### MicroViT v2: S2
+
+```sh
+torchrun --nproc_per_node=2 train.py --network microvit_v2_s2 --batch-size 384 --opt adamw --clip-grad-norm 1 --lr 0.004 --wd 0.025 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --fast-matmul --compile
 ```
 
 ### MnasNet

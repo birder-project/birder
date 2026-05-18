@@ -21,6 +21,7 @@ from torchvision.transforms.v2 import functional as F
 from birder.common import fs_ops
 from birder.common.training_utils import reduce_across_processes
 from birder.conf import settings
+from birder.data.datasets.directory import ImageLoaderName
 from birder.data.transforms.mosaic import mosaic_fixed_grid
 from birder.data.transforms.mosaic import mosaic_random_center
 
@@ -28,6 +29,9 @@ logger = logging.getLogger(__name__)
 
 WDS_SHUFFLE_SIZE = int(os.environ.get("WDS_SHUFFLE_SIZE", 4000))
 WDS_INITIAL_SIZE = int(os.environ.get("WDS_INITIAL_SIZE", 1000))
+
+WDSImageDecoder = Callable[[str, bytes], Any]
+WDSImageDecoderSpec = ImageLoaderName | WDSImageDecoder
 
 
 def decode_sample_name(item: tuple[str, str, Any, int]) -> tuple[str, Any, int]:
@@ -39,12 +43,37 @@ def decode_fake_cls(item: tuple[Any, ...]) -> tuple[Any, ...]:
     return (*item, settings.NO_LABEL)
 
 
-def wds_image_decoder(key: str, data: bytes) -> torch.Tensor:
+def wds_rgb_decoder(key: str, data: bytes) -> Optional[torch.Tensor]:
     if key.endswith(IMG_EXTENSIONS) is False:
         return None
 
     tensor = torch.frombuffer(bytearray(data), dtype=torch.uint8)
     return decode_image(tensor, mode=ImageReadMode.RGB)
+
+
+def wds_gray_decoder(key: str, data: bytes) -> Optional[torch.Tensor]:
+    if key.endswith(IMG_EXTENSIONS) is False:
+        return None
+
+    tensor = torch.frombuffer(bytearray(data), dtype=torch.uint8)
+    return decode_image(tensor, mode=ImageReadMode.GRAY)
+
+
+def get_wds_image_decoder(
+    name: ImageLoaderName, channels: int = settings.DEFAULT_NUM_CHANNELS
+) -> str | WDSImageDecoder:
+    if name == "tv":
+        if channels == 1:
+            return wds_gray_decoder
+        if channels == 3:
+            return wds_rgb_decoder
+    if name == "pil":
+        if channels == 1:
+            return "pill"  # WebDataset PIL grayscale decoder
+        if channels == 3:
+            return "pil"
+
+    raise ValueError(f"Unsupported image decoder '{name}' with channels={channels}")
 
 
 def identity(x: Any) -> Any:
@@ -57,7 +86,8 @@ def make_wds_dataset(
     shuffle: bool,
     samples_names: bool,
     transform: Callable[..., torch.Tensor],
-    img_loader: Literal["tv", "pil"] = "tv",
+    image_decoder: WDSImageDecoderSpec = "tv",
+    channels: int = settings.DEFAULT_NUM_CHANNELS,
     *,
     cls_key: Optional[str] = "cls",
     cache_dir: Optional[str] = None,
@@ -87,10 +117,12 @@ def make_wds_dataset(
     if samples_names is True:
         return_keys = ["__url__", "__key__"] + return_keys
 
-    if img_loader == "pil":
-        dataset = dataset.with_length(dataset_size, silent=True).decode("pil").to_tuple(*return_keys)
+    if isinstance(image_decoder, str):
+        decoder = get_wds_image_decoder(image_decoder, channels)
     else:
-        dataset = dataset.with_length(dataset_size, silent=True).decode(wds_image_decoder).to_tuple(*return_keys)
+        decoder = image_decoder
+
+    dataset = dataset.with_length(dataset_size, silent=True).decode(decoder).to_tuple(*return_keys)
 
     if cls_key is None:
         dataset = dataset.map(decode_fake_cls)
@@ -225,7 +257,7 @@ def make_wds_mosaic_detection_dataset(
         wds_path, shardshuffle=500, nodesplitter=wds.split_by_node, cache_dir=cache_dir, empty_check=False
     )
     dataset = dataset.shuffle(shuffle_buffer_size, initial=shuffle_initial_size)
-    dataset = dataset.decode(wds_image_decoder).to_tuple("jpeg;jpg;png;webp", "json")
+    dataset = dataset.decode(wds_rgb_decoder).to_tuple("jpeg;jpg;png;webp", "json")
     dataset = dataset.map(lambda item: decode_detection_target(item, label_remap=label_remap))
 
     mosaic_fn = mosaic_fixed_grid if mosaic_type == "fixed_grid" else mosaic_random_center
@@ -278,7 +310,7 @@ def make_wds_detection_dataset(
     if samples_names is True:
         return_keys = ["__url__", "__key__"] + return_keys
 
-    dataset = dataset.with_length(dataset_size, silent=True).decode(wds_image_decoder).to_tuple(*return_keys)
+    dataset = dataset.with_length(dataset_size, silent=True).decode(wds_rgb_decoder).to_tuple(*return_keys)
     dataset = dataset.map(lambda item: decode_detection_sample(item, label_remap=label_remap))
 
     if samples_names is True:

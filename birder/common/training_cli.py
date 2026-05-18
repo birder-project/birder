@@ -14,6 +14,7 @@ from birder.common.training_utils import OptimizerType
 from birder.common.training_utils import SchedulerType
 from birder.conf import settings
 from birder.data.datasets.coco import MosaicType
+from birder.data.datasets.directory import ImageLoaderName
 from birder.data.transforms.classification import AugType
 from birder.data.transforms.classification import RGBMode
 from birder.data.transforms.detection import MULTISCALE_STEP
@@ -393,15 +394,15 @@ def add_data_aug_args(
     group.add_argument(
         "--rgb-mean",
         type=float,
-        nargs=3,
-        metavar=("R", "G", "B"),
+        nargs="+",
+        metavar=("R", "G"),
         help="set custom RGB mean values (overrides values from selected RGB mode)",
     )
     group.add_argument(
         "--rgb-std",
         type=float,
-        nargs=3,
-        metavar=("R", "G", "B"),
+        nargs="+",
+        metavar=("R", "G"),
         help="set custom RGB std values (overrides values from selected RGB mode)",
     )
 
@@ -428,15 +429,15 @@ def add_detection_data_aug_args(parser: argparse.ArgumentParser, default_level: 
     group.add_argument(
         "--rgb-mean",
         type=float,
-        nargs=3,
-        metavar=("R", "G", "B"),
+        nargs="+",
+        metavar=("R", "G"),
         help="set custom RGB mean values (overrides values from selected RGB mode)",
     )
     group.add_argument(
         "--rgb-std",
         type=float,
-        nargs=3,
-        metavar=("R", "G", "B"),
+        nargs="+",
+        metavar=("R", "G"),
         help="set custom RGB std values (overrides values from selected RGB mode)",
     )
     group.add_argument("--mosaic-prob", type=float, default=0.0, metavar="P", help="mosaic augmentation probability")
@@ -526,7 +527,11 @@ def add_dataloader_args(
     group = parser.add_argument_group("Dataloader parameters")
     if no_img_loader is False:
         group.add_argument(
-            "--img-loader", type=str, choices=["tv", "pil"], default="tv", help="backend to load and decode images"
+            "--img-loader",
+            type=str,
+            choices=get_args(ImageLoaderName),
+            default="tv",
+            help="backend to load and decode images",
         )
 
     if default_num_workers is None:
@@ -930,6 +935,11 @@ def common_args_validation(args: argparse.Namespace) -> None:
         raise ValidationError("--pretrained cannot be used with --resume-epoch")
 
     # Data augmentation args have standard and detection version. Apply only to standard
+    if hasattr(args, "rgb_mean") is True and args.rgb_mean is not None and len(args.rgb_mean) != args.channels:
+        raise ValidationError(f"--rgb-mean must have {args.channels} values, got {len(args.rgb_mean)}")
+    if hasattr(args, "rgb_std") is True and args.rgb_std is not None and len(args.rgb_std) != args.channels:
+        raise ValidationError(f"--rgb-std must have {args.channels} values, got {len(args.rgb_std)}")
+
     if hasattr(args, "resize_min_scale") is True:
         if args.resize_min_scale is not None and (args.resize_min_scale <= 0.0 or args.resize_min_scale >= 1.0):
             raise ValidationError(f"--resize-min-scale must be in range of (0, 1.0), got {args.resize_min_scale}")

@@ -35,6 +35,8 @@ Examples use repo-root script names (e.g., `train.py`). If you installed Birder 
 - [LeViT](#levit)
 - [LIT v1](#lit-v1)
 - [MetaFormer](#metaformer)
+- [MicroViT v1](#microvit-v1)
+- [MicroViT v2](#microvit-v2)
 - [MnasNet](#mnasnet)
 - [Mobilenet v1](#mobilenet-v1)
 - [Mobilenet v2](#mobilenet-v2)
@@ -412,6 +414,22 @@ torchrun --nproc_per_node=2 train.py --network poolformer_v1_s12 --tag il-common
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network poolformer_v2_s12 --tag il-common --batch-size 512 --opt adamw --lr 0.004 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+### MicroViT v1
+
+#### MicroViT v1: S1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network microvit_v1_s1 --tag il-common --batch-size 512 --opt adamw --clip-grad-norm 1 --lr 0.001 --wd 0.025 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+### MicroViT v2
+
+#### MicroViT v2: S1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network microvit_v2_s1 --tag il-common --batch-size 512 --opt adamw --clip-grad-norm 1 --lr 0.004 --wd 0.025 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### MnasNet

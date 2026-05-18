@@ -1,24 +1,59 @@
 import os
 from collections.abc import Callable
 from typing import Any
+from typing import Literal
 from typing import Optional
 from typing import cast
 
 import numpy as np
 import torch
+from PIL import Image
 from torchvision.datasets import DatasetFolder
 from torchvision.datasets.folder import IMG_EXTENSIONS
-from torchvision.datasets.folder import default_loader
 from torchvision.datasets.folder import has_file_allowed_extension
 from torchvision.io import ImageReadMode
 from torchvision.io import decode_image
 from torchvision.transforms.v2 import functional as F
 
 from birder.common import fs_ops
+from birder.conf import settings
+
+ImageLoaderName = Literal["tv", "pil"]
 
 
-def tv_loader(path: str) -> torch.Tensor:
+def tv_rgb_loader(path: str) -> torch.Tensor:
     return decode_image(path, mode=ImageReadMode.RGB)
+
+
+def tv_gray_loader(path: str) -> torch.Tensor:
+    return decode_image(path, mode=ImageReadMode.GRAY)
+
+
+def pil_rgb_loader(path: str) -> Image.Image:
+    with open(path, "rb") as handle:
+        image = Image.open(handle)
+        return image.convert("RGB")
+
+
+def pil_gray_loader(path: str) -> Image.Image:
+    with open(path, "rb") as handle:
+        image = Image.open(handle)
+        return image.convert("L")
+
+
+def get_image_loader(name: ImageLoaderName, channels: int = settings.DEFAULT_NUM_CHANNELS) -> Callable[[str], Any]:
+    if name == "tv":
+        if channels == 1:
+            return tv_gray_loader
+        if channels == 3:
+            return tv_rgb_loader
+    if name == "pil":
+        if channels == 1:
+            return pil_gray_loader
+        if channels == 3:
+            return pil_rgb_loader
+
+    raise ValueError(f"Unsupported image loader '{name}' with channels={channels}")
 
 
 def default_is_valid_file(x: str) -> bool:
@@ -71,7 +106,7 @@ class HierarchicalImageFolder(DatasetFolder):
     def __init__(
         self,
         root: str,
-        loader: Callable[[str], Any] = default_loader,
+        loader: Callable[[str], Any] = tv_rgb_loader,
         extensions: Optional[tuple[str, ...]] = None,
         transform: Optional[Callable[..., torch.Tensor]] = None,
         target_transform: Optional[Callable[..., torch.Tensor]] = None,
@@ -170,7 +205,7 @@ class ImageListDataset(torch.utils.data.Dataset):
         self,
         samples: list[tuple[str, int]],
         transforms: Optional[Callable[..., torch.Tensor]] = None,
-        loader: Callable[[str], torch.Tensor] = decode_image,
+        loader: Callable[[str], Any] = tv_rgb_loader,
     ) -> None:
         super().__init__()
         self.transforms = transforms
@@ -226,7 +261,7 @@ def make_image_dataset(
     paths: list[str],
     class_to_idx: dict[str, int],
     transforms: Optional[Callable[..., torch.Tensor]] = None,
-    loader: Callable[[str], torch.Tensor] = decode_image,
+    loader: Callable[[str], Any] = tv_rgb_loader,
     *,
     return_orig_sizes: bool = False,
     hierarchical: bool = False,

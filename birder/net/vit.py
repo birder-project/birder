@@ -1233,6 +1233,24 @@ registry.register_weights(  # DINO v2: https://arxiv.org/abs/2304.07193
 
 # BIO-DINO
 registry.register_weights(
+    "vit_reg1_s14_ls_dino-v2-dist-bio",
+    {
+        "url": "https://huggingface.co/birder-project/vit_reg1_s14_ls_dino-v2-dist-bio/resolve/main",
+        "description": (
+            "ViT reg1 s14 image encoder pre-trained using DINOv2 distillation on natural biological images. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (252, 252),
+        "formats": {
+            "pt": {
+                "file_size": 82.7,
+                "sha256": "f50046e70639e190d0adeef422bbdc66097641f4993a4ce1b15f66c7ede93cb7",
+            },
+        },
+        "net": {"network": "vit_reg1_s14_ls", "tag": "dino-v2-dist-bio"},
+    },
+)
+registry.register_weights(
     "vit_reg4_so150m_p14_ls_dino-v2-bio-224px",
     {
         "url": "https://huggingface.co/birder-project/vit_reg4_so150m_p14_ls_dino-v2-bio/resolve/main",

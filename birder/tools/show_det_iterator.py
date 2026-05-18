@@ -23,7 +23,8 @@ from birder.data.datasets.coco import CocoInference
 from birder.data.datasets.coco import CocoMosaicTraining
 from birder.data.datasets.coco import CocoTraining
 from birder.data.datasets.coco import MosaicType
-from birder.data.datasets.directory import tv_loader
+from birder.data.datasets.directory import ImageLoaderName
+from birder.data.datasets.directory import get_image_loader
 from birder.data.datasets.webdataset import make_wds_detection_dataset
 from birder.data.datasets.webdataset import make_wds_mosaic_detection_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
@@ -104,12 +105,7 @@ def show_det_iterator(args: argparse.Namespace) -> None:
                 fill_value=114,
             )
         else:
-            dataset = make_wds_detection_dataset(
-                wds_path,
-                dataset_size=dataset_size,
-                shuffle=True,
-                transform=transform,
-            )
+            dataset = make_wds_detection_dataset(wds_path, dataset_size=dataset_size, shuffle=True, transform=transform)
         if args.wds_class_file is None:
             args.wds_class_file = Path(args.data_path).joinpath(settings.CLASS_LIST_NAME)
 
@@ -176,7 +172,7 @@ def show_det_iterator(args: argparse.Namespace) -> None:
         rows = 2
         for coco_id in samples:
             img_path = dataset.dataset.coco.loadImgs(coco_id)[0]["file_name"]
-            img = tv_loader(str(root_path.joinpath(img_path)))
+            img = F.to_image(get_image_loader(args.img_loader, args.channels)(str(root_path.joinpath(img_path))))
             targets = dataset.dataset.coco.loadAnns(dataset.dataset.coco.getAnnIds(coco_id))
 
             if len(targets) > 0:
@@ -398,6 +394,20 @@ def set_parser(subparsers: Any) -> None:
         type=str,
         default=str(settings.DETECTION_DATA_PATH),
         help="image directory path",
+    )
+    subparser.add_argument(
+        "--img-loader",
+        type=str,
+        choices=get_args(ImageLoaderName),
+        default="tv",
+        help="backend to load and decode original images",
+    )
+    subparser.add_argument(
+        "--channels",
+        type=int,
+        default=settings.DEFAULT_NUM_CHANNELS,
+        metavar="N",
+        help="no. of image channels for original image loading",
     )
     subparser.add_argument(
         "--coco-json-path",

@@ -5,11 +5,11 @@ import logging
 import time
 from pathlib import Path
 from typing import Any
+from typing import get_args
 
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data import Subset
-from torchvision.datasets.folder import pil_loader
 from tqdm import tqdm
 
 from birder.common import cli
@@ -18,6 +18,8 @@ from birder.common import lib
 from birder.common import training_utils
 from birder.common.lib import get_network_name
 from birder.conf import settings
+from birder.data.datasets.directory import ImageLoaderName
+from birder.data.datasets.directory import get_image_loader
 from birder.data.datasets.directory import make_image_dataset
 from birder.data.transforms.classification import RGBType
 from birder.data.transforms.classification import inference_preset
@@ -137,6 +139,13 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--data-path", type=str, default=str(settings.TRAINING_DATA_PATH), help="training directory path"
     )
+    subparser.add_argument(
+        "--img-loader",
+        type=str,
+        choices=get_args(ImageLoaderName),
+        default="pil",
+        help="backend to load and decode calibration images",
+    )
     subparser.set_defaults(func=main)
 
 
@@ -164,10 +173,14 @@ def main(args: argparse.Namespace) -> None:
     net.eval()
     task = net.task
     size = lib.get_size_from_signature(signature)
+    input_channels = lib.get_channels_from_signature(signature)
 
     # Set calibration data
     full_dataset = make_image_dataset(
-        [args.data_path], {}, transforms=inference_preset(size, rgb_stats, 1.0), loader=pil_loader
+        [args.data_path],
+        {},
+        transforms=inference_preset(size, rgb_stats, 1.0),
+        loader=get_image_loader(args.img_loader, input_channels),
     )
     num_calibration_samples = min(
         len(full_dataset),

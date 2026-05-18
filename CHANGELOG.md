@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.1 - 2026-05-18
+
+### Added
+
+- **MicroViT v1 / v2**: Added [MicroViT v1](https://arxiv.org/abs/2502.05800) and [MicroViT v2](https://arxiv.org/abs/2605.10148) models.
+- **Training Script Customization**: Added `TrainOverrides` support across training scripts so users can replace selected defaults, such as transforms, filesystem image loading, WebDataset image decoding and custom batch collation, without copying training scripts.
+- **Channel-Aware Image Loading**: Added channel-aware `tv` and `pil` image loader selection for classification training, prediction, evaluation and related tools, including grayscale (`--channels 1`) directory loading.
+- **WebDataset Classification Decoding**: Added channel-aware WebDataset decoding for classification pipelines, including torchvision grayscale decoding and WebDataset's built-in grayscale PIL decoder.
+- **Pretrained Models**:
+    - `vit_reg1_s14_ls_dino-v2-dist-bio`: Added compact Bio-DINO-Dist ViT-S/14 image encoder pretrained weights distilled from the Bio-DINO SoViT-150M/14 model.
+
 ## 0.5.0 - 2026-05-10
 
 ### Added
@@ -8,9 +19,9 @@
 - **Soft MoE FFN Layer**: Added `SoftMoE_FFN` for [soft mixture-of-experts](https://arxiv.org/abs/2308.00951) feed-forward blocks.
 - **Soft MoE ViT**: Added Soft MoE ViT variant.
 - **Pretrained Models**:
-    - `vit_reg4_so150m_p14_ls_dino-v2-bio-224px`: Added Birder BIO-DINO SoViT-150M/14 image encoder pretrained weights.
-    - `vit_reg4_so150m_p14_ls_dino-v2-bio-252px`: Added Birder BIO-DINO SoViT-150M/14 image encoder pretrained weights.
-    - `vit_reg4_so150m_p14_ls_dino-v2-bio-336px`: Added Birder BIO-DINO SoViT-150M/14 image encoder pretrained weights.
+    - `vit_reg4_so150m_p14_ls_dino-v2-bio-224px`: Added Birder Bio-DINO SoViT-150M/14 image encoder pretrained weights.
+    - `vit_reg4_so150m_p14_ls_dino-v2-bio-252px`: Added Birder Bio-DINO SoViT-150M/14 image encoder pretrained weights.
+    - `vit_reg4_so150m_p14_ls_dino-v2-bio-336px`: Added Birder Bio-DINO SoViT-150M/14 image encoder pretrained weights.
 
 ## 0.4.15 - 2026-04-20
 

@@ -4,18 +4,20 @@ import logging
 from collections import Counter
 from pathlib import Path
 from typing import Any
+from typing import get_args
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
-from torchvision.io import decode_image
 from torchvision.transforms import v2
 from tqdm import tqdm
 
 from birder.common import cli
 from birder.conf import settings
+from birder.data.datasets.directory import ImageLoaderName
+from birder.data.datasets.directory import get_image_loader
 
 logger = logging.getLogger(__name__)
 
@@ -150,11 +152,12 @@ def mean_and_std(args: argparse.Namespace) -> None:
         args.data_path,
         transform=v2.Compose(
             [
+                v2.ToImage(),
                 v2.Resize((256, 256), interpolation=v2.InterpolationMode.BILINEAR),
                 v2.ToDtype(torch.float32, scale=True),
             ]
         ),
-        loader=decode_image,
+        loader=get_image_loader(args.img_loader, args.channels),
     )
     batch_size = 64
     data_loader = DataLoader(
@@ -163,8 +166,8 @@ def mean_and_std(args: argparse.Namespace) -> None:
         num_workers=8,
     )
     num_samples = len(dataset)
-    mean = np.zeros(3, dtype=np.float64)
-    mean_squares = np.zeros(3, dtype=np.float64)
+    mean = np.zeros(args.channels, dtype=np.float64)
+    mean_squares = np.zeros(args.channels, dtype=np.float64)
     with tqdm(total=num_samples, initial=0, unit="images", unit_scale=True, leave=True) as progress:
         for images, _ in data_loader:
             mean += images.mean(dim=(2, 3)).sum(dim=0).numpy().astype(np.float64) / num_samples
@@ -208,6 +211,20 @@ def set_parser(subparsers: Any) -> None:
         default=False,
         action="store_true",
         help="calculate rgb mean and std",
+    )
+    subparser.add_argument(
+        "--img-loader",
+        type=str,
+        choices=get_args(ImageLoaderName),
+        default="tv",
+        help="backend to load and decode images for --rgb",
+    )
+    subparser.add_argument(
+        "--channels",
+        type=int,
+        default=settings.DEFAULT_NUM_CHANNELS,
+        metavar="N",
+        help="no. of image channels for --rgb",
     )
     subparser.add_argument("--data-path", type=str, default=settings.TRAINING_DATA_PATH, help="image directory")
     subparser.set_defaults(func=main)

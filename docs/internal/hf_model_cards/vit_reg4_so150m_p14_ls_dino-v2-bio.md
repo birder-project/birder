@@ -220,7 +220,7 @@ import birder
 from birder.inference.classification import infer_image
 
 # Option 1: manual setup (more control over preprocessing)
-(net, model_info) = birder.load_pretrained_model("vit_reg4_so150m_p14_ls_dino-v2-bio-252px", inference=True)
+net, model_info = birder.load_pretrained_model("vit_reg4_so150m_p14_ls_dino-v2-bio-252px", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -229,10 +229,10 @@ size = birder.get_size_from_signature(model_info.signature)
 transform = birder.classification_transform(size, model_info.rgb_stats)
 
 # Option 2: helper (quick start with default preprocessing)
-(net, model_info, transform) = birder.load_pretrained_model_and_transform("vit_reg4_so150m_p14_ls_dino-v2-bio-252px", inference=True)
+net, model_info, transform = birder.load_pretrained_model_and_transform("vit_reg4_so150m_p14_ls_dino-v2-bio-252px", inference=True)
 
 image = "path/to/image.jpeg"  # or a PIL image
-(out, embedding) = infer_image(net, image, transform, return_embedding=True)
+out, embedding = infer_image(net, image, transform, return_embedding=True)
 # embedding is a NumPy array with shape of (1, 896)
 ```
 
@@ -242,7 +242,7 @@ image = "path/to/image.jpeg"  # or a PIL image
 from PIL import Image
 import birder
 
-(net, model_info, transform) = birder.load_pretrained_model_and_transform("vit_reg4_so150m_p14_ls_dino-v2-bio-252px", inference=True)
+net, model_info, transform = birder.load_pretrained_model_and_transform("vit_reg4_so150m_p14_ls_dino-v2-bio-252px", inference=True)
 
 image = Image.open("path/to/image.jpeg")
 features = net.detection_features(transform(image).unsqueeze(0))

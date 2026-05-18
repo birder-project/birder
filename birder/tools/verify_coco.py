@@ -2,18 +2,20 @@ import argparse
 import logging
 import os
 from typing import Any
+from typing import get_args
 
 import torch
 from torch.utils.data import DataLoader
 from torchvision.datasets import CocoDetection
 from torchvision.datasets import wrap_dataset_for_transforms_v2
-from torchvision.io import decode_image
 from torchvision.transforms import v2
 from tqdm import tqdm
 
 from birder.common import cli
 from birder.conf import settings
 from birder.data.collators.detection import collate_fn
+from birder.data.datasets.directory import ImageLoaderName
+from birder.data.datasets.directory import get_image_loader
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +25,8 @@ def verify_coco(args: argparse.Namespace) -> None:
 
     transform = v2.Compose(
         [
+            v2.ToImage(),
             v2.Resize((256, 256), interpolation=v2.InterpolationMode.BILINEAR),
-            v2.PILToTensor(),
             v2.ToDtype(torch.float32, scale=True),
         ]
     )
@@ -60,9 +62,9 @@ def verify_coco(args: argparse.Namespace) -> None:
                 try:
                     img_path = dataset.coco.loadImgs(img_id)[0]["file_name"]
                     img_path = os.path.join(dataset.root, img_path)
-                    img = decode_image(img_path)
+                    img = get_image_loader(args.img_loader, args.channels)(img_path)
                     img = transform(img)
-                    if img.size(0) != 3:
+                    if img.size(0) != args.channels:
                         logger.warning(f"File {img_path} failed to load {img.size()}")
 
                 except (OSError, RuntimeError) as e:
@@ -101,6 +103,20 @@ def set_parser(subparsers: Any) -> None:
         type=str,
         default=f"{settings.TRAINING_DETECTION_ANNOTATIONS_PATH}_coco.json",
         help="training COCO json path",
+    )
+    subparser.add_argument(
+        "--img-loader",
+        type=str,
+        choices=get_args(ImageLoaderName),
+        default="tv",
+        help="backend to load and decode images in slow mode",
+    )
+    subparser.add_argument(
+        "--channels",
+        type=int,
+        default=settings.DEFAULT_NUM_CHANNELS,
+        metavar="N",
+        help="no. of image channels in slow mode",
     )
     subparser.set_defaults(func=main)
 

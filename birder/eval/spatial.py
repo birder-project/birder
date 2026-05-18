@@ -21,6 +21,8 @@ from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
+from birder.data.datasets.directory import ImageLoaderName
+from birder.data.datasets.directory import get_image_loader
 from birder.data.datasets.directory import make_image_dataset
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
@@ -187,6 +189,7 @@ def evaluate_spatial_robustness(args: argparse.Namespace) -> None:
             size = args.size
 
         transform = inference_preset(size, rgb_stats, args.center_crop, args.simple_crop)
+        input_channels = lib.get_channels_from_signature(model_info.signature)
         if args.wds is True:
             wds_path: str | list[str]
             if args.wds_info is not None:
@@ -203,6 +206,8 @@ def evaluate_spatial_robustness(args: argparse.Namespace) -> None:
                 shuffle=False,
                 samples_names=True,
                 transform=transform,
+                image_decoder=args.img_loader,
+                channels=input_channels,
             )
             dataloader = make_wds_loader(
                 dataset,
@@ -215,7 +220,12 @@ def evaluate_spatial_robustness(args: argparse.Namespace) -> None:
                 exact=True,
             )
         else:
-            dataset = make_image_dataset(args.data_path, class_to_idx, transforms=transform)
+            dataset = make_image_dataset(
+                args.data_path,
+                class_to_idx,
+                transforms=transform,
+                loader=get_image_loader(args.img_loader, input_channels),
+            )
             num_samples = len(dataset)
             dataloader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.num_workers)
 
@@ -397,6 +407,13 @@ def set_parser(subparsers: Any) -> None:
         default=False,
         action="store_true",
         help="use a simple crop that preserves aspect ratio but may trim parts of the image",
+    )
+    subparser.add_argument(
+        "--img-loader",
+        type=str,
+        choices=get_args(ImageLoaderName),
+        default="tv",
+        help="backend to load and decode images",
     )
     subparser.add_argument(
         "--dir",

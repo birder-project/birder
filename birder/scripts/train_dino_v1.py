@@ -18,8 +18,10 @@ import time
 from collections.abc import Callable
 from collections.abc import Iterator
 from contextlib import nullcontext
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -28,7 +30,6 @@ import torch.amp
 import torchinfo
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from torchvision.datasets.folder import pil_loader  # Slower but Handles external dataset quirks better
 from torchvision.transforms import v2
 from tqdm import tqdm
 
@@ -41,9 +42,10 @@ from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
+from birder.data.datasets.directory import get_image_loader
 from birder.data.datasets.directory import make_image_dataset
-from birder.data.datasets.directory import tv_loader
 from birder.data.datasets.fake import FakeDataWithPaths
+from birder.data.datasets.webdataset import WDSImageDecoder
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
@@ -58,6 +60,17 @@ from birder.net.ssl.dino_v1 import DINO_v1
 from birder.net.ssl.dino_v1 import DINOLoss
 
 logger = logging.getLogger(__name__)
+
+ImageLoader = Callable[[str], Any]
+ImageTransform = Callable[[Any], list[torch.Tensor]]
+TransformFactory = Callable[[argparse.Namespace], ImageTransform]
+
+
+@dataclass(frozen=True)
+class TrainOverrides:
+    training_transform: Optional[TransformFactory] = None
+    image_loader: Optional[ImageLoader] = None
+    wds_image_decoder: Optional[WDSImageDecoder] = None
 
 
 class TrainTransform:
@@ -96,7 +109,10 @@ class TrainTransform:
         return crops
 
 
-def train(args: argparse.Namespace) -> None:
+def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) -> None:
+    if overrides is None:
+        overrides = TrainOverrides()
+
     #
     # Initialize
     #
@@ -113,12 +129,16 @@ def train(args: argparse.Namespace) -> None:
     rgb_stats = get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std)
     logger.debug(f"Using RGB stats: {rgb_stats}")
 
-    training_transform = TrainTransform(
-        training_utils.get_training_transform(args),
-        args.local_crop_size,
-        rgb_stats,
-        args.local_crops_number,
-    )
+    if overrides.training_transform is not None:
+        training_transform = overrides.training_transform(args)
+    else:
+        training_transform = TrainTransform(
+            training_utils.get_training_transform(args),
+            args.local_crop_size,
+            rgb_stats,
+            args.local_crops_number,
+        )
+
     if args.use_fake_data is True:
         logger.warning("Using fake data")
         training_dataset = FakeDataWithPaths(
@@ -126,6 +146,11 @@ def train(args: argparse.Namespace) -> None:
         )
 
     elif args.wds is True:
+        if overrides.wds_image_decoder is not None:
+            wds_image_decoder = overrides.wds_image_decoder
+        else:
+            wds_image_decoder = args.img_loader
+
         wds_path: str | list[str]
         if args.wds_info is not None:
             wds_path, dataset_size = wds_args_from_info(args.wds_info, args.wds_split)
@@ -140,17 +165,23 @@ def train(args: argparse.Namespace) -> None:
             shuffle=True,
             samples_names=True,
             transform=training_transform,
-            img_loader=args.img_loader,
+            image_decoder=wds_image_decoder,
+            channels=args.channels,
             cls_key=None,
             cache_dir=args.wds_cache_dir,
         )
 
     else:
+        if overrides.image_loader is not None:
+            image_loader = overrides.image_loader
+        else:
+            image_loader = get_image_loader(args.img_loader, args.channels)
+
         training_dataset = make_image_dataset(
             args.data_path,
             {},
             transforms=training_transform,
-            loader=pil_loader if args.img_loader == "pil" else tv_loader,
+            loader=image_loader,
         )
 
     logger.info(f"Using device {device}:{device_id}")
@@ -854,7 +885,7 @@ def args_from_dict(**kwargs: Any) -> argparse.Namespace:
     return args
 
 
-def main() -> None:
+def main(overrides: Optional[TrainOverrides] = None) -> None:
     parser = get_args_parser()
     args = parser.parse_args()
     validate_args(args)
@@ -867,7 +898,7 @@ def main() -> None:
         logger.info(f"Creating {args.wds_cache_dir} directory...")
         Path(args.wds_cache_dir).mkdir(parents=True, exist_ok=True)
 
-    train(args)
+    train(args, overrides=overrides)
 
 
 if __name__ == "__main__":

@@ -53,6 +53,8 @@ from birder.net.lit_v1_tiny import LIT_v1_Tiny
 from birder.net.lit_v2 import LIT_v2
 from birder.net.maxvit import MaxViT
 from birder.net.metaformer import MetaFormer
+from birder.net.microvit_v1 import MicroViT_v1
+from birder.net.microvit_v2 import MicroViT_v2
 from birder.net.mnasnet import MNASNet
 from birder.net.mobilenet_v1 import MobileNet_v1
 from birder.net.mobilenet_v2 import MobileNet_v2
@@ -170,6 +172,8 @@ __all__ = [
     "LIT_v2",
     "MaxViT",
     "MetaFormer",
+    "MicroViT_v1",
+    "MicroViT_v2",
     "MNASNet",
     "MobileNet_v1",
     "MobileNet_v2",

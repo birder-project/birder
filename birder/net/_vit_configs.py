@@ -801,3 +801,15 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
             "soft_moe_num_slots": 4,
         },
     )
+    registry.register_model_config(
+        "vit_m16_soft_moe_32e_4s_avg",
+        vit,
+        config={
+            "patch_size": 16,
+            **MEDIUM,
+            "class_token": False,
+            "mlp_layer_type": "SoftMoE_FFN",
+            "soft_moe_num_experts": 32,
+            "soft_moe_num_slots": 4,
+        },
+    )

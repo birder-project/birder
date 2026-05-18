@@ -127,11 +127,10 @@ class Residual(nn.Module):
     def __init__(self, module: nn.Module, reparameterized: bool) -> None:
         super().__init__()
         self.m = module
-        self.reparameterized = reparameterized
-        self.fused = False
+        self.reparameterized = reparameterized and isinstance(module, Conv2dBN)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.fused is True:
+        if self.reparameterized is True:
             return self.m(x)
 
         return x + self.m(x)
@@ -165,9 +164,7 @@ class Residual(nn.Module):
                 param.detach_()
 
             self.m = conv
-            self.fused = True
-
-        self.reparameterized = True
+            self.reparameterized = True
 
 
 class PatchMerging(nn.Module):
