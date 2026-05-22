@@ -18,7 +18,7 @@ python -m birder.eval <command> --help
 
 ## Available Commands
 
-- `classification`: evaluate pre-trained classification models on a dataset
+- `classification`: evaluate pretrained classification models on a dataset
 - `adversarial`: evaluate robustness of a trained model under adversarial attacks
 - `spatial`: evaluate robustness of a trained model under spatial perturbations
 - Benchmarks: `awa2`, `bioscan5m`, `butterflies`, `cct`, `cub200`, `fishnet`, `flowers102`, `fungiclef`, `imagenet1k`, `nabirds`, `newt`, `plankton`, `plantdoc`, `plantnet`, `snakeclef`
@@ -26,7 +26,7 @@ python -m birder.eval <command> --help
 ## Minimal Examples
 
 ```sh
-# Evaluate pre-trained models on a validation set
+# Evaluate pretrained models on a validation set
 python -m birder.eval classification --filter '*eu-common*' --gpu data/validation_eu-common
 
 # Evaluate one trained model with a PGD attack

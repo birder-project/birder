@@ -9,7 +9,7 @@ license: apache-2.0
 
 # Model Card for hiera_abswin_base_mim
 
-A Hiera with absolute window position embedding strategy image encoder pre-trained using Masked Image Modeling (MIM). This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
+A Hiera with absolute window position embedding strategy image encoder pretrained using Masked Image Modeling (MIM). This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
 
 The full MAE model is available at <https://huggingface.co/birder-project/mae_hiera_hiera_abswin_base>
 

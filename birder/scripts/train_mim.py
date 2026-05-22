@@ -410,7 +410,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     if virtual_epoch_mode is True:
         train_iter = iter(training_loader)
 
-    running_loss = training_utils.SmoothedValue()
+    running_loss = training_utils.SmoothedValue(window_size=64)
 
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
@@ -609,11 +609,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 def get_args_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         allow_abbrev=False,
-        description="Pre-train model",
+        description="Pretrain model",
         epilog=(
             "Usage examples\n"
             "==============\n"
-            "torchrun --nproc_per_node=2 train_mim.py \\\n"
+            "torchrun --nproc_per_node=2 -m birder.scripts.train_mim \\\n"
             "    --network mae_vit \\\n"
             "    --encoder vit_b16 \\\n"
             "    --opt adamw \\\n"
@@ -641,7 +641,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
         ),
     )
-    parser.add_argument("--encoder", type=str, help="the neural network to used as encoder (network being pre-trained)")
+    parser.add_argument("--encoder", type=str, help="the neural network to used as encoder (network being pretrained)")
     parser.add_argument(
         "--encoder-model-config",
         action=cli.FlexibleDictAction,

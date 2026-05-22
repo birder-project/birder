@@ -16,7 +16,7 @@ python -m birder.tools ensemble-model --help
 
 ## Description
 
-This tool enables you to create an ensemble model by combining multiple pre-trained Birder models. The ensemble model averages the predictions of its constituent models, potentially leading to improved overall performance.
+This tool enables you to create an ensemble model by combining multiple pretrained Birder models. The ensemble model averages the predictions of its constituent models, potentially leading to improved overall performance.
 
 Supports both TorchScript and pt2 model formats.
 

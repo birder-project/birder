@@ -1,6 +1,6 @@
 # Inference
 
-Birder provides powerful command-line tools for running inference using its pre-trained models.
+Birder provides powerful command-line tools for running inference using its pretrained models.
 This document covers the usage of `birder-predict` for image classification and `birder-predict_detection` for object detection.
 While these scripts serve different purposes, they share many common options for model loading, hardware configuration, and output handling.
 
@@ -105,7 +105,7 @@ You might expect to see files similar to these in your `results` directory:
 
 ## Object Detection Inference
 
-The `birder-predict_detection` script (or `python -m birder.scripts.predict_detection`) enables you to perform object detection inference using Birder's pre-trained models.
+The `birder-predict_detection` script (or `python -m birder.scripts.predict_detection`) enables you to perform object detection inference using Birder's pretrained models.
 This tool is designed for locating and identifying objects (e.g., birds) within images, providing bounding boxes and class labels.
 It supports various input formats, visualization options, and performance optimizations.
 

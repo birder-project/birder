@@ -600,7 +600,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 def get_args_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         allow_abbrev=False,
-        description="Pre-train model",
+        description="Pretrain model",
         epilog=(
             "Usage examples\n"
             "==============\n"

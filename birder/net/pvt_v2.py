@@ -490,7 +490,7 @@ registry.register_weights(
     "pvt_v2_b2_mmcr-il-all256px",
     {
         "url": "https://huggingface.co/birder-project/pvt_v2_b2_mmcr-il-all/resolve/main",
-        "description": "PVT v2 B2 model pre-trained using MMCR and fine-tuned on the il-all dataset",
+        "description": "PVT v2 B2 model pretrained using MMCR and fine-tuned on the il-all dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -505,7 +505,7 @@ registry.register_weights(
     "pvt_v2_b2_mmcr-il-all",
     {
         "url": "https://huggingface.co/birder-project/pvt_v2_b2_mmcr-il-all/resolve/main",
-        "description": "PVT v2 B2 model pre-trained using MMCR and fine-tuned on the il-all dataset",
+        "description": "PVT v2 B2 model pretrained using MMCR and fine-tuned on the il-all dataset",
         "resolution": (384, 384),
         "formats": {
             "pt": {

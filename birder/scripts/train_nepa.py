@@ -602,7 +602,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 def get_args_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         allow_abbrev=False,
-        description="Pre-train model",
+        description="Pretrain model",
         epilog=(
             "Usage examples\n"
             "==============\n"
@@ -617,7 +617,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "    --lr-scheduler cosine \\\n"
             "    --epochs 480 \\\n"
             "    --warmup-epochs 40 \\\n"
-            "    --rgb-mode none \\\n"
+            "    --rgb-mode centered \\\n"
             "    --amp --amp-dtype bfloat16 \\\n"
             "    --compile \\\n"
             "    --data-path data/training\n"

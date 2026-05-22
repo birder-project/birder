@@ -690,7 +690,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/flexivit_reg1_s16_rms_ls_dino-v2-il-all/resolve/main",
         "description": (
-            "FlexiViT reg1 s16 RMS norm with layer scaling model pre-trained using DINOv2 on "
+            "FlexiViT reg1 s16 RMS norm with layer scaling model pretrained using DINOv2 on "
             "the il-all dataset and then fine-tuned on the il-all dataset"
         ),
         "resolution": (240, 240),

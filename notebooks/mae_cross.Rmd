@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.19.2
+      jupytext_version: 1.19.3
   kernelspec:
     display_name: birder
     language: python
@@ -42,8 +42,8 @@ plt.rcParams["figure.figsize"] = [24, 24]
 
 ```{python}
 def show_image(image, title=""):
-    mean = torch.tensor(get_rgb_stats("none")["mean"])
-    std = torch.tensor(get_rgb_stats("none")["std"])
+    mean = torch.tensor(get_rgb_stats("centered")["mean"])
+    std = torch.tensor(get_rgb_stats("centered")["std"])
     # image is [H, W, 3]
     assert image.shape[2] == 3
     plt.imshow(torch.clip((image * std + mean) * 255, 0, 255).int())
@@ -91,7 +91,7 @@ for e in range(epoch_start, epoch_end + 1):
 
     net.kept_mask_ratio = net.mask_ratio
 
-    transform = inference_preset((size, size), get_rgb_stats("none"), 1.0)
+    transform = inference_preset((size, size), get_rgb_stats("centered"), 1.0)
     input_tensor = transform(img).unsqueeze(dim=0).to(device)
 
     torch.manual_seed(0)

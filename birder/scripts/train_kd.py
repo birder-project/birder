@@ -52,6 +52,7 @@ from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import get_mixup_cutmix
+from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.classification import inference_preset
 from birder.model_registry import Task
 from birder.model_registry import registry
@@ -116,6 +117,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     #
     # Data
     #
+    training_rgb_stats = get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std)
+    if training_rgb_stats != rgb_stats:
+        logger.warning(f"Training RGB stats {training_rgb_stats}, but teacher was saved with {rgb_stats}")
+
     if overrides.training_transform is not None:
         training_transform = overrides.training_transform(args)
     else:

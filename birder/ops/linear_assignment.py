@@ -45,12 +45,17 @@ def batch_linear_assignment(cost: torch.Tensor) -> tuple[torch.Tensor, torch.Ten
     """
     Batch wrapper for the Hungarian assignment algorithm
 
-    Args:
-        cost (Tensor[B, W, T] | Tensor[W, T]): Cost matrix for each batch item.
+    Parameters
+    ----------
+    cost
+        Cost matrix for each batch item, with shape (B, W, T) or (W, T).
 
-    Returns:
-        col4row (Tensor[B, W] | Tensor[W]): Column assignment for each row.
-        row4col (Tensor[B, T] | Tensor[T]): Row assignment for each column.
+    Returns
+    -------
+    col4row
+        Column assignment for each row, with shape (B, W) or (W,).
+    row4col
+        Row assignment for each column, with shape (B, T) or (T,).
     """
 
     squeeze = False

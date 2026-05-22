@@ -11,7 +11,7 @@ from torchvision.transforms import v2
 from torchvision.transforms.v2 import functional as F
 
 RGBType = TypedDict("RGBType", {"mean": tuple[float, float, float], "std": tuple[float, float, float]})
-RGBMode = Literal["birder", "imagenet", "clip", "neutral", "none"]
+RGBMode = Literal["birder", "imagenet", "clip", "neutral", "centered"]
 
 
 def get_rgb_stats(
@@ -29,7 +29,7 @@ def get_rgb_stats(
     elif mode == "neutral":
         default_mean = (0.0, 0.0, 0.0)
         default_std = (1.0, 1.0, 1.0)
-    elif mode == "none":
+    elif mode == "centered":
         default_mean = (0.5, 0.5, 0.5)
         default_std = (0.5, 0.5, 0.5)
     else:

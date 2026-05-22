@@ -189,7 +189,7 @@ registry.register_model_config(
     MAE_ViT,
     config={"decoder_depth": 24, "decoder_embed_dim": 512, "norm_pix_loss": True, "learnable_pos_embed": True},
 )
-registry.register_model_config(  # From "In Pursuit of Pixel Supervision for Visual Pre-training"
+registry.register_model_config(  # From "In Pursuit of Pixel Supervision for Visual Pretraining"
     "mae_vit_dec512d32_npl_lpe",
     MAE_ViT,
     config={"decoder_depth": 32, "decoder_embed_dim": 512, "norm_pix_loss": True, "learnable_pos_embed": True},

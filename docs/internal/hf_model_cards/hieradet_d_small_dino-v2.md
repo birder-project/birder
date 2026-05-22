@@ -9,7 +9,7 @@ license: apache-2.0
 
 # Model Card for hieradet_d_small_dino-v2
 
-HieraDet (dynamic window size) small image encoder pre-trained using DINOv2. This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
+HieraDet (dynamic window size) small image encoder pretrained using DINOv2. This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
 
 ## Model Details
 

@@ -1,6 +1,6 @@
 ---
 tags:
-- self-supervised-learning
+- self-supervised learning
 - birder
 - pytorch
 - biology
@@ -76,7 +76,7 @@ python -m birder.tools download-model dino_v2_vit_reg4_so150m_p14_ls_bio-252px
 Then run training:
 
 ```sh
-torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --tag bio-252px --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --momentum-teacher 0.998 --warmup-teacher-temp-epochs 15 --freeze-last-layer-epochs 0 --local-crop-size 112 --batch-size 64 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0001 --lr-scale 1024 --lr-scale-type sqrt --wd 0.1 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --steps-per-epoch 5000 --size 252 --rgb-mode none --fast-matmul --compile --resume-epoch 0 --distributed-mode fsdp --fsdp-sharding-strategy shard-grad-op --fsdp-param-dtype bfloat16 --fsdp-reduce-dtype float32 --no-broadcast-buffers --data-path data/some_training_data
+torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --tag bio-252px --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --momentum-teacher 0.998 --warmup-teacher-temp-epochs 15 --freeze-last-layer-epochs 0 --local-crop-size 112 --batch-size 64 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0001 --lr-scale 1024 --lr-scale-type sqrt --wd 0.1 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --steps-per-epoch 5000 --size 252 --rgb-mode centered --fast-matmul --compile --resume-epoch 0 --distributed-mode fsdp --fsdp-sharding-strategy shard-grad-op --fsdp-param-dtype bfloat16 --fsdp-reduce-dtype float32 --no-broadcast-buffers --data-path data/some_training_data
 ```
 
 ## Citation

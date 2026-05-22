@@ -9,7 +9,7 @@ license: apache-2.0
 
 # Model Card for vit_reg4_b16_mim
 
-A ViT reg4 image encoder pre-trained using Masked Image Modeling (MIM). This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
+A ViT reg4 image encoder pretrained using Masked Image Modeling (MIM). This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
 
 ## Model Details
 

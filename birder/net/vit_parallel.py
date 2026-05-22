@@ -596,6 +596,21 @@ registry.register_model_config(
         "drop_path_rate": 0.2,
     },
 )
+registry.register_model_config(
+    "vit_parallel_b16_18x2_ls_avg",
+    ViT_Parallel,
+    config={
+        "patch_size": 16,
+        "num_layers": 18,
+        "num_heads": 12,
+        "hidden_dim": 768,
+        "mlp_dim": 3072,
+        "num_parallel": 2,
+        "layer_scale_init_value": 1e-5,
+        "class_token": False,
+        "drop_path_rate": 0.2,
+    },
+)
 
 registry.register_weights(
     "vit_parallel_s16_18x2_ls_avg_data2vec-intermediate-il-all",

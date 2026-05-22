@@ -9,7 +9,7 @@ license: apache-2.0
 
 # Model Card for vit_reg4_m16_rms_avg_i-jepa
 
-A ViT m16 RMS norm image encoder pre-trained using I-JEPA. This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
+A ViT m16 RMS norm image encoder pretrained using I-JEPA. This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
 
 ## Model Details
 

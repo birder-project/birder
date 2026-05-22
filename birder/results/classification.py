@@ -48,6 +48,22 @@ def top_k_accuracy_score(y_true: npt.NDArray[Any], y_pred: npt.NDArray[np.float6
 class Results:
     """
     Classification result analysis class
+
+    Parameters
+    ----------
+    sample_list
+        Sample names.
+    labels
+        The ground truth labels per sample.
+    label_names
+        Label names by order.
+    output
+        Probability of each class for each sample.
+    predictions
+        Prediction of each sample.
+    lazy
+        If True, metrics and computed properties will be lazily evaluated (computed only when accessed).
+        If False, all metrics will be computed during initialization.
     """
 
     num_desc_cols = 4
@@ -62,26 +78,6 @@ class Results:
         *,
         lazy: bool = True,
     ):
-        """
-        Initialize a result object
-
-        Parameters
-        ----------
-        sample_list
-            Sample names.
-        labels
-            The ground truth labels per sample.
-        label_names
-            Label names by order.
-        output
-            Probability of each class for each sample.
-        predictions
-            Prediction of each sample.
-        lazy
-            If True, metrics and computed properties will be lazily evaluated (computed only when accessed).
-            If False, all metrics will be computed during initialization.
-        """
-
         assert len(label_names) == len(output[0]), "Model output and label name list do not match"
         assert len(sample_list) == len(output), "Each output must have a sample name"
 
@@ -505,7 +501,29 @@ class Results:
 
 class SparseResults(Results):
     """
-    Memory-efficient classification result analysis class that stores only top-k probabilities.
+    Memory-efficient classification result analysis class that stores only top-k probabilities
+
+    Parameters
+    ----------
+    sample_list
+        Sample names.
+    labels
+        The ground truth labels per sample.
+    label_names
+        Label names by order.
+    output
+        Probability of each class for each sample.
+    predictions
+        Prediction of each sample.
+    lazy
+        If True, metrics and computed properties will be lazily evaluated (computed only when accessed).
+        If False, all metrics will be computed during initialization.
+    sparse_k
+        Number of top probabilities to keep per sample.
+    sparse_probs
+        Pre-extracted top-k probabilities (used when loading from file).
+    sparse_indices
+        Pre-extracted top-k indices (used when loading from file).
     """
 
     def __init__(  # pylint: disable=super-init-not-called
@@ -521,32 +539,6 @@ class SparseResults(Results):
         sparse_probs: Optional[npt.NDArray[np.float32]] = None,
         sparse_indices: Optional[npt.NDArray[np.int_]] = None,
     ):
-        """
-        Initialize a sparse result object
-
-        Parameters
-        ----------
-        sample_list
-            Sample names.
-        labels
-            The ground truth labels per sample.
-        label_names
-            Label names by order.
-        output
-            Probability of each class for each sample.
-        predictions
-            Prediction of each sample.
-        lazy
-            If True, metrics and computed properties will be lazily evaluated (computed only when accessed).
-            If False, all metrics will be computed during initialization.
-        sparse_k
-            Number of top probabilities to keep per sample.
-        sparse_probs
-            Pre-extracted top-k probabilities (used when loading from file).
-        sparse_indices
-            Pre-extracted top-k indices (used when loading from file).
-        """
-
         if output is not None:
             assert len(label_names) == len(output[0]), "Model output and label name list do not match"
             assert len(sample_list) == len(output), "Each output must have a sample name"

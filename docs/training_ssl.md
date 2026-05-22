@@ -2,7 +2,7 @@
 
 Before running any training scripts, set the `OMP_NUM_THREADS` environment variable appropriately for your system.
 
-## SSL Pre-training
+## SSL Pretraining
 
 - [Barlow Twins](#barlow-twins)
 - [BYOL](#byol)
@@ -135,31 +135,31 @@ torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_b14_ap --tag capi-p
 #### CAPI: RoPE SoViT reg8 150m p14 swiglu rms AVG
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg8_so150m_p14_swiglu_rms_avg --decoder-layers 10 --decoder-dim 896 --batch-size 192 --opt adamw --opt-fused --opt-betas 0.9 0.95 --grad-accum-steps 32 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 400 --warmup-epochs 40 --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg8_so150m_p14_swiglu_rms_avg --decoder-layers 10 --decoder-dim 896 --batch-size 192 --opt adamw --opt-fused --opt-betas 0.9 0.95 --grad-accum-steps 32 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 400 --warmup-epochs 40 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 DGX A100 training
 
 ```sh
-torchrun --nproc_per_node=8 -m birder.scripts.train_capi --network rope_vit_reg8_so150m_p14_swiglu_rms_avg --decoder-layers 10 --batch-size 1024 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 2 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 400 --warmup-epochs 40 --rgb-mode none --amp --amp-dtype bfloat16 --compile --keep-last 4 --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=8 -m birder.scripts.train_capi --network rope_vit_reg8_so150m_p14_swiglu_rms_avg --decoder-layers 10 --batch-size 1024 --opt adamw --opt-betas 0.9 0.95 --grad-accum-steps 2 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 400 --warmup-epochs 40 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --keep-last 4 --wds --wds-info data/ssl_packed/_info.json
 ```
 
 Optional: Train attention pooling head using DINO
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network rope_vit_reg8_so150m_p14_swiglu_rms_aps --tag capi --out-dim 131072 --teacher-temp 0.07 --local-crops-number 8 --local-crop-size 98 --backbone-epoch 0 --freeze-encoder --batch-size 512 --opt adamw --clip-grad-norm 0.5 --grad-accum-steps 4 --lr 0.0005 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --rgb-mode none --amp --amp-dtype bfloat16 --compile --non-strict-weights --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v1 --network rope_vit_reg8_so150m_p14_swiglu_rms_aps --tag capi --out-dim 131072 --teacher-temp 0.07 --local-crops-number 8 --local-crop-size 98 --backbone-epoch 0 --freeze-encoder --batch-size 512 --opt adamw --clip-grad-norm 0.5 --grad-accum-steps 4 --lr 0.0005 --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --non-strict-weights --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Optional: Linear probing (ImageNet 1K)
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_so150m_p14_swiglu_rms_aps --tag dino-v1-capi-imagenet1k --reset-head --freeze-body --batch-size 512 --lr 0.1 --wd 0.0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 90 --warmup-epochs 10 --size 224 --aug-level 1 --rgb-mode none --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
+torchrun --nproc_per_node=2 train.py --network rope_vit_reg8_so150m_p14_swiglu_rms_aps --tag dino-v1-capi-imagenet1k --reset-head --freeze-body --batch-size 512 --lr 0.1 --wd 0.0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 90 --warmup-epochs 10 --size 224 --aug-level 1 --rgb-mode centered --fast-matmul --compile --save-frequency 1 --resume-epoch 0 --wds --wds-class-file public_datasets_metadata/imagenet-1k-classes.txt --wds-train-size 1281167 --wds-val-size 50000 --data-path ~/Datasets/imagenet-1k-wds/training --val-path ~/Datasets/imagenet-1k-wds/validation
 ```
 
 Use as backbone for RotNet
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_rotnet --network rope_vit_reg8_so150m_p14_swiglu_rms_ap --rotation-prob 0.5 --tag capi --freeze-body --unfreeze-features --batch-size 256 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --rgb-mode none --amp --compile --resume-epoch 0 --non-strict-weights --wds --wds-info data/ssl_micro_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_rotnet --network rope_vit_reg8_so150m_p14_swiglu_rms_ap --rotation-prob 0.5 --tag capi --freeze-body --unfreeze-features --batch-size 256 --opt adamw --lr 0.0007 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 224 --aug-level 4 --rgb-mode centered --amp --compile --resume-epoch 0 --non-strict-weights --wds --wds-info data/ssl_micro_packed/_info.json
 ```
 
 #### CAPI: RoPE ViT-5 reg4 s16
@@ -173,37 +173,37 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit5_reg
 #### Data2Vec: ViT Parallel s16 18x2 LS AVG
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec --network vit_parallel_s16_18x2_ls_avg --model-config drop_path_rate=0.25 --batch-size 192 --opt adamw --clip-grad-norm 3 --lr 0.001 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 20 --rgb-mode none --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_micro_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec --network vit_parallel_s16_18x2_ls_avg --model-config drop_path_rate=0.25 --batch-size 192 --opt adamw --clip-grad-norm 3 --lr 0.001 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 20 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_micro_packed/_info.json
 ```
 
 Intermediate training: full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls_avg --tag data2vec-intermediate --batch-size 192 --opt adamw --clip-grad-norm 1 --lr 0.0005 --wd 0.05 --norm-wd 0 --layer-decay 0.75 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile --compile-opt --save-frequency 1 --resume-epoch 0 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
+torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls_avg --tag data2vec-intermediate --batch-size 192 --opt adamw --clip-grad-norm 1 --lr 0.0005 --wd 0.05 --norm-wd 0 --layer-decay 0.75 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode centered --amp --compile --compile-opt --save-frequency 1 --resume-epoch 0 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
 Intermediate training: full fine-tuning with layer-wise learning rate decay, increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls_avg --tag data2vec-intermediate --batch-size 96 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0001 --wd 0.05 --norm-wd 0 --layer-decay 0.75 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 50 --warmup-epochs 5 --model-ema --size 320 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile --compile-opt --save-frequency 1 --resume-epoch 0 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
+torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls_avg --tag data2vec-intermediate --batch-size 96 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0001 --wd 0.05 --norm-wd 0 --layer-decay 0.75 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 50 --warmup-epochs 5 --model-ema --size 320 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode centered --amp --compile --compile-opt --save-frequency 1 --resume-epoch 0 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
 Intermediate training: specific fine-tuning with layer-wise learning rate decay, increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls_avg --tag data2vec-intermediate-il-all --batch-size 96 --opt adamw --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.000075 --wd 0.05 --norm-wd 0 --layer-decay 0.5 --layer-decay-no-opt-scale 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 50 --warmup-epochs 5 --model-ema --size 384 --aug-level 9 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --amp --compile --compile-opt --save-frequency 1 --resume-epoch 0 --data-path data/training_il-all_packed --val-path data/validation_il-all_packed
+torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls_avg --tag data2vec-intermediate-il-all --batch-size 96 --opt adamw --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.000075 --wd 0.05 --norm-wd 0 --layer-decay 0.5 --layer-decay-no-opt-scale 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 50 --warmup-epochs 5 --model-ema --size 384 --aug-level 9 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode centered --amp --compile --compile-opt --save-frequency 1 --resume-epoch 0 --data-path data/training_il-all_packed --val-path data/validation_il-all_packed
 ```
 
 #### Data2Vec: ViT reg1 s16 LS
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec --network vit_reg1_s16_ls --model-config drop_path_rate=0.1 --batch-size 256 --opt adamw --clip-grad-norm 3 --lr 0.001 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 10 --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path data/training
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec --network vit_reg1_s16_ls --model-config drop_path_rate=0.1 --batch-size 256 --opt adamw --clip-grad-norm 3 --lr 0.001 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 10 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --data-path data/training
 ```
 
 #### Data2Vec: ViT reg4 b16 AVG
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec --network vit_reg4_b16_avg --model-config drop_path_rate=0.25 --batch-size 192 --opt adamw --clip-grad-norm 3 --lr 0.001 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 600 --warmup-epochs 20 --rgb-mode none --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec --network vit_reg4_b16_avg --model-config drop_path_rate=0.25 --batch-size 192 --opt adamw --clip-grad-norm 3 --lr 0.001 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 600 --warmup-epochs 20 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 ### Data2Vec2
@@ -211,25 +211,25 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec --network vit_reg4_
 #### Data2Vec2: ViT reg4 m16
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_reg4_m16 --batch-size 128 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 4 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode none --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_reg4_m16 --batch-size 128 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 4 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training
 ```
 
 #### Data2Vec2: ViT b16
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_b16 --batch-size 96 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 4 --grad-accum-steps 16 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode none --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_b16 --batch-size 96 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 4 --grad-accum-steps 16 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training
 ```
 
 #### Data2Vec2: SoViT reg8 150m p14 swiglu
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_reg8_so150m_p14_swiglu --average-layers 12 --decoder-layers 3 --decoder-kernel-size 5 --decoder-dim 896 --batch-size 32 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 4 --lr 0.0004 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode none --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_reg8_so150m_p14_swiglu --average-layers 12 --decoder-layers 3 --decoder-kernel-size 5 --decoder-dim 896 --batch-size 32 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 4 --lr 0.0004 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_packed/_info.json
 ```
 
 #### Data2Vec2: ViT Parallel s16 18x2 LS
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_parallel_s16_18x2_ls --average-layers 12 --batch-size 96 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 4 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode none --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_micro_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_parallel_s16_18x2_ls --average-layers 12 --batch-size 96 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 4 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_micro_packed/_info.json
 ```
 
 ### DINO v1
@@ -317,7 +317,7 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network hieradet_b
 #### DINO v2: Next-ViT Base
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network nextvit_b --dino-out-dim 131072 --head-bottleneck-dim 384 --ibot-separate-head --ibot-out-dim 131072 --centering sinkhorn_knopp --batch-size 64 --opt adamw --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0002 --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network nextvit_b --dino-out-dim 131072 --head-bottleneck-dim 384 --ibot-separate-head --ibot-out-dim 131072 --centering sinkhorn_knopp --batch-size 64 --opt adamw --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0002 --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
 ```
 
 #### DINO v2: ViT s16 LS
@@ -329,7 +329,7 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network vit_s16_ls
 #### DINO v2: ViT reg1 s16 rms LS
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network vit_reg1_s16_rms_ls --dino-out-dim 32768 --batch-size 96 --opt adamw --clip-grad-norm 3 --grad-accum-steps 4 --lr 0.0002 --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 10 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_micro_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network vit_reg1_s16_rms_ls --dino-out-dim 32768 --batch-size 96 --opt adamw --clip-grad-norm 3 --grad-accum-steps 4 --lr 0.0002 --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 10 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_micro_packed/_info.json
 ```
 
 Transform to FlexiViT (after linear probing)
@@ -341,7 +341,7 @@ inv flexivit-from-vit vit_reg1_s16_rms_ls --tag dino-v2 --epoch 0
 Next, full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network flexivit_reg1_s16_rms_ls --tag dino-v2 --model-config min_patch_size=10,max_patch_size=40 --batch-size 192 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0004 --wd 0.05 --norm-wd 0 --layer-decay 0.7 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 10 --model-ema --size 240 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode none --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile --resume-epoch 0
+torchrun --nproc_per_node=2 train.py --network flexivit_reg1_s16_rms_ls --tag dino-v2 --model-config min_patch_size=10,max_patch_size=40 --batch-size 192 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0004 --wd 0.05 --norm-wd 0 --layer-decay 0.7 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 10 --model-ema --size 240 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --rgb-mode centered --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile --resume-epoch 0
 ```
 
 #### DINO v2: ViT reg4 m16 rms AVG
@@ -355,31 +355,31 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network vit_reg4_m
 BIO, 8x R6000 training (2500x8x8x48 = 7.68M epoch, 7.68Mx250 = 1.92B)
 
 ```sh
-torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --tag bio --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --warmup-teacher-temp-epochs 20 --local-crop-size 98 --batch-size 48 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0004 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 250 --steps-per-epoch 2500 --warmup-epochs 40 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_bio_packed/_info.json
+torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --tag bio --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --warmup-teacher-temp-epochs 20 --local-crop-size 98 --batch-size 48 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0004 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 250 --steps-per-epoch 2500 --warmup-epochs 40 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_bio_packed/_info.json
 ```
 
 Resolution adaption (2500x8x8x40 = 6.4M epoch, 6.4Mx80 = 512M)
 
 ```sh
-torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --tag bio-252px --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --momentum-teacher 0.998 --warmup-teacher-temp-epochs 15 --freeze-last-layer-epochs 0 --local-crop-size 112 --adapt-size 252 --batch-size 40 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0001 --lr-scale 1024 --lr-scale-type sqrt --wd 0.1 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 80 --steps-per-epoch 2500 --size 224 --rgb-mode none --fast-matmul --compile --resume-epoch 0 --distributed-mode fsdp --fsdp-sharding-strategy shard-grad-op --fsdp-param-dtype bfloat16 --fsdp-reduce-dtype float32 --no-broadcast-buffers --wds --wds-info data/ssl_bio_packed/_info.json
+torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --tag bio-252px --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --momentum-teacher 0.998 --warmup-teacher-temp-epochs 15 --freeze-last-layer-epochs 0 --local-crop-size 112 --adapt-size 252 --batch-size 40 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0001 --lr-scale 1024 --lr-scale-type sqrt --wd 0.1 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 80 --steps-per-epoch 2500 --size 224 --rgb-mode centered --fast-matmul --compile --resume-epoch 0 --distributed-mode fsdp --fsdp-sharding-strategy shard-grad-op --fsdp-param-dtype bfloat16 --fsdp-reduce-dtype float32 --no-broadcast-buffers --wds --wds-info data/ssl_bio_packed/_info.json
 ```
 
 High resolution adaption (1000x8x8x32 = 2M epoch, 2Mx30 = 61.4M)
 
 ```sh
-torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --tag bio-336px --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --momentum-teacher 0.999 --warmup-teacher-temp-epochs 0 --freeze-last-layer-epochs 0 --local-crop-size 140 --adapt-size 336 --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.00005 --lr-scale 1024 --lr-scale-type sqrt --wd 0.1 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 30 --steps-per-epoch 1000 --size 252 --rgb-mode none --fast-matmul --compile --resume-epoch 0 --distributed-mode fsdp --fsdp-sharding-strategy full-shard --fsdp-param-dtype bfloat16 --fsdp-reduce-dtype float32 --no-broadcast-buffers --wds --wds-info data/ssl_bio_packed/_info.json
+torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2 --network vit_reg4_so150m_p14_ls --tag bio-336px --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --momentum-teacher 0.999 --warmup-teacher-temp-epochs 0 --freeze-last-layer-epochs 0 --local-crop-size 140 --adapt-size 336 --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.00005 --lr-scale 1024 --lr-scale-type sqrt --wd 0.1 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 30 --steps-per-epoch 1000 --size 252 --rgb-mode centered --fast-matmul --compile --resume-epoch 0 --distributed-mode fsdp --fsdp-sharding-strategy full-shard --fsdp-param-dtype bfloat16 --fsdp-reduce-dtype float32 --no-broadcast-buffers --wds --wds-info data/ssl_bio_packed/_info.json
 ```
 
 Distillation, ViT reg1 s14 LS (2500x8x4x96 = 7.68M epoch, 7.68Mx300 = 2.3B)
 
 ```sh
-torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2_dist --network vit_reg1_s14_ls --tag bio --teacher vit_reg4_so150m_p14_ls --teacher-tag bio-252px --teacher-epoch 250 --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --warmup-teacher-temp-epochs 20 --local-crop-size 112 --batch-size 96 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 4 --lr 0.0004 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --steps-per-epoch 2500 --size 252 --warmup-epochs 50 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_bio_packed/_info.json
+torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2_dist --network vit_reg1_s14_ls --tag bio --teacher vit_reg4_so150m_p14_ls --teacher-tag bio-252px --teacher-epoch 250 --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --warmup-teacher-temp-epochs 20 --local-crop-size 112 --batch-size 96 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 4 --lr 0.0004 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --steps-per-epoch 2500 --size 252 --warmup-epochs 50 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_bio_packed/_info.json
 ```
 
 #### DINO v2: RoPE SoViT reg8 150m p14 AP
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network rope_vit_reg8_so150m_p14_ap --model-config drop_path_rate=0.3 --dino-out-dim 131072 --head-bottleneck-dim 384 --ibot-separate-head --ibot-out-dim 131072 --local-crop-size 98 --centering sinkhorn_knopp --sinkhorn-queue-size 768 --batch-size 32 --opt adamw --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0002 --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 10 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network rope_vit_reg8_so150m_p14_ap --model-config drop_path_rate=0.3 --dino-out-dim 131072 --head-bottleneck-dim 384 --ibot-separate-head --ibot-out-dim 131072 --local-crop-size 98 --centering sinkhorn_knopp --sinkhorn-queue-size 768 --batch-size 32 --opt adamw --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0002 --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 10 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
 ```
 
 ### DINO v2 Dist
@@ -387,7 +387,7 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network rope_vit_r
 #### DINO v2 Dist: ViT reg1 t16 with a ViT reg1 s16 rms LS teacher
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2_dist --network vit_reg1_t16 --teacher vit_reg1_s16_rms_ls --teacher-epoch 200 --dino-out-dim 32768 --batch-size 96 --opt adamw --clip-grad-norm 3 --grad-accum-steps 2 --lr 0.0002 --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 10 --rgb-mode none --amp --amp-dtype bfloat16 --compile --data-path data/training_il-all_packed
+torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2_dist --network vit_reg1_t16 --teacher vit_reg1_s16_rms_ls --teacher-epoch 200 --dino-out-dim 32768 --batch-size 96 --opt adamw --clip-grad-norm 3 --grad-accum-steps 2 --lr 0.0002 --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 10 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --data-path data/training_il-all_packed
 ```
 
 ### Franca
@@ -403,13 +403,13 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_franca --network vit_s16_ls 
 DGX A100 training
 
 ```sh
-torchrun --nproc_per_node=8 -m birder.scripts.train_franca --network vit_b16_ls --dino-out-dim 81920 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 81920 --batch-size 32 --opt adamw --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 64 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=8 -m birder.scripts.train_franca --network vit_b16_ls --dino-out-dim 81920 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 81920 --batch-size 32 --opt adamw --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 64 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
 ```
 
 BIOSCAN-5M
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_franca --network vit_b16_ls --tag bioscan5m --dino-out-dim 65536 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 65536 --nesting-levels 4 --sinkhorn-queue-size 1280 --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 16 --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --steps-per-epoch 2000 --warmup-epochs 32 --rgb-mode none --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --data-path ~/Datasets/BIOSCAN-5M/pretrain
+torchrun --nproc_per_node=2 -m birder.scripts.train_franca --network vit_b16_ls --tag bioscan5m --dino-out-dim 65536 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 65536 --nesting-levels 4 --sinkhorn-queue-size 1280 --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 16 --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --steps-per-epoch 2000 --warmup-epochs 32 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --data-path ~/Datasets/BIOSCAN-5M/pretrain
 ```
 
 ### I-JEPA
@@ -511,13 +511,13 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_lejepa --network convnext_v1
 #### LeJEPA: ViT b16
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_lejepa --network vit_b16 --projection-dim 512 --loss-lambda 0.05 --num-slices 1024 --batch-size 128 --opt adamw --lr 0.0005 --wd 0.05 --lr-scheduler cosine --lr-scheduler-update step --epochs 300 --warmup-epochs 10 --use-grayscale --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_lejepa --network vit_b16 --projection-dim 512 --loss-lambda 0.05 --num-slices 1024 --batch-size 128 --opt adamw --lr 0.0005 --wd 0.05 --lr-scheduler cosine --lr-scheduler-update step --epochs 300 --warmup-epochs 10 --use-grayscale --rgb-mode centered --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
 ```
 
 #### LeJEPA: SoViT reg4 150m p14
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_lejepa --network vit_reg4_so150m_p14_ls --projection-dim 512 --loss-lambda 0.05 --num-slices 1024 --local-crop-size 98 --batch-size 64 --opt adamw --lr 0.0005 --wd 0.05 --lr-scheduler cosine --epochs 300 --warmup-epochs 20 --use-grayscale --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_lejepa --network vit_reg4_so150m_p14_ls --projection-dim 512 --loss-lambda 0.05 --num-slices 1024 --local-crop-size 98 --batch-size 64 --opt adamw --lr 0.0005 --wd 0.05 --lr-scheduler cosine --epochs 300 --warmup-epochs 20 --use-grayscale --rgb-mode centered --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
 ```
 
 ### MMCR
@@ -539,13 +539,13 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mmcr --network pvt_v2_b1 --b
 #### NEPA: RoPE FlexiViT reg4 b16 qkn LS
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_nepa --network rope_flexivit_reg4_b16_qkn_ls --model-config min_patch_size=10,max_patch_size=30,drop_path_rate=0.0 --batch-size 128 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 1 --lr 0.0002 --lr-scale 256 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler-update step --lr-scheduler cosine --epochs 600 --warmup-epochs 40 --size 240 --rgb-mode none --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --data-path data/training
+torchrun --nproc_per_node=2 -m birder.scripts.train_nepa --network rope_flexivit_reg4_b16_qkn_ls --model-config min_patch_size=10,max_patch_size=30,drop_path_rate=0.0 --batch-size 128 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 1 --lr 0.0002 --lr-scale 256 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler-update step --lr-scheduler cosine --epochs 600 --warmup-epochs 40 --size 240 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --data-path data/training
 ```
 
 #### NEPA: RoPE ViT-5 reg4 b16
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_nepa --network rope_vit5_reg4_b16 --model-config drop_path_rate=0.0 --batch-size 256 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 1 --lr 0.0002 --lr-scale 256 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler-update step --lr-scheduler cosine --epochs 600 --warmup-epochs 40 --rgb-mode none --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --data-path data/training
+torchrun --nproc_per_node=2 -m birder.scripts.train_nepa --network rope_vit5_reg4_b16 --model-config drop_path_rate=0.0 --batch-size 256 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 1 --lr 0.0002 --lr-scale 256 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler-update step --lr-scheduler cosine --epochs 600 --warmup-epochs 40 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --data-path data/training
 ```
 
 ### RotNet

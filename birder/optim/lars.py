@@ -22,6 +22,31 @@ class Lars(Optimizer):
 
     Taken as-is from timm - https://github.com/huggingface/pytorch-image-models/blob/main/timm/optim/lars.py
     Type annotations added.
+
+    Parameters
+    ----------
+    params
+        Iterable of parameters to optimize or dicts defining parameter groups.
+    lr
+        Learning rate.
+    momentum
+        Momentum factor. Enables momentum-based acceleration.
+    dampening
+        Dampening for momentum. Reduces the contribution of previous gradients.
+    weight_decay
+        Weight decay (L2 penalty).
+    nesterov
+        Enables Nesterov momentum.
+    trust_coeff
+        Trust coefficient for computing adaptive lr / trust_ratio.
+        Controls how aggressively to adapt the learning rate.
+    eps
+        Small constant added to denominator for numerical stability.
+    trust_clip
+        When True, enables clipping of the LARS trust ratio to prevent extreme values.
+    always_adapt
+        When True, always applies LARS learning rate adaptation.
+        When False, only applies adaptation when group weight_decay != 0.
     """
 
     def __init__(
@@ -37,33 +62,6 @@ class Lars(Optimizer):
         trust_clip: bool = False,
         always_adapt: bool = False,
     ) -> None:
-        """
-        Parameters
-        ----------
-        params
-            Iterable of parameters to optimize or dicts defining parameter groups.
-        lr
-            Learning rate.
-        momentum
-            Momentum factor. Enables momentum-based acceleration.
-        dampening
-            Dampening for momentum. Reduces the contribution of previous gradients.
-        weight_decay
-            Weight decay (L2 penalty).
-        nesterov
-            Enables Nesterov momentum.
-        trust_coeff
-            Trust coefficient for computing adaptive lr / trust_ratio.
-            Controls how aggressively to adapt the learning rate.
-        eps
-            Small constant added to denominator for numerical stability.
-        trust_clip
-            When True, enables clipping of the LARS trust ratio to prevent extreme values.
-        always_adapt
-            When True, always applies LARS learning rate adaptation.
-            When False, only applies adaptation when group weight_decay != 0.
-        """
-
         if lr < 0.0:
             raise ValueError(f"Invalid learning rate: {lr}")
         if momentum < 0.0:

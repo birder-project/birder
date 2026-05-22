@@ -274,3 +274,18 @@ class GhostNet_v1(DetectorBackbone):
 registry.register_model_config("ghostnet_v1_0_5", GhostNet_v1, config={"width": 0.5})
 registry.register_model_config("ghostnet_v1_1_0", GhostNet_v1, config={"width": 1.0})
 registry.register_model_config("ghostnet_v1_1_3", GhostNet_v1, config={"width": 1.3})
+
+registry.register_weights(
+    "ghostnet_v1_1_0_il-common",
+    {
+        "description": "GhostNet v1 1.0x model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 17.0,
+                "sha256": "2ec9dd5db7186ba8b6b43cf35ed1fd1c6545c489f401b2ec4b976ca01e007dac",
+            }
+        },
+        "net": {"network": "ghostnet_v1_1_0", "tag": "il-common"},
+    },
+)

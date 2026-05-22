@@ -335,6 +335,9 @@ def freeze_layers_by_block_group_regex(model: torch.nn.Module, num_layers: int) 
     """
     Freeze the first N regex-matched block groups defined by model.block_group_regex
 
+    Passing 0 freezes the parameter groups that appear before the first
+    regex-matched block group, without freezing that block group itself.
+
     Any parameter groups that appear before the last frozen regex-matched block
     (for example a stem, patch embedding, positional embedding, or stage transition
     group) are frozen as part of the frozen prefix, but do not count toward N.
@@ -356,8 +359,11 @@ def freeze_layers_by_block_group_regex(model: torch.nn.Module, num_layers: int) 
         )
         num_layers = len(matched_groups)
 
-    frozen_groups = matched_groups[:num_layers]
-    if len(frozen_groups) > 0:
+    if num_layers == 0:
+        first_matched_group_idx = next(idx for idx, group in enumerate(groups) if group in matched_groups)
+        frozen_groups = groups[:first_matched_group_idx]
+    else:
+        frozen_groups = matched_groups[:num_layers]
         frozen_group_names = {group[0] for group in frozen_groups}
         last_frozen_group_idx = max(idx for idx, group in enumerate(groups) if group[0] in frozen_group_names)
         frozen_groups = groups[: last_frozen_group_idx + 1]
@@ -473,12 +479,12 @@ def optimizer_parameter_groups(
 
     Returns
     -------
-    List of parameter group dictionaries suitable for PyTorch optimizers.
+    Parameter group dictionaries suitable for PyTorch optimizers.
 
     Notes
     -----
     - The function handles duplicate parameters (module aliases) by warning and skipping them
-    - Layer grouping is determined by the model's `block_group_regex` attribute if available,
+    - Layer grouping is determined by the model's 'block_group_regex' attribute if available,
       otherwise layers are counted sequentially
     - Parameters with requires_grad=False are automatically skipped
     - Custom key matching supports both full parameter names and shortened names for nested modules
@@ -1385,11 +1391,11 @@ def cosine_scheduler(
         Starting value for warmup phase.
     cosine_fraction
         Fraction of the cosine half-period to use (default 1.0 = full cosine decay).
-        Values less than 1.0 result in a shallower decay that doesn't reach final_value.
+        Values less than 1.0 result in a shallower decay that does not reach final_value.
 
     Returns
     -------
-    List of scheduler values for each iteration. Length equals epochs * iter_per_epoch.
+    Scheduler values for each iteration. Length equals epochs * iter_per_epoch.
     """
 
     if warmup_epochs >= epochs:
@@ -1528,7 +1534,7 @@ def single_handler_logging(
     target_logger: logging.Logger, target_handler: logging.Handler, enabled: bool = True
 ) -> Generator[logging.Logger, None, None]:
     """
-    Context manager to temporarily use only a specific handler for logging.
+    Temporarily use only a specific handler for logging
 
     Parameters
     ----------

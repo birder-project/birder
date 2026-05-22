@@ -223,7 +223,7 @@ torchrun --nproc_per_node=2 train.py --network efficientmod_xxs --tag il-common 
 #### EfficientNet Lite: 0
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network efficientnet_lite0 --tag il-common --batch-size 256 --lr 0.5 --wd 0.00002 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 5e-6 --epochs 300 --warmup-epochs 10 --model-ema --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --rgb-mode none --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+torchrun --nproc_per_node=2 train.py --network efficientnet_lite0 --tag il-common --batch-size 256 --lr 0.5 --wd 0.00002 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 5e-6 --epochs 300 --warmup-epochs 10 --model-ema --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --rgb-mode centered --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### EfficientNet v1
@@ -331,13 +331,13 @@ torchrun --nproc_per_node=2 train.py --network gc_vit_xxt --tag il-common --batc
 #### GhostNet v1: 0.5 (50)
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network ghostnet_v1_0_5 --tag il-common --batch-size 512 --lr 0.4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+torchrun --nproc_per_node=2 train.py --network ghostnet_v1_0_5 --tag il-common --batch-size 512 --lr 0.4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 #### GhostNet v1: 1 (100)
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network ghostnet_v1_1_0 --tag il-common --batch-size 256 --lr 0.4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+torchrun --nproc_per_node=2 train.py --network ghostnet_v1_1_0 --tag il-common --batch-size 256 --lr 0.4 --lr-scheduler step --lr-step-size 5 --lr-step-gamma 0.9 --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### GhostNet v2

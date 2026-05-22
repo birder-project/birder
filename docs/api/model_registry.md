@@ -4,7 +4,7 @@ The model registry is Birder's central catalog for model discovery.
 It lets you work with:
 
 - Architecture families (for building/training models)
-- Pre-trained entries (weights + metadata for loading/evaluation)
+- Pretrained entries (weights + metadata for loading/evaluation)
 
 ## Mental Model
 
@@ -12,10 +12,10 @@ Think in two layers:
 
 1. **Network architecture name**  
    Example: `vit_l14_pn`, `hieradet_d_small`, `vit_reg4_b16`
-2. **Pre-trained entry name**  
+2. **Pretrained entry name**  
    Example: `vit_l14_pn_bioclip-v2`, `hieradet_d_small_dino-v2`
 
-A pre-trained entry points back to an architecture and adds practical metadata such as resolution and available weight formats.
+A pretrained entry points back to an architecture and adds practical metadata such as resolution and available weight formats.
 
 ## Task-Aware Discovery
 
@@ -35,7 +35,7 @@ det_arch = registry.list_models(task=Task.OBJECT_DETECTION)
 mim_arch = registry.list_models(task=Task.MASKED_IMAGE_MODELING)
 ssl_arch = registry.list_models(task=Task.SELF_SUPERVISED_LEARNING)
 
-# Pre-trained entries by task
+# Pretrained entries by task
 det_weights = registry.list_pretrained_models(task=Task.OBJECT_DETECTION)
 print(cls_arch[:5], det_arch[:5], det_weights[:5])
 ```

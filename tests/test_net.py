@@ -618,6 +618,7 @@ class TestNet(unittest.TestCase):
         for out in outs:
             self.assertFalse(torch.isnan(out).any())
 
+        self.assertEqual(outs[-1].size(-1), n.encoding_size)
         self.assertFalse(torch.isnan(mask).any())
 
         self.assertTrue(hasattr(n, "block_group_regex"))
@@ -710,6 +711,7 @@ class TestNet(unittest.TestCase):
         out = n.masked_encoding_retention(x, mask, return_keys="features")
         self.assertFalse(torch.isnan(out["features"]).any())
         self.assertEqual(out["features"].ndim, 4)
+        self.assertEqual(out["features"].size(1), n.encoding_size)
 
         # Test substitution
         out = n.masked_encoding_retention(x, mask, torch.zeros(1, 1, 1, n.stem_width))
@@ -791,6 +793,7 @@ class TestNet(unittest.TestCase):
         embedding = out["embedding"]
         self.assertFalse(torch.isnan(tokens).any())
         self.assertEqual(tokens.ndim, 3)
+        self.assertEqual(tokens.size(-1), n.encoding_size)
         self.assertFalse(torch.isnan(embedding).any())
         self.assertEqual(embedding.ndim, 2)
         self.assertEqual(embedding.size(), (1, n.embedding_size))
@@ -801,6 +804,7 @@ class TestNet(unittest.TestCase):
             embedding = out["embedding"]
             self.assertFalse(torch.isnan(tokens).any())
             self.assertEqual(tokens.ndim, 4)
+            self.assertEqual(tokens.size(-2), n.encoding_size)
             self.assertFalse(torch.isnan(embedding).any())
             self.assertEqual(embedding.ndim, 2)
             self.assertEqual(embedding.size(), (1, n.embedding_size))
@@ -810,6 +814,7 @@ class TestNet(unittest.TestCase):
         embedding = out["embedding"]
         self.assertFalse(torch.isnan(tokens).any())
         self.assertEqual(tokens.ndim, 3)
+        self.assertEqual(tokens.size(-1), n.encoding_size)
         self.assertFalse(torch.isnan(embedding).any())
         self.assertEqual(embedding.ndim, 2)
 

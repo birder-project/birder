@@ -153,6 +153,11 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         config={"patch_size": 14, **SMALL},
     )
     registry.register_model_config(
+        "rope_vit_s14_swiglu_avg",
+        rope_vit,
+        config={"patch_size": 14, **SMALL, "class_token": False, "mlp_layer_type": "SwiGLU_FFN"},
+    )
+    registry.register_model_config(
         "rope_vit_m32",
         rope_vit,
         config={"patch_size": 32, **MEDIUM},
@@ -161,6 +166,11 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         "rope_vit_m16",
         rope_vit,
         config={"patch_size": 16, **MEDIUM},
+    )
+    registry.register_model_config(
+        "rope_vit_m16_avg",
+        rope_vit,
+        config={"patch_size": 16, **MEDIUM, "class_token": False},
     )
     registry.register_model_config(
         "rope_vit_m14",
@@ -203,6 +213,11 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         "rope_vit_b14",
         rope_vit,
         config={"patch_size": 14, **BASE},
+    )
+    registry.register_model_config(
+        "rope_vit_b14_swiglu_avg",
+        rope_vit,
+        config={"patch_size": 14, **BASE, "class_token": False, "mlp_layer_type": "SwiGLU_FFN"},
     )
     registry.register_model_config(
         "rope_vit_so150m_p14_ap",

@@ -456,7 +456,7 @@ class MobileNet_v4(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin)
 
         self.stem_stride = stem_settings.stride[0]
         self.stem_width = stem_settings.out_channels
-        self.encoding_size = features_stage_settings.out_channels
+        self.encoding_size = features_stage_settings.in_channels
 
         # Weight initialization
         for m in self.modules():

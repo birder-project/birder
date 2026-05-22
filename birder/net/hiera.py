@@ -783,7 +783,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/hiera_abswin_base_mim/resolve/main",
         "description": (
-            "Hiera base with abswin image encoder pre-trained using Masked Image Modeling (MIM) for 400 epochs. "
+            "Hiera base with abswin image encoder pretrained using Masked Image Modeling (MIM) for 400 epochs. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),

@@ -1,12 +1,13 @@
-# Reference Pre-training Procedure
+# Reference Pretraining Procedure
 
 Before running any training scripts, set the `OMP_NUM_THREADS` environment variable appropriately for your system.
 
 Examples use repo-root script names (e.g., `train_mim.py`). If you installed Birder as a package, use the module form such as `python -m birder.scripts.train_mim`.
 
-## Image Pre-training
+## Image Pretraining
 
 - [CrossMAE](#crossmae)
+- [EVA](#eva)
 - [FCMAE](#fcmae)
 - [MAE Hiera](#mae-hiera)
 - [MAE ViT](#mae-vit)
@@ -25,7 +26,27 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network crossmae --enc
 BIO
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network crossmae_dec512d12 --tag bio --encoder vit_reg4_so150m_p14_avg --encoder-model-config drop_path_rate=0.0 --min-mask-size 2 --batch-size 384 --opt adamw --opt-fused --opt-betas 0.9 0.95 --lr 0.00015 --wd 0.05 --lr-scheduler cosine --epochs 400 --warmup-epochs 20 --rgb-mode none --amp --amp-dtype bfloat16 --compile --wds --wds-info /mnt/data/ssl_bio_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network crossmae_dec512d12 --tag bio --encoder vit_reg4_so150m_p14_avg --encoder-model-config drop_path_rate=0.0 --min-mask-size 2 --batch-size 384 --opt adamw --opt-fused --opt-betas 0.9 0.95 --lr 0.00015 --wd 0.05 --lr-scheduler cosine --epochs 400 --warmup-epochs 20 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --wds --wds-info /mnt/data/ssl_bio_packed/_info.json
+```
+
+### EVA
+
+#### EVA: RoPE ViT s14 swiglu AVG with a ViT l14 pn Teacher
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_eva --network rope_vit_s14_swiglu_avg --tag bio --teacher vit_l14_pn --teacher-tag bioclip-v2 --batch-size 320 --opt adamw --opt-fused --opt-eps 1e-6 --opt-betas 0.9 0.98 --clip-grad-norm 3 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --warmup-epochs 5 --size 224 --rgb-mode clip --amp --amp-dtype bfloat16 --compile --wds --wds-info /mnt/data/ssl_bio_packed/_info.json
+```
+
+#### EVA: RoPE ViT m16 AVG with a RoPEcs ViT reg4 l16 nape LS c1 Teacher
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_eva --network rope_vit_m16_avg --teacher rope_cs_vit_reg4_l16_nape_ls_c1 --teacher-tag dino-v3-lvd1689m --batch-size 384 --opt adamw --opt-fused --opt-eps 1e-6 --opt-betas 0.9 0.98 --clip-grad-norm 3 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --warmup-epochs 5 --size 224 --rgb-mode imagenet --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
+
+#### EVA: RoPE ViT b14 swiglu AVG with a RoPEi ViT l14 pn APS c1 Teacher
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_eva --network rope_vit_b14_swiglu_avg --teacher rope_i_vit_l14_pn_aps_c1 --teacher-tag pe-core --batch-size 256 --opt adamw --opt-fused --opt-eps 1e-6 --opt-betas 0.9 0.98 --clip-grad-norm 3 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --warmup-epochs 5 --size 224 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 ### FCMAE
@@ -225,7 +246,7 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_vit --enco
 Pixio like training (should be fine-tuned later with APS type attention pooling)
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_vit_dec512d24_npl --encoder vit_reg8_l16_avg --min-mask-size 4 --batch-size 64 --opt adamw --opt-betas 0.9 0.95 --lr 0.00025 --wd 0.05 --lr-scheduler cosine --epochs 400 --warmup-epochs 40 --size 256 --rgb-mode none --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_vit_dec512d24_npl --encoder vit_reg8_l16_avg --min-mask-size 4 --batch-size 64 --opt adamw --opt-betas 0.9 0.95 --lr 0.00025 --wd 0.05 --lr-scheduler cosine --epochs 400 --warmup-epochs 40 --size 256 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_packed/_info.json
 ```
 
 #### MAE ViT: RoPE SoViT reg4 150m p14 AP

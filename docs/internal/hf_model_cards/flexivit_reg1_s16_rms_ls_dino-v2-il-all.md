@@ -9,7 +9,7 @@ license: apache-2.0
 
 # Model Card for flexivit_reg1_s16_rms_ls_dino-v2-il-all
 
-FlexiViT reg1 s16 RMS norm with layer scaling classification model pre-trained using DINOv2 on the `il-all` dataset and then fine-tuned on the `il-all` dataset.
+FlexiViT reg1 s16 RMS norm with layer scaling classification model pretrained using DINOv2 on the `il-all` dataset and then fine-tuned on the `il-all` dataset.
 
 The species list is derived from data available at <https://www.israbirding.com/checklist/>.
 

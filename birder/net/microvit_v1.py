@@ -477,3 +477,17 @@ registry.register_weights(
         "net": {"network": "microvit_v1_s1", "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "microvit_v1_s1_il-common_reparameterized",
+    {
+        "description": "MicroViT v1 S1 (reparameterized) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 23.0,
+                "sha256": "66da09caec598d2a70db224f99017dfea28ba1251582174da2fa93d394a524fe",
+            }
+        },
+        "net": {"network": "microvit_v1_s1", "tag": "il-common_reparameterized", "reparameterized": True},
+    },
+)

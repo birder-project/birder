@@ -2,7 +2,7 @@
 iBOT, adapted from
 https://github.com/bytedance/ibot/blob/main/main_ibot.py
 
-Paper "iBOT: Image BERT Pre-Training with Online Tokenizer", https://arxiv.org/abs/2111.07832
+Paper "iBOT: Image BERT Pretraining with Online Tokenizer", https://arxiv.org/abs/2111.07832
 
 Changes from original:
 * Per epoch weight decay scheduling (instead of per step)
@@ -776,7 +776,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 def get_args_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         allow_abbrev=False,
-        description="Pre-train model",
+        description="Pretrain model",
         epilog=(
             "Usage examples\n"
             "==============\n"

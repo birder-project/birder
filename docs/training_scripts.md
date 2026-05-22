@@ -9,7 +9,7 @@ Birder includes the following main training scripts:
 1. **Image Classification (`train.py`)**: Train models for image classification
 2. **Object Detection (`train_detection.py`)**: Train models that can locate and identify objects within images
 3. **Knowledge Distillation (`train_kd.py`)**: Train smaller models by transferring knowledge from larger models
-4. **Masked Image Modeling (`train_mim.py`)**: Pre-train models using self-supervised masked image modeling techniques
+4. **Masked Image Modeling (`train_mim.py`)**: Pretrain models using self-supervised masked image modeling techniques
 
 Additionally, there are specialized training scripts for self-supervised learning methods like DINOv1 (`train_dino_v1.py`).
 
@@ -106,7 +106,7 @@ Supported fields vary by script. Most training scripts support replacing:
 
 Classification-style scripts can also support `validation_transform` and scripts with custom batch assembly can expose a `training_collator` override.
 
-For example, a custom MIM entry point can pre-train on log-mel spectrogram tensors using `torchaudio`:
+For example, a custom MIM entry point can pretrain on log-mel spectrogram tensors using `torchaudio`:
 
 ```python
 import torch

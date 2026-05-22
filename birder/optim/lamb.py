@@ -22,6 +22,34 @@ class Lamb(Optimizer):
     Lamb for PyTorch
 
     Taken as-is from timm - https://github.com/huggingface/pytorch-image-models/blob/main/timm/optim/lamb.py
+
+    Parameters
+    ----------
+    params
+        Iterable of parameters to optimize or dicts defining parameter groups.
+    lr
+        Learning rate.
+    bias_correction
+        Whether to use bias correction for the moment estimates, similar to Adam.
+    betas
+        Coefficients used for computing running averages of gradient and its norm.
+    eps
+        Term added to the denominator to improve numerical stability.
+    weight_decay
+        Weight decay (L2 penalty).
+    grad_averaging
+        Whether to apply (1-beta2) to grad when calculating running averages of gradient.
+    max_grad_norm
+        Value used to clip global gradient norm. Set to None to disable.
+    trust_clip
+        When True, enables clipping of the LAMB trust ratio to prevent extreme values.
+    always_adapt
+        When True, always applies LAMB learning rate adaptation.
+        When False, only applies adaptation when group weight_decay != 0.
+    caution
+        Apply caution. See "Cautious Optimizers": https://arxiv.org/abs/2411.16085
+    decoupled_decay
+        When True, applies weight decay separately from the adaptive updates, similar to AdamW vs Adam.
     """
 
     def __init__(
@@ -39,36 +67,6 @@ class Lamb(Optimizer):
         caution: bool = False,
         decoupled_decay: bool = False,
     ) -> None:
-        """
-        Parameters
-        ----------
-        params
-            Iterable of parameters to optimize or dicts defining parameter groups.
-        lr
-            Learning rate.
-        bias_correction
-            Whether to use bias correction for the moment estimates, similar to Adam.
-        betas
-            Coefficients used for computing running averages of gradient and its norm.
-        eps
-            Term added to the denominator to improve numerical stability.
-        weight_decay
-            Weight decay (L2 penalty).
-        grad_averaging
-            Whether apply (1-beta2) to grad when calculating running averages of gradient.
-        max_grad_norm
-            Value used to clip global gradient norm. Set to None to disable.
-        trust_clip
-            When True, enables clipping of the LAMB trust ratio to prevent extreme values.
-        always_adapt
-            When True, always applies LAMB learning rate adaptation.
-            When False, only applies adaptation when group weight_decay != 0.
-        caution
-            Apply caution. See "Cautious Optimizers": https://arxiv.org/abs/2411.16085
-        decoupled_decay
-            When True, applies weight decay separately from the adaptive updates, similar to AdamW vs Adam.
-        """
-
         defaults = {
             "lr": lr,
             "bias_correction": bias_correction,

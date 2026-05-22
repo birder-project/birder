@@ -92,7 +92,9 @@ class ModelRegistry:
         config: Optional[dict[str, Any]] = None,
     ) -> None:
         """
-        When auto_register is active, just by defining the `type(name, (net_type,), ...) the network is registered
+        Register a model configuration
+
+        When auto_register is active, just by defining the type(name, (net_type,), ...) the network is registered,
         no further registration is needed.
         """
 

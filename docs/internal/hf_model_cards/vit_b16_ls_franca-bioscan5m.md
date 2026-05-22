@@ -11,7 +11,7 @@ datasets:
 
 # Model Card for vit_b16_ls_franca-bioscan5m
 
-A ViT b16 image encoder pre-trained using Franca.
+A ViT b16 image encoder pretrained using Franca.
 
 The model is primarily a feature extractor. Separately trained linear probing classification heads for various taxonomic levels (order, family, genus, species) are available for classification tasks.
 
@@ -59,7 +59,7 @@ The AMI score reflects how well the learned representations align with ground-tr
 
 ### Image Classification (with Linear Probing Head)
 
-To use the model for classification, you must load the encoder and then load a specific pre-trained classification head for the desired taxonomic level. Heads are available for `order`, `family`, `genus`, and `species`.
+To use the model for classification, you must load the encoder and then load a specific pretrained classification head for the desired taxonomic level. Heads are available for `order`, `family`, `genus`, and `species`.
 
 ```python
 import torch

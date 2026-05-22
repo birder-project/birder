@@ -9,7 +9,7 @@ Whether you're a researcher in ornithology, a conservation scientist, or a wildl
 
 ### Key Features
 
-- **Specialized Models**: Pre-trained models specifically optimized for bird species classification
+- **Specialized Models**: Pretrained models specifically optimized for bird species classification
 - **Practical Focus**: Built for real-world applications in ornithology and conservation
 - **Comprehensive Tools**: Suite of utilities for training, inference, and error analysis
 - **Extensive Documentation**: Detailed guides and tutorials for all skill levels
@@ -21,7 +21,7 @@ Whether you're a researcher in ornithology, a conservation scientist, or a wildl
     - [Setup](getting_started.md#setup)
     - [Quick Start Guide](getting_started.md#quick-start-guide)
 
-1. [Pre-trained Models](pretrained_models.md)
+1. [Pretrained Models](pretrained_models.md)
 
 1. [Training](training_scripts.md)
 

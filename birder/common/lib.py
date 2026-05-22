@@ -36,13 +36,13 @@ def get_num_labels_from_signature(signature: SignatureType | DetectionSignatureT
 
 def get_label_from_path(path: str, hierarchical: bool = False, root: str = "", separator: str = "_") -> str:
     """
-    Returns the last directory from the path.
+    Return the last directory from the path
 
-    Standard mode (hierarchical=False):
+    Standard mode, hierarchical is False:
         data/validation/Alpine swift/000001.jpeg -> 'Alpine swift'
         data/train/cats/img1.jpg -> 'cats'
 
-    Hierarchical mode (hierarchical=True):
+    Hierarchical mode, hierarchical is True:
         data/validation/Aves/Alpine swift/000001.jpeg -> 'Aves_Alpine swift'
         data/train/animals/cats/img1.jpg -> 'animals_cats'
     """

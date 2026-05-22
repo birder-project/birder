@@ -12,6 +12,7 @@ from typing import Optional
 
 import torch
 import torch.distributed as dist
+import torch.distributed._functional_collectives as funcol
 from torch import nn
 
 from birder.common import training_utils
@@ -63,7 +64,7 @@ class BarlowTwins(SSLBaseNet):
         c = self.bn(z1).T @ self.bn(z2)
         c = c / (x1.size(0) * world_size)
         if training_utils.is_dist_available_and_initialized() is True:
-            dist.nn.all_reduce(c)  # https://github.com/pytorch/pytorch/issues/58005#issuecomment-1778029156
+            c = funcol.all_reduce(c, reduceOp="sum", group=dist.group.WORLD)
 
         on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
         off_diag = off_diagonal(c).pow_(2).sum()

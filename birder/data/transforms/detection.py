@@ -381,6 +381,33 @@ def training_preset(
 
 
 class InferenceTransform:
+    """
+    Create a torchvision transform pipeline for detection inference
+
+    This class builds a standardized preprocessing pipeline that converts input images
+    to tensors with proper normalization and resizing for detection model inference.
+    The pipeline handles various sizing strategies.
+
+    Parameters
+    ----------
+    size
+        Target image dimensions as (height, width). Behavior depends on other parameters:
+        - With dynamic_size=False and max_size=None: Images resized exactly to this size
+        - With dynamic_size=True: min(size) used as target for shorter edge, aspect ratio preserved
+        - With max_size specified: Ignored in favor of max_size-based scaling
+    rgv_values
+        RGB normalization statistics containing 'mean' and 'std' tuples.
+        Typically obtained from get_rgb_stats().
+    dynamic_size
+        When True, preserves aspect ratios by using min(size) as the target
+        for the shorter edge. Longer edge scales proportionally.
+        Respects max_size when specified.
+    max_size
+        Maximum allowed size for the longer edge.
+    no_resize
+        When True, skips resizing step entirely.
+    """
+
     def __init__(
         self,
         size: tuple[int, int],
@@ -389,33 +416,6 @@ class InferenceTransform:
         max_size: Optional[int] = None,
         no_resize: bool = False,
     ):
-        """
-        Create a torchvision transform pipeline for detection inference
-
-        This function builds a standardized preprocessing pipeline that converts input images
-        to tensors with proper normalization and resizing for detection model inference.
-        The pipeline handles various sizing strategies.
-
-        Parameters
-        ----------
-        size
-            Target image dimensions as (height, width). Behavior depends on other parameters:
-            - With dynamic_size=False and max_size=None: Images resized exactly to this size
-            - With dynamic_size=True: min(size) used as target for shorter edge, aspect ratio preserved
-            - With max_size specified: Ignored in favor of max_size-based scaling
-        rgv_values
-            RGB normalization statistics containing 'mean' and 'std' tuples.
-            Typically obtained from get_rgb_stats().
-        dynamic_size
-            When True, preserves aspect ratios by using min(size) as the target
-            for the shorter edge. Longer edge scales proportionally.
-            Respects max_size is specified.
-        max_size
-            Maximum allowed size for the longer edge.
-        no_resize
-            When True, skips resizing step entirely.
-        """
-
         mean = rgv_values["mean"]
         std = rgv_values["std"]
         if dynamic_size is True:

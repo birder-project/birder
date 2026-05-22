@@ -79,7 +79,7 @@ echo ""
 
 # Load required modules (adjust based on your cluster)
 module load python/3.11
-module load cuda/12.8
+module load cuda/13.0
 
 # Set application-specific environment variables
 # export LOG_LEVEL=DEBUG

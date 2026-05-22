@@ -388,7 +388,7 @@ def train(args: argparse.Namespace) -> None:
             pin_memory=args.pin_memory,
             drop_last=args.drop_last,
             persistent_workers=args.persistent_workers,
-            shuffle=args.wds_extra_shuffle,
+            shuffle=False,
             infinite=virtual_epoch_mode,
         )
         validation_loader = make_wds_loader(
@@ -1225,7 +1225,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_checkpoint_args(parser, pretrained=True)
     training_cli.add_distributed_args(parser)
     training_cli.add_logging_and_debug_args(parser, default_log_interval=20, fake_data=False)
-    training_cli.add_detection_training_data_args(parser)
+    training_cli.add_detection_training_data_args(parser, wds_extra_shuffle=False)
 
     return parser
 

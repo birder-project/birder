@@ -416,3 +416,32 @@ registry.register_model_config(
 registry.register_model_config(
     "microvit_v2_s3", MicroViT_v2, config={"embed_dims": [192, 384, 448], "depths": [3, 7, 6]}
 )
+
+registry.register_weights(
+    "microvit_v2_s1_il-common",
+    {
+        "description": "MicroViT v2 S1 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 26.2,
+                "sha256": "d386c1161e93ddc84ff4fcc8c974341f1d62ac6984fc0b8f8107ca89a0fb1f08",
+            }
+        },
+        "net": {"network": "microvit_v2_s1", "tag": "il-common"},
+    },
+)
+registry.register_weights(
+    "microvit_v2_s1_il-common_reparameterized",
+    {
+        "description": "MicroViT v2 S1 (reparameterized) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 25.4,
+                "sha256": "b6c3b57a227fb37c5ed4cdd79efa4b52627c3f5ff0ad514d4f71b78c51c69b9b",
+            }
+        },
+        "net": {"network": "microvit_v2_s1", "tag": "il-common_reparameterized", "reparameterized": True},
+    },
+)

@@ -923,24 +923,23 @@ def load_pretrained_model(
     progress_bar: bool = True,
 ) -> tuple[BaseNet | DetectionBaseNet, ModelInfo | DetectionModelInfo]:
     """
-    Loads a pre-trained model from the model registry or a specified destination.
+    Load a pretrained model
 
     Parameters
     ----------
     weights
-        Name of the pre-trained weights to load from the model registry.
+        Name of the pretrained weights to load from the model registry.
     dst
         Destination path where the model weights will be downloaded or loaded from.
         If None, the model will be saved in the default models directory.
     file_format
-        Model format (e.g. pt, pt2, safetensors, etc.)
+        Model format.
     inference
-        Flag to prepare the model for inference mode.
+        Whether to prepare the model for inference mode.
     device
-        The device to load the model on (cpu/cuda).
+        Device to load the model on.
     dtype
-        Data type for model parameters and computations (e.g., torch.float32, torch.float16).
-        Determines precision of numerical operations.
+        Data type for model parameters and computations.
     custom_config
         Additional model configuration that overrides or extends the predefined configuration.
     progress_bar
@@ -949,16 +948,16 @@ def load_pretrained_model(
     Returns
     -------
     A tuple containing four elements:
-    - A PyTorch module (neural network model) loaded with pre-trained weights.
+    - A PyTorch module (neural network model) loaded with pretrained weights.
     - Class to index mapping.
     - A signature defining the expected input and output tensor shapes.
     - The model's RGB processing type.
 
     Notes
     -----
-    - Creates the models directory if it doesn't exist.
+    - Creates the models directory if it does not exist.
     - Downloads the model weights if not already present locally.
-    - When inference=True, the model is set to evaluation mode with gradient calculation disabled.
+    - When inference is True, the model is set to evaluation mode with gradient calculation disabled.
     - If device is None, it will default to CPU.
 
     Examples
@@ -1025,7 +1024,7 @@ def load_pretrained_model_and_transform(
     detection_kwargs: Optional[dict[str, Any]] = None,
 ) -> tuple[BaseNet | DetectionBaseNet, ModelInfo | DetectionModelInfo, Callable[..., torch.Tensor]]:
     """
-    Loads a pre-trained model and builds the matching inference transform
+    Load a pretrained model and build the matching inference transform
 
     This is a convenience helper for the common inference path where the model and
     its default preprocessing are needed together. Classification models use
@@ -1034,17 +1033,17 @@ def load_pretrained_model_and_transform(
     Parameters
     ----------
     weights
-        Name of the pre-trained weights to load from the model registry.
+        Name of the pretrained weights to load from the model registry.
     dst
         Destination path where the model weights will be downloaded or loaded from.
     file_format
-        Model format (e.g. pt, pt2, safetensors, etc.)
+        Model format.
     inference
-        Flag to prepare the model for inference mode.
+        Whether to prepare the model for inference mode.
     device
-        The device to load the model on (cpu/cuda).
+        Device to load the model on.
     dtype
-        Data type for model parameters and computations (e.g., torch.float32, torch.float16).
+        Data type for model parameters and computations.
     custom_config
         Additional model configuration that overrides or extends the predefined configuration.
     progress_bar
@@ -1058,7 +1057,7 @@ def load_pretrained_model_and_transform(
     Returns
     -------
     A tuple containing three elements:
-    - A PyTorch module (neural network model) loaded with pre-trained weights.
+    - A PyTorch module (neural network model) loaded with pretrained weights.
     - Model info containing class mappings, signature, and RGB stats.
     - An inference transform matching the model task.
     """
@@ -1091,19 +1090,19 @@ def load_model_with_cfg(
     cfg: dict[str, Any] | str | Path, weights_path: Optional[str | Path]
 ) -> tuple[torch.nn.Module, dict[str, Any]]:
     """
-    Loads a neural network model based on a configuration dictionary or configuration file path and optional weights.
+    Load a neural network model from configuration
 
     Parameters
     ----------
     cfg
-        A model configuration dictionary or a path to a json configuration file.
+        Model configuration dictionary or path to a JSON configuration file.
     weights_path
         Path to the model weights file. Supports .pt and .safetensors formats.
         If None, returns an untrained model.
 
     Returns
     -------
-    A PyTorch neural network model, optionally loaded with pre-trained weights.
+    The model and resolved model configuration.
     """
 
     if not isinstance(cfg, dict):
@@ -1293,7 +1292,7 @@ def collect_samples(
     data_path: str, class_to_idx: Optional[dict[str, int]] = None, hierarchical: bool = False
 ) -> list[tuple[str, int]] | list[str]:
     """
-    Collect image file paths (and optionally their class indices) from a given path.
+    Collect image file paths and optional class indices
 
     If 'data_path' is a directory, the function will recursively traverse it,
     including all subdirectories, collecting files that match IMG_EXTENSIONS.

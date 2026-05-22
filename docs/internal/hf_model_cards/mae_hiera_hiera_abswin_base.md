@@ -1,6 +1,6 @@
 ---
 tags:
-- masked-image-modeling
+- masked image modeling
 - birder
 - pytorch
 library_name: birder
@@ -11,7 +11,7 @@ license: apache-2.0
 
 This is a Masked Autoencoder (MAE) model based on the Hiera (Hierarchical Vision Transformer) architecture.
 
-**Important:** This model is specifically designed for continued masked image modeling (MIM) pre-training only. If you're looking to fine-tune on downstream tasks, please use the pre-trained encoder directly at <https://huggingface.co/birder-project/hiera_abswin_base_mim>
+**Important:** This model is specifically designed for continued masked image modeling (MIM) pretraining only. If you're looking to fine-tune on downstream tasks, please use the pretrained encoder directly at <https://huggingface.co/birder-project/hiera_abswin_base_mim>
 
 ## Model Details
 

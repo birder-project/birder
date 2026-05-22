@@ -72,7 +72,7 @@ This should print the version of Birder.
 
 Get started with Birder by classifying a single image, visualizing the results and exploring model decision-making through introspection techniques.
 
-1. **Download a Pre-trained Model**
+1. **Download a Pretrained Model**
 
         python -m birder.tools download-model mvit_v2_t_il-all
 
@@ -105,7 +105,7 @@ Birder provides a flexible Python API for performing bird image classification. 
 import birder
 from birder.inference.classification import infer_image
 
-# Load a pre-trained model
+# Load a pretrained model
 (net, model_info) = birder.load_pretrained_model("mvit_v2_t_il-all", inference=True)
 
 # Get the image size the model was trained on

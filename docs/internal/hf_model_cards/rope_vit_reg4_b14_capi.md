@@ -9,7 +9,7 @@ license: apache-2.0
 
 # Model Card for rope_vit_reg4_b14_capi
 
-A RoPE ViT b14 image encoder pre-trained using CAPI. This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
+A RoPE ViT b14 image encoder pretrained using CAPI. This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
 
 ## Model Details
 

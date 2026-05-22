@@ -45,22 +45,27 @@ class TestTransforms(unittest.TestCase):
         repr(mixup)
 
         # Presets
-        classification.training_preset((256, 256), "birder", 0, classification.get_rgb_stats("none"))
+        classification.training_preset((256, 256), "birder", 0, classification.get_rgb_stats("centered"))
         classification.training_preset((256, 256), "birder", 8, classification.get_rgb_stats("birder"))
-        classification.training_preset((256, 256), "3aug", 3, classification.get_rgb_stats("none"))
+        classification.training_preset((256, 256), "3aug", 3, classification.get_rgb_stats("centered"))
         preset = classification.training_preset(
-            (256, 256), "birder", 1, classification.get_rgb_stats("none"), resize_min_scale=0.05, resize_max_scale=0.3
+            (256, 256),
+            "birder",
+            1,
+            classification.get_rgb_stats("centered"),
+            resize_min_scale=0.05,
+            resize_max_scale=0.3,
         )
         self.assertEqual(preset.transforms[1].transform[0].scale, (0.05, 0.3))  # type: ignore[attr-defined]
-        classification.inference_preset((256, 256), classification.get_rgb_stats("none"), 0.9)
-        classification.inference_preset((256, 256), classification.get_rgb_stats("none"), 0.9, True)
+        classification.inference_preset((256, 256), classification.get_rgb_stats("centered"), 0.9)
+        classification.inference_preset((256, 256), classification.get_rgb_stats("centered"), 0.9, True)
 
     def test_detection(self) -> None:
         # Presets
-        detection.training_preset((256, 256), "birder", 0, classification.get_rgb_stats("none"), False, False)
+        detection.training_preset((256, 256), "birder", 0, classification.get_rgb_stats("centered"), False, False)
         detection.training_preset((256, 256), "birder", 5, classification.get_rgb_stats("birder"), False, True)
-        detection.training_preset((256, 256), "ssd", 0, classification.get_rgb_stats("none"), True, False)
-        detection.training_preset((256, 256), "multiscale", 0, classification.get_rgb_stats("none"), False, False)
+        detection.training_preset((256, 256), "ssd", 0, classification.get_rgb_stats("centered"), True, False)
+        detection.training_preset((256, 256), "multiscale", 0, classification.get_rgb_stats("centered"), False, False)
         detection.InferenceTransform((256, 256), classification.get_rgb_stats("birder"), False)
 
         # Multiscale

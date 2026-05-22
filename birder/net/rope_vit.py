@@ -949,7 +949,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi/resolve/main",
         "description": (
-            "RoPE ViT b14 image encoder pre-trained using CAPI. "
+            "RoPE ViT b14 image encoder pretrained using CAPI. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -966,7 +966,7 @@ registry.register_weights(
     "rope_vit_reg4_b14_capi-places365",
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-places365/resolve/main",
-        "description": "RoPE ViT b14 model pre-trained using CAPI, then fine-tuned on the Places365 dataset",
+        "description": "RoPE ViT b14 model pretrained using CAPI, then fine-tuned on the Places365 dataset",
         "resolution": (224, 224),
         "formats": {
             "pt": {
@@ -981,7 +981,7 @@ registry.register_weights(
     "rope_vit_reg4_b14_capi-inat21-224px",
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-inat21/resolve/main",
-        "description": "RoPE ViT b14 model pre-trained using CAPI, then fine-tuned on the iNaturalist 2021 dataset",
+        "description": "RoPE ViT b14 model pretrained using CAPI, then fine-tuned on the iNaturalist 2021 dataset",
         "resolution": (224, 224),
         "formats": {
             "pt": {
@@ -996,7 +996,7 @@ registry.register_weights(
     "rope_vit_reg4_b14_capi-inat21",
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-inat21/resolve/main",
-        "description": "RoPE ViT b14 model pre-trained using CAPI, then fine-tuned on the iNaturalist 2021 dataset",
+        "description": "RoPE ViT b14 model pretrained using CAPI, then fine-tuned on the iNaturalist 2021 dataset",
         "resolution": (336, 336),
         "formats": {
             "pt": {
@@ -1011,7 +1011,7 @@ registry.register_weights(
     "rope_vit_reg4_b14_capi-imagenet21k",
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-imagenet21k/resolve/main",
-        "description": "RoPE ViT b14 model pre-trained using CAPI, then fine-tuned on the ImageNet-21K dataset",
+        "description": "RoPE ViT b14 model pretrained using CAPI, then fine-tuned on the ImageNet-21K dataset",
         "resolution": (224, 224),
         "formats": {
             "pt": {
@@ -1027,7 +1027,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-intermediate-eu-common/resolve/main",
         "description": (
-            "RoPE ViT b14 model pre-trained using CAPI and intermediate training, "
+            "RoPE ViT b14 model pretrained using CAPI and intermediate training, "
             "then fine-tuned on the eu-common dataset"
         ),
         "resolution": (336, 336),
@@ -1045,7 +1045,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg8_so150m_p14_swiglu_rms_avg_capi/resolve/main",
         "description": (
-            "RoPE SoViT 150m p14 image encoder pre-trained using CAPI. "
+            "RoPE SoViT 150m p14 image encoder pretrained using CAPI. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -1063,7 +1063,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg8_so150m_p14_swiglu_rms_ap_rotnet-capi/resolve/main",
         "description": (
-            "RoPE SoViT 150m p14 image encoder pre-trained using CAPI, then trained to estimate image orientation"
+            "RoPE SoViT 150m p14 image encoder pretrained using CAPI, then trained to estimate image orientation"
         ),
         "resolution": (252, 252),
         "formats": {
@@ -1083,7 +1083,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_reg1_t16_pn_npn_avg_c1_pe-spatial/resolve/main",
         "description": (
-            "ViT t16 image encoder pre-trained by Meta FAIR using CLIP. "
+            "ViT t16 image encoder pretrained by Meta FAIR using CLIP. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (512, 512),
@@ -1101,7 +1101,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_s16_pn_aps_c1_pe-core/resolve/main",
         "description": (
-            "ViT s16 image encoder pre-trained by Meta FAIR using CLIP. "
+            "ViT s16 image encoder pretrained by Meta FAIR using CLIP. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (384, 384),
@@ -1119,7 +1119,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_reg1_s16_pn_npn_avg_c1_pe-spatial/resolve/main",
         "description": (
-            "ViT s16 image encoder pre-trained by Meta FAIR using CLIP. "
+            "ViT s16 image encoder pretrained by Meta FAIR using CLIP. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (512, 512),
@@ -1137,7 +1137,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_b16_pn_aps_c1_pe-core/resolve/main",
         "description": (
-            "ViT b16 image encoder pre-trained by Meta FAIR using CLIP. "
+            "ViT b16 image encoder pretrained by Meta FAIR using CLIP. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -1155,7 +1155,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_reg1_b16_pn_npn_avg_c1_pe-spatial/resolve/main",
         "description": (
-            "ViT b16 image encoder pre-trained by Meta FAIR using CLIP. "
+            "ViT b16 image encoder pretrained by Meta FAIR using CLIP. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (512, 512),
@@ -1173,7 +1173,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_l14_pn_aps_c1_pe-core/resolve/main",
         "description": (
-            "ViT l14 image encoder pre-trained by Meta FAIR using CLIP. "
+            "ViT l14 image encoder pretrained by Meta FAIR using CLIP. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (336, 336),

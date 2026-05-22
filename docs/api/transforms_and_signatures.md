@@ -9,7 +9,7 @@ In practice, you should treat model metadata as the source of truth for transfor
 
 ## What `model_info` Gives You
 
-When you load a pre-trained model, Birder returns `model_info` with:
+When you load a pretrained model, Birder returns `model_info` with:
 
 - `signature`: input/output shape contract for the checkpoint
 - `rgb_stats`: normalization stats expected by the model

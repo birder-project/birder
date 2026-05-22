@@ -29,6 +29,7 @@ python -m birder.tools [TOOL_NAME] --help
 - [convert-model](convert-model.md)
 - download-model
 - [ensemble-model](ensemble-model.md)
+- feature-matching
 - [introspection](introspection.md)
 - labelme-to-coco
 - list-models

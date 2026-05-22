@@ -345,7 +345,7 @@ registry.register_weights(
     "rdnet_t_ibot-bioscan5m",
     {
         "url": "https://huggingface.co/birder-project/rdnet_t_ibot-bioscan5m/resolve/main",
-        "description": "RDNet tiny model pre-trained using iBOT on the BIOSCAN-5M dataset",
+        "description": "RDNet tiny model pretrained using iBOT on the BIOSCAN-5M dataset",
         "resolution": (224, 224),
         "formats": {
             "pt": {

@@ -55,10 +55,10 @@ Use this when your source of truth is a local artifact, not a registry entry.
 
 ## Practical Notes
 
-- Pre-trained loading is registry-driven: the entry name determines architecture, task, and weight metadata.
+- Pretrained loading is registry-driven: the entry name determines architecture, task, and weight metadata.
 - `model_info` is the bridge between loading and inference setup (signature, class mapping, RGB stats).
 - For detection checkpoints, registry metadata includes backbone information; you do not need to build it manually in normal usage.
 
 ## Common Mistakes
 
-- Treating pre-trained entry names and architecture names as interchangeable. They are related, but not the same layer.
+- Treating pretrained entry names and architecture names as interchangeable. They are related, but not the same layer.

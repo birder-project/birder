@@ -1,6 +1,6 @@
-# Pre-trained Models
+# Pretrained Models
 
-Birder provides a variety of pre-trained models optimized for different tasks, regions, and computational requirements. This guide explains our model taxonomy and helps you choose the right model for your needs.
+Birder provides a variety of pretrained models optimized for different tasks, regions, and computational requirements. This guide explains our model taxonomy and helps you choose the right model for your needs.
 
 ## Model Tasks
 
@@ -29,8 +29,8 @@ Our model names follow a systematic pattern that encodes important information a
 ### Training Indicators
 
 - **intermediate**: Models trained in two stages - first on a large weakly-labeled dataset, then fine-tuned on curated data
-- **mim**: Models that utilized masked image modeling pre-training
-- **dino_v1, vicreg, ...**: Various tags indicating self-supervised learning methods used for pre-training
+- **mim**: Models that utilized masked image modeling pretraining
+- **dino_v1, vicreg, ...**: Various tags indicating self-supervised learning methods used for pretraining
 - **quantized**: Models optimized for reduced memory and computation requirements
 - **reparameterized**: Models restructured for optimized inference
 
@@ -62,7 +62,7 @@ Consider these factors when selecting a model:
 
 ### CLI
 
-List all available pre-trained models:
+List all available pretrained models:
 
 ```bash
 python -m birder.tools list-models --pretrained
@@ -98,7 +98,7 @@ import birder
 birder.list_pretrained_models("*eu-common*")
 ```
 
-Load a pre-trained model (downloading if not available locally):
+Load a pretrained model (downloading if not available locally):
 
 ```python
 (net, model_info) = birder.load_pretrained_model("xcit_nano12_p16_il-common", inference=True)

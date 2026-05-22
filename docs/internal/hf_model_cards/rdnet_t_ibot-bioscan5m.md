@@ -11,7 +11,7 @@ datasets:
 
 # Model Card for rdnet_t_ibot-bioscan5m
 
-A RDNet tiny image encoder pre-trained using iBOT.
+A RDNet tiny image encoder pretrained using iBOT.
 
 The model is primarily a feature extractor. Separately trained linear probing classification heads for various taxonomic levels (order, family, genus, species) are available for classification tasks.
 
@@ -25,7 +25,7 @@ The model is primarily a feature extractor. Separately trained linear probing cl
 
 - **Papers:**
     - DenseNets Reloaded: Paradigm Shift Beyond ResNets and ViTs: <https://arxiv.org/abs/2403.19588>
-    - iBOT: Image BERT Pre-Training with Online Tokenizer: <https://arxiv.org/abs/2111.07832>
+    - iBOT: Image BERT Pretraining with Online Tokenizer: <https://arxiv.org/abs/2111.07832>
 
 ## Linear Probing Results
 
@@ -59,7 +59,7 @@ The AMI score reflects how well the learned representations align with ground-tr
 
 ### Image Classification (with Linear Probing Head)
 
-To use the model for classification, you must load the encoder and then load a specific pre-trained classification head for the desired taxonomic level. Heads are available for `order`, `family`, `genus`, and `species`.
+To use the model for classification, you must load the encoder and then load a specific pretrained classification head for the desired taxonomic level. Heads are available for `order`, `family`, `genus`, and `species`.
 
 ```python
 import torch
@@ -144,7 +144,7 @@ print([(k, v.size()) for k, v in features.items()])
 }
 
 @misc{zhou2022ibotimagebertpretraining,
-      title={iBOT: Image BERT Pre-Training with Online Tokenizer},
+      title={iBOT: Image BERT Pretraining with Online Tokenizer},
       author={Jinghao Zhou and Chen Wei and Huiyu Wang and Wei Shen and Cihang Xie and Alan Yuille and Tao Kong},
       year={2022},
       eprint={2111.07832},

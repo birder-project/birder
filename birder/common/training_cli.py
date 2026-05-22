@@ -741,7 +741,9 @@ def add_logging_and_debug_args(
         )
 
 
-def add_training_data_args(parser: argparse.ArgumentParser, unsupervised: bool = False) -> None:
+def add_training_data_args(
+    parser: argparse.ArgumentParser, unsupervised: bool = False, wds_extra_shuffle: bool = True
+) -> None:
     group = parser.add_argument_group("Training data parameters", description="WebDataset")
     group.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
     group.add_argument("--wds-info", type=str, action="append", metavar="FILE", help="one or more wds info file paths")
@@ -762,15 +764,16 @@ def add_training_data_args(parser: argparse.ArgumentParser, unsupervised: bool =
             "--wds-split", type=str, default="training", metavar="NAME", help="wds dataset split to load"
         )
 
-    group.add_argument(
-        "--wds-extra-shuffle",
-        default=False,
-        action="store_true",
-        help=(
-            "enable cross-worker batch shuffling after batching. Provides maximum sample diversity but incurs a "
-            "notable performance penalty. Use with caution"
-        ),
-    )
+    if wds_extra_shuffle is True:
+        group.add_argument(
+            "--wds-extra-shuffle",
+            default=False,
+            action="store_true",
+            help=(
+                "enable cross-worker batch shuffling after batching. Provides maximum sample diversity but incurs a "
+                "notable performance penalty. Use with caution"
+            ),
+        )
 
     group = parser.add_argument_group(description="Directory")
     if unsupervised is False:
@@ -800,7 +803,7 @@ def add_training_data_args(parser: argparse.ArgumentParser, unsupervised: bool =
         )
 
 
-def add_detection_training_data_args(parser: argparse.ArgumentParser) -> None:
+def add_detection_training_data_args(parser: argparse.ArgumentParser, wds_extra_shuffle: bool = True) -> None:
     group = parser.add_argument_group("Training data parameters", description="WebDataset")
     group.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
     group.add_argument("--wds-info", type=str, action="append", metavar="FILE", help="one or more wds info file paths")
@@ -814,15 +817,16 @@ def add_detection_training_data_args(parser: argparse.ArgumentParser) -> None:
     group.add_argument(
         "--wds-val-split", type=str, default="validation", metavar="NAME", help="wds dataset validation split"
     )
-    group.add_argument(
-        "--wds-extra-shuffle",
-        default=False,
-        action="store_true",
-        help=(
-            "enable cross-worker batch shuffling after batching. Provides maximum sample diversity but incurs a "
-            "notable performance penalty. Use with caution"
-        ),
-    )
+    if wds_extra_shuffle is True:
+        group.add_argument(
+            "--wds-extra-shuffle",
+            default=False,
+            action="store_true",
+            help=(
+                "enable cross-worker batch shuffling after batching. Provides maximum sample diversity but incurs a "
+                "notable performance penalty. Use with caution"
+            ),
+        )
 
     group = parser.add_argument_group(description="COCO")
     group.add_argument(
@@ -1023,6 +1027,8 @@ def common_args_validation(args: argparse.Namespace) -> None:
             raise ValidationError("--find-unused-parameters cannot be used with --distributed-mode fsdp")
         if args.compile_opt is True:
             raise ValidationError("--compile-opt cannot be used with --distributed-mode fsdp")
+        if hasattr(args, "compile_fullgraph") is True and args.compile_fullgraph is True:
+            raise ValidationError("--compile-fullgraph cannot be used with --distributed-mode fsdp")
         if args.cpu is True:
             raise ValidationError("--cpu cannot be used with --distributed-mode fsdp")
         if args.fsdp_wrap_policy == "min-num-params" and args.fsdp_wrap_min_num_params is None:

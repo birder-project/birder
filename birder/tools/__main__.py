@@ -8,6 +8,7 @@ from birder.tools import convert_model
 from birder.tools import det_results
 from birder.tools import download_model
 from birder.tools import ensemble_model
+from birder.tools import feature_matching
 from birder.tools import introspection
 from birder.tools import labelme_to_coco
 from birder.tools import list_models
@@ -42,6 +43,7 @@ def main() -> None:
             "results/faster_rcnn_coco_csp_resnet_50_imagenet1k_91_e0_640px_5000.json --print\n"
             "python -m birder.tools download-model mobilenet_v3_large_1_0\n"
             "python -m birder.tools ensemble-model --network convnext_v2_4_0 focalnet_3_0 --pts\n"
+            "python -m birder.tools feature-matching -n vit_reg4_b16 -t dino-v2 image1.jpeg image2.jpeg\n"
             "python -m birder.tools introspection --method gradcam --network efficientnet_v2_m "
             "--epoch 200 --image 'data/validation/Mallard/000003.jpeg'\n"
             "python -m birder.tools labelme-to-coco data/detection_data\n"
@@ -70,8 +72,9 @@ def main() -> None:
     avg_model.set_parser(subparsers)
     convert_model.set_parser(subparsers)
     det_results.set_parser(subparsers)
-    ensemble_model.set_parser(subparsers)
     download_model.set_parser(subparsers)
+    ensemble_model.set_parser(subparsers)
+    feature_matching.set_parser(subparsers)
     introspection.set_parser(subparsers)
     labelme_to_coco.set_parser(subparsers)
     list_models.set_parser(subparsers)

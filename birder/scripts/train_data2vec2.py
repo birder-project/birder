@@ -629,7 +629,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 def get_args_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         allow_abbrev=False,
-        description="Pre-train model",
+        description="Pretrain model",
         epilog=(
             "Usage examples\n"
             "==============\n"
@@ -646,7 +646,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "    --clip-grad-norm 4 \\\n"
             "    --amp --amp-dtype bfloat16 \\\n"
             "    --compile \\\n"
-            "    --rgb-mode none \\\n"
+            "    --rgb-mode centered \\\n"
             "    --data-path data/training\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,

@@ -471,7 +471,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             pin_memory=args.pin_memory,
             drop_last=args.drop_last,
             persistent_workers=args.persistent_workers,
-            shuffle=args.wds_extra_shuffle,
+            shuffle=False,
             infinite=virtual_epoch_mode,
         )
 
@@ -1155,7 +1155,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 def get_args_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         allow_abbrev=False,
-        description="Pre-train model",
+        description="Pretrain model",
         epilog=(
             "Usage examples\n"
             "==============\n"
@@ -1268,7 +1268,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_checkpoint_args(parser)
     training_cli.add_distributed_args(parser, fsdp=True)
     training_cli.add_logging_and_debug_args(parser, default_log_interval=100)
-    training_cli.add_training_data_args(parser, unsupervised=True)
+    training_cli.add_training_data_args(parser, unsupervised=True, wds_extra_shuffle=False)
 
     return parser
 

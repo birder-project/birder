@@ -9,7 +9,7 @@ license: apache-2.0
 
 # Model Card for rope_vit_reg8_so150m_p14_swiglu_rms_avg_capi
 
-A RoPE SoViT 150m p14 image encoder pre-trained using CAPI. This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
+A RoPE SoViT 150m p14 image encoder pretrained using CAPI. This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
 
 ## Model Details
 

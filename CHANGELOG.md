@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.2 - 2026-05-22
+
+### Added
+
+- **EVA MIM Training**: Added `train_eva.py` for EVA-style masked image modeling with a specified teacher.
+- **Feature Matching Tool**: Added `python -m birder.tools feature-matching` to visualize dense feature correspondences between two images.
+- **Pretrained Models**:
+    - `vit_reg4_so150m_p14_avg_mim-bio`: Added Birder Bio-MIM SoViT-150M/14 image encoder pretrained weights.
+
+### Changed
+
+- **Compatibility**: Tested with PyTorch 2.12.
+- **RGB Mode Naming (Breaking)**: Renamed the `none` RGB normalization preset to `centered`. Use `--rgb-mode centered` or `get_rgb_stats("centered")` for the previous `(0.5, 0.5, 0.5)` mean/std behavior.
+
+### Fixed
+
+- **Pretraining Encoder Metadata**: Fixed `encoding_size` definitions for several retention-capable encoders.
+- **FSDP Compile Validation**: Reject `--compile-fullgraph` with `--distributed-mode fsdp` to avoid unsupported FSDP2 compiled-autograd behavior in PyTorch 2.12.
+- **Compiled Distributed Collectives**: Replaced `torch.distributed.nn.functional` collectives with functional collectives supported under `torch.compile` in PyTorch 2.12.
+
 ## 0.5.1 - 2026-05-18
 
 ### Added
@@ -149,7 +169,7 @@
 
 ### Changed
 
-- **FlexiViT Patch-Size Sampling**: Moved random patch-size selection from `forward()` to `forward_features()` in `flexivit` and `rope_flexivit`, so all feature-extraction paths (including NEPA pre-training) apply patch-size randomization consistently.
+- **FlexiViT Patch-Size Sampling**: Moved random patch-size selection from `forward()` to `forward_features()` in `flexivit` and `rope_flexivit`, so all feature-extraction paths (including NEPA pretraining) apply patch-size randomization consistently.
 
 ## 0.4.8 - 2026-02-24
 
@@ -573,14 +593,14 @@
 
 ### Added
 
-- **ConvNeXt v1 SSL**: Added self-supervised pre-training support for ConvNeXt v1 models.
+- **ConvNeXt v1 SSL**: Added self-supervised pretraining support for ConvNeXt v1 models.
 
 ## 0.1.1 - 2025-10-08
 
 ### Added
 
 - **Pretrained Models**:
-    - `rdnet_t_ibot-bioscan5m`: RDNet-T encoder pre-trained with iBOT on the [BIOSCAN-5M](https://biodiversitygenomics.net/projects/5m-insects/) dataset.
+    - `rdnet_t_ibot-bioscan5m`: RDNet-T encoder pretrained with iBOT on the [BIOSCAN-5M](https://biodiversitygenomics.net/projects/5m-insects/) dataset.
     - `convnext_v1_tiny_eu-common`
     - `convnext_v2_tiny_eu-common`
     - `mvit_v2_s_yellowstone`

@@ -5,7 +5,7 @@ An open-source computer vision framework for wildlife image analysis, featuring 
 - [Introduction](#introduction)
 - [Setup](#setup)
 - [Getting Started](#getting-started)
-- [Pre-trained Models](#pre-trained-models)
+- [Pretrained Models](#pretrained-models)
 - [Detection](#detection)
 - [Evaluation](#evaluation)
 - [Project Status and Contributions](#project-status-and-contributions)
@@ -21,7 +21,7 @@ For comprehensive documentation and tutorials, see [docs/README.md](docs/README.
 The project features:
 
 - A diverse collection of classification and detection models
-- Support for self-supervised pre-training
+- Support for self-supervised pretraining
 - Knowledge distillation training (teacher-student)
 - Custom utilities and data augmentation techniques
 - Comprehensive training scripts
@@ -61,7 +61,7 @@ Check out the Birder Colab notebook for an interactive tutorial.
 
 Once Birder is installed, you can start exploring its capabilities.
 
-Birder provides pre-trained models that you can download using the `download-model` tool.
+Birder provides pretrained models that you can download using the `download-model` tool.
 To download a model, use the following command:
 
 ```sh
@@ -89,11 +89,11 @@ birder-predict --help
 
 For more detailed usage instructions and examples, see [docs/README.md](docs/README.md).
 
-## Pre-trained Models
+## Pretrained Models
 
-Birder provides a comprehensive suite of pre-trained models for wildlife species classification, with current models specialized for avian species recognition.
+Birder provides a comprehensive suite of pretrained models for wildlife species classification, with current models specialized for avian species recognition.
 
-To explore the full range of available pre-trained models, use the `list-models` tool:
+To explore the full range of available pretrained models, use the `list-models` tool:
 
 ```sh
 python -m birder.tools list-models --pretrained
@@ -110,7 +110,7 @@ Architecture: The first part of the model name indicates the core neural network
 Training indicators:
 
 - intermediate: Signifies models that underwent a two-stage training process, beginning with a large-scale weakly labeled dataset before fine-tuning on the primary dataset
-- mim: Indicates models that leveraged self-supervised pre-training techniques, primarily Masked Autoencoder (MAE), prior to supervised training
+- mim: Indicates models that leveraged self-supervised pretraining techniques, primarily Masked Autoencoder (MAE), prior to supervised training
 
 Other tags:
 
@@ -121,12 +121,12 @@ Epoch Number (optional): The last part of the model name may include an undersco
 
 For instance, *mnasnet_1_0_intermediate_300* represents a MnasNet model with an alpha value of 1.0 that underwent intermediate training and is from epoch 300.
 
-### Self-supervised Image Pre-training
+### Self-supervised Image Pretraining
 
-Our pre-training process utilizes a diverse collection of image datasets, combining general imagery with wildlife-specific content.
+Our pretraining process utilizes a diverse collection of image datasets, combining general imagery with wildlife-specific content.
 This approach allows our models to learn rich, general-purpose visual representations before fine-tuning on specific classification tasks.
 
-The pre-training dataset is composed of a mix of general images and bird-specific imagery to improve downstream performance on the bird classification tasks.
+The pretraining dataset is composed of a mix of general images and bird-specific imagery to improve downstream performance on the bird classification tasks.
 
 For detailed information about these datasets, including descriptions, citations, and licensing details, please refer to [docs/public_datasets.md](docs/public_datasets.md).
 
@@ -167,15 +167,15 @@ Files subject to additional license restrictions are marked in their headers. So
 
 If you think we've missed a reference or a license, please create an issue.
 
-### Pre-trained Weights
+### Pretrained Weights
 
-Some of the pre-trained weights available here are pre-trained on ImageNet. ImageNet was released for non-commercial research purposes only (<https://image-net.org/download>). It's not clear what the implications are for the use of pre-trained weights from that dataset. It's best to seek legal advice if you intend to use the pre-trained weights in a commercial product.
+Some of the pretrained weights available here are pretrained on ImageNet. ImageNet was released for non-commercial research purposes only (<https://image-net.org/download>). It's not clear what the implications are for the use of pretrained weights from that dataset. It's best to seek legal advice if you intend to use the pretrained weights in a commercial product.
 
 ### Disclaimer
 
-If you intend to use Birder, its pre-trained weights, or any associated datasets in a commercial product, we strongly recommend seeking legal advice to ensure compliance with all relevant licenses and terms of use.
+If you intend to use Birder, its pretrained weights, or any associated datasets in a commercial product, we strongly recommend seeking legal advice to ensure compliance with all relevant licenses and terms of use.
 
-It's the user's responsibility to ensure that their use of this project, including any pre-trained weights or datasets, complies with all applicable licenses and legal requirements.
+It's the user's responsibility to ensure that their use of this project, including any pretrained weights or datasets, complies with all applicable licenses and legal requirements.
 
 ## Acknowledgments
 

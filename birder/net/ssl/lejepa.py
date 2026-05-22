@@ -17,6 +17,7 @@ from typing import Optional
 
 import torch
 import torch.distributed as dist
+import torch.distributed._functional_collectives as funcol
 import torch.nn.functional as F
 from torch import nn
 
@@ -94,8 +95,8 @@ class SIGReg(nn.Module):
 
         if training_utils.is_dist_available_and_initialized() is True:
             world_size = dist.get_world_size()
-            cos_mean = dist.nn.all_reduce(cos_mean) / world_size
-            sin_mean = dist.nn.all_reduce(sin_mean) / world_size
+            cos_mean = funcol.all_reduce(cos_mean, reduceOp="sum", group=dist.group.WORLD) / world_size
+            sin_mean = funcol.all_reduce(sin_mean, reduceOp="sum", group=dist.group.WORLD) / world_size
         else:
             world_size = 1
 

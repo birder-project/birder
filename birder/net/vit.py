@@ -874,7 +874,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/vit_b16_ls_franca-bioscan5m/resolve/main",
         "description": (
-            "ViT b16 image encoder pre-trained using Franca on the BIOSCAN-5M dataset. "
+            "ViT b16 image encoder pretrained using Franca on the BIOSCAN-5M dataset. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -892,7 +892,7 @@ registry.register_weights(  # BioCLIP v1: https://arxiv.org/abs/2311.18803
     {
         "url": "https://huggingface.co/birder-project/vit_b16_pn_bioclip-v1/resolve/main",
         "description": (
-            "ViT b16 image encoder pre-trained by Imageomics using CLIP on the TreeOfLife-10M dataset. "
+            "ViT b16 image encoder pretrained by Imageomics using CLIP on the TreeOfLife-10M dataset. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -910,7 +910,7 @@ registry.register_weights(  # BioTrove: https://arxiv.org/abs/2406.17720
     {
         "url": "https://huggingface.co/birder-project/vit_b16_pn_biotrove-clip-o/resolve/main",
         "description": (
-            "ViT b16 image encoder pre-trained by Baskar group using CLIP on the BioTrove dataset. "
+            "ViT b16 image encoder pretrained by Baskar group using CLIP on the BioTrove dataset. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -928,7 +928,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/vit_l16_mim/resolve/main",
         "description": (
-            "ViT l16 image encoder pre-trained using Masked Image Modeling (MIM) for 200 epochs. "
+            "ViT l16 image encoder pretrained using Masked Image Modeling (MIM) for 200 epochs. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -946,7 +946,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/vit_l16_mim/resolve/main",
         "description": (
-            "ViT l16 image encoder pre-trained using Masked Image Modeling (MIM) for 400 epochs. "
+            "ViT l16 image encoder pretrained using Masked Image Modeling (MIM) for 400 epochs. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -964,7 +964,7 @@ registry.register_weights(  # BioCLIP v2: https://arxiv.org/abs/2505.23883
     {
         "url": "https://huggingface.co/birder-project/vit_l14_pn_bioclip-v2/resolve/main",
         "description": (
-            "ViT l14 image encoder pre-trained by Imageomics using CLIP on the TreeOfLife-200M dataset. "
+            "ViT l14 image encoder pretrained by Imageomics using CLIP on the TreeOfLife-200M dataset. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -982,7 +982,7 @@ registry.register_weights(  # OpenAI CLIP: https://arxiv.org/abs/2103.00020
     {
         "url": "https://huggingface.co/birder-project/vit_l14_pn_quick_gelu_openai-clip/resolve/main",
         "description": (
-            "ViT l14 image encoder pre-trained by OpenAI using CLIP. "
+            "ViT l14 image encoder pretrained by OpenAI using CLIP. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -1000,7 +1000,7 @@ registry.register_weights(  # SigLIP 2: https://arxiv.org/abs/2502.14786
     {
         "url": "https://huggingface.co/birder-project/vit_so400m_p14_ap_siglip-v2-webli/resolve/main",
         "description": (
-            "ViT SO400m image encoder pre-trained by Google using SigLIP. "
+            "ViT SO400m image encoder pretrained by Google using SigLIP. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -1018,7 +1018,7 @@ registry.register_weights(  # BioCLIP v2.5: https://arxiv.org/abs/2505.23883
     {
         "url": "https://huggingface.co/birder-project/vit_h14_pn_bioclip-v25/resolve/main",
         "description": (
-            "ViT h14 image encoder pre-trained by Imageomics using CLIP on the TreeOfLife-200M dataset. "
+            "ViT h14 image encoder pretrained by Imageomics using CLIP on the TreeOfLife-200M dataset. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -1038,7 +1038,7 @@ registry.register_weights(  # DINO v2: https://arxiv.org/abs/2304.07193
     {
         "url": "https://huggingface.co/birder-project/vit_reg4_s14_nps_ls_dino-v2-lvd142m/resolve/main",
         "description": (
-            "ViT reg4 s14 image encoder pre-trained by Facebook AI using DINOv2. "
+            "ViT reg4 s14 image encoder pretrained by Facebook AI using DINOv2. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (518, 518),
@@ -1056,7 +1056,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/vit_reg4_m16_rms_avg_i-jepa/resolve/main",
         "description": (
-            "ViT reg4 m16 RMS norm image encoder pre-trained using I-JEPA"
+            "ViT reg4 m16 RMS norm image encoder pretrained using I-JEPA"
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -1074,7 +1074,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/vit_reg4_m16_rms_avg_i-jepa-inat21/resolve/main",
         "description": (
-            "ViT reg4 m16 RMS norm image encoder pre-trained using I-JEPA"
+            "ViT reg4 m16 RMS norm image encoder pretrained using I-JEPA"
             "then fine-tuned on the iNaturalist 2021 dataset"
         ),
         "resolution": (256, 256),
@@ -1092,7 +1092,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/vit_reg4_m16_rms_avg_i-jepa-inat21/resolve/main",
         "description": (
-            "ViT reg4 m16 RMS norm image encoder pre-trained using I-JEPA"
+            "ViT reg4 m16 RMS norm image encoder pretrained using I-JEPA"
             "then fine-tuned on the iNaturalist 2021 dataset"
         ),
         "resolution": (384, 384),
@@ -1110,7 +1110,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/vit_reg4_m16_rms_avg_i-jepa-imagenet21k/resolve/main",
         "description": (
-            "ViT reg4 m16 RMS norm image encoder pre-trained using I-JEPA then fine-tuned on the ImageNet-21K dataset"
+            "ViT reg4 m16 RMS norm image encoder pretrained using I-JEPA then fine-tuned on the ImageNet-21K dataset"
         ),
         "resolution": (256, 256),
         "formats": {
@@ -1127,7 +1127,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/vit_reg4_b16_mim/resolve/main",
         "description": (
-            "ViT reg4 b16 image encoder pre-trained using Masked Image Modeling (MIM) for 200 epochs. "
+            "ViT reg4 b16 image encoder pretrained using Masked Image Modeling (MIM) for 200 epochs. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -1145,7 +1145,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/vit_reg4_b16_mim/resolve/main",
         "description": (
-            "ViT reg4 b16 image encoder pre-trained using Masked Image Modeling (MIM) for 300 epochs. "
+            "ViT reg4 b16 image encoder pretrained using Masked Image Modeling (MIM) for 300 epochs. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -1194,12 +1194,32 @@ registry.register_weights(
         "net": {"network": "vit_reg4_b16", "tag": "mim-intermediate-arabian-peninsula"},
     },
 )
+registry.register_weights(
+    "vit_reg4_so150m_p14_avg_mim-bio",
+    {
+        "url": "https://huggingface.co/birder-project/vit_reg4_so150m_p14_avg_mim-bio/resolve/main",
+        "description": (
+            "SoViT reg4 150m p14 image encoder pretrained using MIM on natural biological images. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 509.7,
+                "sha256": "397979a026a120a035b20f863f10de409b9fca12a244a6ea9ba745c7ca48420d",
+            },
+        },
+        "net": {"network": "vit_reg4_so150m_p14_avg", "tag": "mim-bio"},
+    },
+)
+
+# DINO v2 by Meta AI
 registry.register_weights(  # DINO v2: https://arxiv.org/abs/2304.07193
     "vit_reg4_b14_nps_ls_dino-v2-lvd142m",
     {
         "url": "https://huggingface.co/birder-project/vit_reg4_b14_nps_ls_dino-v2-lvd142m/resolve/main",
         "description": (
-            "ViT reg4 b14 image encoder pre-trained by Facebook AI using DINOv2. "
+            "ViT reg4 b14 image encoder pretrained by Facebook AI using DINOv2. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (518, 518),
@@ -1217,7 +1237,7 @@ registry.register_weights(  # DINO v2: https://arxiv.org/abs/2304.07193
     {
         "url": "https://huggingface.co/birder-project/vit_reg4_l14_nps_ls_dino-v2-lvd142m/resolve/main",
         "description": (
-            "ViT reg4 l14 image encoder pre-trained by Facebook AI using DINOv2. "
+            "ViT reg4 l14 image encoder pretrained by Facebook AI using DINOv2. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (518, 518),
@@ -1237,7 +1257,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/vit_reg1_s14_ls_dino-v2-dist-bio/resolve/main",
         "description": (
-            "ViT reg1 s14 image encoder pre-trained using DINOv2 distillation on natural biological images. "
+            "ViT reg1 s14 image encoder pretrained using DINOv2 distillation on natural biological images. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (252, 252),
@@ -1255,7 +1275,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/vit_reg4_so150m_p14_ls_dino-v2-bio/resolve/main",
         "description": (
-            "SoViT reg4 150m p14 image encoder pre-trained using DINOv2 on natural biological images. "
+            "SoViT reg4 150m p14 image encoder pretrained using DINOv2 on natural biological images. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -1273,7 +1293,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/vit_reg4_so150m_p14_ls_dino-v2-bio/resolve/main",
         "description": (
-            "SoViT reg4 150m p14 image encoder pre-trained using DINOv2 on natural biological images. "
+            "SoViT reg4 150m p14 image encoder pretrained using DINOv2 on natural biological images. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (252, 252),
@@ -1291,7 +1311,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/vit_reg4_so150m_p14_ls_dino-v2-bio/resolve/main",
         "description": (
-            "SoViT reg4 150m p14 image encoder pre-trained using DINOv2 on natural biological images. "
+            "SoViT reg4 150m p14 image encoder pretrained using DINOv2 on natural biological images. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (336, 336),

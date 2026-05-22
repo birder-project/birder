@@ -572,8 +572,9 @@ class AnchorGenerator(nn.Module):
 
 class Matcher(nn.Module):
     """
-    This class assigns to each predicted "element" (e.g., a box) a ground-truth
-    element. Each predicted element will have exactly zero or one matches, each
+    Assign predicted elements to ground-truth elements
+
+    Each predicted element will have exactly zero or one matches, each
     ground-truth element may be assigned to zero or more predicted elements.
 
     Matching is based on the MxN match_quality_matrix, that characterizes how well
@@ -583,27 +584,24 @@ class Matcher(nn.Module):
     The matcher returns a tensor of size N containing the index of the ground-truth
     element m that matches to prediction n. If there is no match, a negative value
     is returned.
+
+    Parameters
+    ----------
+    high_threshold
+        Quality values greater than or equal to this value are candidate matches.
+    low_threshold
+        Lower quality threshold used to stratify matches into three levels:
+        1) matches >= high_threshold
+        2) BETWEEN_THRESHOLDS matches in [low_threshold, high_threshold)
+        3) BELOW_LOW_THRESHOLD matches in [0, low_threshold)
+    allow_low_quality_matches
+        If True, produce additional matches for predictions that have only low-quality match candidates.
     """
 
     BELOW_LOW_THRESHOLD = -1  # pylint: disable=invalid-name
     BETWEEN_THRESHOLDS = -2  # pylint: disable=invalid-name
 
     def __init__(self, high_threshold: float, low_threshold: float, allow_low_quality_matches: bool = False) -> None:
-        """
-        Parameters
-        ----------
-        high_threshold
-            quality values greater than or equal to this value are candidate matches
-        low_threshold
-            a lower quality threshold used to stratify matches into three levels:
-            1) matches >= high_threshold
-            2) BETWEEN_THRESHOLDS matches in [low_threshold, high_threshold)
-            3) BELOW_LOW_THRESHOLD matches in [0, low_threshold)
-        allow_low_quality_matches
-            if True, produce additional matches
-            for predictions that have only low-quality match candidates.
-        """
-
         super().__init__()
         self.BELOW_LOW_THRESHOLD = Matcher.BELOW_LOW_THRESHOLD
         self.BETWEEN_THRESHOLDS = Matcher.BETWEEN_THRESHOLDS

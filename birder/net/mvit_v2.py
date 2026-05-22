@@ -572,7 +572,7 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             cls_tokens = self.cls_token.expand(B, -1, -1)
             x = torch.concat((cls_tokens, x), dim=1)
 
-        x, _ = self.body(x, hw_shape)
+        x, hw_shape = self.body(x, hw_shape)
         x = self.norm(x)
 
         result: TokenRetentionResultType = {}

@@ -514,3 +514,17 @@ registry.register_weights(
         "net": {"network": "repvit_m0_6", "tag": "il-common"},
     },
 )
+registry.register_weights(
+    "repvit_m0_6_il-common_reparameterized",
+    {
+        "description": "RepViT M0.6 (reparameterized) model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 9.8,
+                "sha256": "9f253719ce40cb5b5dbde1e56ced027f9f88f05cd2e4514b5736ba90a1410357",
+            }
+        },
+        "net": {"network": "repvit_m0_6", "tag": "il-common_reparameterized", "reparameterized": True},
+    },
+)

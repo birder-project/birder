@@ -9,7 +9,7 @@ license: apache-2.0
 
 # Model Card for deformable_detr_boxref_coco_convnext_v2_tiny_imagenet21k
 
-A Deformable DETR with box refinement object detection model with ConvNeXt v2 Tiny backbone (pre-trained on ImageNet-21k) and trained on COCO 2017 dataset.
+A Deformable DETR with box refinement object detection model with ConvNeXt v2 Tiny backbone (pretrained on ImageNet-21k) and trained on COCO 2017 dataset.
 
 **Custom Kernels**: This model uses optimized custom kernels for Soft-NMS and Deformable Attention operations. If you encounter compilation issues or prefer to use pure PyTorch implementations, set the environment variable `DISABLE_CUSTOM_KERNELS=1` before loading the model.
 

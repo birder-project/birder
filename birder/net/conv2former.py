@@ -196,7 +196,7 @@ class Conv2Former(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         self.stem_stride = 4
         self.stem_width = dims[0]
-        self.encoding_size = 1280
+        self.encoding_size = dims[-1]
 
         # Weight initialization
         for m in self.modules():

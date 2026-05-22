@@ -11,7 +11,7 @@ def _mask_token_omission(
     x: torch.Tensor, mask_ratio: float, kept_mask_ratio: Optional[float] = None
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
-    Apply a 1D mask to the input tensor using the MAE (Masked Autoencoder) style masking.
+    Apply a 1D mask to the input tensor using MAE-style masking
 
     Parameters
     ----------
@@ -110,7 +110,7 @@ def uniform_mask(
     device: Optional[torch.device] = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
-    Generate a uniform random mask for a batch of sequences.
+    Generate a uniform random mask for a batch of sequences
 
     Performs per-sample random masking by shuffling random noise. The mask can optionally
     keep a portion of the masked tokens (useful for certain training strategies).
@@ -210,7 +210,7 @@ def get_random_masked_indices(mask: torch.Tensor, n: int) -> torch.Tensor:
 
 def mask_from_indices(indices: torch.Tensor, seq_len: int) -> torch.Tensor:
     """
-    Indices return as 1's
+    Return a mask with indices set to 1
     """
 
     B = indices.size(0)
@@ -248,6 +248,30 @@ class UniformMasking(Masking):
 
 
 class BlockMasking(Masking):
+    """
+    Generate random block masks for a batch of patch grids
+
+    Samples a total number of masked patches between min_masking_patches and max_num_patches,
+    then fills that budget with one or more rectangular blocks. min_num_patches controls the
+    minimum area of an individual sampled block.
+
+    Parameters
+    ----------
+    input_size
+        The patch grid size as (height, width).
+    min_num_patches
+        The minimum number of patches in an individual sampled block.
+    max_num_patches
+        The maximum total number of masked patches per sample.
+        This also caps the size of an individual sampled block.
+    min_aspect
+        The minimum aspect ratio for sampled blocks.
+    max_aspect
+        The maximum aspect ratio for sampled blocks.
+    min_masking_patches
+        The minimum total number of masked patches per sample. If None, defaults to min_num_patches.
+    """
+
     # Adapted from: https://github.com/facebookresearch/dinov2/blob/main/dinov2/data/masking.py
 
     def __init__(
@@ -257,6 +281,7 @@ class BlockMasking(Masking):
         max_num_patches: int,
         min_aspect: float,
         max_aspect: float,
+        min_masking_patches: Optional[int] = None,
     ) -> None:
         self.height = input_size[0]
         self.width = input_size[1]
@@ -264,7 +289,10 @@ class BlockMasking(Masking):
         self.num_patches = self.height * self.width
         self.min_num_patches = min_num_patches
         self.max_num_patches = max_num_patches
+        if min_masking_patches is None:
+            min_masking_patches = min_num_patches
 
+        self.min_masking_patches = min_masking_patches
         self.log_aspect_ratio = (math.log(min_aspect), math.log(max_aspect))
 
     def get_shape(self) -> tuple[int, int]:
@@ -298,7 +326,7 @@ class BlockMasking(Masking):
         return delta
 
     def __call__(self, batch_size: int) -> torch.Tensor:
-        num_masking_patches = random.randint(self.min_num_patches, self.max_num_patches)
+        num_masking_patches = random.randint(self.min_masking_patches, self.max_num_patches)
         masks = []
         for _ in range(batch_size):
             mask = torch.zeros(*self.get_shape())

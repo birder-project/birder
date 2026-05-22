@@ -271,6 +271,28 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertTrue(model.encoder.block[2].norm1.weight.requires_grad)
         self.assertTrue(model.classifier.weight.requires_grad)
 
+        model = ViT(
+            3,
+            2,
+            config={
+                "patch_size": 32,
+                "num_layers": 12,
+                "num_heads": 8,
+                "hidden_dim": 128,
+                "mlp_dim": 512,
+                "num_reg_tokens": 0,
+                "drop_path_rate": 0.0,
+            },
+        )
+        frozen_layers = training_utils.freeze_layers_by_block_group_regex(model, 0)
+
+        self.assertEqual(frozen_layers, 0)
+        self.assertFalse(model.class_token.requires_grad)
+        self.assertFalse(model.pos_embedding.requires_grad)
+        self.assertFalse(model.conv_proj.weight.requires_grad)
+        self.assertTrue(model.encoder.block[0].norm1.weight.requires_grad)
+        self.assertTrue(model.classifier.weight.requires_grad)
+
         model = torch.nn.Sequential(
             torch.nn.Linear(4, 4),
             torch.nn.ReLU(),
