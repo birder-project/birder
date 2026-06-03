@@ -178,6 +178,11 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         config={"patch_size": 14, **MEDIUM},
     )
     registry.register_model_config(
+        "rope_vit_m14_swiglu_avg",
+        rope_vit,
+        config={"patch_size": 14, **MEDIUM, "class_token": False, "mlp_layer_type": "SwiGLU_FFN"},
+    )
+    registry.register_model_config(
         "rope_vit_b32",
         rope_vit,
         config={"patch_size": 32, **BASE, "drop_path_rate": 0.0},  # Override the BASE definition

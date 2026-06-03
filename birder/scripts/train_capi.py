@@ -440,7 +440,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     if args.load_states is True:
         if fsdp_mode is True:
             fsdp_utils.load_full_optimizer_state_dict(
-                student, optimizer, training_states.optimizer_state  # type: ignore[arg-type]
+                net, optimizer, training_states.optimizer_state  # type: ignore[arg-type]
             )
             fsdp_utils.load_full_optimizer_state_dict(
                 teacher,  # Not .head to keep FQN correct
@@ -559,6 +559,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
+        teacher.eval()
 
         # Clear metrics
         running_loss.clear()

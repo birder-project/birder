@@ -36,7 +36,7 @@ def _mask_token_omission(
     >>> import torch
     >>> x = torch.randn(2, 10, 5)  # Example input tensor
     >>> mask_ratio = 0.5
-    >>> (x_masked, mask, ids_keep, ids_restore) = _mask_token_omission(x, mask_ratio)
+    >>> x_masked, mask, ids_keep, ids_restore = _mask_token_omission(x, mask_ratio)
     >>> print(x_masked.size())  # Should print torch.Size([2, 5, 5])
     >>> print(mask.size())  # Should print torch.Size([2, 10])
     >>> print(ids_restore.size())  # Should print torch.Size([2, 10])

@@ -29,6 +29,14 @@ try:
 except ImportError:
     _HAS_ONNXSIM = False
 
+try:
+    import torch_tensorrt
+    import torch_tensorrt.dynamo
+
+    _HAS_TORCH_TENSORRT = True
+except (ImportError, RuntimeError):
+    _HAS_TORCH_TENSORRT = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -59,15 +67,9 @@ def reparameterize(
         )
 
 
-def pt2_export(
-    net: torch.nn.Module,
-    signature: SignatureType | DetectionSignatureType,
-    class_to_idx: dict[str, int],
-    rgb_stats: RGBType,
-    device: torch.device,
-    model_path: str | Path,
-    dynamic_size: bool,
-) -> None:
+def _pt2_export_input(
+    net: torch.nn.Module, signature: SignatureType | DetectionSignatureType, device: torch.device, dynamic_size: bool
+) -> tuple[torch.Tensor, dict[str, Any] | None]:
     sample_shape = signature["inputs"][0]["data_shape"]
     dynamic_shapes = None
     if net.task == Task.OBJECT_DETECTION:
@@ -92,13 +94,63 @@ def pt2_export(
             dynamic_shapes["x"][2] = height_dim
             dynamic_shapes["x"][3] = width_dim
 
+    return (torch.randn(*sample_shape, device=device), dynamic_shapes)
+
+
+def pt2_export(
+    net: torch.nn.Module,
+    signature: SignatureType | DetectionSignatureType,
+    class_to_idx: dict[str, int],
+    rgb_stats: RGBType,
+    device: torch.device,
+    model_path: str | Path,
+    dynamic_size: bool,
+) -> None:
+    sample_input, dynamic_shapes = _pt2_export_input(net, signature, device, dynamic_size)
+
     with torch.no_grad():
-        exported_net = torch.export.export(
-            net, (torch.randn(*sample_shape, device=device),), dynamic_shapes=dynamic_shapes, strict=True
-        )
+        exported_net = torch.export.export(net, (sample_input,), dynamic_shapes=dynamic_shapes, strict=True)
         exported_net = exported_net.run_decompositions(decomp_table={})
 
     fs_ops.save_pt2(exported_net, model_path, net.task, class_to_idx, signature, rgb_stats)
+
+
+def trt_export(
+    net: torch.nn.Module,
+    signature: SignatureType | DetectionSignatureType,
+    class_to_idx: dict[str, int],
+    rgb_stats: RGBType,
+    model_path: str | Path,
+    dynamic_size: bool,
+    require_full_compilation: bool,
+) -> None:
+    assert _HAS_TORCH_TENSORRT, "'pip install torch-tensorrt' to use --trt"
+
+    device = torch.device("cuda")
+    net.to(device)
+    sample_input, dynamic_shapes = _pt2_export_input(net, signature, device, dynamic_size)
+
+    compile_kwargs: dict[str, Any] = {"require_full_compilation": require_full_compilation}
+
+    with torch.no_grad():
+        exported_net = torch.export.export(net, (sample_input,), dynamic_shapes=dynamic_shapes, strict=True)
+        exported_net = exported_net.run_decompositions(decomp_table={})
+        trt_net = torch_tensorrt.dynamo.compile(exported_net, (sample_input,), **compile_kwargs)
+
+    torch_tensorrt.save(
+        trt_net,
+        str(model_path),
+        output_format="exported_program",
+        arg_inputs=[sample_input],
+        dynamic_shapes=dynamic_shapes,
+        extra_files={
+            "birder_version": __version__,
+            "task": net.task,
+            "class_to_idx": json.dumps(class_to_idx),
+            "signature": json.dumps(signature),
+            "rgb_stats": json.dumps(rgb_stats),
+        },
+    )
 
 
 def onnx_export(
@@ -200,6 +252,7 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools convert-model --network shufflenet_v2_2_0 --epoch 200 --pts\n"
             "python -m birder.tools convert-model --network squeezenet --epoch 100 --onnx\n"
             "python -m birder.tools convert-model -n mobilevit_v2_1_5 -t intermediate -e 80 --pt2\n"
+            "python -m birder.tools convert-model -n efficientnet_v2_s -e 100 --trt --trt-full\n"
             "python -m birder.tools convert-model -n efficientnet_v2_m -e 0 --lite\n"
             "python -m birder.tools convert-model --network faster_rcnn --backbone resnext_101 -e 0 --pts\n"
         ),
@@ -244,7 +297,7 @@ def set_parser(subparsers: Any) -> None:
         "--dynamic-size",
         default=False,
         action="store_true",
-        help="export with dynamic input H/W (applies to --pt2 and --onnx)",
+        help="export with dynamic input H/W (applies to --pt2, --trt and --onnx)",
     )
     subparser.add_argument("--opset", type=int, default=20, help="ONNX opset version (applies only to --onnx)")
     subparser.add_argument(
@@ -252,6 +305,12 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument(
         "--simplify", default=False, action="store_true", help="enable ONNX simplification (applies only to --onnx)"
+    )
+    subparser.add_argument(
+        "--trt-full",
+        default=False,
+        action="store_true",
+        help="require full Torch-TensorRT compilation with no PyTorch fallback",
     )
     subparser.add_argument("--force", action="store_true", help="override existing model")
 
@@ -273,6 +332,9 @@ def set_parser(subparsers: Any) -> None:
     )
     format_group.add_argument(
         "--pt2", default=False, action="store_true", help="convert to standardized model representation"
+    )
+    format_group.add_argument(
+        "--trt", "--tensorrt", default=False, action="store_true", help="convert to Torch-TensorRT PT2 format"
     )
     format_group.add_argument(
         "--st", "--safetensors", default=False, action="store_true", help="convert to Safetensors"
@@ -346,6 +408,7 @@ def main(args: argparse.Namespace) -> None:
         pts=args.pts,
         lite=args.lite,
         pt2=args.pt2,
+        trt=args.trt,
         st=args.st,
         onnx=args.onnx,
     )
@@ -454,6 +517,9 @@ def main(args: argparse.Namespace) -> None:
 
     elif args.pt2 is True:
         pt2_export(net, signature, class_to_idx, rgb_stats, device, model_path, args.dynamic_size)
+
+    elif args.trt is True:
+        trt_export(net, signature, class_to_idx, rgb_stats, model_path, args.dynamic_size, args.trt_full)
 
     elif args.st is True:
         fs_ops.save_st(

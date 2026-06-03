@@ -138,6 +138,9 @@ class TestFSOps(unittest.TestCase):
         path = fs_ops.model_path("net", pt2=True)
         self.assertEqual(path, settings.MODELS_DIR.joinpath("net.pt2"))
 
+        path = fs_ops.model_path("net", trt=True)
+        self.assertEqual(path, settings.MODELS_DIR.joinpath("net.trt.pt2"))
+
         path = fs_ops.model_path("net", st=True)
         self.assertEqual(path, settings.MODELS_DIR.joinpath("net.safetensors"))
 

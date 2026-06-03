@@ -18,7 +18,7 @@ Birder supports this for both classification and detection.
 import birder
 from birder.inference.classification import infer_image
 
-(net, model_info, transform) = birder.load_pretrained_model_and_transform(
+net, model_info, transform = birder.load_pretrained_model_and_transform(
     "vit_l14_pn_bioclip-v2",
     inference=True,
 )
@@ -38,7 +38,7 @@ probs, embedding = infer_image(net, "data/img_001.jpeg", transform, return_embed
 import birder
 from birder.inference.detection import infer_image
 
-(net, model_info, transform) = birder.load_pretrained_model_and_transform(
+net, model_info, transform = birder.load_pretrained_model_and_transform(
     "deformable_detr_boxref_coco_convnext_v2_tiny_imagenet21k",
     inference=True,
 )

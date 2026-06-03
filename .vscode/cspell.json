@@ -324,6 +324,7 @@
     "swin",
     "swintransformer",
     "tensorboard",
+    "tensorrt",
     "topk",
     "torchao",
     "torchinfo",

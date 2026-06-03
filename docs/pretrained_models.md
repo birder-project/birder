@@ -101,5 +101,5 @@ birder.list_pretrained_models("*eu-common*")
 Load a pretrained model (downloading if not available locally):
 
 ```python
-(net, model_info) = birder.load_pretrained_model("xcit_nano12_p16_il-common", inference=True)
+net, model_info = birder.load_pretrained_model("xcit_nano12_p16_il-common", inference=True)
 ```

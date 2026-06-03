@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.3 - 2026-06-03
+
+### Added
+
+- **Torch-TensorRT Export**: Added `--trt` / `--tensorrt` support to `python -m birder.tools convert-model`, saving Torch-TensorRT exported-program artifacts as `.trt.pt2` files with Birder metadata.
+- **Pretrained Models**:
+    - `resnet_v2_50_inat21` and `resnet_v2_50_inat21-256px`: Added ResNet v2 50 pretrained weights on the iNaturalist 2021 dataset.
+    - `maxvit_s_il-all` and `maxvit_s_il-all256px`: Added MaxViT small pretrained weights on the `il-all` dataset.
+
+### Fixed
+
+- **Registered Model Configs**: Fixed registered model config handling so per-instance config overrides do not mutate shared registered defaults.
+- **CAPI FSDP Resume**: Fixed CAPI FSDP optimizer-state loading to use the same module root as checkpoint saving.
+
 ## 0.5.2 - 2026-05-22
 
 ### Added

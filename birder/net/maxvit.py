@@ -774,3 +774,34 @@ registry.register_model_config(
         "drop_path_rate": 0.5,
     },
 )
+
+registry.register_weights(
+    "maxvit_s_il-all256px",
+    {
+        "url": "https://huggingface.co/birder-project/maxvit_s_il-all/resolve/main",
+        "description": "MaxViT small trained on the il-all dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 119.6,
+                "sha256": "98dab86e4c5484746e44d5cdc930b6d34faeebbf33a328d9a9267a618b71c226",
+            }
+        },
+        "net": {"network": "maxvit_s", "tag": "il-all256px"},
+    },
+)
+registry.register_weights(
+    "maxvit_s_il-all",
+    {
+        "url": "https://huggingface.co/birder-project/maxvit_s_il-all/resolve/main",
+        "description": "MaxViT small trained on the il-all dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 122.6,
+                "sha256": "61200471d4279b8782b7136f3d65cafcdb92002af1f6c90fdac9d13dde0d1009",
+            }
+        },
+        "net": {"network": "maxvit_s", "tag": "il-all"},
+    },
+)

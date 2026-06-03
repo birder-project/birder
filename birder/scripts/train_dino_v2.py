@@ -280,8 +280,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         config={
             "dino_out_dim": args.dino_out_dim,
             "use_bn": False,
-            "num_layers": 3,
-            "hidden_dim": 2048,
+            "num_layers": args.dino_head_layers,
+            "hidden_dim": args.dino_head_hidden_dim,
             "head_bottleneck_dim": args.head_bottleneck_dim,
             "ibot_separate_head": args.ibot_separate_head,
             "ibot_out_dim": args.ibot_out_dim,
@@ -292,8 +292,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         config={
             "dino_out_dim": args.dino_out_dim,
             "use_bn": False,
-            "num_layers": 3,
-            "hidden_dim": 2048,
+            "num_layers": args.dino_head_layers,
+            "hidden_dim": args.dino_head_hidden_dim,
             "head_bottleneck_dim": args.head_bottleneck_dim,
             "ibot_separate_head": args.ibot_separate_head,
             "ibot_out_dim": args.ibot_out_dim,
@@ -696,6 +696,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
+        teacher.eval()
 
         # Clear metrics
         running_loss.clear()
@@ -1193,6 +1194,8 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--dino-loss-weight", type=float, default=1.0, help="weight for the DINO loss component")
     parser.add_argument("--dino-out-dim", type=int, default=65536, help="dimensionality of the DINO head output")
+    parser.add_argument("--dino-head-layers", type=int, default=3, help="number of DINO head layers")
+    parser.add_argument("--dino-head-hidden-dim", type=int, default=2048, help="DINO head hidden dimensionality")
     parser.add_argument("--head-bottleneck-dim", type=int, default=256, help="dimensionality of heads output")
     parser.add_argument("--koleo-loss-weight", type=float, default=0.1, help="weight for the KoLeo regularization loss")
     parser.add_argument("--ibot-loss-weight", type=float, default=1.0, help="weight for the iBOT loss component")

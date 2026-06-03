@@ -475,7 +475,7 @@ def print_datasets_stats(_ctx):
 
 
 @task
-def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False):
+def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False, size=None):
     """
     Append models to benchmark
     """
@@ -485,9 +485,14 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False):
     else:
         model_selector = f"--filter '{fn}'"
 
+    if size is None:
+        size_arg = ""
+    else:
+        size_arg = f" --size {size}"
+
     # CPU
     ctx.run(
-        f"python -m birder.scripts.benchmark {model_selector} --suffix {suffix} --append",
+        f"python -m birder.scripts.benchmark {model_selector}{size_arg} --suffix {suffix} --append",
         echo=True,
         pty=True,
         warn=True,
@@ -495,8 +500,8 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False):
 
     # CPU single thread
     ctx.run(
-        f"python -m birder.scripts.benchmark {model_selector} --repeats 2 --bench-iter 50 --single-thread "
-        f"--suffix {suffix} --append",
+        f"python -m birder.scripts.benchmark {model_selector} --repeats 2 --bench-iter 50 "
+        f"--single-thread{size_arg} --suffix {suffix} --append",
         echo=True,
         pty=True,
         warn=True,
@@ -504,7 +509,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False):
 
     # Compiled CPU
     ctx.run(
-        f"python -m birder.scripts.benchmark {model_selector} --compile --suffix {suffix} --append",
+        f"python -m birder.scripts.benchmark {model_selector}{size_arg} --compile --suffix {suffix} --append",
         echo=True,
         pty=True,
         warn=True,
@@ -512,7 +517,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False):
 
     # Compiled CPU with AMP
     ctx.run(
-        f"python -m birder.scripts.benchmark {model_selector} --compile --amp --suffix {suffix} --append",
+        f"python -m birder.scripts.benchmark {model_selector}{size_arg} --compile --amp --suffix {suffix} --append",
         echo=True,
         pty=True,
         warn=True,
@@ -520,8 +525,8 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False):
 
     # CUDA
     ctx.run(
-        f"python -m birder.scripts.benchmark {model_selector} --bench-iter 50 --max-batch-size 512 "
-        f"--gpu --gpu-id {gpu_id} --fast-matmul --suffix {suffix} --append",
+        f"python -m birder.scripts.benchmark {model_selector} --bench-iter 50 "
+        f"--max-batch-size 512{size_arg} --gpu --gpu-id {gpu_id} --fast-matmul --suffix {suffix} --append",
         echo=True,
         pty=True,
         warn=True,
@@ -529,8 +534,8 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False):
 
     # Compiled CUDA
     ctx.run(
-        f"python -m birder.scripts.benchmark {model_selector} --bench-iter 50 --max-batch-size 512 "
-        f"--compile --gpu --gpu-id {gpu_id} --fast-matmul --suffix {suffix} --append",
+        f"python -m birder.scripts.benchmark {model_selector} --bench-iter 50 "
+        f"--max-batch-size 512{size_arg} --compile --gpu --gpu-id {gpu_id} --fast-matmul --suffix {suffix} --append",
         echo=True,
         pty=True,
         warn=True,
@@ -538,8 +543,8 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False):
 
     # Compiled CUDA with AMP
     ctx.run(
-        f"python -m birder.scripts.benchmark {model_selector} --bench-iter 50 --max-batch-size 512 "
-        f"--compile --gpu --gpu-id {gpu_id} --amp --suffix {suffix} --append",
+        f"python -m birder.scripts.benchmark {model_selector} --bench-iter 50 "
+        f"--max-batch-size 512{size_arg} --compile --gpu --gpu-id {gpu_id} --amp --suffix {suffix} --append",
         echo=True,
         pty=True,
         warn=True,
@@ -547,7 +552,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False):
 
     # CUDA Memory
     ctx.run(
-        f"python -m birder.scripts.benchmark {model_selector} --max-batch-size 1 "
+        f"python -m birder.scripts.benchmark {model_selector} --max-batch-size 1{size_arg} "
         f"--gpu --gpu-id {gpu_id} --fast-matmul --memory --suffix {suffix} --append",
         echo=True,
         pty=True,

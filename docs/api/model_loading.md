@@ -19,7 +19,7 @@ Use this rule of thumb:
 import birder
 
 # Works for both classification and detection weights
-(net, model_info, transform) = birder.load_pretrained_model_and_transform(
+net, model_info, transform = birder.load_pretrained_model_and_transform(
     "vit_l14_pn_bioclip-v2",
     inference=True,
 )
@@ -36,7 +36,7 @@ Why this is usually the best default:
 ```python
 import birder
 
-(net, model_info) = birder.load_pretrained_model("vit_l14_pn_bioclip-v2", inference=True)
+net, model_info = birder.load_pretrained_model("vit_l14_pn_bioclip-v2", inference=True)
 ```
 
 Use this path when you need to tune preprocessing behavior for experiments.

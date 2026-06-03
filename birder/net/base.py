@@ -1,3 +1,4 @@
+import copy
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -145,7 +146,11 @@ class BaseNet(nn.Module):
         self.num_classes = num_classes
         if hasattr(self, "config") is False:  # Avoid overriding registered configs
             self.config = config
-        elif config is not None:
+        else:
+            if self.config is not None:
+                self.config = copy.deepcopy(self.config)  # Avoid mutating registered configs
+
+        if config is not None:
             assert self.config is not None
             self.config.update(config)  # Override with custom config
 
@@ -207,6 +212,7 @@ class BaseNet(nn.Module):
         Override this when one time adjustments for different resolutions is required.
         This should run after load_state_dict.
         """
+
         if new_size == self.size:
             return
 

@@ -1,6 +1,6 @@
 # Convert Model
 
-The `convert-model` tool allows you to convert PyTorch models to various formats, including TorchScript, TorchScript lite interpreter, pt2 standardized model representation, ONNX, Safetensors and reparameterized models. This tool is essential for deployment in different environments and for optimizing model performance.
+The `convert-model` tool allows you to convert PyTorch models to various formats, including TorchScript, TorchScript lite interpreter, pt2 standardized model representation, Torch-TensorRT pt2, ONNX, Safetensors and reparameterized models. This tool is essential for deployment in different environments and for optimizing model performance.
 
 ## Usage
 
@@ -23,6 +23,7 @@ Birder provides flexibility in converting models to different formats, each serv
 - **TorchScript (--pts)**: For deployment in production environments that support TorchScript
 - **TorchScript lite interpreter (--lite)**: For deployment on mobile or edge devices with limited resources
 - **pt2 (--pt2)**: The standardized model representation in PyTorch 2.0, offering improved performance and compatibility
+- **Torch-TensorRT (--trt)**: For TensorRT-accelerated CUDA deployment, saved as an exported-program pt2 file
 - **ONNX (--onnx)**: For cross-platform machine learning interoperability
 - **Safetensors (--st)**: For a safer and potentially faster model storage format
 - **Reparameterized (--reparameterize)**: For optimizing model architecture and potentially improving inference performance
@@ -30,6 +31,7 @@ Birder provides flexibility in converting models to different formats, each serv
 All converted formats, except for the reparameterized option, are standalone, containing both the computation graph and weights, unlike the normal PyTorch (.pt) format. This makes them suitable for deployment without requiring the original model definition.
 
 The pt2 format supports `torch.compile`, enabling further optimizations and potential performance improvements.
+The Torch-TensorRT format requires CUDA and `torch-tensorrt` at conversion and runtime. It uses the same default PT2 export shapes as `--pt2`, use `--trt-full` to require every supported graph segment to compile with TensorRT and fail instead of falling back to PyTorch.
 
 ## Additional Features
 

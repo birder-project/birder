@@ -29,7 +29,7 @@ Use this when you intentionally want custom preprocessing behavior.
 ```python
 import birder
 
-(net, model_info) = birder.load_pretrained_model("hiera_abswin_base_mim-intermediate-eu-common", inference=True)
+net, model_info = birder.load_pretrained_model("hiera_abswin_base_mim-intermediate-eu-common", inference=True)
 size = birder.get_size_from_signature(model_info.signature)
 transform = birder.classification_transform(
     size,
@@ -44,7 +44,7 @@ transform = birder.classification_transform(
 ```python
 import birder
 
-(net, model_info) = birder.load_pretrained_model(
+net, model_info = birder.load_pretrained_model(
     "deformable_detr_boxref_coco_convnext_v2_tiny_imagenet21k",
     inference=True,
 )

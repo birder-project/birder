@@ -1,3 +1,4 @@
+import copy
 from typing import Any
 from typing import Optional
 from typing import TypedDict
@@ -56,7 +57,11 @@ class MIMBaseNet(nn.Module):
         self.min_mask_size = min_mask_size
         if hasattr(self, "config") is False:  # Avoid overriding registered configs
             self.config = config
-        elif config is not None:
+        else:
+            if self.config is not None:
+                self.config = copy.deepcopy(self.config)  # Avoid mutating registered configs
+
+        if config is not None:
             assert self.config is not None
             self.config.update(config)  # Override with custom config
 

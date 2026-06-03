@@ -14,7 +14,7 @@ class SoftNMS:
 
     Example:
         >>> soft_nms = SoftNMS()  # Kernel loads here
-        >>> (keep, scores) = soft_nms(boxes, scores, idxs, sigma=0.5)
+        >>> keep, scores = soft_nms(boxes, scores, idxs, sigma=0.5)
     """
 
     def __init__(self) -> None:

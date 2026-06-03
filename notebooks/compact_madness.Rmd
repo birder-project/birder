@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.19.2
+      jupytext_version: 1.19.3
   kernelspec:
     display_name: birder
     language: python
@@ -85,16 +85,21 @@ SSL_METHODS = {
     "vicreg",
 }
 
-NON_SSL_TAG_PREFIXES = {
+CLIP_METHOD_MARKERS = {"clip", "siglip", "coca"}
+CLIP_METHODS = {
     "bioclip-v1",
     "bioclip-v2",
     "bioclip-v25",
     "biotrove-clip-o",
-    "mim",
     "openai-clip",
     "pe-core",
     "siglip-v2",
     "tips-v2",
+}
+
+NON_SSL_TAG_PREFIXES = {
+    *CLIP_METHODS,
+    "mim",
 }
 
 TAG_PREFIXES = sorted(SSL_METHODS | NON_SSL_TAG_PREFIXES, key=len, reverse=True)
@@ -125,6 +130,7 @@ class ModelMetadata:
     reparameterized: bool
     intermediate: bool
     mim: bool
+    clip: bool
     distilled: bool
     ssl: bool
 ```
@@ -190,6 +196,15 @@ def _split_tag_prefix(tag: Optional[str]) -> tuple[Optional[str], Optional[str]]
 ```
 
 ```{python}
+def _is_clip_method(training_method: Optional[str], tag_tokens: set[str]) -> bool:
+    method_tokens = set()
+    if training_method is not None:
+        method_tokens = set(re.split(r"[_-]", training_method))
+
+    return len(CLIP_METHOD_MARKERS & method_tokens) > 0 or len(CLIP_METHOD_MARKERS & tag_tokens) > 0
+```
+
+```{python}
 def infer_model_metadata(model_id: str, registered_architectures: list[str]) -> ModelMetadata:
     architecture_id = _find_architecture_id(model_id, registered_architectures)
     tag = None
@@ -201,6 +216,7 @@ def infer_model_metadata(model_id: str, registered_architectures: list[str]) -> 
     reparameterized = "reparameterized" in tag_tokens
     intermediate = "intermediate" in tag_tokens
     mim = training_method == "mim" or "mim" in tag_tokens
+    clip = training_method in CLIP_METHODS or _is_clip_method(training_method, tag_tokens)
     distilled = "dist" in tag_tokens or training_method == "dino-v2-dist"
     ssl = training_method in SSL_METHODS
 
@@ -213,6 +229,7 @@ def infer_model_metadata(model_id: str, registered_architectures: list[str]) -> 
         reparameterized=reparameterized,
         intermediate=intermediate,
         mim=mim,
+        clip=clip,
         distilled=distilled,
         ssl=ssl,
     )
@@ -303,6 +320,7 @@ compare_results_df = compare_results_df.with_columns(
     pl.Series("Reparameterized", [metadata_by_model[parsed.model_id].reparameterized for parsed in parsed_names]),
     pl.Series("Intermediate", [metadata_by_model[parsed.model_id].intermediate for parsed in parsed_names]),
     pl.Series("MIM", [metadata_by_model[parsed.model_id].mim for parsed in parsed_names]),
+    pl.Series("CLIP", [metadata_by_model[parsed.model_id].clip for parsed in parsed_names]),
     pl.Series("Distilled", [metadata_by_model[parsed.model_id].distilled for parsed in parsed_names]),
     pl.Series("Self-supervised learning", [metadata_by_model[parsed.model_id].ssl for parsed in parsed_names]),
 )
@@ -348,6 +366,7 @@ def plot_acc_param(param_compare_results_df: pl.DataFrame, width: int = 900, hei
         "Pareto frontier (p)",
         "Intermediate",
         "MIM",
+        "CLIP",
         "Distilled",
     )
     base = df.plot.point(
@@ -364,6 +383,7 @@ def plot_acc_param(param_compare_results_df: pl.DataFrame, width: int = 900, hei
             "Resolution",
             "Intermediate",
             "MIM",
+            "CLIP",
             "Distilled",
         ],
     )
@@ -391,6 +411,7 @@ def plot_acc_memory(memory_compare_results_df: pl.DataFrame, width: int = 900, h
         "Pareto frontier (mem)",
         "Intermediate",
         "MIM",
+        "CLIP",
         "Distilled",
     )
     base = df.plot.point(
@@ -408,6 +429,7 @@ def plot_acc_memory(memory_compare_results_df: pl.DataFrame, width: int = 900, h
             "Resolution",
             "Intermediate",
             "MIM",
+            "CLIP",
             "Distilled",
         ],
     )
@@ -439,6 +461,7 @@ def plot_acc_rate(rate_compare_results_df: pl.DataFrame, width: int = 900, heigh
         "Pareto frontier (ms)",
         "Intermediate",
         "MIM",
+        "CLIP",
         "Distilled",
     )
     base = df.plot.point(
@@ -456,6 +479,7 @@ def plot_acc_rate(rate_compare_results_df: pl.DataFrame, width: int = 900, heigh
             "Resolution",
             "Intermediate",
             "MIM",
+            "CLIP",
             "Distilled",
         ],
     )

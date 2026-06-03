@@ -144,6 +144,7 @@ def model_path(
     pts: bool = False,
     lite: bool = False,
     pt2: bool = False,
+    trt: bool = False,
     st: bool = False,
     onnx: bool = False,
     states: bool = False,
@@ -164,6 +165,8 @@ def model_path(
         file_name = f"{file_name}_states.pt"
     elif lite is True:
         file_name = f"{file_name}.ptl"
+    elif trt is True:
+        file_name = f"{file_name}.trt.pt2"
     elif pt2 is True:
         file_name = f"{file_name}.pt2"
     elif st is True:
@@ -962,8 +965,8 @@ def load_pretrained_model(
 
     Examples
     --------
-    >>> (net, model_info) = load_pretrained_model("mobilenet_v4_l_eu-common")
-    >>> (net, model_info) = load_pretrained_model(
+    >>> net, model_info = load_pretrained_model("mobilenet_v4_l_eu-common")
+    >>> net, model_info = load_pretrained_model(
     ...     "rdnet_s_arabian-peninsula", inference=True, device=torch.device("cuda"))
     """
 

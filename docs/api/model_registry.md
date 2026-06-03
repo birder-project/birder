@@ -56,7 +56,7 @@ For inference workflows, use the top-level loader and let Birder handle model se
 ```python
 import birder
 
-(net, model_info) = birder.load_pretrained_model("vit_l14_pn_bioclip-v2", inference=True)
+net, model_info = birder.load_pretrained_model("vit_l14_pn_bioclip-v2", inference=True)
 ```
 
 Use registry metadata to compare candidate checkpoints before loading:
@@ -123,7 +123,7 @@ registry.register_weights(
     },
 )
 
-(net, model_info) = birder.load_pretrained_model("rope_vit_reg4_b14_custom_plankton", inference=True)
+net, model_info = birder.load_pretrained_model("rope_vit_reg4_b14_custom_plankton", inference=True)
 ```
 
 Use the same entry name and file stem (for example, `rope_vit_reg4_b14_custom_plankton.pt`) so default loading resolves cleanly.

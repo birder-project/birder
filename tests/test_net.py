@@ -275,6 +275,19 @@ class TestBase(unittest.TestCase):
         classifier = base_net.create_classifier(embed_dim=10, mlp_head=False)
         self.assertIsInstance(classifier, torch.nn.Linear)
 
+    def test_config_override_does_not_mutate_registered_config(self) -> None:
+        class RegisteredNet(base.BaseNet):  # pylint: disable=abstract-method
+            config = {"name": "registered", "nested": {"value": 1}}
+
+        net = RegisteredNet(DEFAULT_NUM_CHANNELS, num_classes=2, config={"name": "override"})
+        net.config["nested"]["value"] = 2
+        next_net = RegisteredNet(DEFAULT_NUM_CHANNELS, num_classes=2)
+
+        self.assertEqual(net.config["name"], "override")
+        self.assertEqual(next_net.config["name"], "registered")
+        self.assertEqual(next_net.config["nested"]["value"], 1)
+        self.assertEqual(RegisteredNet.config["nested"]["value"], 1)
+
 
 class TestNet(unittest.TestCase):
     @parameterized.expand(NET_TEST_CASES)  # type: ignore[untyped-decorator]

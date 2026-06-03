@@ -1,3 +1,4 @@
+import copy
 import math
 from collections import OrderedDict
 from collections.abc import Callable
@@ -71,7 +72,11 @@ class DetectionBaseNet(nn.Module):
         self.backbone.transform_to_backbone()
         if hasattr(self, "config") is False:  # Avoid overriding registered configs
             self.config = config
-        elif config is not None:
+        else:
+            if self.config is not None:
+                self.config = copy.deepcopy(self.config)  # Avoid mutating registered configs
+
+        if config is not None:
             assert self.config is not None
             self.config.update(config)  # Override with custom config
 

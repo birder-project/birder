@@ -106,7 +106,7 @@ import birder
 from birder.inference.classification import infer_image
 
 # Load a pretrained model
-(net, model_info) = birder.load_pretrained_model("mvit_v2_t_il-all", inference=True)
+net, model_info = birder.load_pretrained_model("mvit_v2_t_il-all", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -116,7 +116,7 @@ transform = birder.classification_transform(size, model_info.rgb_stats)
 
 # Perform inference on an image
 image = "data/img_001.jpeg"  # Path to your image
-(out, _) = infer_image(net, image, transform)
+out, _ = infer_image(net, image, transform)
 ```
 
 Alternatively, you can load Birder models directly using Torch Hub:
