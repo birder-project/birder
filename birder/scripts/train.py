@@ -151,7 +151,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         else:
             dataset_cls = ImageFolder
 
-        training_dataset = dataset_cls(args.data_path, transform=training_transform, loader=image_loader)
+        training_dataset = dataset_cls(
+            args.data_path,
+            transform=training_transform,
+            loader=image_loader,
+            allow_empty=args.allow_empty,
+        )
         validation_dataset = dataset_cls(
             args.val_path,
             transform=val_transform,
@@ -951,7 +956,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_checkpoint_args(parser, default_save_frequency=5, pretrained=True)
     training_cli.add_distributed_args(parser)
     training_cli.add_logging_and_debug_args(parser, classification=True)
-    training_cli.add_training_data_args(parser)
+    training_cli.add_training_data_args(parser, allow_empty=True)
 
     return parser
 

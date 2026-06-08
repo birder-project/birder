@@ -25,39 +25,51 @@ logger = logging.getLogger(__name__)
 FreezeScopeName = Literal["backbone", "encoder"]
 
 
-def add_compile_args(parser: argparse.ArgumentParser, teacher: bool = False, backbone: bool = False) -> None:
-    group = parser.add_argument_group("Compilation parameters")
-    group.add_argument("--compile", default=False, action="store_true", help="enable compilation")
-    group.add_argument("--compile-fullgraph", default=False, action="store_true", help="compile using fullgraph=True")
-    group.add_argument(
-        "--compile-mode", type=str, choices=list(torch._inductor.list_mode_options().keys()), help="torch.compile mode"
-    )
-    if teacher is True:
+def add_freeze_args(
+    parser: argparse.ArgumentParser,
+    model: bool = False,
+    scope_name: Optional[FreezeScopeName] = None,
+    unfreeze_features: bool = False,
+) -> None:
+    group = parser.add_argument_group("Freeze parameters")
+    if model is True:
         group.add_argument(
-            "--compile-teacher", default=False, action="store_true", help="enable teacher only compilation"
+            "--freeze-body",
+            default=False,
+            action="store_true",
+            help="freeze all layers of the model except the classification head",
         )
-    if backbone is True:
+        if scope_name is None:
+            group.add_argument("--freeze-stages", type=int, metavar="N", help="number of model stages to freeze")
+            group.add_argument(
+                "--freeze-layers",
+                type=int,
+                metavar="N",
+                help="number of regex-matched block groups to freeze (requires model block_group_regex support)",
+            )
+
+    if scope_name is not None:
+        group.add_argument(f"--freeze-{scope_name}", default=False, action="store_true", help=f"freeze {scope_name}")
         group.add_argument(
-            "--compile-backbone", default=False, action="store_true", help="enable backbone only compilation"
+            f"--freeze-{scope_name}-stages", type=int, metavar="N", help=f"number of {scope_name} stages to freeze"
+        )
+        group.add_argument(
+            f"--freeze-{scope_name}-layers",
+            type=int,
+            metavar="N",
+            help=(
+                f"number of regex-matched {scope_name} block groups to freeze "
+                "(requires model block_group_regex support)"
+            ),
         )
 
-    group.add_argument(
-        "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
-    )
-    group.add_argument(
-        "--compile-recompile-limit",
-        type=int,
-        default=torch.compiler.config.recompile_limit,
-        metavar="N",
-        help="maximum recompilations per compiled function before eager fallback",
-    )
-    group.add_argument(
-        "--compile-accumulated-recompile-limit",
-        type=int,
-        default=torch.compiler.config.accumulated_recompile_limit,
-        metavar="N",
-        help="maximum total recompilations across compiled functions",
-    )
+    if unfreeze_features is True:
+        group.add_argument(
+            "--unfreeze-features",
+            default=False,
+            action="store_true",
+            help="unfreeze features layer (only relevant when freezing body)",
+        )
 
 
 def add_optimization_args(parser: argparse.ArgumentParser, default_batch_size: int = 32) -> None:
@@ -185,6 +197,76 @@ def add_lr_scheduler_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def add_training_schedule_args(parser: argparse.ArgumentParser, default_epochs: int = 100) -> None:
+    group = parser.add_argument_group("Training schedule parameters")
+    group.add_argument("--epochs", type=int, default=default_epochs, metavar="N", help="number of training epochs")
+    group.add_argument(
+        "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi stage training)"
+    )
+    group.add_argument(
+        "--steps-per-epoch",
+        type=int,
+        metavar="N",
+        help="virtual epoch length in steps, leave unset to use the full dataset",
+    )
+    group.add_argument("--warmup-epochs", type=int, metavar="N", help="number of warmup epochs")
+    group.add_argument("--warmup-steps", type=int, metavar="N", help="number of warmup optimizer steps")
+    group.add_argument("--cooldown-epochs", type=int, metavar="N", help="number of cooldown epochs (linear to zero)")
+    group.add_argument(
+        "--cooldown-steps", type=int, metavar="N", help="number of cooldown optimizer steps (linear to zero)"
+    )
+
+
+def add_ema_args(
+    parser: argparse.ArgumentParser, default_ema_steps: int = 32, default_ema_decay: float = 0.9999
+) -> None:
+    group = parser.add_argument_group("Exponential moving average parameters")
+    group.add_argument(
+        "--model-ema",
+        default=False,
+        action="store_true",
+        help="enable tracking exponential moving average of model parameters",
+    )
+    group.add_argument(
+        "--model-ema-steps",
+        type=int,
+        default=default_ema_steps,
+        metavar="N",
+        help="number of optimizer steps between EMA updates",
+    )
+    group.add_argument(
+        "--model-ema-decay",
+        type=float,
+        default=default_ema_decay,
+        help="decay factor for exponential moving average of model parameters",
+    )
+    group.add_argument(
+        "--model-ema-warmup",
+        type=int,
+        metavar="N",
+        help="number of epochs/steps before EMA is applied (defaults to warmup epochs/steps, pass 0 to disable warmup)",
+    )
+
+
+def add_batch_norm_args(parser: argparse.ArgumentParser, backbone_freeze: bool = False) -> None:
+    group = parser.add_argument_group("Batch normalization parameters")
+    group.add_argument(
+        "--freeze-bn",
+        default=False,
+        action="store_true",
+        help="freeze all batch statistics and affine parameters of batchnorm2d layers",
+    )
+    if backbone_freeze is True:
+        group.add_argument(
+            "--freeze-backbone-bn",
+            default=False,
+            action="store_true",
+            help="freeze all batch statistics and affine parameters of batchnorm2d layers (backbone only)",
+        )
+
+    group.add_argument("--sync-bn", default=False, action="store_true", help="use synchronized BatchNorm")
+
+
 def add_input_args(parser: argparse.ArgumentParser, size_help: Optional[str] = None) -> None:
     group = parser.add_argument_group("Input parameters")
     if size_help is None:
@@ -248,92 +330,6 @@ def add_detection_input_args(parser: argparse.ArgumentParser) -> None:
             "--multiscale-step (defaults to the preset or max(--size) for --batch-multiscale)"
         ),
     )
-
-
-def add_training_schedule_args(parser: argparse.ArgumentParser, default_epochs: int = 100) -> None:
-    group = parser.add_argument_group("Training schedule parameters")
-    group.add_argument("--epochs", type=int, default=default_epochs, metavar="N", help="number of training epochs")
-    group.add_argument(
-        "--stop-epoch", type=int, metavar="N", help="epoch to stop the training at (multi stage training)"
-    )
-    group.add_argument(
-        "--steps-per-epoch",
-        type=int,
-        metavar="N",
-        help="virtual epoch length in steps, leave unset to use the full dataset",
-    )
-    group.add_argument("--warmup-epochs", type=int, metavar="N", help="number of warmup epochs")
-    group.add_argument("--warmup-steps", type=int, metavar="N", help="number of warmup optimizer steps")
-    group.add_argument("--cooldown-epochs", type=int, metavar="N", help="number of cooldown epochs (linear to zero)")
-    group.add_argument(
-        "--cooldown-steps", type=int, metavar="N", help="number of cooldown optimizer steps (linear to zero)"
-    )
-
-
-def add_freeze_args(
-    parser: argparse.ArgumentParser,
-    model: bool = False,
-    scope_name: Optional[FreezeScopeName] = None,
-    unfreeze_features: bool = False,
-) -> None:
-    group = parser.add_argument_group("Freeze parameters")
-    if model is True:
-        group.add_argument(
-            "--freeze-body",
-            default=False,
-            action="store_true",
-            help="freeze all layers of the model except the classification head",
-        )
-        if scope_name is None:
-            group.add_argument("--freeze-stages", type=int, metavar="N", help="number of model stages to freeze")
-            group.add_argument(
-                "--freeze-layers",
-                type=int,
-                metavar="N",
-                help="number of regex-matched block groups to freeze (requires model block_group_regex support)",
-            )
-
-    if scope_name is not None:
-        group.add_argument(f"--freeze-{scope_name}", default=False, action="store_true", help=f"freeze {scope_name}")
-        group.add_argument(
-            f"--freeze-{scope_name}-stages", type=int, metavar="N", help=f"number of {scope_name} stages to freeze"
-        )
-        group.add_argument(
-            f"--freeze-{scope_name}-layers",
-            type=int,
-            metavar="N",
-            help=(
-                f"number of regex-matched {scope_name} block groups to freeze "
-                "(requires model block_group_regex support)"
-            ),
-        )
-
-    if unfreeze_features is True:
-        group.add_argument(
-            "--unfreeze-features",
-            default=False,
-            action="store_true",
-            help="unfreeze features layer (only relevant when freezing body)",
-        )
-
-
-def add_batch_norm_args(parser: argparse.ArgumentParser, backbone_freeze: bool = False) -> None:
-    group = parser.add_argument_group("Batch normalization parameters")
-    group.add_argument(
-        "--freeze-bn",
-        default=False,
-        action="store_true",
-        help="freeze all batch statistics and affine parameters of batchnorm2d layers",
-    )
-    if backbone_freeze is True:
-        group.add_argument(
-            "--freeze-backbone-bn",
-            default=False,
-            action="store_true",
-            help="freeze all batch statistics and affine parameters of batchnorm2d layers (backbone only)",
-        )
-
-    group.add_argument("--sync-bn", default=False, action="store_true", help="use synchronized BatchNorm")
 
 
 def add_data_aug_args(
@@ -452,71 +448,6 @@ def add_detection_data_aug_args(parser: argparse.ArgumentParser, default_level: 
     )
 
 
-def add_checkpoint_args(
-    parser: argparse.ArgumentParser, default_save_frequency: int = 1, pretrained: bool = False
-) -> None:
-    group = parser.add_argument_group("Checkpoint parameters")
-    group.add_argument(
-        "--save-frequency", type=int, default=default_save_frequency, metavar="N", help="frequency of model saving"
-    )
-    group.add_argument(
-        "--keep-last", type=int, metavar="N", help="number of recent checkpoints to keep (older ones are deleted)"
-    )
-    if pretrained is True:
-        group.add_argument(
-            "--pretrained",
-            default=False,
-            action="store_true",
-            help="start with pretrained version of specified network (will download if not found locally)",
-        )
-
-    group.add_argument("--resume-epoch", type=int, metavar="N", help="epoch number to resume training from")
-    group.add_argument(
-        "--non-strict-weights",
-        default=False,
-        action="store_true",
-        help="allow non-strict loading of model weights (missing or unexpected keys in state_dict)",
-    )
-    group.add_argument(
-        "--load-states",
-        default=False,
-        action="store_true",
-        help="load optimizer, scheduler and scaler states when resuming",
-    )
-    group.add_argument("--load-scheduler", default=False, action="store_true", help="load only scheduler when resuming")
-
-
-def add_ema_args(
-    parser: argparse.ArgumentParser, default_ema_steps: int = 32, default_ema_decay: float = 0.9999
-) -> None:
-    group = parser.add_argument_group("Exponential moving average parameters")
-    group.add_argument(
-        "--model-ema",
-        default=False,
-        action="store_true",
-        help="enable tracking exponential moving average of model parameters",
-    )
-    group.add_argument(
-        "--model-ema-steps",
-        type=int,
-        default=default_ema_steps,
-        metavar="N",
-        help="number of optimizer steps between EMA updates",
-    )
-    group.add_argument(
-        "--model-ema-decay",
-        type=float,
-        default=default_ema_decay,
-        help="decay factor for exponential moving average of model parameters",
-    )
-    group.add_argument(
-        "--model-ema-warmup",
-        type=int,
-        metavar="N",
-        help="number of epochs/steps before EMA is applied (defaults to warmup epochs/steps, pass 0 to disable warmup)",
-    )
-
-
 def add_dataloader_args(
     parser: argparse.ArgumentParser,
     no_img_loader: bool = False,
@@ -611,6 +542,75 @@ def add_precision_args(parser: argparse.ArgumentParser, channels_last: bool = Fa
     group.add_argument(
         "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
     )
+
+
+def add_compile_args(parser: argparse.ArgumentParser, teacher: bool = False, backbone: bool = False) -> None:
+    group = parser.add_argument_group("Compilation parameters")
+    group.add_argument("--compile", default=False, action="store_true", help="enable compilation")
+    group.add_argument("--compile-fullgraph", default=False, action="store_true", help="compile using fullgraph=True")
+    group.add_argument(
+        "--compile-mode", type=str, choices=list(torch._inductor.list_mode_options().keys()), help="torch.compile mode"
+    )
+    if teacher is True:
+        group.add_argument(
+            "--compile-teacher", default=False, action="store_true", help="enable teacher only compilation"
+        )
+    if backbone is True:
+        group.add_argument(
+            "--compile-backbone", default=False, action="store_true", help="enable backbone only compilation"
+        )
+
+    group.add_argument(
+        "--compile-opt", default=False, action="store_true", help="enable compilation for optimizer step"
+    )
+    group.add_argument(
+        "--compile-recompile-limit",
+        type=int,
+        default=torch.compiler.config.recompile_limit,
+        metavar="N",
+        help="maximum recompilations per compiled function before eager fallback",
+    )
+    group.add_argument(
+        "--compile-accumulated-recompile-limit",
+        type=int,
+        default=torch.compiler.config.accumulated_recompile_limit,
+        metavar="N",
+        help="maximum total recompilations across compiled functions",
+    )
+
+
+def add_checkpoint_args(
+    parser: argparse.ArgumentParser, default_save_frequency: int = 1, pretrained: bool = False
+) -> None:
+    group = parser.add_argument_group("Checkpoint parameters")
+    group.add_argument(
+        "--save-frequency", type=int, default=default_save_frequency, metavar="N", help="frequency of model saving"
+    )
+    group.add_argument(
+        "--keep-last", type=int, metavar="N", help="number of recent checkpoints to keep (older ones are deleted)"
+    )
+    if pretrained is True:
+        group.add_argument(
+            "--pretrained",
+            default=False,
+            action="store_true",
+            help="start with pretrained version of specified network (will download if not found locally)",
+        )
+
+    group.add_argument("--resume-epoch", type=int, metavar="N", help="epoch number to resume training from")
+    group.add_argument(
+        "--non-strict-weights",
+        default=False,
+        action="store_true",
+        help="allow non-strict loading of model weights (missing or unexpected keys in state_dict)",
+    )
+    group.add_argument(
+        "--load-states",
+        default=False,
+        action="store_true",
+        help="load optimizer, scheduler and scaler states when resuming",
+    )
+    group.add_argument("--load-scheduler", default=False, action="store_true", help="load only scheduler when resuming")
 
 
 def add_distributed_args(parser: argparse.ArgumentParser, fsdp: bool = False) -> None:
@@ -742,7 +742,10 @@ def add_logging_and_debug_args(
 
 
 def add_training_data_args(
-    parser: argparse.ArgumentParser, unsupervised: bool = False, wds_extra_shuffle: bool = True
+    parser: argparse.ArgumentParser,
+    unsupervised: bool = False,
+    wds_extra_shuffle: bool = True,
+    allow_empty: bool = False,
 ) -> None:
     group = parser.add_argument_group("Training data parameters", description="WebDataset")
     group.add_argument("--wds", default=False, action="store_true", help="use webdataset for training")
@@ -783,6 +786,13 @@ def add_training_data_args(
             action="store_true",
             help="use hierarchical directory structure for labels (e.g., 'dir1/subdir2' -> 'dir1_subdir2' label)",
         )
+        if allow_empty is True:
+            group.add_argument(
+                "--allow-empty",
+                default=False,
+                action="store_true",
+                help="allow empty classes in the training directory dataset",
+            )
         group.add_argument(
             "--data-path",
             type=str,

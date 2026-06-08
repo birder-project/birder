@@ -61,6 +61,7 @@ class InferenceDataParallel(nn.Module):
         output_device: Optional[int | str | torch.device] = None,
         compile_replicas: bool = False,
         compile_methods: Optional[list[str]] = None,
+        compile_mode: Optional[str] = None,
     ) -> None:
         super().__init__()
 
@@ -88,6 +89,7 @@ class InferenceDataParallel(nn.Module):
             )
 
         self.compile_replicas = compile_replicas
+        self.compile_mode = compile_mode
         compile_methods = compile_methods if compile_methods is not None else []
 
         # Move main module to first device
@@ -103,13 +105,13 @@ class InferenceDataParallel(nn.Module):
         # Compile each replica individually after they are all on their respective devices
         if compile_replicas is True:
             for i, replica in enumerate(self.replicas):
-                self.replicas[i] = torch.compile(replica)
+                self.replicas[i] = torch.compile(replica, mode=compile_mode)
                 logger.debug(f"Replica on cuda:{self.device_ids[i]} compiled")
 
                 for method_name in compile_methods:
                     if hasattr(replica, method_name) is True and callable(getattr(replica, method_name)) is True:
                         original_method = getattr(replica, method_name)
-                        compiled_method = torch.compile(original_method)
+                        compiled_method = torch.compile(original_method, mode=compile_mode)
                         setattr(replica, method_name, compiled_method)
                         logger.debug(f"Method '{method_name}' on replica on cuda:{self.device_ids[i]} compiled")
                     else:

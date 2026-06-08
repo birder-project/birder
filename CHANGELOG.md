@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.4 - 2026-06-08
+
+### Added
+
+- **Prediction Compile Mode**: Added `--compile-mode` to `predict` and `predict_detection`.
+- **Training Directory Datasets**: Added `--allow-empty` to `train` and `train_kd` to allow empty classes in training directory datasets.
+- **Pretrained Models**:
+    - `se_resnext_50_arabian-peninsula`: Added SE ResNeXt 50 pretrained weights on the `arabian-peninsula` dataset.
+
+### Fixed
+
+- **SSL Non-Distributed Backward**: Fixed SimCLR and VICReg gather-layer gradients during non-distributed training.
+- **BYOL Backbone Checkpoints**: Fixed BYOL training checkpoint saves for backbones without a nested `backbone` attribute.
+
 ## 0.5.3 - 2026-06-03
 
 ### Added

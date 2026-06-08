@@ -70,6 +70,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         config={"patch_size": 16, **SMALL},
     )
     registry.register_model_config(
+        "vit_s16_avg",
+        vit,
+        config={"patch_size": 16, **SMALL, "class_token": False},
+    )
+    registry.register_model_config(
         "vit_s16_ls",
         vit,
         config={"patch_size": 16, **SMALL, "layer_scale_init_value": 1e-5},
@@ -95,6 +100,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         config={"patch_size": 16, **MEDIUM},
     )
     registry.register_model_config(
+        "vit_m16_avg",
+        vit,
+        config={"patch_size": 16, **MEDIUM, "class_token": False},
+    )
+    registry.register_model_config(
         "vit_m14",
         vit,
         config={"patch_size": 14, **MEDIUM},
@@ -108,6 +118,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         "vit_b16",
         vit,
         config={"patch_size": 16, **BASE},
+    )
+    registry.register_model_config(
+        "vit_b16_avg",
+        vit,
+        config={"patch_size": 16, **BASE, "class_token": False},
     )
     registry.register_model_config(
         "vit_b16_ls",
@@ -135,6 +150,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         config={"patch_size": 14, **BASE},
     )
     registry.register_model_config(
+        "vit_so150m_p16_avg",
+        vit,
+        config={"patch_size": 16, **SO150, "class_token": False},
+    )
+    registry.register_model_config(
         "vit_so150m_p14_avg",
         vit,
         config={"patch_size": 14, **SO150, "class_token": False},
@@ -155,6 +175,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         config={"patch_size": 16, **LARGE},
     )
     registry.register_model_config(
+        "vit_l16_avg",
+        vit,
+        config={"patch_size": 16, **LARGE, "class_token": False},
+    )
+    registry.register_model_config(
         "vit_l14",
         vit,
         config={"patch_size": 14, **LARGE},
@@ -168,6 +193,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         "vit_l14_pn_quick_gelu",
         vit,
         config={"patch_size": 14, **LARGE, "pre_norm": True, "norm_layer_eps": 1e-5, "act_layer_type": "quick_gelu"},
+    )
+    registry.register_model_config(
+        "vit_so400m_p16_avg",
+        vit,
+        config={"patch_size": 16, **SO400, "class_token": False},
     )
     registry.register_model_config(
         "vit_so400m_p14_ap",

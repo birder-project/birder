@@ -285,3 +285,19 @@ registry.register_model_config(
     ResNeXt,
     config={"units": [3, 8, 36, 3], "squeeze_excitation": True, "deep_stem": True, "avg_down": True},
 )
+
+registry.register_weights(
+    "se_resnext_50_arabian-peninsula",
+    {
+        "url": "https://huggingface.co/birder-project/se_resnext_50_arabian-peninsula/resolve/main",
+        "description": "SE ResNeXt 50 model trained on the arabian-peninsula dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 103.5,
+                "sha256": "825c790628c800312f8669243a307cd79b396b0adcd0e506cc912be2fc5017cf",
+            }
+        },
+        "net": {"network": "se_resnext_50", "tag": "arabian-peninsula"},
+    },
+)

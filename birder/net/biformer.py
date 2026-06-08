@@ -2,7 +2,7 @@
 BiFormer, adapted from
 https://github.com/rayleizhu/BiFormer/blob/public_release/models/biformer.py
 
-"BiFormer: Vision Transformer with Bi-Level Routing Attention", https://arxiv.org/abs/2303.08810
+Paper "BiFormer: Vision Transformer with Bi-Level Routing Attention", https://arxiv.org/abs/2303.08810
 
 Changes from original:
 * All attention types are in (B, C, H, W)

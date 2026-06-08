@@ -341,16 +341,20 @@ def predict(args: argparse.Namespace) -> None:
             compile_methods = ["detection_features"]
 
         net = InferenceDataParallel(
-            net, output_device="cpu", compile_replicas=args.compile, compile_methods=compile_methods
+            net,
+            output_device="cpu",
+            compile_replicas=args.compile,
+            compile_methods=compile_methods,
+            compile_mode=args.compile_mode,
         )
     elif args.compile is True:
-        net = torch.compile(net)
+        net = torch.compile(net, mode=args.compile_mode)
         if args.save_embeddings is True:
-            net.embedding = torch.compile(net.embedding)
+            net.embedding = torch.compile(net.embedding, mode=args.compile_mode)
         elif args.save_features is True:
-            net.forward_features = torch.compile(net.forward_features)
+            net.forward_features = torch.compile(net.forward_features, mode=args.compile_mode)
         elif args.save_detection_features is True:
-            net.detection_features = torch.compile(net.detection_features)
+            net.detection_features = torch.compile(net.detection_features, mode=args.compile_mode)
 
     if args.size is None:
         args.size = lib.get_size_from_signature(signature)
@@ -663,6 +667,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pt2", default=False, action="store_true", help="load standardized model")
     parser.add_argument("--st", "--safetensors", default=False, action="store_true", help="load Safetensors weights")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
+    parser.add_argument(
+        "--compile-mode", type=str, choices=list(torch._inductor.list_mode_options().keys()), help="torch.compile mode"
+    )
     parser.add_argument("--channels-last", default=False, action="store_true", help="use channels-last memory format")
     parser.add_argument(
         "--model-dtype",
@@ -812,6 +819,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError(f"--center-crop must be in range of (0, 1.0], got {args.center_crop}")
     if args.parallel is True and args.gpu is False:
         raise cli.ValidationError("--parallel requires --gpu to be set")
+    if args.compile_mode is not None and args.compile is False:
+        raise cli.ValidationError("--compile-mode requires --compile")
     if args.save_results is True and args.save_sparse_results is True:
         raise cli.ValidationError("--save-results cannot be used with --save-sparse-results")
     if args.skip_results_analysis is True and args.save_results is True:

@@ -327,7 +327,7 @@ def make_wds_detection_dataset(
     return dataset
 
 
-def wds_size(wds_path: str, device: torch.device, select_suffix: str = "cls") -> int:
+def wds_size(wds_path: str, device: torch.device, select_suffix: str | tuple[str, ...] = "cls") -> int:
     dataset = wds.WebDataset(
         wds_path,
         shardshuffle=False,
@@ -346,7 +346,7 @@ def wds_size(wds_path: str, device: torch.device, select_suffix: str = "cls") ->
 
 
 def prepare_wds_args(
-    data_path: str, size: Optional[int], device: torch.device, select_suffix: str = "cls"
+    data_path: str, size: Optional[int], device: torch.device, select_suffix: str | tuple[str, ...] = "cls"
 ) -> tuple[str, int]:
     if "://" not in data_path:
         if ".." not in data_path:

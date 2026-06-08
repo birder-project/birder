@@ -4,7 +4,7 @@ https://github.com/facebookresearch/deit/blob/main/cait_models.py
 and
 https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/cait.py
 
-"Going deeper with Image Transformers", https://arxiv.org/abs/2103.17239
+Paper "Going deeper with Image Transformers", https://arxiv.org/abs/2103.17239
 """
 
 # Reference license: Apache-2.0 (both)

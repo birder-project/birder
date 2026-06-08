@@ -112,9 +112,12 @@ def predict(args: argparse.Namespace) -> None:
     logger.debug(f"RGB stats: {rgb_stats}")
     logger.debug(f"Model signature dynamic={signature['dynamic']}")
 
+    dynamic_input_size = False
     if args.dynamic_size is True or args.max_size is not None or args.no_resize is True or args.tta is True:
         net.set_dynamic_size()
     if args.dynamic_size is True or args.max_size is not None or args.no_resize is True:
+        dynamic_input_size = True
+
         # Disable cuDNN for dynamic sizes to avoid per-size algorithm selection overhead
         torch.backends.cudnn.enabled = False
 
@@ -126,12 +129,12 @@ def predict(args: argparse.Namespace) -> None:
         logger.debug("Using channels-last memory format")
 
     if args.parallel is True and torch.cuda.device_count() > 1:
-        net = DetectionInferenceDataParallel(net, compile_replicas=args.compile)
+        net = DetectionInferenceDataParallel(net, compile_replicas=args.compile, compile_mode=args.compile_mode)
     else:
         if args.compile is True:
-            net = torch.compile(net)
+            net = torch.compile(net, mode=args.compile_mode)
         elif args.compile_backbone is True:
-            net.backbone.detection_features = torch.compile(net.backbone.detection_features)
+            net.backbone.detection_features = torch.compile(net.backbone.detection_features, mode=args.compile_mode)
 
     if args.size is None:
         args.size = lib.get_size_from_signature(signature)
@@ -278,7 +281,14 @@ def predict(args: argparse.Namespace) -> None:
     if args.epoch is not None:
         epoch_str = f"_e{args.epoch}"
 
-    base_output_path = f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size[0]}px_{num_samples}"
+    if args.no_resize is True:
+        size_str = "orig"
+    elif dynamic_input_size is True:
+        size_str = f"na_{args.size[0]}px"
+    else:
+        size_str = f"{args.size[0]}px"
+
+    base_output_path = f"{network_name}_{len(class_to_idx)}{epoch_str}_{size_str}_{num_samples}"
     if args.tta is True:
         base_output_path = f"{base_output_path}_tta"
     if args.model_dtype != "float32":
@@ -383,6 +393,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pt2", default=False, action="store_true", help="load standardized model")
     parser.add_argument("--st", "--safetensors", default=False, action="store_true", help="load Safetensors weights")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
+    parser.add_argument(
+        "--compile-mode", type=str, choices=list(torch._inductor.list_mode_options().keys()), help="torch.compile mode"
+    )
     parser.add_argument(
         "--compile-backbone", default=False, action="store_true", help="enable backbone only compilation"
     )
@@ -504,6 +517,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--parallel cannot be used with --compile-backbone")
     if args.compile is True and args.compile_backbone is True:
         raise cli.ValidationError("--compile cannot be used with --compile-backbone")
+    if args.compile_mode is not None and args.compile is False and args.compile_backbone is False:
+        raise cli.ValidationError("--compile-mode requires --compile or --compile-backbone")
     if args.amp is True and args.model_dtype != "float32":
         raise cli.ValidationError("--amp can only be used with --model-dtype float32")
     if args.wds is False and len(args.data_path) == 0:
