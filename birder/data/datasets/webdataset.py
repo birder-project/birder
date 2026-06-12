@@ -349,12 +349,12 @@ def prepare_wds_args(
     data_path: str, size: Optional[int], device: torch.device, select_suffix: str | tuple[str, ...] = "cls"
 ) -> tuple[str, int]:
     if "://" not in data_path:
-        if ".." not in data_path:
-            # Local path without braces, build brace argument
-            wds_path, _ = fs_ops.wds_braces_from_path(Path(data_path))
+        if "{" in data_path and "}" in data_path:
+            wds_path = data_path
 
         else:
-            wds_path = data_path
+            # Local path without braces, build brace argument
+            wds_path, _ = fs_ops.wds_braces_from_path(Path(data_path))
 
         if size is None:
             # If size not provided, we scan all tar files

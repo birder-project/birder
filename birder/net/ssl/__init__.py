@@ -2,6 +2,8 @@ from birder.net.ssl.barlow_twins import BarlowTwins
 from birder.net.ssl.byol import BYOL
 from birder.net.ssl.capi import CAPIStudent
 from birder.net.ssl.capi import CAPITeacher
+from birder.net.ssl.capi_dino import CAPI_DINOStudent
+from birder.net.ssl.capi_dino import CAPI_DINOTeacher
 from birder.net.ssl.data2vec import Data2Vec
 from birder.net.ssl.data2vec2 import Data2Vec2
 from birder.net.ssl.dino_v1 import DINO_v1
@@ -21,6 +23,8 @@ __all__ = [
     "BYOL",
     "CAPIStudent",
     "CAPITeacher",
+    "CAPI_DINOStudent",
+    "CAPI_DINOTeacher",
     "Data2Vec",
     "Data2Vec2",
     "DINO_v1",

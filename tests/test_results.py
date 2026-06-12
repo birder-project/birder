@@ -61,6 +61,30 @@ class TestClassification(unittest.TestCase):
         expected = np.array([[0, 1, 1, 0], [0, 0, 2, 0], [0, 0, 1, 0], [0, 0, 1, 0]], dtype=np.int_)
         self.assertSequenceEqual(cnf.tolist(), expected.tolist())
 
+    def test_results_two_classes_use_effective_top_k(self) -> None:
+        self.assertEqual(settings.TOP_K, 3)
+        sample_list = ["file1.jpeg", "file2.jpg", "file3.jpeg", "file4.jpeg"]
+        labels = [0, 1, 0, 1]
+        label_names = ["l0", "l1"]
+        output = np.array(
+            [
+                [0.9, 0.1],
+                [0.8, 0.2],
+                [0.4, 0.6],
+                [0.2, 0.8],
+            ],
+            dtype=np.float32,
+        )
+
+        results = Results(sample_list, labels, label_names, output)
+
+        self.assertEqual(results._effective_top_k, 2)
+        self.assertFalse(results._top_k_is_meaningful)
+        self.assertTrue(np.isnan(results.top_k))
+        self.assertEqual(results._top_k_indices, [0, 1, 2, 3])
+        self.assertEqual(results.num_out_of_top_k, 0)
+        self.assertEqual(results.out_of_top_k.height, 0)
+
     def test_results_filter(self) -> None:
         sample_list = ["file1.jpeg", "file2.jpg", "file3.jpeg", "file4.jpeg", "file5.png", "file6.webp"]
         labels = [0, 0, 2, 1, 1, 3]

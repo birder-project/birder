@@ -1,0 +1,1088 @@
+import argparse
+import logging
+import math
+import sys
+import time
+from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import nullcontext
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+from typing import Optional
+
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+import torch.amp
+import torch.nn.functional as F
+import torchinfo
+from torch.distributed.device_mesh import init_device_mesh
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
+
+from birder.common import cli
+from birder.common import fs_ops
+from birder.common import fsdp_utils
+from birder.common import masking
+from birder.common import training_cli
+from birder.common import training_utils
+from birder.common.lib import format_duration
+from birder.common.lib import get_mim_network_name
+from birder.common.lib import get_network_name
+from birder.conf import settings
+from birder.data.dataloader.webdataset import make_wds_loader
+from birder.data.datasets.directory import get_image_loader
+from birder.data.datasets.directory import make_image_dataset
+from birder.data.datasets.fake import FakeDataWithPaths
+from birder.data.datasets.webdataset import WDSImageDecoder
+from birder.data.datasets.webdataset import make_wds_dataset
+from birder.data.datasets.webdataset import prepare_wds_args
+from birder.data.datasets.webdataset import wds_args_from_info
+from birder.data.transforms.classification import get_rgb_stats
+from birder.model_registry import Task
+from birder.model_registry import registry
+from birder.net.base import MaskedTokenOmissionMixin
+from birder.net.base import get_signature
+from birder.net.ssl.base import get_ssl_signature
+from birder.net.ssl.capi_dino import CAPI_DINOStudent
+from birder.net.ssl.capi_dino import CAPI_DINOTeacher
+from birder.net.ssl.dino_v2 import DINOLoss
+
+logger = logging.getLogger(__name__)
+
+ImageLoader = Callable[[str], Any]
+ImageTransform = Callable[[Any], torch.Tensor]
+TransformFactory = Callable[[argparse.Namespace], ImageTransform]
+MaskGenerator = Callable[[int], torch.Tensor]
+TrainCollateFn = Callable[[Any], tuple[Any, torch.Tensor, torch.Tensor]]
+
+
+@dataclass(frozen=True)
+class TrainOverrides:
+    training_transform: Optional[TransformFactory] = None
+    training_collator: Optional[TrainCollateFn] = None
+    image_loader: Optional[ImageLoader] = None
+    wds_image_decoder: Optional[WDSImageDecoder] = None
+
+
+class TrainCollator:
+    def __init__(self, mask_generator: MaskGenerator, n_predict: int) -> None:
+        self.mask_generator = mask_generator
+        self.n_predict = n_predict
+
+    def __call__(self, batch: Any) -> tuple[Any, torch.Tensor, torch.Tensor]:
+        B = len(batch)
+        collated_batch = torch.utils.data.default_collate(batch)
+        masks = self.mask_generator(B)
+
+        ids_keep = masking.get_ids_keep(masks)
+        predict_indices = masking.get_random_masked_indices(masks, self.n_predict)
+
+        return (collated_batch, ids_keep, predict_indices)
+
+
+def _capi_dino_fsdp_wrap_modules(
+    module: CAPI_DINOStudent | CAPI_DINOTeacher, args: argparse.Namespace
+) -> list[torch.nn.Module]:
+    backbone = module.backbone
+
+    # Only backbone sub-modules are wrapped, the decoder and heads are small and get wrapped with the root
+    if args.fsdp_wrap_policy == "stages":
+        matched_modules = fsdp_utils.modules_from_stages(backbone)
+        if len(matched_modules) == 0:
+            logger.warning("FSDP stages policy did not match any returned stage module on backbone")
+
+        logger.info(f"FSDP wrap modules resolved: {len(matched_modules)}")
+        return matched_modules
+
+    if args.fsdp_wrap_policy == "min-num-params":
+        min_num_params = int(args.fsdp_wrap_min_num_params * 1_000_000)
+        matched_modules = fsdp_utils.modules_from_min_num_params(backbone, min_num_params=min_num_params)
+        if len(matched_modules) == 0:
+            logger.warning(
+                f"FSDP min-num-params policy with threshold {args.fsdp_wrap_min_num_params:g}M "
+                "did not match any module on backbone"
+            )
+
+        logger.info(f"FSDP wrap modules resolved: {len(matched_modules)}")
+        return matched_modules
+
+    block_group_regex = getattr(backbone, "block_group_regex", None)
+    if block_group_regex is None:
+        logger.warning("No block_group_regex on backbone, using root-only FSDP")
+        return []
+
+    matched_modules = fsdp_utils.modules_from_block_group_regex(backbone, block_group_regex)
+    if len(matched_modules) == 0:
+        logger.warning(f"FSDP wrap regex '{block_group_regex}' did not match any module on backbone")
+
+    logger.info(f"FSDP wrap modules resolved: {len(matched_modules)}")
+    return matched_modules
+
+
+def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) -> None:
+    if overrides is None:
+        overrides = TrainOverrides()
+
+    #
+    # Initialize
+    #
+    device, device_id, disable_tqdm = training_utils.init_training(args, logger)
+    fsdp_mode = fsdp_utils.is_fsdp_mode(args)
+
+    if args.size is None:
+        args.size = registry.get_default_size(args.network)
+
+    logger.info(f"Using size={args.size}")
+
+    batch_size: int = args.batch_size
+    grad_accum_steps: int = args.grad_accum_steps
+    logger.debug(f"Effective batch size = {batch_size * grad_accum_steps * args.world_size}")
+
+    begin_epoch = 1
+    epochs = args.epochs + 1
+    args.stop_epoch = training_utils.normalize_stop_epoch(epochs, args.stop_epoch)
+
+    #
+    # Initialize network
+    #
+    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
+    sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
+    backbone_name = get_network_name(args.network, tag="capi-dino")
+    if args.tag is not None:
+        backbone_name = f"{backbone_name}-{args.tag}"
+
+    network_name = get_mim_network_name("capi_dino", encoder=args.network, tag=args.tag)
+
+    student_backbone = registry.net_factory(args.network, 0, sample_shape[1], config=args.model_config, size=args.size)
+    teacher_backbone = registry.net_factory(args.network, 0, sample_shape[1], config=args.model_config, size=args.size)
+
+    teacher_backbone.load_state_dict(student_backbone.state_dict())
+
+    student = CAPI_DINOStudent(
+        student_backbone,
+        config={
+            "decoder_layers": args.decoder_layers,
+            "decoder_dim": args.decoder_dim,
+            "num_clusters": args.num_clusters,
+            "dino_out_dim": args.dino_out_dim,
+            "use_bn": False,
+            "num_layers": args.dino_head_layers,
+            "hidden_dim": args.dino_head_hidden_dim,
+            "head_bottleneck_dim": args.dino_head_bottleneck_dim,
+        },
+    )
+    teacher = CAPI_DINOTeacher(
+        teacher_backbone,
+        config={
+            "num_clusters": args.num_clusters,
+            "bias": True,
+            "n_sk_iter": 3,
+            "target_temp": 0.06,
+            "pred_temp": 0.12,
+            "sk_mode": args.sk_mode,
+            "queue_size": args.sinkhorn_queue_size,
+            "dino_out_dim": args.dino_out_dim,
+            "use_bn": False,
+            "num_layers": args.dino_head_layers,
+            "hidden_dim": args.dino_head_hidden_dim,
+            "head_bottleneck_dim": args.dino_head_bottleneck_dim,
+        },
+    )
+    teacher.dino_head.load_state_dict(student.dino_head.state_dict())
+    dino_loss = DINOLoss(
+        args.dino_out_dim, student_temp=args.dino_student_temp, center_momentum=args.dino_center_momentum
+    )
+
+    net = torch.nn.ModuleDict(
+        {
+            "student": student,
+            "teacher": teacher,
+            "dino_loss": dino_loss,
+        }
+    )
+    net.task = student.task
+
+    if args.resume_epoch is not None:
+        begin_epoch = args.resume_epoch + 1
+        net, training_states = fs_ops.load_simple_checkpoint(
+            device, net, network_name, epoch=args.resume_epoch, strict=not args.non_strict_weights
+        )
+        student = net["student"]
+        teacher = net["teacher"]
+        dino_loss = net["dino_loss"]
+
+    else:
+        training_states = fs_ops.TrainingStates.empty()
+
+    teacher.eval()
+
+    assert isinstance(student_backbone, MaskedTokenOmissionMixin)
+    assert isinstance(net, torch.nn.Module)
+
+    net.to(device, dtype=model_dtype)
+    if args.fast_matmul is True or args.amp is True:
+        torch.set_float32_matmul_precision("high")
+
+    if fsdp_mode is True:
+        fsdp_mesh = init_device_mesh("cuda", (args.world_size,), mesh_dim_names=("dp",))
+
+        student_wrap_modules = _capi_dino_fsdp_wrap_modules(student, args)
+        student = fsdp_utils.setup_fsdp(student, args, wrap_modules=student_wrap_modules, mesh=fsdp_mesh)
+
+        teacher_wrap_modules = _capi_dino_fsdp_wrap_modules(teacher, args)
+        teacher = fsdp_utils.setup_fsdp(
+            teacher, args, wrap_modules=teacher_wrap_modules, mesh=fsdp_mesh, reshard_after_forward=True
+        )
+
+        net["student"] = student
+        net["teacher"] = teacher
+
+    # Compile networks
+    if args.compile is True:
+        student = torch.compile(student, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
+        teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
+        dino_loss = torch.compile(dino_loss, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
+
+    # There is no backpropagation through the teacher backbone or DINO head
+    for p in teacher.backbone.parameters():
+        p.requires_grad_(False)
+    for p in teacher.dino_head.parameters():
+        p.requires_grad_(False)
+
+    #
+    # Data
+    #
+    rgb_stats = get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std)
+    logger.debug(f"Using RGB stats: {rgb_stats}")
+
+    mask_size = (args.size[0] // student_backbone.max_stride, args.size[1] // student_backbone.max_stride)
+    seq_len = mask_size[0] * mask_size[1]
+    mask_generator = masking.InverseRollBlockMasking(
+        mask_size,
+        num_masking_patches=int(seq_len * args.mask_ratio),
+        min_aspect=0.5,
+        max_aspect=2.0,
+    )
+    n_masked = int(seq_len * args.mask_ratio)
+    n_predict = int(n_masked * args.kept_mask_ratio)
+    if overrides.training_collator is not None:
+        mask_collator = overrides.training_collator
+    else:
+        mask_collator = TrainCollator(mask_generator, n_predict)
+
+    if overrides.training_transform is not None:
+        training_transform = overrides.training_transform(args)
+    else:
+        training_transform = training_utils.get_training_transform(args)
+
+    if args.use_fake_data is True:
+        logger.warning("Using fake data")
+        training_dataset = FakeDataWithPaths(
+            10000, (args.channels, *args.size), num_classes=10, transform=training_transform
+        )
+
+    elif args.wds is True:
+        if overrides.wds_image_decoder is not None:
+            wds_image_decoder = overrides.wds_image_decoder
+        else:
+            wds_image_decoder = args.img_loader
+
+        wds_path: str | list[str]
+        if args.wds_info is not None:
+            wds_path, dataset_size = wds_args_from_info(args.wds_info, args.wds_split)
+            if args.wds_size is not None:
+                dataset_size = args.wds_size
+        else:
+            wds_path, dataset_size = prepare_wds_args(args.data_path[0], args.wds_size, device)
+
+        training_dataset = make_wds_dataset(
+            wds_path,
+            dataset_size=dataset_size,
+            shuffle=True,
+            samples_names=True,
+            transform=training_transform,
+            image_decoder=wds_image_decoder,
+            channels=args.channels,
+            cls_key=None,
+            cache_dir=args.wds_cache_dir,
+        )
+
+    else:
+        if overrides.image_loader is not None:
+            image_loader = overrides.image_loader
+        else:
+            image_loader = get_image_loader(args.img_loader, args.channels)
+
+        training_dataset = make_image_dataset(
+            args.data_path,
+            {},
+            transforms=training_transform,
+            loader=image_loader,
+        )
+
+    logger.info(f"Using device {device}:{device_id}")
+    logger.info(f"Training dataset has {len(training_dataset):,} samples")
+
+    # Data loaders and samplers
+    virtual_epoch_mode = args.steps_per_epoch is not None
+    train_sampler, _ = training_utils.get_samplers(
+        args, training_dataset, validation_dataset=None, infinite=virtual_epoch_mode
+    )
+
+    if args.wds is True:
+        training_loader = make_wds_loader(
+            training_dataset,
+            batch_size,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
+            collate_fn=mask_collator,
+            world_size=args.world_size,
+            pin_memory=args.pin_memory,
+            drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
+            shuffle=False,
+            infinite=virtual_epoch_mode,
+        )
+
+    else:
+        training_loader = DataLoader(
+            training_dataset,
+            batch_size=batch_size,
+            sampler=train_sampler,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
+            collate_fn=mask_collator,
+            pin_memory=args.pin_memory,
+            drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
+        )
+
+    if virtual_epoch_mode is True:
+        optimizer_steps_per_epoch = args.steps_per_epoch
+        epoch_num_batches = args.steps_per_epoch * grad_accum_steps
+        epoch_samples = epoch_num_batches * batch_size * args.world_size
+        logger.debug(f"Virtual epoch has {epoch_samples:,} samples")
+    else:
+        optimizer_steps_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
+        epoch_num_batches = len(training_loader)
+        epoch_samples = len(training_dataset)
+
+    last_batch_idx = epoch_num_batches - 1
+    last_accum_steps = epoch_num_batches % grad_accum_steps
+    if last_accum_steps == 0:
+        last_accum_steps = grad_accum_steps
+
+    last_accum_start_idx = epoch_num_batches - last_accum_steps
+    logger.debug(
+        f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
+        f"virtual mode={virtual_epoch_mode}"
+    )
+
+    #
+    # Loss criteria, optimizer, learning rate scheduler and training parameter groups
+    #
+
+    # Learning rate scaling
+    lr = training_utils.scale_lr(args)
+    clustering_lr = lr / 2
+
+    # Training parameter groups
+    custom_keys_weight_decay = training_utils.get_wd_custom_keys(args)
+    parameters = training_utils.optimizer_parameter_groups(
+        student,
+        args.wd,
+        base_lr=lr,
+        norm_weight_decay=args.norm_wd,
+        custom_keys_weight_decay=custom_keys_weight_decay,
+        custom_layer_weight_decay=args.custom_layer_wd,
+        layer_decay=args.layer_decay,
+        layer_decay_min_scale=args.layer_decay_min_scale,
+        layer_decay_no_opt_scale=args.layer_decay_no_opt_scale,
+        bias_lr=args.bias_lr,
+        custom_layer_lr_scale=args.custom_layer_lr_scale,
+    )
+
+    if args.lr_scheduler_update == "epoch":
+        step_update = False
+        scheduler_steps_per_epoch = 1
+    elif args.lr_scheduler_update == "step":
+        step_update = True
+        scheduler_steps_per_epoch = optimizer_steps_per_epoch
+    else:
+        raise ValueError("Unsupported lr_scheduler_update")
+
+    # Optimizer and learning rate scheduler
+    optimizer = training_utils.get_optimizer(parameters, lr, args)
+    clustering_optimizer = torch.optim.AdamW(teacher.head.parameters(), lr=clustering_lr, betas=[0.9, 0.95])
+    scheduler = training_utils.get_scheduler(optimizer, scheduler_steps_per_epoch, args, cosine_fraction=0.8)
+    clustering_scheduler = training_utils.get_scheduler(
+        clustering_optimizer, scheduler_steps_per_epoch, args, cosine_fraction=0.8
+    )
+    if args.compile_opt is True:
+        optimizer.step = torch.compile(optimizer.step, fullgraph=False)
+        clustering_optimizer.step = torch.compile(clustering_optimizer.step, fullgraph=False)
+
+    # Momentum and temperatures
+    if args.warmup_epochs is not None:
+        warmup_epochs = args.warmup_epochs
+    elif args.warmup_steps is not None:
+        warmup_epochs = args.warmup_steps / scheduler_steps_per_epoch
+    else:
+        warmup_epochs = 0.0
+
+    momentum_schedule = training_utils.cosine_scheduler(
+        args.momentum_teacher,
+        1.0,
+        args.epochs,
+        warmup_epochs,
+        epoch_num_batches,
+        start_warmup_value=1.0,
+        cosine_fraction=0.8,
+    )
+    student_temp = 0.12
+    dino_teacher_temp_schedule = training_utils.cosine_scheduler(
+        args.dino_teacher_temp,
+        args.dino_teacher_temp,
+        args.epochs,
+        args.dino_warmup_teacher_temp_epochs,
+        epoch_num_batches,
+        args.dino_warmup_teacher_temp,
+    )
+
+    # Gradient scaler and AMP related tasks
+    scaler, amp_dtype = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
+    clustering_scaler, _ = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
+
+    # Load states
+    if args.load_states is True:
+        if fsdp_mode is True:
+            fsdp_utils.load_full_optimizer_state_dict(
+                net, optimizer, training_states.optimizer_state  # type: ignore[arg-type]
+            )
+            fsdp_utils.load_full_optimizer_state_dict(
+                teacher,  # Not .head to keep FQN correct
+                clustering_optimizer,
+                training_states.extra_states["clustering_optimizer"],  # type: ignore
+            )
+        else:
+            optimizer.load_state_dict(training_states.optimizer_state)
+            clustering_optimizer.load_state_dict(training_states.extra_states["clustering_optimizer"])  # type: ignore
+
+        scheduler.load_state_dict(training_states.scheduler_state)
+        clustering_scheduler.load_state_dict(training_states.extra_states["clustering_scheduler"])  # type: ignore
+        if scaler is not None:
+            scaler.load_state_dict(training_states.scaler_state)
+            clustering_scaler.load_state_dict(training_states.extra_states["clustering_scaler"])  # type: ignore
+
+    last_lr = float(max(scheduler.get_last_lr()))
+    if args.plot_lr is True:
+        logger.info("Fast forwarding scheduler...")
+        optimizer.step()
+        lrs = []
+        for _ in range(begin_epoch, epochs):
+            for _ in range(scheduler_steps_per_epoch):
+                lrs.append(float(max(scheduler.get_last_lr())))
+                scheduler.step()
+
+        plt.plot(
+            np.linspace(begin_epoch, epochs, scheduler_steps_per_epoch * (epochs - begin_epoch), endpoint=False), lrs
+        )
+        plt.show()
+        raise SystemExit(0)
+
+    #
+    # Distributed (DDP)
+    #
+
+    teacher_without_ddp = teacher
+    student_without_ddp = student
+    student_no_sync_cm = nullcontext
+    teacher_no_sync_cm = nullcontext
+    if args.distributed is True and fsdp_mode is False:
+        student = torch.nn.parallel.DistributedDataParallel(
+            student,
+            device_ids=[args.local_rank],
+            find_unused_parameters=args.find_unused_parameters,
+            broadcast_buffers=not args.no_broadcast_buffers,
+        )
+        teacher = torch.nn.parallel.DistributedDataParallel(
+            teacher, device_ids=[args.local_rank], broadcast_buffers=not args.no_broadcast_buffers
+        )
+        student_no_sync_cm = student.no_sync
+        teacher_no_sync_cm = teacher.no_sync
+        student_without_ddp = student.module
+        teacher_without_ddp = teacher.module
+
+    model_to_save = net
+    if args.compile is True and hasattr(model_to_save["teacher"], "_orig_mod") is True:
+        model_to_save["teacher"] = model_to_save["teacher"]._orig_mod
+    if args.compile is True and hasattr(model_to_save["student"], "_orig_mod") is True:
+        model_to_save["student"] = model_to_save["student"]._orig_mod
+
+    #
+    # Misc
+    #
+
+    # Print network summary
+    net_for_info = student_without_ddp
+    if args.compile is True and hasattr(student_without_ddp, "_orig_mod") is True:
+        net_for_info = student_without_ddp._orig_mod
+
+    if args.no_summary is False:
+        all_ids = torch.arange(seq_len, device=device).unsqueeze(0)
+        summary = torchinfo.summary(
+            net_for_info,
+            device=device,
+            input_data=(
+                torch.rand(sample_shape),
+                all_ids.repeat(batch_size, 1),
+                all_ids.repeat(batch_size, 1)[:, : mask_size[0]],
+            ),
+            dtypes=[model_dtype],
+            col_names=["input_size", "output_size", "kernel_size", "num_params"],
+            depth=4,
+            verbose=0,
+        )
+        if training_utils.is_global_primary(args) is True:
+            # Write to stderr, same as all the logs
+            print(summary, file=sys.stderr)
+
+    # Training logs
+    training_log_path = training_utils.training_log_path(network_name, device, args.experiment)
+    logger.info(f"Logging training run at {training_log_path}")
+    summary_writer = SummaryWriter(training_log_path)
+
+    signature = get_ssl_signature(input_shape=sample_shape)
+    backbone_signature = get_signature(input_shape=sample_shape, num_outputs=0)
+    file_handler: logging.Handler = logging.NullHandler()
+    if training_utils.is_global_primary(args) is True:
+        summary_writer.flush()
+        fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
+        file_handler = training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
+        training_utils.write_training_args_json(training_log_path, args)
+        training_utils.write_training_data_json(training_log_path, {"training_samples": len(training_dataset)})
+
+    #
+    # Training loop
+    #
+    if virtual_epoch_mode is True:
+        train_iter = iter(training_loader)
+
+    running_loss = training_utils.SmoothedValue()
+    running_loss_capi = training_utils.SmoothedValue()
+    running_loss_dino = training_utils.SmoothedValue()
+    running_clustering_loss = training_utils.SmoothedValue()
+    running_target_entropy = training_utils.SmoothedValue()
+
+    logger.info(f"Starting training with learning rate of {last_lr}")
+    for epoch in range(begin_epoch, args.stop_epoch):
+        tic = time.time()
+        net.train()
+        teacher.eval()
+
+        # Clear metrics
+        running_loss.clear()
+        running_loss_capi.clear()
+        running_loss_dino.clear()
+        running_clustering_loss.clear()
+        running_target_entropy.clear()
+
+        if args.sinkhorn_queue_size is not None:
+            queue_active = epoch > args.sinkhorn_queue_warmup_epochs
+            teacher_without_ddp.head.set_queue_active(queue_active)
+            logger.debug(f"Sinkhorn queue active: {queue_active}")
+
+        if args.distributed is True or virtual_epoch_mode is True:
+            train_sampler.set_epoch(epoch)
+
+        epoch_first_step = (epoch - 1) * epoch_num_batches
+        logger.info(f"Epoch momentum: {momentum_schedule[epoch_first_step]}")
+        logger.info(f"Epoch DINO teacher temperature: {dino_teacher_temp_schedule[epoch_first_step]}")
+
+        progress = tqdm(
+            desc=f"Epoch {epoch}/{epochs-1}",
+            total=epoch_samples,
+            leave=False,
+            disable=disable_tqdm,
+            unit="samples",
+            initial=0,
+        )
+
+        # Zero the parameter gradients
+        optimizer.zero_grad()
+        clustering_optimizer.zero_grad()
+
+        epoch_start = time.time()
+        start_time = epoch_start
+        last_idx = -1
+        batch_iter: Iterator[tuple[int, Any]]
+        if virtual_epoch_mode is True:
+            batch_iter = ((i, next(train_iter)) for i in range(epoch_num_batches))
+        else:
+            batch_iter = enumerate(training_loader)
+
+        for i, ((_, images, _), ids_keep, predict_indices) in batch_iter:
+            global_iter = ((epoch - 1) * epoch_num_batches) + i
+            images = images.to(device, dtype=model_dtype, non_blocking=True)
+            ids_keep = ids_keep.to(device, non_blocking=True)
+            predict_indices = predict_indices.to(device, non_blocking=True)
+
+            optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
+            student_sync_context = student_no_sync_cm if optimizer_update is False else nullcontext
+            teacher_sync_context = teacher_no_sync_cm if optimizer_update is False else nullcontext
+            if i >= last_accum_start_idx:
+                effective_accum_steps = last_accum_steps
+            else:
+                effective_accum_steps = grad_accum_steps
+
+            dino_teacher_temp = dino_teacher_temp_schedule[global_iter]
+            if fsdp_mode is True and grad_accum_steps > 1:
+                student.set_requires_gradient_sync(requires_gradient_sync=optimizer_update)
+                teacher.set_requires_gradient_sync(requires_gradient_sync=optimizer_update)
+            if fsdp_mode is True and args.no_broadcast_buffers is False:
+                fsdp_utils.broadcast_module_buffers(student)
+                fsdp_utils.broadcast_module_buffers(teacher)
+
+            # Teacher forward and backward
+            with teacher_sync_context():
+                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
+                    selected_assignments, raw_clustering_loss, teacher_global_logits = teacher(
+                        images, None, predict_indices
+                    )
+                    teacher_global_target = dino_loss.softmax_center_teacher(
+                        teacher_global_logits, teacher_temp=dino_teacher_temp
+                    )
+                    dino_loss.update_center(teacher_global_logits)
+
+                clustering_loss = raw_clustering_loss / effective_accum_steps
+                if clustering_scaler is not None:
+                    clustering_scaler.scale(clustering_loss).backward()
+                else:
+                    clustering_loss.backward()
+
+            if optimizer_update is True:
+                if clustering_scaler is not None:
+                    clustering_scaler.step(clustering_optimizer)
+                    clustering_scaler.update()
+                else:
+                    clustering_optimizer.step()
+
+                clustering_optimizer.zero_grad()
+                if step_update is True:
+                    clustering_scheduler.step()
+
+            # Student forward and backward
+            with student_sync_context():
+                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
+                    pred, student_global_logits = student(images, ids_keep, predict_indices)
+                    raw_capi_loss = -torch.sum(
+                        selected_assignments * F.log_softmax(pred / student_temp, dim=-1), dim=-1
+                    )
+                    raw_dino_loss = dino_loss([student_global_logits], [teacher_global_target])
+                    target_entropy = -torch.xlogy(selected_assignments, selected_assignments).sum(dim=-1).mean()
+
+                raw_capi_loss = raw_capi_loss.double().sum() / len(raw_capi_loss)
+                raw_loss = raw_capi_loss + (args.dino_loss_weight * raw_dino_loss)
+                loss = raw_loss / effective_accum_steps
+
+                if scaler is not None:
+                    scaler.scale(loss).backward()
+                    if args.freeze_dino_last_layer_epochs >= epoch:
+                        student_without_ddp.dino_head.cancel_last_layer_gradients()
+                else:
+                    loss.backward()
+                    if args.freeze_dino_last_layer_epochs >= epoch:
+                        student_without_ddp.dino_head.cancel_last_layer_gradients()
+
+            if optimizer_update is True:
+                if scaler is not None:
+                    if args.clip_grad_norm is not None:
+                        scaler.unscale_(optimizer)
+                        torch.nn.utils.clip_grad_norm_(student.parameters(), args.clip_grad_norm)
+
+                    scaler.step(optimizer)
+                    scaler.update()
+
+                else:
+                    if args.clip_grad_norm is not None:
+                        torch.nn.utils.clip_grad_norm_(student.parameters(), args.clip_grad_norm)
+
+                    optimizer.step()
+
+                optimizer.zero_grad()
+                if step_update is True:
+                    scheduler.step()
+
+            if optimizer_update is True:
+                # EMA update for the teacher
+                with torch.no_grad():
+                    m = momentum_schedule[global_iter]
+                    torch._foreach_lerp_(
+                        list(teacher_without_ddp.backbone.parameters()),
+                        list(student_without_ddp.backbone.parameters()),
+                        weight=1 - m,
+                    )
+                    torch._foreach_lerp_(
+                        list(teacher_without_ddp.dino_head.parameters()),
+                        list(student_without_ddp.dino_head.parameters()),
+                        weight=1 - m,
+                    )
+
+            # Statistics
+            running_loss.update(raw_loss.detach())
+            running_loss_capi.update(raw_capi_loss.detach())
+            running_loss_dino.update(raw_dino_loss.detach())
+            running_clustering_loss.update(raw_clustering_loss.detach())
+            running_target_entropy.update(target_entropy.detach())
+
+            # Write statistics
+            if (i + 1) % args.log_interval == 0 or i == last_batch_idx:
+                time_now = time.time()
+                time_cost = time_now - start_time
+                iters_processed_in_interval = i - last_idx
+                rate = iters_processed_in_interval * (batch_size * args.world_size) / time_cost
+
+                avg_time_per_iter = time_cost / iters_processed_in_interval
+                remaining_iters_in_epoch = last_batch_idx - i
+                estimated_time_to_finish_epoch = remaining_iters_in_epoch * avg_time_per_iter
+
+                start_time = time_now
+                last_idx = i
+                cur_lr = float(max(scheduler.get_last_lr()))
+
+                running_loss.synchronize_between_processes(device)
+                running_loss_capi.synchronize_between_processes(device)
+                running_loss_dino.synchronize_between_processes(device)
+                running_clustering_loss.synchronize_between_processes(device)
+                running_target_entropy.synchronize_between_processes(device)
+                with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
+                    log.info(
+                        f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
+                        f"Loss: {running_loss.avg:.4f}  "
+                        f"CAPI: {running_loss_capi.avg:.4f}  "
+                        f"DINO: {running_loss_dino.avg:.4f}  "
+                        f"Elapsed: {format_duration(time_now-epoch_start)}  "
+                        f"ETA: {format_duration(estimated_time_to_finish_epoch)}  "
+                        f"T: {time_cost:.1f}s  "
+                        f"R: {rate:.1f} samples/s  "
+                        f"LR: {cur_lr:.4e}"
+                    )
+
+                if training_utils.is_global_primary(args) is True:
+                    summary_writer.add_scalars(
+                        "loss",
+                        {
+                            "training": running_loss.avg,
+                            "capi": running_loss_capi.avg,
+                            "dino": running_loss_dino.avg,
+                            "clustering": running_clustering_loss.avg,
+                        },
+                        ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
+                    )
+                    summary_writer.add_scalars(
+                        "performance",
+                        {"target_entropy": running_target_entropy.avg},
+                        ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
+                    )
+
+            # Update progress bar
+            progress.update(n=batch_size * args.world_size)
+
+        progress.close()
+
+        # Epoch training metrics
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {running_loss.global_avg:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} capi_loss: {running_loss_capi.global_avg:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} dino_loss: {running_loss_dino.global_avg:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} clustering_loss: {running_clustering_loss.global_avg:.4f}")
+        logger.info(f"[Trn] Epoch {epoch}/{epochs-1} target_entropy: {running_target_entropy.global_avg:.4f}")
+
+        # Learning rate scheduler update
+        if step_update is False:
+            scheduler.step()
+            clustering_scheduler.step()
+        if last_lr != float(max(scheduler.get_last_lr())):
+            last_lr = float(max(scheduler.get_last_lr()))
+            logger.info(f"Updated learning rate to: {last_lr}")
+
+        # Checkpoint model
+        if epoch % args.save_frequency == 0:
+            if fsdp_mode is True:
+                student_state = fsdp_utils.gather_full_model_state_dict(model_to_save["student"])
+                teacher_state = fsdp_utils.gather_full_model_state_dict(model_to_save["teacher"])
+                full_model_state = {
+                    **{f"student.{k}": v for k, v in student_state.items()},
+                    **{f"teacher.{k}": v for k, v in teacher_state.items()},
+                    **{f"dino_loss.{k}": v for k, v in model_to_save["dino_loss"].state_dict().items()},
+                }
+                backbone_model_state = fsdp_utils.extract_submodule_state_dict(
+                    teacher_state, model_to_save["teacher"], model_to_save["teacher"].backbone
+                )
+                clustering_optimizer_state = fsdp_utils.gather_full_optimizer_state_dict(
+                    model_to_save["teacher"], clustering_optimizer
+                )
+            else:
+                full_model_state = None
+                backbone_model_state = None
+                clustering_optimizer_state = clustering_optimizer.state_dict()
+
+            extra_states = {
+                "clustering_optimizer": clustering_optimizer_state,
+                "clustering_scheduler": clustering_scheduler.state_dict(),
+            }
+            if clustering_scaler is not None:
+                extra_states.update({"clustering_scaler": clustering_scaler.state_dict()})
+
+            training_utils.save_training_checkpoint(
+                args,
+                network_name,
+                epoch,
+                model_to_save,
+                signature,
+                {},
+                rgb_stats,
+                optimizer,
+                scheduler,
+                scaler,
+                None,
+                fsdp_mode=fsdp_mode,
+                fsdp_model_state=full_model_state,
+                **extra_states,
+            )
+            training_utils.save_training_checkpoint(
+                args,
+                backbone_name,
+                epoch,
+                model_to_save["teacher"].backbone,
+                backbone_signature,
+                {},
+                rgb_stats,
+                optimizer=None,
+                scheduler=None,
+                scaler=None,
+                model_base=None,
+                fsdp_mode=fsdp_mode,
+                fsdp_model_state=backbone_model_state,
+            )
+            if args.keep_last is not None and training_utils.is_global_primary(args) is True:
+                fs_ops.clean_checkpoints(network_name, args.keep_last)
+                fs_ops.clean_checkpoints(backbone_name, args.keep_last)
+
+        # Epoch timing
+        toc = time.time()
+        logger.info(f"Total time: {format_duration(toc - tic)}")
+        logger.info("---")
+
+    summary_writer.close()
+
+    # Checkpoint model
+    if fsdp_mode is True:
+        student_state = fsdp_utils.gather_full_model_state_dict(model_to_save["student"])
+        teacher_state = fsdp_utils.gather_full_model_state_dict(model_to_save["teacher"])
+        full_model_state = {
+            **{f"student.{k}": v for k, v in student_state.items()},
+            **{f"teacher.{k}": v for k, v in teacher_state.items()},
+            **{f"dino_loss.{k}": v for k, v in model_to_save["dino_loss"].state_dict().items()},
+        }
+        backbone_model_state = fsdp_utils.extract_submodule_state_dict(
+            teacher_state, model_to_save["teacher"], model_to_save["teacher"].backbone
+        )
+        clustering_optimizer_state = fsdp_utils.gather_full_optimizer_state_dict(
+            model_to_save["teacher"], clustering_optimizer
+        )
+    else:
+        full_model_state = None
+        backbone_model_state = None
+        clustering_optimizer_state = clustering_optimizer.state_dict()
+
+    extra_states = {
+        "clustering_optimizer": clustering_optimizer_state,
+        "clustering_scheduler": clustering_scheduler.state_dict(),
+    }
+    if clustering_scaler is not None:
+        extra_states.update({"clustering_scaler": clustering_scaler.state_dict()})
+
+    training_utils.save_training_checkpoint(
+        args,
+        network_name,
+        epoch,
+        model_to_save,
+        signature,
+        {},
+        rgb_stats,
+        optimizer,
+        scheduler,
+        scaler,
+        None,
+        fsdp_mode=fsdp_mode,
+        fsdp_model_state=full_model_state,
+        **extra_states,
+    )
+    training_utils.save_training_checkpoint(
+        args,
+        backbone_name,
+        epoch,
+        model_to_save["teacher"].backbone,
+        backbone_signature,
+        {},
+        rgb_stats,
+        optimizer=None,
+        scheduler=None,
+        scaler=None,
+        model_base=None,
+        fsdp_mode=fsdp_mode,
+        fsdp_model_state=backbone_model_state,
+    )
+
+    training_utils.shutdown_distributed_mode(args)
+
+
+def get_args_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        allow_abbrev=False,
+        description="Pretrain model",
+        epilog=(
+            "Usage examples\n"
+            "==============\n"
+            "torchrun --nproc_per_node=2 -m birder.scripts.train_capi_dino \\\n"
+            "    --network rope_vit_reg4_s14 \\\n"
+            "    --opt adamw \\\n"
+            "    --lr 0.001 \\\n"
+            "    --opt-betas 0.9 0.95 \\\n"
+            "    --lr-scheduler-update step \\\n"
+            "    --lr-scheduler cosine \\\n"
+            "    --lr-cosine-min 1e-7 \\\n"
+            "    --warmup-epochs 40 \\\n"
+            "    --batch-size 256 \\\n"
+            "    --epochs 400 \\\n"
+            "    --wd 0.1 \\\n"
+            "    --norm-wd 0.01 \\\n"
+            "    --amp \\\n"
+            "    --compile \\\n"
+            "    --compile-opt \\\n"
+            "    --data-path data/training\n"
+        ),
+        formatter_class=cli.ArgumentHelpFormatter,
+    )
+    parser.add_argument("-n", "--network", type=str, help="the neural network to use")
+    parser.add_argument("-t", "--tag", type=str, help="add model tag")
+    parser.add_argument(
+        "--model-config",
+        action=cli.FlexibleDictAction,
+        help=(
+            "override the model default configuration, accepts key-value pairs or JSON "
+            "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
+        ),
+    )
+    parser.add_argument("--decoder-layers", type=int, default=12, help="number of decoder layers")
+    parser.add_argument("--decoder-dim", type=int, default=1024, help="decoder dimensionality")
+    parser.add_argument("--num-clusters", type=int, default=16384, help="clustering head width")
+    parser.add_argument("--dino-loss-weight", type=float, default=1.0, help="weight for the DINO loss component")
+    parser.add_argument("--dino-out-dim", type=int, default=32768, help="dimensionality of the DINO head output")
+    parser.add_argument("--dino-head-layers", type=int, default=3, help="number of DINO head layers")
+    parser.add_argument("--dino-head-hidden-dim", type=int, default=2048, help="DINO head hidden dimensionality")
+    parser.add_argument("--dino-head-bottleneck-dim", type=int, default=256, help="DINO head bottleneck dimensionality")
+    parser.add_argument("--dino-student-temp", type=float, default=0.1, help="DINO student temperature")
+    parser.add_argument(
+        "--dino-center-momentum", type=float, default=0.9, help="momentum for the DINO teacher output center"
+    )
+    parser.add_argument(
+        "--dino-warmup-teacher-temp", type=float, default=0.04, help="initial value for the DINO teacher temperature"
+    )
+    parser.add_argument("--dino-teacher-temp", type=float, default=0.07, help="final DINO teacher temperature")
+    parser.add_argument(
+        "--dino-warmup-teacher-temp-epochs",
+        type=int,
+        default=30,
+        help="number of warmup epochs for the DINO teacher temperature",
+    )
+    parser.add_argument(
+        "--freeze-dino-last-layer-epochs",
+        default=1,
+        type=int,
+        help="number of epochs during which the DINO output layer is frozen",
+    )
+    parser.add_argument("--mask-ratio", type=float, default=0.65, help="masking ratio")
+    parser.add_argument("--kept-mask-ratio", type=float, default=0.05, help="subsampling ratio for decoding")
+    parser.add_argument("--momentum-teacher", type=float, default=0.999, help="base EMA parameter for teacher update")
+    parser.add_argument(
+        "--sk-mode",
+        choices=["position-wise", "global"],
+        default="position-wise",
+        help="Sinkhorn-Knopp assignment scope: per patch position or global across patches",
+    )
+    parser.add_argument(
+        "--sinkhorn-queue-size",
+        type=int,
+        help="per-process queue size (in samples or patches based on sk-mode) for Sinkhorn",
+    )
+    parser.add_argument(
+        "--sinkhorn-queue-warmup-epochs",
+        type=int,
+        default=0,
+        help="number of initial epochs to disable Sinkhorn queueing",
+    )
+    training_cli.add_optimization_args(parser)
+    training_cli.add_lr_wd_args(parser)
+    training_cli.add_lr_scheduler_args(parser)
+    training_cli.add_training_schedule_args(parser, default_epochs=400)
+    training_cli.add_batch_norm_args(parser)
+    training_cli.add_input_args(parser)
+    training_cli.add_data_aug_args(parser, default_level=1, default_min_scale=0.6, default_re_prob=0.0)
+    training_cli.add_dataloader_args(parser, default_drop_last=True)
+    training_cli.add_precision_args(parser)
+    training_cli.add_compile_args(parser)
+    training_cli.add_checkpoint_args(parser)
+    training_cli.add_distributed_args(parser, fsdp=True)
+    training_cli.add_logging_and_debug_args(parser, default_log_interval=100)
+    training_cli.add_training_data_args(parser, unsupervised=True, wds_extra_shuffle=False)
+
+    return parser
+
+
+def validate_args(args: argparse.Namespace) -> None:
+    args.data_path = [str(p) for p in args.data_path]
+    args.size = cli.parse_size(args.size)
+
+    # This will capture the common argument mistakes
+    training_cli.common_args_validation(args)
+
+    # Script specific checks
+    if registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION, net_type=MaskedTokenOmissionMixin) is False:
+        raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
+
+    if args.load_scheduler is True:
+        raise cli.ValidationError("--load-scheduler not supported")
+
+
+def args_from_dict(**kwargs: Any) -> argparse.Namespace:
+    parser = get_args_parser()
+    parser.set_defaults(**kwargs)
+    args = parser.parse_args([])
+    validate_args(args)
+
+    return args
+
+
+def main(overrides: Optional[TrainOverrides] = None) -> None:
+    parser = get_args_parser()
+    args = parser.parse_args()
+    validate_args(args)
+
+    if settings.MODELS_DIR.exists() is False:
+        logger.info(f"Creating {settings.MODELS_DIR} directory...")
+        settings.MODELS_DIR.mkdir(parents=True, exist_ok=True)
+
+    if args.wds_cache_dir is not None and Path(args.wds_cache_dir).exists() is False:
+        logger.info(f"Creating {args.wds_cache_dir} directory...")
+        Path(args.wds_cache_dir).mkdir(parents=True, exist_ok=True)
+
+    train(args, overrides=overrides)
+
+
+if __name__ == "__main__":
+    logger = logging.getLogger(getattr(__spec__, "name", __name__))
+    main()

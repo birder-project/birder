@@ -196,6 +196,7 @@ def show_det_iterator(args: argparse.Namespace) -> None:
             transformed_img = F.to_pil_image(img)
 
             fig = plt.figure(constrained_layout=True)
+            fig.suptitle(img_path)
             grid_spec = fig.add_gridspec(ncols=cols, nrows=rows)
 
             # Show original

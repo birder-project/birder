@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 def _validate_label_names(label_names: list[str]) -> None:
-    collisions = sorted(set(label_names).intersection({"sample", "label"}))
+    collisions = sorted(set(label_names).intersection({"sample", "label", "prediction"}))
     if len(collisions) > 0:
         collision_str = ", ".join(f"'{name}'" for name in collisions)
         raise ValueError(
@@ -524,7 +524,8 @@ def predict(args: argparse.Namespace) -> None:
         chunk_size=args.chunk_size,
         **args.forward_kwargs,
     )
-    append = False  # Append mode for outputs, only False for the first batch
+    append = False  # Append mode for raw outputs, only False for the first batch
+    results_append = False
     summary_list = []
     with torch.inference_mode():
         for sample_paths, outs, labels, embedding_list in infer_iter:
@@ -582,7 +583,8 @@ def predict(args: argparse.Namespace) -> None:
 
                 if results.missing_all_labels is False:
                     if args.save_results is True or args.save_sparse_results is True:
-                        results.save(results_path, append=append)
+                        results.save(results_path, append=results_append)
+                        results_append = True
                     if args.chunk_size is None:
                         results.log_short_report()
 

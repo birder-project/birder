@@ -21,7 +21,7 @@ parameterized~=0.9.0
 pylint~=4.0.5
 pytest
 requests~=2.34.2
-safetensors~=0.7.0
+safetensors~=0.8.0
 setuptools
 # tensorrt~=11.0.0.114
 torchprofile==0.1.0

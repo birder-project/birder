@@ -37,6 +37,12 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network crossmae_dec51
 torchrun --nproc_per_node=2 -m birder.scripts.train_eva --network rope_vit_s14_swiglu_avg --tag bio --teacher vit_l14_pn --teacher-tag bioclip-v2 --batch-size 320 --opt adamw --opt-fused --opt-eps 1e-6 --opt-betas 0.9 0.98 --clip-grad-norm 3 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --warmup-epochs 5 --size 224 --rgb-mode clip --amp --amp-dtype bfloat16 --compile --wds --wds-info /mnt/data/ssl_bio_packed/_info.json
 ```
 
+#### EVA: RoPE ViT m14 swiglu AVG with a ViT h14 pn Teacher
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_eva --network rope_vit_m14_swiglu_avg --tag bio --teacher vit_h14_pn --teacher-tag bioclip-v25 --batch-size 512 --opt adamw --opt-fused --opt-betas 0.9 0.98 --clip-grad-norm 3 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --epochs 300 --warmup-epochs 5 --size 224 --steps-per-epoch 5000 --rgb-mode clip --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --wds --wds-info data/ssl_bio_packed/_info.json
+```
+
 #### EVA: RoPE ViT m16 AVG with a RoPEcs ViT reg4 l16 nape LS c1 Teacher
 
 ```sh

@@ -147,7 +147,18 @@ class Results:
 
     @cached_property
     def _top_k_indices(self) -> list[int]:
-        return top_k_accuracy_score(self.labels, self.output, top_k=settings.TOP_K)
+        if self._top_k_is_meaningful is False:
+            return np.flatnonzero(self.valid_idx).tolist()
+
+        return top_k_accuracy_score(self.labels, self.output, top_k=self._effective_top_k)
+
+    @property
+    def _effective_top_k(self) -> int:
+        return min(settings.TOP_K, len(self._label_names))
+
+    @property
+    def _top_k_is_meaningful(self) -> bool:
+        return settings.TOP_K < len(self._label_names)
 
     @property
     def labels(self) -> npt.NDArray[np.int_]:
@@ -191,10 +202,16 @@ class Results:
 
     @property
     def out_of_top_k(self) -> pl.DataFrame:
+        if self._top_k_is_meaningful is False:
+            return self._results_df.head(0)
+
         return self._results_df.with_row_index().filter(~pl.col("index").is_in(self._top_k_indices)).drop("index")
 
     @property
     def num_out_of_top_k(self) -> int:
+        if self._top_k_is_meaningful is False:
+            return 0
+
         return self._valid_length - len(self._top_k_indices)
 
     @property
@@ -203,6 +220,9 @@ class Results:
 
     @cached_property
     def top_k(self) -> float:
+        if self._top_k_is_meaningful is False:
+            return np.nan
+
         return len(self._top_k_indices) / self._valid_length
 
     @property
@@ -302,10 +322,15 @@ class Results:
         highest_recall = report_df[report_df["Recall"].arg_max()]  # type: ignore[index]
 
         logger.info(f"Accuracy {self.accuracy:.4f} on {self._valid_length} samples ({self._num_mistakes} mistakes)")
-        logger.info(
-            f"Top-{settings.TOP_K} accuracy {self.top_k:.4f} on {self._valid_length} samples "
-            f"({self.num_out_of_top_k} samples out of top-{settings.TOP_K})"
-        )
+        if self._top_k_is_meaningful is True:
+            logger.info(
+                f"Top-{settings.TOP_K} accuracy {self.top_k:.4f} on {self._valid_length} samples "
+                f"({self.num_out_of_top_k} samples out of top-{settings.TOP_K})"
+            )
+        else:
+            logger.info(
+                f"Top-{settings.TOP_K} accuracy not reported, only {len(self._label_names)} classes are available"
+            )
 
         logger.info(
             f"Lowest precision {lowest_precision['Precision'][0]:.4f} for '{lowest_precision['Class name'][0]}' "
@@ -399,9 +424,14 @@ class Results:
         accuracy_text.append(" mistakes)")
 
         top_k_text = Text()
-        top_k_text.append(f"Top-{settings.TOP_K} accuracy {self.top_k:.4f} on {self._valid_length} samples (")
-        top_k_text.append(f"{self.num_out_of_top_k}", style="bold")
-        top_k_text.append(f" samples out of top-{settings.TOP_K})")
+        if self._top_k_is_meaningful is True:
+            top_k_text.append(f"Top-{settings.TOP_K} accuracy {self.top_k:.4f} on {self._valid_length} samples (")
+            top_k_text.append(f"{self.num_out_of_top_k}", style="bold")
+            top_k_text.append(f" samples out of top-{settings.TOP_K})")
+        else:
+            top_k_text.append(
+                f"Top-{settings.TOP_K} accuracy not reported, only {len(self._label_names)} classes are available"
+            )
 
         console.print(accuracy_text)
         console.print(top_k_text)
@@ -656,9 +686,12 @@ class SparseResults(Results):
 
     @cached_property
     def _top_k_indices(self) -> list[int]:
+        if self._top_k_is_meaningful is False:
+            return np.flatnonzero(self.valid_idx).tolist()
+
         indices: list[int] = []
         for i in range(len(self)):
-            if self.labels[i] in self._sparse_indices[i][: settings.TOP_K]:
+            if self.labels[i] in self._sparse_indices[i][: self._effective_top_k]:
                 indices.append(i)
 
         return indices

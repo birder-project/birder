@@ -135,6 +135,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         config={"patch_size": 16, **BASE, "pre_norm": True, "norm_layer_eps": 1e-5},
     )
     registry.register_model_config(
+        "vit_b16_ap",
+        vit,
+        config={"patch_size": 16, **BASE, "class_token": False, "attn_pool_head": True},
+    )
+    registry.register_model_config(
         "vit_b16_qkn_ls",
         vit,
         config={"patch_size": 16, **BASE, "layer_scale_init_value": 1e-5, "qk_norm": True},
@@ -178,6 +183,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         "vit_l16_avg",
         vit,
         config={"patch_size": 16, **LARGE, "class_token": False},
+    )
+    registry.register_model_config(
+        "vit_l16_ap",
+        vit,
+        config={"patch_size": 16, **LARGE, "class_token": False, "attn_pool_head": True},
     )
     registry.register_model_config(
         "vit_l14",
@@ -343,6 +353,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         config={"patch_size": 32, **BASE, "num_reg_tokens": 4, "drop_path_rate": 0.0},  # Override the BASE definition
     )
     registry.register_model_config(
+        "vit_reg1_b16_avg",
+        vit,
+        config={"patch_size": 16, **BASE, "num_reg_tokens": 1, "class_token": False},
+    )
+    registry.register_model_config(
         "vit_reg4_b16",
         vit,
         config={"patch_size": 16, **BASE, "num_reg_tokens": 4},
@@ -481,6 +496,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
             "attn_pool_head": True,
             "attn_pool_special_tokens": True,
         },
+    )
+    registry.register_model_config(
+        "vit_reg1_l14_avg",
+        vit,
+        config={"patch_size": 14, **LARGE, "num_reg_tokens": 1, "class_token": False},
     )
     registry.register_model_config(
         "vit_reg4_l14",

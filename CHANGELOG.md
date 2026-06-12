@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.5 - 2026-06-12
+
+### Added
+
+- **Experimental CAPI-DINO SSL**: Added experimental CAPI-DINO self-supervised learning support.
+
+### Fixed
+
+- **WebDataset Relative Paths**: Fixed local WebDataset directory expansion for relative paths containing `..`, such as `../datasets/wds`.
+- **Classification Top-K Results**: Fixed classification result reporting for datasets with too few classes for the configured top-k value.
+
 ## 0.5.4 - 2026-06-08
 
 ### Added
