@@ -9,7 +9,7 @@ base_model:
 - google/siglip2-so400m-patch14-224
 ---
 
-# Model Card for vit_so400m_p14_ap_siglip-v2-webli
+# Model Card for vit_so400m_p14_ap_c1_siglip-v2-webli
 
 A ViT so400m image encoder from the SigLIP-v2 model by Tschannen et al., converted to the Birder format for image feature extraction.
 This version preserves the original model weights and architecture for downstream tasks.
@@ -36,7 +36,7 @@ See: <https://huggingface.co/google/siglip2-so400m-patch14-224> for further deta
 import birder
 from birder.inference.classification import infer_image
 
-(net, model_info) = birder.load_pretrained_model("vit_so400m_p14_ap_siglip-v2-webli", inference=True)
+(net, model_info) = birder.load_pretrained_model("vit_so400m_p14_ap_c1_siglip-v2-webli", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)
@@ -55,7 +55,7 @@ image = "path/to/image.jpeg"  # or a PIL image
 from PIL import Image
 import birder
 
-(net, model_info) = birder.load_pretrained_model("vit_so400m_p14_ap_siglip-v2-webli", inference=True)
+(net, model_info) = birder.load_pretrained_model("vit_so400m_p14_ap_c1_siglip-v2-webli", inference=True)
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)

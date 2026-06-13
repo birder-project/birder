@@ -14,7 +14,7 @@ base_model:
 A ViT s14 with register tokens image encoder from the DINOv2 model by Oquab et al., converted to the Birder format for image feature extraction.
 This version preserves the original model weights and architecture for downstream tasks.
 
-See <https://huggingface.co/facebook/dinov2-with-registers-large> and <https://github.com/facebookresearch/dinov2> for further details
+See <https://huggingface.co/facebook/dinov2-with-registers-large> and <https://github.com/facebookresearch/dinov2> for further details.
 
 ## Model Details
 

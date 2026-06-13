@@ -142,6 +142,21 @@ class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
             num_special_tokens=self.num_special_tokens,
         ).to(self.pos_embedding.device)
 
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        self.encoder.set_grad_checkpointing(
+            enable=enable,
+            segments=segments,
+            preserve_rng_state=preserve_rng_state,
+            use_reentrant=use_reentrant,
+        )
+
     def set_causal_attention(self, is_causal: bool = True) -> None:
         self.encoder.set_causal_attention(is_causal)
 

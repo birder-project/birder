@@ -74,6 +74,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", None)
         pre_norm: bool = self.config.get("pre_norm", False)
         post_norm: bool = self.config.get("post_norm", True)
+        norm_after_pool: bool = self.config.get("norm_after_pool", False)
         qkv_bias: bool = self.config.get("qkv_bias", True)
         qk_norm: bool = self.config.get("qk_norm", False)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
@@ -82,6 +83,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         attn_pool_type: str = self.config.get("attn_pool_type", "MultiHeadAttentionPool")
         attn_pool_num_heads: Optional[int] = self.config.get("attn_pool_num_heads", None)
         attn_pool_special_tokens: bool = self.config.get("attn_pool_special_tokens", False)
+        attn_pool_norm_eps: float = self.config.get("attn_pool_norm_eps", 1e-5)
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
         norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
@@ -217,10 +219,15 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             rope_rot_type=rope_rot_type,
         )
 
-        if post_norm is True:
+        if post_norm is True and norm_after_pool is False:
             self.norm = norm_layer(hidden_dim, eps=norm_layer_eps)
         else:
             self.norm = nn.Identity()
+
+        if post_norm is True and norm_after_pool is True:
+            self.embedding_norm = norm_layer(hidden_dim, eps=norm_layer_eps)
+        else:
+            self.embedding_norm = nn.Identity()
 
         if attn_pool_head is False:
             self.attn_pool = None
@@ -236,7 +243,9 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             else:
                 raise ValueError(f"Unknown attn_pool_type '{attn_pool_type}'")
 
-            self.attn_pool = attn_pool(hidden_dim, attn_pool_num_heads, mlp_dim, qkv_bias=True)
+            self.attn_pool = attn_pool(
+                hidden_dim, attn_pool_num_heads, mlp_dim, qkv_bias=True, norm_eps=attn_pool_norm_eps
+            )
 
         num_return_stages = len(self.out_indices) if self.out_indices is not None else 1
         self.return_stages = [f"stage{stage_idx + 1}" for stage_idx in range(num_return_stages)]
@@ -330,12 +339,43 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
                 for param in self.attn_pool.parameters():
                     param.requires_grad_(True)
 
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        self.encoder.set_grad_checkpointing(
+            enable=enable,
+            segments=segments,
+            preserve_rng_state=preserve_rng_state,
+            use_reentrant=use_reentrant,
+        )
+
     def set_causal_attention(self, is_causal: bool = True) -> None:
         self.encoder.set_causal_attention(is_causal)
 
     def transform_to_backbone(self) -> None:
         super().transform_to_backbone()
         self.norm = nn.Identity()
+        self.embedding_norm = nn.Identity()
+
+    def _pool(self, x: torch.Tensor) -> torch.Tensor:
+        if self.attn_pool is not None:
+            if self.attn_pool_special_tokens is False:
+                x = x[:, self.num_special_tokens :]
+
+            x = self.attn_pool(x)
+            return x[:, 0]
+
+        if self.class_token is None:
+            x = x[:, self.num_special_tokens :]
+            return x.mean(dim=1)
+
+        # Classifier "token" as used by standard language architectures
+        return x[:, self.num_reg_tokens]
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         H, W = x.shape[-2:]
@@ -457,17 +497,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             if return_all_features is True:
                 x = x[..., -1]
 
-            if self.attn_pool is not None:
-                if self.attn_pool_special_tokens is False:
-                    x = x[:, self.num_special_tokens :]
-
-                x = self.attn_pool(x)
-                result["embedding"] = x[:, 0]
-            elif self.class_token is None:
-                x = x[:, self.num_special_tokens :]
-                result["embedding"] = x.mean(dim=1)
-            else:
-                result["embedding"] = x[:, self.num_reg_tokens]
+            result["embedding"] = self.embedding_norm(self._pool(x))
 
         return result
 
@@ -514,17 +544,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             result["features"] = features
 
         if return_keys in ("all", "embedding"):
-            if self.attn_pool is not None:
-                if self.attn_pool_special_tokens is False:
-                    x = x[:, self.num_special_tokens :]
-
-                x = self.attn_pool(x)
-                result["embedding"] = x[:, 0]
-            elif self.class_token is None:
-                x = x[:, self.num_special_tokens :]
-                result["embedding"] = x.mean(dim=1)
-            else:
-                result["embedding"] = x[:, self.num_reg_tokens]
+            result["embedding"] = self.embedding_norm(self._pool(x))
 
         return result
 
@@ -576,20 +596,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
 
     def embedding(self, x: torch.Tensor, patch_size: Optional[int] = None) -> torch.Tensor:
         x = self.forward_features(x, patch_size)
-
-        if self.attn_pool is not None:
-            if self.attn_pool_special_tokens is False:
-                x = x[:, self.num_special_tokens :]
-
-            x = self.attn_pool(x)
-            return x[:, 0]
-
-        if self.class_token is None:
-            x = x[:, self.num_special_tokens :]
-            return x.mean(dim=1)
-
-        # Classifier "token" as used by standard language architectures
-        return x[:, self.num_reg_tokens]
+        return self.embedding_norm(self._pool(x))
 
     def forward(self, x: torch.Tensor, patch_size: Optional[int] = None) -> torch.Tensor:
         x = self.embedding(x, patch_size)

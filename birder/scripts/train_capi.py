@@ -217,6 +217,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
+    if args.grad_checkpointing is True:
+        student.backbone.set_grad_checkpointing(
+            segments=args.grad_checkpointing_segments,
+            preserve_rng_state=args.grad_checkpointing_preserve_rng_state,
+        )
+
     if fsdp_mode is True:
         fsdp_mesh = init_device_mesh("cuda", (args.world_size,), mesh_dim_names=("dp",))
 
@@ -952,6 +958,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_data_aug_args(parser, default_level=1, default_min_scale=0.6, default_re_prob=0.0)
     training_cli.add_dataloader_args(parser, default_drop_last=True)
     training_cli.add_precision_args(parser)
+    training_cli.add_grad_checkpointing_args(parser)
     training_cli.add_compile_args(parser)
     training_cli.add_checkpoint_args(parser)
     training_cli.add_distributed_args(parser, fsdp=True)

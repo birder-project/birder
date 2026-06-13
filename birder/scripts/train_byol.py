@@ -255,6 +255,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     for p in net.target_encoder.parameters():
         p.requires_grad_(False)
 
+    if args.grad_checkpointing is True:
+        net.backbone.set_grad_checkpointing(
+            segments=args.grad_checkpointing_segments,
+            preserve_rng_state=args.grad_checkpointing_preserve_rng_state,
+        )
+
     # Compile network
     if args.compile is True:
         net = torch.compile(net, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
@@ -655,6 +661,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_data_aug_args(parser, default_min_scale=0.3, default_re_prob=0.0)
     training_cli.add_dataloader_args(parser, default_drop_last=True)
     training_cli.add_precision_args(parser)
+    training_cli.add_grad_checkpointing_args(parser)
     training_cli.add_compile_args(parser)
     training_cli.add_checkpoint_args(parser)
     training_cli.add_distributed_args(parser)

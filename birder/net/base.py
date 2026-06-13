@@ -207,6 +207,16 @@ class BaseNet(nn.Module):
         logger.debug(f"Setting dynamic size to: {dynamic_size}")
         self.dynamic_size = dynamic_size
 
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        raise RuntimeError(f"{self.__class__.__name__} does not support gradient checkpointing")
+
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         """
         Override this when one time adjustments for different resolutions is required.

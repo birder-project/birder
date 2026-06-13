@@ -13,6 +13,7 @@ Changes from original:
 
 # Reference license: Apache-2.0
 
+import logging
 import math
 from collections import OrderedDict
 from typing import Any
@@ -22,6 +23,7 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.utils.checkpoint import checkpoint_sequential
 from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
@@ -34,6 +36,8 @@ from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenOmissionResultType
 from birder.net.vit import adjust_position_embedding
+
+logger = logging.getLogger(__name__)
 
 
 def get_resized_mask(target_size: list[int], mask: torch.Tensor) -> torch.Tensor:
@@ -337,6 +341,12 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         attn_pool_num_heads: Optional[int] = self.config.get("attn_pool_num_heads", None)
         drop_path_rate: float = self.config["drop_path_rate"]
 
+        self.grad_checkpointing = False
+        self.grad_checkpointing_segments: Optional[int] = None
+        self.grad_checkpointing_preserve_rng_state = True
+        self.grad_checkpointing_use_reentrant = False
+        self._grad_checkpointing_blocks = ()
+
         tokens_spatial_shape = [i // s for i, s in zip(image_size, patch_stride)]
         num_tokens = math.prod(tokens_spatial_shape)
         flat_mu_size = math.prod(mask_unit_size)
@@ -464,6 +474,31 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
             self.classifier.weight.data.mul_(0.001)
             self.classifier.bias.data.mul_(0.001)
 
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        if enable is True:
+            logger.debug(
+                f"Enabling gradient checkpointing: segments={segments}, "
+                f"preserve_rng_state={preserve_rng_state}, use_reentrant={use_reentrant}"
+            )
+        else:
+            logger.debug("Disabling gradient checkpointing")
+
+        self.grad_checkpointing = enable
+        self.grad_checkpointing_segments = segments
+        self.grad_checkpointing_preserve_rng_state = preserve_rng_state
+        self.grad_checkpointing_use_reentrant = use_reentrant
+        if enable is True:
+            self._grad_checkpointing_blocks = tuple(block for stage in self.body for block in stage)
+        else:
+            self._grad_checkpointing_blocks = ()
+
     def _get_pos_embed(self) -> torch.Tensor:
         if self.pos_embed_win is not None:
             # Reference interpolation adapted from:
@@ -533,7 +568,21 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         if ids_keep is not None:
             x = x[mask[..., None].tile(1, self.mu_size, x.shape[2])].view(x.shape[0], -1, x.shape[-1])
 
-        x = self.body(x)
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            if self.grad_checkpointing_segments is None:
+                segments = len(self._grad_checkpointing_blocks)
+            else:
+                segments = min(self.grad_checkpointing_segments, len(self._grad_checkpointing_blocks))
+
+            x = checkpoint_sequential(
+                self._grad_checkpointing_blocks,
+                segments,
+                x,
+                use_reentrant=self.grad_checkpointing_use_reentrant,
+                preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+            )
+        else:
+            x = self.body(x)
 
         result: TokenOmissionResultType = {}
         if return_keys in ("all", "tokens"):
@@ -563,7 +612,22 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
 
         out = []
         for idx, (name, module) in enumerate(self.body.named_children()):
-            x = module(x)
+            if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+                if self.grad_checkpointing_segments is None:
+                    segments = len(module)
+                else:
+                    segments = min(self.grad_checkpointing_segments, len(module))
+
+                x = checkpoint_sequential(
+                    module,
+                    segments,
+                    x,
+                    use_reentrant=self.grad_checkpointing_use_reentrant,
+                    preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+                )
+            else:
+                x = module(x)
+
             if name in self.return_stages:
                 out.append(self.reroll(x, self.block_count[idx], mask=mask))
 
@@ -573,7 +637,21 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         x = self.stem(x)
         x = x + self._get_pos_embed()
         x = self.unroll(x)
-        x = self.body(x)
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            if self.grad_checkpointing_segments is None:
+                segments = len(self._grad_checkpointing_blocks)
+            else:
+                segments = min(self.grad_checkpointing_segments, len(self._grad_checkpointing_blocks))
+
+            x = checkpoint_sequential(
+                self._grad_checkpointing_blocks,
+                segments,
+                x,
+                use_reentrant=self.grad_checkpointing_use_reentrant,
+                preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+            )
+        else:
+            x = self.body(x)
 
         return x
 

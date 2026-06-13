@@ -544,6 +544,29 @@ def add_precision_args(parser: argparse.ArgumentParser, channels_last: bool = Fa
     )
 
 
+def add_grad_checkpointing_args(parser: argparse.ArgumentParser) -> None:
+    group = parser.add_argument_group("Gradient checkpointing parameters")
+    group.add_argument(
+        "--grad-checkpointing",
+        default=False,
+        action="store_true",
+        help="enable gradient checkpointing for supported models",
+    )
+    group.add_argument(
+        "--grad-checkpointing-segments",
+        type=int,
+        metavar="N",
+        help="number of checkpoint segments to request from supported models",
+    )
+    group.add_argument(
+        "--no-grad-checkpointing-preserve-rng-state",
+        dest="grad_checkpointing_preserve_rng_state",
+        default=True,
+        action="store_false",
+        help="disable RNG state preservation during gradient checkpointing recomputation",
+    )
+
+
 def add_compile_args(parser: argparse.ArgumentParser, teacher: bool = False, backbone: bool = False) -> None:
     group = parser.add_argument_group("Compilation parameters")
     group.add_argument("--compile", default=False, action="store_true", help="enable compilation")
@@ -917,6 +940,13 @@ def common_args_validation(args: argparse.Namespace) -> None:
         if args.model_ema_steps < 1:
             raise ValidationError("--model-ema-steps must be >= 1")
 
+    # Gradient checkpointing args
+    if hasattr(args, "grad_checkpointing_segments") is True:
+        if args.grad_checkpointing_segments is not None and args.grad_checkpointing_segments < 1:
+            raise ValidationError("--grad-checkpointing-segments must be >= 1")
+        if args.grad_checkpointing_segments is not None and args.grad_checkpointing is False:
+            raise ValidationError("--grad-checkpointing-segments requires --grad-checkpointing")
+
     # Compile args, argument dependant
     if hasattr(args, "compile_fullgraph") is True and args.compile_fullgraph is True:
         if (
@@ -1031,6 +1061,8 @@ def common_args_validation(args: argparse.Namespace) -> None:
 
     # FSDP mode checks
     if hasattr(args, "distributed_mode") is True and args.distributed_mode == "fsdp":
+        if hasattr(args, "grad_checkpointing") is True and args.grad_checkpointing is True:
+            raise ValidationError("--grad-checkpointing cannot be used with --distributed-mode fsdp")
         if hasattr(args, "sync_bn") is True and args.sync_bn is True:
             raise ValidationError("--sync-bn cannot be used with --distributed-mode fsdp")
         if args.find_unused_parameters is True:

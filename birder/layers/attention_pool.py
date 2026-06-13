@@ -18,6 +18,7 @@ class MultiHeadAttentionPool(nn.Module):
         mlp_dim: int,
         qkv_bias: bool,
         latent_len: int = 1,
+        norm_eps: float = 1e-5,
     ) -> None:
         super().__init__()
         assert dim % num_heads == 0
@@ -32,7 +33,7 @@ class MultiHeadAttentionPool(nn.Module):
         self.kv = nn.Linear(dim, dim * 2, bias=qkv_bias)
         self.proj = nn.Linear(dim, dim)
 
-        self.norm = nn.LayerNorm(dim)
+        self.norm = nn.LayerNorm(dim, eps=norm_eps)
         self.mlp = FFN(dim, mlp_dim, act_layer=nn.GELU)
 
         # Weight initialization
@@ -70,6 +71,7 @@ class EfficientProbing(nn.Module):
         mlp_dim: int,  # pylint: disable=unused-argument
         qkv_bias: bool,
         latent_len: int = 32,
+        norm_eps: float = 1e-5,  # pylint: disable=unused-argument
     ) -> None:
         super().__init__()
         assert dim % num_heads == 0

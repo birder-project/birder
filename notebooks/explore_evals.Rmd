@@ -81,7 +81,7 @@ MODEL_LABELS = {
     "vit_l14_pn_quick_gelu_openai-clip": "OpenAI CLIP L14",
     "vit_reg4_b14_nps_ls_dino-v2-lvd142m": "DINOv2 B14",
     "vit_reg4_l14_nps_ls_dino-v2-lvd142m": "DINOv2 L14",
-    "vit_so400m_p14_ap_siglip-v2-webli": "SigLIP 2 SO400M",
+    "vit_so400m_p14_ap_c1_siglip-v2-webli": "SigLIP 2 SO400M",
     "vit_reg1_b14_tips-v2": "TIPS v2 B14",
 }
 METRIC_NAMES = {

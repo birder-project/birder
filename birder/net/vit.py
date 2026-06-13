@@ -18,6 +18,7 @@ Paper "From Sparse to Soft Mixtures of Experts", https://arxiv.org/abs/2308.0095
 
 # Reference license: BSD 3-Clause and Apache-2.0
 
+import logging
 import math
 from collections.abc import Callable
 from functools import partial
@@ -28,6 +29,7 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.utils.checkpoint import checkpoint_sequential
 from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_tensor
@@ -47,6 +49,8 @@ from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenOmissionResultType
 from birder.net.base import TokenRetentionResultType
 from birder.net.base import normalize_out_indices
+
+logger = logging.getLogger(__name__)
 
 
 def adjust_position_embedding(
@@ -290,6 +294,13 @@ class Encoder(nn.Module):
         soft_moe_num_slots: int = 1,
     ) -> None:
         super().__init__()
+        self.need_attn = False
+        self.has_soft_moe = soft_moe_num_experts is not None
+        self.grad_checkpointing = False
+        self.grad_checkpointing_segments: Optional[int] = None
+        self.grad_checkpointing_preserve_rng_state = True
+        self.grad_checkpointing_use_reentrant = False
+
         pre_layers = []
         if dropout > 0.0:
             pre_layers.append(nn.Dropout(dropout))
@@ -297,7 +308,6 @@ class Encoder(nn.Module):
             pre_layers.append(norm_layer(hidden_dim, eps=norm_layer_eps))
 
         self.pre_block = nn.Sequential(*pre_layers)
-        self.has_soft_moe = soft_moe_num_experts is not None
 
         layers = []
         for i in range(num_layers):
@@ -333,8 +343,25 @@ class Encoder(nn.Module):
 
         self.block = nn.Sequential(*layers)
 
+    def _checkpoint_blocks(self, x: torch.Tensor) -> torch.Tensor:
+        if self.grad_checkpointing_segments is None:
+            segments = len(self.block)
+        else:
+            segments = min(self.grad_checkpointing_segments, len(self.block))
+
+        return checkpoint_sequential(
+            self.block,
+            segments,
+            x,
+            use_reentrant=self.grad_checkpointing_use_reentrant,
+            preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+        )
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.pre_block(x)
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            return self._checkpoint_blocks(x)
+
         return self.block(x)
 
     def forward_features(self, x: torch.Tensor, out_indices: Optional[list[int]] = None) -> list[torch.Tensor]:
@@ -350,8 +377,36 @@ class Encoder(nn.Module):
         return xs
 
     def set_need_attn(self, need_attn: bool = True) -> None:
+        if need_attn is True and self.grad_checkpointing is True:
+            raise ValueError("Attention weights cannot be returned when gradient checkpointing is enabled")
+
+        self.need_attn = need_attn
         for b in self.block:
             b.set_need_attn(need_attn)
+
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        if enable is True and self.need_attn is True:
+            raise ValueError("Gradient checkpointing cannot be enabled when attention weights are returned")
+
+        if enable is True:
+            logger.debug(
+                f"Enabling gradient checkpointing: segments={segments}, "
+                f"preserve_rng_state={preserve_rng_state}, use_reentrant={use_reentrant}"
+            )
+        else:
+            logger.debug("Disabling gradient checkpointing")
+
+        self.grad_checkpointing = enable
+        self.grad_checkpointing_segments = segments
+        self.grad_checkpointing_preserve_rng_state = preserve_rng_state
+        self.grad_checkpointing_use_reentrant = use_reentrant
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
         if is_causal is True and self.has_soft_moe is True:
@@ -388,6 +443,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", None)
         pre_norm: bool = self.config.get("pre_norm", False)
         post_norm: bool = self.config.get("post_norm", True)
+        norm_after_pool: bool = self.config.get("norm_after_pool", False)
         qkv_bias: bool = self.config.get("qkv_bias", True)
         qk_norm: bool = self.config.get("qk_norm", False)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
@@ -396,6 +452,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         attn_pool_type: str = self.config.get("attn_pool_type", "MultiHeadAttentionPool")
         attn_pool_num_heads: Optional[int] = self.config.get("attn_pool_num_heads", None)
         attn_pool_special_tokens: bool = self.config.get("attn_pool_special_tokens", False)
+        attn_pool_norm_eps: float = self.config.get("attn_pool_norm_eps", 1e-5)
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
         norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
@@ -500,10 +557,15 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             soft_moe_num_slots=soft_moe_num_slots,
         )
 
-        if post_norm is True:
+        if post_norm is True and norm_after_pool is False:
             self.norm = norm_layer(hidden_dim, eps=norm_layer_eps)
         else:
             self.norm = nn.Identity()
+
+        if post_norm is True and norm_after_pool is True:
+            self.embedding_norm = norm_layer(hidden_dim, eps=norm_layer_eps)
+        else:
+            self.embedding_norm = nn.Identity()
 
         if attn_pool_head is False:
             self.attn_pool = None
@@ -519,7 +581,9 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             else:
                 raise ValueError(f"Unknown attn_pool_type '{attn_pool_type}'")
 
-            self.attn_pool = attn_pool(hidden_dim, attn_pool_num_heads, mlp_dim, qkv_bias=True)
+            self.attn_pool = attn_pool(
+                hidden_dim, attn_pool_num_heads, mlp_dim, qkv_bias=True, norm_eps=attn_pool_norm_eps
+            )
 
         num_return_stages = len(self.out_indices) if self.out_indices is not None else 1
         self.return_stages = [f"stage{stage_idx + 1}" for stage_idx in range(num_return_stages)]
@@ -588,12 +652,43 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
                 for param in self.attn_pool.parameters():
                     param.requires_grad_(True)
 
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        self.encoder.set_grad_checkpointing(
+            enable=enable,
+            segments=segments,
+            preserve_rng_state=preserve_rng_state,
+            use_reentrant=use_reentrant,
+        )
+
     def set_causal_attention(self, is_causal: bool = True) -> None:
         self.encoder.set_causal_attention(is_causal)
 
     def transform_to_backbone(self) -> None:
         super().transform_to_backbone()
         self.norm = nn.Identity()
+        self.embedding_norm = nn.Identity()
+
+    def _pool(self, x: torch.Tensor) -> torch.Tensor:
+        if self.attn_pool is not None:
+            if self.attn_pool_special_tokens is False:
+                x = x[:, self.num_special_tokens :]
+
+            x = self.attn_pool(x)
+            return x[:, 0]
+
+        if self.class_token is None:
+            x = x[:, self.num_special_tokens :]
+            return x.mean(dim=1)
+
+        # Classifier "token" as used by standard language architectures
+        return x[:, self.num_reg_tokens]
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         H, W = x.shape[-2:]
@@ -708,17 +803,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             if return_all_features is True:
                 x = x[..., -1]
 
-            if self.attn_pool is not None:
-                if self.attn_pool_special_tokens is False:
-                    x = x[:, self.num_special_tokens :]
-
-                x = self.attn_pool(x)
-                result["embedding"] = x[:, 0]
-            elif self.class_token is None:
-                x = x[:, self.num_special_tokens :]
-                result["embedding"] = x.mean(dim=1)
-            else:
-                result["embedding"] = x[:, self.num_reg_tokens]
+            result["embedding"] = self.embedding_norm(self._pool(x))
 
         return result
 
@@ -765,17 +850,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             result["features"] = features
 
         if return_keys in ("all", "embedding"):
-            if self.attn_pool is not None:
-                if self.attn_pool_special_tokens is False:
-                    x = x[:, self.num_special_tokens :]
-
-                x = self.attn_pool(x)
-                result["embedding"] = x[:, 0]
-            elif self.class_token is None:
-                x = x[:, self.num_special_tokens :]
-                result["embedding"] = x.mean(dim=1)
-            else:
-                result["embedding"] = x[:, self.num_reg_tokens]
+            result["embedding"] = self.embedding_norm(self._pool(x))
 
         return result
 
@@ -821,20 +896,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.forward_features(x)
-
-        if self.attn_pool is not None:
-            if self.attn_pool_special_tokens is False:
-                x = x[:, self.num_special_tokens :]
-
-            x = self.attn_pool(x)
-            return x[:, 0]
-
-        if self.class_token is None:
-            x = x[:, self.num_special_tokens :]
-            return x.mean(dim=1)
-
-        # Classifier "token" as used by standard language architectures
-        return x[:, self.num_reg_tokens]
+        return self.embedding_norm(self._pool(x))
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
@@ -996,9 +1058,9 @@ registry.register_weights(  # OpenAI CLIP: https://arxiv.org/abs/2103.00020
     },
 )
 registry.register_weights(  # SigLIP 2: https://arxiv.org/abs/2502.14786
-    "vit_so400m_p14_ap_siglip-v2-webli",
+    "vit_so400m_p14_ap_c1_siglip-v2-webli",
     {
-        "url": "https://huggingface.co/birder-project/vit_so400m_p14_ap_siglip-v2-webli/resolve/main",
+        "url": "https://huggingface.co/birder-project/vit_so400m_p14_ap_c1_siglip-v2-webli/resolve/main",
         "description": (
             "ViT SO400m image encoder pretrained by Google using SigLIP. "
             "This model has not been fine-tuned for a specific classification task"
@@ -1010,7 +1072,7 @@ registry.register_weights(  # SigLIP 2: https://arxiv.org/abs/2502.14786
                 "sha256": "f8ac3bdf028d17a2ee2673f58b51cffa5c696edef44c92092299d970607c7be6",
             },
         },
-        "net": {"network": "vit_so400m_p14_ap", "tag": "siglip-v2-webli"},
+        "net": {"network": "vit_so400m_p14_ap_c1", "tag": "siglip-v2-webli"},
     },
 )
 registry.register_weights(  # BioCLIP v2.5: https://arxiv.org/abs/2505.23883

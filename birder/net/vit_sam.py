@@ -10,6 +10,7 @@ and as used as an image encoder at the paper "Segment Anything", https://arxiv.o
 
 # Reference license: Apache-2.0
 
+import logging
 from collections.abc import Callable
 from functools import partial
 from typing import Any
@@ -18,6 +19,7 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.utils.checkpoint import checkpoint_sequential
 from torchvision.ops import StochasticDepth
 
 from birder.layers import FFN
@@ -35,6 +37,8 @@ from birder.net.base import normalize_out_indices
 from birder.net.vit import EncoderBlock as MAEDecoderBlock
 from birder.net.vit_windowed import window_partition
 from birder.net.vit_windowed import window_unpartition
+
+logger = logging.getLogger(__name__)
 
 
 def get_rel_pos(q_size: int, k_size: int, rel_pos: torch.Tensor) -> torch.Tensor:
@@ -162,7 +166,7 @@ class EncoderBlock(nn.Module):
         self.window_size = window_size
 
         # Attention block
-        self.norm1 = norm_layer(dim, eps=1e-6)
+        self.norm1 = norm_layer(dim)
         self.attn = Attention(
             dim,
             num_heads=num_heads,
@@ -177,7 +181,7 @@ class EncoderBlock(nn.Module):
             self.layer_scale_1 = nn.Identity()
 
         # MLP block
-        self.norm2 = norm_layer(dim, eps=1e-6)
+        self.norm2 = norm_layer(dim)
         self.mlp = mlp_layer(dim, mlp_dim, act_layer=activation_layer, dropout=0.0)
         self.drop_path2 = StochasticDepth(drop_path, mode="row")
         if layer_scale_init_value is not None:
@@ -263,6 +267,10 @@ class ViT_SAM(DetectorBackbone):
         self.global_attn_indexes = global_attn_indexes
         self.num_special_tokens = 0
         self.out_indices = normalize_out_indices(out_indices, num_layers)
+        self.grad_checkpointing = False
+        self.grad_checkpointing_segments: Optional[int] = None
+        self.grad_checkpointing_preserve_rng_state = True
+        self.grad_checkpointing_use_reentrant = False
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
 
         self.patch_embed = PatchEmbed(
@@ -307,7 +315,7 @@ class ViT_SAM(DetectorBackbone):
                     padding=(0, 0),
                     bias=False,
                 ),
-                LayerNorm2d(neck_channels),
+                LayerNorm2d(neck_channels, eps=1e-6),
                 nn.Conv2d(
                     neck_channels,
                     neck_channels,
@@ -316,7 +324,7 @@ class ViT_SAM(DetectorBackbone):
                     padding=(1, 1),
                     bias=False,
                 ),
-                LayerNorm2d(neck_channels),
+                LayerNorm2d(neck_channels, eps=1e-6),
             )
         else:
             neck_channels = hidden_dim
@@ -361,6 +369,27 @@ class ViT_SAM(DetectorBackbone):
         pos_embedding = pos_embedding.permute(0, 2, 3, 1)
 
         return pos_embedding.to(orig_dtype)
+
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        if enable is True:
+            logger.debug(
+                f"Enabling gradient checkpointing: segments={segments}, "
+                f"preserve_rng_state={preserve_rng_state}, use_reentrant={use_reentrant}"
+            )
+        else:
+            logger.debug("Disabling gradient checkpointing")
+
+        self.grad_checkpointing = enable
+        self.grad_checkpointing_segments = segments
+        self.grad_checkpointing_preserve_rng_state = preserve_rng_state
+        self.grad_checkpointing_use_reentrant = use_reentrant
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
         for b in self.body:
@@ -412,7 +441,22 @@ class ViT_SAM(DetectorBackbone):
         x = self.patch_embed(x)
         x = x + self._get_pos_embed(H, W)
 
-        x = self.body(x)
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            if self.grad_checkpointing_segments is None:
+                segments = len(self.body)
+            else:
+                segments = min(self.grad_checkpointing_segments, len(self.body))
+
+            x = checkpoint_sequential(
+                self.body,
+                segments,
+                x,
+                use_reentrant=self.grad_checkpointing_use_reentrant,
+                preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+            )
+        else:
+            x = self.body(x)
+
         x = self.neck(x.permute(0, 3, 1, 2))
 
         return x
@@ -594,5 +638,24 @@ registry.register_model_config(
         "global_attn_indexes": [7, 15, 23, 31],
         "neck_channels": 256,
         "drop_path_rate": 0.5,
+    },
+)
+
+registry.register_weights(  # Segment Anything: https://arxiv.org/abs/2304.02643
+    "vit_sam_b16_sam-sa1b",
+    {
+        "url": "https://huggingface.co/birder-project/vit_sam_b16_sam-sa1b/resolve/main",
+        "description": (
+            "ViT SAM b16 image encoder pretrained by Meta AI. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (1024, 1024),
+        "formats": {
+            "pt": {
+                "file_size": 342.1,
+                "sha256": "aa944aa652ea9fff1e4ac683bad564789b4ef7084f6fdc1127763dbe6571bb2c",
+            },
+        },
+        "net": {"network": "vit_sam_b16", "tag": "sam-sa1b"},
     },
 )

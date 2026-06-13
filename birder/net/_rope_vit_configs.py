@@ -43,6 +43,7 @@ from birder.net.base import BaseNet
 #     - rms         : RMSNorm (instead of LayerNorm)
 #     - pn          : Pre-Norm (layer norm before the encoder) - implies norm eps of 1e-5
 #     - npn         : No Post Norm (disables post-normalization layer)
+#     - nap         : Norm After Pooling (moves post-normalization from tokens to the embedding)
 #     - qkn         : QK Norm
 #
 #     Feed-Forward Network:

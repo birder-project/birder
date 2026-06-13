@@ -2,6 +2,7 @@
 Paper "ViT-5: Vision Transformers for The Mid-2020s", https://arxiv.org/abs/2602.08071
 """
 
+import logging
 import math
 from collections.abc import Callable
 from functools import partial
@@ -12,6 +13,7 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.utils.checkpoint import checkpoint_sequential
 from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_tensor
@@ -46,6 +48,8 @@ from birder.net.base import TokenRetentionResultType
 from birder.net.base import normalize_out_indices
 from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
+
+logger = logging.getLogger(__name__)
 
 RoPEPosEmbedType = tuple[torch.Tensor, Optional[torch.Tensor]]
 
@@ -232,6 +236,11 @@ class Encoder(nn.Module):
         rope_rot_type: RoPERotationType = "standard",
     ) -> None:
         super().__init__()
+        self.grad_checkpointing = False
+        self.grad_checkpointing_segments: Optional[int] = None
+        self.grad_checkpointing_preserve_rng_state = True
+        self.grad_checkpointing_use_reentrant = False
+
         pre_layers = []
         if dropout > 0.0:
             pre_layers.append(nn.Dropout(dropout))
@@ -265,8 +274,26 @@ class Encoder(nn.Module):
 
         self.block = SequentialWithRope(*layers)
 
+    def _checkpoint_blocks(self, x: torch.Tensor, rope: RoPEPosEmbedType) -> torch.Tensor:
+        if self.grad_checkpointing_segments is None:
+            segments = len(self.block)
+        else:
+            segments = min(self.grad_checkpointing_segments, len(self.block))
+
+        blocks = tuple(partial(block, rope=rope) for block in self.block)
+        return checkpoint_sequential(
+            blocks,
+            segments,
+            x,
+            use_reentrant=self.grad_checkpointing_use_reentrant,
+            preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+        )
+
     def forward(self, x: torch.Tensor, rope: RoPEPosEmbedType) -> torch.Tensor:
         x = self.pre_block(x)
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            return self._checkpoint_blocks(x, rope)
+
         return self.block(x, rope)
 
     def forward_features(
@@ -282,6 +309,27 @@ class Encoder(nn.Module):
                 xs.append(x)
 
         return xs
+
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        if enable is True:
+            logger.debug(
+                f"Enabling gradient checkpointing: segments={segments}, "
+                f"preserve_rng_state={preserve_rng_state}, use_reentrant={use_reentrant}"
+            )
+        else:
+            logger.debug("Disabling gradient checkpointing")
+
+        self.grad_checkpointing = enable
+        self.grad_checkpointing_segments = segments
+        self.grad_checkpointing_preserve_rng_state = preserve_rng_state
+        self.grad_checkpointing_use_reentrant = use_reentrant
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
         for b in self.block:
@@ -398,6 +446,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         attn_pool_type: str = self.config.get("attn_pool_type", "MultiHeadAttentionPool")
         attn_pool_num_heads: Optional[int] = self.config.get("attn_pool_num_heads", None)
         attn_pool_special_tokens: bool = self.config.get("attn_pool_special_tokens", False)
+        attn_pool_norm_eps: float = self.config.get("attn_pool_norm_eps", 1e-5)
         norm_layer_type: str = self.config.get("norm_layer_type", "RMSNorm")
         norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
@@ -560,7 +609,9 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
             else:
                 raise ValueError(f"Unknown attn_pool_type '{attn_pool_type}'")
 
-            self.attn_pool = attn_pool(hidden_dim, attn_pool_num_heads, mlp_dim, qkv_bias=True)
+            self.attn_pool = attn_pool(
+                hidden_dim, attn_pool_num_heads, mlp_dim, qkv_bias=True, norm_eps=attn_pool_norm_eps
+            )
 
         num_return_stages = len(self.out_indices) if self.out_indices is not None else 1
         self.return_stages = [f"stage{stage_idx + 1}" for stage_idx in range(num_return_stages)]
@@ -660,12 +711,42 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
                 for param in self.attn_pool.parameters():
                     param.requires_grad_(True)
 
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        self.encoder.set_grad_checkpointing(
+            enable=enable,
+            segments=segments,
+            preserve_rng_state=preserve_rng_state,
+            use_reentrant=use_reentrant,
+        )
+
     def set_causal_attention(self, is_causal: bool = True) -> None:
         self.encoder.set_causal_attention(is_causal)
 
     def transform_to_backbone(self) -> None:
         super().transform_to_backbone()
         self.norm = nn.Identity()
+
+    def _pool(self, x: torch.Tensor) -> torch.Tensor:
+        if self.attn_pool is not None:
+            if self.attn_pool_special_tokens is False:
+                x = x[:, self.num_special_tokens :]
+
+            x = self.attn_pool(x)
+            return x[:, 0]
+
+        if self.class_token is None:
+            x = x[:, self.num_special_tokens :]
+            return x.mean(dim=1)
+
+        # Classifier "token" as used by standard language architectures
+        return x[:, self.num_reg_tokens]
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         H, W = x.shape[-2:]
@@ -775,17 +856,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
             if return_all_features is True:
                 x = x[..., -1]
 
-            if self.attn_pool is not None:
-                if self.attn_pool_special_tokens is False:
-                    x = x[:, self.num_special_tokens :]
-
-                x = self.attn_pool(x)
-                result["embedding"] = x[:, 0]
-            elif self.class_token is None:
-                x = x[:, self.num_special_tokens :]
-                result["embedding"] = x.mean(dim=1)
-            else:
-                result["embedding"] = x[:, self.num_reg_tokens]
+            result["embedding"] = self._pool(x)
 
         return result
 
@@ -829,17 +900,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
             result["features"] = features
 
         if return_keys in ("all", "embedding"):
-            if self.attn_pool is not None:
-                if self.attn_pool_special_tokens is False:
-                    x = x[:, self.num_special_tokens :]
-
-                x = self.attn_pool(x)
-                result["embedding"] = x[:, 0]
-            elif self.class_token is None:
-                x = x[:, self.num_special_tokens :]
-                result["embedding"] = x.mean(dim=1)
-            else:
-                result["embedding"] = x[:, self.num_reg_tokens]
+            result["embedding"] = self._pool(x)
 
         return result
 
@@ -882,20 +943,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.forward_features(x)
-
-        if self.attn_pool is not None:
-            if self.attn_pool_special_tokens is False:
-                x = x[:, self.num_special_tokens :]
-
-            x = self.attn_pool(x)
-            return x[:, 0]
-
-        if self.class_token is None:
-            x = x[:, self.num_special_tokens :]
-            return x.mean(dim=1)
-
-        # Classifier "token" as used by standard language architectures
-        return x[:, self.num_reg_tokens]
+        return self._pool(x)
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:

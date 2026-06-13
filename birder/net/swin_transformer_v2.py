@@ -11,6 +11,7 @@ Changes from original:
 
 # Reference license: BSD 3-Clause and MIT
 
+import logging
 from collections import OrderedDict
 from typing import Any
 from typing import Literal
@@ -18,6 +19,7 @@ from typing import Optional
 
 import torch
 from torch import nn
+from torch.utils.checkpoint import checkpoint_sequential
 from torchvision.ops import MLP
 from torchvision.ops import Permute
 from torchvision.ops import StochasticDepth
@@ -31,6 +33,8 @@ from birder.net.base import TokenRetentionResultType
 from birder.net.swin_transformer_v1 import get_relative_position_bias
 from birder.net.swin_transformer_v1 import patch_merging_pad
 from birder.net.swin_transformer_v1 import shifted_window_attention
+
+logger = logging.getLogger(__name__)
 
 
 class PatchMerging(nn.Module):
@@ -222,6 +226,12 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
         window_size_w = int(self.size[1] / (2**5)) * self.window_scale_factor
         window_size = (window_size_h, window_size_w)
 
+        self.grad_checkpointing = False
+        self.grad_checkpointing_segments: Optional[int] = None
+        self.grad_checkpointing_preserve_rng_state = True
+        self.grad_checkpointing_use_reentrant = False
+        self._grad_checkpointing_blocks = ()
+
         self.stem = nn.Sequential(
             nn.Conv2d(
                 self.input_channels, embed_dim, kernel_size=(patch_size, patch_size), stride=patch_size, padding=(0, 0)
@@ -291,6 +301,31 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        if enable is True:
+            logger.debug(
+                f"Enabling gradient checkpointing: segments={segments}, "
+                f"preserve_rng_state={preserve_rng_state}, use_reentrant={use_reentrant}"
+            )
+        else:
+            logger.debug("Disabling gradient checkpointing")
+
+        self.grad_checkpointing = enable
+        self.grad_checkpointing_segments = segments
+        self.grad_checkpointing_preserve_rng_state = preserve_rng_state
+        self.grad_checkpointing_use_reentrant = use_reentrant
+        if enable is True:
+            self._grad_checkpointing_blocks = tuple(block for stage in self.body for block in stage)
+        else:
+            self._grad_checkpointing_blocks = ()
+
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)
 
@@ -324,7 +359,21 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
         x = mask_tensor(
             x, mask, channels_last=True, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token
         )
-        x = self.body(x)
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            if self.grad_checkpointing_segments is None:
+                segments = len(self._grad_checkpointing_blocks)
+            else:
+                segments = min(self.grad_checkpointing_segments, len(self._grad_checkpointing_blocks))
+
+            x = checkpoint_sequential(
+                self._grad_checkpointing_blocks,
+                segments,
+                x,
+                use_reentrant=self.grad_checkpointing_use_reentrant,
+                preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+            )
+        else:
+            x = self.body(x)
 
         result: TokenRetentionResultType = {}
         if return_keys in ("all", "features"):
@@ -336,6 +385,20 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            if self.grad_checkpointing_segments is None:
+                segments = len(self._grad_checkpointing_blocks)
+            else:
+                segments = min(self.grad_checkpointing_segments, len(self._grad_checkpointing_blocks))
+
+            return checkpoint_sequential(
+                self._grad_checkpointing_blocks,
+                segments,
+                x,
+                use_reentrant=self.grad_checkpointing_use_reentrant,
+                preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+            )
+
         return self.body(x)
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:

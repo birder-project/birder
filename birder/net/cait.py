@@ -9,18 +9,23 @@ Paper "Going deeper with Image Transformers", https://arxiv.org/abs/2103.17239
 
 # Reference license: Apache-2.0 (both)
 
+import logging
 from typing import Any
 from typing import Optional
 
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.utils.checkpoint import checkpoint
+from torch.utils.checkpoint import checkpoint_sequential
 from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import BaseNet
 from birder.net.vit import adjust_position_embedding
+
+logger = logging.getLogger(__name__)
 
 
 class PatchEmbed(nn.Module):
@@ -181,6 +186,11 @@ class CaiT(BaseNet):
         init_values: float = self.config["init_values"]
         drop_path_rate: float = self.config["drop_path_rate"]
 
+        self.grad_checkpointing = False
+        self.grad_checkpointing_segments: Optional[int] = None
+        self.grad_checkpointing_preserve_rng_state = True
+        self.grad_checkpointing_use_reentrant = False
+
         self.patch_size = patch_size
         self.patch_embed = PatchEmbed(self.input_channels, embed_dim, patch_size)
         num_patches = (self.size[0] // patch_size[0]) * (self.size[1] // patch_size[1])
@@ -240,13 +250,58 @@ class CaiT(BaseNet):
         nn.init.trunc_normal_(self.pos_embed, std=0.02)
         nn.init.trunc_normal_(self.cls_token, std=0.02)
 
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        if enable is True:
+            logger.debug(
+                f"Enabling gradient checkpointing: segments={segments}, "
+                f"preserve_rng_state={preserve_rng_state}, use_reentrant={use_reentrant}"
+            )
+        else:
+            logger.debug("Disabling gradient checkpointing")
+
+        self.grad_checkpointing = enable
+        self.grad_checkpointing_segments = segments
+        self.grad_checkpointing_preserve_rng_state = preserve_rng_state
+        self.grad_checkpointing_use_reentrant = use_reentrant
+
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)
         x = x + self.pos_embed
-        x = self.block1(x)
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            if self.grad_checkpointing_segments is None:
+                segments = len(self.block1)
+            else:
+                segments = min(self.grad_checkpointing_segments, len(self.block1))
+
+            x = checkpoint_sequential(
+                self.block1,
+                segments,
+                x,
+                use_reentrant=self.grad_checkpointing_use_reentrant,
+                preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+            )
+        else:
+            x = self.block1(x)
+
         cls_tokens = self.cls_token.expand(x.shape[0], -1, -1)
         for blk in self.block2:
-            cls_tokens = blk(x, cls_tokens)
+            if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+                cls_tokens = checkpoint(
+                    blk,
+                    x,
+                    cls_tokens,
+                    use_reentrant=self.grad_checkpointing_use_reentrant,
+                    preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+                )
+            else:
+                cls_tokens = blk(x, cls_tokens)
 
         x = torch.concat((cls_tokens, x), dim=1)
         x = self.norm(x)

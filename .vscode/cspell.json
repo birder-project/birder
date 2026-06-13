@@ -53,6 +53,7 @@
     "capturable",
     "cdist",
     "cflags",
+    "checkpointing",
     "ciou",
     "cmap",
     "cocodataset",

@@ -167,6 +167,7 @@ NET_TEST_CASES = [
     ("vit_s32"),
     ("vit_s16_pn"),
     ("vit_b16_qkn_ls"),
+    ("vit_reg1_b16_nap_avg"),
     ("vit_reg4_b32"),
     ("vit_reg4_m16_rms_avg"),
     ("vit_so150m_p14_ap", False, False, 1, 14),
@@ -216,6 +217,7 @@ DYNAMIC_SIZE_CASES = [
     ("vit_s32"),
     ("vit_s16_pn"),
     ("vit_b16_qkn_ls"),
+    ("vit_reg1_b16_nap_avg"),
     ("vit_reg4_b32"),
     ("vit_reg4_m16_rms_avg"),
     ("vit_so150m_p14_ap", 1, 14),
@@ -560,6 +562,7 @@ class TestNet(unittest.TestCase):
             ("vit_s32"),
             ("vit_s16_pn"),
             ("vit_b16_qkn_ls"),
+            ("vit_reg1_b16_nap_avg"),
             ("vit_reg4_b32"),
             ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap"),
@@ -700,6 +703,7 @@ class TestNet(unittest.TestCase):
             ("vit_s32"),
             ("vit_s16_pn"),
             ("vit_b16_qkn_ls"),
+            ("vit_reg1_b16_nap_avg"),
             ("vit_reg4_b32"),
             ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap"),
@@ -783,6 +787,7 @@ class TestNet(unittest.TestCase):
             ("vit_s32"),
             ("vit_s16_pn"),
             ("vit_b16_qkn_ls"),
+            ("vit_reg1_b16_nap_avg"),
             ("vit_reg4_b32"),
             ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap"),
@@ -840,6 +845,63 @@ class TestNet(unittest.TestCase):
         groups = group_by_regex(names, n.block_group_regex)  # type: ignore[arg-type]
         self.assertGreater(len(groups), 5)
         self.assertLess(len(groups), 40)
+
+    @parameterized.expand(  # type: ignore[untyped-decorator]
+        [
+            ("cait_xxs24"),
+            ("convnext_v1_atto"),
+            ("convnext_v2_atto"),
+            ("davit_tiny"),
+            ("deit3_t16"),
+            ("efficientnet_v1_b0"),
+            ("efficientnet_v2_s"),
+            ("flexivit_s16"),
+            ("focalnet_t_srf"),
+            ("hiera_abswin_tiny"),
+            ("hieradet_tiny"),
+            ("maxvit_t"),
+            ("moganet_xt"),
+            ("nfnet_f0"),
+            ("poolformer_v1_s12"),
+            ("regnet_x_200m"),
+            ("rope_deit3_t16"),
+            ("rope_flexivit_s16"),
+            ("rope_vit_s32"),
+            ("rope_vit5_reg4_s16"),
+            ("simple_vit_s32"),
+            ("swin_transformer_v1_t"),
+            ("swin_transformer_v2_t"),
+            ("vit_s32"),
+            ("vit_sam_b16"),
+            ("vit_parallel_s16_18x2_ls"),
+        ]
+    )
+    @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    def test_grad_checkpointing(self, network_name: str) -> None:
+        batch_size = 1
+        n = registry.net_factory(network_name, 100)
+        size = n.default_size
+        x = torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size))
+
+        n.eval()
+        with torch.no_grad():
+            expected = n(x)
+
+        n.set_grad_checkpointing(segments=4)
+        out = n(x)
+
+        # Verify forward with checkpointing
+        self.assertEqual(out.size(), expected.size())
+        self.assertTrue(torch.allclose(out, expected))
+        self.assertEqual(out.numel(), 100 * batch_size)
+        self.assertTrue(torch.isfinite(out).all().item(), msg=f"{network_name} non-finite output")
+
+        # Check grads
+        loss = out.sum()
+        loss.backward()
+        for name, param in n.named_parameters():
+            self.assertIsNotNone(param.grad, msg=f"{network_name} missing grad for {name}")
+            self.assertTrue(torch.isfinite(param.grad).all().item(), msg=f"{network_name} non-finite grad for {name}")
 
 
 class TestNonSquareNet(unittest.TestCase):
@@ -991,6 +1053,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("vit_s32"),
             ("vit_s16_pn"),
             ("vit_b16_qkn_ls"),
+            ("vit_reg1_b16_nap_avg"),
             ("vit_reg4_b32"),
             ("vit_reg4_m16_rms_avg"),
             ("vit_so150m_p14_ap", 1, 14, 14),
@@ -1175,6 +1238,18 @@ class TestSpecialFunctions(unittest.TestCase):
 
         empty_features = n.encoder.forward_features(tokens, out_indices=[])
         self.assertEqual(len(empty_features), 0)
+
+    def test_vit_grad_checkpointing_and_attention_are_exclusive(self) -> None:
+        n = registry.net_factory("vit_s16", 10)
+
+        n.encoder.set_need_attn(True)
+        with self.assertRaisesRegex(ValueError, "Gradient checkpointing cannot be enabled"):
+            n.set_grad_checkpointing()
+
+        n.encoder.set_need_attn(False)
+        n.set_grad_checkpointing()
+        with self.assertRaisesRegex(ValueError, "Attention weights cannot be returned"):
+            n.encoder.set_need_attn(True)
 
     def test_rope_vit_encoder_out_indices(self) -> None:
         n = registry.net_factory("rope_vit_s16_avg", 10, size=(128, 128))

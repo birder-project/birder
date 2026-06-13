@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.6 - 2026-06-13
+
+### Added
+
+- **Gradient Checkpointing**: Added `--grad-checkpointing` / `--grad-checkpointing-segments` to supported training scripts and selected models.
+- **ViT Norm After Pooling**: Added `norm_after_pool` config for ViT-family models that apply final normalization after sequence pooling.
+- **Pretrained Models**:
+    - `vit_sam_b16_sam-sa1b`: Added Meta [Segment Anything](https://arxiv.org/abs/2304.02643) ViT SAM B/16 image encoder pretrained weights.
+
+### Changed
+
+- **SigLIP2 Weights Rename (Breaking)**: Renamed `vit_so400m_p14_ap_siglip-v2-webli` to `vit_so400m_p14_ap_c1_siglip-v2-webli` to use the SigLIP2-specific registered config.
+
+### Fixed
+
+- **ViT SAM Norm Epsilon**: Fixed ViT SAM block and neck normalization epsilon values to match the reference SAM.
+
 ## 0.5.5 - 2026-06-12
 
 ### Added

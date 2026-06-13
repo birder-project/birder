@@ -189,6 +189,17 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         vit,
         config={"patch_size": 16, **LARGE, "class_token": False, "attn_pool_head": True},
     )
+    registry.register_model_config(  # For SigLIP 2 - https://arxiv.org/abs/2502.14786
+        "vit_l16_ap_c1",
+        vit,
+        config={
+            "patch_size": 16,
+            **LARGE,
+            "class_token": False,
+            "attn_pool_head": True,
+            "attn_pool_norm_eps": 1e-6,
+        },
+    )
     registry.register_model_config(
         "vit_l14",
         vit,
@@ -213,6 +224,17 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         "vit_so400m_p14_ap",
         vit,
         config={"patch_size": 14, **SO400, "class_token": False, "attn_pool_head": True},
+    )
+    registry.register_model_config(  # For SigLIP 2 - https://arxiv.org/abs/2502.14786
+        "vit_so400m_p14_ap_c1",
+        vit,
+        config={
+            "patch_size": 14,
+            **SO400,
+            "class_token": False,
+            "attn_pool_head": True,
+            "attn_pool_norm_eps": 1e-6,
+        },
     )
     registry.register_model_config(
         "vit_h16",
@@ -353,9 +375,9 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         config={"patch_size": 32, **BASE, "num_reg_tokens": 4, "drop_path_rate": 0.0},  # Override the BASE definition
     )
     registry.register_model_config(
-        "vit_reg1_b16_avg",
+        "vit_reg1_b16_nap_avg",
         vit,
-        config={"patch_size": 16, **BASE, "num_reg_tokens": 1, "class_token": False},
+        config={"patch_size": 16, **BASE, "num_reg_tokens": 1, "norm_after_pool": True, "class_token": False},
     )
     registry.register_model_config(
         "vit_reg4_b16",
@@ -498,9 +520,9 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         },
     )
     registry.register_model_config(
-        "vit_reg1_l14_avg",
+        "vit_reg1_l14_nap_avg",
         vit,
-        config={"patch_size": 14, **LARGE, "num_reg_tokens": 1, "class_token": False},
+        config={"patch_size": 14, **LARGE, "num_reg_tokens": 1, "norm_after_pool": True, "class_token": False},
     )
     registry.register_model_config(
         "vit_reg4_l14",

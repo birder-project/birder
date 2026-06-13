@@ -9,6 +9,7 @@ Paper "Three things everyone should know about Vision Transformers", https://arx
 
 # Reference license: Apache-2.0 (both)
 
+import logging
 import math
 from collections.abc import Callable
 from functools import partial
@@ -19,6 +20,7 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.utils.checkpoint import checkpoint_sequential
 from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
@@ -34,6 +36,8 @@ from birder.net.base import TokenRetentionResultType
 from birder.net.base import normalize_out_indices
 from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
+
+logger = logging.getLogger(__name__)
 
 
 class Attention(nn.Module):
@@ -145,6 +149,11 @@ class Encoder(nn.Module):
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
     ) -> None:
         super().__init__()
+        self.grad_checkpointing = False
+        self.grad_checkpointing_segments: Optional[int] = None
+        self.grad_checkpointing_preserve_rng_state = True
+        self.grad_checkpointing_use_reentrant = False
+
         layers = []
         if dropout > 0.0:
             layers.append(nn.Dropout(dropout))
@@ -167,8 +176,25 @@ class Encoder(nn.Module):
 
         self.block = nn.Sequential(*layers)
 
+    def _checkpoint_blocks(self, x: torch.Tensor) -> torch.Tensor:
+        if self.grad_checkpointing_segments is None:
+            segments = len(self.block)
+        else:
+            segments = min(self.grad_checkpointing_segments, len(self.block))
+
+        return checkpoint_sequential(
+            self.block,
+            segments,
+            x,
+            use_reentrant=self.grad_checkpointing_use_reentrant,
+            preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+        )
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # torch._assert(x.dim() == 3, f"Expected (batch_size, seq_length, hidden_dim) got {x.size()}")
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            return self._checkpoint_blocks(x)
+
         x = self.block(x)
 
         return x
@@ -182,6 +208,27 @@ class Encoder(nn.Module):
                 xs.append(x)
 
         return xs
+
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        if enable is True:
+            logger.debug(
+                f"Enabling gradient checkpointing: segments={segments}, "
+                f"preserve_rng_state={preserve_rng_state}, use_reentrant={use_reentrant}"
+            )
+        else:
+            logger.debug("Disabling gradient checkpointing")
+
+        self.grad_checkpointing = enable
+        self.grad_checkpointing_segments = segments
+        self.grad_checkpointing_preserve_rng_state = preserve_rng_state
+        self.grad_checkpointing_use_reentrant = use_reentrant
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
         for b in self.block:
@@ -338,6 +385,21 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         if freeze_classifier is False:
             for param in self.classifier.parameters():
                 param.requires_grad_(True)
+
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        self.encoder.set_grad_checkpointing(
+            enable=enable,
+            segments=segments,
+            preserve_rng_state=preserve_rng_state,
+            use_reentrant=use_reentrant,
+        )
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
         self.encoder.set_causal_attention(is_causal)

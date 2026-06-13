@@ -342,6 +342,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
 
+    if args.grad_checkpointing is True:
+        net.set_grad_checkpointing(
+            segments=args.grad_checkpointing_segments,
+            preserve_rng_state=args.grad_checkpointing_preserve_rng_state,
+        )
+
     # Compile network
     if args.compile is True:
         net = torch.compile(net, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
@@ -952,6 +958,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_data_aug_args(parser, smoothing_alpha=True, mixup_cutmix=True)
     training_cli.add_dataloader_args(parser, ra_sampler=True)
     training_cli.add_precision_args(parser, channels_last=True)
+    training_cli.add_grad_checkpointing_args(parser)
     training_cli.add_compile_args(parser)
     training_cli.add_checkpoint_args(parser, default_save_frequency=5, pretrained=True)
     training_cli.add_distributed_args(parser)

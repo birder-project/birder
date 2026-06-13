@@ -2632,7 +2632,7 @@ torchrun --nproc_per_node=2 train.py --network vit_l16 --batch-size 64 --opt ada
 #### ViT: h14
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_h14 --batch-size 32 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.0001 --wd 0.3 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile
+torchrun --nproc_per_node=2 train.py --network vit_h14 --batch-size 32 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.0001 --wd 0.3 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 20 --model-ema --size 224 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile
 ```
 
 #### ViT: SoViT 150m p14 AP
