@@ -43,7 +43,7 @@ class FCMAE(MIMBaseNet):
         self.patch_size = encoder.max_stride
 
         self.proj = nn.Conv2d(
-            in_channels=self.encoder.encoding_size,
+            in_channels=self.encoder.feature_dim,
             out_channels=self.decoder_embed_dim,
             kernel_size=(1, 1),
             stride=(1, 1),

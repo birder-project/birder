@@ -48,6 +48,7 @@ class TestTransforms(unittest.TestCase):
         classification.training_preset((256, 256), "birder", 0, classification.get_rgb_stats("centered"))
         classification.training_preset((256, 256), "birder", 8, classification.get_rgb_stats("birder"))
         classification.training_preset((256, 256), "3aug", 3, classification.get_rgb_stats("centered"))
+        classification.training_preset((256, 256), "clip", 0, classification.get_rgb_stats("clip"))
         preset = classification.training_preset(
             (256, 256),
             "birder",

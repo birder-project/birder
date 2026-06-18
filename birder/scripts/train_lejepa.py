@@ -119,6 +119,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         args.ra_num_ops,
         args.ra_magnitude,
         args.augmix_severity,
+        args.clip_color_jitter_prob,
+        args.clip_gray_prob,
         args.simple_crop,
     )
     local_transform = training_preset(
@@ -132,6 +134,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         args.ra_num_ops,
         args.ra_magnitude,
         args.augmix_severity,
+        args.clip_color_jitter_prob,
+        args.clip_gray_prob,
         args.simple_crop,
         resize_max_scale=0.3,
     )

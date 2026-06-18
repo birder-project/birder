@@ -218,6 +218,8 @@ class LIT_v1_Tiny(DetectorBackbone):
         self.body = nn.ModuleDict(stages)
         self.norm = nn.LayerNorm(stage_dims[-1], eps=1e-6)
         self.return_channels = return_channels
+        self.feature_dim = stage_dims[-1]
+        self.num_special_tokens = 1
         self.embedding_size = stage_dims[-1]
         self.classifier = self.create_classifier()
         self.patch_size = patch_size
@@ -282,10 +284,15 @@ class LIT_v1_Tiny(DetectorBackbone):
 
         return x
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        x = self.norm(x)
-        return x[:, 0]
+    def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
+        if include_special_tokens is False:
+            return features[:, self.num_special_tokens :]
+
+        return features
+
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        features = self.norm(features)
+        return features[:, 0]
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
         super().set_dynamic_size(dynamic_size)

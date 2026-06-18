@@ -289,7 +289,7 @@ class HieraDet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         self.stem_stride = patch_stride[0]
         self.stem_width = stem_dim
-        self.encoding_size = embed_dim
+        self.feature_dim = embed_dim
 
         # Weight initialization
         nn.init.trunc_normal_(self.pos_embed, std=0.02)
@@ -410,11 +410,11 @@ class HieraDet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         return x
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        x = self.features(x)
+    def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
+        return features.flatten(1, 2)
 
-        return x
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:

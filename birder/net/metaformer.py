@@ -435,7 +435,7 @@ class MetaFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         self.stem_stride = 4
         self.stem_width = dims[0]
-        self.encoding_size = dims[-1]
+        self.feature_dim = dims[-1]
 
         # Weight initialization
         for m in self.modules():
@@ -548,9 +548,8 @@ class MetaFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
     def create_classifier(
         self, embed_dim: Optional[int] = None, head_bias: Optional[bool] = None, mlp_head: Optional[bool] = None

@@ -219,6 +219,7 @@ class Sequencer2d(BaseNet):
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.feature_dim = prev_dim
         self.embedding_size = prev_dim
         self.classifier = self.create_classifier()
 
@@ -226,9 +227,11 @@ class Sequencer2d(BaseNet):
         x = self.stem(x)
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
+        return features.flatten(1, 2)
+
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
 
 registry.register_model_config(

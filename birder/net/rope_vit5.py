@@ -622,7 +622,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         self.max_stride = patch_size
         self.stem_stride = patch_size
         self.stem_width = hidden_dim
-        self.encoding_size = hidden_dim
+        self.feature_dim = hidden_dim
         self.decoder_block = partial(
             MAEDecoderBlock,
             16,
@@ -941,9 +941,14 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
 
         return x
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self._pool(x)
+    def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
+        if include_special_tokens is False:
+            return features[:, self.num_special_tokens :]
+
+        return features
+
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self._pool(features)
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
@@ -1045,4 +1050,23 @@ registry.register_model_config(  # From "Scaling Vision Transformers"
     "rope_vit5_reg4_g16",
     RoPE_ViT5,
     config={"patch_size": 16, **GIANT, "num_reg_tokens": 4, "drop_path_rate": 0.4},
+)
+
+registry.register_weights(
+    "rope_vit5_reg4_b16_nepa-bio",
+    {
+        "url": "https://huggingface.co/birder-project/rope_vit5_reg4_b16_nepa-bio/resolve/main",
+        "description": (
+            "RoPE ViT-5 reg4 b16 model trained on natural biological images. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 327.3,
+                "sha256": "3fd8ab8805f0927636a172a1451a1b8980cd24273beda0e1fab0c5a0cab40854",
+            }
+        },
+        "net": {"network": "rope_vit5_reg4_b16", "tag": "nepa-bio"},
+    },
 )

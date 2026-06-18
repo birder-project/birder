@@ -293,6 +293,9 @@ class VOLO(BaseNet):
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dims[-1]))
         self.norm = nn.LayerNorm(embed_dims[-1])
 
+        self.feature_dim = embed_dims[-1]
+
+        self.num_special_tokens = 1
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
 
@@ -352,9 +355,14 @@ class VOLO(BaseNet):
 
         return x
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return x[:, 0]
+    def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
+        if include_special_tokens is False:
+            return features[:, self.num_special_tokens :]
+
+        return features
+
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return features[:, 0]
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:

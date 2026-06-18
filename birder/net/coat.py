@@ -465,6 +465,8 @@ class CoaT(DetectorBackbone):
 
         self.return_channels = embed_dims[1:]
         self.return_stages = self.return_stages[1:]
+        self.feature_dim = embed_dims[-1]
+        self.num_special_tokens = 3 if parallel_depth > 0 else 1
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
 
@@ -583,22 +585,27 @@ class CoaT(DetectorBackbone):
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         features = self._features(x)
+        if self.parallel_blocks is not None:
+            return torch.concat(
+                (features["stage2"][0][:, :1], features["stage3"][0][:, :1], features["stage4"][0]), dim=1
+            )
+
         return features["stage4"][0]
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        features = self._features(x)
+    def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
+        if include_special_tokens is False:
+            return features[:, self.num_special_tokens :]
+
+        return features
+
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
         if self.parallel_blocks is None:
-            x4 = features["stage4"][0]
-            x4 = self.norm4(x4)
-            x4_cls = x4[:, 0]
-            return x4_cls
+            features = self.norm4(features)
+            return features[:, 0]
 
-        x2 = self.norm2(features["stage2"][0])
-        x3 = self.norm3(features["stage3"][0])
-        x4 = self.norm4(features["stage4"][0])
-
-        x2_cls = x2[:, :1]
-        x3_cls = x3[:, :1]
+        x2_cls = self.norm2(features[:, :1])
+        x3_cls = self.norm3(features[:, 1:2])
+        x4 = self.norm4(features[:, 2:])
         x4_cls = x4[:, :1]
 
         merged_cls = torch.concat((x2_cls, x3_cls, x4_cls), dim=1)

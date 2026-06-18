@@ -366,6 +366,7 @@ class Swin_Transformer_v1(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
+        self.feature_dim = num_features
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
@@ -441,9 +442,11 @@ class Swin_Transformer_v1(DetectorBackbone):
 
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
+        return features.flatten(1, 2)
+
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:

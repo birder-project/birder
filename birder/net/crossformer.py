@@ -375,6 +375,7 @@ class CrossFormer(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
+        self.feature_dim = last_features
         self.embedding_size = last_features
         self.classifier = self.create_classifier()
 
@@ -417,9 +418,8 @@ class CrossFormer(DetectorBackbone):
         x = self.patch_embed(x)
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
         assert dynamic_size is False, "Dynamic size not supported for this network"

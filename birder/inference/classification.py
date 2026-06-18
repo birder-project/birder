@@ -213,7 +213,8 @@ def infer_dataloader_features_iter(
 
             with torch.amp.autocast(device.type, enabled=amp, dtype=amp_dtype):
                 if feature_method == "forward_features":
-                    batch_feature_dict = {"features": net.forward_features(inputs, **kwargs)}
+                    features = net.forward_features(inputs, **kwargs)
+                    batch_feature_dict = {"features": net.flatten_features(features)}
                 else:
                     batch_feature_dict = net.detection_features(inputs, **kwargs)
 

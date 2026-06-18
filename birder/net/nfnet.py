@@ -280,6 +280,7 @@ class NFNet(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
+        self.feature_dim = prev_channels
         self.embedding_size = prev_channels * 2
         self.classifier = self.create_classifier()
 
@@ -360,9 +361,8 @@ class NFNet(DetectorBackbone):
 
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
 
 registry.register_model_config("nfnet_f0", NFNet, config={"depths": [1, 2, 6, 3], "drop_path_rate": 0.2})

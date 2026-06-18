@@ -136,7 +136,7 @@ class ConvNeXt_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         self.stem_stride = 4
         self.stem_width = in_channels[0]
-        self.encoding_size = in_channels[-1]
+        self.feature_dim = in_channels[-1]
         self.decoder_block = partial(ConvNeXtBlock, stochastic_depth_prob=0)
 
         # Weights initialization
@@ -244,9 +244,8 @@ class ConvNeXt_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
 
 registry.register_model_config(

@@ -402,7 +402,7 @@ class MobileNet_v4_Hybrid(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
 
         self.stem_stride = stem_settings.stride[0]
         self.stem_width = stem_settings.out_channels
-        self.encoding_size = features_stage_settings.in_channels
+        self.feature_dim = features_stage_settings.in_channels
 
         # Weight initialization
         for m in self.modules():
@@ -469,9 +469,8 @@ class MobileNet_v4_Hybrid(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
         x = self.stem(x)
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
 
 registry.register_model_config(

@@ -70,6 +70,7 @@ class SqueezeNet(BaseNet):
             Fire(384, 64, 256),
             Fire(512, 64, 256),
         )
+        self.feature_dim = 512
         self.embedding_size = 512
         self.classifier = self.create_classifier()
 
@@ -83,8 +84,8 @@ class SqueezeNet(BaseNet):
         x = self.stem(x)
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        return self.forward_features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return features
 
     def create_classifier(
         self, embed_dim: Optional[int] = None, head_bias: Optional[bool] = None, mlp_head: Optional[bool] = None

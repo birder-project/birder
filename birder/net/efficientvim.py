@@ -352,6 +352,7 @@ class EfficientViM(DetectorBackbone):
 
         self.return_stages = self.return_stages[: len(depths)]
         self.return_channels = return_channels
+        self.feature_dim = embed_dim[2]
         self.embedding_size = embed_dim[2]
         self.state_classifiers = nn.ModuleList(
             [
@@ -442,12 +443,22 @@ class EfficientViM(DetectorBackbone):
 
         return (x, hs)
 
-    def embedding(self, x: torch.Tensor) -> tuple[torch.Tensor, list[torch.Tensor]]:
-        x, hs = self.forward_features(x)
+    def flatten_features(
+        self, features: tuple[torch.Tensor, list[torch.Tensor]], include_special_tokens: bool = True
+    ) -> torch.Tensor:
+        raise RuntimeError(f"{self.__class__.__name__} does not support non-tensor features")
+
+    def embedding_from_features(
+        self, features: tuple[torch.Tensor, list[torch.Tensor]]
+    ) -> tuple[torch.Tensor, list[torch.Tensor]]:
+        x, hs = features
         x = self.norm(x)
         x = F.adaptive_avg_pool2d(x, 1).flatten(1)
 
         return (x, hs)
+
+    def embedding(self, x: torch.Tensor) -> tuple[torch.Tensor, list[torch.Tensor]]:
+        return self.embedding_from_features(self.forward_features(x))
 
     def classify(self, x: torch.Tensor, hs: list[torch.Tensor]) -> torch.Tensor:  # type: ignore[override]
         # pylint: disable=arguments-differ

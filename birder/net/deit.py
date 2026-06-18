@@ -97,6 +97,7 @@ class DeiT(DetectorBackbone):
         num_return_stages = len(self.out_indices) if self.out_indices is not None else 1
         self.return_stages = [f"stage{stage_idx + 1}" for stage_idx in range(num_return_stages)]
         self.return_channels = [hidden_dim] * num_return_stages
+        self.feature_dim = hidden_dim
         self.embedding_size = hidden_dim
         self.dist_classifier = self.create_classifier()
         self.classifier = self.create_classifier()
@@ -226,11 +227,14 @@ class DeiT(DetectorBackbone):
 
         return x
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        x = x[:, 0:2]
+    def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
+        if include_special_tokens is False:
+            return features[:, self.num_special_tokens :]
 
-        return x
+        return features
+
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return features[:, 0:2]
 
     def set_distillation_output(self, enable: bool = True) -> None:
         self.distillation_output = enable

@@ -198,7 +198,7 @@ class iBOTHead(DINOHead):
         Embedding and features are as coming out of "masked_encoding_retention" function
         This means embedding shape is (B, C) while features shape is (B, C, H, W)
 
-        NOTE: Only models with encoding size == embedding size are supported here
+        NOTE: Only models with feature_dim == embedding_size are supported here
         """
 
         embedding = embedding.unsqueeze(1)  # (B, 1, D)
@@ -238,6 +238,8 @@ class iBOT(SSLBaseNet):
         bottleneck_dim: int = self.config["bottleneck_dim"]
         patch_out_dim: int = self.config["patch_out_dim"]
         shared_head: bool = self.config["shared_head"]
+
+        assert self.backbone.feature_dim == self.backbone.embedding_size
 
         self.head = iBOTHead(
             self.backbone.embedding_size,

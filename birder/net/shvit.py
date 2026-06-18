@@ -459,6 +459,7 @@ class SHViT(DetectorBackbone):
         )
         self.return_stages = self.return_stages[: len(depths)]
         self.return_channels = return_channels
+        self.feature_dim = embed_dims[-1]
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
 
@@ -488,9 +489,8 @@ class SHViT(DetectorBackbone):
         x = self.stem(x)
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
     def create_classifier(
         self, embed_dim: Optional[int] = None, head_bias: Optional[bool] = None, mlp_head: Optional[bool] = None

@@ -98,7 +98,7 @@ class CAPI_DINOTeacher(CAPITeacher):
             embedding = out["embedding"]
             global_logits = self.dino_head(embedding)
 
-        patch_tokens = tokens[:, self.backbone.num_special_tokens :, :]
+        patch_tokens = self.backbone.flatten_features(tokens, include_special_tokens=False)
         assignments, clustering_loss = self.head(patch_tokens.transpose(0, 1))
 
         assignments = assignments.detach().transpose(0, 1)

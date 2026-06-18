@@ -388,7 +388,7 @@ class FocalNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         self.stem_stride = 4
         self.stem_width = embed_dims[0]
-        self.encoding_size = num_features
+        self.feature_dim = num_features
 
     def set_grad_checkpointing(
         self,
@@ -493,9 +493,8 @@ class FocalNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
 
 registry.register_model_config(

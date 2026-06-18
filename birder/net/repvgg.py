@@ -284,6 +284,7 @@ class RepVgg(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
+        self.feature_dim = int(widths[-1] * width_multipliers[3])
         self.embedding_size = int(widths[-1] * width_multipliers[3])
         self.classifier = self.create_classifier()
 
@@ -313,9 +314,8 @@ class RepVgg(DetectorBackbone):
         x = self.stem(x)
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def reparameterize_model(self) -> None:

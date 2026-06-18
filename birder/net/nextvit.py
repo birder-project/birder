@@ -348,7 +348,7 @@ class NextViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         self.stem_stride = 4
         self.stem_width = stem_chs[-1]
-        self.encoding_size = output_channel
+        self.feature_dim = output_channel
 
         # Weights initialization
         for m in self.modules():
@@ -411,9 +411,8 @@ class NextViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         x = self.stem(x)
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
 
 registry.register_model_config("nextvit_s", NextViT, config={"depths": [3, 4, 10, 3], "drop_path_rate": 0.1})

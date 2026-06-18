@@ -998,6 +998,8 @@ def get_training_transform(args: argparse.Namespace) -> Callable[..., torch.Tens
         args.ra_num_ops,
         args.ra_magnitude,
         args.augmix_severity,
+        args.clip_color_jitter_prob,
+        args.clip_gray_prob,
         args.simple_crop,
     )
 

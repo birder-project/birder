@@ -140,7 +140,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     mask_size = (args.size[0] // encoder.backbone.max_stride, args.size[1] // encoder.backbone.max_stride)
     predictor = VisionTransformerPredictor(
         mask_size,
-        encoder.backbone.embedding_size,
+        encoder.backbone.feature_dim,
         predictor_embed_dim=args.predictor_embed_dim,
         mlp_dim=4 * args.predictor_embed_dim,
         num_heads=args.predictor_num_heads,

@@ -53,6 +53,7 @@ from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import get_rgb_stats
 from birder.model_registry import Task
 from birder.model_registry import registry
+from birder.net.base import BaseNet
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import get_signature
@@ -107,16 +108,8 @@ def get_mask_generator(masking: str, mask_size: tuple[int, int], mask_ratio: flo
     raise ValueError(f"Unsupported masking strategy: {masking}")
 
 
-def teacher_tokens(teacher: torch.nn.Module, x: torch.Tensor) -> torch.Tensor:
-    features = teacher.forward_features(x)
-    if features.ndim == 3:
-        num_special_tokens = getattr(teacher, "num_special_tokens", 0)
-        return features[:, num_special_tokens:]
-
-    if features.ndim == 4:
-        return features.flatten(2).permute(0, 2, 1)
-
-    raise RuntimeError(f"Unsupported teacher feature tensor: {features.size()}")
+def teacher_tokens(teacher: BaseNet, x: torch.Tensor) -> torch.Tensor:
+    return teacher.flatten_features(teacher.forward_features(x), include_special_tokens=False)
 
 
 def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) -> None:
@@ -168,7 +161,6 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         )
 
     with torch.no_grad():
-        # Infer from forward_features as encoding_size is not available on all networks.
         target_tokens = teacher_tokens(teacher, torch.zeros(sample_shape, device=device, dtype=model_dtype))
 
     net = EVA(

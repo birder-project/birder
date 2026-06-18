@@ -450,6 +450,8 @@ class DINOv2Student(SSLBaseNet):
         ibot_separate_head: bool = self.config["ibot_separate_head"]
         ibot_out_dim: int = self.config.get("ibot_out_dim", dino_out_dim)
 
+        assert ibot_separate_head is True or self.backbone.feature_dim == self.backbone.embedding_size
+
         self.dino_head = DINOHead(
             self.backbone.embedding_size,
             dino_out_dim,
@@ -462,7 +464,7 @@ class DINOv2Student(SSLBaseNet):
             self.ibot_head = None
         else:
             self.ibot_head = DINOHead(
-                self.backbone.embedding_size,
+                self.backbone.feature_dim,
                 ibot_out_dim,
                 use_bn=use_bn,
                 num_layers=num_layers,
@@ -493,8 +495,8 @@ class DINOv2Student(SSLBaseNet):
         global_embedding_after_head = self.dino_head(global_embedding)
         local_embedding_after_head = self.dino_head(local_embedding)
 
-        embed_dim = global_embedding.size(-1)
-        buffer_tensor_patch_tokens = global_features.new_zeros(upper_bound, embed_dim)
+        patch_dim = global_features.size(-1)
+        buffer_tensor_patch_tokens = global_features.new_zeros(upper_bound, patch_dim)
         buffer_tensor_patch_tokens[:n_masked_patches].copy_(
             torch.index_select(global_features.flatten(0, 1), dim=0, index=mask_indices_list)
         )
@@ -532,6 +534,8 @@ class DINOv2Teacher(SSLBaseNet):
         ibot_separate_head: bool = self.config["ibot_separate_head"]
         ibot_out_dim: int = self.config.get("ibot_out_dim", dino_out_dim)
 
+        assert ibot_separate_head is True or self.backbone.feature_dim == self.backbone.embedding_size
+
         self.dino_head = DINOHead(
             self.backbone.embedding_size,
             dino_out_dim,
@@ -544,7 +548,7 @@ class DINOv2Teacher(SSLBaseNet):
             self.ibot_head = None
         else:
             self.ibot_head = DINOHead(
-                self.backbone.embedding_size,
+                self.backbone.feature_dim,
                 ibot_out_dim,
                 use_bn=use_bn,
                 num_layers=num_layers,

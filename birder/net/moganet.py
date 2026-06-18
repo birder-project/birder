@@ -316,7 +316,7 @@ class MogaNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         self.stem_stride = 4
         self.stem_width = embed_dims[0]
-        self.encoding_size = embed_dims[-1]
+        self.feature_dim = embed_dims[-1]
 
         # Weight initialization
         for m in self.modules():
@@ -428,9 +428,8 @@ class MogaNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
 
 registry.register_model_config(

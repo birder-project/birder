@@ -464,7 +464,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             else:
                 model_ema.module.load_state_dict(training_states.ema_model_state)
 
-            model_ema.n_averaged += 1  # pylint:disable=no-member
+            model_ema.n_averaged += 1
 
         model_to_save = model_ema.module  # Save EMA model weights as default weights
         eval_model = model_ema  # Use EMA for evaluation
@@ -643,7 +643,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                 model_ema.update_parameters(net)
                 if ema_warmup_steps > 0 and optimizer_step <= ema_warmup_steps:
                     # Reset ema buffer to keep copying weights during warmup period
-                    model_ema.n_averaged.fill_(0)  # pylint: disable=no-member
+                    model_ema.n_averaged.fill_(0)
 
             # Statistics
             running_loss.update(raw_loss.detach())

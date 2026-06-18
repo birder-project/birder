@@ -170,7 +170,7 @@ class RegNet_Z(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         self.stem_stride = 2
         self.stem_width = stem_width
-        self.encoding_size = current_width
+        self.feature_dim = current_width
         decoder_block = partial(
             BottleneckTransform,
             stride=(1, 1),
@@ -241,9 +241,8 @@ class RegNet_Z(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         x = self.stem(x)
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
 
 registry.register_model_config(

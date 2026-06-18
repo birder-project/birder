@@ -258,6 +258,7 @@ class ResNeSt(DetectorBackbone):
             nn.Dropout(p=final_drop),
         )
         self.return_channels = return_channels
+        self.feature_dim = filter_list[-1] * expansion
         self.embedding_size = filter_list[-1] * expansion
         self.classifier = self.create_classifier()
 
@@ -287,9 +288,8 @@ class ResNeSt(DetectorBackbone):
         x = self.stem(x)
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
 
 registry.register_model_config(

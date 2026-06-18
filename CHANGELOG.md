@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.0 - 2026-06-18
+
+### Added
+
+- **CLIP Training Augmentation**: Added a `clip` classification augmentation preset with configurable color-jitter and grayscale probabilities.
+- **Pretrained Models**:
+    - `rope_vit5_reg4_b16_nepa-bio`: Added NEPA RoPE ViT-5 reg4 B/16 image encoder pretrained weights.
+
+### Changed
+
+- **BaseNet Feature API (Breaking)**: Added `feature_dim`, `flatten_features(include_special_tokens=True)`, and `embedding_from_features()` to `BaseNet`, replacing pretraining-only `encoding_size` metadata and defining the `forward_features()` to embedding path for all classification models.
+
 ## 0.5.6 - 2026-06-13
 
 ### Added
@@ -63,7 +75,7 @@
 - **EVA MIM Training**: Added `train_eva.py` for EVA-style masked image modeling with a specified teacher.
 - **Feature Matching Tool**: Added `python -m birder.tools feature-matching` to visualize dense feature correspondences between two images.
 - **Pretrained Models**:
-    - `vit_reg4_so150m_p14_avg_mim-bio`: Added Birder Bio-MIM SoViT-150M/14 image encoder pretrained weights.
+    - `vit_reg4_so150m_p14_avg_mim-bio`: Added MIM SoViT-150M/14 image encoder pretrained weights.
 
 ### Changed
 

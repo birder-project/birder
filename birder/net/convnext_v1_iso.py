@@ -105,7 +105,7 @@ class ConvNeXt_v1_Isotropic(DetectorBackbone, PreTrainEncoder, MaskedTokenRetent
         self.max_stride = patch_size
         self.stem_stride = patch_size
         self.stem_width = dim
-        self.encoding_size = dim
+        self.feature_dim = dim
         self.decoder_block = partial(ConvNeXtBlock, stochastic_depth_prob=0)
 
         # Weights initialization
@@ -166,9 +166,8 @@ class ConvNeXt_v1_Isotropic(DetectorBackbone, PreTrainEncoder, MaskedTokenRetent
         x = self.stem(x)
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:

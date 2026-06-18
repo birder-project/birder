@@ -363,7 +363,8 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         self.stem_stride = patch_size
         self.stem_width = embed_dim
-        self.encoding_size = embed_dim
+        self.feature_dim = embed_dim
+        self.num_special_tokens = 1
 
         # Weights initialization
         for m in self.modules():
@@ -461,9 +462,14 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         return x
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return x[:, 0]
+    def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
+        if include_special_tokens is False:
+            return features[:, self.num_special_tokens :]
+
+        return features
+
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return features[:, 0]
 
 
 registry.register_model_config(

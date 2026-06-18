@@ -113,7 +113,7 @@ class Data2Vec2(SSLBaseNet):
 
         self.ema_backbone = copy.deepcopy(self.backbone)
         self.decoder = Decoder2d(
-            self.backbone.embedding_size,
+            self.backbone.feature_dim,
             decoder_dim,
             decoder_kernel_size,
             decoder_layers,
@@ -137,7 +137,7 @@ class Data2Vec2(SSLBaseNet):
             y = self.ema_backbone.masked_encoding_omission(src, return_all_features=True, return_keys="all")
 
         y_cls = y["embedding"]
-        y = y["tokens"][:, self.ema_backbone.num_special_tokens :]
+        y = self.ema_backbone.flatten_features(y["tokens"], include_special_tokens=False)
         y = y[..., -self.average_top_k_layers :]  # Take the last k layers
         y = y.permute(3, 0, 1, 2)
 
@@ -156,16 +156,15 @@ class Data2Vec2(SSLBaseNet):
         ids_keep = get_ids_keep(masks)
         x = self.backbone.masked_encoding_omission(src, ids_keep=ids_keep, return_keys="all")
         x_cls = x["embedding"]
-        x = x["tokens"][:, self.backbone.num_special_tokens :]
+        x = self.backbone.flatten_features(x["tokens"], include_special_tokens=False)
 
         x_cls = self.head(x_cls)
 
         # Using noise instead of mask tokens
         full_sequence = (
-            torch.randn(x.size(0), self.num_patches, self.backbone.embedding_size, device=x.device, dtype=x.dtype)
-            * 0.02
+            torch.randn(x.size(0), self.num_patches, self.backbone.feature_dim, device=x.device, dtype=x.dtype) * 0.02
         )
-        indices_expanded = ids_keep.unsqueeze(-1).expand(-1, -1, self.backbone.embedding_size)  # (B, num_kept, d_model)
+        indices_expanded = ids_keep.unsqueeze(-1).expand(-1, -1, self.backbone.feature_dim)  # (B, num_kept, d_model)
         full_sequence.scatter_(1, indices_expanded, x)
         masks = masks.bool()
 

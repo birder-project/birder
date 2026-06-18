@@ -594,7 +594,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         self.max_stride = patch_size
         self.stem_stride = patch_size
         self.stem_width = hidden_dim
-        self.encoding_size = hidden_dim
+        self.feature_dim = hidden_dim
         decoder_mlp_layer = FFN if mlp_layer_type == "SoftMoE_FFN" else mlp_layer
         self.decoder_block = partial(
             EncoderBlock,
@@ -894,9 +894,14 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
 
         return x
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.embedding_norm(self._pool(x))
+    def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
+        if include_special_tokens is False:
+            return features[:, self.num_special_tokens :]
+
+        return features
+
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.embedding_norm(self._pool(features))
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:

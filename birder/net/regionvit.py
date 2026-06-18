@@ -448,6 +448,7 @@ class RegionViT(DetectorBackbone):
         self.body = SequentialWithTwo(stages)
         self.norm = nn.LayerNorm(embed_dims[-1])
         self.return_channels = return_channels
+        self.feature_dim = embed_dims[-1]
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
 
@@ -507,8 +508,13 @@ class RegionViT(DetectorBackbone):
 
         return (cls_tokens, x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        cls_tokens, _ = self.forward_features(x)
+    def flatten_features(
+        self, features: tuple[torch.Tensor, torch.Tensor], include_special_tokens: bool = True
+    ) -> torch.Tensor:
+        raise RuntimeError(f"{self.__class__.__name__} does not support non-tensor features")
+
+    def embedding_from_features(self, features: tuple[torch.Tensor, torch.Tensor]) -> torch.Tensor:
+        cls_tokens, _ = features
 
         N, C, _, _ = cls_tokens.size()
         cls_tokens = cls_tokens.reshape(N, C, -1).transpose(1, 2)

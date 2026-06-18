@@ -9,6 +9,7 @@ from typing import Optional
 import torch
 from torch import nn
 
+from birder.model_registry import registry
 from birder.net.base import BaseNet
 
 
@@ -51,12 +52,28 @@ class AlexNet(BaseNet):
             nn.ReLU(inplace=True),
             nn.Dropout(p=0.5),
         )
+        self.feature_dim = 256
         self.embedding_size = 4096
         self.classifier = self.create_classifier()
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
+
+
+registry.register_weights(
+    "alexnet_inat21",
+    {
+        "description": "AlexNet model trained on the iNaturalist 2021 dataset",
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 374.6,
+                "sha256": "c8af2e9b95a7151520778382474763dd96ab96dfc0156f30e8f4de2ac72a69c2",
+            }
+        },
+        "net": {"network": "alexnet", "tag": "inat21"},
+    },
+)

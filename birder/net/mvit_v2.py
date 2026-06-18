@@ -507,11 +507,12 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.norm = nn.LayerNorm(embed_dim, eps=1e-6)
         self.return_channels = return_channels
         self.embedding_size = embed_dim
+        self.num_special_tokens = 1 if use_cls_token is True else 0
         self.classifier = self.create_classifier()
 
         self.stem_stride = 4
         self.stem_width = embed_dims[0]
-        self.encoding_size = embed_dim
+        self.feature_dim = embed_dim
 
         # Weights initialization
         for m in self.modules():
@@ -604,15 +605,19 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         return x
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
+    def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
+        if include_special_tokens is False and self.cls_token is not None:
+            return features[:, self.num_special_tokens :]
 
+        return features
+
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
         if self.cls_token is not None:
-            x = x[:, 0]
+            features = features[:, 0]
         else:
-            x = x.mean(1)
+            features = features.mean(1)
 
-        return x
+        return features
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
         assert dynamic_size is False, "Dynamic size not supported for this network"

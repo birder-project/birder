@@ -602,7 +602,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         self.max_stride = patch_size
         self.stem_stride = patch_size
         self.stem_width = hidden_dim
-        self.encoding_size = hidden_dim
+        self.feature_dim = hidden_dim
         self.decoder_block = partial(
             MAEDecoderBlock,
             16,
@@ -933,9 +933,14 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
         return x
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.embedding_norm(self._pool(x))
+    def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
+        if include_special_tokens is False:
+            return features[:, self.num_special_tokens :]
+
+        return features
+
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.embedding_norm(self._pool(features))
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
@@ -1138,7 +1143,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_reg1_t16_pn_npn_avg_c1_pe-spatial/resolve/main",
         "description": (
-            "ViT t16 image encoder pretrained by Meta FAIR using CLIP. "
+            "RoPEi ViT t16 image encoder pretrained by Meta FAIR using CLIP. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (512, 512),
@@ -1156,7 +1161,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_s16_pn_aps_c1_pe-core/resolve/main",
         "description": (
-            "ViT s16 image encoder pretrained by Meta FAIR using CLIP. "
+            "RoPEi ViT s16 image encoder pretrained by Meta FAIR using CLIP. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (384, 384),
@@ -1174,7 +1179,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_reg1_s16_pn_npn_avg_c1_pe-spatial/resolve/main",
         "description": (
-            "ViT s16 image encoder pretrained by Meta FAIR using CLIP. "
+            "RoPEi ViT s16 image encoder pretrained by Meta FAIR using CLIP. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (512, 512),
@@ -1192,7 +1197,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_b16_pn_aps_c1_pe-core/resolve/main",
         "description": (
-            "ViT b16 image encoder pretrained by Meta FAIR using CLIP. "
+            "RoPEi ViT b16 image encoder pretrained by Meta FAIR using CLIP. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
@@ -1210,7 +1215,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_reg1_b16_pn_npn_avg_c1_pe-spatial/resolve/main",
         "description": (
-            "ViT b16 image encoder pretrained by Meta FAIR using CLIP. "
+            "RoPEi ViT b16 image encoder pretrained by Meta FAIR using CLIP. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (512, 512),
@@ -1228,7 +1233,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_l14_pn_aps_c1_pe-core/resolve/main",
         "description": (
-            "ViT l14 image encoder pretrained by Meta FAIR using CLIP. "
+            "RoPEi ViT l14 image encoder pretrained by Meta FAIR using CLIP. "
             "This model has not been fine-tuned for a specific classification task"
         ),
         "resolution": (336, 336),

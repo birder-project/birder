@@ -248,6 +248,8 @@ class PVT_v1(DetectorBackbone):
 
         self.body = nn.Sequential(stages)
         self.return_channels = return_channels
+        self.feature_dim = embed_dims[-1]
+        self.num_special_tokens = 1
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
 
@@ -289,9 +291,14 @@ class PVT_v1(DetectorBackbone):
         x = self.patch_embed(x)
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return x[:, 0]
+    def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
+        if include_special_tokens is False:
+            return features[:, self.num_special_tokens :]
+
+        return features
+
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return features[:, 0]
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
         assert dynamic_size is False, "Dynamic size not supported for this network"

@@ -292,7 +292,7 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
 
         self.stem_stride = patch_size
         self.stem_width = embed_dim
-        self.encoding_size = num_features
+        self.feature_dim = num_features
 
         # Weight initialization
         for m in self.modules():
@@ -401,9 +401,11 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
 
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
+        return features.flatten(1, 2)
+
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:

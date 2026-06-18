@@ -299,6 +299,7 @@ class GhostNet_v2(DetectorBackbone):
             nn.Dropout(p=0.2),
         )
         self.return_channels = return_channels[1:5]
+        self.feature_dim = prev_channels
         self.embedding_size = out_channels
         self.classifier = self.create_classifier()
 
@@ -328,9 +329,8 @@ class GhostNet_v2(DetectorBackbone):
         x = self.stem(x)
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
 
 registry.register_model_config("ghostnet_v2_1_0", GhostNet_v2, config={"width": 1.0})

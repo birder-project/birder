@@ -303,7 +303,7 @@ class BirderAugment(nn.Module):
         return x
 
 
-AugType = Literal["birder", "aa", "ra", "ta_wide", "augmix", "3aug"]
+AugType = Literal["birder", "aa", "ra", "ta_wide", "augmix", "3aug", "clip"]
 
 
 def training_preset(
@@ -317,6 +317,8 @@ def training_preset(
     ra_num_ops: int = 2,
     ra_magnitude: int = 9,
     augmix_severity: int = 3,
+    clip_color_jitter_prob: float = 0.8,
+    clip_gray_prob: float = 0.2,
     simple_crop: bool = False,
     resize_max_scale: float = 1.0,
 ) -> Callable[..., torch.Tensor]:
@@ -358,6 +360,37 @@ def training_preset(
                 crop_transform,
                 BirderAugment(level, re_prob, use_grayscale),
                 v2.RandomHorizontalFlip(0.5),
+                v2.ToDtype(torch.float32, scale=True),
+                v2.Normalize(mean=mean, std=std),
+            ]
+        )
+
+    if aug_type == "clip":
+        if resize_min_scale is None:
+            resize_min_scale = 0.8
+
+        transforms = [v2.PILToTensor()]
+        if simple_crop is True:
+            transforms.append(
+                SimpleRandomCropWithRandomInterpolation(
+                    size, interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC]
+                )
+            )
+        else:
+            transforms.append(
+                RandomResizedCropWithRandomInterpolation(
+                    size,
+                    scale=(resize_min_scale, resize_max_scale),
+                    ratio=(3 / 4, 4 / 3),
+                    interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
+                )
+            )
+
+        return v2.Compose(  # type: ignore
+            [
+                *transforms,
+                v2.RandomApply([v2.ColorJitter(0.32, 0.32, 0.32, 0.08)], p=clip_color_jitter_prob),  # OpenCLIP values
+                v2.RandomGrayscale(p=clip_gray_prob),
                 v2.ToDtype(torch.float32, scale=True),
                 v2.Normalize(mean=mean, std=std),
             ]

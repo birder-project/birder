@@ -339,10 +339,10 @@ class ViT_SAM(DetectorBackbone):
         self.return_stages = [f"stage{stage_idx + 1}" for stage_idx in range(num_return_stages)]
         self.return_channels = [hidden_dim] * num_return_stages
         self.return_channels[-1] = neck_channels
+        self.feature_dim = neck_channels
         self.embedding_size = neck_channels
         self.classifier = self.create_classifier()
 
-        self.encoding_size = hidden_dim * (image_size[0] // patch_size) * (image_size[1] // patch_size)
         self.decoder_block = partial(
             MAEDecoderBlock,
             16,
@@ -461,9 +461,8 @@ class ViT_SAM(DetectorBackbone):
 
         return x
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:

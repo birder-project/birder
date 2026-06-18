@@ -387,6 +387,7 @@ class LeViT(BaseNet):
             nn.AdaptiveAvgPool1d(output_size=1),
             nn.Flatten(1),
         )
+        self.feature_dim = embed_dim[-1]
         self.embedding_size = embed_dim[-1]
         self.dist_classifier = self.create_classifier()
         self.classifier = self.create_classifier()
@@ -416,9 +417,8 @@ class LeViT(BaseNet):
         x = self.stem(x)
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
     def set_distillation_output(self, enable: bool = True) -> None:
         self.distillation_output = enable

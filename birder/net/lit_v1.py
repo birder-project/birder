@@ -332,6 +332,7 @@ class LIT_v1(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
+        self.feature_dim = num_features
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
@@ -390,9 +391,8 @@ class LIT_v1(DetectorBackbone):
 
         return x
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
         super().set_dynamic_size(dynamic_size)

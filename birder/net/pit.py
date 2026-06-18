@@ -159,6 +159,7 @@ class PiT(DetectorBackbone):
 
         self.return_stages = [f"stage{idx + 1}" for idx in range(len(depths))]
         self.return_channels = return_channels
+        self.feature_dim = embed_dim
         self.embedding_size = embed_dim
         self.dist_classifier = self.create_classifier()
         self.classifier = self.create_classifier()
@@ -222,8 +223,13 @@ class PiT(DetectorBackbone):
 
         return (x, cls_tokens)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        _, cls_tokens = self.forward_features(x)
+    def flatten_features(
+        self, features: tuple[torch.Tensor, torch.Tensor], include_special_tokens: bool = True
+    ) -> torch.Tensor:
+        raise RuntimeError(f"{self.__class__.__name__} does not support non-tensor features")
+
+    def embedding_from_features(self, features: tuple[torch.Tensor, torch.Tensor]) -> torch.Tensor:
+        _, cls_tokens = features
         cls_tokens = self.norm(cls_tokens)
 
         return cls_tokens

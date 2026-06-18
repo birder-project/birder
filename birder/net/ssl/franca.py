@@ -442,6 +442,8 @@ class FrancaStudent(SSLBaseNet):
         ibot_out_dim: int = self.config.get("ibot_out_dim", dino_out_dim)
         nesting_levels: int = self.config.get("nesting_levels", 5)
 
+        assert ibot_separate_head is True or self.backbone.feature_dim == self.backbone.embedding_size
+
         nesting_list = _get_nesting_list(self.backbone.embedding_size, nesting_levels)
         self.dino_head = DINOHeadMRL(
             dino_out_dim,
@@ -454,13 +456,14 @@ class FrancaStudent(SSLBaseNet):
         if ibot_separate_head is False:
             self.ibot_head = None
         else:
+            ibot_nesting_list = _get_nesting_list(self.backbone.feature_dim, nesting_levels)
             self.ibot_head = DINOHeadMRL(
                 ibot_out_dim,
                 use_bn=use_bn,
                 num_layers=num_layers,
                 hidden_dim=hidden_dim,
                 bottleneck_dim=head_bottleneck_dim,
-                nesting_list=nesting_list,
+                nesting_list=ibot_nesting_list,
             )
 
         self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width))
@@ -487,8 +490,8 @@ class FrancaStudent(SSLBaseNet):
         global_embedding_after_head = self.dino_head(global_embedding)
         local_embedding_after_head = self.dino_head(local_embedding)
 
-        embed_dim = global_embedding.size(-1)
-        buffer_tensor_patch_tokens = global_features.new_zeros(upper_bound, embed_dim)
+        patch_dim = global_features.size(-1)
+        buffer_tensor_patch_tokens = global_features.new_zeros(upper_bound, patch_dim)
         buffer_tensor_patch_tokens[:n_masked_patches].copy_(
             torch.index_select(global_features.flatten(0, 1), dim=0, index=mask_indices_list)
         )
@@ -531,6 +534,8 @@ class FrancaTeacher(SSLBaseNet):
         ibot_out_dim: int = self.config.get("ibot_out_dim", dino_out_dim)
         nesting_levels: int = self.config.get("nesting_levels", 5)
 
+        assert ibot_separate_head is True or self.backbone.feature_dim == self.backbone.embedding_size
+
         nesting_list = _get_nesting_list(self.backbone.embedding_size, nesting_levels)
         self.dino_head = DINOHeadMRL(
             dino_out_dim,
@@ -543,13 +548,14 @@ class FrancaTeacher(SSLBaseNet):
         if ibot_separate_head is False:
             self.ibot_head = None
         else:
+            ibot_nesting_list = _get_nesting_list(self.backbone.feature_dim, nesting_levels)
             self.ibot_head = DINOHeadMRL(
                 ibot_out_dim,
                 use_bn=use_bn,
                 num_layers=num_layers,
                 hidden_dim=hidden_dim,
                 bottleneck_dim=head_bottleneck_dim,
-                nesting_list=nesting_list,
+                nesting_list=ibot_nesting_list,
             )
 
         # Unused, Makes for an easier EMA update

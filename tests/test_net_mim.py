@@ -7,22 +7,9 @@ from parameterized import parameterized
 
 from birder.conf.settings import DEFAULT_NUM_CHANNELS
 from birder.model_registry import registry
-from birder.net.base import BaseNet
 from birder.net.mim import base  # pylint: disable=unused-import # noqa: F401
 
 logging.disable(logging.CRITICAL)
-
-
-def _teacher_tokens(teacher: BaseNet, x: torch.Tensor) -> torch.Tensor:
-    features = teacher.forward_features(x)
-    if features.ndim == 3:
-        num_special_tokens = getattr(teacher, "num_special_tokens", 0)
-        return features[:, num_special_tokens:]
-
-    if features.ndim == 4:
-        return features.flatten(2).permute(0, 2, 1)
-
-    raise AssertionError(f"Unsupported teacher feature tensor: {features.size()}")
 
 
 class TestNetMIM(unittest.TestCase):
@@ -119,7 +106,7 @@ class TestNetMIM(unittest.TestCase):
 
         inputs = torch.rand((1, DEFAULT_NUM_CHANNELS, *size))
         with torch.no_grad():
-            target_tokens = _teacher_tokens(teacher, inputs)
+            target_tokens = teacher.flatten_features(teacher.forward_features(inputs), include_special_tokens=False)
 
         n = registry.mim_net_factory("eva", student, config={"teacher_dim": target_tokens.size(-1)}, size=size)
         mask = torch.zeros((inputs.size(0), target_tokens.size(1)))

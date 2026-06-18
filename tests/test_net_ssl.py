@@ -234,7 +234,7 @@ class TestNetSSL(unittest.TestCase):
         for _ in range(3):
             with torch.no_grad():
                 tokens = teacher.backbone.masked_encoding_omission(x, None)["tokens"]
-                tokens = tokens[:, teacher.backbone.num_special_tokens :, :]
+                tokens = teacher.backbone.flatten_features(tokens, include_special_tokens=False)
                 head_in = tokens.transpose(0, 1)
                 logits = teacher.head.layer(F.normalize(head_in, dim=-1, p=2, eps=1e-7))
                 teacher_logits_list.append(logits.detach().clone())
@@ -310,7 +310,7 @@ class TestNetSSL(unittest.TestCase):
         for _ in range(3):
             with torch.no_grad():
                 tokens = teacher.backbone.masked_encoding_omission(x, None)["tokens"]
-                tokens = tokens[:, teacher.backbone.num_special_tokens :, :]
+                tokens = teacher.backbone.flatten_features(tokens, include_special_tokens=False)
                 head_in = tokens.transpose(0, 1)
                 logits = teacher.head.layer(F.normalize(head_in, dim=-1, p=2, eps=1e-7))
                 teacher_logits_list.append(logits.detach().clone())
@@ -1440,7 +1440,7 @@ class TestNetSSL(unittest.TestCase):
         input_size = (size[0] // backbone.stem_stride, size[1] // backbone.stem_stride)
         predictor = i_jepa.VisionTransformerPredictor(
             input_size,
-            backbone.embedding_size,
+            backbone.feature_dim,
             128,
             512,
             8,
@@ -1469,13 +1469,13 @@ class TestNetSSL(unittest.TestCase):
 
         # Target encoder
         h = backbone.masked_encoding_omission(x)["tokens"]
-        h = h[:, backbone.num_special_tokens :, :]  # Remove special tokens
+        h = backbone.flatten_features(h, include_special_tokens=False)
         h = i_jepa.apply_masks(h, pred_masks)
         h = i_jepa.repeat_interleave_batch(h, batch_size, repeat=len(enc_masks))
 
         # Context
         z = torch.concat([backbone.masked_encoding_omission(x, enc_mask)["tokens"] for enc_mask in enc_masks], dim=0)
-        z = z[:, backbone.num_special_tokens :, :]  # Remove special tokens
+        z = backbone.flatten_features(z, include_special_tokens=False)
         z = predictor(z, enc_masks, pred_masks)
 
         loss = F.smooth_l1_loss(z, h)
@@ -1483,8 +1483,8 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(h.size(0), batch_size * len(enc_masks) * len(pred_masks))
         self.assertEqual(z.size(0), batch_size * len(enc_masks) * len(pred_masks))
 
-        self.assertEqual(h.size(2), backbone.embedding_size)
-        self.assertEqual(z.size(2), backbone.embedding_size)
+        self.assertEqual(h.size(2), backbone.feature_dim)
+        self.assertEqual(z.size(2), backbone.feature_dim)
 
         self.assertEqual(h.size(1), z.size(1))
 

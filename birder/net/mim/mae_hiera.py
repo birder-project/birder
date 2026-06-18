@@ -56,7 +56,7 @@ class MAE_Hiera(MIMBaseNet):
         assert self.config is None, "config not supported"
         assert isinstance(self.encoder, Hiera)
 
-        encoder_dim = self.encoder.encoding_size
+        encoder_dim = self.encoder.feature_dim
         decoder_embed_dim = 512
         decoder_depth = 8
         decoder_num_heads = 16

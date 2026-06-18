@@ -37,7 +37,7 @@ class EVA(MIMBaseNet):
         teacher_dim: int = self.config["teacher_dim"]
 
         self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.encoder.stem_width))
-        self.predictor = nn.Linear(self.encoder.encoding_size, teacher_dim)
+        self.predictor = nn.Linear(self.encoder.feature_dim, teacher_dim)
 
         # Weights initialization
         nn.init.trunc_normal_(self.mask_token, mean=0.0, std=0.02)

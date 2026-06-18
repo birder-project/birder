@@ -233,6 +233,9 @@ class CaiT(BaseNet):
 
         self.norm = nn.LayerNorm(embed_dim, eps=1e-6)
 
+        self.feature_dim = embed_dim
+
+        self.num_special_tokens = 1
         self.embedding_size = embed_dim
         self.classifier = self.create_classifier()
 
@@ -308,9 +311,14 @@ class CaiT(BaseNet):
 
         return x
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return x[:, 0]
+    def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
+        if include_special_tokens is False:
+            return features[:, self.num_special_tokens :]
+
+        return features
+
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return features[:, 0]
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
         assert dynamic_size is False, "Dynamic size not supported for this network"

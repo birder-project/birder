@@ -269,6 +269,10 @@ class TestBase(unittest.TestCase):
         self.assertTrue(base_net.features.weight.requires_grad)
         self.assertFalse(base_net.classifier.weight.requires_grad)
 
+        self.assertEqual(base_net.flatten_features(torch.rand((2, 3, 4, 5))).size(), (2, 20, 3))
+        with self.assertRaises(RuntimeError):
+            base_net.flatten_features(torch.rand((2, 10)))
+
     def test_base_net_mlp_head(self) -> None:
         base_net = base.BaseNet(DEFAULT_NUM_CHANNELS, num_classes=2, config={"mlp_head": True}, size=(128, 128))
         classifier = base_net.create_classifier(embed_dim=10)
@@ -297,12 +301,15 @@ class TestNet(unittest.TestCase):
         self,
         network_name: str,
         skip_embedding: bool = False,
-        skip_features: bool = False,
+        non_standard_features: bool = False,
         batch_size: int = 1,
         size_step: int = 2**5,
     ) -> None:
         n = registry.net_factory(network_name, 100)
         size = n.default_size
+
+        self.assertIsInstance(n.feature_dim, int)
+        self.assertGreater(n.feature_dim, 0)
 
         # Ensure config is serializable
         _ = json.dumps(n.config)
@@ -316,10 +323,37 @@ class TestNet(unittest.TestCase):
             embedding = n.embedding(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size))).flatten()
             self.assertEqual(len(embedding), n.embedding_size * batch_size)
 
-        if skip_features is False:
+        n.eval()
+        inputs = torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size))
+        with torch.inference_mode():
+            features = n.forward_features(inputs)
+            embedding_from_features = n.embedding_from_features(features)
+
+            embedding = n.embedding(inputs)
+
+        n.train()
+        if isinstance(embedding_from_features, torch.Tensor):
+            torch.testing.assert_close(embedding_from_features, embedding)
+
+        if non_standard_features is False:
             features = n.forward_features(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
             self.assertFalse(torch.isnan(features).any())
             self.assertEqual(features.size(0), batch_size)
+            flat_features = n.flatten_features(features)
+            self.assertFalse(torch.isnan(flat_features).any())
+            self.assertEqual(flat_features.size(0), batch_size)
+            self.assertEqual(flat_features.size(2), n.feature_dim)
+            visual_features = n.flatten_features(features, include_special_tokens=False)
+            self.assertFalse(torch.isnan(visual_features).any())
+            self.assertEqual(visual_features.size(0), batch_size)
+            self.assertEqual(visual_features.size(2), n.feature_dim)
+            self.assertLessEqual(visual_features.size(1), flat_features.size(1))
+            if hasattr(n, "num_special_tokens") is True:
+                self.assertEqual(visual_features.size(1), flat_features.size(1) - n.num_special_tokens)
+        else:
+            features = n.forward_features(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
+            with self.assertRaises(RuntimeError):
+                n.flatten_features(features)
 
         # Test TorchScript support
         if n.scriptable is True:
@@ -360,7 +394,7 @@ class TestNet(unittest.TestCase):
         self,
         network_name: str,
         _skip_embedding: bool = False,
-        _skip_features: bool = False,
+        _non_standard_features: bool = False,
         batch_size: int = 1,
         size_step: int = 2**5,
     ) -> None:
@@ -398,7 +432,7 @@ class TestNet(unittest.TestCase):
         self,
         network_name: str,
         _skip_embedding: bool = False,
-        _skip_features: bool = False,
+        _non_standard_features: bool = False,
         _batch_size: int = 1,
         _size_step: int = 2**5,
     ) -> None:
@@ -417,7 +451,7 @@ class TestNet(unittest.TestCase):
     #     self,
     #     network_name: str,
     #     _skip_embedding: bool = False,
-    #     _skip_features: bool = False,
+    #     _non_standard_features: bool = False,
     #     batch_size: int = 1,
     #     _size_step: int = 2**5,
     # ) -> None:
@@ -634,7 +668,7 @@ class TestNet(unittest.TestCase):
         for out in outs:
             self.assertFalse(torch.isnan(out).any())
 
-        self.assertEqual(outs[-1].size(-1), n.encoding_size)
+        self.assertEqual(outs[-1].size(-1), n.feature_dim)
         self.assertFalse(torch.isnan(mask).any())
 
         self.assertTrue(hasattr(n, "block_group_regex"))
@@ -728,7 +762,7 @@ class TestNet(unittest.TestCase):
         out = n.masked_encoding_retention(x, mask, return_keys="features")
         self.assertFalse(torch.isnan(out["features"]).any())
         self.assertEqual(out["features"].ndim, 4)
-        self.assertEqual(out["features"].size(1), n.encoding_size)
+        self.assertEqual(out["features"].size(1), n.feature_dim)
 
         # Test substitution
         out = n.masked_encoding_retention(x, mask, torch.zeros(1, 1, 1, n.stem_width))
@@ -811,7 +845,7 @@ class TestNet(unittest.TestCase):
         embedding = out["embedding"]
         self.assertFalse(torch.isnan(tokens).any())
         self.assertEqual(tokens.ndim, 3)
-        self.assertEqual(tokens.size(-1), n.encoding_size)
+        self.assertEqual(tokens.size(-1), n.feature_dim)
         self.assertFalse(torch.isnan(embedding).any())
         self.assertEqual(embedding.ndim, 2)
         self.assertEqual(embedding.size(), (1, n.embedding_size))
@@ -822,7 +856,7 @@ class TestNet(unittest.TestCase):
             embedding = out["embedding"]
             self.assertFalse(torch.isnan(tokens).any())
             self.assertEqual(tokens.ndim, 4)
-            self.assertEqual(tokens.size(-2), n.encoding_size)
+            self.assertEqual(tokens.size(-2), n.feature_dim)
             self.assertFalse(torch.isnan(embedding).any())
             self.assertEqual(embedding.ndim, 2)
             self.assertEqual(embedding.size(), (1, n.embedding_size))
@@ -832,7 +866,7 @@ class TestNet(unittest.TestCase):
         embedding = out["embedding"]
         self.assertFalse(torch.isnan(tokens).any())
         self.assertEqual(tokens.ndim, 3)
-        self.assertEqual(tokens.size(-1), n.encoding_size)
+        self.assertEqual(tokens.size(-1), n.feature_dim)
         self.assertFalse(torch.isnan(embedding).any())
         self.assertEqual(embedding.ndim, 2)
 
@@ -1175,7 +1209,7 @@ class TestCudaAdjustSize(unittest.TestCase):
         self,
         network_name: str,
         _skip_embedding: bool = False,
-        _skip_features: bool = False,
+        _non_standard_features: bool = False,
         _batch_size: int = 1,
         size_step: int = 2**5,
     ) -> None:

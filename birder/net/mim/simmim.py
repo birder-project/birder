@@ -75,7 +75,7 @@ class SimMIM(MIMBaseNet):
         self.patch_size = encoder.max_stride
 
         self.decoder = nn.Conv2d(
-            in_channels=self.encoder.embedding_size,
+            in_channels=self.encoder.feature_dim,
             out_channels=self.patch_size**2 * self.input_channels,
             kernel_size=(1, 1),
             stride=(1, 1),

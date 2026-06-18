@@ -812,7 +812,7 @@ class FastViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.max_stride = 2 ** (len(layers) + 1)
         self.stem_stride = 4
         self.stem_width = embed_dims[0]
-        self.encoding_size = embed_dims[-1]
+        self.feature_dim = embed_dims[-1]
 
         # Weights initialization
         for m in self.modules():
@@ -866,9 +866,8 @@ class FastViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         x = self.stem(x)
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def reparameterize_model(self) -> None:

@@ -378,7 +378,7 @@ class DaViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         self.stem_stride = 4
         self.stem_width = dims[0]
-        self.encoding_size = dims[-1]
+        self.feature_dim = dims[-1]
 
         # Weights initialization
         for m in self.modules():
@@ -490,9 +490,8 @@ class DaViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:  # pylint:disable=useless-parent-delegation
         super().set_dynamic_size(dynamic_size)

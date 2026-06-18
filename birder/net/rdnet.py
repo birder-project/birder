@@ -224,7 +224,7 @@ class RDNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         self.stem_stride = 4
         self.stem_width = num_init_features
-        self.encoding_size = num_features
+        self.feature_dim = num_features
 
         # Weight initialization
         for m in self.modules():
@@ -279,9 +279,8 @@ class RDNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         x = self.stem(x)
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
 
 registry.register_model_config(

@@ -172,6 +172,7 @@ class BaseNet(nn.Module):
             self.head_bias = self.config.get("head_bias", True)
             self.mlp_head = self.config.get("mlp_head", False)
 
+        self.feature_dim: int
         self.embedding_size: int
         self.classifier: nn.Module
 
@@ -250,14 +251,28 @@ class BaseNet(nn.Module):
 
         raise NotImplementedError
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+    def flatten_features(
+        self, features: torch.Tensor, include_special_tokens: bool = True  # pylint: disable=unused-argument
+    ) -> torch.Tensor:
+        if features.ndim == 4:
+            return features.flatten(2).permute(0, 2, 1)
+        if features.ndim == 3:
+            return features
+
+        raise RuntimeError(f"Unsupported feature shape: {features.size()}")
+
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError
+
+    def embedding(self, x: torch.Tensor) -> torch.Tensor:
+        return self.embedding_from_features(self.forward_features(x))
 
     def classify(self, x: torch.Tensor) -> torch.Tensor:
         return self.classifier(x)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.embedding(x)
+        x = self.forward_features(x)
+        x = self.embedding_from_features(x)
         return self.classify(x)
 
 
@@ -274,7 +289,6 @@ class PreTrainEncoder(BaseNet):  # pylint: disable=abstract-method
         self.max_stride: int = 32
         self.stem_stride: int
         self.stem_width: int
-        self.encoding_size: int
         self.decoder_block: Callable[[int], nn.Module]
 
 

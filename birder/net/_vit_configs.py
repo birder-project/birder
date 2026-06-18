@@ -139,6 +139,17 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         vit,
         config={"patch_size": 16, **BASE, "class_token": False, "attn_pool_head": True},
     )
+    registry.register_model_config(  # For SigLIP - https://arxiv.org/abs/2303.15343
+        "vit_b16_ap_c1",
+        vit,
+        config={
+            "patch_size": 16,
+            **BASE,
+            "class_token": False,
+            "attn_pool_head": True,
+            "attn_pool_norm_eps": 1e-6,
+        },
+    )
     registry.register_model_config(
         "vit_b16_qkn_ls",
         vit,
@@ -328,6 +339,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
             "norm_layer_type": "RMSNorm",
         },
     )
+    registry.register_model_config(  # For OpenVision v1 - https://arxiv.org/abs/2505.04601
+        "vit_reg1_s16_nap_avg",
+        vit,
+        config={"patch_size": 16, **SMALL, "num_reg_tokens": 1, "norm_after_pool": True, "class_token": False},
+    )
     registry.register_model_config(
         "vit_reg1_s14",
         vit,
@@ -374,7 +390,7 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         vit,
         config={"patch_size": 32, **BASE, "num_reg_tokens": 4, "drop_path_rate": 0.0},  # Override the BASE definition
     )
-    registry.register_model_config(
+    registry.register_model_config(  # For OpenVision v1 - https://arxiv.org/abs/2505.04601
         "vit_reg1_b16_nap_avg",
         vit,
         config={"patch_size": 16, **BASE, "num_reg_tokens": 1, "norm_after_pool": True, "class_token": False},
@@ -519,7 +535,7 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
             "attn_pool_special_tokens": True,
         },
     )
-    registry.register_model_config(
+    registry.register_model_config(  # For OpenVision v1 - https://arxiv.org/abs/2505.04601
         "vit_reg1_l14_nap_avg",
         vit,
         config={"patch_size": 14, **LARGE, "num_reg_tokens": 1, "norm_after_pool": True, "class_token": False},

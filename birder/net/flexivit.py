@@ -246,7 +246,7 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         self.max_stride = patch_size
         self.stem_stride = patch_size
         self.stem_width = hidden_dim
-        self.encoding_size = hidden_dim
+        self.feature_dim = hidden_dim
         self.decoder_block = partial(
             EncoderBlock,
             16,
@@ -553,9 +553,17 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
         return x
 
+    def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
+        if include_special_tokens is False:
+            return features[:, self.num_special_tokens :]
+
+        return features
+
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.embedding_norm(self._pool(features))
+
     def embedding(self, x: torch.Tensor, patch_size: Optional[int] = None) -> torch.Tensor:
-        x = self.forward_features(x, patch_size)
-        return self.embedding_norm(self._pool(x))
+        return self.embedding_from_features(self.forward_features(x, patch_size))
 
     def forward(self, x: torch.Tensor, patch_size: Optional[int] = None) -> torch.Tensor:
         x = self.embedding(x, patch_size)

@@ -149,6 +149,7 @@ class ShuffleNet_v2(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
+        self.feature_dim = out_channels[-2]
         self.embedding_size = out_channels[-1]
         self.classifier = self.create_classifier()
 
@@ -178,9 +179,8 @@ class ShuffleNet_v2(DetectorBackbone):
         x = self.stem(x)
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
 
 registry.register_model_config("shufflenet_v2_0_5", ShuffleNet_v2, config={"out_channels": [24, 48, 96, 192, 1024]})

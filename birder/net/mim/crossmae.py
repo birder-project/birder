@@ -93,7 +93,7 @@ class CrossMAE(MIMBaseNet):
 
         self.kept_mask_ratio = 0.25
         self.patch_size = self.encoder.stem_stride
-        encoder_dim = self.encoder.embedding_size
+        encoder_dim = self.encoder.feature_dim
         decoder_embed_dim: int = self.config["decoder_embed_dim"]
         decoder_depth: int = self.config["decoder_depth"]
 

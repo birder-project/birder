@@ -363,6 +363,8 @@ def add_data_aug_args(
     )
     group.add_argument("--ra-magnitude", type=int, default=9, help="magnitude for all the RandAugment transformations")
     group.add_argument("--augmix-severity", type=int, default=3, help="severity of AugMix policy")
+    group.add_argument("--clip-color-jitter-prob", type=float, default=0.8, help="CLIP color jitter probability")
+    group.add_argument("--clip-gray-prob", type=float, default=0.2, help="CLIP grayscale probability")
     group.add_argument("--resize-min-scale", type=float, default=default_min_scale, help="random resize min scale")
     group.add_argument(
         "--re-prob",
@@ -987,6 +989,16 @@ def common_args_validation(args: argparse.Namespace) -> None:
     if hasattr(args, "resize_min_scale") is True:
         if args.resize_min_scale is not None and (args.resize_min_scale <= 0.0 or args.resize_min_scale >= 1.0):
             raise ValidationError(f"--resize-min-scale must be in range of (0, 1.0), got {args.resize_min_scale}")
+    if hasattr(args, "clip_color_jitter_prob") is True:
+        if args.clip_color_jitter_prob is not None and (
+            args.clip_color_jitter_prob < 0.0 or args.clip_color_jitter_prob > 1.0
+        ):
+            raise ValidationError(
+                f"--clip-color-jitter-prob must be in range of [0, 1], got {args.clip_color_jitter_prob}"
+            )
+    if hasattr(args, "clip_gray_prob") is True:
+        if args.clip_gray_prob is not None and (args.clip_gray_prob < 0.0 or args.clip_gray_prob > 1.0):
+            raise ValidationError(f"--clip-gray-prob must be in range of [0, 1], got {args.clip_gray_prob}")
 
     # Training data args have a standard and a detection version
     if hasattr(args, "wds") is True:

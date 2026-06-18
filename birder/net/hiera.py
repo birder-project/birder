@@ -453,7 +453,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         self.max_stride = patch_stride[0] * 8
         self.stem_stride = patch_stride[0]
         self.stem_width = stem_dim
-        self.encoding_size = embed_dim
+        self.feature_dim = embed_dim
         # self.decoder_block
 
         # Weight initialization
@@ -655,11 +655,8 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
 
         return x
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        x = self.features(x)
-
-        return x
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
         assert dynamic_size is False, "Dynamic size not supported for this network"

@@ -365,7 +365,7 @@ class CAPIStudent(SSLBaseNet):
         input_size = (self.size[0] // self.backbone.max_stride, self.size[1] // self.backbone.max_stride)
         self.seq_len = input_size[0] * input_size[1]
 
-        self.decoder = Decoder(input_size, self.backbone.embedding_size, decoder_dim, decoder_layers)
+        self.decoder = Decoder(input_size, self.backbone.feature_dim, decoder_dim, decoder_layers)
         self.head = L2NormLinear(decoder_dim, num_clusters)
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ
@@ -406,7 +406,7 @@ class CAPITeacher(SSLBaseNet):
             queue_seq_len = input_size[0] * input_size[1]
 
         self.head = OnlineClustering(
-            self.backbone.embedding_size,
+            self.backbone.feature_dim,
             num_clusters,
             bias=bias,
             n_sk_iter=n_sk_iter,
@@ -425,7 +425,7 @@ class CAPITeacher(SSLBaseNet):
         with torch.no_grad():
             x = self.backbone.masked_encoding_omission(x, ids_keep)["tokens"]
 
-        x = x[:, self.backbone.num_special_tokens :, :]
+        x = self.backbone.flatten_features(x, include_special_tokens=False)
         assignments, clustering_loss = self.head(x.transpose(0, 1))
 
         assignments = assignments.detach().transpose(0, 1)

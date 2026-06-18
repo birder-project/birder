@@ -43,7 +43,7 @@ class MAE_ViT(MIMBaseNet):
         assert hasattr(self.encoder, "decoder_block")
 
         self.patch_size = self.encoder.stem_stride
-        encoder_dim = self.encoder.embedding_size
+        encoder_dim = self.encoder.feature_dim
         decoder_embed_dim: int = self.config["decoder_embed_dim"]
         decoder_depth: int = self.config["decoder_depth"]
         norm_pix_loss: bool = self.config.get("norm_pix_loss", False)

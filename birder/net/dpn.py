@@ -184,6 +184,7 @@ class DPN(BaseNet):
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.feature_dim = num_features
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
@@ -195,9 +196,8 @@ class DPN(BaseNet):
 
         return x
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
 
 registry.register_model_config(

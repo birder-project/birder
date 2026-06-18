@@ -263,6 +263,7 @@ class Inception_ResNet_v2(DetectorBackbone):
         )
         self.return_channels = return_channels[1:]
         self.return_stages = self.return_stages[1:]
+        self.feature_dim = 1536
         self.embedding_size = 1536
         self.classifier = self.create_classifier()
 
@@ -292,6 +293,5 @@ class Inception_ResNet_v2(DetectorBackbone):
         x = self.stem(x)
         return self.body(x)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)

@@ -290,6 +290,7 @@ class CrossViT(BaseNet):
             self.blocks.append(block)
 
         self.norm = nn.ModuleList([nn.LayerNorm(embed_dim[i], eps=1e-6) for i in range(self.num_branches)])
+        self.feature_dim = sum(self.embed_dim)
         self.embedding_size = sum(self.embed_dim)
         self.classifier = nn.ModuleList()
         for i in range(self.num_branches):
@@ -330,11 +331,16 @@ class CrossViT(BaseNet):
 
         return xs
 
-    def embedding(self, x: torch.Tensor) -> list[torch.Tensor]:
-        xs = self.forward_features(x)
-        out = [x[:, 0] for x in xs]
+    def flatten_features(self, features: list[torch.Tensor], include_special_tokens: bool = True) -> torch.Tensor:
+        raise RuntimeError(f"{self.__class__.__name__} does not support non-tensor features")
+
+    def embedding_from_features(self, features: list[torch.Tensor]) -> list[torch.Tensor]:
+        out = [x[:, 0] for x in features]
 
         return out
+
+    def embedding(self, x: torch.Tensor) -> list[torch.Tensor]:
+        return self.embedding_from_features(self.forward_features(x))
 
     def classify(self, x: list[torch.Tensor]) -> torch.Tensor:
         x = [classifier(x[i]) for i, classifier in enumerate(self.classifier)]

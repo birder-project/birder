@@ -358,6 +358,7 @@ class PNASNet(BaseNet):
             nn.Flatten(1),
             nn.Dropout(p=dropout_rate, inplace=True),
         )
+        self.feature_dim = right_channels
         self.embedding_size = right_channels
         self.classifier = self.create_classifier()
 
@@ -374,9 +375,8 @@ class PNASNet(BaseNet):
 
         return self.act(curr)
 
-    def embedding(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_features(x)
-        return self.features(x)
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
 
 
 registry.register_model_config(
