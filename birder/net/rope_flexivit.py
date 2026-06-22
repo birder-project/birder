@@ -77,6 +77,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         norm_after_pool: bool = self.config.get("norm_after_pool", False)
         qkv_bias: bool = self.config.get("qkv_bias", True)
         qk_norm: bool = self.config.get("qk_norm", False)
+        attn_norm: bool = self.config.get("attn_norm", False)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
@@ -111,6 +112,9 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             act_layer = nn.GELU
         elif mlp_layer_type == "SwiGLU_FFN":
             mlp_layer = SwiGLU_FFN
+            act_layer = nn.SiLU
+        elif mlp_layer_type == "Norm_SwiGLU_FFN":
+            mlp_layer = partial(SwiGLU_FFN, norm_layer=norm_layer, norm_eps=norm_layer_eps)  # type: ignore[assignment]
             act_layer = nn.SiLU
         else:
             raise ValueError(f"Unknown mlp_layer_type '{mlp_layer_type}'")
@@ -211,6 +215,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             pre_norm=pre_norm,
             qkv_bias=qkv_bias,
             qk_norm=qk_norm,
+            attn_norm=attn_norm,
             activation_layer=act_layer,
             layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,

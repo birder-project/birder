@@ -44,6 +44,12 @@ class TestLayers(unittest.TestCase):
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.size(), (2, 8))
 
+        # With norm
+        swiglu_ffn = layers.SwiGLU_FFN(8, 16, norm_layer=torch.nn.LayerNorm)
+        out = swiglu_ffn(torch.rand(2, 8))
+        self.assertFalse(torch.isnan(out).any())
+        self.assertEqual(out.size(), (2, 8))
+
     def test_soft_moe_ffn(self) -> None:
         soft_moe_ffn = layers.SoftMoE_FFN(8, 16, num_experts=3, num_slots=2)
         out = soft_moe_ffn(torch.rand(2, 5, 8))

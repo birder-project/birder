@@ -84,7 +84,7 @@ class MAE_ViT(MIMBaseNet):
 
         p = self.patch_size
         c = self.input_channels
-        assert imgs.shape[2] == imgs.shape[3] and imgs.shape[2] % p == 0
+        assert imgs.shape[2] % p == 0 and imgs.shape[3] % p == 0
 
         h = imgs.shape[2] // p
         w = imgs.shape[3] // p
@@ -102,8 +102,8 @@ class MAE_ViT(MIMBaseNet):
 
         p = self.patch_size
         c = self.input_channels
-        h = int(x.size(1) ** 0.5)
-        w = int(x.size(1) ** 0.5)
+        h = self.size[0] // p
+        w = self.size[1] // p
         assert h * w == x.shape[1]
 
         x = x.reshape(shape=(x.size(0), h, w, p, p, c))

@@ -291,6 +291,7 @@
     "resnet",
     "resnext",
     "retinanet",
+    "rexnet",
     "rmsprop",
     "rotnet",
     "scipy",

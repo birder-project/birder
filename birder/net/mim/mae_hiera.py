@@ -156,8 +156,8 @@ class MAE_Hiera(MIMBaseNet):
         """
 
         p = self.pred_stride
-        h = int(x.shape[1] ** 0.5)
-        w = int(x.shape[1] ** 0.5)
+        h = self.size[0] // p
+        w = self.size[1] // p
         assert h * w == x.shape[1]
 
         # Data is [C, p, p] order from get_pixel_label_2d

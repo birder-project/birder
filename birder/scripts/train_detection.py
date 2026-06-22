@@ -733,7 +733,9 @@ def train(args: argparse.Namespace) -> None:
     #
 
     # Define metrics
-    validation_metrics = MeanAveragePrecision(iou_type="bbox", box_format="xyxy", average="macro").to(device)
+    validation_metrics = MeanAveragePrecision(
+        iou_type="bbox", box_format="xyxy", average="macro", backend="faster_coco_eval"
+    ).to(device)
     metric_list = ["map", "map_small", "map_medium", "map_large", "map_50", "map_75", "mar_1", "mar_10"]
 
     # Print network summary

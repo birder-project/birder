@@ -56,6 +56,7 @@ Examples use repo-root script names (e.g., `train.py`). If you installed Birder 
 - [RepVgg](#repvgg)
 - [RepViT](#repvit)
 - [ResNeSt](#resnest)
+- [ReXNet Lite](#rexnet-lite)
 - [ShuffleNet v1](#shufflenet-v1)
 - [ShuffleNet v2](#shufflenet-v2)
 - [SHViT](#shvit)
@@ -684,6 +685,14 @@ torchrun --nproc_per_node=2 train.py --network repvit_m0_6 --tag il-common --bat
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network resnest_14 --tag il-common --batch-size 256 --lr 0.1 --wd 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 270 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --ra-sampler --ra-reps 2 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+### ReXNet Lite
+
+#### ReXNet Lite: 1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network rexnet_lite_1_0 --tag il-common --batch-size 256 --lr 0.5 --wd 0.00001 --lr-scheduler cosine --epochs 300 --warmup-epochs 10 --size 256 --aug-level 6 --smoothing-alpha 0.1 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### ShuffleNet v1

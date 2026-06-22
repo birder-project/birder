@@ -115,6 +115,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         config={"patch_size": 32, **BASE, "drop_path_rate": 0.0},  # Override the BASE definition
     )
     registry.register_model_config(
+        "vit_b32_pn",
+        vit,
+        config={"patch_size": 32, **BASE, "drop_path_rate": 0.0, "pre_norm": True, "norm_layer_eps": 1e-5},
+    )
+    registry.register_model_config(
         "vit_b16",
         vit,
         config={"patch_size": 16, **BASE},
@@ -133,6 +138,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         "vit_b16_pn",
         vit,
         config={"patch_size": 16, **BASE, "pre_norm": True, "norm_layer_eps": 1e-5},
+    )
+    registry.register_model_config(
+        "vit_b16_pn_quick_gelu",
+        vit,
+        config={"patch_size": 16, **BASE, "pre_norm": True, "norm_layer_eps": 1e-5, "act_layer_type": "quick_gelu"},
     )
     registry.register_model_config(
         "vit_b16_ap",
@@ -156,9 +166,9 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         config={"patch_size": 16, **BASE, "layer_scale_init_value": 1e-5, "qk_norm": True},
     )
     registry.register_model_config(
-        "vit_b16_pn_quick_gelu",
+        "vit_b16_nf_swiglu",
         vit,
-        config={"patch_size": 16, **BASE, "pre_norm": True, "norm_layer_eps": 1e-5, "act_layer_type": "quick_gelu"},
+        config={"patch_size": 16, **BASE, "attn_norm": True, "mlp_layer_type": "Norm_SwiGLU_FFN"},
     )
     registry.register_model_config(
         "vit_b14",

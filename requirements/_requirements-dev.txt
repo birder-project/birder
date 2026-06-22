@@ -4,7 +4,7 @@ black~=26.5.0
 build~=1.5.0
 bumpver~=2026.1132
 captum~=0.7.0
-coverage~=7.14.1
+coverage~=7.14.2
 debugpy
 # executorch~=1.2.0
 flake8-pep585~=0.1.7

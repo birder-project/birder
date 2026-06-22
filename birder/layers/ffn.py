@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import Optional
 
 import torch
 import torch.nn.functional as F
@@ -42,12 +43,19 @@ class SwiGLU_FFN(nn.Module):
         act_layer: Callable[..., nn.Module] = nn.SiLU,
         bias: bool = True,
         dropout: float = 0.0,
+        norm_layer: Optional[Callable[..., nn.Module]] = None,
+        norm_eps: float = 1e-6,
     ):
         super().__init__()
         self.fc1_g = nn.Linear(in_features, hidden_features, bias=bias)
         self.fc1_x = nn.Linear(in_features, hidden_features, bias=bias)
         self.act = act_layer()
         self.drop1 = nn.Dropout(dropout)
+        if norm_layer is not None:
+            self.norm = norm_layer(hidden_features, eps=norm_eps)
+        else:
+            self.norm = nn.Identity()
+
         self.fc2 = nn.Linear(hidden_features, in_features, bias=bias)
         self.drop2 = nn.Dropout(dropout)
 
@@ -61,6 +69,7 @@ class SwiGLU_FFN(nn.Module):
         x = self.fc1_x(x)
         x = self.act(x_gate) * x
         x = self.drop1(x)
+        x = self.norm(x)
         x = self.fc2(x)
         x = self.drop2(x)
 

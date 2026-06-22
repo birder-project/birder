@@ -130,11 +130,14 @@ NET_TEST_CASES = [
     ("se_resnet_v2_18"),
     ("resnext_50"),
     ("se_resnext_50"),
+    ("rexnet_1_0", False, False, 2),
+    ("rexnet_lite_1_0", True, False, 2),
     ("rope_deit3_t16"),
     ("rope_deit3_reg4_t16"),
     ("rope_flexivit_s16"),
     ("rope_vit_s32"),
     ("rope_vit_b16_qkn_ls"),
+    ("rope_vit_b16_nf_swiglu"),
     ("rope_a_vit_s16"),
     ("rope_cs_vit_reg4_s16_nape_ls_c1"),
     ("rope_i_vit_s16_pn_aps_c1"),
@@ -167,6 +170,7 @@ NET_TEST_CASES = [
     ("vit_s32"),
     ("vit_s16_pn"),
     ("vit_b16_qkn_ls"),
+    ("vit_b16_nf_swiglu"),
     ("vit_reg1_b16_nap_avg"),
     ("vit_reg4_b32"),
     ("vit_reg4_m16_rms_avg"),
@@ -339,10 +343,12 @@ class TestNet(unittest.TestCase):
             features = n.forward_features(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
             self.assertFalse(torch.isnan(features).any())
             self.assertEqual(features.size(0), batch_size)
+
             flat_features = n.flatten_features(features)
             self.assertFalse(torch.isnan(flat_features).any())
             self.assertEqual(flat_features.size(0), batch_size)
             self.assertEqual(flat_features.size(2), n.feature_dim)
+
             visual_features = n.flatten_features(features, include_special_tokens=False)
             self.assertFalse(torch.isnan(visual_features).any())
             self.assertEqual(visual_features.size(0), batch_size)
@@ -350,6 +356,7 @@ class TestNet(unittest.TestCase):
             self.assertLessEqual(visual_features.size(1), flat_features.size(1))
             if hasattr(n, "num_special_tokens") is True:
                 self.assertEqual(visual_features.size(1), flat_features.size(1) - n.num_special_tokens)
+
         else:
             features = n.forward_features(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
             with self.assertRaises(RuntimeError):
@@ -563,6 +570,8 @@ class TestNet(unittest.TestCase):
             ("se_resnet_v2_18"),
             ("resnext_50"),
             ("se_resnext_50"),
+            ("rexnet_1_0", 2),
+            ("rexnet_lite_1_0", 2),
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
             ("rope_flexivit_s16"),
@@ -722,6 +731,7 @@ class TestNet(unittest.TestCase):
             ("rope_flexivit_s16"),
             ("rope_vit_s32"),
             ("rope_vit_b16_qkn_ls"),
+            ("rope_vit_b16_nf_swiglu"),
             ("rope_a_vit_s16"),
             ("rope_cs_vit_reg4_s16_nape_ls_c1"),
             ("rope_i_vit_s16_pn_aps_c1"),
@@ -737,6 +747,7 @@ class TestNet(unittest.TestCase):
             ("vit_s32"),
             ("vit_s16_pn"),
             ("vit_b16_qkn_ls"),
+            ("vit_b16_nf_swiglu"),
             ("vit_reg1_b16_nap_avg"),
             ("vit_reg4_b32"),
             ("vit_reg4_m16_rms_avg"),
@@ -807,6 +818,7 @@ class TestNet(unittest.TestCase):
             ("rope_flexivit_s16"),
             ("rope_vit_s32"),
             ("rope_vit_b16_qkn_ls"),
+            ("rope_vit_b16_nf_swiglu"),
             ("rope_a_vit_s16"),
             ("rope_cs_vit_reg4_s16_nape_ls_c1"),
             ("rope_i_vit_s16_pn_aps_c1"),
@@ -821,6 +833,7 @@ class TestNet(unittest.TestCase):
             ("vit_s32"),
             ("vit_s16_pn"),
             ("vit_b16_qkn_ls"),
+            ("vit_b16_nf_swiglu"),
             ("vit_reg1_b16_nap_avg"),
             ("vit_reg4_b32"),
             ("vit_reg4_m16_rms_avg"),
@@ -1050,6 +1063,8 @@ class TestNonSquareNet(unittest.TestCase):
             ("se_resnet_v2_18"),
             ("resnext_50"),
             ("se_resnext_50"),
+            ("rexnet_1_0", 2),
+            ("rexnet_lite_1_0", 2),
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
             ("rope_flexivit_s16"),
@@ -1237,6 +1252,7 @@ class TestSpecialFunctions(unittest.TestCase):
             ("simple_vit_s32"),
             ("vit_s32"),
             ("vit_b16_qkn_ls"),
+            ("vit_b16_nf_swiglu"),
             ("vit_s16_soft_moe_32e_4s_avg"),
             ("vit_parallel_s16_18x2_ls"),
         ]
@@ -1421,6 +1437,7 @@ class TestSpecialFunctions(unittest.TestCase):
             ("simple_vit_s32"),
             ("vit_s32"),
             ("vit_b16_qkn_ls"),
+            ("vit_b16_nf_swiglu"),
             ("vit_parallel_s16_18x2_ls"),
             ("vit_sam_b16"),
         ]

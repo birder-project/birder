@@ -70,6 +70,7 @@ class RoPEAttention(nn.Module):
         num_special_tokens: int,
         qkv_bias: bool = True,
         qk_norm: bool = False,
+        attn_norm: bool = False,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
         norm_layer_eps: float = 1e-6,
         rope_rot_type: RoPERotationType = "standard",
@@ -98,6 +99,11 @@ class RoPEAttention(nn.Module):
             self.k_norm = nn.Identity()
 
         self.attn_drop = nn.Dropout(attn_drop)
+        if attn_norm is True:
+            self.norm = norm_layer(dim, eps=norm_layer_eps)
+        else:
+            self.norm = nn.Identity()
+
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
@@ -117,6 +123,7 @@ class RoPEAttention(nn.Module):
         )
 
         x = x.transpose(1, 2).reshape(B, N, C)
+        x = self.norm(x)
         x = self.proj(x)
         x = self.proj_drop(x)
 
@@ -140,6 +147,7 @@ class EncoderBlock(nn.Module):
         mlp_layer: Callable[..., nn.Module] = FFN,
         qkv_bias: bool = True,
         qk_norm: bool = False,
+        attn_norm: bool = False,
         rope_rot_type: RoPERotationType = "standard",
     ) -> None:
         super().__init__()
@@ -157,6 +165,7 @@ class EncoderBlock(nn.Module):
             num_special_tokens=num_special_tokens,
             qkv_bias=qkv_bias,
             qk_norm=qk_norm,
+            attn_norm=attn_norm,
             norm_layer=norm_layer,
             norm_layer_eps=norm_layer_eps,
             rope_rot_type=rope_rot_type,
@@ -199,6 +208,7 @@ class Encoder(nn.Module):
         pre_norm: bool = False,
         qkv_bias: bool = True,
         qk_norm: bool = False,
+        attn_norm: bool = False,
         activation_layer: Callable[..., nn.Module] = nn.GELU,
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
@@ -253,6 +263,7 @@ class Encoder(nn.Module):
                     mlp_layer=block_mlp_layer,
                     qkv_bias=qkv_bias,
                     qk_norm=qk_norm,
+                    attn_norm=attn_norm,
                     rope_rot_type=rope_rot_type,
                 )
             )
@@ -414,6 +425,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         norm_after_pool: bool = self.config.get("norm_after_pool", False)
         qkv_bias: bool = self.config.get("qkv_bias", True)
         qk_norm: bool = self.config.get("qk_norm", False)
+        attn_norm: bool = self.config.get("attn_norm", False)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
@@ -448,6 +460,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             act_layer = nn.GELU
         elif mlp_layer_type == "SwiGLU_FFN":
             mlp_layer = SwiGLU_FFN
+            act_layer = nn.SiLU
+        elif mlp_layer_type == "Norm_SwiGLU_FFN":
+            mlp_layer = partial(SwiGLU_FFN, norm_layer=norm_layer, norm_eps=norm_layer_eps)  # type: ignore[assignment]
             act_layer = nn.SiLU
         elif mlp_layer_type == "SoftMoE_FFN":
             if soft_moe_num_experts is None:
@@ -555,6 +570,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             pre_norm=pre_norm,
             qkv_bias=qkv_bias,
             qk_norm=qk_norm,
+            attn_norm=attn_norm,
             activation_layer=act_layer,
             layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
@@ -1133,6 +1149,27 @@ registry.register_weights(
             }
         },
         "net": {"network": "rope_vit_reg8_so150m_p14_swiglu_rms_ap", "tag": "rotnet-capi"},
+    },
+)
+
+# EVA-CLIP: Improved Training Techniques for CLIP at Scale
+# https://arxiv.org/abs/2303.15389
+registry.register_weights(
+    "rope_i_vit_l14_nf_swiglu_c1_eva02-clip",
+    {
+        "url": "https://huggingface.co/birder-project/rope_i_vit_l14_nf_swiglu_c1_eva02-clip/resolve/main",
+        "description": (
+            "RoPEi ViT l14 image encoder pretrained by BAAI-Vision using CLIP. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (336, 336),
+        "formats": {
+            "pt": {
+                "file_size": 1161.6,
+                "sha256": "4b4bf864c6efa9f3d9e1d22bfe2b614828ab34d0c0389f739a6a0e0ca0bf8af7",
+            },
+        },
+        "net": {"network": "rope_i_vit_l14_nf_swiglu_c1", "tag": "eva02-clip"},
     },
 )
 

@@ -108,6 +108,7 @@ class Attention(nn.Module):
         proj_drop: float,
         qkv_bias: bool = True,
         qk_norm: bool = False,
+        attn_norm: bool = False,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
         norm_layer_eps: float = 1e-6,
     ) -> None:
@@ -127,6 +128,11 @@ class Attention(nn.Module):
             self.k_norm = nn.Identity()
 
         self.attn_drop = nn.Dropout(attn_drop)
+        if attn_norm is True:
+            self.norm = norm_layer(dim, eps=norm_layer_eps)
+        else:
+            self.norm = nn.Identity()
+
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
@@ -195,6 +201,7 @@ class Attention(nn.Module):
             )
 
         x = x.transpose(1, 2).reshape(B, N, C)
+        x = self.norm(x)
         x = self.proj(x)
         x = self.proj_drop(x)
 
@@ -217,6 +224,7 @@ class EncoderBlock(nn.Module):
         mlp_layer: Callable[..., nn.Module] = FFN,
         qkv_bias: bool = True,
         qk_norm: bool = False,
+        attn_norm: bool = False,
     ) -> None:
         super().__init__()
         self.need_attn = False
@@ -234,6 +242,7 @@ class EncoderBlock(nn.Module):
             proj_drop=0.0,
             qkv_bias=qkv_bias,
             qk_norm=qk_norm,
+            attn_norm=attn_norm,
             norm_layer=norm_layer,
             norm_layer_eps=norm_layer_eps,
         )
@@ -285,6 +294,7 @@ class Encoder(nn.Module):
         pre_norm: bool = False,
         qkv_bias: bool = True,
         qk_norm: bool = False,
+        attn_norm: bool = False,
         activation_layer: Callable[..., nn.Module] = nn.GELU,
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
@@ -338,6 +348,7 @@ class Encoder(nn.Module):
                     mlp_layer=block_mlp_layer,
                     qkv_bias=qkv_bias,
                     qk_norm=qk_norm,
+                    attn_norm=attn_norm,
                 )
             )
 
@@ -446,6 +457,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         norm_after_pool: bool = self.config.get("norm_after_pool", False)
         qkv_bias: bool = self.config.get("qkv_bias", True)
         qk_norm: bool = self.config.get("qk_norm", False)
+        attn_norm: bool = self.config.get("attn_norm", False)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
@@ -474,6 +486,9 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             act_layer = nn.GELU
         elif mlp_layer_type == "SwiGLU_FFN":
             mlp_layer = SwiGLU_FFN
+            act_layer = nn.SiLU
+        elif mlp_layer_type == "Norm_SwiGLU_FFN":
+            mlp_layer = partial(SwiGLU_FFN, norm_layer=norm_layer, norm_eps=norm_layer_eps)  # type: ignore[assignment]
             act_layer = nn.SiLU
         elif mlp_layer_type == "SoftMoE_FFN":
             if soft_moe_num_experts is None:
@@ -548,6 +563,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             pre_norm=pre_norm,
             qkv_bias=qkv_bias,
             qk_norm=qk_norm,
+            attn_norm=attn_norm,
             activation_layer=act_layer,
             layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,

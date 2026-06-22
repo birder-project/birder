@@ -84,6 +84,8 @@ from birder.net.resnest import ResNeSt
 from birder.net.resnet_v1 import ResNet_v1
 from birder.net.resnet_v2 import ResNet_v2
 from birder.net.resnext import ResNeXt
+from birder.net.rexnet import ReXNet
+from birder.net.rexnet_lite import ReXNet_Lite
 from birder.net.rope_flexivit import RoPE_FlexiViT
 from birder.net.rope_vit import RoPE_ViT
 from birder.net.rope_vit5 import RoPE_ViT5
@@ -203,6 +205,8 @@ __all__ = [
     "ResNet_v1",
     "ResNet_v2",
     "ResNeXt",
+    "ReXNet",
+    "ReXNet_Lite",
     "RoPE_FlexiViT",
     "RoPE_ViT",
     "RoPE_ViT5",

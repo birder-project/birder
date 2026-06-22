@@ -89,7 +89,12 @@ class Results:
                 target["labels"] = torch.tensor([], dtype=torch.int64, device=torch.device("cpu"))
 
         metrics = MeanAveragePrecision(
-            iou_type="bbox", box_format="xyxy", class_metrics=True, extended_summary=True, average="macro"
+            iou_type="bbox",
+            box_format="xyxy",
+            class_metrics=True,
+            extended_summary=True,
+            average="macro",
+            backend="faster_coco_eval",
         )
         metrics(detections, targets)
         metrics_dict = metrics.compute()

@@ -103,6 +103,8 @@ Most networks train more effectively with growing resolution and augmentation as
 - [ResNet v1](#resnet-v1)
 - [ResNet v2](#resnet-v2)
 - [ResNeXt](#resnext)
+- [ReXNet](#rexnet)
+- [ReXNet Lite](#rexnet-lite)
 - [RoPE DeiT3](#rope-deit3)
 - [RoPE FlexiViT](#rope-flexivit)
 - [RoPE ViT](#rope-vit)
@@ -2203,6 +2205,22 @@ At epoch 150 increase resolution
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network resnext_101 --batch-size 32 --lr 0.04 --wd 0.001 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 10 --model-ema --size 384 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --resume-epoch 150 --load-states
+```
+
+### ReXNet
+
+#### ReXNet: 1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network rexnet_1_0 --batch-size 256 --lr 0.5 --wd 0.00001 --lr-scheduler cosine --epochs 300 --warmup-epochs 10 --size 256 --aug-level 7 --smoothing-alpha 0.1 --fast-matmul --compile
+```
+
+### ReXNet Lite
+
+#### ReXNet Lite: 1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network rexnet_lite_1_0 --batch-size 256 --lr 0.5 --wd 0.00001 --lr-scheduler cosine --epochs 300 --warmup-epochs 10 --size 256 --aug-level 6 --smoothing-alpha 0.1 --fast-matmul --compile
 ```
 
 ### RoPE DeiT3

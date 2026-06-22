@@ -87,7 +87,7 @@ class FCMAE(MIMBaseNet):
         """
 
         p = self.patch_size
-        assert imgs.shape[2] == imgs.shape[3] and imgs.shape[2] % p == 0
+        assert imgs.shape[2] % p == 0 and imgs.shape[3] % p == 0
 
         h = imgs.shape[2] // p
         w = imgs.shape[3] // p

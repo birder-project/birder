@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class InferenceDataParallel(nn.Module):
     """
-    Distributes inference batches across multiple GPUs for optimal throughput.
+    Distributes inference batches across multiple GPUs for optimal throughput
 
     This implementation is inspired by torch.nn.DataParallel but optimized specifically
     for inference workloads. We've removed training-specific overhead and added

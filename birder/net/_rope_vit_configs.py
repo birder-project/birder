@@ -45,6 +45,7 @@ from birder.net.base import BaseNet
 #     - npn         : No Post Norm (disables post-normalization layer)
 #     - nap         : Norm After Pooling (moves post-normalization from tokens to the embedding)
 #     - qkn         : QK Norm
+#     - nf          : NormFormer-style inner attention and MLP normalization
 #
 #     Feed-Forward Network:
 #     - swiglu             : SwiGLU FFN layer type (instead of standard FFN)
@@ -199,6 +200,11 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         config={"patch_size": 16, **BASE, "layer_scale_init_value": 1e-5, "qk_norm": True},
     )
     registry.register_model_config(
+        "rope_vit_b16_nf_swiglu",
+        rope_vit,
+        config={"patch_size": 16, **BASE, "attn_norm": True, "mlp_layer_type": "Norm_SwiGLU_FFN"},
+    )
+    registry.register_model_config(
         "rope_i_vit_b16_pn_aps_c1",  # For PE Core - https://arxiv.org/abs/2504.13181
         rope_vit,
         config={
@@ -260,6 +266,20 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
             "rope_grid_indexing": "xy",
             "rope_grid_offset": 1,
             "rope_temperature": 10000.0,
+        },
+    )
+    registry.register_model_config(
+        "rope_i_vit_l14_nf_swiglu_c1",  # For EVA-CLIP - https://arxiv.org/abs/2303.15389
+        rope_vit,
+        config={
+            "patch_size": 14,
+            **LARGE,
+            "mlp_dim": 2730,
+            "attn_norm": True,
+            "mlp_layer_type": "Norm_SwiGLU_FFN",
+            "rope_rot_type": "interleaved",
+            "rope_temperature": 10000.0,
+            "pt_grid_size": (16, 16),
         },
     )
     registry.register_model_config(

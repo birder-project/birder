@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.1 - 2026-06-22
+
+### Added
+
+- **ReXNet**: Added [ReXNet](https://arxiv.org/abs/2007.00992) and ReXNet Lite image classification model variants.
+- **SwiGLU FFN Normalization**: Added optional inner normalization to `SwiGLU_FFN`.
+- **NormFormer-Style ViTs**: Added optional [NormFormer](https://arxiv.org/abs/2110.09456)-style attention output normalization and normalized SwiGLU FFNs to ViT, FlexiViT, RoPE ViT and RoPE FlexiViT.
+- **Pretrained Models**:
+    - `rope_i_vit_l14_nf_swiglu_c1_eva02-clip`: Added BAAI-Vision [EVA-CLIP](https://arxiv.org/abs/2303.15389) RoPEi ViT-L/14 CLIP image encoder pretrained weights.
+
+### Fixed
+
+- **MIM Rectangular Inputs**: Fixed square-grid assumptions in MIM patchify/unpatchify helpers so non-square inputs work when dimensions are patch-divisible.
+
 ## 0.6.0 - 2026-06-18
 
 ### Added
