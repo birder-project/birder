@@ -2,6 +2,7 @@ import copy
 import logging
 from collections.abc import Callable
 from typing import Any
+from typing import ClassVar
 from typing import Literal
 from typing import NotRequired
 from typing import Optional
@@ -114,12 +115,12 @@ def normalize_out_indices(out_indices: Optional[list[int]], num_layers: int) -> 
 
 
 class BaseNet(nn.Module):
-    default_size: tuple[int, int] = (224, 224)
-    block_group_regex: Optional[str]
-    auto_register = False
-    scriptable = True
-    square_only = False
-    task = str(Task.IMAGE_CLASSIFICATION)
+    default_size: ClassVar[tuple[int, int]] = (224, 224)
+    block_group_regex: ClassVar[Optional[str]]
+    auto_register: ClassVar[bool] = False
+    scriptable: ClassVar[bool] = True
+    square_only: ClassVar[bool] = False
+    task: ClassVar[str] = str(Task.IMAGE_CLASSIFICATION)
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()

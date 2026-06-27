@@ -762,7 +762,9 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Logging training run at {training_log_path}")
     summary_writer = SummaryWriter(training_log_path)
 
-    signature = get_detection_signature(input_shape=sample_shape, num_outputs=num_outputs, dynamic=model_dynamic_size)
+    signature = get_detection_signature(
+        input_shape=sample_shape, num_outputs=num_outputs, dynamic=transform_dynamic_size
+    )
     file_handler: logging.Handler = logging.NullHandler()
     if training_utils.is_global_primary(args) is True:
         summary_writer.flush()

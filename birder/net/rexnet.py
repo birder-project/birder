@@ -11,14 +11,19 @@ https://arxiv.org/abs/2007.00992
 import math
 from collections import OrderedDict
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenRetentionResultType
 from birder.net.base import make_divisible
 
 
@@ -144,7 +149,7 @@ class LinearBottleneck(nn.Module):
         return out
 
 
-class ReXNet(DetectorBackbone):
+class ReXNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
     def __init__(
@@ -230,6 +235,17 @@ class ReXNet(DetectorBackbone):
         self.embedding_size = penultimate_channels
         self.classifier = self.create_classifier()
 
+        self.stem_stride = 2
+        self.stem_width = stem_channels
+        self.decoder_block = lambda x: LinearBottleneck(
+            x,
+            x,
+            stride=(1, 1),
+            expansion_factor=6.0,
+            se_ratio=se_ratio,
+            channel_divisor=channel_divisor,
+        )
+
         # Weight initialization
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -267,6 +283,25 @@ class ReXNet(DetectorBackbone):
 
             for param in module.parameters():
                 param.requires_grad_(False)
+
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
+        x = self.stem(x)
+        x = mask_tensor(x, mask, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token)
+        x = self.body(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            result["features"] = x
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = self.features(x)
+
+        return result
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

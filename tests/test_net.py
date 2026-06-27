@@ -726,6 +726,7 @@ class TestNet(unittest.TestCase):
             ("regnet_x_200m"),
             ("regnet_y_200m"),
             ("regnet_z_500m"),
+            ("rexnet_1_0", 2),
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
             ("rope_flexivit_s16"),
@@ -1269,6 +1270,30 @@ class TestSpecialFunctions(unittest.TestCase):
 
         _input_embedding, encoded_features = stacked.unbind(dim=-1)
         self.assertTrue(torch.allclose(encoded_features, features))
+
+    @parameterized.expand(  # type: ignore[untyped-decorator]
+        [
+            ("deit_t16"),
+            ("flexivit_s16"),
+            ("rope_flexivit_s16"),
+            ("rope_vit_s32"),
+            ("rope_vit5_reg4_s16"),
+            ("simple_vit_s32"),
+            ("vit_s32"),
+        ]
+    )
+    def test_vit_forward_features_attention_mask(self, network_name: str) -> None:
+        n = registry.net_factory(network_name, 10)
+        n.eval()
+        x = torch.rand((1, DEFAULT_NUM_CHANNELS, *n.default_size))
+
+        features = n.forward_features(x)
+        attn_mask = torch.ones((features.size(1), features.size(1)), dtype=torch.bool)
+        attn_mask[:, features.size(1) // 2 :] = False
+        masked_features = n.forward_features(x, attn_mask=attn_mask)  # type: ignore[call-arg]
+
+        self.assertEqual(masked_features.size(), features.size())
+        self.assertFalse(torch.allclose(masked_features, features))
 
     def test_vit_encoder_out_indices(self) -> None:
         n = registry.net_factory("vit_s16", 10)

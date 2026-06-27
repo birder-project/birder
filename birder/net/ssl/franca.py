@@ -19,6 +19,7 @@ import torch
 import torch.distributed as dist
 import torch.nn.functional as F
 from torch import nn
+from torch.utils.checkpoint import checkpoint
 
 from birder.common import training_utils
 from birder.net.base import MaskedTokenRetentionMixin
@@ -105,14 +106,38 @@ class DINOHeadMRL(nn.Module):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
+        self.grad_checkpointing = False
+        self.grad_checkpointing_preserve_rng_state = True
+        self.grad_checkpointing_use_reentrant = False
+
+    def set_grad_checkpointing(
+        self, enable: bool = True, *, preserve_rng_state: bool = True, use_reentrant: bool = False
+    ) -> None:
+        self.grad_checkpointing = enable
+        self.grad_checkpointing_preserve_rng_state = preserve_rng_state
+        self.grad_checkpointing_use_reentrant = use_reentrant
+
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, ...]:
         outputs = []
 
         for i, dim in enumerate(self.nesting_list):
-            # Project input to the appropriate nesting dimension
-            h = self.matryoshka_projections[i](x[..., :dim])
+            if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
 
-            h = self.mlps[i](h)
+                def head_body(input_tensor: torch.Tensor, *, idx: int = i, nesting_dim: int = dim) -> torch.Tensor:
+                    h = self.matryoshka_projections[idx](input_tensor[..., :nesting_dim])
+                    return self.mlps[idx](h)
+
+                h = checkpoint(
+                    head_body,
+                    x,
+                    use_reentrant=self.grad_checkpointing_use_reentrant,
+                    preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+                )
+            else:
+                # Project input to the appropriate nesting dimension
+                h = self.matryoshka_projections[i](x[..., :dim])
+                h = self.mlps[i](h)
+
             out = self.last_layers[i](h)
             outputs.append(out)
 
@@ -467,6 +492,25 @@ class FrancaStudent(SSLBaseNet):
             )
 
         self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width))
+
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        self.backbone.set_grad_checkpointing(
+            enable=enable, segments=segments, preserve_rng_state=preserve_rng_state, use_reentrant=use_reentrant
+        )
+        self.dino_head.set_grad_checkpointing(
+            enable=enable, preserve_rng_state=preserve_rng_state, use_reentrant=use_reentrant
+        )
+        if self.ibot_head is not None:
+            self.ibot_head.set_grad_checkpointing(
+                enable=enable, preserve_rng_state=preserve_rng_state, use_reentrant=use_reentrant
+            )
 
     # pylint: disable=arguments-differ
     def forward(  # type: ignore[override]

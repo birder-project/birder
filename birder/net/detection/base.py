@@ -3,6 +3,7 @@ import math
 from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any
+from typing import ClassVar
 from typing import Optional
 from typing import TypedDict
 
@@ -41,12 +42,12 @@ def get_detection_signature(input_shape: tuple[int, ...], num_outputs: int, dyna
 
 
 class DetectionBaseNet(nn.Module):
-    default_size: tuple[int, int]
-    block_group_regex: Optional[str]
-    auto_register = False
-    scriptable = True
-    exportable = True
-    task = str(Task.OBJECT_DETECTION)
+    default_size: ClassVar[tuple[int, int]]
+    block_group_regex: ClassVar[Optional[str]]
+    auto_register: ClassVar[bool] = False
+    scriptable: ClassVar[bool] = True
+    exportable: ClassVar[bool] = True
+    task: ClassVar[str] = str(Task.OBJECT_DETECTION)
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()

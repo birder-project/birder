@@ -1,10 +1,10 @@
-altair~=5.5.0
+altair~=6.2.2
 bandit~=1.9.4
 black~=26.5.0
 build~=1.5.0
 bumpver~=2026.1132
 captum~=0.7.0
-coverage~=7.14.2
+coverage~=7.14.3
 debugpy
 # executorch~=1.2.0
 flake8-pep585~=0.1.7

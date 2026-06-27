@@ -383,9 +383,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         torch.set_float32_matmul_precision("high")
 
     if args.grad_checkpointing is True:
-        student.backbone.set_grad_checkpointing(
-            segments=args.grad_checkpointing_segments,
-            preserve_rng_state=args.grad_checkpointing_preserve_rng_state,
+        student.set_grad_checkpointing(
+            segments=args.grad_checkpointing_segments, preserve_rng_state=args.grad_checkpointing_preserve_rng_state
         )
 
     if fsdp_mode is True:

@@ -6,12 +6,21 @@ Examples use repo-root script names (e.g., `train_mim.py`). If you installed Bir
 
 ## Image Pretraining
 
+- [AIM v1](#aim-v1)
 - [CrossMAE](#crossmae)
 - [EVA](#eva)
 - [FCMAE](#fcmae)
 - [MAE Hiera](#mae-hiera)
 - [MAE ViT](#mae-vit)
 - [SimMIM](#simmim)
+
+### AIM v1
+
+#### AIM v1: Simple ViT b14
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network aim_v1_dec512d8 --encoder simple_vit_b14 --encoder-model-config drop_path_rate=0.0 --batch-size 256 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 1 --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 0 --epochs 800 --warmup-epochs 20 --resize-min-scale 0.4 --amp --amp-dtype bfloat16 --compile --data-path data/training
+```
 
 ### CrossMAE
 
@@ -158,7 +167,7 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_hiera --en
 Intermediate training: full fine-tuning with layer-wise learning rate decay
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network hiera_abswin_tiny --tag mim --batch-size 256 --opt adamw --lr 0.002 --lr-scale 1024 --wd 0.05 --norm-wd 0 --layer-decay 0.65 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 310 --warmup-epochs 15 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --compile-opt --resume-epoch 0 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
+torchrun --nproc_per_node=2 train.py --network hiera_abswin_tiny --tag mim --batch-size 256 --opt adamw --lr 0.002 --lr-scale 1024 --wd 0.05 --norm-wd 0 --layer-decay 0.65 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --compile-opt --resume-epoch 0 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
 #### MAE Hiera: Hiera AbsWin Small

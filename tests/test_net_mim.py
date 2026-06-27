@@ -15,6 +15,11 @@ logging.disable(logging.CRITICAL)
 class TestNetMIM(unittest.TestCase):
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
+            ("aim_v1_dec512d4", "deit3_t16"),
+            ("aim_v1_dec512d4", "rope_vit_b32"),
+            ("aim_v1_dec512d4", "simple_vit_b32"),
+            ("aim_v1_dec512d4", "vit_t32"),
+            ("aim_v1_dec512d4", "vit_reg4_b32"),
             ("crossmae", "deit3_t16"),
             ("crossmae", "deit3_reg4_t16"),
             ("crossmae", "rope_vit_b32"),
@@ -85,6 +90,35 @@ class TestNetMIM(unittest.TestCase):
             self.assertFalse(torch.isnan(out[key]).any())
 
         self.assertEqual(out["loss"].ndim, 0)
+
+    def test_aim_v1_prefix_mask(self) -> None:
+        size = (64, 64)
+        encoder = registry.net_factory("vit_t32", 0, size=size)
+        n = registry.mim_net_factory(
+            "aim_v1_dec512d4",
+            encoder,
+            config={"decoder_embed_dim": 16, "decoder_depth": 1},
+            size=size,
+        )
+
+        prefix_lengths = torch.tensor([1, 3])
+        mask = n._make_prefix_mask(prefix_lengths, 5)
+        expected = torch.tensor(
+            [
+                [False, True, True, True, True],
+                [False, False, False, True, True],
+            ]
+        )
+
+        self.assertTrue(torch.equal(mask, expected))
+
+        prefix_lengths = n._sample_prefix_lengths(1024, 300, torch.device("cpu"))
+        self.assertGreaterEqual(prefix_lengths.min().item(), 1)
+        self.assertLessEqual(prefix_lengths.max().item(), 255)
+
+        prefix_lengths = n._sample_prefix_lengths(1024, 7, torch.device("cpu"))
+        self.assertGreaterEqual(prefix_lengths.min().item(), 1)
+        self.assertLessEqual(prefix_lengths.max().item(), 6)
 
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [

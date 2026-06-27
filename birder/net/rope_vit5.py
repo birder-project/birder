@@ -127,7 +127,9 @@ class RoPEAttention(nn.Module):
 
         return torch.concat(segments, dim=2)
 
-    def forward(self, x: torch.Tensor, rope: RoPEPosEmbedType) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, rope: RoPEPosEmbedType, attn_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         B, N, C = x.size()
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
         q, k, v = qkv.unbind(0)
@@ -139,7 +141,13 @@ class RoPEAttention(nn.Module):
         k = self._apply_split_rope(k, patch_rope, reg_rope)
 
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
-            q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, is_causal=self.is_causal, scale=self.scale
+            q,
+            k,
+            v,
+            attn_mask=attn_mask,
+            dropout_p=self.attn_drop.p if self.training else 0.0,
+            is_causal=self.is_causal,
+            scale=self.scale,
         )
 
         x = x.transpose(1, 2).reshape(B, N, C)
@@ -203,8 +211,10 @@ class EncoderBlock(nn.Module):
         else:
             self.layer_scale_2 = nn.Identity()
 
-    def forward(self, x: torch.Tensor, rope: RoPEPosEmbedType) -> torch.Tensor:
-        x = x + self.drop_path(self.layer_scale_1(self.attn(self.norm1(x), rope)))
+    def forward(
+        self, x: torch.Tensor, rope: RoPEPosEmbedType, attn_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        x = x + self.drop_path(self.layer_scale_1(self.attn(self.norm1(x), rope, attn_mask=attn_mask)))
         x = x + self.drop_path(self.layer_scale_2(self.mlp(self.norm2(x))))
 
         return x
@@ -274,13 +284,15 @@ class Encoder(nn.Module):
 
         self.block = SequentialWithRope(*layers)
 
-    def _checkpoint_blocks(self, x: torch.Tensor, rope: RoPEPosEmbedType) -> torch.Tensor:
+    def _checkpoint_blocks(
+        self, x: torch.Tensor, rope: RoPEPosEmbedType, attn_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         if self.grad_checkpointing_segments is None:
             segments = len(self.block)
         else:
             segments = min(self.grad_checkpointing_segments, len(self.block))
 
-        blocks = tuple(partial(block, rope=rope) for block in self.block)
+        blocks = tuple(partial(block, rope=rope, attn_mask=attn_mask) for block in self.block)
         return checkpoint_sequential(
             blocks,
             segments,
@@ -289,22 +301,34 @@ class Encoder(nn.Module):
             preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
         )
 
-    def forward(self, x: torch.Tensor, rope: RoPEPosEmbedType) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, rope: RoPEPosEmbedType, attn_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         x = self.pre_block(x)
         if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
-            return self._checkpoint_blocks(x, rope)
+            return self._checkpoint_blocks(x, rope, attn_mask=attn_mask)
 
-        return self.block(x, rope)
+        if attn_mask is None:
+            return self.block(x, rope)
+
+        for blk in self.block:
+            x = blk(x, rope, attn_mask=attn_mask)
+
+        return x
 
     def forward_features(
-        self, x: torch.Tensor, rope: RoPEPosEmbedType, out_indices: Optional[list[int]] = None
+        self,
+        x: torch.Tensor,
+        rope: RoPEPosEmbedType,
+        out_indices: Optional[list[int]] = None,
+        attn_mask: Optional[torch.Tensor] = None,
     ) -> list[torch.Tensor]:
         x = self.pre_block(x)
 
         out_indices_set = set(out_indices) if out_indices is not None else None
         xs = []
         for idx, blk in enumerate(self.block):
-            x = blk(x, rope)
+            x = blk(x, rope, attn_mask=attn_mask)
             if out_indices_set is None or idx in out_indices_set:
                 xs.append(x)
 
@@ -904,7 +928,9 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
 
         return result
 
-    def forward_features(self, x: torch.Tensor, return_input_embedding: bool = False) -> torch.Tensor:
+    def forward_features(
+        self, x: torch.Tensor, return_input_embedding: bool = False, attn_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
@@ -933,7 +959,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         else:
             input_embedding = None  # For TorchScript compatibility
 
-        x = self.encoder(x, self._get_rope_embed(H, W))
+        x = self.encoder(x, self._get_rope_embed(H, W), attn_mask=attn_mask)
         x = self.norm(x)
 
         if return_input_embedding is True and input_embedding is not None:

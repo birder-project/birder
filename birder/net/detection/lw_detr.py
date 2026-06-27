@@ -1206,3 +1206,22 @@ registry.register_model_config(
         "two_stage": True,
     },
 )
+
+registry.register_weights(
+    "lw_detr_2stg_objects365_pe_spatial_s16",
+    {
+        "url": ("https://huggingface.co/birder-project/lw_detr_2stg_objects365_pe_spatial_s16/resolve/main"),
+        "description": (
+            "LW-DETR (2 stage) with a PE-Spatial s16 backbone, detection model trained on the Objects365-2020 dataset"
+        ),
+        "resolution": (640, 640),
+        "formats": {
+            "pt": {
+                "file_size": 126.9,
+                "sha256": "b8b145253cf67ec50fe3216f5bdd29517527fca770bca05bfa11acd7244571b6",
+            }
+        },
+        "net": {"network": "lw_detr_2stg", "tag": "objects365"},
+        "backbone": {"network": "pe_spatial_s16"},
+    },
+)

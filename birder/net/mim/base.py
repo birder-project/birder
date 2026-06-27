@@ -1,5 +1,6 @@
 import copy
 from typing import Any
+from typing import ClassVar
 from typing import Optional
 from typing import TypedDict
 
@@ -28,10 +29,10 @@ def get_mim_signature(input_shape: tuple[int, ...]) -> MIMSignatureType:
 
 
 class MIMBaseNet(nn.Module):
-    default_size: tuple[int, int]
-    default_mask_ratio: float
-    auto_register = True
-    task = str(Task.MASKED_IMAGE_MODELING)
+    default_size: ClassVar[tuple[int, int]]
+    default_mask_ratio: ClassVar[float]
+    auto_register: ClassVar[bool] = True
+    task: ClassVar[str] = str(Task.MASKED_IMAGE_MODELING)
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()

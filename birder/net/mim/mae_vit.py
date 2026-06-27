@@ -25,7 +25,7 @@ from birder.net.mim.base import MIMBaseNet
 
 class MAE_ViT(MIMBaseNet):
     default_size = (224, 224)
-    default_mask_ratio: float = 0.75
+    default_mask_ratio = 0.75
     auto_register = False
 
     def __init__(

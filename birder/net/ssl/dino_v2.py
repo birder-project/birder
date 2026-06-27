@@ -17,6 +17,7 @@ import torch
 import torch.distributed as dist
 import torch.nn.functional as F
 from torch import nn
+from torch.utils.checkpoint import checkpoint
 
 from birder.common import training_utils
 from birder.model_registry import registry
@@ -64,8 +65,28 @@ class DINOHead(nn.Module):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
+        self.grad_checkpointing = False
+        self.grad_checkpointing_preserve_rng_state = True
+        self.grad_checkpointing_use_reentrant = False
+
+    def set_grad_checkpointing(
+        self, enable: bool = True, *, preserve_rng_state: bool = True, use_reentrant: bool = False
+    ) -> None:
+        self.grad_checkpointing = enable
+        self.grad_checkpointing_preserve_rng_state = preserve_rng_state
+        self.grad_checkpointing_use_reentrant = use_reentrant
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.mlp(x)
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            x = checkpoint(
+                self.mlp,
+                x,
+                use_reentrant=self.grad_checkpointing_use_reentrant,
+                preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+            )
+        else:
+            x = self.mlp(x)
+
         eps = 1e-6 if x.dtype == torch.float16 else 1e-12
         x = F.normalize(x, dim=-1, p=2, eps=eps)
         x = self.last_layer(x)
@@ -473,6 +494,25 @@ class DINOv2Student(SSLBaseNet):
             )
 
         self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width))
+
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        self.backbone.set_grad_checkpointing(
+            enable=enable, segments=segments, preserve_rng_state=preserve_rng_state, use_reentrant=use_reentrant
+        )
+        self.dino_head.set_grad_checkpointing(
+            enable=enable, preserve_rng_state=preserve_rng_state, use_reentrant=use_reentrant
+        )
+        if self.ibot_head is not None:
+            self.ibot_head.set_grad_checkpointing(
+                enable=enable, preserve_rng_state=preserve_rng_state, use_reentrant=use_reentrant
+            )
 
     # pylint: disable=arguments-differ
     def forward(  # type: ignore[override]

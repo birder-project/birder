@@ -44,6 +44,21 @@ class CAPI_DINOStudent(CAPIStudent):
             bottleneck_dim=head_bottleneck_dim,
         )
 
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        super().set_grad_checkpointing(
+            enable=enable, segments=segments, preserve_rng_state=preserve_rng_state, use_reentrant=use_reentrant
+        )
+        self.dino_head.set_grad_checkpointing(
+            enable=enable, preserve_rng_state=preserve_rng_state, use_reentrant=use_reentrant
+        )
+
     def forward(  # type: ignore[override]
         self, x: torch.Tensor, ids_keep: torch.Tensor, ids_predict: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:

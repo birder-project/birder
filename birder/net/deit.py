@@ -204,7 +204,9 @@ class DeiT(DetectorBackbone):
             for param in module.parameters():
                 param.requires_grad_(False)
 
-    def forward_features(self, x: torch.Tensor, return_input_embedding: bool = False) -> torch.Tensor:
+    def forward_features(
+        self, x: torch.Tensor, return_input_embedding: bool = False, attn_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
@@ -219,7 +221,7 @@ class DeiT(DetectorBackbone):
         input_embedding = x
         x = x + self._get_pos_embed(H, W)
 
-        x = self.encoder(x)
+        x = self.encoder(x, attn_mask=attn_mask)
         x = self.norm(x)
 
         if return_input_embedding is True:

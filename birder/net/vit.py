@@ -81,6 +81,16 @@ def adjust_position_embedding(
     return torch.concat([pos_embedding_prefix, pos_embedding], dim=1)
 
 
+def apply_attention_mask(attn: torch.Tensor, attn_mask: Optional[torch.Tensor]) -> torch.Tensor:
+    if attn_mask is None:
+        return attn
+
+    if attn_mask.dtype == torch.bool:
+        return attn.masked_fill(~attn_mask, float("-inf"))
+
+    return attn + attn_mask
+
+
 class PatchEmbed(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -142,6 +152,7 @@ class Attention(nn.Module):
         need_weights: bool = False,
         average_attn_weights: bool = False,
         is_causal: bool = False,
+        attn_mask: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
         """
         Apply multi-head self-attention to the input sequence
@@ -162,6 +173,9 @@ class Attention(nn.Module):
             to shape (B, N, N). If False, return per-head weights of shape (B, num_heads, N, N).
         is_causal
             If True, apply a causal (upper-triangular) mask so positions cannot attend to future tokens.
+        attn_mask
+            Optional attention mask broadcastable to (B, num_heads, N, N). Boolean masks use True for allowed
+            positions. Floating masks are additive.
 
         Returns
         -------
@@ -187,6 +201,7 @@ class Attention(nn.Module):
                 )
                 attn = attn + causal_mask
 
+            attn = apply_attention_mask(attn, attn_mask)
             attn = attn.softmax(dim=-1)
             attn_weights = attn
             attn = self.attn_drop(attn)
@@ -197,7 +212,13 @@ class Attention(nn.Module):
                 attn_weights = attn_weights.mean(dim=1)
         else:
             x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
-                q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, is_causal=is_causal, scale=self.scale
+                q,
+                k,
+                v,
+                attn_mask=attn_mask,
+                dropout_p=self.attn_drop.p if self.training else 0.0,
+                is_causal=is_causal,
+                scale=self.scale,
             )
 
         x = x.transpose(1, 2).reshape(B, N, C)
@@ -261,13 +282,14 @@ class EncoderBlock(nn.Module):
         else:
             self.layer_scale_2 = nn.Identity()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         # torch._assert(x.dim() == 3, f"Expected (batch_size, seq_length, hidden_dim) got {x.size()}")
         attn_out, _ = self.attn(
             self.norm1(x),
             need_weights=self.need_attn,
             average_attn_weights=False,
             is_causal=self.is_causal,
+            attn_mask=attn_mask,
         )
         x = x + self.drop_path(self.layer_scale_1(attn_out))
         x = x + self.drop_path(self.layer_scale_2(self.mlp(self.norm2(x))))
@@ -354,34 +376,47 @@ class Encoder(nn.Module):
 
         self.block = nn.Sequential(*layers)
 
-    def _checkpoint_blocks(self, x: torch.Tensor) -> torch.Tensor:
+    def _checkpoint_blocks(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         if self.grad_checkpointing_segments is None:
             segments = len(self.block)
         else:
             segments = min(self.grad_checkpointing_segments, len(self.block))
 
+        if attn_mask is not None:
+            blocks = tuple(partial(block, attn_mask=attn_mask) for block in self.block)
+        else:
+            blocks = self.block
+
         return checkpoint_sequential(
-            self.block,
+            blocks,
             segments,
             x,
             use_reentrant=self.grad_checkpointing_use_reentrant,
             preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         x = self.pre_block(x)
         if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
-            return self._checkpoint_blocks(x)
+            return self._checkpoint_blocks(x, attn_mask=attn_mask)
 
-        return self.block(x)
+        if attn_mask is None:
+            return self.block(x)
 
-    def forward_features(self, x: torch.Tensor, out_indices: Optional[list[int]] = None) -> list[torch.Tensor]:
+        for blk in self.block:
+            x = blk(x, attn_mask=attn_mask)
+
+        return x
+
+    def forward_features(
+        self, x: torch.Tensor, out_indices: Optional[list[int]] = None, attn_mask: Optional[torch.Tensor] = None
+    ) -> list[torch.Tensor]:
         x = self.pre_block(x)
 
         out_indices_set = set(out_indices) if out_indices is not None else None
         xs = []
         for idx, blk in enumerate(self.block):
-            x = blk(x)
+            x = blk(x, attn_mask=attn_mask)
             if out_indices_set is None or idx in out_indices_set:
                 xs.append(x)
 
@@ -870,7 +905,9 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
 
         return result
 
-    def forward_features(self, x: torch.Tensor, return_input_embedding: bool = False) -> torch.Tensor:
+    def forward_features(
+        self, x: torch.Tensor, return_input_embedding: bool = False, attn_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
@@ -902,7 +939,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         if pos_embedding is not None and self.pos_embed_special_tokens is True:
             x = x + pos_embedding
 
-        x = self.encoder(x)
+        x = self.encoder(x, attn_mask=attn_mask)
         x = self.norm(x)
 
         if return_input_embedding is True and input_embedding is not None:

@@ -513,7 +513,11 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         return result
 
     def forward_features(
-        self, x: torch.Tensor, patch_size: Optional[int] = None, return_input_embedding: bool = False
+        self,
+        x: torch.Tensor,
+        patch_size: Optional[int] = None,
+        return_input_embedding: bool = False,
+        attn_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         if self.training is True and patch_size is None and not torch.jit.is_tracing() and not torch.jit.is_scripting():
             patch_size = random.choice(self.patch_size_list)
@@ -550,7 +554,7 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         if pos_embedding is not None and self.pos_embed_special_tokens is True:
             x = x + pos_embedding
 
-        x = self.encoder(x)
+        x = self.encoder(x, attn_mask=attn_mask)
         x = self.norm(x)
 
         if return_input_embedding is True and input_embedding is not None:

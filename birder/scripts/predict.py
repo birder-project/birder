@@ -88,6 +88,15 @@ def _init_parquet_writer(metadata_columns: list[str], label_names: list[str], pa
     return pq.ParquetWriter(path, schema)
 
 
+def ndarray_to_fixed_size_list_array(array: npt.NDArray[np.float32], field_type: pa.DataType) -> pa.Array:
+    array = np.asarray(array, dtype=np.float32)
+    if array.flags.c_contiguous is False:
+        array = np.ascontiguousarray(array)
+
+    values = pa.array(array.reshape(-1), type=pa.float32())
+    return pa.FixedSizeListArray.from_arrays(values, type=field_type)
+
+
 def save_embeddings_parquet(
     writer: pq.ParquetWriter,
     sample_paths: list[str],
@@ -100,7 +109,7 @@ def save_embeddings_parquet(
     if labels is not None:
         data["label"] = pa.array(labels, type=pa.int64())
 
-    data["embedding"] = pa.array(embeddings.tolist(), type=pa.list_(pa.float32()))
+    data["embedding"] = ndarray_to_fixed_size_list_array(embeddings, writer.schema.field("embedding").type)
     table = pa.Table.from_pydict(data, schema=writer.schema)
     writer.write_table(table)
 

@@ -1,5 +1,6 @@
 import copy
 from typing import Any
+from typing import ClassVar
 from typing import Optional
 from typing import TypedDict
 
@@ -28,9 +29,9 @@ def get_ssl_signature(input_shape: tuple[int, ...]) -> SSLSignatureType:
 
 
 class SSLBaseNet(nn.Module):
-    auto_register = True
-    square_only = False
-    task = str(Task.SELF_SUPERVISED_LEARNING)
+    auto_register: ClassVar[bool] = True
+    square_only: ClassVar[bool] = False
+    task: ClassVar[str] = str(Task.SELF_SUPERVISED_LEARNING)
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()

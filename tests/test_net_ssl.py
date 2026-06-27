@@ -5,6 +5,7 @@ import torch
 import torch.nn.functional as F
 
 from birder.common import masking
+from birder.common.lib import env_bool
 from birder.conf.settings import DEFAULT_NUM_CHANNELS
 from birder.model_registry import registry
 from birder.net.ssl import barlow_twins
@@ -337,6 +338,44 @@ class TestNetSSL(unittest.TestCase):
         self.assertFalse(torch.isnan(loss.sum() / len(loss)).any())
         self.assertEqual(loss.sum().ndim, 0)
 
+    @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    def test_capi_grad_checkpointing(self) -> None:
+        batch_size = 1
+        size = (64, 64)
+        num_clusters = 32
+        backbone = registry.net_factory("vit_s32", 0, size=size)
+        student = capi.CAPIStudent(
+            backbone,
+            config={
+                "decoder_layers": 1,
+                "decoder_dim": 64,
+                "num_clusters": num_clusters,
+            },
+        )
+
+        seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
+        ids_keep = torch.arange(seq_len // 2).unsqueeze(0).repeat(batch_size, 1)
+        ids_predict = torch.arange(seq_len // 2, seq_len).unsqueeze(0).repeat(batch_size, 1)
+        x = torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size)
+
+        student.eval()
+        with torch.no_grad():
+            expected = student(x, ids_keep, ids_predict)
+
+        student.set_grad_checkpointing(segments=2)
+        out = student(x, ids_keep, ids_predict)
+
+        self.assertEqual(out.size(), expected.size())
+        self.assertTrue(torch.allclose(out, expected))
+        self.assertTrue(torch.isfinite(out).all().item())
+
+        loss = out.square().mean()
+        loss.backward()
+        grads = [param.grad for param in student.parameters() if param.grad is not None]
+        self.assertGreater(len(grads), 0)
+        for grad in grads:
+            self.assertTrue(torch.isfinite(grad).all().item())
+
     def test_capi_sk_no_mutation(self) -> None:
         # Global with queue
         head = capi.OnlineClustering(
@@ -448,6 +487,53 @@ class TestNetSSL(unittest.TestCase):
         self.assertFalse(torch.isnan(loss_dino).any())
         self.assertEqual(loss_capi.ndim, 0)
         self.assertEqual(loss_dino.ndim, 0)
+
+    @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    def test_capi_dino_grad_checkpointing(self) -> None:
+        batch_size = 1
+        size = (64, 64)
+        num_clusters = 32
+        dino_out_dim = 64
+        backbone = registry.net_factory("vit_s32", 0, size=size)
+        student = capi_dino.CAPI_DINOStudent(
+            backbone,
+            config={
+                "decoder_layers": 1,
+                "decoder_dim": 64,
+                "num_clusters": num_clusters,
+                "dino_out_dim": dino_out_dim,
+                "use_bn": False,
+                "num_layers": 2,
+                "hidden_dim": 64,
+                "head_bottleneck_dim": 32,
+            },
+        )
+
+        seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
+        ids_keep = torch.arange(seq_len // 2).unsqueeze(0).repeat(batch_size, 1)
+        ids_predict = torch.arange(seq_len // 2, seq_len).unsqueeze(0).repeat(batch_size, 1)
+        x = torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size)
+
+        student.eval()
+        with torch.no_grad():
+            expected_patch_logits, expected_global_logits = student(x, ids_keep, ids_predict)
+
+        student.set_grad_checkpointing(segments=2)
+        patch_logits, global_logits = student(x, ids_keep, ids_predict)
+
+        self.assertEqual(patch_logits.size(), expected_patch_logits.size())
+        self.assertEqual(global_logits.size(), expected_global_logits.size())
+        self.assertTrue(torch.allclose(patch_logits, expected_patch_logits))
+        self.assertTrue(torch.allclose(global_logits, expected_global_logits))
+        self.assertTrue(torch.isfinite(patch_logits).all().item())
+        self.assertTrue(torch.isfinite(global_logits).all().item())
+
+        loss = patch_logits.square().mean() + global_logits.square().mean()
+        loss.backward()
+        grads = [param.grad for param in student.parameters() if param.grad is not None]
+        self.assertGreater(len(grads), 0)
+        for grad in grads:
+            self.assertTrue(torch.isfinite(grad).all().item())
 
     def test_data2vec(self) -> None:
         batch_size = 2
@@ -730,6 +816,56 @@ class TestNetSSL(unittest.TestCase):
         )
         self.assertFalse(torch.isnan(loss_ibot_patch).any())
         self.assertEqual(loss_ibot_patch.ndim, 0)
+
+    @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    def test_dino_v2_grad_checkpointing(self) -> None:
+        batch_size = 1
+        size = (64, 64)
+
+        for ibot_separate_head in [False, True]:
+            with self.subTest(ibot_separate_head=ibot_separate_head):
+                backbone = registry.net_factory("vit_s32", 0, size=size)
+                backbone.set_dynamic_size()
+                student = dino_v2.DINOv2Student(
+                    backbone,
+                    config={
+                        "dino_out_dim": 128,
+                        "use_bn": False,
+                        "num_layers": 2,
+                        "hidden_dim": 128,
+                        "head_bottleneck_dim": 32,
+                        "ibot_separate_head": ibot_separate_head,
+                        "ibot_out_dim": 128,
+                    },
+                )
+
+                global_crops = torch.rand(batch_size * 2, DEFAULT_NUM_CHANNELS, *size)
+                local_crops = torch.rand(batch_size * 2, DEFAULT_NUM_CHANNELS, size[0] // 2, size[1] // 2)
+                seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
+                masks = torch.zeros(batch_size * 2, seq_len)
+                masks[:, 0] = 1.0
+                mask_indices_list = masks.flatten().nonzero().flatten()
+                upper_bound = len(mask_indices_list) + 2
+
+                student.eval()
+                with torch.no_grad():
+                    expected = student(global_crops, local_crops, masks, upper_bound, mask_indices_list)
+
+                student.set_grad_checkpointing(segments=2)
+                out = student(global_crops, local_crops, masks, upper_bound, mask_indices_list)
+
+                # Verify forward with checkpointing
+                for actual_tensor, expected_tensor in zip(out, expected):
+                    self.assertEqual(actual_tensor.size(), expected_tensor.size())
+                    self.assertTrue(torch.allclose(actual_tensor, expected_tensor))
+                    self.assertTrue(torch.isfinite(actual_tensor).all().item())
+
+                # Check grads
+                loss = sum(t.square().mean() for t in out)
+                loss.backward()
+                for name, param in student.named_parameters():
+                    self.assertIsNotNone(param.grad, msg=f"missing grad for {name}")
+                    self.assertTrue(torch.isfinite(param.grad).all().item(), msg=f"non-finite grad for {name}")
 
     def test_dino_v2_loss_forward_matches_reference(self) -> None:
         torch.manual_seed(0)
@@ -1382,6 +1518,67 @@ class TestNetSSL(unittest.TestCase):
                 teacher_embedding_after_head_list[-1][1][4:],
             )
         )
+
+    @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    def test_franca_grad_checkpointing(self) -> None:
+        batch_size = 1
+        size = (64, 64)
+
+        def flatten_outputs(values: tuple[torch.Tensor | tuple[torch.Tensor, ...], ...]) -> list[torch.Tensor]:
+            tensors = []
+            for value in values:
+                if isinstance(value, torch.Tensor):
+                    tensors.append(value)
+                else:
+                    tensors.extend(value)
+
+            return tensors
+
+        backbone = registry.net_factory("vit_s32", 0, size=size)
+        backbone.set_dynamic_size()
+        student = franca.FrancaStudent(
+            backbone,
+            config={
+                "dino_out_dim": 128,
+                "use_bn": False,
+                "num_layers": 2,
+                "hidden_dim": 128,
+                "head_bottleneck_dim": 32,
+                "ibot_separate_head": True,
+                "ibot_out_dim": 128,
+                "nesting_levels": 2,
+            },
+        )
+
+        global_crops = torch.rand(batch_size * 2, DEFAULT_NUM_CHANNELS, *size)
+        local_crops = torch.rand(batch_size * 2, DEFAULT_NUM_CHANNELS, size[0] // 2, size[1] // 2)
+        seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
+        masks = torch.zeros(batch_size * 2, seq_len)
+        masks[:, 0] = 1.0
+        mask_indices_list = masks.flatten().nonzero().flatten()
+        upper_bound = len(mask_indices_list) + 2
+
+        student.eval()
+        with torch.no_grad():
+            expected = student(global_crops, local_crops, masks, upper_bound, mask_indices_list)
+
+        student.set_grad_checkpointing(segments=2)
+        out = student(global_crops, local_crops, masks, upper_bound, mask_indices_list)
+
+        flat_expected = flatten_outputs(expected)
+        flat_out = flatten_outputs(out)
+        self.assertEqual(len(flat_out), len(flat_expected))
+        for actual_tensor, expected_tensor in zip(flat_out, flat_expected):
+            self.assertEqual(actual_tensor.size(), expected_tensor.size())
+            self.assertTrue(torch.allclose(actual_tensor, expected_tensor))
+            self.assertTrue(torch.isfinite(actual_tensor).all().item())
+
+        loss = sum(t.square().mean() for t in flat_out)
+        loss.backward()
+        grads = [param.grad for param in student.parameters() if param.grad is not None]
+        self.assertGreater(len(grads), 0)
+        for grad in grads:
+            self.assertTrue(torch.isfinite(grad).all().item())
 
     def test_franca_sk_no_mutation(self) -> None:
         num_nesting_levels = 2

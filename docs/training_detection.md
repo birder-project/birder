@@ -194,6 +194,12 @@ Fine-tune (COCO) - first stage
 torchrun --nproc_per_node=2 train_detection.py --network lw_detr_2stg --tag objects365-coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-model-config '{"out_indices":[5,8,11]}' --reset-head --freeze-body --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.0001 --wd 0.0001 --norm-wd 0 --lr-scheduler cosine --epochs 10 --size 640 --batch-multiscale --multiscale-min-size 384 --multiscale-max-size 672 --aug-level 4 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --resume-epoch 0 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
 ```
 
+Fine-tune (COCO) - second stage
+
+```sh
+torchrun --nproc_per_node=2 train_detection.py --network lw_detr_2stg --tag objects365-coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 --backbone-tag pe-spatial --backbone-model-config '{"out_indices":[5,8,11]}' --batch-size 16 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.00005 --wd 0.0001 --norm-wd 0 --backbone-layer-decay 0.75 --lr-scheduler cosine --epochs 100 --model-ema --model-ema-warmup 5 --size 640 --batch-multiscale --multiscale-min-size 416 --multiscale-max-size 672 --aug-level 5 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --resume-epoch 0 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json --class-file public_datasets_metadata/coco-classes.txt
+```
+
 Intermediate training (COCO) - Dynamic, warmup
 
 ```sh

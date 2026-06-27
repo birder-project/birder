@@ -18,6 +18,7 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.utils.checkpoint import checkpoint
 from torchvision.ops import MLP
 
 from birder.common import masking
@@ -314,6 +315,9 @@ class Decoder(nn.Module):
             self.decoder_layers.append(CrossAttentionBlock(encoder_dim, decoder_embed_dim, num_heads=16, mlp_ratio=4.0))
 
         self.decoder_norm = nn.RMSNorm(decoder_embed_dim, elementwise_affine=False)
+        self.grad_checkpointing = False
+        self.grad_checkpointing_preserve_rng_state = True
+        self.grad_checkpointing_use_reentrant = False
 
         # Weight initialization
         nn.init.normal_(self.mask_token, std=0.02)
@@ -335,11 +339,27 @@ class Decoder(nn.Module):
 
         return x
 
+    def set_grad_checkpointing(
+        self, enable: bool = True, *, preserve_rng_state: bool = True, use_reentrant: bool = False
+    ) -> None:
+        self.grad_checkpointing = enable
+        self.grad_checkpointing_preserve_rng_state = preserve_rng_state
+        self.grad_checkpointing_use_reentrant = use_reentrant
+
     def forward(self, memory: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         x = self.mask_tokens_grid(mask)
 
         for _, layer in enumerate(self.decoder_layers):
-            x = layer(x, memory)
+            if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+                x = checkpoint(
+                    layer,
+                    x,
+                    memory,
+                    use_reentrant=self.grad_checkpointing_use_reentrant,
+                    preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+                )
+            else:
+                x = layer(x, memory)
 
         x = self.decoder_norm(x)
 
@@ -367,6 +387,21 @@ class CAPIStudent(SSLBaseNet):
 
         self.decoder = Decoder(input_size, self.backbone.feature_dim, decoder_dim, decoder_layers)
         self.head = L2NormLinear(decoder_dim, num_clusters)
+
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        self.backbone.set_grad_checkpointing(
+            enable=enable, segments=segments, preserve_rng_state=preserve_rng_state, use_reentrant=use_reentrant
+        )
+        self.decoder.set_grad_checkpointing(
+            enable=enable, preserve_rng_state=preserve_rng_state, use_reentrant=use_reentrant
+        )
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ
         self, x: torch.Tensor, ids_keep: torch.Tensor, ids_predict: torch.Tensor

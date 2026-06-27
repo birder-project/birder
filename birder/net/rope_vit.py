@@ -107,7 +107,7 @@ class RoPEAttention(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
-    def forward(self, x: torch.Tensor, rope: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, rope: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, N, C = x.size()
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
         q, k, v = qkv.unbind(0)
@@ -119,7 +119,13 @@ class RoPEAttention(nn.Module):
         k = torch.concat([k[:, :, :n, :], self.apply_rot_fn(k[:, :, n:, :], rope)], dim=2)
 
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
-            q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, is_causal=self.is_causal, scale=self.scale
+            q,
+            k,
+            v,
+            attn_mask=attn_mask,
+            dropout_p=self.attn_drop.p if self.training else 0.0,
+            is_causal=self.is_causal,
+            scale=self.scale,
         )
 
         x = x.transpose(1, 2).reshape(B, N, C)
@@ -184,8 +190,8 @@ class EncoderBlock(nn.Module):
         else:
             self.layer_scale_2 = nn.Identity()
 
-    def forward(self, x: torch.Tensor, rope: torch.Tensor) -> torch.Tensor:
-        x = x + self.drop_path(self.layer_scale_1(self.attn(self.norm1(x), rope)))
+    def forward(self, x: torch.Tensor, rope: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        x = x + self.drop_path(self.layer_scale_1(self.attn(self.norm1(x), rope, attn_mask=attn_mask)))
         x = x + self.drop_path(self.layer_scale_2(self.mlp(self.norm2(x))))
 
         return x
@@ -270,13 +276,15 @@ class Encoder(nn.Module):
 
         self.block = SequentialWithRope(*layers)
 
-    def _checkpoint_blocks(self, x: torch.Tensor, rope: torch.Tensor) -> torch.Tensor:
+    def _checkpoint_blocks(
+        self, x: torch.Tensor, rope: torch.Tensor, attn_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         if self.grad_checkpointing_segments is None:
             segments = len(self.block)
         else:
             segments = min(self.grad_checkpointing_segments, len(self.block))
 
-        blocks = tuple(partial(block, rope=rope) for block in self.block)
+        blocks = tuple(partial(block, rope=rope, attn_mask=attn_mask) for block in self.block)
         return checkpoint_sequential(
             blocks,
             segments,
@@ -285,22 +293,32 @@ class Encoder(nn.Module):
             preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
         )
 
-    def forward(self, x: torch.Tensor, rope: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, rope: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         x = self.pre_block(x)
         if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
-            return self._checkpoint_blocks(x, rope)
+            return self._checkpoint_blocks(x, rope, attn_mask=attn_mask)
 
-        return self.block(x, rope)
+        if attn_mask is None:
+            return self.block(x, rope)
+
+        for blk in self.block:
+            x = blk(x, rope, attn_mask=attn_mask)
+
+        return x
 
     def forward_features(
-        self, x: torch.Tensor, rope: torch.Tensor, out_indices: Optional[list[int]] = None
+        self,
+        x: torch.Tensor,
+        rope: torch.Tensor,
+        out_indices: Optional[list[int]] = None,
+        attn_mask: Optional[torch.Tensor] = None,
     ) -> list[torch.Tensor]:
         x = self.pre_block(x)
 
         out_indices_set = set(out_indices) if out_indices is not None else None
         xs = []
         for idx, blk in enumerate(self.block):
-            x = blk(x, rope)
+            x = blk(x, rope, attn_mask=attn_mask)
             if out_indices_set is None or idx in out_indices_set:
                 xs.append(x)
 
@@ -908,7 +926,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
         return result
 
-    def forward_features(self, x: torch.Tensor, return_input_embedding: bool = False) -> torch.Tensor:
+    def forward_features(
+        self, x: torch.Tensor, return_input_embedding: bool = False, attn_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         H, W = x.shape[-2:]
 
         # Reshape and permute the input tensor
@@ -941,7 +961,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         if pos_embedding is not None and self.pos_embed_special_tokens is True:
             x = x + pos_embedding
 
-        x = self.encoder(x, self._get_rope_embed(H, W))
+        x = self.encoder(x, self._get_rope_embed(H, W), attn_mask=attn_mask)
         x = self.norm(x)
 
         if return_input_embedding is True and input_embedding is not None:
@@ -1020,6 +1040,44 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 # Register model configs (side effects)
 register_rope_vit_configs(RoPE_ViT)
 
+registry.register_weights(
+    "rope_vit_s14_swiglu_avg_eva-bio",
+    {
+        "url": "https://huggingface.co/birder-project/rope_vit_s14_swiglu_avg_eva-bio/resolve/main",
+        "description": (
+            "RoPE ViT s14 image encoder pretrained using EVA MIM distillation from a BioCLIP v2 teacher "
+            "on natural biological images. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 109.6,
+                "sha256": "b9b6618cc5b41fc07ccca7b371144a31d4f486947f2ecbd1e672608c3afc8bd4",
+            }
+        },
+        "net": {"network": "rope_vit_s14_swiglu_avg", "tag": "eva-bio"},
+    },
+)
+registry.register_weights(
+    "rope_vit_m14_swiglu_avg_eva-bio",
+    {
+        "url": "https://huggingface.co/birder-project/rope_vit_m14_swiglu_avg_eva-bio/resolve/main",
+        "description": (
+            "RoPE ViT m14 image encoder pretrained using EVA MIM distillation from a BioCLIP v2.5 teacher "
+            "on natural biological images. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 194.1,
+                "sha256": "df43c9e4cc8d5e94ba6e65358de07e9315ff040673b7c81be0beab8dfaf31cad",
+            }
+        },
+        "net": {"network": "rope_vit_m14_swiglu_avg", "tag": "eva-bio"},
+    },
+)
 registry.register_weights(
     "rope_vit_reg4_b14_capi",
     {

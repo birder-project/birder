@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.2 - 2026-06-27
+
+### Added
+
+- **AIM v1**: Added [AIM v1](https://arxiv.org/abs/2401.08541) masked image modeling with autoregressive raster prefix masking.
+- **ViT Attention Masks**: Added optional `attn_mask` support to ViT-family `forward_features()` paths for custom token attention patterns.
+- **Pretrained Models**:
+    - `rope_vit_s14_swiglu_avg_eva-bio`: Added EVA MIM RoPE ViT-S/14 SwiGLU AVG image encoder pretrained weights distilled from a BioCLIP v2 ViT-L/14 teacher on natural biological images.
+    - `rope_vit_m14_swiglu_avg_eva-bio`: Added EVA MIM RoPE ViT-M/14 SwiGLU AVG image encoder pretrained weights distilled from a BioCLIP v2.5 ViT-H/14 teacher on natural biological images.
+    - `lw_detr_2stg_objects365_pe_spatial_s16`: Added two-stage LW-DETR object detector with a PE-Spatial s16 backbone pretrained weights on the Objects365-2020 dataset.
+
+### Fixed
+
+- **SSL Gradient Checkpointing**: Route DINOv2, DINOv2 distillation, Franca, CAPI and CAPI-DINO student checkpointing through their full student modules so post-backbone SSL heads/decoders participate where relevant.
+
 ## 0.6.1 - 2026-06-22
 
 ### Added
