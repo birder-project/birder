@@ -27,7 +27,7 @@ nav:
   # - Deployment:
   #     - TorchServe: torchserve.md
   - Other:
-      - Environment Variables: environment_variables.md
+      - Configuration: configuration.md
       - Public Datasets: public_datasets.md
       - About: about.md
 

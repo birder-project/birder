@@ -145,7 +145,7 @@ def add_lr_wd_args(
     )
 
 
-def add_lr_scheduler_args(parser: argparse.ArgumentParser) -> None:
+def add_lr_scheduler_args(parser: argparse.ArgumentParser, default_cosine_fraction: float = 1.0) -> None:
     group = parser.add_argument_group("Learning rate scheduler parameters")
     group.add_argument(
         "--lr-scheduler-update",
@@ -181,10 +181,13 @@ def add_lr_scheduler_args(parser: argparse.ArgumentParser) -> None:
         help="multiplicative factor of learning rate decay (for step scheduler only)",
     )
     group.add_argument(
-        "--lr-cosine-min",
+        "--lr-cosine-min", type=float, default=0.0, help="minimum learning rate (for cosine annealing scheduler only)"
+    )
+    group.add_argument(
+        "--lr-cosine-fraction",
         type=float,
-        default=0.000001,
-        help="minimum learning rate (for cosine annealing scheduler only)",
+        default=default_cosine_fraction,
+        help="fraction of the cosine half-period to use (for cosine annealing scheduler only)",
     )
     group.add_argument(
         "--lr-power", type=float, default=1.0, help="power of the polynomial (for polynomial scheduler only)"
@@ -936,6 +939,8 @@ def common_args_validation(args: argparse.Namespace) -> None:
                 "--cooldown-steps can only be used when --lr-scheduler-update is 'step', "
                 f"but it is set to '{args.lr_scheduler_update}'"
             )
+        if args.lr_cosine_fraction <= 0.0 or args.lr_cosine_fraction > 1.0:
+            raise ValidationError("--lr-cosine-fraction must be in the range (0, 1]")
 
     # EMA
     if hasattr(args, "model_ema_steps") is True:

@@ -97,7 +97,7 @@ class Results:
         self._results_df = pl.DataFrame(
             {"sample": sample_list, "label": labels, "label_name": names, "prediction": predictions}
         )
-        self._results_df = pl.concat([self._results_df, output_df], how="horizontal")
+        self._results_df = self._results_df.hstack(output_df)
         self._results_df = self._results_df.sort("sample", descending=False)
 
         self._setup_metrics_and_flags()
@@ -657,7 +657,7 @@ class SparseResults(Results):
             sparse_dict[f"idx_{k_val}"] = self._sparse_indices[:, k_val].astype(np.int32)
 
         sparse_df = pl.DataFrame(sparse_dict)
-        sparse_results_df = pl.concat([self._results_df, sparse_df], how="horizontal")
+        sparse_results_df = self._results_df.hstack(sparse_df)
 
         if append is False:
             logger.info(f"Saving results at {results_path}")

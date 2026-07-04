@@ -166,8 +166,17 @@ def train(args: argparse.Namespace) -> None:
         with open(args.label_mapping, "r", encoding="utf-8") as handle:
             label_mapping = json.load(handle)
 
+    train_transform_size = args.size
+    if args.batch_multiscale is True:
+        batch_multiscale_max_size = args.multiscale_max_size
+        if batch_multiscale_max_size is None:
+            batch_multiscale_max_size = max(args.size)
+
+        train_transform_size = (batch_multiscale_max_size, batch_multiscale_max_size)
+        logger.info(f"Using batch multiscale transform target size={train_transform_size}")
+
     transforms = training_preset(
-        args.size,
+        train_transform_size,
         args.aug_type,
         args.aug_level,
         rgb_stats,
@@ -200,7 +209,7 @@ def train(args: argparse.Namespace) -> None:
         )
         if args.mosaic_prob > 0.0:
             mosaic_transforms = training_preset(
-                args.size,
+                train_transform_size,
                 args.aug_type,
                 args.aug_level,
                 rgb_stats,
@@ -216,9 +225,9 @@ def train(args: argparse.Namespace) -> None:
                 if args.max_size is not None:
                     mosaic_dim = args.max_size
                 else:
-                    mosaic_dim = min(args.size) * 2
+                    mosaic_dim = min(train_transform_size) * 2
             else:
-                mosaic_dim = max(args.size) * 2
+                mosaic_dim = max(train_transform_size) * 2
 
             training_dataset = make_wds_mosaic_detection_dataset(
                 training_wds_path,
@@ -254,7 +263,7 @@ def train(args: argparse.Namespace) -> None:
     else:
         if args.mosaic_prob > 0.0:
             mosaic_transforms = training_preset(
-                args.size,
+                train_transform_size,
                 args.aug_type,
                 args.aug_level,
                 rgb_stats,
@@ -271,11 +280,11 @@ def train(args: argparse.Namespace) -> None:
                 if args.max_size is not None:
                     mosaic_dim = args.max_size
                 else:
-                    mosaic_dim = min(args.size) * 2
+                    mosaic_dim = min(train_transform_size) * 2
 
             else:
                 # Fixed size
-                mosaic_dim = max(args.size) * 2
+                mosaic_dim = max(train_transform_size) * 2
 
             training_dataset = CocoMosaicTraining(
                 args.data_path,
@@ -369,7 +378,7 @@ def train(args: argparse.Namespace) -> None:
             args.size,
             size_divisible=args.multiscale_step,
             multiscale_min_size=args.multiscale_min_size,
-            multiscale_max_size=args.multiscale_max_size,
+            multiscale_max_size=batch_multiscale_max_size,
             multiscale_step=args.multiscale_step,
         )
     else:
@@ -733,10 +742,23 @@ def train(args: argparse.Namespace) -> None:
     #
 
     # Define metrics
+    max_detection_thresholds = settings.MAX_DETECTIONS
     validation_metrics = MeanAveragePrecision(
-        iou_type="bbox", box_format="xyxy", average="macro", backend="faster_coco_eval"
+        box_format="xyxy",
+        iou_type="bbox",
+        max_detection_thresholds=max_detection_thresholds,
+        average="macro",
+        backend="faster_coco_eval",
     ).to(device)
-    metric_list = ["map", "map_small", "map_medium", "map_large", "map_50", "map_75", "mar_1", "mar_10"]
+    metric_list = [
+        "map",
+        "map_small",
+        "map_medium",
+        "map_large",
+        "map_50",
+        "map_75",
+        *[f"mar_{threshold}" for threshold in max_detection_thresholds[:-1]],
+    ]
 
     # Print network summary
     net_for_info = net_without_ddp
@@ -1155,7 +1177,7 @@ def get_args_parser() -> argparse.ArgumentParser:
             "    --val-path ~/Datasets/cocodataset/val2017 \\\n"
             "    --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json \\\n"
             "    --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json \\\n"
-            "    --class-file public_datasets_metadata/coco-classes.txt\n"
+            "    --label-mapping public_datasets_metadata/coco-80-label-mapping.json\n"
             "\n"
             "A WebDataset detection training example:\n"
             "torchrun --nproc_per_node=2 -m birder.scripts.train_detection \\\n"

@@ -183,7 +183,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             "target_temp": 0.06,
             "pred_temp": 0.12,
             "sk_mode": args.sk_mode,
-            "queue_size": args.sinkhorn_queue_size,
+            "queue_size": args.capi_sinkhorn_queue_size,
             "dino_out_dim": args.dino_out_dim,
             "use_bn": False,
             "num_layers": args.dino_head_layers,
@@ -193,7 +193,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     )
     teacher.dino_head.load_state_dict(student.dino_head.state_dict())
     dino_loss = DINOLoss(
-        args.dino_out_dim, student_temp=args.dino_student_temp, center_momentum=args.dino_center_momentum
+        args.dino_out_dim,
+        student_temp=args.dino_student_temp,
+        center_momentum=0.9,  # Unused by the Sinkhorn-Knopp target path
+        queue_size=args.dino_sinkhorn_queue_size,
     )
 
     net = torch.nn.ModuleDict(
@@ -422,10 +425,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     # Optimizer and learning rate scheduler
     optimizer = training_utils.get_optimizer(parameters, lr, args)
     clustering_optimizer = torch.optim.AdamW(teacher.head.parameters(), lr=clustering_lr, betas=[0.9, 0.95])
-    scheduler = training_utils.get_scheduler(optimizer, scheduler_steps_per_epoch, args, cosine_fraction=0.8)
-    clustering_scheduler = training_utils.get_scheduler(
-        clustering_optimizer, scheduler_steps_per_epoch, args, cosine_fraction=0.8
-    )
+    scheduler = training_utils.get_scheduler(optimizer, scheduler_steps_per_epoch, args)
+    clustering_scheduler = training_utils.get_scheduler(clustering_optimizer, scheduler_steps_per_epoch, args)
     if args.compile_opt is True:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
         clustering_optimizer.step = torch.compile(clustering_optimizer.step, fullgraph=False)
@@ -445,7 +446,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         warmup_epochs,
         epoch_num_batches,
         start_warmup_value=1.0,
-        cosine_fraction=0.8,
+        cosine_fraction=args.lr_cosine_fraction,
     )
     student_temp = 0.12
     dino_teacher_temp_schedule = training_utils.cosine_scheduler(
@@ -595,9 +596,13 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         running_clustering_loss.clear()
         running_target_entropy.clear()
 
-        if args.sinkhorn_queue_size is not None:
+        if args.capi_sinkhorn_queue_size is not None or args.dino_sinkhorn_queue_size is not None:
             queue_active = epoch > args.sinkhorn_queue_warmup_epochs
-            teacher_without_ddp.head.set_queue_active(queue_active)
+            if args.capi_sinkhorn_queue_size is not None:
+                teacher_without_ddp.head.set_queue_active(queue_active)
+            if args.dino_sinkhorn_queue_size is not None:
+                dino_loss.set_queue_active(queue_active)
+
             logger.debug(f"Sinkhorn queue active: {queue_active}")
 
         if args.distributed is True or virtual_epoch_mode is True:
@@ -657,10 +662,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     selected_assignments, raw_clustering_loss, teacher_global_logits = teacher(
                         images, None, predict_indices
                     )
-                    teacher_global_target = dino_loss.softmax_center_teacher(
+                    teacher_global_target = dino_loss.sinkhorn_knopp_teacher(
                         teacher_global_logits, teacher_temp=dino_teacher_temp
                     )
-                    dino_loss.update_center(teacher_global_logits)
 
                 clustering_loss = raw_clustering_loss / effective_accum_steps
                 if clustering_scaler is not None:
@@ -992,9 +996,6 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dino-head-bottleneck-dim", type=int, default=256, help="DINO head bottleneck dimensionality")
     parser.add_argument("--dino-student-temp", type=float, default=0.1, help="DINO student temperature")
     parser.add_argument(
-        "--dino-center-momentum", type=float, default=0.9, help="momentum for the DINO teacher output center"
-    )
-    parser.add_argument(
         "--dino-warmup-teacher-temp", type=float, default=0.04, help="initial value for the DINO teacher temperature"
     )
     parser.add_argument("--dino-teacher-temp", type=float, default=0.07, help="final DINO teacher temperature")
@@ -1020,9 +1021,10 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="Sinkhorn-Knopp assignment scope: per patch position or global across patches",
     )
     parser.add_argument(
-        "--sinkhorn-queue-size",
-        type=int,
-        help="per-process queue size (in samples or patches based on sk-mode) for Sinkhorn",
+        "--capi-sinkhorn-queue-size", type=int, help="per-process queue size for the CAPI patch Sinkhorn target"
+    )
+    parser.add_argument(
+        "--dino-sinkhorn-queue-size", type=int, help="per-process queue size for the DINO global Sinkhorn target"
     )
     parser.add_argument(
         "--sinkhorn-queue-warmup-epochs",
@@ -1032,7 +1034,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser)
-    training_cli.add_lr_scheduler_args(parser)
+    training_cli.add_lr_scheduler_args(parser, default_cosine_fraction=0.8)
     training_cli.add_training_schedule_args(parser, default_epochs=400)
     training_cli.add_batch_norm_args(parser)
     training_cli.add_input_args(parser)

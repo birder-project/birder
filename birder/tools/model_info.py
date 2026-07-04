@@ -40,15 +40,33 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools model-info -n deit_b16 -t intermediate -e 0\n"
             "python -m birder.tools model-info --network squeezenet --epoch 100\n"
             "python -m birder.tools model-info --network densenet_121 -e 100 --pt2\n"
-            "python -m birder.tools model-info -n efficientnet_v2_m -e 200 --lite\n"
+            "python -m birder.tools model-info -n efficientnet_v2_m -e 200\n"
             "python -m birder.tools model-info --network faster_rcnn --backbone resnext_101 -e 0\n"
+            "python -m birder.tools model-info -n lw_detr_2stg -t objects365 --backbone pe_spatial_s16 "
+            "--backbone-model-config '{\"out_indices\":[5,8,11]}'\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
     subparser.add_argument(
         "-n", "--network", type=str, required=True, help="the neural network to load (i.e. resnet_v2_50)"
     )
+    subparser.add_argument(
+        "--model-config",
+        action=cli.FlexibleDictAction,
+        help=(
+            "override the model default configuration, accepts key-value pairs or JSON "
+            "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
+        ),
+    )
     subparser.add_argument("--backbone", type=str, help="the neural network to used as backbone")
+    subparser.add_argument(
+        "--backbone-model-config",
+        action=cli.FlexibleDictAction,
+        help=(
+            "override the backbone default configuration, accepts key-value pairs or JSON "
+            "('drop_path_rate=0.2' or '{\"units\": [3, 24, 36, 3], \"dropout\": 0.2}'"
+        ),
+    )
     subparser.add_argument("--backbone-tag", type=str, help="backbone training log tag (loading only)")
     subparser.add_argument("-e", "--epoch", type=int, metavar="N", help="model checkpoint to load")
     subparser.add_argument("-t", "--tag", type=str, help="model tag (from the training phase)")
@@ -65,8 +83,10 @@ def set_parser(subparsers: Any) -> None:
 def main(args: argparse.Namespace) -> None:
     if args.backbone is not None and registry.exists(args.backbone, net_type=DetectorBackbone) is False:
         raise cli.ValidationError(
-            f"--backbone {args.network} not supported, see list-models tool for available options"
+            f"--backbone {args.backbone} not supported, see list-models tool for available options"
         )
+    if args.backbone is None and args.backbone_model_config is not None:
+        raise cli.ValidationError("--backbone-model-config requires --backbone")
 
     # Load model
     device = torch.device("cpu")
@@ -76,6 +96,7 @@ def main(args: argparse.Namespace) -> None:
         net, (class_to_idx, signature, rgb_stats, custom_config) = fs_ops.load_model(
             device,
             args.network,
+            config=args.model_config,
             tag=args.tag,
             epoch=args.epoch,
             inference=True,
@@ -89,8 +110,10 @@ def main(args: argparse.Namespace) -> None:
         net, (class_to_idx, signature, rgb_stats, custom_config, backbone_custom_config) = fs_ops.load_detection_model(
             device,
             args.network,
+            config=args.model_config,
             tag=args.tag,
             backbone=args.backbone,
+            backbone_config=args.backbone_model_config,
             backbone_tag=args.backbone_tag,
             epoch=args.epoch,
             inference=True,

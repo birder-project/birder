@@ -117,6 +117,21 @@ To run detection inference on images within a directory using a specified networ
 birder-predict_detection -n <network_name> --backbone <backbone_name> data/my_detection_images/
 ```
 
+### Detection - Sliding Window
+
+Use sliding-window inference for large images where resizing the full image would hide small objects.
+It runs native-resolution tiles and merges the tile detections.
+
+```sh
+birder-predict_detection -n <network_name> --backbone <backbone_name> \
+  --sliding-window --tile-size 640 --tile-overlap 128 \
+  --sliding-window-global-size 800 --sliding-window-merge greedy_nmm \
+  data/my_detection_images/
+```
+
+When sliding-window inference is enabled, `--batch-size` controls the tile batch size.
+It cannot be combined with `--tta`.
+
 For a comprehensive list of all available options and their detailed usage, run:
 
 ```sh

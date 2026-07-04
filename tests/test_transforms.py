@@ -67,6 +67,7 @@ class TestTransforms(unittest.TestCase):
         detection.training_preset((256, 256), "birder", 5, classification.get_rgb_stats("birder"), False, True)
         detection.training_preset((256, 256), "ssd", 0, classification.get_rgb_stats("centered"), True, False)
         detection.training_preset((256, 256), "multiscale", 0, classification.get_rgb_stats("centered"), False, False)
+        detection.training_preset((256, 256), "deim", 0, classification.get_rgb_stats("centered"), False, False)
         detection.InferenceTransform((256, 256), classification.get_rgb_stats("birder"), False)
 
         # Multiscale
@@ -77,6 +78,10 @@ class TestTransforms(unittest.TestCase):
 
         self.assertEqual(detection.build_multiscale_sizes(481, max_size=513), (512,))
         self.assertEqual(detection.build_multiscale_sizes(500, max_size=620), (512, 544, 576, 608))
+
+        # Fixed DETR sizes
+        self.assertEqual(detection._get_fixed_detr_sizes(None, None), ((400, 500, 600), 384, 600))
+        self.assertEqual(detection._get_fixed_detr_sizes(1024, 1536, 128), ((1024, 1152, 1280, 1408, 1536), 1024, 1536))
 
 
 class TestMosaic(unittest.TestCase):

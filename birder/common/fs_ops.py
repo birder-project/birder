@@ -331,18 +331,18 @@ def checkpoint_model_from_state_dicts(
 
 def clean_checkpoints(network_name: str, keep_last: int) -> None:
     epoch = "*[0-9]"
-    models_glob = str(model_path(network_name, epoch=epoch))
-    states_glob = str(model_path(network_name, epoch=epoch, states=True))
+    models_glob = model_path(network_name, epoch=epoch).name
+    states_glob = model_path(network_name, epoch=epoch, states=True).name
     model_pattern = re.compile(r".*_([1-9][0-9]*)\.pt$")
     states_pattern = re.compile(r".*_([1-9][0-9]*)_states\.pt$")
 
-    model_paths = list(settings.BASE_DIR.glob(models_glob))
+    model_paths = list(settings.MODELS_DIR.glob(models_glob))
     for p in sorted(model_paths, key=lambda p: p.stat().st_mtime)[:-keep_last]:
         if model_pattern.search(str(p)) is not None:
             logger.info(f"Removing checkpoint {p}...")
             p.unlink()
 
-    state_paths = list(settings.BASE_DIR.glob(states_glob))
+    state_paths = list(settings.MODELS_DIR.glob(states_glob))
     for p in sorted(state_paths, key=lambda p: p.stat().st_mtime)[:-keep_last]:
         if states_pattern.search(str(p)) is not None:
             logger.info(f"Removing checkpoint states {p}...")

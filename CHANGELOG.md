@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.3 - 2026-07-04
+
+### Added
+
+- **Project Settings**: Added support for overriding public `birder.conf.settings` values from a project-level `birder.toml`.
+- **Detection Sliding-Window Inference**: Added native-image sliding-window inference to `predict_detection` with configurable tile size, overlap and merge mode.
+- **Detection Result Metrics**: Added configurable COCO max detection thresholds for detection prediction and result summarization.
+- **Pretrained Models**:
+    - `lw_detr_2stg_objects365-coco_pe_spatial_s16`: Added two-stage LW-DETR object detector with a PE-Spatial s16 backbone pretrained on Objects365-2020 and fine-tuned on COCO 2017.
+
+### Fixed
+
+- **Checkpoint Cleanup**: Fixed `--keep-last` checkpoint cleanup when `BASE_DIR` or `MODELS_DIR` is configured.
+- **Detection Training**: Fixed batch multiscale training size handling.
+- **Detection Results**: Fixed single-class detection report generation.
+- **Dynamic Size Export**: Fixed dynamic H/W export for DETR-style detectors by using symbolic-shape-friendly detection grids.
+- **ONNX Export**: Fixed dynamic H/W ONNX export.
+- **ViT Windowed Backbone Transform**: Added missing `transform_to_backbone()` override for ViT Windowed.
+
 ## 0.6.2 - 2026-06-27
 
 ### Added

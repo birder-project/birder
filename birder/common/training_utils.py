@@ -772,7 +772,7 @@ def get_optimizer(parameters: list[dict[str, Any]], l_rate: float, args: argpars
 
 
 def get_scheduler(
-    optimizer: torch.optim.Optimizer, steps_per_epoch: int, args: argparse.Namespace, cosine_fraction: float = 1.0
+    optimizer: torch.optim.Optimizer, steps_per_epoch: int, args: argparse.Namespace
 ) -> torch.optim.lr_scheduler.LRScheduler:
     # At first, we translate everything into "steps"
     begin_step = 0
@@ -842,6 +842,7 @@ def get_scheduler(
             optimizer, milestones=adjusted_milestones, gamma=args.lr_step_gamma
         )
     elif args.lr_scheduler == "cosine":
+        cosine_fraction = args.lr_cosine_fraction
         cosine_t_max = round(main_steps / cosine_fraction)
         if cosine_fraction != 1.0:
             logger.debug(

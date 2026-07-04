@@ -588,8 +588,8 @@ class RT_DETRDecoder(nn.Module):
             init_ref_points_unact = torch.concat([denoising_bbox_unact, init_ref_points_unact], dim=1)
 
         # Prepare spatial shapes and level start index as tensors
-        spatial_shapes_tensor = torch.as_tensor(spatial_shapes, dtype=torch.long, device=memory.device)
-        level_start_index_tensor = torch.as_tensor(level_start_index, dtype=torch.long, device=memory.device)
+        spatial_shapes_tensor = torch.tensor(spatial_shapes, dtype=torch.long, device=memory.device)
+        level_start_index_tensor = torch.tensor(level_start_index, dtype=torch.long, device=memory.device)
         src_split_sizes = [h * w for h, w in spatial_shapes]
 
         # Decoder forward

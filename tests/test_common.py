@@ -948,6 +948,7 @@ class TestTrainingUtils(unittest.TestCase):
             resume_epoch=3,
             epochs=20,
             lr_cosine_min=1e-6,
+            lr_cosine_fraction=1.0,
             lr_step_size=1,
             lr_steps=[],
             lr_step_gamma=0.0,
@@ -991,6 +992,7 @@ class TestTrainingUtils(unittest.TestCase):
             resume_epoch=7,
             epochs=20,
             lr_cosine_min=1e-6,
+            lr_cosine_fraction=1.0,
             lr_step_size=1,
             lr_steps=[],
             lr_step_gamma=0.0,
@@ -1034,6 +1036,7 @@ class TestTrainingUtils(unittest.TestCase):
             resume_epoch=18,
             epochs=20,
             lr_cosine_min=1e-6,
+            lr_cosine_fraction=1.0,
             lr_step_size=1,
             lr_steps=[],
             lr_step_gamma=0.0,
@@ -1068,13 +1071,15 @@ class TestTrainingUtils(unittest.TestCase):
             resume_epoch=None,
             epochs=100,
             lr_cosine_min=0.0,
+            lr_cosine_fraction=1.0,
             lr_step_size=1,
             lr_steps=[],
             lr_step_gamma=0.0,
             lr_power=1.0,
         )
         scheduler_default = training_utils.get_scheduler(opt, steps_per_epoch=1, args=args_cosine)
-        scheduler_frac = training_utils.get_scheduler(opt, steps_per_epoch=1, args=args_cosine, cosine_fraction=0.8)
+        args_cosine.lr_cosine_fraction = 0.8
+        scheduler_frac = training_utils.get_scheduler(opt, steps_per_epoch=1, args=args_cosine)
 
         # Default: T_max == main_steps (99)
         self.assertEqual(scheduler_default.T_max, 99)

@@ -253,8 +253,8 @@ class GlobalCrossAttention(nn.Module):
         y2 = y2 * (H * stride)
 
         # Pixel grid (cell centers)
-        pos_x = torch.linspace(0.5, W - 0.5, W, device=device) * stride
-        pos_y = torch.linspace(0.5, H - 0.5, H, device=device) * stride
+        pos_x = (torch.arange(W, dtype=torch.float32, device=device) + 0.5) * stride
+        pos_y = (torch.arange(H, dtype=torch.float32, device=device) + 0.5) * stride
 
         # Box edge to pixel distances
         delta_x1 = x1[:, :, None] - pos_x[None, None, :]

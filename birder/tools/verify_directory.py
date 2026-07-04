@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 def verify_directory(args: argparse.Namespace) -> None:
-    _ = settings.LOGGING
     batch_size = 32
     transform = v2.Compose(
         [

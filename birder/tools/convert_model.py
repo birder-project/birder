@@ -3,6 +3,7 @@ import json
 import logging
 from pathlib import Path
 from typing import Any
+from typing import Optional
 
 import onnx
 import onnx.checker
@@ -68,22 +69,28 @@ def reparameterize(
 
 
 def _pt2_export_input(
-    net: torch.nn.Module, signature: SignatureType | DetectionSignatureType, device: torch.device, dynamic_size: bool
-) -> tuple[torch.Tensor, dict[str, Any] | None]:
-    sample_shape = signature["inputs"][0]["data_shape"]
+    net: torch.nn.Module,
+    signature: SignatureType | DetectionSignatureType,
+    device: torch.device,
+    dynamic_size: bool,
+    trace_size: Optional[tuple[int, int]],
+) -> tuple[torch.Tensor, Optional[dict[str, Any]]]:
+    input_shape = signature["inputs"][0]["data_shape"]
     dynamic_shapes = None
     if net.task == Task.OBJECT_DETECTION:
         logger.info("Exporting with constant batch size of 1")
         signature["inputs"][0]["data_shape"][0] = 1  # Set batch size
+        batch_size = 1
         if dynamic_size is True:
             logger.info("Exporting with dynamic H x W")
             net.set_dynamic_size()
-            height_dim = torch.export.Dim.DYNAMIC
-            width_dim = torch.export.Dim.DYNAMIC
+            height_dim = 16 * torch.export.Dim("height_tokens", min=1)
+            width_dim = 16 * torch.export.Dim("width_tokens", min=1)
             dynamic_shapes = {"x": {2: height_dim, 3: width_dim}}
     else:
         logger.info("Exporting with dynamic batch size")
         signature["inputs"][0]["data_shape"][0] = 2  # Set batch size
+        batch_size = 2
         batch_dim = torch.export.Dim.DYNAMIC
         dynamic_shapes = {"x": {0: batch_dim}}
         if dynamic_size is True:
@@ -93,6 +100,11 @@ def _pt2_export_input(
             width_dim = torch.export.Dim.DYNAMIC
             dynamic_shapes["x"][2] = height_dim
             dynamic_shapes["x"][3] = width_dim
+
+    if trace_size is None:
+        trace_size = (input_shape[2], input_shape[3])
+
+    sample_shape = [batch_size, input_shape[1], trace_size[0], trace_size[1]]
 
     return (torch.randn(*sample_shape, device=device), dynamic_shapes)
 
@@ -105,8 +117,9 @@ def pt2_export(
     device: torch.device,
     model_path: str | Path,
     dynamic_size: bool,
+    trace_size: Optional[tuple[int, int]],
 ) -> None:
-    sample_input, dynamic_shapes = _pt2_export_input(net, signature, device, dynamic_size)
+    sample_input, dynamic_shapes = _pt2_export_input(net, signature, device, dynamic_size, trace_size)
 
     with torch.no_grad():
         exported_net = torch.export.export(net, (sample_input,), dynamic_shapes=dynamic_shapes, strict=True)
@@ -122,13 +135,14 @@ def trt_export(
     rgb_stats: RGBType,
     model_path: str | Path,
     dynamic_size: bool,
+    trace_size: Optional[tuple[int, int]],
     require_full_compilation: bool,
 ) -> None:
     assert _HAS_TORCH_TENSORRT, "'pip install torch-tensorrt' to use --trt"
 
     device = torch.device("cuda")
     net.to(device)
-    sample_input, dynamic_shapes = _pt2_export_input(net, signature, device, dynamic_size)
+    sample_input, dynamic_shapes = _pt2_export_input(net, signature, device, dynamic_size, trace_size)
 
     compile_kwargs: dict[str, Any] = {"require_full_compilation": require_full_compilation}
 
@@ -160,19 +174,27 @@ def onnx_export(
     rgb_stats: RGBType,
     model_path: str | Path,
     dynamic_size: bool,
+    trace_size: Optional[tuple[int, int]],
     opset: int,
     optimize: bool,
     simplify: bool,
 ) -> None:
     signature["inputs"][0]["data_shape"][0] = 1  # Set batch size
-    sample_shape = signature["inputs"][0]["data_shape"]
+    input_shape = signature["inputs"][0]["data_shape"]
+    if trace_size is None:
+        trace_size = (input_shape[2], input_shape[3])
+
+    sample_shape = [1, input_shape[1], trace_size[0], trace_size[1]]
+
     dynamic_shapes = None
     if net.task == Task.OBJECT_DETECTION:
         logger.info("Exporting with constant batch size of 1")
         output_names = ["boxes", "scores", "labels"]
         if dynamic_size is True:
-            height_dim = torch.export.Dim.DYNAMIC
-            width_dim = torch.export.Dim.DYNAMIC
+            logger.info("Exporting with dynamic H x W")
+            net.set_dynamic_size()
+            height_dim = 16 * torch.export.Dim("height_tokens", min=1)
+            width_dim = 16 * torch.export.Dim("width_tokens", min=1)
             dynamic_shapes = {"x": {2: height_dim, 3: width_dim}}
     else:
         logger.info("Exporting with dynamic batch size")
@@ -180,6 +202,8 @@ def onnx_export(
         batch_dim = torch.export.Dim.DYNAMIC
         dynamic_shapes = {"x": {0: batch_dim}}
         if dynamic_size is True:
+            logger.info("Exporting with dynamic H x W")
+            net.set_dynamic_size()
             height_dim = torch.export.Dim.DYNAMIC
             width_dim = torch.export.Dim.DYNAMIC
             dynamic_shapes["x"][2] = height_dim
@@ -299,6 +323,13 @@ def set_parser(subparsers: Any) -> None:
         action="store_true",
         help="export with dynamic input H/W (applies to --pt2, --trt and --onnx)",
     )
+    subparser.add_argument(
+        "--trace-size",
+        type=int,
+        nargs="+",
+        metavar=("H", "W"),
+        help="sample H/W used for export tracing, does not resize the model",
+    )
     subparser.add_argument("--opset", type=int, default=20, help="ONNX opset version (applies only to --onnx)")
     subparser.add_argument(
         "--optimize", default=False, action="store_true", help="enable ONNX optimization (applies only to --onnx)"
@@ -350,6 +381,7 @@ def set_parser(subparsers: Any) -> None:
 
 def main(args: argparse.Namespace) -> None:
     args.resize = cli.parse_size(args.resize)
+    args.trace_size = cli.parse_size(args.trace_size)
 
     if args.backbone is not None and registry.exists(args.backbone, net_type=DetectorBackbone) is False:
         raise cli.ValidationError(
@@ -357,6 +389,10 @@ def main(args: argparse.Namespace) -> None:
         )
     if args.trace is True and args.pts is False and args.lite is False and args.onnx is False:
         raise cli.ValidationError("--trace requires one of --pts, --lite --onnx to be set")
+    if args.trace_size is not None and args.pt2 is False and args.trt is False and args.onnx is False:
+        raise cli.ValidationError("--trace-size applies only to --pt2, --trt and --onnx")
+    if args.trace_size is not None and args.dynamic_size is False:
+        raise cli.ValidationError("--trace-size requires --dynamic-size")
 
     # Load model
     device = torch.device("cpu")
@@ -516,10 +552,12 @@ def main(args: argparse.Namespace) -> None:
         )
 
     elif args.pt2 is True:
-        pt2_export(net, signature, class_to_idx, rgb_stats, device, model_path, args.dynamic_size)
+        pt2_export(net, signature, class_to_idx, rgb_stats, device, model_path, args.dynamic_size, args.trace_size)
 
     elif args.trt is True:
-        trt_export(net, signature, class_to_idx, rgb_stats, model_path, args.dynamic_size, args.trt_full)
+        trt_export(
+            net, signature, class_to_idx, rgb_stats, model_path, args.dynamic_size, args.trace_size, args.trt_full
+        )
 
     elif args.st is True:
         fs_ops.save_st(
@@ -541,6 +579,7 @@ def main(args: argparse.Namespace) -> None:
             rgb_stats,
             model_path,
             args.dynamic_size,
+            args.trace_size,
             args.opset,
             args.optimize,
             args.simplify,

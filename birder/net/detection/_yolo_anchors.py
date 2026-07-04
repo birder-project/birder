@@ -1,5 +1,5 @@
 """
-Shared YOLO anchor definitions and helpers.
+Shared YOLO anchor definitions and helpers
 """
 
 import json

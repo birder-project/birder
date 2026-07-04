@@ -69,6 +69,23 @@ sample_paths, detections, targets = infer_dataloader(device, net, dataloader)
 
 Detection dataloader results are postprocessed back to original image coordinates.
 
+For large images, use sliding-window detection:
+
+```python
+sample_paths, detections, targets = infer_dataloader(
+    device,
+    net,
+    dataloader,
+    sliding_window_tile_size=(640, 640),
+    sliding_window_overlap=(128, 128),
+    sliding_window_global_size=(800, 800),
+    sliding_window_merge_mode="greedy_nmm",
+    sliding_window_merge_threshold=0.5,
+    sliding_window_filter_threshold=0.25,
+    sliding_window_tile_batch_size=16,
+)
+```
+
 ## Choosing Output Type (Classification)
 
 - Probabilities: default, best for predictions and reports

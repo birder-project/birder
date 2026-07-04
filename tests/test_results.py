@@ -265,6 +265,27 @@ class TestDetectionResults(unittest.TestCase):
         self.assertSequenceEqual(report["Class"].to_list(), [1, 2])
         self.assertSequenceEqual(report["Objects"].to_list(), [1, 1])
 
+    def test_single_class_results(self) -> None:
+        sample_paths = ["img1.jpg"]
+        class_to_idx = {"bird": 1}
+        targets = [{"boxes": torch.tensor([[0.0, 0.0, 10.0, 10.0]]), "labels": torch.tensor([1])}]
+        detections = [
+            {
+                "boxes": torch.tensor([[0.0, 0.0, 10.0, 10.0]]),
+                "scores": torch.tensor([0.95]),
+                "labels": torch.tensor([1]),
+            }
+        ]
+
+        results = DetectionResults(sample_paths, targets, detections, class_to_idx)
+        self.assertSequenceEqual(results.metrics_dict["classes"], [1])
+        self.assertSequenceEqual(results.metrics_dict["map_per_class"], [1.0])
+
+        report = results.detailed_report()
+        self.assertSequenceEqual(report["Class"].to_list(), [1])
+        self.assertSequenceEqual(report["Class name"].to_list(), ["bird"])
+        self.assertSequenceEqual(report["Objects"].to_list(), [1])
+
     def test_confusion_matrix(self) -> None:
         sample_paths = ["img1.jpg", "img2.jpg", "img3.jpg"]
         class_to_idx = {"cat": 1, "dog": 2}

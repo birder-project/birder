@@ -12,6 +12,7 @@ from tqdm import tqdm
 from birder.conf import settings
 from birder.data.collators.detection import batch_images
 from birder.data.transforms.detection import InferenceTransform
+from birder.inference import sliding_window
 from birder.inference.wbf import fuse_detections_wbf
 from birder.net.base import make_divisible
 
@@ -189,6 +190,13 @@ def infer_dataloader(
     amp: bool = False,
     amp_dtype: Optional[torch.dtype] = None,
     num_samples: Optional[int] = None,
+    sliding_window_global_size: Optional[tuple[int, int]] = None,
+    sliding_window_tile_size: Optional[tuple[int, int]] = None,
+    sliding_window_overlap: tuple[int, int] = (0, 0),
+    sliding_window_merge_mode: sliding_window.MergeMode = "wbf",
+    sliding_window_merge_threshold: float = 0.55,
+    sliding_window_filter_threshold: Optional[float] = None,
+    sliding_window_tile_batch_size: Optional[int] = None,
     batch_callback: Optional[
         Callable[
             [list[str], torch.Tensor, list[dict[str, torch.Tensor]], list[dict[str, Any]], list[tuple[int, int]]], None
@@ -223,6 +231,20 @@ def infer_dataloader(
         The mixed precision dtype.
     num_samples
         The total number of samples in the dataloader.
+    sliding_window_global_size
+        If provided, also run one resized full-image pass and merge it with sliding-window detections.
+    sliding_window_tile_size
+        If provided, run native-image sliding-window inference with this tile size.
+    sliding_window_overlap
+        Sliding-window overlap in (height, width) pixels.
+    sliding_window_merge_mode
+        Merge mode for tile detections.
+    sliding_window_merge_threshold
+        Overlap threshold used by the sliding-window merge mode.
+    sliding_window_filter_threshold
+        If provided, ignore lower-scored detections before merging sliding-window predictions.
+    sliding_window_tile_batch_size
+        Tile batch size to use within each sliding-window image. Defaults to the dataloader batch size.
     batch_callback
         A function to be called after each batch is processed. If provided, it
         should accept four arguments:
@@ -253,6 +275,9 @@ def infer_dataloader(
     target_list: list[dict[str, Any]] = []
     sample_paths: list[str] = []
     batch_size = dataloader.batch_size
+    if sliding_window_tile_batch_size is None:
+        sliding_window_tile_batch_size = batch_size
+
     with tqdm(total=num_samples, initial=0, unit="images", unit_scale=True, leave=False) as progress:
         for file_paths, inputs, targets, orig_sizes, masks, image_sizes in dataloader:
             # Inference
@@ -265,9 +290,29 @@ def infer_dataloader(
                 masks = masks.to(device, non_blocking=True)
 
             with torch.amp.autocast(device.type, enabled=amp, dtype=amp_dtype):
-                detections = infer_batch(
-                    net, inputs, masks=masks, image_sizes=image_sizes, tta=tta, channels_last=channels_last
-                )
+                if sliding_window_tile_size is None:
+                    detections = infer_batch(
+                        net, inputs, masks=masks, image_sizes=image_sizes, tta=tta, channels_last=channels_last
+                    )
+                else:
+                    detections = []
+                    for idx, image_size in enumerate(image_sizes):
+                        image_h, image_w = image_size
+                        image = inputs[idx, :, :image_h, :image_w]
+                        detections.append(
+                            sliding_window.infer_sliding_window(
+                                net,
+                                image,
+                                global_size=sliding_window_global_size,
+                                tile_size=sliding_window_tile_size,
+                                overlap=sliding_window_overlap,
+                                tile_batch_size=sliding_window_tile_batch_size,
+                                merge_mode=sliding_window_merge_mode,
+                                merge_threshold=sliding_window_merge_threshold,
+                                filter_threshold=sliding_window_filter_threshold,
+                                channels_last=channels_last,
+                            )
+                        )
 
             detections = InferenceTransform.postprocess(detections, image_sizes, orig_sizes)
             if targets[0] != settings.NO_LABEL:

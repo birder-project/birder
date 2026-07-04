@@ -928,8 +928,8 @@ class LW_DETR(DetectionBaseNet):
                 valid_w = torch.full((N,), W, dtype=torch.float32, device=memory.device)
 
             grid_y, grid_x = torch.meshgrid(
-                torch.linspace(0, H - 1, H, dtype=torch.float32, device=memory.device),
-                torch.linspace(0, W - 1, W, dtype=torch.float32, device=memory.device),
+                torch.arange(H, dtype=torch.float32, device=memory.device),
+                torch.arange(W, dtype=torch.float32, device=memory.device),
                 indexing="ij",
             )
             grid = torch.stack([grid_x, grid_y], dim=-1)  # (H, W, 2)
@@ -1222,6 +1222,25 @@ registry.register_weights(
             }
         },
         "net": {"network": "lw_detr_2stg", "tag": "objects365"},
+        "backbone": {"network": "pe_spatial_s16"},
+    },
+)
+registry.register_weights(
+    "lw_detr_2stg_objects365-coco_pe_spatial_s16",
+    {
+        "url": ("https://huggingface.co/birder-project/lw_detr_2stg_objects365-coco_pe_spatial_s16/resolve/main"),
+        "description": (
+            "LW-DETR (2 stage) with a PE-Spatial s16 backbone, detection model trained on the Objects365-2020 dataset "
+            "and fine-tuned on the COCO dataset"
+        ),
+        "resolution": (640, 640),
+        "formats": {
+            "pt": {
+                "file_size": 123.0,
+                "sha256": "3b3243dcefcd97a4f075ce55ae8b7ec511e9b55e76ff7343c6bed9d4a63a3e75",
+            }
+        },
+        "net": {"network": "lw_detr_2stg", "tag": "objects365-coco"},
         "backbone": {"network": "pe_spatial_s16"},
     },
 )

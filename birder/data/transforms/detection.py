@@ -35,6 +35,21 @@ def build_multiscale_sizes(
     return tuple(range(start, end + 1, multiscale_step))
 
 
+def _get_fixed_detr_sizes(
+    multiscale_min_size: Optional[int], multiscale_max_size: Optional[int], multiscale_step: int = MULTISCALE_STEP
+) -> tuple[tuple[int, ...], int, int]:
+    if multiscale_min_size is None and multiscale_max_size is None:
+        resize_sizes: tuple[int, ...] = (400, 500, 600)
+        crop_min_size = 384
+        crop_max_size = 600
+    else:
+        resize_sizes = build_multiscale_sizes(multiscale_min_size, multiscale_max_size, multiscale_step=multiscale_step)
+        crop_min_size = resize_sizes[0]
+        crop_max_size = resize_sizes[-1]
+
+    return (resize_sizes, crop_min_size, crop_max_size)
+
+
 class ResizeWithRandomInterpolation(nn.Module):
     def __init__(
         self, size: Optional[int] | tuple[int, int], max_size: Optional[int], interpolation: list[v2.InterpolationMode]
@@ -175,7 +190,7 @@ def get_birder_augment(
     return v2.Compose(transformations)  # type: ignore
 
 
-AugType = Literal["birder", "lsj", "multiscale", "ssd", "ssdlite", "yolo", "detr", "fixed_detr"]
+AugType = Literal["birder", "lsj", "multiscale", "ssd", "ssdlite", "yolo", "deim", "detr", "fixed_detr"]
 
 
 def training_preset(
@@ -326,6 +341,22 @@ def training_preset(
             ]
         )
 
+    if aug_type == "deim":
+        return v2.Compose(  # type: ignore
+            [
+                v2.ToImage(),
+                v2.RandomPhotometricDistort(p=0.5),
+                v2.RandomZoomOut(0) if post_mosaic is False else v2.Identity(),
+                v2.RandomApply([v2.RandomIoUCrop()], p=0.8) if post_mosaic is False else v2.Identity(),
+                v2.Resize(target_size, interpolation=v2.InterpolationMode.BILINEAR, max_size=max_size, antialias=True),
+                v2.RandomHorizontalFlip(0.5),
+                v2.SanitizeBoundingBoxes(min_size=1),
+                v2.ToDtype(torch.float32, scale=True),
+                v2.Normalize(mean=mean, std=std),
+                v2.ToPureTensor(),
+            ]
+        )
+
     if aug_type == "detr":
         multiscale_sizes = build_multiscale_sizes(
             multiscale_min_size, multiscale_max_size, multiscale_step=multiscale_step
@@ -354,6 +385,9 @@ def training_preset(
         )
 
     if aug_type == "fixed_detr":
+        resize_sizes, crop_min_size, crop_max_size = _get_fixed_detr_sizes(
+            multiscale_min_size, multiscale_max_size, multiscale_step
+        )
         return v2.Compose(  # type: ignore
             [
                 v2.ToImage(),
@@ -362,8 +396,8 @@ def training_preset(
                         v2.Resize(size, interpolation=v2.InterpolationMode.BILINEAR, antialias=True),
                         v2.Compose(
                             [
-                                v2.RandomShortestSize((400, 500, 600)),
-                                RandomSizeCrop(384, 600) if post_mosaic is False else v2.Identity(),
+                                v2.RandomShortestSize(resize_sizes),
+                                RandomSizeCrop(crop_min_size, crop_max_size) if post_mosaic is False else v2.Identity(),
                                 v2.Resize(size, interpolation=v2.InterpolationMode.BILINEAR, antialias=True),
                             ]
                         ),

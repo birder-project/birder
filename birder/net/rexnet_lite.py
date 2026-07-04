@@ -279,3 +279,18 @@ registry.register_model_config("rexnet_lite_1_0", ReXNet_Lite, config={"width_mu
 registry.register_model_config("rexnet_lite_1_3", ReXNet_Lite, config={"width_multiplier": 1.3})
 registry.register_model_config("rexnet_lite_1_5", ReXNet_Lite, config={"width_multiplier": 1.5})
 registry.register_model_config("rexnet_lite_2_0", ReXNet_Lite, config={"width_multiplier": 2.0})
+
+registry.register_weights(
+    "rexnet_lite_1_0_il-common",
+    {
+        "description": "ReXNet Lite 1.0 model trained on the il-common dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 15.9,
+                "sha256": "13d517d9cf812042ef524afd2e10d854676ec31d06a735d95372fbb5c341beab",
+            }
+        },
+        "net": {"network": "rexnet_lite_1_0", "tag": "il-common"},
+    },
+)

@@ -27,6 +27,7 @@ from birder.data.datasets.webdataset import make_wds_detection_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.detection import InferenceTransform
+from birder.inference import sliding_window
 from birder.inference.data_parallel import DetectionInferenceDataParallel
 from birder.inference.detection import infer_dataloader
 from birder.model_registry import registry
@@ -54,6 +55,18 @@ def _remap_detection_labels(
         remapped_detections.append(remapped_detection)
 
     return remapped_detections
+
+
+def _resolve_label_mapping(
+    model_class_to_idx: dict[str, int], label_mapping: dict[str, str]
+) -> tuple[dict[str, int], Optional[dict[int, int]]]:
+    mapped_class_names = set(label_mapping.values())
+    if mapped_class_names.issubset(model_class_to_idx) is True:
+        logger.debug("Model labels match label-mapping targets, remapping annotations only")
+        return (model_class_to_idx, None)
+
+    logger.debug("Model labels match label-mapping sources, remapping detections and annotations")
+    return build_label_mapping_indices(model_class_to_idx, label_mapping)
 
 
 def save_output(
@@ -88,6 +101,7 @@ def predict(args: argparse.Namespace) -> None:
     network_name = lib.get_detection_network_name(
         args.network, tag=args.tag, backbone=args.backbone, backbone_tag=args.backbone_tag
     )
+    model_size = args.tile_size if args.sliding_window is True else args.size
     net, (class_to_idx, signature, rgb_stats, *_) = fs_ops.load_detection_model(
         device,
         args.network,
@@ -99,7 +113,7 @@ def predict(args: argparse.Namespace) -> None:
         backbone_tag=args.backbone_tag,
         backbone_reparameterized=args.backbone_reparameterized,
         epoch=args.epoch,
-        new_size=args.size,
+        new_size=model_size,
         quantized=args.quantized,
         inference=True,
         pts=args.pts,
@@ -111,15 +125,20 @@ def predict(args: argparse.Namespace) -> None:
     logger.debug(f"Model loaded with {len(class_to_idx)} classes")
     logger.debug(f"RGB stats: {rgb_stats}")
     logger.debug(f"Model signature dynamic={signature['dynamic']}")
+    source_no_resize = args.no_resize or args.sliding_window
 
     dynamic_input_size = False
-    if args.dynamic_size is True or args.max_size is not None or args.no_resize is True or args.tta is True:
+    if args.sliding_window is False:
+        dynamic_input_size = args.dynamic_size is True or args.max_size is not None or args.no_resize is True
+        if dynamic_input_size is True or args.tta is True:
+            net.set_dynamic_size()
+        if dynamic_input_size is True:
+            # Disable cuDNN for dynamic sizes to avoid per-size algorithm selection overhead
+            torch.backends.cudnn.enabled = False
+    elif args.sliding_window_global_size is not None:
+        # The optional global pass adds another bounded input resolution to the sliding-window run
+        # Keep cuDNN enabled, per-size algorithm selection stays limited to the tile and global shapes
         net.set_dynamic_size()
-    if args.dynamic_size is True or args.max_size is not None or args.no_resize is True:
-        dynamic_input_size = True
-
-        # Disable cuDNN for dynamic sizes to avoid per-size algorithm selection overhead
-        torch.backends.cudnn.enabled = False
 
     if args.fast_matmul is True or args.amp is True:
         torch.set_float32_matmul_precision("high")
@@ -136,9 +155,13 @@ def predict(args: argparse.Namespace) -> None:
         elif args.compile_backbone is True:
             net.backbone.detection_features = torch.compile(net.backbone.detection_features, mode=args.compile_mode)
 
+    signature_size = lib.get_size_from_signature(signature)
     if args.size is None:
-        args.size = lib.get_size_from_signature(signature)
+        args.size = signature_size
         logger.debug(f"Using size={args.size}")
+    if args.sliding_window is True and args.tile_size is None:
+        args.tile_size = signature_size
+        logger.debug(f"Using sliding-window tile_size={args.tile_size}")
 
     input_channels = lib.get_channels_from_signature(signature)
     score_threshold = args.min_score
@@ -151,7 +174,7 @@ def predict(args: argparse.Namespace) -> None:
     if label_mapping is None:
         detection_label_remap = None
     else:
-        class_to_idx, detection_label_remap = build_label_mapping_indices(model_class_to_idx, label_mapping)
+        class_to_idx, detection_label_remap = _resolve_label_mapping(model_class_to_idx, label_mapping)
 
     # Process per-class minimum scores
     class_min_scores: dict[str, float] = {}
@@ -172,8 +195,12 @@ def predict(args: argparse.Namespace) -> None:
         rgb = tuple(int(x * 255) for x in rgb)
         color_list.append(rgb)
 
-    batch_size = args.batch_size
-    inference_transform = InferenceTransform(args.size, rgb_stats, args.dynamic_size, args.max_size, args.no_resize)
+    batch_size = 1 if args.sliding_window is True else args.batch_size
+    tile_batch_size = args.batch_size
+    if args.sliding_window is True:
+        logger.debug(f"Using batch_size={batch_size}, sliding-window tile_batch_size={tile_batch_size}")
+
+    inference_transform = InferenceTransform(args.size, rgb_stats, args.dynamic_size, args.max_size, source_no_resize)
     if args.wds is True:
         wds_path: str | list[str]
         if args.wds_info is not None:
@@ -281,7 +308,11 @@ def predict(args: argparse.Namespace) -> None:
     if args.epoch is not None:
         epoch_str = f"_e{args.epoch}"
 
-    if args.no_resize is True:
+    if args.sliding_window is True:
+        size_str = f"sw_{args.tile_size[0]}px"
+        if args.sliding_window_global_size is not None:
+            size_str = f"{size_str}_g{args.sliding_window_global_size[0]}px"
+    elif args.no_resize is True:
         size_str = "orig"
     elif dynamic_input_size is True:
         size_str = f"na_{args.size[0]}px"
@@ -313,6 +344,15 @@ def predict(args: argparse.Namespace) -> None:
             amp=args.amp,
             amp_dtype=amp_dtype,
             num_samples=num_samples,
+            sliding_window_global_size=args.sliding_window_global_size if args.sliding_window is True else None,
+            sliding_window_tile_size=args.tile_size if args.sliding_window is True else None,
+            sliding_window_overlap=args.tile_overlap,
+            sliding_window_merge_mode=args.sliding_window_merge,
+            sliding_window_merge_threshold=args.sliding_window_merge_threshold,
+            sliding_window_filter_threshold=(
+                args.sliding_window_filter_threshold if args.sliding_window_filter_threshold > 0.0 else None
+            ),
+            sliding_window_tile_batch_size=tile_batch_size,
             batch_callback=batch_callback,
         )
 
@@ -328,7 +368,7 @@ def predict(args: argparse.Namespace) -> None:
 
     # Handle results
     if labeled is True:
-        results = Results(sample_paths, targets, detections, class_to_idx)
+        results = Results(sample_paths, targets, detections, class_to_idx, max_detection_thresholds=args.max_detections)
         if args.save_results is True:
             results.save(f"{base_output_path}.json")
 
@@ -345,19 +385,24 @@ def get_args_parser() -> argparse.ArgumentParser:
         description="Run detection prediction on directories and/or files",
         epilog=(
             "Usage example:\n"
-            "python -m birder.scripts.predict_detection --network faster_rcnn --backbone resnext_101 "
-            "-e 0 data/detection_data/validation\n"
-            "python predict_detection.py --network retinanet --backbone resnext_101 "
-            "-e 0 --shuffle --show --gpu --compile data/detection_data/training\n"
-            "python predict_detection.py -n yolo_v4 --backbone csp_resnet_50 --backbone-tag imagenet1k "
+            "python -m birder.scripts.predict_detection --network retinanet --backbone resnext_101 "
+            "--shuffle --show --gpu --compile data/detection_data/training\n"
+            "python -m birder.scripts.predict_detection -n yolo_v4 --backbone csp_resnet_50 --backbone-tag imagenet1k "
             "-t coco -e 19 --batch-size 1 --gpu --gpu-id 1 --coco-json-path "
             "~/Datasets/cocodataset/annotations/instances_val2017.json ~/Datasets/cocodataset/val2017\n"
-            "python predict_detection.py --network faster_rcnn -t coco --backbone csp_resnet_50 "
+            "python -m birder.scripts.predict_detection --network faster_rcnn -t coco --backbone csp_resnet_50 "
             "--backbone-tag imagenet1k -e 0 --batch-size 1 --gpu --gpu-id 1 "
             "--coco-json-path data/detection_data/validation_annotations_coco.json data/detection_data\n"
-            "python predict_detection.py -n lw_detr_2stg --tag coco --backbone rope_i_vit_reg1_s16_pn_npn_avg_c1 "
-            "--backbone-tag pe-spatial --backbone-model-config '{\"out_indices\":[5,8,11]}' -e 49 --batch-size 4 "
-            "--gpu --parallel --size 640 --wds --wds-info ~/Datasets/cocodataset/val2017_packed/_info.json\n"
+            "python -m birder.scripts.predict_detection -n lw_detr_2stg --tag coco --backbone pe-spatial_s16 "
+            "--backbone-model-config '{\"out_indices\":[5,8,11]}' -e 49 --batch-size 4 --gpu --parallel "
+            "--size 640 --wds --wds-info ~/Datasets/cocodataset/val2017_packed/_info.json\n"
+            "python -m birder.scripts.predict_detection -n lw_detr_2stg -t objects365-coco --backbone pe-spatial_s16 "
+            " --backbone-model-config '{\"out_indices\":[5,8,11]}' -e 20 --batch-size 16 --gpu "
+            "--coco-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json "
+            "--label-mapping public_datasets_metadata/coco-80-label-mapping.json ~/Datasets/cocodataset/val2017\n"
+            "python -m birder.scripts.predict_detection -n lw_detr_2stg -t objects365 --backbone pe_spatial_s16 "
+            "--batch-size 16 --gpu --show --shuffle --sliding-window --sliding-window-global-size 704 "
+            "--tile-overlap 128 --sliding-window-merge greedy_nmm data/*.jpeg"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -453,6 +498,47 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-resize", default=False, action="store_true", help="process images at original size without resizing"
     )
+    parser.add_argument(
+        "--sliding-window", default=False, action="store_true", help="run native-image sliding-window inference"
+    )
+    parser.add_argument(
+        "--sliding-window-global-size",
+        type=int,
+        nargs="+",
+        metavar=("H", "W"),
+        help="also run one full-image resized pass at [height, width] and merge it with tile detections",
+    )
+    parser.add_argument(
+        "--tile-size",
+        type=int,
+        nargs="+",
+        metavar=("H", "W"),
+        help="sliding-window tile size as [height, width] (defaults to model signature size)",
+    )
+    parser.add_argument(
+        "--tile-overlap",
+        type=int,
+        nargs="+",
+        default=[0, 0],
+        metavar=("H", "W"),
+        help="sliding-window tile overlap as [height, width]",
+    )
+    parser.add_argument(
+        "--sliding-window-merge",
+        type=str,
+        choices=get_args(sliding_window.MergeMode),
+        default="wbf",
+        help="merge mode for sliding-window detections",
+    )
+    parser.add_argument(
+        "--sliding-window-merge-threshold", type=float, default=0.55, help="overlap threshold for sliding-window merge"
+    )
+    parser.add_argument(
+        "--sliding-window-filter-threshold",
+        type=float,
+        default=0.25,
+        help="discard sliding-window detections below this score before merging, set to 0 to disable",
+    )
     parser.add_argument("--batch-size", type=int, default=8, metavar="N", help="the batch size")
     parser.add_argument(
         "--img-loader",
@@ -469,6 +555,13 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--shuffle", default=False, action="store_true", help="predict samples in random order")
     parser.add_argument("--save-results", default=False, action="store_true", help="save results object")
     parser.add_argument("--save-output", default=False, action="store_true", help="save raw output as JSON")
+    parser.add_argument(
+        "--max-detections",
+        type=int,
+        nargs=3,
+        metavar=("N1", "N2", "N3"),
+        help="COCO max detection thresholds for result metrics (defaults to settings.MAX_DETECTIONS)",
+    )
     parser.add_argument("--prefix", type=str, help="add prefix to output file")
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
@@ -490,6 +583,9 @@ def get_args_parser() -> argparse.ArgumentParser:
 
 def validate_args(args: argparse.Namespace) -> None:
     args.size = cli.parse_size(args.size)
+    args.tile_size = cli.parse_size(args.tile_size)
+    args.tile_overlap = cli.parse_size(args.tile_overlap)
+    args.sliding_window_global_size = cli.parse_size(args.sliding_window_global_size)
 
     if args.network is None:
         raise cli.ValidationError("--network is required")
@@ -501,6 +597,11 @@ def validate_args(args: argparse.Namespace) -> None:
         )
     if args.min_score >= 1 or args.min_score <= 0.0:
         raise cli.ValidationError(f"--min-score must be in range of (0, 1.0), got {args.min_score}")
+    if args.sliding_window_filter_threshold < 0.0 or args.sliding_window_filter_threshold >= 1.0:
+        raise cli.ValidationError(
+            "--sliding-window-filter-threshold must be in range of [0, 1.0), "
+            f"got {args.sliding_window_filter_threshold}"
+        )
     if args.class_min_score is not None:
         for class_name, score_str in args.class_min_score:
             try:
@@ -521,6 +622,16 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--compile-mode requires --compile or --compile-backbone")
     if args.amp is True and args.model_dtype != "float32":
         raise cli.ValidationError("--amp can only be used with --model-dtype float32")
+    if args.sliding_window is False and args.sliding_window_global_size is not None:
+        raise cli.ValidationError("--sliding-window-global-size requires --sliding-window")
+    if args.sliding_window is True:
+        if args.tta is True:
+            raise cli.ValidationError("--tta cannot be used with --sliding-window")
+        if args.tile_size is not None and (
+            args.tile_overlap[0] >= args.tile_size[0] or args.tile_overlap[1] >= args.tile_size[1]
+        ):
+            raise cli.ValidationError("--tile-overlap must be smaller than --tile-size")
+
     if args.wds is False and len(args.data_path) == 0:
         raise cli.ValidationError("Must provide at least one data source, --data-path or --wds")
     if args.wds is True:

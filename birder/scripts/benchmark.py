@@ -369,7 +369,11 @@ def benchmark(args: argparse.Namespace) -> None:
 
             num_samples = args.repeats * args.bench_iter * batch_size
             samples_per_sec = num_samples / t_elapsed
-            logger.info(f"{model_name} throughput: {samples_per_sec:.2f} samples/s (batch={batch_size})")
+            ms_per_sample = 1000.0 * t_elapsed / num_samples
+            logger.info(
+                f"{model_name} throughput: {samples_per_sec:.2f} samples/s, {ms_per_sample:.2f} ms/sample "
+                f"(batch={batch_size})"
+            )
 
         results.append(
             {

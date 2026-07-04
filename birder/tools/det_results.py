@@ -33,15 +33,19 @@ def compare_results(results_dict: dict[str, Results]) -> pl.DataFrame:
             "mAP_small": results.metrics_dict["map_small"],
             "mAP_medium": results.metrics_dict["map_medium"],
             "mAP_large": results.metrics_dict["map_large"],
-            "mAR_1": results.metrics_dict["mar_1"],
-            "mAR_10": results.metrics_dict["mar_10"],
-            "mAR_100": results.metrics_dict["mar_100"],
-            "mAR_small": results.metrics_dict["mar_small"],
-            "mAR_medium": results.metrics_dict["mar_medium"],
-            "mAR_large": results.metrics_dict["mar_large"],
-            "Samples": len(results),
-            "Objects": total_objects,
         }
+        for max_detections in results.max_detection_thresholds:
+            result_entry[f"mAR_{max_detections}"] = results.metrics_dict[f"mar_{max_detections}"]
+
+        result_entry.update(
+            {
+                "mAR_small": results.metrics_dict["mar_small"],
+                "mAR_medium": results.metrics_dict["mar_medium"],
+                "mAR_large": results.metrics_dict["mar_large"],
+                "Samples": len(results),
+                "Objects": total_objects,
+            }
+        )
         result_list.append(result_entry)
 
     return pl.DataFrame(result_list)
@@ -56,16 +60,17 @@ def print_per_class_report(results_dict: dict[str, Results], classes: list[str])
             all_classes.extend(fnmatch.filter(results.label_names, cls))
 
     classes = sorted(list(set(all_classes)))
+    max_detections = results.max_detections  # pylint: disable=undefined-loop-variable
 
     table = Table(show_header=True, header_style="bold dark_magenta")
     table.add_column("File name")
     table.add_column("Class name", style="dim")
     table.add_column("mAP", justify="right")
-    table.add_column("mAR 100", justify="right")
+    table.add_column(f"mAR {max_detections}", justify="right")
     table.add_column("Objects", justify="right")
 
     per_class_mar = {
-        name: dict(zip(results.metrics_dict["classes"], results.metrics_dict["mar_100_per_class"]))
+        name: dict(zip(results.metrics_dict["classes"], results.metrics_dict[results.mar_per_class_key]))
         for name, results in results_dict.items()
     }
 
@@ -184,6 +189,13 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--short-print", default=False, action="store_true", help="print results")
     subparser.add_argument("--save-summary", default=False, action="store_true", help="save results summary as csv")
     subparser.add_argument("--summary-suffix", type=str, help="add suffix to summary file")
+    subparser.add_argument(
+        "--max-detections",
+        type=int,
+        nargs=3,
+        metavar=("N1", "N2", "N3"),
+        help="COCO max detection thresholds for result metrics (defaults to settings.MAX_DETECTIONS)",
+    )
     subparser.add_argument("--classes", default=[], type=str, nargs="+", help="class names to compare")
     subparser.add_argument("--cnf", default=False, action="store_true", help="plot confusion matrix")
     subparser.add_argument(
@@ -207,7 +219,7 @@ def set_parser(subparsers: Any) -> None:
 def main(args: argparse.Namespace) -> None:
     results_dict: dict[str, Results] = {}
     for results_file in args.result_files:
-        results = Results.load(results_file)
+        results = Results.load(results_file, max_detection_thresholds=args.max_detections)
         result_name = results_file.split("/")[-1]
         results_dict[result_name] = results
 

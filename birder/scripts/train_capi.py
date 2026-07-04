@@ -410,10 +410,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     # Optimizer and learning rate scheduler
     optimizer = training_utils.get_optimizer(parameters, lr, args)
     clustering_optimizer = torch.optim.AdamW(teacher.head.parameters(), lr=clustering_lr, betas=[0.9, 0.95])
-    scheduler = training_utils.get_scheduler(optimizer, scheduler_steps_per_epoch, args, cosine_fraction=0.8)
-    clustering_scheduler = training_utils.get_scheduler(
-        clustering_optimizer, scheduler_steps_per_epoch, args, cosine_fraction=0.8
-    )
+    scheduler = training_utils.get_scheduler(optimizer, scheduler_steps_per_epoch, args)
+    clustering_scheduler = training_utils.get_scheduler(clustering_optimizer, scheduler_steps_per_epoch, args)
     if args.compile_opt is True:
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
         clustering_optimizer.step = torch.compile(clustering_optimizer.step, fullgraph=False)
@@ -433,7 +431,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         warmup_epochs,
         epoch_num_batches,
         start_warmup_value=1.0,
-        cosine_fraction=0.8,
+        cosine_fraction=args.lr_cosine_fraction,
     )
     student_temp = 0.12
 
@@ -950,7 +948,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser)
-    training_cli.add_lr_scheduler_args(parser)
+    training_cli.add_lr_scheduler_args(parser, default_cosine_fraction=0.8)
     training_cli.add_training_schedule_args(parser, default_epochs=400)
     training_cli.add_batch_norm_args(parser)
     training_cli.add_input_args(parser)

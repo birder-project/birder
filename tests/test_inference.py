@@ -7,6 +7,7 @@ from torch import nn
 
 from birder import net
 from birder.inference import classification
+from birder.inference import sliding_window
 from birder.inference import wbf
 from birder.inference.data_parallel import InferenceDataParallel
 
@@ -109,6 +110,33 @@ class TestWBF(unittest.TestCase):
         self.assertAlmostEqual(scores[0].item(), 0.9)
         self.assertAlmostEqual(scores[1].item(), 0.7)
 
+    def test_weighted_boxes_fusion_conf_types(self) -> None:
+        boxes_list = [
+            torch.tensor([[0.0, 0.0, 1.0, 1.0]]),
+            torch.tensor([[0.0, 0.0, 1.0, 1.0]]),
+            torch.zeros((0, 4)),
+        ]
+        scores_list = [torch.tensor([0.9]), torch.tensor([0.3]), torch.zeros((0,))]
+        labels_list = [torch.tensor([1]), torch.tensor([1]), torch.zeros((0,), dtype=torch.int64)]
+        expected: dict[wbf.ConfType, float] = {
+            "avg": 0.5,
+            "max": 0.9,
+            "box_and_model_avg": 1.0 / 3.0,
+            "absent_model_aware_avg": 0.25,
+        }
+
+        for conf_type, expected_score in expected.items():
+            _, scores, _ = wbf.weighted_boxes_fusion(
+                boxes_list,
+                scores_list,
+                labels_list,
+                weights=[1.0, 2.0, 3.0],
+                iou_thr=0.5,
+                conf_type=conf_type,
+            )
+
+            self.assertAlmostEqual(scores.item(), expected_score)
+
     def test_fuse_detections_wbf_batch(self) -> None:
         detections_a = [
             {
@@ -142,6 +170,141 @@ class TestWBF(unittest.TestCase):
         self.assertAlmostEqual(fused[0]["scores"].item(), 0.8)
         self.assertEqual(fused[1]["labels"].tolist(), [2])
         self.assertAlmostEqual(fused[1]["scores"].item(), 0.7)
+
+
+class TestSlidingWindow(unittest.TestCase):
+    def test_generate_windows_shifted_edges(self) -> None:
+        windows = sliding_window._generate_windows((100, 120), (40, 50), (10, 20))
+
+        self.assertEqual(
+            windows,
+            [
+                (0, 0, 50, 40),
+                (30, 0, 80, 40),
+                (60, 0, 110, 40),
+                (70, 0, 120, 40),
+                (0, 30, 50, 70),
+                (30, 30, 80, 70),
+                (60, 30, 110, 70),
+                (70, 30, 120, 70),
+                (0, 60, 50, 100),
+                (30, 60, 80, 100),
+                (60, 60, 110, 100),
+                (70, 60, 120, 100),
+            ],
+        )
+
+    def test_generate_windows_covers_image(self) -> None:
+        image_h = 101
+        image_w = 113
+        windows = sliding_window._generate_windows((image_h, image_w), (32, 40), (8, 12))
+
+        self.assertEqual(windows[0], (0, 0, 40, 32))
+        self.assertEqual(windows[-1], (73, 69, image_w, image_h))
+        self.assertEqual(min(window[0] for window in windows), 0)
+        self.assertEqual(min(window[1] for window in windows), 0)
+        self.assertEqual(max(window[2] for window in windows), image_w)
+        self.assertEqual(max(window[3] for window in windows), image_h)
+
+    def test_generate_windows_small_image(self) -> None:
+        windows = sliding_window._generate_windows((20, 30), (64, 64), (16, 16))
+        self.assertEqual(windows, [(0, 0, 30, 20)])
+
+    def test_map_window_detection_shifts_to_image_coordinates(self) -> None:
+        detection = {
+            "boxes": torch.tensor([[1.0, 2.0, 3.0, 4.0]]),
+            "labels": torch.tensor([2]),
+            "scores": torch.tensor([0.9]),
+        }
+
+        shifted = sliding_window._map_window_detection(detection, (10, 20, 20, 30), (100, 100))
+
+        torch.testing.assert_close(shifted["boxes"], torch.tensor([[11.0, 22.0, 13.0, 24.0]]))
+        torch.testing.assert_close(detection["boxes"], torch.tensor([[1.0, 2.0, 3.0, 4.0]]))
+        self.assertEqual(shifted["labels"].tolist(), [2])
+        torch.testing.assert_close(shifted["scores"], torch.tensor([0.9]))
+
+    def test_clip_detections_to_image(self) -> None:
+        detection = {
+            "boxes": torch.tensor([[-5.0, -2.0, 20.0, 15.0], [3.0, 4.0, 8.0, 9.0]]),
+            "labels": torch.tensor([1, 2]),
+            "scores": torch.tensor([0.8, 0.9]),
+        }
+
+        clipped = sliding_window._clip_detections_to_image(detection, (10, 12))
+
+        torch.testing.assert_close(clipped["boxes"], torch.tensor([[0.0, 0.0, 12.0, 10.0], [3.0, 4.0, 8.0, 9.0]]))
+        torch.testing.assert_close(detection["boxes"], torch.tensor([[-5.0, -2.0, 20.0, 15.0], [3.0, 4.0, 8.0, 9.0]]))
+
+    def test_empty_detections(self) -> None:
+        detection = {
+            "boxes": torch.empty((0, 4)),
+            "labels": torch.empty((0,), dtype=torch.int64),
+            "scores": torch.empty((0,)),
+        }
+
+        filtered = sliding_window._map_window_detection(detection, (10, 20, 30, 40), (100, 100))
+
+        self.assertEqual(filtered["boxes"].shape, (0, 4))
+        self.assertEqual(filtered["labels"].shape, (0,))
+        self.assertEqual(filtered["scores"].shape, (0,))
+
+    def test_merge_sliding_window_detections_empty(self) -> None:
+        merged = sliding_window._merge_sliding_window_detections([], mode="none", merge_threshold=0.5)
+
+        self.assertEqual(merged["boxes"].shape, (0, 4))
+        self.assertEqual(merged["labels"].shape, (0,))
+        self.assertEqual(merged["scores"].shape, (0,))
+
+    def test_merge_sliding_window_detections_none(self) -> None:
+        detections = [
+            {
+                "boxes": torch.tensor([[0.0, 0.0, 1.0, 1.0]]),
+                "labels": torch.tensor([1]),
+                "scores": torch.tensor([0.9]),
+            },
+            {
+                "boxes": torch.tensor([[2.0, 2.0, 3.0, 3.0]]),
+                "labels": torch.tensor([2]),
+                "scores": torch.tensor([0.8]),
+            },
+        ]
+
+        merged = sliding_window._merge_sliding_window_detections(detections, mode="none", merge_threshold=0.5)
+
+        torch.testing.assert_close(merged["boxes"], torch.tensor([[0.0, 0.0, 1.0, 1.0], [2.0, 2.0, 3.0, 3.0]]))
+        self.assertEqual(merged["labels"].tolist(), [1, 2])
+        torch.testing.assert_close(merged["scores"], torch.tensor([0.9, 0.8]))
+
+    def test_merge_sliding_window_detections_greedy_nmm_ios(self) -> None:
+        detections = [
+            {
+                "boxes": torch.tensor([[0.0, 0.0, 20.0, 20.0], [0.0, 0.0, 100.0, 100.0], [0.0, 0.0, 100.0, 100.0]]),
+                "labels": torch.tensor([1, 1, 2]),
+                "scores": torch.tensor([0.9, 0.8, 0.7]),
+            }
+        ]
+
+        merged = sliding_window._merge_sliding_window_detections(detections, mode="greedy_nmm", merge_threshold=0.5)
+
+        torch.testing.assert_close(merged["boxes"], torch.tensor([[0.0, 0.0, 100.0, 100.0], [0.0, 0.0, 100.0, 100.0]]))
+        self.assertEqual(merged["labels"].tolist(), [1, 2])
+        torch.testing.assert_close(merged["scores"], torch.tensor([0.9, 0.7]))
+
+    def test_merge_sliding_window_detections_nmm_ios_transitive(self) -> None:
+        detections = [
+            {
+                "boxes": torch.tensor([[0.0, 0.0, 10.0, 10.0], [4.0, 0.0, 14.0, 10.0], [8.0, 0.0, 18.0, 10.0]]),
+                "labels": torch.tensor([1, 1, 1]),
+                "scores": torch.tensor([0.9, 0.8, 0.7]),
+            }
+        ]
+
+        merged = sliding_window._merge_sliding_window_detections(detections, mode="nmm", merge_threshold=0.5)
+
+        torch.testing.assert_close(merged["boxes"], torch.tensor([[0.0, 0.0, 18.0, 10.0]]))
+        self.assertEqual(merged["labels"].tolist(), [1])
+        torch.testing.assert_close(merged["scores"], torch.tensor([0.9]))
 
 
 @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")

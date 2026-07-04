@@ -508,6 +508,10 @@ class ViT_Windowed(DetectorBackbone):
 
         return (x, window_size, window_grid, (grid_h, grid_w), local_attn_mask)
 
+    def transform_to_backbone(self) -> None:
+        super().transform_to_backbone()
+        self.norm = nn.Identity()
+
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x, window_size, window_grid, grid_size, local_attn_mask = self._prepare_windowed_tokens(x)
 
@@ -601,6 +605,31 @@ registry.register_model_config(
 # With registers
 ####################
 
+registry.register_model_config(
+    "vit_windowed_reg1_s14_ls",
+    ViT_Windowed,
+    config={
+        "patch_size": 14,
+        **SMALL,
+        "num_windows": (2, 2),
+        "global_attn_indexes": [5, 11],
+        "layer_scale_init_value": 1e-5,
+        "num_reg_tokens": 1,
+    },
+)
+registry.register_model_config(
+    "vit_windowed_reg4_s14_nps_ls",
+    ViT_Windowed,
+    config={
+        "pos_embed_special_tokens": False,
+        "patch_size": 14,
+        **SMALL,
+        "num_windows": (2, 2),
+        "global_attn_indexes": [5, 11],
+        "layer_scale_init_value": 1e-5,
+        "num_reg_tokens": 4,
+    },
+)
 registry.register_model_config(
     "vit_windowed_reg4_s14_nps_ls_avg",
     ViT_Windowed,
