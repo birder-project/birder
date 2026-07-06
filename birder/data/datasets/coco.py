@@ -73,6 +73,62 @@ def _map_annotations_to_targets(dataset: CocoDetection, source_idx_to_target_idx
     return dataset
 
 
+def _normalize_coco_class_name(class_name: str) -> str:
+    return class_name.strip()
+
+
+def build_coco_category_remap(
+    categories: dict[int, Any],
+    target_class_to_idx: Optional[dict[str, int]] = None,
+    use_class_file_ids: bool = False,
+) -> tuple[dict[str, int], dict[int, int]]:
+    """
+    Build the mapping from raw COCO category ids to Birder detector labels
+
+    There are three supported modes:
+    * No target map: build a dense 1-indexed label space from categories sorted by raw id.
+    * Class-file id mode: ignore JSON category names and interpret raw category ids as
+      positions in the class file. If category id 0 exists, ids are treated as zero-based
+      and shifted by +1 because detector label 0 is reserved for background.
+    * Target map mode: remap by category name into the provided target label space.
+    """
+
+    sorted_categories = sorted(categories.values(), key=lambda item: item["id"])
+    if target_class_to_idx is None:
+        if use_class_file_ids is True:
+            raise ValueError("use_class_file_ids requires target_class_to_idx")
+
+        target_class_to_idx = {
+            _normalize_coco_class_name(category["name"]): idx + 1 for idx, category in enumerate(sorted_categories)
+        }
+
+    source_idx_to_target_idx = {}
+    target_indices = set(target_class_to_idx.values())
+    use_zero_based_category_ids = any(category["id"] == 0 for category in sorted_categories)
+    for category in sorted_categories:
+        class_name = _normalize_coco_class_name(category["name"])
+        category_id = category["id"]
+        if use_class_file_ids is True:
+            target_idx = category_id + 1 if use_zero_based_category_ids is True else category_id
+            if target_idx not in target_indices:
+                raise ValueError(
+                    f"category_id={category_id} maps to label {target_idx}, which is not covered by the class file"
+                )
+
+        else:
+            if class_name not in target_class_to_idx:
+                raise ValueError(f"Missing target class '{class_name}' for category_id={category_id}")
+
+            target_idx = target_class_to_idx[class_name]
+
+        if target_idx == 0:
+            raise ValueError(f"Class '{class_name}' maps to background label 0")
+
+        source_idx_to_target_idx[category_id] = target_idx
+
+    return (target_class_to_idx, source_idx_to_target_idx)
+
+
 def _mapped_class_to_idx(class_to_idx: dict[str, int], label_mapping: dict[str, str]) -> dict[str, int]:
     mapped_class_to_idx: dict[str, int] = {}
     for class_name, _ in sorted(class_to_idx.items(), key=lambda item: item[1]):
@@ -145,6 +201,21 @@ class CocoBase(torch.utils.data.Dataset):
             self.class_to_idx, label_mapping, target_class_to_idx=target_class_to_idx
         )
         self.dataset = _map_annotations_to_targets(self.dataset, source_idx_to_target_idx)
+        self.class_to_idx = target_class_to_idx
+
+        return target_class_to_idx
+
+    def normalize_annotations(
+        self, target_class_to_idx: Optional[dict[str, int]] = None, use_class_file_ids: bool = False
+    ) -> dict[str, int]:
+        target_class_to_idx, source_idx_to_target_idx = build_coco_category_remap(
+            self.dataset.coco.cats,
+            target_class_to_idx=target_class_to_idx,
+            use_class_file_ids=use_class_file_ids,
+        )
+        if any(source_idx != target_idx for source_idx, target_idx in source_idx_to_target_idx.items()):
+            self.dataset = _map_annotations_to_targets(self.dataset, source_idx_to_target_idx)
+
         self.class_to_idx = target_class_to_idx
 
         return target_class_to_idx

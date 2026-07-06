@@ -19,7 +19,7 @@ A Deformable DETR with box refinement object detection model with ConvNeXt v2 Ti
 - **Model Stats:**
     - Params (M): 40.0
     - Input image size: 640 x 640 (short side)
-- **Dataset:** COCO 2017 (91 classes)
+- **Dataset:** COCO 2017 (80 classes)
 
 - **Papers:**
     - Deformable DETR: Deformable Transformers for End-to-End Object Detection: <https://arxiv.org/abs/2010.04159>

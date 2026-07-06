@@ -334,12 +334,18 @@ def train(args: argparse.Namespace) -> None:
             validation_dataset.convert_annotations_with_label_mapping(label_mapping, target_class_to_idx=class_to_idx)
             logger.info(f"Applied label mapping: {original_num_labels} -> {len(class_to_idx)} labels")
         else:
+            target_class_to_idx = None
+            use_class_file_ids = False
             if args.class_file is not None:
-                class_to_idx = fs_ops.read_class_file(args.class_file)
-            else:
-                class_to_idx = lib.class_to_idx_from_coco(training_dataset.dataset.coco.cats)
+                target_class_to_idx = lib.detection_class_to_idx(fs_ops.read_class_file(args.class_file))
+                use_class_file_ids = True
 
-            class_to_idx = lib.detection_class_to_idx(class_to_idx)
+            class_to_idx = training_dataset.normalize_annotations(
+                target_class_to_idx=target_class_to_idx, use_class_file_ids=use_class_file_ids
+            )
+            validation_dataset.normalize_annotations(
+                target_class_to_idx=class_to_idx, use_class_file_ids=use_class_file_ids
+            )
 
         training_dataset.remove_images_without_annotations(ignore_list)
 

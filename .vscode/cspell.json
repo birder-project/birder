@@ -55,6 +55,7 @@
     "capturable",
     "cdist",
     "cflags",
+    "checkpointed",
     "checkpointing",
     "ciou",
     "cmap",

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.4 - 2026-07-06
+
+### Added
+
+- **Sparse MoE ViT**: Added [V-MoE](https://arxiv.org/abs/2106.05974)-style sparse mixture-of-experts Vision Transformer.
+- **Sparse MoE Training**: Added opt-in `--moe-aux-loss` support to classification training, enabling V-MoE auxiliary routing losses while logging classification and MoE auxiliary losses separately.
+- **Sparse MoE MIM**: Added ViT-MoE masked-token retention and omission encoder support, MoE auxiliary loss propagation through MIM heads, and opt-in `--moe-aux-loss` support to MIM training.
+- **COCO Detection Tools**: Added `--coco-use-ids` to `predict_detection` for evaluating models that use raw COCO category ids and `--label-mapping` to `show-det-iterator`.
+
+### Changed
+
+- **Pretrained Models**:
+    - **Breaking**: Updated `lw_detr_2stg_objects365-coco_pe_spatial_s16` checkpoint metadata.
+    - **Breaking**: Updated `deformable_detr_boxref_binary_convnext_v2_tiny_imagenet21k` checkpoint metadata.
+
+### Fixed
+
+- **COCO Detection Annotation Remapping**: Fixed COCO category remapping across detection training, prediction, packing and iterator visualization for zero-based category ids, sparse COCO ids, class-file id mode and explicit label mappings.
+
 ## 0.6.3 - 2026-07-04
 
 ### Added

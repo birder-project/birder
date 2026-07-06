@@ -22,8 +22,10 @@ from tqdm import tqdm
 
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common.lib import detection_class_to_idx
 from birder.common.lib import format_duration
 from birder.conf import settings
+from birder.data.datasets.coco import build_coco_category_remap
 from birder.model_registry import Task
 
 logger = logging.getLogger(__name__)
@@ -40,10 +42,6 @@ def _save_classes(pack_path: Path, class_list: list[str]) -> None:
     logger.info(f"Saving class list at {class_list_path}")
     with open(class_list_path, "w", encoding="utf-8") as handle:
         handle.write(doc)
-
-
-def _build_class_list(categories: list[dict[str, Any]]) -> list[str]:
-    return [category["name"] for category in categories]
 
 
 def _encode_image(
@@ -113,9 +111,10 @@ def _load_coco_targets(
     data_path: str | Path,
     coco_json_path: str | Path,
     drop_empty: bool = False,
-    preserve_category_ids: bool = False,
+    target_class_to_idx: Optional[dict[str, int]] = None,
+    use_class_file_ids: bool = False,
     ignore_list: Optional[set[str]] = None,
-) -> tuple[list[tuple[str, dict[str, Any]]], list[str], int]:
+) -> tuple[list[tuple[str, dict[str, Any]]], list[str]]:
     with open(coco_json_path, "r", encoding="utf-8") as handle:
         doc = json.load(handle)
 
@@ -125,10 +124,12 @@ def _load_coco_targets(
     if len(categories) == 0:
         raise ValueError("COCO json has no categories")
 
-    class_list = _build_class_list(categories)
-    max_category_id = max(category["id"] for category in categories)
-    category_id_to_label = {category["id"]: idx + 1 for idx, category in enumerate(categories)}
-    valid_category_ids = {category["id"] for category in categories}
+    categories_by_id = {category["id"]: category for category in categories}
+    class_to_idx, category_id_to_label = build_coco_category_remap(
+        categories_by_id, target_class_to_idx=target_class_to_idx, use_class_file_ids=use_class_file_ids
+    )
+    class_list = list(class_to_idx.keys())
+    valid_category_ids = set(categories_by_id.keys())
 
     annotations_by_image_id: dict[int, list[dict[str, Any]]] = {}
     for annotation in annotations:
@@ -157,10 +158,7 @@ def _load_coco_targets(
 
             x, y, w, h = annotation["bbox"]
             boxes.append([x, y, x + w, y + h])
-            if preserve_category_ids is True:
-                labels.append(category_id)
-            else:
-                labels.append(category_id_to_label[category_id])
+            labels.append(category_id_to_label[category_id])
             areas.append(annotation.get("area", w * h))
             iscrowd.append(annotation.get("iscrowd", 0))
             annotation_ids.append(annotation["id"])
@@ -186,7 +184,7 @@ def _load_coco_targets(
             )
         )
 
-    return (samples, class_list, max_category_id)
+    return (samples, class_list)
 
 
 def read_worker(q_in: Any, q_out: Any, error_event: Any, size: Optional[int], file_format: str) -> None:
@@ -316,20 +314,17 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
             ignore_list = {line for line in handle.read().splitlines() if line != ""}
 
     if args.class_file is not None:
-        samples, _class_list, max_category_id = _load_coco_targets(
+        class_to_idx = detection_class_to_idx(fs_ops.read_class_file(args.class_file))
+        samples, class_list = _load_coco_targets(
             args.data_path,
             args.coco_json_path,
             drop_empty=args.drop_empty,
-            preserve_category_ids=True,
+            target_class_to_idx=class_to_idx,
+            use_class_file_ids=True,
             ignore_list=ignore_list,
         )
-        class_file_list = list(fs_ops.read_class_file(args.class_file).keys())
-        if len(class_file_list) < max_category_id:
-            raise ValueError("--class-file length must be at least the maximum category id in the COCO categories")
-
-        class_list = class_file_list
     else:
-        samples, class_list, _ = _load_coco_targets(
+        samples, class_list = _load_coco_targets(
             args.data_path, args.coco_json_path, drop_empty=args.drop_empty, ignore_list=ignore_list
         )
 

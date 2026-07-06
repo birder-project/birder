@@ -159,4 +159,8 @@ class FCMAE(MIMBaseNet):
         pred = self.forward_decoder(latent["features"], mask)
         loss = self.forward_loss(x, pred, mask)
 
-        return {"loss": loss, "pred": pred, "mask": mask}
+        result = {"loss": loss, "pred": pred, "mask": mask}
+        if "auxiliary_losses" in latent:
+            result["moe_auxiliary_loss"] = latent["auxiliary_losses"]["auxiliary_loss"]
+
+        return result

@@ -217,11 +217,15 @@ class CrossMAE(MIMBaseNet):
             x.size(0), h, w, self.mask_ratio, self.kept_mask_ratio, min_mask_size=self.min_mask_size, device=x.device
         )
 
-        latent = self.encoder.masked_encoding_omission(x, ids_keep, return_all_features=True)["tokens"]
-        pred = self.forward_decoder(latent, mask)
+        latent = self.encoder.masked_encoding_omission(x, ids_keep, return_all_features=True)
+        pred = self.forward_decoder(latent["tokens"], mask)
         loss = self.forward_loss(x, pred, mask)
 
-        return {"loss": loss, "pred": pred, "mask": mask}
+        result = {"loss": loss, "pred": pred, "mask": mask}
+        if "auxiliary_losses" in latent:
+            result["moe_auxiliary_loss"] = latent["auxiliary_losses"]["auxiliary_loss"]
+
+        return result
 
 
 registry.register_model_config("crossmae", CrossMAE, config={"decoder_depth": 8, "decoder_embed_dim": 512})

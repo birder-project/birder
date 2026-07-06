@@ -74,7 +74,7 @@ def show_detections(
             font_size=14,
         )
 
-    fig = plt.figure(num=image_path, figsize=(12, 9))
+    fig = plt.figure(num=f"{image_path} ({labels.numel()})", figsize=(12, 9))
     ax = fig.add_subplot(1, 1, 1)
     ax.imshow(np.transpose(result_with_boxes, [1, 2, 0]))
     ax.axis("off")

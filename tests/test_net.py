@@ -177,6 +177,8 @@ NET_TEST_CASES = [
     ("vit_so150m_p14_ap", False, False, 1, 14),
     ("vit_reg8_so150m_p14_swiglu_avg", False, False, 1, 14),
     ("vit_s16_soft_moe_32e_4s_avg"),
+    ("vit_moe_vs32_8e_2k_last2"),
+    ("vit_moe_reg1_vs32_8e_2k_last2"),
     ("vit_parallel_s16_18x2_ls"),
     ("vit_det_s16"),
     ("vit_sam_b16"),
@@ -227,6 +229,8 @@ DYNAMIC_SIZE_CASES = [
     ("vit_so150m_p14_ap", 1, 14),
     ("vit_reg8_so150m_p14_swiglu_avg", 1, 14),
     ("vit_s16_soft_moe_32e_4s_avg"),
+    ("vit_moe_vs32_8e_2k_last2"),
+    ("vit_moe_reg1_vs32_8e_2k_last2"),
     ("vit_parallel_s16_18x2_ls"),
     ("vit_det_s16"),
     ("vit_sam_b16"),
@@ -755,6 +759,8 @@ class TestNet(unittest.TestCase):
             ("vit_so150m_p14_ap"),
             ("vit_reg8_so150m_p14_swiglu_avg"),
             ("vit_s16_soft_moe_32e_4s_avg"),
+            ("vit_moe_vs32_8e_2k_last2"),
+            ("vit_moe_reg1_vs32_8e_2k_last2"),
             ("vit_parallel_s16_18x2_ls"),
             ("xcit_nano12_p16"),
         ]
@@ -841,6 +847,8 @@ class TestNet(unittest.TestCase):
             ("vit_so150m_p14_ap"),
             ("vit_reg8_so150m_p14_swiglu_avg"),
             ("vit_s16_soft_moe_32e_4s_avg"),
+            ("vit_moe_vs32_8e_2k_last2"),
+            ("vit_moe_reg1_vs32_8e_2k_last2"),
             ("vit_parallel_s16_18x2_ls"),
         ]
     )
@@ -1109,6 +1117,8 @@ class TestNonSquareNet(unittest.TestCase):
             ("vit_so150m_p14_ap", 1, 14, 14),
             ("vit_reg8_so150m_p14_swiglu_avg", 1, 14, 14),
             ("vit_s16_soft_moe_32e_4s_avg"),
+            ("vit_moe_vs32_8e_2k_last2"),
+            ("vit_moe_reg1_vs32_8e_2k_last2"),
             ("vit_parallel_s16_18x2_ls"),
             ("vit_det_b16"),
             ("vit_sam_b16"),
@@ -1255,6 +1265,8 @@ class TestSpecialFunctions(unittest.TestCase):
             ("vit_b16_qkn_ls"),
             ("vit_b16_nf_swiglu"),
             ("vit_s16_soft_moe_32e_4s_avg"),
+            ("vit_moe_vs32_8e_2k_last2"),
+            ("vit_moe_reg1_vs32_8e_2k_last2"),
             ("vit_parallel_s16_18x2_ls"),
         ]
     )

@@ -1,7 +1,9 @@
 import argparse
+import json
 import random
 from pathlib import Path
 from typing import Any
+from typing import Optional
 from typing import get_args
 
 import matplotlib.pyplot as plt
@@ -23,6 +25,7 @@ from birder.data.datasets.coco import CocoInference
 from birder.data.datasets.coco import CocoMosaicTraining
 from birder.data.datasets.coco import CocoTraining
 from birder.data.datasets.coco import MosaicType
+from birder.data.datasets.coco import build_label_mapping_indices
 from birder.data.datasets.directory import ImageLoaderName
 from birder.data.datasets.directory import get_image_loader
 from birder.data.datasets.webdataset import make_wds_detection_dataset
@@ -40,6 +43,11 @@ from birder.data.transforms.detection import training_preset
 def show_det_iterator(args: argparse.Namespace) -> None:
     reverse_transform = reverse_preset(get_rgb_stats("birder"))
     root_path = Path(args.data_path)
+    label_mapping: Optional[dict[str, str]] = None
+    if args.label_mapping is not None:
+        with open(args.label_mapping, "r", encoding="utf-8") as handle:
+            label_mapping = json.load(handle)
+
     if args.mode == "training":
         offset = 0
         transform = training_preset(
@@ -72,6 +80,14 @@ def show_det_iterator(args: argparse.Namespace) -> None:
                 args.data_path, args.wds_size, torch.device("cpu"), select_suffix="json"
             )
 
+        if args.wds_class_file is None:
+            args.wds_class_file = Path(args.data_path).joinpath(settings.CLASS_LIST_NAME)
+
+        class_to_idx = lib.detection_class_to_idx(fs_ops.read_class_file(args.wds_class_file))
+        label_remap: Optional[dict[int, int]] = None
+        if label_mapping is not None:
+            class_to_idx, label_remap = build_label_mapping_indices(class_to_idx, label_mapping)
+
         if args.mode == "training" and args.mosaic_prob > 0.0:
             mosaic_transforms = training_preset(
                 args.size,
@@ -103,14 +119,12 @@ def show_det_iterator(args: argparse.Namespace) -> None:
                 mosaic_type=args.mosaic_type,
                 output_size=(mosaic_dim, mosaic_dim),
                 fill_value=114,
+                label_remap=label_remap,
             )
         else:
-            dataset = make_wds_detection_dataset(wds_path, dataset_size=dataset_size, shuffle=True, transform=transform)
-        if args.wds_class_file is None:
-            args.wds_class_file = Path(args.data_path).joinpath(settings.CLASS_LIST_NAME)
-
-        class_to_idx = fs_ops.read_class_file(args.wds_class_file)
-        class_to_idx = lib.detection_class_to_idx(class_to_idx)
+            dataset = make_wds_detection_dataset(
+                wds_path, dataset_size=dataset_size, shuffle=True, transform=transform, label_remap=label_remap
+            )
 
     else:
         if args.mode == "training":
@@ -154,11 +168,16 @@ def show_det_iterator(args: argparse.Namespace) -> None:
         else:
             dataset = CocoInference(args.data_path, args.coco_json_path, transforms=transform)
 
-        if args.class_file is not None:
-            class_to_idx = fs_ops.read_class_file(args.class_file)
-            class_to_idx = lib.detection_class_to_idx(class_to_idx)
+        if label_mapping is not None:
+            class_to_idx = dataset.convert_annotations_with_label_mapping(label_mapping)
+        elif args.class_file is not None:
+            target_class_to_idx = lib.detection_class_to_idx(fs_ops.read_class_file(args.class_file))
+            class_to_idx = dataset.normalize_annotations(
+                target_class_to_idx=target_class_to_idx,
+                use_class_file_ids=True,
+            )
         else:
-            class_to_idx = lib.class_to_idx_from_coco(dataset.dataset.coco.cats)
+            class_to_idx = dataset.normalize_annotations()
 
     class_list = list(class_to_idx.keys())
     class_list.insert(0, "Background")
@@ -417,6 +436,9 @@ def set_parser(subparsers: Any) -> None:
         help="training COCO json path",
     )
     subparser.add_argument("--class-file", type=str, metavar="FILE", help="class list file, overrides json categories")
+    subparser.add_argument(
+        "--label-mapping", type=str, metavar="FILE", help="JSON mapping of source labels to target labels"
+    )
     subparser.add_argument("--mosaic-prob", type=float, default=0.0, help="mosaic augmentation probability")
     subparser.add_argument(
         "--mosaic-type", type=str, choices=get_args(MosaicType), default="fixed_grid", help="mosaic augmentation type"
@@ -444,6 +466,10 @@ def main(args: argparse.Namespace) -> None:
 
     if args.wds is True and args.batch is False:
         raise cli.ValidationError("--wds requires --batch to be set")
+    if args.label_mapping is not None and args.class_file is not None:
+        raise cli.ValidationError("--label-mapping cannot be used with --class-file")
+    if args.label_mapping is not None and args.label_mapping.strip() == "":
+        raise cli.ValidationError("--label-mapping cannot be empty")
     if args.multiscale is True and args.aug_type != "birder":
         raise cli.ValidationError(f"--multiscale only supported with --aug-type birder, got {args.aug_type}")
     if args.batch_multiscale is True:

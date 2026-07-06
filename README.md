@@ -133,7 +133,7 @@ For detailed information about these datasets, including descriptions, citations
 ## Detection
 
 Detection training and inference are available, see [docs/training_scripts.md](docs/training_scripts.md) and
-[docs/inference.md](docs/inference.md). APIs and model coverage may evolve as detection support matures.
+[docs/inference.md](docs/inference.md#object-detection-inference). APIs and model coverage may evolve as detection support matures.
 
 ## Evaluation
 

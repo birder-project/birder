@@ -197,3 +197,13 @@ class TestDatasets(unittest.TestCase):
 
         self.assertEqual(mapped_class_to_idx, {"family-1": 1, "family-2": 2})
         self.assertEqual(label_remap, {2: 1, 10: 2, 40: 2})
+
+    def test_build_coco_category_remap_zero_based_ids(self) -> None:
+        categories = {
+            0: {"id": 0, "name": "Deer"},
+            1: {"id": 1, "name": "Hog"},
+        }
+
+        class_to_idx, label_remap = coco.build_coco_category_remap(categories)
+        self.assertEqual(class_to_idx, {"Deer": 1, "Hog": 2})
+        self.assertEqual(label_remap, {0: 1, 1: 2})

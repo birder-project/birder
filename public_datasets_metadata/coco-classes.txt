@@ -74,7 +74,7 @@ laptop
 mouse
 remote
 keyboard
-cellphone
+cell phone
 microwave
 oven
 toaster

@@ -154,11 +154,15 @@ class MAE_ViT(MIMBaseNet):
             x.size(0), h, w, self.mask_ratio, min_mask_size=self.min_mask_size, device=x.device
         )
 
-        latent = self.encoder.masked_encoding_omission(x, ids_keep)["tokens"]
-        pred = self.forward_decoder(latent, ids_restore)
+        latent = self.encoder.masked_encoding_omission(x, ids_keep)
+        pred = self.forward_decoder(latent["tokens"], ids_restore)
         loss = self.forward_loss(x, pred, mask)
 
-        return {"loss": loss, "pred": pred, "mask": mask}
+        result = {"loss": loss, "pred": pred, "mask": mask}
+        if "auxiliary_losses" in latent:
+            result["moe_auxiliary_loss"] = latent["auxiliary_losses"]["auxiliary_loss"]
+
+        return result
 
 
 # Base models

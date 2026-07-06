@@ -108,6 +108,7 @@ from birder.net.van import VAN
 from birder.net.vgg import Vgg
 from birder.net.vgg_reduced import Vgg_Reduced
 from birder.net.vit import ViT
+from birder.net.vit_moe import ViT_MoE
 from birder.net.vit_parallel import ViT_Parallel
 from birder.net.vit_sam import ViT_SAM
 from birder.net.vit_windowed import ViT_Windowed
@@ -229,6 +230,7 @@ __all__ = [
     "Vgg",
     "Vgg_Reduced",
     "ViT",
+    "ViT_MoE",
     "ViT_Parallel",
     "ViT_SAM",
     "ViT_Windowed",

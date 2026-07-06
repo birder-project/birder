@@ -526,6 +526,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             },
         )
 
+    if args.moe_aux_loss is True:
+        if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
+            net_without_ddp._orig_mod.set_moe_loss_output(True)
+        else:
+            net_without_ddp.set_moe_loss_output(True)
+
     #
     # Training loop
     #
@@ -535,6 +541,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
     top_k = args.top_k
     running_loss = training_utils.SmoothedValue(window_size=64)
+    running_moe_aux_loss: Optional[training_utils.SmoothedValue] = None
+    if args.moe_aux_loss is True:
+        running_moe_aux_loss = training_utils.SmoothedValue(window_size=64)
+
     running_val_loss = training_utils.SmoothedValue()
     train_accuracy = training_utils.SmoothedValue(window_size=64)
     val_accuracy = training_utils.SmoothedValue()
@@ -551,6 +561,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
         # Clear metrics
         running_loss.clear()
+        if running_moe_aux_loss is not None:
+            running_moe_aux_loss.clear()
+
         running_val_loss.clear()
         train_accuracy.clear()
         val_accuracy.clear()
@@ -607,8 +620,16 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             # Forward and backward
             with sync_context():
                 with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
-                    outputs = net(inputs)
-                    raw_loss = criterion(outputs, loss_targets)
+                    if args.moe_aux_loss is True:
+                        outputs, aux_losses = net(inputs)
+                        moe_aux_loss = aux_losses["auxiliary_loss"]
+                        classification_loss = criterion(outputs, loss_targets)
+                        raw_loss = classification_loss + moe_aux_loss
+                    else:
+                        outputs = net(inputs)
+                        moe_aux_loss = None
+                        classification_loss = criterion(outputs, loss_targets)
+                        raw_loss = classification_loss
 
                 loss = raw_loss / effective_accum_steps
                 if scaler is not None:
@@ -646,7 +667,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     model_ema.n_averaged.fill_(0)
 
             # Statistics
-            running_loss.update(raw_loss.detach())
+            running_loss.update(classification_loss.detach())
+            if running_moe_aux_loss is not None:
+                running_moe_aux_loss.update(moe_aux_loss.detach())
+
             if targets.ndim == 2:
                 targets = targets.argmax(dim=1)
 
@@ -673,6 +697,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                 cur_lr = float(max(scheduler.get_last_lr()))
 
                 running_loss.synchronize_between_processes(device)
+                if running_moe_aux_loss is not None:
+                    running_moe_aux_loss.synchronize_between_processes(device)
+
                 train_accuracy.synchronize_between_processes(device)
                 if train_topk is not None:
                     train_topk.synchronize_between_processes(device)
@@ -687,6 +714,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         f"R: {rate:.1f} samples/s  "
                         f"LR: {cur_lr:.4e}"
                     )
+                    if running_moe_aux_loss is not None:
+                        log.info(
+                            f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
+                            f"MoE auxiliary loss: {running_moe_aux_loss.avg:.4f}"
+                        )
                     log.info(
                         f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
                         f"Accuracy: {train_accuracy.avg:.4f}"
@@ -707,6 +739,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         {"training": running_loss.avg},
                         ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                     )
+                    if running_moe_aux_loss is not None:
+                        summary_writer.add_scalars(
+                            "loss",
+                            {"moe_auxiliary": running_moe_aux_loss.avg},
+                            ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
+                        )
                     summary_writer.add_scalars(
                         "performance",
                         performance,
@@ -720,6 +758,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
         # Epoch training metrics
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {running_loss.global_avg:.4f}")
+        if running_moe_aux_loss is not None:
+            logger.info(
+                f"[Trn] Epoch {epoch}/{epochs-1} training_moe_auxiliary_loss: {running_moe_aux_loss.global_avg:.4f}"
+            )
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_accuracy: {train_accuracy.global_avg:.4f}")
         if train_topk is not None:
             logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_accuracy@{top_k}: {train_topk.global_avg:.4f}")
@@ -947,6 +989,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     group = parser.add_argument_group("Loss parameters")
     group.add_argument("--bce-loss", default=False, action="store_true", help="enable BCE loss")
     group.add_argument("--bce-threshold", type=float, default=0.0, help="threshold for binarizing soft BCE targets")
+    group.add_argument("--moe-aux-loss", default=False, action="store_true", help="enable MoE auxiliary loss")
     training_cli.add_freeze_args(parser, model=True, unfreeze_features=True)
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser)
@@ -984,6 +1027,11 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError(f"--smoothing-alpha must be in range of [0, 0.5), got {args.smoothing_alpha}")
     if args.bce_loss is True and args.smoothing_alpha != 0.0:
         raise cli.ValidationError("--bce-loss can only be used with --smoothing-alpha 0.0")
+    if args.moe_aux_loss is True:
+        if args.batch_size % 8 != 0:
+            raise cli.ValidationError("--moe-aux-loss requires local --batch-size to be divisible by 8")
+        if args.drop_last is False:
+            raise cli.ValidationError("--moe-aux-loss requires --drop-last")
 
     if args.freeze_stages is not None and registry.exists(args.network, net_type=DetectorBackbone) is False:
         raise cli.ValidationError(

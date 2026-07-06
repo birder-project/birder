@@ -44,11 +44,16 @@ class EVA(MIMBaseNet):
         nn.init.trunc_normal_(self.predictor.weight, mean=0.0, std=0.02)
         nn.init.zeros_(self.predictor.bias)
 
-    def forward_features(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor, mask: torch.Tensor) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
         latent = self.encoder.masked_encoding_retention(x, mask, mask_token=self.mask_token, return_keys="features")
         features = latent["features"].flatten(2).permute(0, 2, 1)
+        pred = self.predictor(features)
 
-        return self.predictor(features)
+        moe_auxiliary_loss = None
+        if "auxiliary_losses" in latent:
+            moe_auxiliary_loss = latent["auxiliary_losses"]["auxiliary_loss"]
+
+        return (pred, moe_auxiliary_loss)
 
     def forward_loss(self, pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         mask = mask.to(torch.bool)
@@ -63,7 +68,11 @@ class EVA(MIMBaseNet):
     ) -> dict[str, torch.Tensor]:
         # pylint: disable=arguments-differ
 
-        pred = self.forward_features(x, mask)
+        pred, moe_auxiliary_loss = self.forward_features(x, mask)
         loss = self.forward_loss(pred, target_tokens, mask)
 
-        return {"loss": loss, "pred": pred, "mask": mask}
+        result = {"loss": loss, "pred": pred, "mask": mask}
+        if moe_auxiliary_loss is not None:
+            result["moe_auxiliary_loss"] = moe_auxiliary_loss
+
+        return result

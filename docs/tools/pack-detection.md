@@ -44,7 +44,7 @@ Each WebDataset sample contains:
     - `annotation_ids`
     - `boxes_format`
 
-By default, labels are remapped to contiguous 1-indexed values (reserving 0 for background). When `--class-file` is provided, the original COCO `category_id` values are preserved instead.
+By default, labels are remapped to contiguous 1-indexed values (reserving 0 for background). When `--class-file` is provided, JSON category names are ignored and raw COCO `category_id` values are interpreted as class-file positions, datasets with category id `0` are shifted by `+1` because detector label `0` is background.
 
 ## Output
 

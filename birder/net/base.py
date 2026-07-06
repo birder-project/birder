@@ -22,11 +22,19 @@ DataShapeType = TypedDict("DataShapeType", {"data_shape": list[int]})
 SignatureType = TypedDict("SignatureType", {"inputs": list[DataShapeType], "outputs": list[DataShapeType]})
 TokenOmissionResultType = TypedDict(
     "TokenOmissionResultType",
-    {"tokens": NotRequired[torch.Tensor], "embedding": NotRequired[torch.Tensor]},
+    {
+        "tokens": NotRequired[torch.Tensor],
+        "embedding": NotRequired[torch.Tensor],
+        "auxiliary_losses": NotRequired[dict[str, torch.Tensor]],
+    },
 )
 TokenRetentionResultType = TypedDict(
     "TokenRetentionResultType",
-    {"features": NotRequired[torch.Tensor], "embedding": NotRequired[torch.Tensor]},
+    {
+        "features": NotRequired[torch.Tensor],
+        "embedding": NotRequired[torch.Tensor],
+        "auxiliary_losses": NotRequired[dict[str, torch.Tensor]],
+    },
 )
 
 

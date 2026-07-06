@@ -248,6 +248,8 @@ def predict(args: argparse.Namespace) -> None:
         )
         if label_mapping is not None:
             dataset.convert_annotations_with_label_mapping(label_mapping, target_class_to_idx=class_to_idx)
+        else:
+            dataset.normalize_annotations(target_class_to_idx=class_to_idx, use_class_file_ids=args.coco_use_ids)
 
         if dataset.class_to_idx != class_to_idx:
             logger.warning("Dataset class to index differs from model")
@@ -574,6 +576,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--wds-split", type=str, default="validation", metavar="NAME", help="wds dataset split to load")
     parser.add_argument("--coco-json-path", type=str, help="COCO json path")
     parser.add_argument(
+        "--coco-use-ids",
+        default=False,
+        action="store_true",
+        help="interpret COCO category ids as model labels instead of matching category names",
+    )
+    parser.add_argument(
         "--label-mapping", type=str, metavar="FILE", help="JSON mapping of source labels to target labels"
     )
     parser.add_argument("data_path", nargs="*", help="data files path (directories and files)")
@@ -651,6 +659,10 @@ def validate_args(args: argparse.Namespace) -> None:
 
     if args.coco_json_path is not None and len(args.data_path) > 1:
         raise cli.ValidationError(f"--coco-json-path can have at most 1 --data-path, got {len(args.data_path)}")
+    if args.coco_use_ids is True and args.coco_json_path is None:
+        raise cli.ValidationError("--coco-use-ids requires --coco-json-path")
+    if args.coco_use_ids is True and args.label_mapping is not None:
+        raise cli.ValidationError("--coco-use-ids cannot be used with --label-mapping")
     if args.label_mapping is not None and args.coco_json_path is None and args.wds is False:
         raise cli.ValidationError("--label-mapping requires --coco-json-path or --wds")
 

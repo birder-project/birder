@@ -912,8 +912,8 @@ registry.register_weights(
         "resolution": (640, 640),
         "formats": {
             "pt": {
-                "file_size": 152.8,
-                "sha256": "bd3ee455a98569e19b36de550784995fffd78fd27ac836fc94c18f194b2df580",
+                "file_size": 152.7,
+                "sha256": "655dbafc765acd34951751e2468f84b657872c5e75c7ecfc708fc863cfafb7f3",
             }
         },
         "net": {"network": "deformable_detr_boxref", "tag": "coco"},

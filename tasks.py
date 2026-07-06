@@ -102,7 +102,7 @@ def ci(ctx, coverage=False, failfast=False):
 
     echo("")
     toc = time.time()
-    echo(f"CI took {(toc - tic):.1f}s")
+    echo(f"CI completed in {(toc - tic):.1f}s")
     if return_code == 0:
         echo("CI Passed", color=COLOR_GREEN)
 
@@ -475,7 +475,7 @@ def print_datasets_stats(_ctx):
 
 
 @task
-def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False, size=None):
+def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False, size=None, max_batch_size=512):
     """
     Append models to benchmark
     """
@@ -489,6 +489,8 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False, size=None):
         size_arg = ""
     else:
         size_arg = f" --size {size}"
+
+    max_batch_size_arg = f"--max-batch-size {max_batch_size}"
 
     # CPU
     ctx.run(
@@ -529,7 +531,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False, size=None):
     # CUDA
     ctx.run(
         f"python -m birder.scripts.benchmark {model_selector} --bench-iter 50 "
-        f"--warmup 10 --max-batch-size 512{size_arg} --gpu --gpu-id {gpu_id} --fast-matmul "
+        f"--warmup 10 {max_batch_size_arg}{size_arg} --gpu --gpu-id {gpu_id} --fast-matmul "
         f"--suffix {suffix} --append",
         echo=True,
         pty=True,
@@ -539,7 +541,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False, size=None):
     # Compiled CUDA
     ctx.run(
         f"python -m birder.scripts.benchmark {model_selector} --bench-iter 50 "
-        f"--warmup 10 --max-batch-size 512{size_arg} --compile --gpu --gpu-id {gpu_id} --fast-matmul "
+        f"--warmup 10 {max_batch_size_arg}{size_arg} --compile --gpu --gpu-id {gpu_id} --fast-matmul "
         f"--suffix {suffix} --append",
         echo=True,
         pty=True,
@@ -549,7 +551,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False, size=None):
     # Compiled CUDA with AMP
     ctx.run(
         f"python -m birder.scripts.benchmark {model_selector} --bench-iter 50 "
-        f"--warmup 10 --max-batch-size 512{size_arg} --compile --gpu --gpu-id {gpu_id} --amp "
+        f"--warmup 10 {max_batch_size_arg}{size_arg} --compile --gpu --gpu-id {gpu_id} --amp "
         f"--suffix {suffix} --append",
         echo=True,
         pty=True,

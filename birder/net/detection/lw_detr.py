@@ -1237,7 +1237,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 123.0,
-                "sha256": "3b3243dcefcd97a4f075ce55ae8b7ec511e9b55e76ff7343c6bed9d4a63a3e75",
+                "sha256": "ce349b9bc79f4375910c8bd5c5cf5e1c1c36c16364321511ea9d6e3231673722",
             }
         },
         "net": {"network": "lw_detr_2stg", "tag": "objects365-coco"},

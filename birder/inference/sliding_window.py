@@ -309,7 +309,7 @@ def _infer_global_image(
     size_divisible: int,
     **kwargs: Any,
 ) -> Detection:
-    image_size = (image.shape[-2], image.shape[-1])
+    image_size = (image.size(-2), image.size(-1))
     global_image = F.interpolate(image.unsqueeze(0), size=global_size, mode="bilinear", align_corners=False).squeeze(0)
     inputs, masks, global_image_sizes = batch_images([global_image], size_divisible)
     if channels_last is True:
@@ -343,7 +343,7 @@ def infer_sliding_window(
     size_divisible: int = 32,
     **kwargs: Any,
 ) -> Detection:
-    image_size = (image.shape[-2], image.shape[-1])
+    image_size = (image.size(-2), image.size(-1))
     windows = _generate_windows(image_size, tile_size, overlap)
     detections: list[Detection] = []
 

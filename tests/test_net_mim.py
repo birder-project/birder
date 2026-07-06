@@ -91,6 +91,46 @@ class TestNetMIM(unittest.TestCase):
 
         self.assertEqual(out["loss"].ndim, 0)
 
+    @parameterized.expand(  # type: ignore[untyped-decorator]
+        [
+            ("simmim", "vit_moe_vs32_8e_2k_last2"),
+            ("simmim", "vit_moe_reg1_vs32_8e_2k_last2"),
+        ]
+    )
+    def test_net_mim_retention_moe_aux_loss(self, network_name: str, encoder_name: str) -> None:
+        size = (64, 64)
+        encoder = registry.net_factory(encoder_name, 0, size=size)
+        n = registry.mim_net_factory(network_name, encoder, size=size)
+        n.train()
+        n.encoder.set_moe_loss_output(True)
+
+        out = n(torch.rand((8, DEFAULT_NUM_CHANNELS, *size)))
+        for key in ["loss", "pred", "mask", "moe_auxiliary_loss"]:
+            self.assertFalse(torch.isnan(out[key]).any())
+
+        self.assertEqual(out["loss"].ndim, 0)
+        self.assertEqual(out["moe_auxiliary_loss"].ndim, 0)
+
+    @parameterized.expand(  # type: ignore[untyped-decorator]
+        [
+            ("crossmae", "vit_moe_vs32_8e_2k_last2"),
+            ("mae_vit", "vit_moe_vs32_8e_2k_last2"),
+        ]
+    )
+    def test_net_mim_omission_moe_aux_loss(self, network_name: str, encoder_name: str) -> None:
+        size = (64, 64)
+        encoder = registry.net_factory(encoder_name, 0, size=size)
+        n = registry.mim_net_factory(network_name, encoder, size=size)
+        n.train()
+        n.encoder.set_moe_loss_output(True)
+
+        out = n(torch.rand((8, DEFAULT_NUM_CHANNELS, *size)))
+        for key in ["loss", "pred", "mask", "moe_auxiliary_loss"]:
+            self.assertFalse(torch.isnan(out[key]).any())
+
+        self.assertEqual(out["loss"].ndim, 0)
+        self.assertEqual(out["moe_auxiliary_loss"].ndim, 0)
+
     def test_aim_v1_prefix_mask(self) -> None:
         size = (64, 64)
         encoder = registry.net_factory("vit_t32", 0, size=size)
@@ -166,3 +206,26 @@ class TestNetMIM(unittest.TestCase):
             self.assertFalse(torch.isnan(out[key]).any())
 
         self.assertEqual(out["loss"].ndim, 0)
+
+    def test_net_eva_retention_moe_aux_loss(self) -> None:
+        size = (64, 64)
+        student = registry.net_factory("vit_moe_vs32_8e_2k_last2", 0, size=size)
+        teacher = registry.net_factory("vit_t32", 0, size=size)
+
+        inputs = torch.rand((8, DEFAULT_NUM_CHANNELS, *size))
+        with torch.no_grad():
+            target_tokens = teacher.flatten_features(teacher.forward_features(inputs), include_special_tokens=False)
+
+        n = registry.mim_net_factory("eva", student, config={"teacher_dim": target_tokens.size(-1)}, size=size)
+        n.train()
+        n.encoder.set_moe_loss_output(True)
+
+        mask = torch.zeros((inputs.size(0), target_tokens.size(1)))
+        mask[:, ::2] = 1
+
+        out = n(inputs, target_tokens, mask)
+        for key in ["loss", "pred", "mask", "moe_auxiliary_loss"]:
+            self.assertFalse(torch.isnan(out[key]).any())
+
+        self.assertEqual(out["loss"].ndim, 0)
+        self.assertEqual(out["moe_auxiliary_loss"].ndim, 0)
