@@ -387,6 +387,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             segments=args.grad_checkpointing_segments, preserve_rng_state=args.grad_checkpointing_preserve_rng_state
         )
 
+    if args.moe_aux_loss is True:
+        student.backbone.set_moe_loss_output(True)
+
     if fsdp_mode is True:
         fsdp_mesh = init_device_mesh("cuda", (args.world_size,), mesh_dim_names=("dp",))
 
@@ -713,6 +716,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     running_loss_dino_global = training_utils.SmoothedValue()
     running_loss_koleo = training_utils.SmoothedValue()
     running_loss_ibot_patch = training_utils.SmoothedValue()
+    running_moe_aux_loss: Optional[training_utils.SmoothedValue] = None
+    if args.moe_aux_loss is True:
+        running_moe_aux_loss = training_utils.SmoothedValue(window_size=64)
 
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
@@ -726,6 +732,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         running_loss_dino_global.clear()
         running_loss_koleo.clear()
         running_loss_ibot_patch.clear()
+        if running_moe_aux_loss is not None:
+            running_moe_aux_loss.clear()
 
         if args.sinkhorn_queue_size is not None:
             queue_active = epoch > args.sinkhorn_queue_warmup_epochs
@@ -812,12 +820,14 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         )
 
                     # Student
-                    (
-                        student_global_embedding,
-                        student_global_embedding_after_head,
-                        student_local_embedding_after_head,
-                        student_global_masked_patch_tokens_after_head,
-                    ) = student(global_crops, local_crops, masks, upper_bound, mask_indices_list)
+                    student_output = student(global_crops, local_crops, masks, upper_bound, mask_indices_list)
+                    student_global_embedding = student_output["global_embedding"]
+                    student_global_embedding_after_head = student_output["global_embedding_after_head"]
+                    student_local_embedding_after_head = student_output["local_embedding_after_head"]
+                    student_global_masked_patch_tokens_after_head = student_output[
+                        "global_masked_patch_tokens_after_head"
+                    ]
+                    moe_aux_loss = student_output.get("moe_auxiliary_loss")
 
                     # Local DINO loss
                     loss_dino_local_crops = dino_loss(
@@ -863,7 +873,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     )
                     loss += args.ibot_loss_weight * loss_ibot_patch
 
-                raw_loss = loss
+                ssl_loss = loss
+                if args.moe_aux_loss is True:
+                    raw_loss = ssl_loss + moe_aux_loss
+                else:
+                    raw_loss = ssl_loss
+
                 loss = raw_loss / effective_accum_steps
                 if scaler is not None:
                     scaler.scale(loss).backward()
@@ -911,11 +926,13 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                             param_group["weight_decay"] = wd
 
             # Statistics
-            running_loss.update(raw_loss.detach())
+            running_loss.update(ssl_loss.detach())
             running_loss_dino_local.update(loss_dino_local_crops.detach())
             running_loss_dino_global.update(loss_dino_global_crops.detach())
             running_loss_koleo.update(loss_koleo.detach())
             running_loss_ibot_patch.update(loss_ibot_patch.detach())
+            if running_moe_aux_loss is not None:
+                running_moe_aux_loss.update(moe_aux_loss.detach())
 
             # Write statistics
             if (i + 1) % args.log_interval == 0 or i == last_batch_idx:
@@ -937,6 +954,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                 running_loss_dino_global.synchronize_between_processes(device)
                 running_loss_koleo.synchronize_between_processes(device)
                 running_loss_ibot_patch.synchronize_between_processes(device)
+                if running_moe_aux_loss is not None:
+                    running_moe_aux_loss.synchronize_between_processes(device)
                 with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
                     log.info(
                         f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
@@ -947,6 +966,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         f"R: {rate:.1f} samples/s  "
                         f"LR: {cur_lr:.4e}"
                     )
+                    if running_moe_aux_loss is not None:
+                        log.info(
+                            f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
+                            f"MoE auxiliary loss: {running_moe_aux_loss.avg:.4f}"
+                        )
 
                 if training_utils.is_global_primary(args) is True:
                     summary_writer.add_scalars(
@@ -960,6 +984,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         },
                         ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                     )
+                    if running_moe_aux_loss is not None:
+                        summary_writer.add_scalars(
+                            "loss",
+                            {"moe_auxiliary": running_moe_aux_loss.avg},
+                            ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
+                        )
 
             # Update progress bar
             progress.update(n=batch_size * args.world_size)
@@ -972,6 +1002,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} dino_global_loss: {running_loss_dino_global.global_avg:.4f}")
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} koleo_loss: {running_loss_koleo.global_avg:.4f}")
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} ibot_patch_loss: {running_loss_ibot_patch.global_avg:.4f}")
+        if running_moe_aux_loss is not None:
+            logger.info(
+                f"[Trn] Epoch {epoch}/{epochs-1} training_moe_auxiliary_loss: {running_moe_aux_loss.global_avg:.4f}"
+            )
 
         # Learning rate scheduler update
         if step_update is False:
@@ -1185,6 +1219,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--local-crop-size", type=int, nargs="+", default=[96, 96], metavar=("H", "W"), help="local view size"
     )
+    parser.add_argument("--moe-aux-loss", default=False, action="store_true", help="enable MoE auxiliary loss")
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser, wd_end=True)
     training_cli.add_lr_scheduler_args(parser)
@@ -1215,6 +1250,13 @@ def validate_args(args: argparse.Namespace) -> None:
     # Script specific checks
     if registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION, net_type=MaskedTokenRetentionMixin) is False:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
+    if args.moe_aux_loss is True:
+        if (args.batch_size * 2) % 8 != 0:
+            raise cli.ValidationError("--moe-aux-loss requires global crop batch size to be divisible by 8")
+        if (args.batch_size * args.local_crops_number) % 8 != 0:
+            raise cli.ValidationError("--moe-aux-loss requires local crop batch size to be divisible by 8")
+        if args.drop_last is False:
+            raise cli.ValidationError("--moe-aux-loss requires --drop-last")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

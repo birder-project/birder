@@ -12,9 +12,9 @@
 
 template <typename scalar_t>
 __global__ void av_fw_kernel(
-    const torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> attn_weight,
-    const torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> values,
-    torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> output,
+    const torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> attn_weight,
+    const torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> values,
+    torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> output,
     int height,
     int width,
     int kernel_size
@@ -69,7 +69,6 @@ torch::Tensor av_fw_cu(
 
     const int B= values.size(0), N = values.size(1), L = values.size(2), C = values.size(3);
 
-    const int attention_span = kernel_size* kernel_size;
     const int DIMTHREADS = min(cuda_threads, C);
     const int PIXELTHREADS = min(int(cuda_threads / DIMTHREADS), L);
     const int BATCHTHREADS = max(1, cuda_threads / (PIXELTHREADS * DIMTHREADS));
@@ -82,9 +81,9 @@ torch::Tensor av_fw_cu(
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(attn_weight.scalar_type(), "av_fw_cu",
     ([&] {
         av_fw_kernel<scalar_t><<<blocks, threads>>>(
-            attn_weight.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),
-            values.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),
-            output.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),
+            attn_weight.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
+            values.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
+            output.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
             height,
             width,
             kernel_size
@@ -93,4 +92,3 @@ torch::Tensor av_fw_cu(
 
     return output;
 }
-

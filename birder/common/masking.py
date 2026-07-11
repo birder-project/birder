@@ -194,6 +194,93 @@ def uniform_mask(
     return (mask, ids_keep, ids_restore)
 
 
+def fixed_size_block_mask(
+    batch_size: int,
+    h: int,
+    w: int,
+    mask_ratio: float,
+    block_size: int,
+    mask_ratio_adjust: float = 0.0,
+    inverse_mask: bool = False,
+    device: Optional[torch.device] = None,
+) -> torch.Tensor:
+    """
+    Generate random fixed-size block masks for a batch of patch grids
+
+    Block centers are sampled independently and expanded to square blocks. Overlapping blocks
+    are merged, then each mask is randomly adjusted to the exact target number of patches.
+
+    Parameters
+    ----------
+    batch_size
+        Number of masks to generate.
+    h
+        Height of the patch grid.
+    w
+        Width of the patch grid.
+    mask_ratio
+        The ratio of patches to mask. This value should be between 0 and 1.
+    block_size
+        Side length of each sampled block in patches. This value must be greater than 1.
+    mask_ratio_adjust
+        Adjustment added to the ratio used to determine the number of sampled blocks. This
+        affects the mask distribution but not the final number of masked patches.
+    inverse_mask
+        Sample blocks for the visible patches before inverting the mask.
+    device
+        The device on which to create the masks.
+
+    Returns
+    -------
+    The binary mask tensor of shape (batch_size, h * w), where 0 indicates kept tokens and 1
+    indicates masked tokens.
+    """
+
+    # Adapted from: https://github.com/facebookresearch/fairseq/blob/main/fairseq/data/data_utils.py
+
+    if mask_ratio < 0.0 or mask_ratio > 1.0:
+        raise ValueError("mask_ratio must be between 0 and 1")
+    if block_size <= 1:
+        raise ValueError("block_size must be greater than 1")
+
+    seq_len = h * w
+    block_ratio = mask_ratio
+    if inverse_mask is True:
+        block_ratio = 1.0 - block_ratio
+
+    num_blocks = int(seq_len * ((block_ratio + mask_ratio_adjust) / block_size**2))
+    if num_blocks < 0:
+        raise ValueError("mask_ratio_adjust results in a negative number of blocks")
+
+    mask = torch.zeros((batch_size, h, w), device=device)
+    block_centers = torch.randint(0, seq_len, size=(batch_size, num_blocks), device=device)
+    mask.view(batch_size, -1).scatter_(1, block_centers, 1)
+    batch_indices, center_y, center_x = mask.nonzero(as_tuple=True)
+
+    offset = block_size // 2
+    for i in range(block_size):
+        for j in range(block_size):
+            y = (center_y + i - offset).clamp_(min=0, max=h - 1)
+            x = (center_x + j - offset).clamp_(min=0, max=w - 1)
+            mask[(batch_indices, y, x)] = 1
+
+    mask = mask.reshape(batch_size, -1)
+    target_len = int(seq_len * block_ratio)
+    for sample_mask in mask:
+        current_len = int(sample_mask.sum().item())
+        if current_len > target_len:
+            indices = torch.multinomial(sample_mask, current_len - target_len, replacement=False)
+            sample_mask[indices] = 0
+        elif current_len < target_len:
+            indices = torch.multinomial(1 - sample_mask, target_len - current_len, replacement=False)
+            sample_mask[indices] = 1
+
+    if inverse_mask is True:
+        mask = 1 - mask
+
+    return mask
+
+
 def get_ids_keep(mask: torch.Tensor) -> torch.Tensor:
     B = mask.size(0)
     return (1 - mask).nonzero(as_tuple=True)[1].reshape(B, -1)
@@ -344,6 +431,37 @@ class BlockMasking(Masking):
             masks.append(mask.flatten())
 
         return torch.stack(masks, dim=0)
+
+
+class FixedSizeBlockMasking(Masking):
+    def __init__(
+        self,
+        input_size: tuple[int, int],
+        mask_ratio: float,
+        block_size: int,
+        mask_ratio_adjust: float = 0.0,
+        inverse_mask: bool = False,
+        device: Optional[torch.device] = None,
+    ) -> None:
+        self.h = input_size[0]
+        self.w = input_size[1]
+        self.mask_ratio = mask_ratio
+        self.block_size = block_size
+        self.mask_ratio_adjust = mask_ratio_adjust
+        self.inverse_mask = inverse_mask
+        self.device = device
+
+    def __call__(self, batch_size: int) -> torch.Tensor:
+        return fixed_size_block_mask(
+            batch_size,
+            self.h,
+            self.w,
+            self.mask_ratio,
+            self.block_size,
+            mask_ratio_adjust=self.mask_ratio_adjust,
+            inverse_mask=self.inverse_mask,
+            device=self.device,
+        )
 
 
 class RollBlockMasking(Masking):

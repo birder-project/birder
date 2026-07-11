@@ -7,6 +7,7 @@ Paper "Quantifying Attention Flow in Transformers", https://arxiv.org/abs/2005.0
 
 # Reference license: MIT
 
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
@@ -17,11 +18,14 @@ import torch
 from PIL import Image
 from torch import nn
 
+from birder.data.transforms.classification import RGBType
 from birder.introspection.base import InterpretabilityResult
 from birder.introspection.base import predict_class
 from birder.introspection.base import preprocess_image
 from birder.introspection.base import show_mask_on_image
 from birder.net.vit import Encoder
+
+logger = logging.getLogger(__name__)
 
 
 def compute_rollout(
@@ -140,6 +144,7 @@ class AttentionRollout:
         net: nn.Module,
         device: torch.device,
         transform: Callable[..., torch.Tensor],
+        rgb_stats: RGBType,
         attention_layer_name: str = "attn",
         discard_ratio: float = 0.9,
         head_fusion: Literal["mean", "max", "min"] = "max",
@@ -150,12 +155,16 @@ class AttentionRollout:
         self.net = net.eval()
         self.device = device
         self.transform = transform
+        self.rgb_stats = rgb_stats
         self.discard_ratio = discard_ratio
         self.head_fusion = head_fusion
         self.attention_gatherer = AttentionGatherer(net, attention_layer_name)
 
     def __call__(self, image: str | Path | Image.Image, target_class: Optional[int] = None) -> InterpretabilityResult:
-        input_tensor, rgb_img = preprocess_image(image, self.transform, self.device)
+        if target_class is not None:
+            logger.warning("target_class is ignored because attention rollout is class-agnostic")
+
+        input_tensor, rgb_img = preprocess_image(image, self.transform, self.device, self.rgb_stats)
 
         attentions, logits = self.attention_gatherer(input_tensor)
 

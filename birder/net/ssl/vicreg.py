@@ -61,14 +61,12 @@ class VICReg(SSLBaseNet):
         assert self.config is not None, "must set config"
 
         mlp_dim: int = self.config["mlp_dim"]
-        batch_size: int = self.config["batch_size"]
         sim_coeff: float = self.config["sim_coeff"]
         std_coeff: float = self.config["std_coeff"]
         cov_coeff: float = self.config["cov_coeff"]
         sync_batches: bool = self.config.get("sync_batches", False)
 
         self.num_features = mlp_dim
-        self.world_batch_size = batch_size * training_utils.get_world_size()
         self.sim_coeff = sim_coeff
         self.std_coeff = std_coeff
         self.cov_coeff = cov_coeff
@@ -103,8 +101,8 @@ class VICReg(SSLBaseNet):
         std_y = torch.sqrt(y.var(dim=0) + 0.0001)
         std_loss = torch.mean(F.relu(1 - std_x)) / 2 + torch.mean(F.relu(1 - std_y)) / 2
 
-        cov_x = (x.T @ x) / (self.world_batch_size - 1)
-        cov_y = (y.T @ y) / (self.world_batch_size - 1)
+        cov_x = (x.T @ x) / (x.size(0) - 1)
+        cov_y = (y.T @ y) / (y.size(0) - 1)
         cov_loss = off_diagonal(cov_x).pow_(2).sum().div(self.num_features) + off_diagonal(cov_y).pow_(2).sum().div(
             self.num_features
         )

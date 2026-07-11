@@ -93,6 +93,8 @@ class TestNetMIM(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
+            ("simmim", "rope_vit_moe_vs32_8e_2k_last2"),
+            ("simmim", "rope_vit_moe_reg1_vs32_8e_2k_last2"),
             ("simmim", "vit_moe_vs32_8e_2k_last2"),
             ("simmim", "vit_moe_reg1_vs32_8e_2k_last2"),
         ]
@@ -113,6 +115,8 @@ class TestNetMIM(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
+            ("crossmae", "rope_vit_moe_vs32_8e_2k_last2"),
+            ("mae_vit", "rope_vit_moe_vs32_8e_2k_last2"),
             ("crossmae", "vit_moe_vs32_8e_2k_last2"),
             ("mae_vit", "vit_moe_vs32_8e_2k_last2"),
         ]

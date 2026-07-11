@@ -89,6 +89,7 @@ from birder.net.rexnet_lite import ReXNet_Lite
 from birder.net.rope_flexivit import RoPE_FlexiViT
 from birder.net.rope_vit import RoPE_ViT
 from birder.net.rope_vit5 import RoPE_ViT5
+from birder.net.rope_vit_moe import RoPE_ViT_MoE
 from birder.net.sequencer2d import Sequencer2d
 from birder.net.shufflenet_v1 import ShuffleNet_v1
 from birder.net.shufflenet_v2 import ShuffleNet_v2
@@ -211,6 +212,7 @@ __all__ = [
     "RoPE_FlexiViT",
     "RoPE_ViT",
     "RoPE_ViT5",
+    "RoPE_ViT_MoE",
     "Sequencer2d",
     "ShuffleNet_v1",
     "ShuffleNet_v2",

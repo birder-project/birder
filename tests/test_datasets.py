@@ -55,6 +55,24 @@ class TestDatasets(unittest.TestCase):
         )
         self.assertEqual(size, 15)
 
+    def test_wds_args_from_multiple_info_with_different_splits(self) -> None:
+        with patch(
+            "birder.data.datasets.webdataset.fs_ops.read_wds_info",
+            side_effect=[
+                {"splits": {"train": {"num_samples": 10, "filenames": ["train-000000.tar"]}}},
+                {"splits": {"training": {"num_samples": 5, "filenames": ["training-000000.tar"]}}},
+            ],
+        ):
+            filenames, size = webdataset.wds_args_from_info(
+                ["/datasets/part1/_info.json", "/datasets/part2/_info.json"], ["train", "training"]
+            )
+
+        self.assertEqual(
+            filenames,
+            ["/datasets/part1/train-000000.tar", "/datasets/part2/training-000000.tar"],
+        )
+        self.assertEqual(size, 15)
+
     def test_wds_args_from_remote_info(self) -> None:
         with patch(
             "birder.data.datasets.webdataset.fs_ops.read_wds_info",

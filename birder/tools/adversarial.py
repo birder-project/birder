@@ -144,7 +144,7 @@ def run_attack(args: argparse.Namespace) -> None:
         torch.set_float32_matmul_precision("high")
 
     net, class_to_idx, rgb_stats, transform, reverse_transform = _load_model_and_transform(args, device)
-    label_names = [name for name, _idx in sorted(class_to_idx.items(), key=lambda item: item[1])]
+    label_names = lib.class_list_from_class_to_idx(class_to_idx)
     img = Image.open(args.image_path)
     input_tensor = transform(img).unsqueeze(dim=0).to(device)
 

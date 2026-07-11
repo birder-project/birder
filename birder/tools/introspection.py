@@ -8,6 +8,7 @@ import torch
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
+from birder.data.transforms.classification import RGBType
 from birder.data.transforms.classification import inference_preset
 from birder.introspection import AttentionRollout
 from birder.introspection import FeaturePCA
@@ -24,9 +25,13 @@ def _nhwc_reshape_transform(tensor: torch.Tensor) -> torch.Tensor:
 
 
 def _show_attn_rollout(
-    args: argparse.Namespace, net: BaseNet, transform: Callable[..., torch.Tensor], device: torch.device
+    args: argparse.Namespace,
+    net: BaseNet,
+    transform: Callable[..., torch.Tensor],
+    rgb_stats: RGBType,
+    device: torch.device,
 ) -> None:
-    ar = AttentionRollout(net, device, transform, args.attn_layer_name, args.discard_ratio, args.head_fusion)
+    ar = AttentionRollout(net, device, transform, rgb_stats, args.attn_layer_name, args.discard_ratio, args.head_fusion)
     result = ar(args.image_path)
     result.show()
 
@@ -36,6 +41,7 @@ def _show_transformer_attribution(
     net: BaseNet,
     class_to_idx: dict[str, int],
     transform: Callable[..., torch.Tensor],
+    rgb_stats: RGBType,
     device: torch.device,
 ) -> None:
     if args.target is not None:
@@ -43,7 +49,7 @@ def _show_transformer_attribution(
     else:
         target = None
 
-    ta = TransformerAttribution(net, device, transform, args.attn_layer_name)
+    ta = TransformerAttribution(net, device, transform, rgb_stats, args.attn_layer_name)
     result = ta(args.image_path, target_class=target)
     result.show()
 
@@ -53,6 +59,7 @@ def _show_guided_backprop(
     net: BaseNet,
     class_to_idx: dict[str, int],
     transform: Callable[..., torch.Tensor],
+    rgb_stats: RGBType,
     device: torch.device,
 ) -> None:
     if args.target is not None:
@@ -60,7 +67,7 @@ def _show_guided_backprop(
     else:
         target = None
 
-    guided_bp = GuidedBackprop(net, device, transform)
+    guided_bp = GuidedBackprop(net, device, transform, rgb_stats)
     result = guided_bp(args.image_path, target_class=target)
     result.show()
 
@@ -70,6 +77,7 @@ def _show_grad_cam(
     net: BaseNet,
     class_to_idx: dict[str, int],
     transform: Callable[..., torch.Tensor],
+    rgb_stats: RGBType,
     device: torch.device,
 ) -> None:
     if args.channels_last is True:
@@ -85,17 +93,19 @@ def _show_grad_cam(
     else:
         target = None
 
-    grad_cam = GradCAM(net, device, transform, target_layer, reshape_transform=reshape_transform)
+    grad_cam = GradCAM(net, device, transform, rgb_stats, target_layer, reshape_transform=reshape_transform)
     result = grad_cam(args.image_path, target_class=target)
     result.show()
 
 
 def _show_feature_pca(
-    args: argparse.Namespace, net: BaseNet, transform: Callable[..., torch.Tensor], device: torch.device
+    args: argparse.Namespace,
+    net: BaseNet,
+    transform: Callable[..., torch.Tensor],
+    rgb_stats: RGBType,
+    device: torch.device,
 ) -> None:
-    feature_pca = FeaturePCA(
-        net, device, transform, args.normalize_features, channels_last=args.channels_last, stage=args.stage
-    )
+    feature_pca = FeaturePCA(net, device, transform, rgb_stats, args.normalize_features, stage=args.stage)
     result = feature_pca(args.image_path)
     result.show()
 
@@ -151,6 +161,12 @@ def set_parser(subparsers: Any) -> None:
         "--size", type=int, nargs="+", metavar=("H", "W"), help="image size for inference (defaults to model signature)"
     )
     subparser.add_argument(
+        "--simple-crop",
+        default=False,
+        action="store_true",
+        help="use a simple crop that preserves aspect ratio but may trim parts of the image",
+    )
+    subparser.add_argument(
         "--target",
         type=str,
         help="target class, leave empty to use predicted class (gradcam, guided-backprop and transformer-attribution)",
@@ -163,7 +179,7 @@ def set_parser(subparsers: Any) -> None:
         "--channels-last",
         default=False,
         action="store_true",
-        help="channels last model, like swin (gradcam and feature-pca)",
+        help="channels last model, like swin (gradcam only)",
     )
     subparser.add_argument(
         "--normalize-features",
@@ -224,15 +240,15 @@ def main(args: argparse.Namespace) -> None:
     if args.size is None:
         args.size = lib.get_size_from_signature(model_info.signature)
 
-    transform = inference_preset(args.size, model_info.rgb_stats, 1.0)
+    transform = inference_preset(args.size, model_info.rgb_stats, 1.0, args.simple_crop)
 
     if args.method == "attn-rollout":
-        _show_attn_rollout(args, net, transform, device)
+        _show_attn_rollout(args, net, transform, model_info.rgb_stats, device)
     elif args.method == "feature-pca":
-        _show_feature_pca(args, net, transform, device)
+        _show_feature_pca(args, net, transform, model_info.rgb_stats, device)
     elif args.method == "gradcam":
-        _show_grad_cam(args, net, model_info.class_to_idx, transform, device)
+        _show_grad_cam(args, net, model_info.class_to_idx, transform, model_info.rgb_stats, device)
     elif args.method == "guided-backprop":
-        _show_guided_backprop(args, net, model_info.class_to_idx, transform, device)
+        _show_guided_backprop(args, net, model_info.class_to_idx, transform, model_info.rgb_stats, device)
     elif args.method == "transformer-attribution":
-        _show_transformer_attribution(args, net, model_info.class_to_idx, transform, device)
+        _show_transformer_attribution(args, net, model_info.class_to_idx, transform, model_info.rgb_stats, device)

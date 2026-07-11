@@ -620,7 +620,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             {
                 "training_samples": len(training_dataset),
                 "validation_samples": len(validation_dataset),
-                "classes": list(class_to_idx.keys()),
+                "classes": lib.class_list_from_class_to_idx(class_to_idx),
             },
         )
 

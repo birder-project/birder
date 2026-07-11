@@ -522,7 +522,7 @@ class DINOv2Student(SSLBaseNet):
         mask: torch.Tensor,
         upper_bound: int,
         mask_indices_list: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> dict[str, torch.Tensor]:
         n_masked_patches = mask_indices_list.size(0)
 
         global_out = self.backbone.masked_encoding_retention(global_crops, mask, self.mask_token, return_keys="all")
@@ -530,7 +530,20 @@ class DINOv2Student(SSLBaseNet):
         global_features = global_features.flatten(2).transpose(1, 2)
         global_embedding = global_out["embedding"]
 
-        local_embedding = self.backbone.embedding(local_crops)
+        moe_auxiliary_loss: Optional[torch.Tensor] = None
+        if "auxiliary_losses" in global_out:
+            moe_auxiliary_loss = global_out["auxiliary_losses"]["auxiliary_loss"]
+
+        local_features = self.backbone.forward_features(local_crops)
+        if isinstance(local_features, tuple):
+            local_features, local_aux_losses = local_features
+            local_moe_auxiliary_loss = 0.1 * local_aux_losses["auxiliary_loss"]
+            if moe_auxiliary_loss is None:
+                moe_auxiliary_loss = local_moe_auxiliary_loss
+            else:
+                moe_auxiliary_loss = moe_auxiliary_loss + local_moe_auxiliary_loss
+
+        local_embedding = self.backbone.embedding_from_features(local_features)
 
         global_embedding_after_head = self.dino_head(global_embedding)
         local_embedding_after_head = self.dino_head(local_embedding)
@@ -546,12 +559,16 @@ class DINOv2Student(SSLBaseNet):
         else:
             global_masked_patch_tokens_after_head = self.ibot_head(buffer_tensor_patch_tokens)[:n_masked_patches]
 
-        return (
-            global_embedding,
-            global_embedding_after_head,
-            local_embedding_after_head,
-            global_masked_patch_tokens_after_head,
-        )
+        outputs = {
+            "global_embedding": global_embedding,
+            "global_embedding_after_head": global_embedding_after_head,
+            "local_embedding_after_head": local_embedding_after_head,
+            "global_masked_patch_tokens_after_head": global_masked_patch_tokens_after_head,
+        }
+        if moe_auxiliary_loss is not None:
+            outputs["moe_auxiliary_loss"] = moe_auxiliary_loss
+
+        return outputs
 
 
 class DINOv2Teacher(SSLBaseNet):
@@ -601,7 +618,12 @@ class DINOv2Teacher(SSLBaseNet):
 
     # pylint: disable=arguments-differ
     def forward(  # type: ignore[override]
-        self, x: torch.Tensor, n_crops: int, upper_bound: int, mask_indices_list: torch.Tensor
+        self,
+        x: torch.Tensor,
+        n_crops: int,
+        upper_bound: int,
+        mask_indices_list: torch.Tensor,
+        target_feature_size: Optional[tuple[int, int]] = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         n_masked_patches = mask_indices_list.size(0)
 
@@ -610,6 +632,9 @@ class DINOv2Teacher(SSLBaseNet):
 
         out = self.backbone.masked_encoding_retention(x, mask=mask, return_keys="all")
         features = out["features"]
+        if target_feature_size is not None:
+            features = F.interpolate(features, size=target_feature_size, mode="bilinear", align_corners=False)
+
         features = features.flatten(2).transpose(1, 2)
         embedding = out["embedding"]
 

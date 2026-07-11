@@ -792,7 +792,11 @@ def add_training_data_args(
     else:
         group.add_argument("--wds-size", type=int, metavar="N", help="size of the wds")
         group.add_argument(
-            "--wds-split", type=str, default="training", metavar="NAME", help="wds dataset split to load"
+            "--wds-split",
+            type=str,
+            action="append",
+            metavar="NAME",
+            help="wds dataset split to load (default: training), repeat once per --wds-info to select different splits",
         )
 
     if wds_extra_shuffle is True:
@@ -1021,6 +1025,21 @@ def common_args_validation(args: argparse.Namespace) -> None:
         # WDS with dataloader args
         if hasattr(args, "ra_sampler") is True and args.wds is True and args.ra_sampler is True:
             raise ValidationError("Repeated Augmentation (--ra-sampler) not supported with WebDataset (--wds)")
+
+        if args.wds is True and args.wds_info is not None and hasattr(args, "wds_split") is True:
+            wds_info_count = 1 if isinstance(args.wds_info, str) else len(args.wds_info)
+            if args.wds_split is None:
+                wds_split_count = 0
+            elif isinstance(args.wds_split, str):
+                wds_split_count = 1
+            else:
+                wds_split_count = len(args.wds_split)
+
+            if wds_split_count not in {0, 1, wds_info_count}:
+                raise ValidationError(
+                    "--wds-split must be omitted, provided once, or provided once per --wds-info, "
+                    f"got {wds_split_count} split values for {wds_info_count} info files"
+                )
 
         # Unsupervised training data
         if isinstance(args.data_path, list):

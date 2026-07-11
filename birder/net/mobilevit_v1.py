@@ -40,7 +40,8 @@ class MobileVitBlock(nn.Module):
         patch_size: tuple[int, int],
         num_heads: int,
         attn_drop: float,
-        drop: float = 0.0,
+        dropout: float = 0.0,
+        projection_dropout: float = 0.0,
         drop_path_rate: float = 0.0,
     ) -> None:
         super().__init__()
@@ -62,8 +63,9 @@ class MobileVitBlock(nn.Module):
                     num_heads=num_heads,
                     hidden_dim=transformer_dim,
                     mlp_dim=mlp_dim,
-                    dropout=drop,
+                    dropout=dropout,
                     attention_dropout=attn_drop,
+                    projection_dropout=projection_dropout,
                     drop_path=drop_path_rate,
                     activation_layer=nn.SiLU,
                     norm_layer_eps=1e-5,
@@ -153,7 +155,6 @@ class MobileViT_v1(BaseNet):
         assert self.config is not None, "must set config"
 
         patch_size = (2, 2)
-        attn_drop = 0.1
         depths = [2, 4, 3]
         strides = [1, 2, 1, 1]
         dims: list[int] = self.config["dims"]
@@ -162,6 +163,9 @@ class MobileViT_v1(BaseNet):
         last_dim: int = self.config["last_dim"]
         expansion: int = self.config["expansion"]
         self.head_bias = self.config.get("head_bias", False)
+        dropout: float = self.config.get("dropout", 0.0)
+        attention_dropout: float = self.config.get("attention_dropout", 0.1)
+        projection_dropout: float = self.config.get("projection_dropout", 0.0)
 
         self.stem = Conv2dNormActivation(
             self.input_channels,
@@ -221,7 +225,9 @@ class MobileViT_v1(BaseNet):
                     mlp_dim=dims[idx] * k,
                     patch_size=patch_size,
                     num_heads=4,
-                    attn_drop=attn_drop,
+                    attn_drop=attention_dropout,
+                    dropout=dropout,
+                    projection_dropout=projection_dropout,
                 )
             )
 

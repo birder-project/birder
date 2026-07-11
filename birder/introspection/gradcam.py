@@ -19,6 +19,7 @@ from PIL import Image
 from torch import nn
 from torch.utils.hooks import RemovableHandle
 
+from birder.data.transforms.classification import RGBType
 from birder.introspection.base import InterpretabilityResult
 from birder.introspection.base import predict_class
 from birder.introspection.base import preprocess_image
@@ -87,18 +88,20 @@ class GradCAM:
         net: nn.Module,
         device: torch.device,
         transform: Callable[..., torch.Tensor],
+        rgb_stats: RGBType,
         target_layer: nn.Module,
         reshape_transform: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
     ) -> None:
         self.net = net.eval()
         self.device = device
         self.transform = transform
+        self.rgb_stats = rgb_stats
         self.target_layer = target_layer
 
         self.activation_capture = ActivationCapture(net, target_layer, reshape_transform)
 
     def __call__(self, image: str | Path | Image.Image, target_class: Optional[int] = None) -> InterpretabilityResult:
-        input_tensor, rgb_img = preprocess_image(image, self.transform, self.device)
+        input_tensor, rgb_img = preprocess_image(image, self.transform, self.device, self.rgb_stats)
         input_tensor.requires_grad_(True)
 
         # Forward pass

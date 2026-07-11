@@ -11,6 +11,7 @@ from torchvision.datasets import CocoDetection
 from torchvision.datasets import wrap_dataset_for_transforms_v2
 from torchvision.transforms.v2 import functional as F
 
+from birder.common.lib import class_list_from_class_to_idx
 from birder.data.transforms.mosaic import mosaic_fixed_grid
 from birder.data.transforms.mosaic import mosaic_random_center
 
@@ -131,7 +132,7 @@ def build_coco_category_remap(
 
 def _mapped_class_to_idx(class_to_idx: dict[str, int], label_mapping: dict[str, str]) -> dict[str, int]:
     mapped_class_to_idx: dict[str, int] = {}
-    for class_name, _ in sorted(class_to_idx.items(), key=lambda item: item[1]):
+    for class_name in class_list_from_class_to_idx(class_to_idx):
         if class_name not in label_mapping:
             raise ValueError(f"Missing label mapping for class '{class_name}'")
 
@@ -171,7 +172,9 @@ class CocoBase(torch.utils.data.Dataset):
     ) -> None:
         super().__init__()
         dataset = CocoDetection(root, ann_file, transforms=transforms)
-        self.class_to_idx = {cat["name"]: cat["id"] for cat in dataset.coco.cats.values()}
+        self.class_to_idx = {
+            cat["name"]: cat["id"] for cat in sorted(dataset.coco.cats.values(), key=lambda item: item["id"])
+        }
 
         # The transforms v2 wrapper causes open files count to "leak"
         # It seems due to the Pythonic COCO objects, maybe related to

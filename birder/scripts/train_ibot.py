@@ -574,10 +574,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         for i, (_, (images, masks), _) in batch_iter:
             global_iter = ((epoch - 1) * epoch_num_batches) + i
             images = [img.to(device, dtype=model_dtype, non_blocking=True) for img in images]
-            if args.pred_start_epoch >= epoch:
-                masks = None
-            else:
+            student_masks: Optional[torch.Tensor] = None
+            loss_masks: Optional[torch.Tensor] = None
+            if args.pred_start_epoch < epoch:
                 masks = masks.to(device, dtype=model_dtype, non_blocking=True)
+                loss_masks = masks.transpose(0, 1).flatten(2).contiguous()
+                student_masks = loss_masks.flatten(0, 1)
 
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
             sync_context = no_sync_cm if optimizer_update is False else nullcontext
@@ -593,7 +595,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     with torch.no_grad():
                         teacher_embedding, teacher_features = teacher(torch.concat(images[:2], dim=0), None)
 
-                    student_embedding, student_features = student(torch.concat(images[:2], dim=0), masks)
+                    student_embedding, student_features = student(torch.concat(images[:2], dim=0), student_masks)
 
                     # Local views
                     student_local_embedding, _ = student(torch.concat(images[2:], dim=0), None, return_keys="embedding")
@@ -604,7 +606,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         teacher_embedding,
                         teacher_features,
                         student_local_embedding,
-                        masks.reshape(batch_size * 2, -1),
+                        loss_masks,
                         epoch - 1,
                     )["all"]
 

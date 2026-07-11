@@ -988,6 +988,7 @@ def load_pretrained_model(
             path=dst,
             config=custom_config,
             tag=model_metadata["net"].get("tag", None),
+            epoch=model_metadata["net"].get("epoch", None),
             reparameterized=model_metadata["net"].get("reparameterized", False),
             inference=inference,
             dtype=dtype,
@@ -1005,6 +1006,7 @@ def load_pretrained_model(
             backbone=model_metadata["backbone"]["network"],
             backbone_tag=model_metadata["backbone"].get("tag", None),
             backbone_reparameterized=model_metadata["backbone"].get("reparameterized", False),
+            epoch=model_metadata["net"].get("epoch", None),
             inference=inference,
             dtype=dtype,
             **format_args,
@@ -1082,6 +1084,8 @@ def load_pretrained_model_and_transform(
         detection_args = {} if detection_kwargs is None else dict(detection_kwargs)
         detection_args.setdefault("dynamic_size", model_info.signature["dynamic"])
         transform = InferenceTransform(size, model_info.rgb_stats, **detection_args)
+        if detection_args["dynamic_size"] is True:
+            net.set_dynamic_size()
     else:
         classification_args = {} if classification_kwargs is None else dict(classification_kwargs)
         transform = inference_preset(size, model_info.rgb_stats, **classification_args)

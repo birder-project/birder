@@ -30,6 +30,7 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import training_cli
 from birder.common import training_utils
+from birder.common.lib import class_list_from_class_to_idx
 from birder.common.lib import format_duration
 from birder.common.lib import get_network_name
 from birder.conf import settings
@@ -112,7 +113,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     logger.debug(f"Using RGB stats: {rgb_stats}")
 
     class_to_idx = {"0": 0, "90": 1, "180": 2, "270": 3}
-    angles = [int(d) for d in class_to_idx]
+    angles = [int(class_name) for class_name in class_list_from_class_to_idx(class_to_idx)]
 
     if overrides.training_transform is not None:
         training_transform = overrides.training_transform(args)

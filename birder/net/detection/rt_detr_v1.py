@@ -106,7 +106,8 @@ def get_contrastive_denoising_training_group(
         known_bbox = known_bbox + rand_part * diff
         known_bbox.clip_(min=0.0, max=1.0)
         input_query_bbox = box_ops.box_convert(known_bbox, in_fmt="xyxy", out_fmt="cxcywh")
-        input_query_bbox = inverse_sigmoid(input_query_bbox)
+
+    input_query_bbox = inverse_sigmoid(input_query_bbox)
 
     # Embed class labels
     input_query_class = class_embed(input_query_class)
@@ -529,15 +530,29 @@ class RT_DETRDecoder(nn.Module):
     def clear_cache(self) -> None:
         self._anchor_cache.clear()
 
+    @staticmethod
+    def _get_valid_ratio(mask: torch.Tensor) -> torch.Tensor:
+        _, H, W = mask.size()
+        valid_h = torch.sum(~mask[:, :, 0], dim=1)
+        valid_w = torch.sum(~mask[:, 0, :], dim=1)
+
+        return torch.stack([valid_w.float() / W, valid_h.float() / H], dim=-1)
+
     def _generate_anchors(
         self,
         spatial_shapes: list[list[int]],
+        valid_ratios: Optional[torch.Tensor] = None,
         grid_size: float = 0.05,
         device: torch.device = torch.device("cpu"),
         dtype: torch.dtype = torch.float32,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         cache_key: Optional[str] = None
-        use_cache = self.use_cache is True and torch.jit.is_tracing() is False and torch.jit.is_scripting() is False
+        use_cache = (
+            valid_ratios is None
+            and self.use_cache is True
+            and torch.jit.is_tracing() is False
+            and torch.jit.is_scripting() is False
+        )
         if use_cache is True:
             spatial_key = ",".join(f"{int(h)}x{int(w)}" for h, w in spatial_shapes)
             cache_key = f"{spatial_key}_{grid_size}_{device}_{dtype}"
@@ -554,9 +569,14 @@ class RT_DETRDecoder(nn.Module):
             )
             grid_xy = torch.stack([grid_x, grid_y], dim=-1)
             valid_wh = torch.tensor([w, h], dtype=dtype, device=device)
-            grid_xy = (grid_xy.unsqueeze(0) + 0.5) / valid_wh
+            if valid_ratios is None:
+                grid_xy = (grid_xy.unsqueeze(0) + 0.5) / valid_wh
+            else:
+                valid_wh = valid_wh * valid_ratios[:, lvl]
+                grid_xy = (grid_xy.unsqueeze(0) + 0.5) / valid_wh[:, None, None, :]
+
             wh = torch.ones_like(grid_xy) * grid_size * (2.0**lvl)
-            anchors.append(torch.concat([grid_xy, wh], dim=-1).reshape(-1, h * w, 4))
+            anchors.append(torch.concat([grid_xy, wh], dim=-1).reshape(grid_xy.size(0), h * w, 4))
 
         anchors = torch.concat(anchors, dim=1)
         eps = 0.01
@@ -573,9 +593,12 @@ class RT_DETRDecoder(nn.Module):
         self,
         memory: torch.Tensor,
         spatial_shapes: list[list[int]],
+        valid_ratios: Optional[torch.Tensor] = None,
         memory_padding_mask: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        anchors, valid_mask = self._generate_anchors(spatial_shapes, device=memory.device, dtype=memory.dtype)
+        anchors, valid_mask = self._generate_anchors(
+            spatial_shapes, valid_ratios=valid_ratios, device=memory.device, dtype=memory.dtype
+        )
         if memory_padding_mask is not None:
             valid_mask = valid_mask & ~memory_padding_mask.unsqueeze(-1)
 
@@ -629,10 +652,14 @@ class RT_DETRDecoder(nn.Module):
 
         memory = torch.concat(memory, dim=1)
         memory_padding_mask = torch.concat(mask_flatten, dim=1) if mask_flatten else None
+        valid_ratios: Optional[torch.Tensor] = None
+        if padding_mask is not None:
+            valid_ratios = torch.stack([self._get_valid_ratio(mask) for mask in padding_mask], dim=1)
+            valid_ratios = valid_ratios.to(device=memory.device, dtype=memory.dtype)
 
         # Get decoder input (query selection)
         target, init_ref_points_unact, enc_topk_bboxes, enc_topk_logits = self._get_decoder_input(
-            memory, spatial_shapes, memory_padding_mask
+            memory, spatial_shapes, valid_ratios, memory_padding_mask
         )
 
         # Concatenate denoising queries if provided
@@ -653,7 +680,13 @@ class RT_DETRDecoder(nn.Module):
             zip(self.layers, self.bbox_embed, self.class_embed)
         ):
             query_pos = self.query_pos_head(reference_points_detached)
-            reference_points_input = reference_points_detached.unsqueeze(2).expand(-1, -1, len(spatial_shapes), -1)
+            if valid_ratios is None:
+                reference_points_input = reference_points_detached.unsqueeze(2).expand(-1, -1, len(spatial_shapes), -1)
+            else:
+                reference_points_input = (
+                    reference_points_detached[:, :, None] * torch.concat([valid_ratios, valid_ratios], dim=-1)[:, None]
+                )
+
             target = decoder_layer(
                 target,
                 query_pos,

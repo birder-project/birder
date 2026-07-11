@@ -124,14 +124,14 @@ def weighted_boxes_fusion(
     labels_all: list[torch.Tensor] = []
     weights_all: list[torch.Tensor] = []
     for boxes, scores, labels, weight in zip(boxes_list, scores_list, labels_list, weights):
-        if boxes.numel() == 0:
+        if boxes.numel() == 0 or weight == 0:
             continue
 
         boxes_tensor = boxes.detach().to(dtype=torch.float32)
         scores_tensor = scores.detach().to(dtype=torch.float32)
         labels_tensor = labels.detach().to(dtype=torch.int64)
 
-        keep = scores_tensor >= skip_box_thr
+        keep = torch.logical_and(scores_tensor >= skip_box_thr, scores_tensor > 0)
         if not keep.any():
             continue
 

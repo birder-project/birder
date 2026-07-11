@@ -72,7 +72,7 @@ def _resolve_label_mapping(
 def save_output(
     output_path: Path, sample_paths: list[str], class_to_idx: dict[str, int], detections: list[dict[str, torch.Tensor]]
 ) -> None:
-    detection_list = [{k: v.cpu().numpy().tolist() for k, v in detection.items()} for detection in detections]
+    detection_list = [{k: v.cpu().tolist() for k, v in detection.items()} for detection in detections]
     output = dict(zip(sample_paths, detection_list))
     output["class_to_idx"] = class_to_idx
     logger.info(f"Saving output at {output_path}")
@@ -663,8 +663,10 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--coco-use-ids requires --coco-json-path")
     if args.coco_use_ids is True and args.label_mapping is not None:
         raise cli.ValidationError("--coco-use-ids cannot be used with --label-mapping")
-    if args.label_mapping is not None and args.coco_json_path is None and args.wds is False:
-        raise cli.ValidationError("--label-mapping requires --coco-json-path or --wds")
+    if args.label_mapping is not None and args.wds is True:
+        raise cli.ValidationError("--label-mapping cannot be used with --wds")
+    if args.label_mapping is not None and args.coco_json_path is None:
+        raise cli.ValidationError("--label-mapping requires --coco-json-path")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

@@ -237,6 +237,7 @@ class EncoderBlock(nn.Module):
         mlp_dim: Optional[int],
         dropout: float,
         attention_dropout: float,
+        projection_dropout: float,
         drop_path: float,
         activation_layer: Callable[..., nn.Module],
         layer_scale_init_value: Optional[float] = None,
@@ -260,7 +261,7 @@ class EncoderBlock(nn.Module):
             hidden_dim,
             num_heads=num_heads,
             attn_drop=attention_dropout,
-            proj_drop=0.0,
+            proj_drop=projection_dropout,
             qkv_bias=qkv_bias,
             qk_norm=qk_norm,
             attn_norm=attn_norm,
@@ -312,6 +313,7 @@ class Encoder(nn.Module):
         mlp_dim: int,
         dropout: float,
         attention_dropout: float,
+        projection_dropout: float,
         dpr: list[float],
         pre_norm: bool = False,
         qkv_bias: bool = True,
@@ -362,6 +364,7 @@ class Encoder(nn.Module):
                     mlp_dim,
                     dropout,
                     attention_dropout,
+                    projection_dropout,
                     dpr[i],
                     activation_layer=activation_layer,
                     layer_scale_init_value=layer_scale_init_value,
@@ -477,8 +480,6 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         assert self.config is not None, "must set config"
 
         image_size = self.size
-        attention_dropout = 0.0
-        dropout = 0.0
         abs_pos_embed: bool = self.config.get("abs_pos_embed", True)
         pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", True)
         patch_size: int = self.config["patch_size"]
@@ -507,6 +508,9 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         soft_moe_num_slots: int = self.config.get("soft_moe_num_slots", 1)
         act_layer_type: Optional[str] = self.config.get("act_layer_type", None)  # Default according to mlp type
         out_indices: Optional[list[int]] = self.config.get("out_indices", None)
+        dropout: float = self.config.get("dropout", 0.0)
+        attention_dropout: float = self.config.get("attention_dropout", 0.0)
+        projection_dropout: float = self.config.get("projection_dropout", 0.0)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         if norm_layer_type == "LayerNorm":
@@ -594,6 +598,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             mlp_dim,
             dropout,
             attention_dropout,
+            projection_dropout,
             dpr,
             pre_norm=pre_norm,
             qkv_bias=qkv_bias,
@@ -651,9 +656,10 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             EncoderBlock,
             16,
             mlp_dim=None,
-            dropout=0,
-            attention_dropout=0,
-            drop_path=0,
+            dropout=0.0,
+            attention_dropout=0.0,
+            projection_dropout=0.0,
+            drop_path=0.0,
             activation_layer=act_layer,
             norm_layer=norm_layer,
             norm_layer_eps=norm_layer_eps,
@@ -1058,7 +1064,7 @@ registry.register_weights(
                 "sha256": "7fc5b342347d8349aaf5f069a47efd441b646f8542821ed2e30b47a7da72917a",
             },
         },
-        "net": {"network": "vit_l16", "tag": "mim"},
+        "net": {"network": "vit_l16", "tag": "mim", "epoch": 200},
     },
 )
 registry.register_weights(
@@ -1076,7 +1082,7 @@ registry.register_weights(
                 "sha256": "9b5c4e2538ea40edd60d8831d3807b543290dc2db44d537e60e44a341b47e54e",
             },
         },
-        "net": {"network": "vit_l16", "tag": "mim"},
+        "net": {"network": "vit_l16", "tag": "mim", "epoch": 400},
     },
 )
 registry.register_weights(  # BioCLIP v2: https://arxiv.org/abs/2505.23883
@@ -1257,7 +1263,7 @@ registry.register_weights(
                 "sha256": "c7ec433c01e1dc0d6100cafc29fa88155a0d65f4b42afa9cc252b77485a566a7",
             },
         },
-        "net": {"network": "vit_reg4_b16", "tag": "mim"},
+        "net": {"network": "vit_reg4_b16", "tag": "mim", "epoch": 200},
     },
 )
 registry.register_weights(
@@ -1275,7 +1281,7 @@ registry.register_weights(
                 "sha256": "b0e5e2b24ea7a8d2be246df43c9d8092354f6ee81e88c6cdd7c52d8e38ed44a4",
             },
         },
-        "net": {"network": "vit_reg4_b16", "tag": "mim"},
+        "net": {"network": "vit_reg4_b16", "tag": "mim", "epoch": 300},
     },
 )
 registry.register_weights(

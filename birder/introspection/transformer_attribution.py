@@ -16,6 +16,7 @@ import torch
 from PIL import Image
 from torch import nn
 
+from birder.data.transforms.classification import RGBType
 from birder.introspection.base import InterpretabilityResult
 from birder.introspection.base import predict_class
 from birder.introspection.base import preprocess_image
@@ -40,9 +41,8 @@ def compute_attribution_rollout(
         for attn_weights, output_grad in attributions:
             # Compute token importance from output gradient norm across embedding dimension
             token_importance = output_grad.norm(dim=-1, keepdim=True)
-            token_importance = token_importance.transpose(-1, -2)
 
-            # Weight attention patterns by token importance
+            # Weight each query token's attention pattern by its importance
             weighted_attn = attn_weights * token_importance.unsqueeze(1)
 
             # Fuse attention heads and apply non-negativity constraint
@@ -132,15 +132,17 @@ class TransformerAttribution:
         net: nn.Module,
         device: torch.device,
         transform: Callable[..., torch.Tensor],
+        rgb_stats: RGBType,
         attention_layer_name: str = "attn",
     ) -> None:
         self.net = net.eval()
         self.device = device
         self.transform = transform
+        self.rgb_stats = rgb_stats
         self.gatherer = AttributionGatherer(net, attention_layer_name)
 
     def __call__(self, image: str | Path | Image.Image, target_class: Optional[int] = None) -> InterpretabilityResult:
-        input_tensor, rgb_img = preprocess_image(image, self.transform, self.device)
+        input_tensor, rgb_img = preprocess_image(image, self.transform, self.device, self.rgb_stats)
         input_tensor.requires_grad_(True)
 
         self.net.zero_grad()

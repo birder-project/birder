@@ -215,7 +215,23 @@ python train.py --network resnet_v2_50 \
 
 The info file contains metadata about the dataset, including shard locations and sizes. If you specify `--wds-train-size` or `--wds-val-size`, these values will take precedence over what's in the info file.
 
-Note: A class file must always be provided when using WebDataset. This file maps class indices to class names.
+Note: A class file must be provided when using WebDataset for supervised training. This file maps class indices to class names.
+
+Self-supervised and masked image modeling training can merge multiple info files.
+A single `--wds-split` applies to every info file. To select a different split from each file, repeat `--wds-split` in the same order as `--wds-info`:
+
+```sh
+python -m birder.scripts.train_mim \
+    --network crossmae \
+    --encoder vit_b16 \
+    --wds \
+    --wds-info /datasets/some_dataset/_info.json \
+    --wds-split train \
+    --wds-info /datasets/another_dataset/_info.json \
+    --wds-split training
+```
+
+If `--wds-split` is omitted, `training` is used for every info file. The number of explicit splits must be either one or equal to the number of info files.
 
 #### Mixed Precision Training
 

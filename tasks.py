@@ -339,7 +339,7 @@ def gen_classes_file(_ctx):
 
     class_list = _class_list()
     class_to_idx = fs_ops.read_class_file(settings.DETECTION_DATA_PATH.joinpath(settings.CLASS_LIST_NAME))
-    if class_list == list(class_to_idx.keys()):
+    if class_list == lib.class_list_from_class_to_idx(class_to_idx):
         echo("No new species")
     else:
         # Remove "Unknown" class (not required in detection)

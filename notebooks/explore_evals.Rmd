@@ -69,7 +69,7 @@ MARK_EPOCHS = None
 MODEL_LABELS = {
     # "vit_reg4_so150m_p14_ls_dino-v2-bio": "BIO-DINO",
     # "vit_reg1_s14_ls_dino-v2-dist-bio": "BIO-DINO-DIST",
-    "vit_s14_soft_moe_32e_6s_avg_dino-v2-dist-bio": "BIO-DINO-DIST-SMoE",
+    "rope_deit3_m14_dino-v2-dist-bio": "BIO-DINO-DIST-M14",
     # References
     "convnext_v1_large_fb-imagenet22k": "ConvNeXt Large",
     "rope_cs_vit_reg4_b16_nape_ls_c1_dino-v3-lvd1689m": "DINOv3 B16",
@@ -83,7 +83,7 @@ MODEL_LABELS = {
     "vit_l14_pn_quick_gelu_openai-clip": "OpenAI CLIP L14",
     "vit_reg4_b14_nps_ls_dino-v2-lvd142m": "DINOv2 B14",
     "vit_reg4_l14_nps_ls_dino-v2-lvd142m": "DINOv2 L14",
-    "vit_so400m_p14_ap_c1_siglip-v2-webli": "SigLIP 2 SO400M",
+    "vit_so400m_p14_ap_siglip-v2-webli": "SigLIP 2 SO400M",
     "vit_reg1_b14_tips-v2": "TIPS v2 B14",
 }
 METRIC_NAMES = {

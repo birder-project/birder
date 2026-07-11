@@ -357,13 +357,17 @@ def predict(args: argparse.Namespace) -> None:
             compile_mode=args.compile_mode,
         )
     elif args.compile is True:
-        net = torch.compile(net, mode=args.compile_mode)
+        net = torch.compile(net, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
         if args.save_embeddings is True:
-            net.embedding = torch.compile(net.embedding, mode=args.compile_mode)
+            net.embedding = torch.compile(net.embedding, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
         elif args.save_features is True:
-            net.forward_features = torch.compile(net.forward_features, mode=args.compile_mode)
+            net.forward_features = torch.compile(
+                net.forward_features, fullgraph=args.compile_fullgraph, mode=args.compile_mode
+            )
         elif args.save_detection_features is True:
-            net.detection_features = torch.compile(net.detection_features, mode=args.compile_mode)
+            net.detection_features = torch.compile(
+                net.detection_features, fullgraph=args.compile_fullgraph, mode=args.compile_mode
+            )
 
     if args.size is None:
         args.size = lib.get_size_from_signature(signature)
@@ -461,7 +465,7 @@ def predict(args: argparse.Namespace) -> None:
     embeddings_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_embeddings.{args.output_format}")
     logits_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_logits.{args.output_format}")
     output_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_output.{args.output_format}")
-    label_names: Optional[list[str]] = list(class_to_idx.keys())
+    label_names: Optional[list[str]] = lib.class_list_from_class_to_idx(class_to_idx)
     if args.save_logits or args.save_output:
         if label_names is not None and len(label_names) == 0:
             logger.warning("No class labels found, using numeric indices instead")
@@ -678,6 +682,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pt2", default=False, action="store_true", help="load standardized model")
     parser.add_argument("--st", "--safetensors", default=False, action="store_true", help="load Safetensors weights")
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
+    parser.add_argument("--compile-fullgraph", default=False, action="store_true", help="compile using fullgraph=True")
     parser.add_argument(
         "--compile-mode", type=str, choices=list(torch._inductor.list_mode_options().keys()), help="torch.compile mode"
     )
@@ -830,6 +835,10 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError(f"--center-crop must be in range of (0, 1.0], got {args.center_crop}")
     if args.parallel is True and args.gpu is False:
         raise cli.ValidationError("--parallel requires --gpu to be set")
+    if args.compile_fullgraph is True and args.compile is False:
+        raise cli.ValidationError("--compile-fullgraph requires --compile")
+    if args.parallel is True and args.compile_fullgraph is True:
+        raise cli.ValidationError("--compile-fullgraph is not supported with --parallel")
     if args.compile_mode is not None and args.compile is False:
         raise cli.ValidationError("--compile-mode requires --compile")
     if args.save_results is True and args.save_sparse_results is True:

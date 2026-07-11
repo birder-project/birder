@@ -155,6 +155,10 @@ def show_iterator(args: argparse.Namespace) -> None:
         elif args.masking == "block":
             max_patches = int(args.mask_ratio * mask_size[0] * mask_size[1])
             mask_generator = masking.BlockMasking(mask_size, 4, max_patches, 0.33, 3.33)
+        elif args.masking == "fixed-size-block":
+            mask_generator = masking.FixedSizeBlockMasking(
+                mask_size, args.mask_ratio, block_size=3, mask_ratio_adjust=0.07, inverse_mask=True
+            )
         elif args.masking == "roll-block":
             num_masking_patches = int(args.mask_ratio * mask_size[0] * mask_size[1])
             mask_generator = masking.RollBlockMasking(mask_size, num_masking_patches=num_masking_patches)
@@ -226,7 +230,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--masking",
         type=str,
-        choices=["uniform", "block", "roll-block", "inverse-roll"],
+        choices=["uniform", "block", "fixed-size-block", "roll-block", "inverse-roll"],
         help="masking strategy to apply",
     )
     subparser.add_argument("--mask-ratio", type=float, default=0.5, help="mask ratio")

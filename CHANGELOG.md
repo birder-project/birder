@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.6.5 - 2026-07-11
+
+### Added
+
+- **Fixed-Size Block Masking**: Added masking based on overlapping fixed-size square blocks, with exact mask-count adjustment, inverse masking and rectangular-grid support.
+- **Sparse MoE SSL**: Added opt-in `--moe-aux-loss` support to DINOv2, DINOv2 distillation and Franca training.
+- **Sparse MoE EVA MIM**: Added opt-in `--moe-aux-loss` support to EVA training.
+- **Sparse MoE NEPA**: Added opt-in `--moe-aux-loss` support to NEPA training.
+- **Sparse MoE ViT**: Added causal attention support to ViT-MoE.
+- **Sparse MoE ViT Attention Masks**: Added optional `attn_mask` support to ViT-MoE `forward_features()`.
+- **Sparse MoE ViT Gradient Checkpointing**: Added gradient checkpointing support to ViT-MoE and RoPE ViT-MoE.
+- **Sparse MoE RoPE ViT**: Added RoPE V-MoE model variants.
+
+### Changed
+
+- **Compatibility**: Tested with PyTorch 2.13.
+- **DINOv2 Distillation**: Interpolate teacher features, not input crops, for mixed-stride distillation.
+- **WebDataset Split Selection**: Repeated `--wds-split` options can now select splits individually for multiple `--wds-info` files during SSL and MIM training.
+
+### Fixed
+
+- **Attention Bias Interpolation**: Interpolate each attention head independently when resizing spatial attention-bias tables.
+- **Class Index Ordering**: Derive ordered class-name lists from assigned indices across evaluation, prediction, packing, metadata and visualization workflows instead of relying on mapping insertion order.
+- **Classification Result Metadata**: Preserve class names containing commas and quotes when saving and loading CSV results.
+- **Data2Vec2 Upstream Fidelity**: Aligned training behavior more closely with upstream:
+    - **CLS Prediction**: Removed the extra student projection head.
+    - **Decoder Residuals**: Restored the first residual when encoder and decoder shapes match.
+    - **Teacher EMA**: Linear annealing on optimizer steps, with optional end-step truncation.
+    - **Loss Scaling**: Applied dimension-normalized patch and CLS losses.
+    - **Masking**: Replaced rolled rectangles with exact-count fixed-size blocks.
+    - **Intentional Divergence**: CLS loss remains sample-averaged to keep its weight independent of batch and clone sizes.
+- **Detection Fixes**:
+    - **RetinaNet Simple-FPN Levels**: Generate P6 and P7 from the final Simple-FPN level to preserve distinct, successively downsampled pyramid scales.
+    - **RetinaNet L1 Regression**: Normalize the optional L1 bounding-box loss once per image instead of twice by its foreground-anchor count.
+    - **SSD Anchor Geometry**: Derive SSD and SSDLite default-box centers from their actual feature-map grids instead of incompatible fixed step sizes.
+    - **LW-DETR One-Stage References**: Use additive reference-logit box refinement for one-stage LW-DETR while preserving proposal-relative reparameterization for two-stage models.
+    - **Plain DETR Reference Gradients**: Keep current decoder reference points attached through BoxRPB and cross-attention, detaching only references passed to the next refinement layer.
+    - **RT-DETR Padded Coordinates**: Normalize encoder anchors to each image's valid feature extent, apply valid ratios during decoder sampling and clamp discrete samples to valid image edges, keeping mixed-size padded batches in a consistent coordinate system.
+    - **RT-DETR Zero-Noise Denoising**: Convert denoising reference boxes to logit space even when box perturbation is disabled.
+    - **YOLOv2 Ignore Mask**: Derive no-object ignore decisions from current decoded predictions instead of undeformed anchor priors.
+    - **YOLO Target Collisions**: Apply whole-slot replacement for YOLOv2 collisions and preserve accumulated regression assignments with batched, aggregated classes for YOLOv3 and YOLOv4.
+    - **YOLOv4 CIoU Precision**: Preserve float32 grid-coordinate arithmetic in the regression loss under mixed-precision training.
+    - **Detection TTA Confidence**: Account for augmentations without a matching box when averaging weighted-box-fusion confidence.
+- **Feature PCA**: Correctly ignore the channels-last flag because detection feature maps are always returned in NCHW format.
+- **Guided Backprop Restoration**: Restore the exact original activation modules after guided backpropagation.
+- **iBOT Delayed Prediction**: Fixed delayed masked image prediction and aligned per-view masks with view-major global crop batches.
+- **I-JEPA Block Masks**: Fixed block-sampling bounds so prediction and context masks can cover the bottom and right edges of the patch grid.
+- **Model Quantization**: Enable model dynamic-size behavior for dynamic H/W export.
+- **Model Averaging**: Preserve custom model configurations when averaging checkpoints.
+- **SimCLR Distributed Pairing**: Fixed positive-pair assignments in distributed training by gathering augmented views independently.
+- **Soft-NMS**: Return scores and indices in the documented order for empty detections.
+- **Sparse Classification Results**: Preserve sparse probabilities and class indices when sorting samples.
+- **Sparse MoE Router Initialization**: Fixed V-MoE router gate initialization.
+- **Transformer Attribution**: Weight each query token's attention row by its output-gradient importance instead of weighting key columns.
+- **VICReg Distributed Covariance**: Fixed covariance underweighting for unsynchronized distributed batches by normalizing with the number of participating embeddings.
+- **ViT Projection Dropout**: Fixed ViT and RoPE ViT attention projection dropout plumbing.
+- **RoPE ViT Resizing**: Preserve RoPE buffer dtype when resizing reduced-precision models.
+
 ## 0.6.4 - 2026-07-06
 
 ### Added

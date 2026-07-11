@@ -395,10 +395,7 @@ class YOLO_v3(DetectionBaseNet):
         return iou
 
     def _prepare_predictions_for_ignore(
-        self,
-        prediction: torch.Tensor,
-        anchors: torch.Tensor,
-        strides: torch.Tensor,
+        self, prediction: torch.Tensor, anchors: torch.Tensor, strides: torch.Tensor
     ) -> torch.Tensor:
         """
         Decode prediction boxes for ignore-mask computation
@@ -447,14 +444,15 @@ class YOLO_v3(DetectionBaseNet):
         targets: list[dict[str, torch.Tensor]],
         anchors: list[torch.Tensor],
         strides: list[torch.Tensor],
-    ) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]:
+    ) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]:
         """
         Build targets for YOLO loss computation
 
         Uses global anchor assignment: each ground truth box is assigned to the single
         best-matching anchor across all scales, following the original YOLO v3 paper.
 
-        Returns target tensors, object masks and no-object masks for each scale.
+        Returns target tensors, object masks, no-object masks, bounding-box assignment
+        indices and bounding-box targets for each scale.
         """
 
         device = predictions[0].device
@@ -477,11 +475,7 @@ class YOLO_v3(DetectionBaseNet):
 
         with torch.no_grad():
             ignore_boxes = [
-                self._prepare_predictions_for_ignore(
-                    predictions[scale_idx],
-                    anchors[scale_idx],
-                    strides[scale_idx],
-                )
+                self._prepare_predictions_for_ignore(predictions[scale_idx], anchors[scale_idx], strides[scale_idx])
                 for scale_idx in range(num_scales)
             ]
 
@@ -489,6 +483,8 @@ class YOLO_v3(DetectionBaseNet):
         target_tensors: list[torch.Tensor] = []
         obj_masks: list[torch.Tensor] = []
         noobj_masks: list[torch.Tensor] = []
+        bbox_assignment_index_chunks: list[list[torch.Tensor]] = [[] for _ in range(num_scales)]
+        bbox_assignment_target_chunks: list[list[torch.Tensor]] = [[] for _ in range(num_scales)]
         for scale_idx in range(num_scales):
             H, W = grid_sizes[scale_idx]
             num_anchors_scale = anchors_per_scale[scale_idx]
@@ -553,18 +549,15 @@ class YOLO_v3(DetectionBaseNet):
 
                 num_scale_boxes = scale_local_anchors.size(0)
                 batch_indices = torch.full((num_scale_boxes,), batch_idx, device=device, dtype=torch.long)
+                bbox_assignment_index_chunks[scale_idx].append(
+                    torch.stack((batch_indices, scale_local_anchors, gj, gi), dim=1)
+                )
+                bbox_assignment_target_chunks[scale_idx].append(torch.stack((tx, ty, tw, th), dim=1))
 
-                # Assign targets using advanced indexing
-                target_tensors[scale_idx][batch_indices, scale_local_anchors, gj, gi, 0] = tx
-                target_tensors[scale_idx][batch_indices, scale_local_anchors, gj, gi, 1] = ty
-                target_tensors[scale_idx][batch_indices, scale_local_anchors, gj, gi, 2] = tw
-                target_tensors[scale_idx][batch_indices, scale_local_anchors, gj, gi, 3] = th
+                # Darknet keeps every box assignment for regression while aggregating
+                # objectness and class targets at the prediction-slot level
                 target_tensors[scale_idx][batch_indices, scale_local_anchors, gj, gi, 4] = 1.0
-
-                # Class assignment
-                class_indices = 5 + scale_labels.long()
-                target_tensors[scale_idx][batch_indices, scale_local_anchors, gj, gi, class_indices] = 1.0
-
+                target_tensors[scale_idx][batch_indices, scale_local_anchors, gj, gi, 5 + scale_labels.long()] = 1.0
                 obj_masks[scale_idx][batch_indices, scale_local_anchors, gj, gi] = True
                 noobj_masks[scale_idx][batch_indices, scale_local_anchors, gj, gi] = False
 
@@ -582,7 +575,17 @@ class YOLO_v3(DetectionBaseNet):
                 ignore_mask = (max_iou > self.ignore_thresh) & ~obj_masks[scale_idx][batch_idx]
                 noobj_masks[scale_idx][batch_idx] = noobj_masks[scale_idx][batch_idx] & ~ignore_mask
 
-        return (target_tensors, obj_masks, noobj_masks)
+        bbox_assignment_indices: list[torch.Tensor] = []
+        bbox_assignment_targets: list[torch.Tensor] = []
+        for index_chunks, target_chunks in zip(bbox_assignment_index_chunks, bbox_assignment_target_chunks):
+            if len(index_chunks) > 0:
+                bbox_assignment_indices.append(torch.concat(index_chunks, dim=0))
+                bbox_assignment_targets.append(torch.concat(target_chunks, dim=0))
+            else:
+                bbox_assignment_indices.append(torch.empty((0, 4), dtype=torch.long, device=device))
+                bbox_assignment_targets.append(torch.empty((0, 4), dtype=dtype, device=device))
+
+        return (target_tensors, obj_masks, noobj_masks, bbox_assignment_indices, bbox_assignment_targets)
 
     @torch.jit.unused  # type: ignore[untyped-decorator]
     @torch.compiler.disable()  # type: ignore[untyped-decorator]
@@ -593,7 +596,9 @@ class YOLO_v3(DetectionBaseNet):
         anchors: list[torch.Tensor],
         strides: list[torch.Tensor],
     ) -> dict[str, torch.Tensor]:
-        target_tensors, obj_masks, noobj_masks = self._build_targets(predictions, targets, anchors, strides)
+        target_tensors, obj_masks, noobj_masks, bbox_assignment_indices, bbox_assignment_targets = self._build_targets(
+            predictions, targets, anchors, strides
+        )
 
         device = predictions[0].device
         anchors_per_scale = self.anchor_generator.num_anchors_per_location()
@@ -615,32 +620,35 @@ class YOLO_v3(DetectionBaseNet):
             target = target_tensors[scale_idx]
             obj_mask = obj_masks[scale_idx]
             noobj_mask = noobj_masks[scale_idx]
+            assignment_indices = bbox_assignment_indices[scale_idx]
+            assignment_targets = bbox_assignment_targets[scale_idx]
 
-            if obj_mask.any():
-                indices = torch.nonzero(obj_mask)
+            if assignment_indices.numel() > 0:
+                pred_assigned = pred[
+                    assignment_indices[:, 0],
+                    assignment_indices[:, 1],
+                    assignment_indices[:, 2],
+                    assignment_indices[:, 3],
+                ]
                 anchors_scale = anchors[scale_idx].to(device)
-                anchor_w = anchors_scale[indices[:, 1], 0]
-                anchor_h = anchors_scale[indices[:, 1], 1]
-                target_wh = target[..., 2:4][obj_mask]
+                anchor_w = anchors_scale[assignment_indices[:, 1], 0]
+                anchor_h = anchors_scale[assignment_indices[:, 1], 1]
+                target_wh = assignment_targets[:, 2:4]
                 image_h = H * stride_h
                 image_w = W * stride_w
                 box_loss_scale = 2.0 - (
                     (torch.exp(target_wh[:, 0]) * anchor_w) * (torch.exp(target_wh[:, 1]) * anchor_h)
                 ) / (image_w * image_h)
 
-                # XY loss: BCE with logits (targets are in [0,1], predictions are logits)
-                pred_xy = pred[..., :2]
-                target_xy = target[..., :2]
+                # Repeated indices intentionally accumulate regression gradients for
+                # multiple targets assigned to the same prediction slot
                 xy_loss = F.binary_cross_entropy_with_logits(
-                    pred_xy[obj_mask], target_xy[obj_mask], reduction="none"
+                    pred_assigned[:, :2], assignment_targets[:, :2], reduction="none"
                 ).sum(dim=1)
-
-                # WH loss: MSE on raw values (both are in log-space)
-                pred_wh = pred[..., 2:4]
-                wh_loss = F.mse_loss(pred_wh[obj_mask], target_wh, reduction="none").sum(dim=1)
-
+                wh_loss = F.mse_loss(pred_assigned[:, 2:4], target_wh, reduction="none").sum(dim=1)
                 coord_loss = coord_loss + ((xy_loss + wh_loss) * box_loss_scale).sum()
 
+            if obj_mask.any():
                 # Object confidence loss
                 obj_loss = obj_loss + F.binary_cross_entropy_with_logits(
                     pred[..., 4][obj_mask], target[..., 4][obj_mask], reduction="sum"

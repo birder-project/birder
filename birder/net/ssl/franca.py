@@ -520,7 +520,7 @@ class FrancaStudent(SSLBaseNet):
         mask: torch.Tensor,
         upper_bound: int,
         mask_indices_list: torch.Tensor,
-    ) -> tuple[torch.Tensor, tuple[torch.Tensor, ...], tuple[torch.Tensor, ...], tuple[torch.Tensor, ...]]:
+    ) -> dict[str, Any]:
         n_masked_patches = mask_indices_list.size(0)
 
         global_out = self.backbone.masked_encoding_retention(global_crops, mask, self.mask_token, return_keys="all")
@@ -528,7 +528,20 @@ class FrancaStudent(SSLBaseNet):
         global_features = global_features.flatten(2).transpose(1, 2)
         global_embedding = global_out["embedding"]
 
-        local_embedding = self.backbone.embedding(local_crops)
+        moe_auxiliary_loss: Optional[torch.Tensor] = None
+        if "auxiliary_losses" in global_out:
+            moe_auxiliary_loss = global_out["auxiliary_losses"]["auxiliary_loss"]
+
+        local_features = self.backbone.forward_features(local_crops)
+        if isinstance(local_features, tuple):
+            local_features, local_aux_losses = local_features
+            local_moe_auxiliary_loss = 0.1 * local_aux_losses["auxiliary_loss"]
+            if moe_auxiliary_loss is None:
+                moe_auxiliary_loss = local_moe_auxiliary_loss
+            else:
+                moe_auxiliary_loss = moe_auxiliary_loss + local_moe_auxiliary_loss
+
+        local_embedding = self.backbone.embedding_from_features(local_features)
 
         # DINO head returns tuple of outputs for each nesting level
         global_embedding_after_head = self.dino_head(global_embedding)
@@ -549,12 +562,16 @@ class FrancaStudent(SSLBaseNet):
                 t[:n_masked_patches] for t in self.ibot_head(buffer_tensor_patch_tokens)
             )
 
-        return (
-            global_embedding,
-            global_embedding_after_head,
-            local_embedding_after_head,
-            global_masked_patch_tokens_after_head,
-        )
+        outputs = {
+            "global_embedding": global_embedding,
+            "global_embedding_after_head": global_embedding_after_head,
+            "local_embedding_after_head": local_embedding_after_head,
+            "global_masked_patch_tokens_after_head": global_masked_patch_tokens_after_head,
+        }
+        if moe_auxiliary_loss is not None:
+            outputs["moe_auxiliary_loss"] = moe_auxiliary_loss
+
+        return outputs
 
 
 class FrancaTeacher(SSLBaseNet):

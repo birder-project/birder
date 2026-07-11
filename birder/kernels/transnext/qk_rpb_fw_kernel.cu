@@ -12,10 +12,10 @@
 
 template <typename scalar_t>
 __global__ void qk_rpb_fw_kernel(
-    const torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> queries,
-    const torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> keys,
-    const torch::PackedTensorAccessor<scalar_t, 2, torch::RestrictPtrTraits, size_t> rpb,
-    torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> attn_weight,
+    const torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> queries,
+    const torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> keys,
+    const torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> rpb,
+    torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> attn_weight,
     int height,
     int width,
     int kernel_size
@@ -87,10 +87,10 @@ torch::Tensor qk_rpb_fw_cu(
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(queries.scalar_type(), "qk_rpb_fw_cu",
     ([&] {
         qk_rpb_fw_kernel<scalar_t><<<blocks, threads>>>(
-            queries.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),
-            keys.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),
-            rpb.packed_accessor<scalar_t, 2, torch::RestrictPtrTraits, size_t>(),
-            attn_weight.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),
+            queries.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
+            keys.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
+            rpb.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+            attn_weight.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
             height,
             width,
             kernel_size

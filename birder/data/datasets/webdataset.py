@@ -383,18 +383,35 @@ def _resolve_wds_info_filename(info_path: str | Path, filename: str) -> str:
     return os.path.join(Path(info_path).parent, filename)
 
 
-def wds_args_from_info(info_path: str | Path | Sequence[str | Path], split: str) -> tuple[list[str], int]:
+def wds_args_from_info(
+    info_path: str | Path | Sequence[str | Path], split: Optional[str | Sequence[str]]
+) -> tuple[list[str], int]:
     info_paths: list[str | Path]
     if isinstance(info_path, (str, Path)):
         info_paths = [info_path]
     else:
         info_paths = list(info_path)
 
+    if split is None:
+        splits = ["training"]
+    elif isinstance(split, str):
+        splits = [split]
+    else:
+        splits = list(split)
+
+    if len(splits) == 1:
+        splits *= len(info_paths)
+    elif len(splits) != len(info_paths):
+        raise ValueError(
+            "Expected either one WDS split or one split per WDS info file, "
+            f"got {len(splits)} splits for {len(info_paths)} info files"
+        )
+
     filenames: list[str] = []
     size = 0
-    for current_info_path in info_paths:
+    for current_info_path, current_split in zip(info_paths, splits, strict=True):
         info = fs_ops.read_wds_info(current_info_path)
-        split_info = info["splits"][split]
+        split_info = info["splits"][current_split]
 
         size += split_info["num_samples"]
         filenames.extend(

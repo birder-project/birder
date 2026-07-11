@@ -1362,6 +1362,44 @@ def init_training(
 ###############################################################################
 
 
+def linear_scheduler(
+    base_value: float, final_value: float, total_steps: int, anneal_end_step: Optional[int] = None
+) -> list[float]:
+    """
+    Create a linear schedule with an optional early plateau
+
+    Values are indexed by completed step, starting at step zero. The schedule reaches final_value at
+    anneal_end_step and remains there for all subsequent steps.
+
+    Parameters
+    ----------
+    base_value
+        Value at step zero.
+    final_value
+        Value at and after the annealing end step.
+    total_steps
+        Number of values in the schedule, including step zero. Must be at least two.
+    anneal_end_step
+        Step at which the schedule reaches final_value. If not set, use the last scheduled step.
+
+    Returns
+    -------
+    Scheduler values indexed by completed step.
+    """
+
+    if total_steps < 2:
+        raise ValueError("total_steps must be at least two")
+    if anneal_end_step is None:
+        anneal_end_step = total_steps - 1
+    if anneal_end_step <= 0:
+        raise ValueError("anneal_end_step must be positive")
+
+    steps = np.minimum(np.arange(total_steps), anneal_end_step)
+    schedule = base_value + (final_value - base_value) * (steps / anneal_end_step)
+
+    return schedule.tolist()  # type: ignore[no-any-return]
+
+
 def cosine_scheduler(
     base_value: float,
     final_value: float,

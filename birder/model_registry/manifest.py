@@ -14,6 +14,7 @@ NetworkInfoType = TypedDict(
     {
         "network": str,
         "tag": NotRequired[str],
+        "epoch": NotRequired[int],
         "reparameterized": NotRequired[bool],
     },
 )

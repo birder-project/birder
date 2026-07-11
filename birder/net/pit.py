@@ -44,6 +44,7 @@ class PiTStage(nn.Module):
         pool: Optional[Callable[..., nn.Module]],
         proj_drop: float,
         attn_drop: float,
+        projection_dropout: float,
         drop_path_prob: list[float],
     ) -> None:
         super().__init__()
@@ -56,6 +57,7 @@ class PiTStage(nn.Module):
             mlp_dim=int(embed_dim * mlp_ratio),
             dropout=proj_drop,
             attention_dropout=attn_drop,
+            projection_dropout=projection_dropout,
             dpr=drop_path_prob,
         )
 
@@ -115,6 +117,9 @@ class PiT(DetectorBackbone):
         depths: list[int] = self.config["depths"]
         base_dims: list[int] = self.config["base_dims"]
         heads: list[int] = self.config["heads"]
+        dropout: float = self.config.get("dropout", 0.0)
+        attention_dropout: float = self.config.get("attention_dropout", 0.0)
+        projection_dropout: float = self.config.get("projection_dropout", 0.0)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         self.patch_size = patch_size
@@ -147,8 +152,9 @@ class PiT(DetectorBackbone):
                 heads=heads[i],
                 mlp_ratio=4.0,
                 pool=pool,
-                proj_drop=0.0,
-                attn_drop=0.0,
+                proj_drop=dropout,
+                attn_drop=attention_dropout,
+                projection_dropout=projection_dropout,
                 drop_path_prob=dpr[i],
             )
             prev_dim = embed_dim

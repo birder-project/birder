@@ -12,9 +12,9 @@
 
 template <typename scalar_t>
 __global__ void av_bw_kernel(
-    const torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> d_output,
-    const torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> values,
-    torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> d_attn_weight,
+    const torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> d_output,
+    const torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> values,
+    torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> d_attn_weight,
     int height,
     int width,
     int kernel_size
@@ -50,9 +50,9 @@ __global__ void av_bw_kernel(
 
 template <typename scalar_t>
 __global__ void av_inverse_bw_kernel(
-    const torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> attn_weight,
-    const torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> d_output,
-    torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> d_values,
+    const torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> attn_weight,
+    const torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> d_output,
+    torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> d_values,
     int height,
     int width,
     int kernel_size
@@ -128,17 +128,17 @@ std::vector<torch::Tensor> av_bw_cu(
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(attn_weight.scalar_type(), "av_bw_cu",
     ([&] {
         av_bw_kernel<scalar_t><<<A_blocks, A_threads>>>(
-            d_output.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),
-            values.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),
-            d_attn_weight.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),
+            d_output.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
+            values.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
+            d_attn_weight.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
             height,
             width,
             kernel_size
         );
         av_inverse_bw_kernel<scalar_t><<<V_blocks, V_threads>>>(
-            attn_weight.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),
-            d_output.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),
-            d_values.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),        
+            attn_weight.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
+            d_output.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
+            d_values.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
             height,
             width,
             kernel_size

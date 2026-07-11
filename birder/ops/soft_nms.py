@@ -14,7 +14,7 @@ class SoftNMS:
 
     Example:
         >>> soft_nms = SoftNMS()  # Kernel loads here
-        >>> keep, scores = soft_nms(boxes, scores, idxs, sigma=0.5)
+        >>> scores, keep = soft_nms(boxes, scores, idxs, sigma=0.5)
     """
 
     def __init__(self) -> None:
@@ -37,8 +37,8 @@ class SoftNMS:
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if boxes.numel() == 0:
             return (
-                torch.empty((0,), dtype=torch.int64, device=boxes.device),
                 torch.empty((0,), dtype=torch.float32, device=scores.device),
+                torch.empty((0,), dtype=torch.int64, device=boxes.device),
             )
 
         # Offset boxes by category to prevent inter-category suppression
@@ -134,8 +134,8 @@ def batched_soft_nms(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     if boxes.numel() == 0:
         return (
-            torch.empty((0,), dtype=torch.int64, device=boxes.device),
             torch.empty((0,), dtype=torch.float32, device=scores.device),
+            torch.empty((0,), dtype=torch.int64, device=boxes.device),
         )
 
     max_coordinate = boxes.max()

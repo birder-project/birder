@@ -1,3 +1,5 @@
+# pylint: disable=too-many-lines
+
 import logging
 import unittest
 
@@ -670,12 +672,11 @@ class TestNetSSL(unittest.TestCase):
                 x, 2, upper_bound=upper_bound, mask_indices_list=mask_indices_list
             )
 
-        (
-            student_global_embedding,
-            student_global_embedding_after_head,
-            student_local_embedding_after_head,
-            student_global_masked_patch_tokens_after_head,
-        ) = student(x, local_x, masks, upper_bound, mask_indices_list)
+        student_output = student(x, local_x, masks, upper_bound, mask_indices_list)
+        student_global_embedding = student_output["global_embedding"]
+        student_global_embedding_after_head = student_output["global_embedding_after_head"]
+        student_local_embedding_after_head = student_output["local_embedding_after_head"]
+        student_global_masked_patch_tokens_after_head = student_output["global_masked_patch_tokens_after_head"]
 
         self.assertFalse(torch.isnan(teacher_embedding_after_head).any())
         self.assertEqual(teacher_embedding_after_head.size(), (batch_size * 2, 4096))
@@ -732,12 +733,11 @@ class TestNetSSL(unittest.TestCase):
                 x, 2, upper_bound=upper_bound, mask_indices_list=mask_indices_list
             )
 
-        (
-            student_global_embedding,
-            student_global_embedding_after_head,
-            student_local_embedding_after_head,
-            student_global_masked_patch_tokens_after_head,
-        ) = student(x, local_x, masks, upper_bound, mask_indices_list)
+        student_output = student(x, local_x, masks, upper_bound, mask_indices_list)
+        student_global_embedding = student_output["global_embedding"]
+        student_global_embedding_after_head = student_output["global_embedding_after_head"]
+        student_local_embedding_after_head = student_output["local_embedding_after_head"]
+        student_global_masked_patch_tokens_after_head = student_output["global_masked_patch_tokens_after_head"]
 
         self.assertFalse(torch.isnan(teacher_embedding_after_head).any())
         self.assertEqual(teacher_embedding_after_head.size(), (batch_size * 2, 4096))
@@ -817,6 +817,68 @@ class TestNetSSL(unittest.TestCase):
         self.assertFalse(torch.isnan(loss_ibot_patch).any())
         self.assertEqual(loss_ibot_patch.ndim, 0)
 
+    def test_dino_v2_moe_aux_loss(self) -> None:
+        batch_size = 4
+        size = (64, 64)
+        backbone = registry.net_factory("vit_moe_vs32_8e_2k_last2", 0, size=size)
+        student = dino_v2.DINOv2Student(
+            backbone,
+            config={
+                "dino_out_dim": 128,
+                "use_bn": False,
+                "num_layers": 2,
+                "hidden_dim": 128,
+                "head_bottleneck_dim": 32,
+                "ibot_separate_head": False,
+            },
+        )
+        student.train()
+
+        global_crops = torch.rand(batch_size * 2, DEFAULT_NUM_CHANNELS, *size)
+        local_crops = torch.rand(batch_size * 2, DEFAULT_NUM_CHANNELS, *size)
+        seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
+        masks = torch.zeros(batch_size * 2, seq_len)
+        masks[:, :2] = 1.0
+        mask_indices_list = masks.flatten().nonzero().flatten()
+        upper_bound = len(mask_indices_list) + 4
+
+        outputs = student(global_crops, local_crops, masks, upper_bound, mask_indices_list)
+        self.assertEqual(
+            set(outputs.keys()),
+            {
+                "global_embedding",
+                "global_embedding_after_head",
+                "local_embedding_after_head",
+                "global_masked_patch_tokens_after_head",
+            },
+        )
+
+        student.backbone.set_moe_loss_output(True)
+        outputs_with_aux = student(
+            global_crops,
+            local_crops,
+            masks,
+            upper_bound,
+            mask_indices_list,
+        )
+        self.assertIn("moe_auxiliary_loss", outputs_with_aux)
+
+        student_global_embedding = outputs_with_aux["global_embedding"]
+        student_global_embedding_after_head = outputs_with_aux["global_embedding_after_head"]
+        student_local_embedding_after_head = outputs_with_aux["local_embedding_after_head"]
+        student_global_masked_patch_tokens_after_head = outputs_with_aux["global_masked_patch_tokens_after_head"]
+        moe_auxiliary_loss = outputs_with_aux["moe_auxiliary_loss"]
+        self.assertFalse(torch.isnan(student_global_embedding).any())
+        self.assertEqual(student_global_embedding.size(), (batch_size * 2, backbone.embedding_size))
+        self.assertFalse(torch.isnan(student_global_embedding_after_head).any())
+        self.assertEqual(student_global_embedding_after_head.size(), (batch_size * 2, 128))
+        self.assertFalse(torch.isnan(student_local_embedding_after_head).any())
+        self.assertEqual(student_local_embedding_after_head.size(), (batch_size * 2, 128))
+        self.assertFalse(torch.isnan(student_global_masked_patch_tokens_after_head).any())
+        self.assertEqual(student_global_masked_patch_tokens_after_head.size(), (len(mask_indices_list), 128))
+        self.assertFalse(torch.isnan(moe_auxiliary_loss).any())
+        self.assertEqual(moe_auxiliary_loss.ndim, 0)
+
     @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
     def test_dino_v2_grad_checkpointing(self) -> None:
         batch_size = 1
@@ -855,13 +917,15 @@ class TestNetSSL(unittest.TestCase):
                 out = student(global_crops, local_crops, masks, upper_bound, mask_indices_list)
 
                 # Verify forward with checkpointing
-                for actual_tensor, expected_tensor in zip(out, expected):
+                self.assertEqual(set(out.keys()), set(expected.keys()))
+                for key, actual_tensor in out.items():
+                    expected_tensor = expected[key]
                     self.assertEqual(actual_tensor.size(), expected_tensor.size())
                     self.assertTrue(torch.allclose(actual_tensor, expected_tensor))
                     self.assertTrue(torch.isfinite(actual_tensor).all().item())
 
                 # Check grads
-                loss = sum(t.square().mean() for t in out)
+                loss = sum(t.square().mean() for t in out.values())
                 loss.backward()
                 for name, param in student.named_parameters():
                     self.assertIsNotNone(param.grad, msg=f"missing grad for {name}")
@@ -958,12 +1022,10 @@ class TestNetSSL(unittest.TestCase):
                     x, 2, upper_bound=upper_bound, mask_indices_list=mask_indices_list
                 )
 
-            (
-                student_global_embedding,
-                _student_global_embedding_after_head,
-                student_local_embedding_after_head,
-                student_global_masked_patch_tokens_after_head,
-            ) = student(x, local_x, masks, upper_bound, mask_indices_list)
+            student_output = student(x, local_x, masks, upper_bound, mask_indices_list)
+            student_global_embedding = student_output["global_embedding"]
+            student_local_embedding_after_head = student_output["local_embedding_after_head"]
+            student_global_masked_patch_tokens_after_head = student_output["global_masked_patch_tokens_after_head"]
 
             teacher_embedding_after_head_list.append(teacher_embedding_after_head)
 
@@ -1119,12 +1181,11 @@ class TestNetSSL(unittest.TestCase):
                 x, 2, upper_bound=upper_bound, mask_indices_list=mask_indices_list
             )
 
-        (
-            student_global_embedding,
-            student_global_embedding_after_head,
-            student_local_embedding_after_head,
-            student_global_masked_patch_tokens_after_head,
-        ) = student(x, local_x, masks, upper_bound, mask_indices_list)
+        student_output = student(x, local_x, masks, upper_bound, mask_indices_list)
+        student_global_embedding = student_output["global_embedding"]
+        student_global_embedding_after_head = student_output["global_embedding_after_head"]
+        student_local_embedding_after_head = student_output["local_embedding_after_head"]
+        student_global_masked_patch_tokens_after_head = student_output["global_masked_patch_tokens_after_head"]
 
         # Teacher outputs are tuples (one per nesting level)
         self.assertEqual(len(teacher_embedding_after_head), num_nesting_levels)
@@ -1200,12 +1261,11 @@ class TestNetSSL(unittest.TestCase):
                 x, 2, upper_bound=upper_bound, mask_indices_list=mask_indices_list
             )
 
-        (
-            student_global_embedding,
-            student_global_embedding_after_head,
-            student_local_embedding_after_head,
-            student_global_masked_patch_tokens_after_head,
-        ) = student(x, local_x, masks, upper_bound, mask_indices_list)
+        student_output = student(x, local_x, masks, upper_bound, mask_indices_list)
+        student_global_embedding = student_output["global_embedding"]
+        student_global_embedding_after_head = student_output["global_embedding_after_head"]
+        student_local_embedding_after_head = student_output["local_embedding_after_head"]
+        student_global_masked_patch_tokens_after_head = student_output["global_masked_patch_tokens_after_head"]
 
         # Verify shapes again with separate iBOT head
         self.assertEqual(len(teacher_embedding_after_head), num_nesting_levels)
@@ -1265,6 +1325,68 @@ class TestNetSSL(unittest.TestCase):
         )
         self.assertFalse(torch.isnan(loss_ibot_patch).any())
         self.assertEqual(loss_ibot_patch.ndim, 0)
+
+    def test_franca_moe_aux_loss(self) -> None:
+        batch_size = 4
+        size = (64, 64)
+        dino_out_dim = 128
+        num_nesting_levels = 2
+        backbone = registry.net_factory("vit_moe_vs32_8e_2k_last2", 0, size=size)
+        student = franca.FrancaStudent(
+            backbone,
+            config={
+                "dino_out_dim": dino_out_dim,
+                "use_bn": False,
+                "num_layers": 2,
+                "hidden_dim": 128,
+                "head_bottleneck_dim": 32,
+                "ibot_separate_head": False,
+                "nesting_levels": num_nesting_levels,
+            },
+        )
+        student.train()
+
+        global_crops = torch.rand(batch_size * 2, DEFAULT_NUM_CHANNELS, *size)
+        local_crops = torch.rand(batch_size * 2, DEFAULT_NUM_CHANNELS, *size)
+        seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
+        masks = torch.zeros(batch_size * 2, seq_len)
+        masks[:, :2] = 1.0
+        mask_indices_list = masks.flatten().nonzero().flatten()
+        upper_bound = len(mask_indices_list) + 4
+
+        outputs = student(global_crops, local_crops, masks, upper_bound, mask_indices_list)
+        self.assertEqual(
+            set(outputs.keys()),
+            {
+                "global_embedding",
+                "global_embedding_after_head",
+                "local_embedding_after_head",
+                "global_masked_patch_tokens_after_head",
+            },
+        )
+
+        student.backbone.set_moe_loss_output(True)
+        outputs_with_aux = student(global_crops, local_crops, masks, upper_bound, mask_indices_list)
+        self.assertIn("moe_auxiliary_loss", outputs_with_aux)
+
+        student_global_embedding = outputs_with_aux["global_embedding"]
+        student_global_embedding_after_head = outputs_with_aux["global_embedding_after_head"]
+        student_local_embedding_after_head = outputs_with_aux["local_embedding_after_head"]
+        student_global_masked_patch_tokens_after_head = outputs_with_aux["global_masked_patch_tokens_after_head"]
+        moe_auxiliary_loss = outputs_with_aux["moe_auxiliary_loss"]
+
+        self.assertFalse(torch.isnan(student_global_embedding).any())
+        self.assertEqual(student_global_embedding.size(), (batch_size * 2, backbone.embedding_size))
+        self.assertEqual(len(student_global_embedding_after_head), num_nesting_levels)
+        self.assertEqual(len(student_local_embedding_after_head), num_nesting_levels)
+        self.assertEqual(len(student_global_masked_patch_tokens_after_head), num_nesting_levels)
+        self.assertEqual(student_global_embedding_after_head[-1].size(), (batch_size * 2, dino_out_dim))
+        self.assertEqual(student_local_embedding_after_head[-1].size(), (batch_size * 2, dino_out_dim))
+        self.assertEqual(
+            student_global_masked_patch_tokens_after_head[-1].size(), (len(mask_indices_list), dino_out_dim)
+        )
+        self.assertFalse(torch.isnan(moe_auxiliary_loss).any())
+        self.assertEqual(moe_auxiliary_loss.ndim, 0)
 
     def test_franca_loss_forward_matches_reference(self) -> None:
         torch.manual_seed(0)
@@ -1413,12 +1535,10 @@ class TestNetSSL(unittest.TestCase):
                     x, 2, upper_bound=upper_bound, mask_indices_list=mask_indices_list
                 )
 
-            (
-                student_global_embedding,
-                _student_global_embedding_after_head,
-                student_local_embedding_after_head,
-                student_global_masked_patch_tokens_after_head,
-            ) = student(x, local_x, masks, upper_bound, mask_indices_list)
+            student_output = student(x, local_x, masks, upper_bound, mask_indices_list)
+            student_global_embedding = student_output["global_embedding"]
+            student_local_embedding_after_head = student_output["local_embedding_after_head"]
+            student_global_masked_patch_tokens_after_head = student_output["global_masked_patch_tokens_after_head"]
 
             teacher_embedding_after_head_list.append(teacher_embedding_after_head)
 
@@ -1524,9 +1644,9 @@ class TestNetSSL(unittest.TestCase):
         batch_size = 1
         size = (64, 64)
 
-        def flatten_outputs(values: tuple[torch.Tensor | tuple[torch.Tensor, ...], ...]) -> list[torch.Tensor]:
+        def flatten_outputs(values: dict[str, torch.Tensor | tuple[torch.Tensor, ...]]) -> list[torch.Tensor]:
             tensors = []
-            for value in values:
+            for value in values.values():
                 if isinstance(value, torch.Tensor):
                     tensors.append(value)
                 else:
@@ -1848,13 +1968,30 @@ class TestNetSSL(unittest.TestCase):
         self.assertTrue(net.backbone.encoder.block[0].is_causal)
 
         out = net(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
-        self.assertFalse(torch.isnan(out).any())
-        self.assertEqual(out.ndim, 0)
+        self.assertFalse(torch.isnan(out["loss"]).any())
+        self.assertEqual(out["loss"].ndim, 0)
 
         net_no_shift = nepa.NEPA(backbone, config={"shift": False})
         out_no_shift = net_no_shift(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
-        self.assertFalse(torch.isnan(out_no_shift).any())
-        self.assertEqual(out_no_shift.ndim, 0)
+        self.assertFalse(torch.isnan(out_no_shift["loss"]).any())
+        self.assertEqual(out_no_shift["loss"].ndim, 0)
+
+    def test_nepa_moe_aux_loss(self) -> None:
+        batch_size = 8
+        size = (128, 128)
+        backbone = registry.net_factory("vit_moe_vs32_8e_2k_last2", 0, size=size)
+        backbone.set_moe_loss_output(True)
+        net = nepa.NEPA(backbone, config={"shift": True})
+        net.train()
+
+        out = net(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
+
+        self.assertIn("loss", out)
+        self.assertIn("moe_auxiliary_loss", out)
+        self.assertFalse(torch.isnan(out["loss"]).any())
+        self.assertEqual(out["loss"].ndim, 0)
+        self.assertFalse(torch.isnan(out["moe_auxiliary_loss"]).any())
+        self.assertEqual(out["moe_auxiliary_loss"].ndim, 0)
 
     def test_simclr(self) -> None:
         batch_size = 4

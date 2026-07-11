@@ -301,6 +301,48 @@ class YOLO_v2(DetectionBaseNet):
 
         return iou
 
+    def _prepare_predictions_for_ignore(
+        self, predictions: torch.Tensor, anchors: torch.Tensor, stride: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Decode prediction boxes for ignore-mask computation
+
+        Returns boxes in [x1, y1, x2, y2] format with shape(N, num_anchors, H, W, 4).
+        """
+
+        N, _, H, W = predictions.size()
+        num_anchors = anchors.size(0)
+        stride_h = stride[0]
+        stride_w = stride[1]
+
+        predictions = predictions.view(N, num_anchors, 5 + self.num_classes, H, W)
+        predictions = predictions.permute(0, 1, 3, 4, 2).contiguous()
+
+        grid_y, grid_x = torch.meshgrid(
+            torch.arange(H, device=predictions.device, dtype=predictions.dtype),
+            torch.arange(W, device=predictions.device, dtype=predictions.dtype),
+            indexing="ij",
+        )
+
+        pred_xy = torch.sigmoid(predictions[..., :2])
+        pred_x = (pred_xy[..., 0] + grid_x.view(1, 1, H, W)) * stride_w
+        pred_y = (pred_xy[..., 1] + grid_y.view(1, 1, H, W)) * stride_h
+
+        anchor_w = anchors[:, 0].view(1, num_anchors, 1, 1)
+        anchor_h = anchors[:, 1].view(1, num_anchors, 1, 1)
+        pred_w = torch.exp(predictions[..., 2]) * anchor_w
+        pred_h = torch.exp(predictions[..., 3]) * anchor_h
+
+        return torch.stack(
+            [
+                pred_x - pred_w / 2,
+                pred_y - pred_h / 2,
+                pred_x + pred_w / 2,
+                pred_y + pred_h / 2,
+            ],
+            dim=-1,
+        )
+
     def _build_targets(
         self,
         predictions: torch.Tensor,
@@ -325,6 +367,9 @@ class YOLO_v2(DetectionBaseNet):
         target_tensor = torch.zeros((batch_size, num_anchors, H, W, 5 + self.num_classes), device=device, dtype=dtype)
         obj_mask = torch.zeros((batch_size, num_anchors, H, W), device=device, dtype=torch.bool)
         noobj_mask = torch.ones((batch_size, num_anchors, H, W), device=device, dtype=torch.bool)
+
+        with torch.no_grad():
+            ignore_boxes = self._prepare_predictions_for_ignore(predictions, anchors, stride)
 
         # Process each image in the batch
         for batch_idx, target_per_image in enumerate(targets):
@@ -358,46 +403,36 @@ class YOLO_v2(DetectionBaseNet):
             tw = torch.log(box_wh[:, 0] / anchor_wh[:, 0] + 1e-7).to(dtype)
             th = torch.log(box_wh[:, 1] / anchor_wh[:, 1] + 1e-7).to(dtype)
 
-            # Assign targets using advanced indexing
-            batch_indices = torch.full((num_boxes,), batch_idx, device=device, dtype=torch.long)
+            # Darknet's region layer processes targets in annotation order and replaces
+            # the complete slot when multiple targets select the same anchor and cell
+            slot_indices = (best_anchors * H + gj) * W + gi
+            target_indices = torch.arange(num_boxes, device=device)
+            last_target_per_slot = torch.full((num_anchors * H * W,), -1, dtype=torch.long, device=device)
+            last_target_per_slot.scatter_reduce_(0, slot_indices, target_indices, reduce="amax", include_self=True)
+            selected_targets = last_target_per_slot[last_target_per_slot >= 0]
+            selected_anchors = best_anchors[selected_targets]
+            selected_rows = gj[selected_targets]
+            selected_cols = gi[selected_targets]
 
-            target_tensor[batch_indices, best_anchors, gj, gi, 0] = tx
-            target_tensor[batch_indices, best_anchors, gj, gi, 1] = ty
-            target_tensor[batch_indices, best_anchors, gj, gi, 2] = tw
-            target_tensor[batch_indices, best_anchors, gj, gi, 3] = th
-            target_tensor[batch_indices, best_anchors, gj, gi, 4] = 1.0
+            target_tensor[batch_idx, selected_anchors, selected_rows, selected_cols] = 0.0
+            target_tensor[batch_idx, selected_anchors, selected_rows, selected_cols, 0] = tx[selected_targets]
+            target_tensor[batch_idx, selected_anchors, selected_rows, selected_cols, 1] = ty[selected_targets]
+            target_tensor[batch_idx, selected_anchors, selected_rows, selected_cols, 2] = tw[selected_targets]
+            target_tensor[batch_idx, selected_anchors, selected_rows, selected_cols, 3] = th[selected_targets]
+            target_tensor[batch_idx, selected_anchors, selected_rows, selected_cols, 4] = 1.0
+            target_tensor[
+                batch_idx,
+                selected_anchors,
+                selected_rows,
+                selected_cols,
+                5 + labels[selected_targets].long(),
+            ] = 1.0
 
-            # Class assignment (one-hot encoding)
-            class_indices = 5 + labels.long()
-            for i in range(num_boxes):
-                target_tensor[batch_indices[i], best_anchors[i], gj[i], gi[i], class_indices[i]] = 1.0
+            obj_mask[batch_idx, selected_anchors, selected_rows, selected_cols] = True
+            noobj_mask[batch_idx, selected_anchors, selected_rows, selected_cols] = False
 
-            obj_mask[batch_indices, best_anchors, gj, gi] = True
-            noobj_mask[batch_indices, best_anchors, gj, gi] = False
-
-            # Compute ignore mask: anchors with IoU > ignore_thresh
-            grid_y_all, grid_x_all = torch.meshgrid(
-                torch.arange(H, device=device, dtype=dtype),
-                torch.arange(W, device=device, dtype=dtype),
-                indexing="ij",
-            )
-            centers_x = (grid_x_all + 0.5) * stride_w  # (H, W)
-            centers_y = (grid_y_all + 0.5) * stride_h  # (H, W)
-
-            # Build all anchor boxes
-            anchor_w = anchors[:, 0].view(-1, 1, 1)
-            anchor_h = anchors[:, 1].view(-1, 1, 1)
-            pred_boxes = torch.stack(
-                [
-                    centers_x.unsqueeze(0) - anchor_w / 2,
-                    centers_y.unsqueeze(0) - anchor_h / 2,
-                    centers_x.unsqueeze(0) + anchor_w / 2,
-                    centers_y.unsqueeze(0) + anchor_h / 2,
-                ],
-                dim=-1,
-            )
-
-            # Compute IoU for all anchors
+            # Ignore current predictions that already overlap a target sufficiently
+            pred_boxes = ignore_boxes[batch_idx]
             iou = box_ops.box_iou(pred_boxes.view(-1, 4), boxes)
             max_iou = iou.max(dim=1)[0].view(num_anchors, H, W)
 
@@ -449,9 +484,8 @@ class YOLO_v2(DetectionBaseNet):
             )
 
             # Classification loss
-            cls_loss = F.binary_cross_entropy_with_logits(
-                predictions[..., 5:][obj_mask], target_tensor[..., 5:][obj_mask], reduction="sum"
-            )
+            class_targets = target_tensor[..., 5:][obj_mask].argmax(dim=-1)
+            cls_loss = F.cross_entropy(predictions[..., 5:][obj_mask], class_targets, reduction="sum")
 
             num_obj = obj_mask.sum().item()
 

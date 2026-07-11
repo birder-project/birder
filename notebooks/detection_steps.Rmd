@@ -31,6 +31,7 @@ sys.path.append("..")
 
 ```{python}
 from birder.common import fs_ops
+from birder.common.lib import class_list_from_class_to_idx
 from birder.common.lib import get_label_from_path
 from birder.conf import settings
 from birder.net.detection.base import ImageList
@@ -68,8 +69,7 @@ net.eval();
 ```
 
 ```{python}
-class_list = list(class_to_idx.keys())
-class_list.insert(0, "Background")
+class_list = ["Background", *class_list_from_class_to_idx(class_to_idx)]
 num_classes = len(class_list)
 ```
 

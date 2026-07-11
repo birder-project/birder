@@ -179,8 +179,7 @@ def show_det_iterator(args: argparse.Namespace) -> None:
         else:
             class_to_idx = dataset.normalize_annotations()
 
-    class_list = list(class_to_idx.keys())
-    class_list.insert(0, "Background")
+    class_list = ["Background", *lib.class_list_from_class_to_idx(class_to_idx)]
     color_list = np.arange(0, len(class_list))
 
     batch_size = 2

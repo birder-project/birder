@@ -276,15 +276,15 @@ def make_image_dataset(
 
 
 def class_to_idx_from_paths(data_paths: list[str], hierarchical: bool = False) -> dict[str, int]:
-    class_to_idx = {}
-    base = 0
+    class_to_idx: dict[str, int] = {}
     for data_path in data_paths:
         if hierarchical is True:
             classes = find_hierarchical_classes(data_path, separator="_", is_valid_file=default_is_valid_file)[0]
         else:
             classes = sorted(entry.name for entry in os.scandir(data_path) if entry.is_dir())
 
-        class_to_idx.update({cls_name: i + base for i, cls_name in enumerate(classes)})
-        base += len(classes)
+        for class_name in classes:
+            if class_name not in class_to_idx:
+                class_to_idx[class_name] = len(class_to_idx)
 
     return class_to_idx

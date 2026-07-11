@@ -804,7 +804,7 @@ def train(args: argparse.Namespace) -> None:
             {
                 "training_samples": len(training_dataset),
                 "validation_samples": len(validation_dataset),
-                "classes": list(class_to_idx.keys()),
+                "classes": lib.class_list_from_class_to_idx(class_to_idx),
             },
         )
 
@@ -1314,6 +1314,8 @@ def validate_args(args: argparse.Namespace) -> None:
             raise cli.ValidationError(
                 f"--mosaic-stop-epoch must be <= --epochs ({args.epochs}), got {args.mosaic_stop_epoch}"
             )
+        if args.persistent_workers is True:
+            raise cli.ValidationError("--mosaic-stop-epoch cannot be used with --persistent-workers")
     if args.wds is True:
         if args.mosaic_stop_epoch is not None:
             raise cli.ValidationError("--mosaic-stop-epoch is not supported with --wds")

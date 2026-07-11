@@ -79,6 +79,10 @@ class TestLib(unittest.TestCase):
         )
         self.assertEqual(label, "Aves_Barn owl")
 
+        # Class list follows the assigned indices, regardless of insertion order
+        class_to_index = {"third": 2, "first": 0, "second": 1}
+        self.assertEqual(lib.class_list_from_class_to_idx(class_to_index), ["first", "second", "third"])
+
         # Detection class to index (background index)
         detection_class_to_index = lib.detection_class_to_idx({"first": 0, "second": 1})
         self.assertEqual(detection_class_to_index["first"], 1)
@@ -1187,6 +1191,24 @@ class TestTrainingUtils(unittest.TestCase):
         grad_norm = training_utils.get_grad_norm(model.parameters())
         self.assertGreater(grad_norm, 0.0)
 
+    def test_linear_scheduler(self) -> None:
+        schedule = training_utils.linear_scheduler(base_value=0.0, final_value=1.0, total_steps=8, anneal_end_step=3)
+        self.assertEqual(len(schedule), 8)
+        self.assertAlmostEqual(schedule[0], 0.0)
+        self.assertAlmostEqual(schedule[1], 1 / 3)
+        self.assertAlmostEqual(schedule[2], 2 / 3)
+        self.assertAlmostEqual(schedule[3], 1.0)
+        self.assertTrue(all(value == 1.0 for value in schedule[3:]))
+
+        # Without truncation, anneal across the entire schedule
+        schedule = training_utils.linear_scheduler(base_value=1.0, final_value=0.0, total_steps=5)
+        self.assertEqual(schedule, [1.0, 0.75, 0.5, 0.25, 0.0])
+
+        # An end step beyond the schedule does not reach the final value yet
+        schedule = training_utils.linear_scheduler(base_value=0.0, final_value=1.0, total_steps=5, anneal_end_step=10)
+        for value, expected in zip(schedule, [0.0, 0.1, 0.2, 0.3, 0.4], strict=True):
+            self.assertAlmostEqual(value, expected)
+
     def test_cosine_scheduler(self) -> None:
         # Sanity check
         schedule = training_utils.cosine_scheduler(
@@ -1337,6 +1359,15 @@ class TestMasking(unittest.TestCase):
         generator = masking.BlockMasking((8, 8), 0, 32, 0.66, 1.5)
         mask = generator(1)
         self.assertGreaterEqual((mask == 0).sum().item(), 32)
+
+    def test_fixed_size_block_masking(self) -> None:
+        generator = masking.FixedSizeBlockMasking(
+            (8, 12), mask_ratio=0.75, block_size=3, mask_ratio_adjust=0.1, inverse_mask=True
+        )
+        mask = generator(4)
+        self.assertEqual(mask.size(), (4, 96))
+        self.assertEqual((mask == 1).sum().item(), 4 * 72)
+        self.assertEqual((mask == 0).sum().item(), 4 * 24)
 
     def test_roll_block_masking(self) -> None:
         generator = masking.RollBlockMasking((8, 8), 64)

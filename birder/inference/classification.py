@@ -17,6 +17,7 @@ from torchvision.transforms import v2
 from torchvision.transforms.v2.functional import five_crop
 from tqdm import tqdm
 
+from birder.common.lib import class_list_from_class_to_idx
 from birder.results.classification import Results
 from birder.results.classification import SparseResults
 
@@ -490,7 +491,8 @@ def evaluate(
         amp_dtype=amp_dtype,
         num_samples=num_samples,
     )
+    class_list = class_list_from_class_to_idx(class_to_idx)
     if sparse is True:
-        return SparseResults(sample_paths, labels, list(class_to_idx.keys()), outs)
+        return SparseResults(sample_paths, labels, class_list, outs)
 
-    return Results(sample_paths, labels, list(class_to_idx.keys()), outs)
+    return Results(sample_paths, labels, class_list, outs)

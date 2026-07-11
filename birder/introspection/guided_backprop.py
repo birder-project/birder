@@ -19,6 +19,7 @@ from PIL import Image
 from torch import nn
 from torch.autograd import Function
 
+from birder.data.transforms.classification import RGBType
 from birder.introspection.base import InterpretabilityResult
 from birder.introspection.base import deprocess_image
 from birder.introspection.base import predict_class
@@ -159,42 +160,53 @@ ACTIVATION_REPLACEMENTS: dict[type, type] = {
     nn.Hardswish: GuidedHardswish,
 }
 
+ActivationReplacement = tuple[nn.Module, str, nn.Module]
 
-def replace_activations_recursive(model: nn.Module, replacements: dict[type, type]) -> None:
+
+def replace_activations_recursive(
+    model: nn.Module, replacements: dict[type, type], replaced: Optional[list[ActivationReplacement]] = None
+) -> list[ActivationReplacement]:
     """
     NOTE: This ONLY works for activations defined as nn.Module objects (e.g., self.act = nn.ReLU()).
     It will NOT affect functional calls inside forward methods, such as F.relu(x) or F.gelu(x).
     """
 
+    if replaced is None:
+        replaced = []
+
     for name, module in list(model._modules.items()):
         for old_type, new_type in replacements.items():
             if isinstance(module, old_type):
+                replaced.append((model, name, module))
                 model._modules[name] = new_type()
                 break
         else:
             # Recurse into submodules
-            replace_activations_recursive(module, replacements)
+            replace_activations_recursive(module, replacements, replaced)
+
+    return replaced
 
 
-def restore_activations_recursive(model: nn.Module, guided_types: dict[type, type]) -> None:
-    reverse_mapping = {v: k for k, v in guided_types.items()}
-    for name, module in list(model._modules.items()):
-        for guided_type, original_type in reverse_mapping.items():
-            if isinstance(module, guided_type):
-                model._modules[name] = original_type()
-                break
-        else:
-            restore_activations_recursive(module, guided_types)
+def restore_activations_recursive(replaced: list[ActivationReplacement]) -> None:
+    for parent, name, original_module in replaced:
+        parent._modules[name] = original_module
 
 
 class GuidedBackprop:
-    def __init__(self, net: nn.Module, device: torch.device, transform: Callable[..., torch.Tensor]) -> None:
+    def __init__(
+        self,
+        net: nn.Module,
+        device: torch.device,
+        transform: Callable[..., torch.Tensor],
+        rgb_stats: RGBType,
+    ) -> None:
         self.net = net.eval()
         self.device = device
         self.transform = transform
+        self.rgb_stats = rgb_stats
 
     def __call__(self, image: str | Path | Image.Image, target_class: Optional[int] = None) -> InterpretabilityResult:
-        input_tensor, rgb_img = preprocess_image(image, self.transform, self.device)
+        input_tensor, rgb_img = preprocess_image(image, self.transform, self.device, self.rgb_stats)
 
         # Get prediction
         with torch.inference_mode():
@@ -206,7 +218,7 @@ class GuidedBackprop:
             validate_target_class(target_class, logits.shape[-1])
 
         # Replace activations with guided versions
-        replace_activations_recursive(self.net, ACTIVATION_REPLACEMENTS)
+        replaced_activations = replace_activations_recursive(self.net, ACTIVATION_REPLACEMENTS)
 
         try:
             input_tensor = input_tensor.detach().requires_grad_(True)
@@ -220,7 +232,7 @@ class GuidedBackprop:
             gradients = gradients.transpose((1, 2, 0))  # CHW -> HWC
 
         finally:
-            restore_activations_recursive(self.net, ACTIVATION_REPLACEMENTS)
+            restore_activations_recursive(replaced_activations)
 
         visualization = deprocess_image(gradients * rgb_img)
 

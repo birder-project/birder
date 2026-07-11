@@ -29,6 +29,7 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import training_cli
 from birder.common import training_utils
+from birder.common.lib import class_list_from_class_to_idx
 from birder.common.lib import format_duration
 from birder.common.lib import get_network_name
 from birder.conf import settings
@@ -522,7 +523,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             {
                 "training_samples": len(training_dataset),
                 "validation_samples": len(validation_dataset),
-                "classes": list(class_to_idx.keys()),
+                "classes": class_list_from_class_to_idx(class_to_idx),
             },
         )
 

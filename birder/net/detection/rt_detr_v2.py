@@ -175,6 +175,7 @@ class MultiScaleDeformableAttention(nn.Module):
         src_split_sizes: list[int],
         input_level_start_index: torch.Tensor,
         input_padding_mask: Optional[torch.Tensor] = None,
+        input_valid_ratios: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         num_queries = query.size(1)
         N, sequence_length, _ = input_flatten.size()
@@ -233,7 +234,13 @@ class MultiScaleDeformableAttention(nn.Module):
 
         if self.method == "discrete":
             output = self._forward_fallback(
-                value, src_shapes, src_split_sizes, sampling_locations, attention_weights, method="discrete"
+                value,
+                src_shapes,
+                src_split_sizes,
+                sampling_locations,
+                attention_weights,
+                valid_ratios=input_valid_ratios,
+                method="discrete",
             )
         else:
             if self.uniform_points is True:
@@ -264,22 +271,23 @@ class MultiScaleDeformableAttention(nn.Module):
         src_split_sizes: list[int],
         sampling_locations: torch.Tensor,
         attention_weights: torch.Tensor,
+        valid_ratios: Optional[torch.Tensor] = None,
         method: str = "default",
     ) -> torch.Tensor:
         B, _, n_heads, head_dim = value.size()
         num_queries = sampling_locations.size(1)
 
-        sampling_grids = 2 * sampling_locations - 1
         value_list = value.permute(0, 2, 3, 1).flatten(0, 1).split(src_split_sizes, dim=-1)
-        sampling_grids = sampling_grids.permute(0, 2, 1, 3, 4).flatten(0, 1)
-        sampling_locations_list = sampling_grids.split(self.num_points, dim=-2)
+        sampling_locations = sampling_locations.permute(0, 2, 1, 3, 4)
+        sampling_locations_list = sampling_locations.split(self.num_points, dim=-2)
 
         sampling_value_list = []
         for level, (H, W) in enumerate(src_shapes):
             value_l = value_list[level].reshape(B * n_heads, head_dim, H, W)
-            sampling_grid_l = sampling_locations_list[level]
+            sampling_location_l = sampling_locations_list[level]
 
             if method == "default":
+                sampling_grid_l = (2 * sampling_location_l - 1).flatten(0, 1)
                 sampling_value_l = F.grid_sample(
                     value_l,
                     sampling_grid_l,
@@ -288,7 +296,16 @@ class MultiScaleDeformableAttention(nn.Module):
                     align_corners=False,
                 )
             else:
-                sampling_grid_l = sampling_grid_l.clone()
+                if valid_ratios is not None:
+                    one_pixel = torch.tensor(
+                        [1.0 / W, 1.0 / H], dtype=sampling_location_l.dtype, device=sampling_location_l.device
+                    )
+                    max_location = (valid_ratios[:, level] - one_pixel).clamp(min=0)
+                    sampling_location_l = torch.minimum(
+                        sampling_location_l.clamp(min=0), max_location[:, None, None, None, :]
+                    )
+
+                sampling_grid_l = (2 * sampling_location_l - 1).flatten(0, 1)
                 sampling_grid_l[..., 0] += 1.0 / W
                 sampling_grid_l[..., 1] += 1.0 / H
                 sampling_value_l = F.grid_sample(
@@ -371,6 +388,7 @@ class TransformerDecoderLayer(nn.Module):
         src_split_sizes: list[int],
         level_start_index: torch.Tensor,
         src_padding_mask: Optional[torch.Tensor],
+        src_valid_ratios: Optional[torch.Tensor],
         self_attn_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         # Self attention
@@ -390,6 +408,7 @@ class TransformerDecoderLayer(nn.Module):
             src_split_sizes,
             level_start_index,
             src_padding_mask,
+            src_valid_ratios,
         )
         tgt = tgt + self.dropout(tgt2)
         tgt = self.norm2(tgt)
@@ -476,15 +495,29 @@ class RT_DETRDecoder(nn.Module):
     def clear_cache(self) -> None:
         self._anchor_cache.clear()
 
+    @staticmethod
+    def _get_valid_ratio(mask: torch.Tensor) -> torch.Tensor:
+        _, H, W = mask.size()
+        valid_h = torch.sum(~mask[:, :, 0], dim=1)
+        valid_w = torch.sum(~mask[:, 0, :], dim=1)
+
+        return torch.stack([valid_w.float() / W, valid_h.float() / H], dim=-1)
+
     def _generate_anchors(
         self,
         spatial_shapes: list[list[int]],
+        valid_ratios: Optional[torch.Tensor] = None,
         grid_size: float = 0.05,
         device: torch.device = torch.device("cpu"),
         dtype: torch.dtype = torch.float32,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         cache_key: Optional[str] = None
-        use_cache = self.use_cache is True and torch.jit.is_tracing() is False and torch.jit.is_scripting() is False
+        use_cache = (
+            valid_ratios is None
+            and self.use_cache is True
+            and torch.jit.is_tracing() is False
+            and torch.jit.is_scripting() is False
+        )
         if use_cache is True:
             spatial_key = ",".join(f"{int(h)}x{int(w)}" for h, w in spatial_shapes)
             cache_key = f"{spatial_key}_{grid_size}_{device}_{dtype}"
@@ -501,9 +534,14 @@ class RT_DETRDecoder(nn.Module):
             )
             grid_xy = torch.stack([grid_x, grid_y], dim=-1)
             valid_wh = torch.tensor([w, h], dtype=dtype, device=device)
-            grid_xy = (grid_xy.unsqueeze(0) + 0.5) / valid_wh
+            if valid_ratios is None:
+                grid_xy = (grid_xy.unsqueeze(0) + 0.5) / valid_wh
+            else:
+                valid_wh = valid_wh * valid_ratios[:, lvl]
+                grid_xy = (grid_xy.unsqueeze(0) + 0.5) / valid_wh[:, None, None, :]
+
             wh = torch.ones_like(grid_xy) * grid_size * (2.0**lvl)
-            anchors.append(torch.concat([grid_xy, wh], dim=-1).reshape(-1, h * w, 4))
+            anchors.append(torch.concat([grid_xy, wh], dim=-1).reshape(grid_xy.size(0), h * w, 4))
 
         anchors = torch.concat(anchors, dim=1)
         eps = 0.01
@@ -520,9 +558,12 @@ class RT_DETRDecoder(nn.Module):
         self,
         memory: torch.Tensor,
         spatial_shapes: list[list[int]],
+        valid_ratios: Optional[torch.Tensor] = None,
         memory_padding_mask: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        anchors, valid_mask = self._generate_anchors(spatial_shapes, device=memory.device, dtype=memory.dtype)
+        anchors, valid_mask = self._generate_anchors(
+            spatial_shapes, valid_ratios=valid_ratios, device=memory.device, dtype=memory.dtype
+        )
         if memory_padding_mask is not None:
             valid_mask = valid_mask & ~memory_padding_mask.unsqueeze(-1)
 
@@ -576,10 +617,14 @@ class RT_DETRDecoder(nn.Module):
 
         memory = torch.concat(memory, dim=1)
         memory_padding_mask = torch.concat(mask_flatten, dim=1) if mask_flatten else None
+        valid_ratios: Optional[torch.Tensor] = None
+        if padding_mask is not None:
+            valid_ratios = torch.stack([self._get_valid_ratio(mask) for mask in padding_mask], dim=1)
+            valid_ratios = valid_ratios.to(device=memory.device, dtype=memory.dtype)
 
         # Get decoder input (query selection)
         target, init_ref_points_unact, enc_topk_bboxes, enc_topk_logits = self._get_decoder_input(
-            memory, spatial_shapes, memory_padding_mask
+            memory, spatial_shapes, valid_ratios, memory_padding_mask
         )
 
         # Concatenate denoising queries if provided
@@ -601,7 +646,13 @@ class RT_DETRDecoder(nn.Module):
             zip(self.layers, self.bbox_embed, self.class_embed)
         ):
             query_pos = self.query_pos_head(reference_points_detached)
-            reference_points_input = reference_points_detached.unsqueeze(2).expand(-1, -1, len(spatial_shapes), -1)
+            if valid_ratios is None:
+                reference_points_input = reference_points_detached.unsqueeze(2).expand(-1, -1, len(spatial_shapes), -1)
+            else:
+                reference_points_input = (
+                    reference_points_detached[:, :, None] * torch.concat([valid_ratios, valid_ratios], dim=-1)[:, None]
+                )
+
             target = decoder_layer(
                 target,
                 query_pos,
@@ -612,6 +663,7 @@ class RT_DETRDecoder(nn.Module):
                 src_split_sizes,
                 level_start_index_tensor,
                 memory_padding_mask,
+                valid_ratios,
                 attn_mask,
             )
 

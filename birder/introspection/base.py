@@ -10,6 +10,9 @@ import numpy.typing as npt
 import torch
 from PIL import Image
 
+from birder.data.transforms.classification import RGBType
+from birder.data.transforms.classification import reverse_preset
+
 
 @dataclass(frozen=True)
 class InterpretabilityResult:
@@ -34,14 +37,17 @@ def load_image(image: str | Path | Image.Image) -> Image.Image:
 
 
 def preprocess_image(
-    image: str | Path | Image.Image, transform: Callable[..., torch.Tensor], device: torch.device
+    image: str | Path | Image.Image,
+    transform: Callable[..., torch.Tensor],
+    device: torch.device,
+    rgb_stats: RGBType,
 ) -> tuple[torch.Tensor, npt.NDArray[np.float32]]:
     pil_image = load_image(image)
-    input_tensor = transform(pil_image).unsqueeze(dim=0).to(device)
+    transformed_image = transform(pil_image)
+    input_tensor = transformed_image.unsqueeze(dim=0).to(device)
 
-    # Resize and normalize for visualization
-    resized = pil_image.resize((input_tensor.shape[-1], input_tensor.shape[-2]))
-    rgb_img = np.array(resized).astype(np.float32) / 255.0
+    rgb_tensor = reverse_preset(rgb_stats)(transformed_image.detach()).movedim(0, -1)
+    rgb_img = rgb_tensor.cpu().numpy().astype(np.float32) / 255.0
 
     return (input_tensor, rgb_img)
 

@@ -396,7 +396,7 @@ class GlobalDecoder(nn.Module):
 
         if self.bbox_embed is not None:
             for layer, bbox_embed in zip(self.layers, self.bbox_embed):
-                reference_points_input = reference_points.detach().clamp(0, 1)
+                reference_points_input = reference_points.clamp(0, 1)
                 if valid_ratios is not None:
                     reference_points_input = (
                         reference_points_input * torch.concat([valid_ratios, valid_ratios], dim=-1)[:, None]
@@ -429,7 +429,7 @@ class GlobalDecoder(nn.Module):
             return output_for_pred, new_reference_points
 
         for layer in self.layers:
-            reference_points_input = reference_points.detach().clamp(0, 1)
+            reference_points_input = reference_points.clamp(0, 1)
             if valid_ratios is not None:
                 reference_points_input = (
                     reference_points_input * torch.concat([valid_ratios, valid_ratios], dim=-1)[:, None]
@@ -610,12 +610,11 @@ class Plain_DETR(DetectionBaseNet):
         for class_embed in self.class_embed:
             nn.init.constant_(class_embed.bias, bias_value)
 
-        for idx, bbox_embed in enumerate(self.bbox_embed):
-            last_linear = [m for m in bbox_embed.modules() if isinstance(m, nn.Linear)][-1]
-            nn.init.zeros_(last_linear.weight)
-            nn.init.zeros_(last_linear.bias)
-            if idx == 0:
-                nn.init.constant_(last_linear.bias[2:], -2.0)  # Small initial wh
+        for bbox_embed in self.bbox_embed:
+            nn.init.zeros_(bbox_embed[-2].weight)
+            nn.init.zeros_(bbox_embed[-2].bias)
+
+        nn.init.constant_(self.bbox_embed[0][-2].bias[2:], -2.0)  # Small initial wh
 
         nn.init.normal_(self.query_embed)
         ref_last_linear = [m for m in self.reference_point_head.modules() if isinstance(m, nn.Linear)][-1]
@@ -629,7 +628,11 @@ class Plain_DETR(DetectionBaseNet):
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes
         num_decoder_layers = len(self.class_embed)
-        self.class_embed = nn.ModuleList([nn.Linear(self.hidden_dim, num_classes) for _ in range(num_decoder_layers)])
+        class_embed = nn.Linear(self.hidden_dim, num_classes)
+        if self.box_refine is True:
+            self.class_embed = _get_clones(class_embed, num_decoder_layers)
+        else:
+            self.class_embed = nn.ModuleList([class_embed for _ in range(num_decoder_layers)])
 
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)

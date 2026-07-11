@@ -228,7 +228,6 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         backbone,
         config={
             "mlp_dim": args.mlp_dim,
-            "batch_size": args.batch_size,
             "sim_coeff": args.sim_coeff,
             "std_coeff": args.std_coeff,
             "cov_coeff": args.cov_coeff,

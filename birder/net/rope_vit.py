@@ -145,6 +145,7 @@ class EncoderBlock(nn.Module):
         num_special_tokens: int,
         dropout: float,
         attention_dropout: float,
+        projection_dropout: float,
         drop_path: float,
         activation_layer: Callable[..., nn.Module],
         layer_scale_init_value: Optional[float] = None,
@@ -167,7 +168,7 @@ class EncoderBlock(nn.Module):
             hidden_dim,
             num_heads,
             attn_drop=attention_dropout,
-            proj_drop=dropout,
+            proj_drop=projection_dropout,
             num_special_tokens=num_special_tokens,
             qkv_bias=qkv_bias,
             qk_norm=qk_norm,
@@ -210,6 +211,7 @@ class Encoder(nn.Module):
         num_special_tokens: int,
         dropout: float,
         attention_dropout: float,
+        projection_dropout: float,
         dpr: list[float],
         pre_norm: bool = False,
         qkv_bias: bool = True,
@@ -261,6 +263,7 @@ class Encoder(nn.Module):
                     num_special_tokens,
                     dropout,
                     attention_dropout,
+                    projection_dropout,
                     dpr[i],
                     activation_layer=activation_layer,
                     layer_scale_init_value=layer_scale_init_value,
@@ -428,8 +431,6 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         assert self.config is not None, "must set config"
 
         image_size = self.size
-        attention_dropout = 0.0
-        dropout = 0.0
         abs_pos_embed: bool = self.config.get("abs_pos_embed", True)
         pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", True)
         patch_size: int = self.config["patch_size"]
@@ -464,6 +465,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         rope_grid_offset: int = self.config.get("rope_grid_offset", 0)
         rope_temperature: float = self.config.get("rope_temperature", 100.0)
         pt_grid_size: Optional[tuple[int, int]] = self.config.get("pt_grid_size", None)
+        dropout: float = self.config.get("dropout", 0.0)
+        attention_dropout: float = self.config.get("attention_dropout", 0.0)
+        projection_dropout: float = self.config.get("projection_dropout", 0.0)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         if norm_layer_type == "LayerNorm":
@@ -584,6 +588,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             self.num_special_tokens,
             dropout,
             attention_dropout,
+            projection_dropout,
             dpr,
             pre_norm=pre_norm,
             qkv_bias=qkv_bias,
@@ -1006,6 +1011,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             self.pos_embedding = nn.Parameter(pos_embedding)
 
         # Adjust RoPE
+        old_dtype = self.rope.pos_embed.dtype
         self.rope = RoPE(
             self.hidden_dim // self.num_heads,
             temperature=self.rope_temperature,
@@ -1016,7 +1022,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             rope_style=self.rope_style,
             rope_rot_type=self.rope_rot_type,
             device=self.rope.pos_embed.device,
-        )
+        ).to(dtype=old_dtype)
 
         # Define adjusted decoder block
         self.decoder_block = partial(

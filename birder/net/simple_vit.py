@@ -58,6 +58,9 @@ class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
         out_indices: Optional[list[int]] = self.config.get("out_indices", None)
+        dropout: float = self.config.get("dropout", 0.0)
+        attention_dropout: float = self.config.get("attention_dropout", 0.0)
+        projection_dropout: float = self.config.get("projection_dropout", 0.0)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
@@ -89,7 +92,16 @@ class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         )
         self.pos_embedding = nn.Buffer(pos_embedding)
 
-        self.encoder = Encoder(num_layers, num_heads, hidden_dim, mlp_dim, dropout=0.0, attention_dropout=0.0, dpr=dpr)
+        self.encoder = Encoder(
+            num_layers,
+            num_heads,
+            hidden_dim,
+            mlp_dim,
+            dropout=dropout,
+            attention_dropout=attention_dropout,
+            projection_dropout=projection_dropout,
+            dpr=dpr,
+        )
         self.norm = nn.LayerNorm(hidden_dim, eps=1e-6)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool1d(output_size=1),
@@ -110,9 +122,10 @@ class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
             EncoderBlock,
             16,
             mlp_dim=None,
-            dropout=0,
-            attention_dropout=0,
-            drop_path=0,
+            dropout=0.0,
+            attention_dropout=0.0,
+            projection_dropout=0.0,
+            drop_path=0.0,
             activation_layer=nn.GELU,
         )
 
@@ -243,12 +256,16 @@ class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         H, W = x.shape[-2:]
         x = self.conv_proj(x)
         x = self.patch_embed(x)
-        input_embedding = x
+        if return_input_embedding is True:
+            input_embedding = x
+        else:
+            input_embedding = None  # For TorchScript compatibility
+
         x = x + self._get_pos_embed(H, W)
         x = self.encoder(x, attn_mask=attn_mask)
         x = self.norm(x)
 
-        if return_input_embedding is True:
+        if return_input_embedding is True and input_embedding is not None:
             return torch.stack([input_embedding, x], dim=-1)
 
         return x

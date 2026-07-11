@@ -52,8 +52,13 @@ class NEPA(SSLBaseNet):
 
         self.backbone.set_causal_attention(True)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         features = self.backbone.forward_features(x, return_input_embedding=True)  # type: ignore[call-arg]
+
+        moe_auxiliary_loss: Optional[torch.Tensor] = None
+        if isinstance(features, tuple):
+            features, aux_losses = features
+            moe_auxiliary_loss = aux_losses["auxiliary_loss"]
 
         if self.remove_reg_tokens is True:
             # Strip register tokens
@@ -61,5 +66,10 @@ class NEPA(SSLBaseNet):
             features = features[:, num_reg:, :, :]
 
         target, pred = features.unbind(dim=-1)
+        loss = prediction_loss(pred, target, shift=self.shift)
 
-        return prediction_loss(pred, target, shift=self.shift)
+        result = {"loss": loss}
+        if moe_auxiliary_loss is not None:
+            result["moe_auxiliary_loss"] = moe_auxiliary_loss
+
+        return result

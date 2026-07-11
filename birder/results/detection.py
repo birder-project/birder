@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.table import Table
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
+from birder.common.lib import class_list_from_class_to_idx
 from birder.conf import settings
 
 logger = logging.getLogger(__name__)
@@ -59,9 +60,9 @@ class Results:
             if "image_id" in target:
                 del target["image_id"]
 
-            # TorchMetrics can't handle "empty" images
+            # TorchMetrics requires empty targets to include correctly shaped tensors
             if "boxes" not in target:
-                target["boxes"] = torch.tensor([], dtype=torch.float, device=torch.device("cpu"))
+                target["boxes"] = torch.empty((0, 4), dtype=torch.float, device=torch.device("cpu"))
                 target["labels"] = torch.tensor([], dtype=torch.int64, device=torch.device("cpu"))
 
         if max_detection_thresholds is None:
@@ -90,7 +91,7 @@ class Results:
         self._mar_key = f"mar_{max_detections}"
         self._mar_per_class_key = mar_per_class_key
         self._class_to_idx = class_to_idx
-        self._label_names = ["Background"] + list(class_to_idx.keys())
+        self._label_names = ["Background", *class_list_from_class_to_idx(class_to_idx)]
         self._detections = detections
         self._targets = targets
         self._sample_paths = sample_paths
@@ -382,8 +383,8 @@ class Results:
             output file name.
         """
 
-        detections = [{k: v.numpy().tolist() for k, v in detection.items()} for detection in self._detections]
-        targets = [{k: v.numpy().tolist() for k, v in target.items()} for target in self._targets]
+        detections = [{k: v.tolist() for k, v in detection.items()} for detection in self._detections]
+        targets = [{k: v.tolist() for k, v in target.items()} for target in self._targets]
         output = dict(zip(self._sample_paths, detections))
         output["targets"] = dict(zip(self._sample_paths, targets))
         output["class_to_idx"] = self._class_to_idx

@@ -572,12 +572,16 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         if len(special_tokens) > 0:
             x = torch.concat(special_tokens + [x], dim=1)
 
-        input_embedding = x
+        if return_input_embedding is True:
+            input_embedding = x
+        else:
+            input_embedding = None  # For TorchScript compatibility
+
         x = x + self._get_pos_embed(H, W)
         x = self.encoder(x)
         x = self.norm(x)
 
-        if return_input_embedding is True:
+        if return_input_embedding is True and input_embedding is not None:
             return torch.stack([input_embedding, x], dim=-1)
 
         return x

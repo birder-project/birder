@@ -108,8 +108,8 @@ class MultiBlockMasking:
         valid_mask = False
         while valid_mask is False:
             # Sample block top-left corner
-            top = torch.randint(0, self.height - h, (1,))
-            left = torch.randint(0, self.width - w, (1,))
+            top = torch.randint(0, self.height - h + 1, (1,))
+            left = torch.randint(0, self.width - w + 1, (1,))
             mask = torch.zeros((self.height, self.width), dtype=torch.int32)
             mask[top : top + h, left : left + w] = 1
 
@@ -203,7 +203,14 @@ class VisionTransformerPredictor(nn.Module):
         self.pos_embedding = nn.Buffer(pos_embedding)
 
         self.encoder = Encoder(
-            depth, num_heads, predictor_embed_dim, mlp_dim, dropout=0.0, attention_dropout=0.0, dpr=dpr
+            depth,
+            num_heads,
+            predictor_embed_dim,
+            mlp_dim,
+            dropout=0.0,
+            attention_dropout=0.0,
+            projection_dropout=0.0,
+            dpr=dpr,
         )
         self.norm = nn.LayerNorm(predictor_embed_dim, eps=1e-6)
         self.predictor_proj = nn.Linear(predictor_embed_dim, embed_dim)

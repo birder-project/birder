@@ -1,4 +1,5 @@
 import os
+from collections.abc import Mapping
 from typing import Any
 from typing import Optional
 
@@ -73,6 +74,10 @@ def get_detection_network_name(network: str, tag: Optional[str], backbone: str, 
     prefix = get_network_name(network, tag)
     suffix = get_network_name(backbone, backbone_tag)
     return f"{prefix}_{suffix}"
+
+
+def class_list_from_class_to_idx(class_to_idx: Mapping[str, int]) -> list[str]:
+    return [class_name for class_name, _ in sorted(class_to_idx.items(), key=lambda item: item[1])]
 
 
 def detection_class_to_idx(class_to_idx: dict[str, int]) -> dict[str, int]:

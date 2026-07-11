@@ -173,7 +173,6 @@ class SSDLite(SSD):
         self.anchor_generator = DefaultBoxGenerator(
             [[2], [2, 3], [2, 3], [2, 3], [2], [2]],
             scales=[0.07, 0.15, 0.33, 0.51, 0.69, 0.87, 1.05],
-            steps=[8, 16, 32, 64, 100, 300],
         )
         self.box_coder = BoxCoder(weights=(10.0, 10.0, 5.0, 5.0))
 

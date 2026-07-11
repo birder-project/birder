@@ -62,8 +62,6 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         assert self.config is not None, "must set config"
 
         image_size = self.size
-        attention_dropout = 0.0
-        dropout = 0.0
         abs_pos_embed: bool = self.config.get("abs_pos_embed", True)
         pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", False)
         patch_size: int = self.config["patch_size"]
@@ -98,6 +96,9 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         pt_grid_size: Optional[tuple[int, int]] = self.config.get("pt_grid_size", None)
         min_patch_size: int = self.config.get("min_patch_size", 8)
         max_patch_size: int = self.config.get("max_patch_size", 48)
+        dropout: float = self.config.get("dropout", 0.0)
+        attention_dropout: float = self.config.get("attention_dropout", 0.0)
+        projection_dropout: float = self.config.get("projection_dropout", 0.0)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         if norm_layer_type == "LayerNorm":
@@ -211,6 +212,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             self.num_special_tokens,
             dropout,
             attention_dropout,
+            projection_dropout,
             dpr,
             pre_norm=pre_norm,
             qkv_bias=qkv_bias,
@@ -652,6 +654,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             self.pos_embedding = nn.Parameter(pos_embedding)
 
         # Adjust RoPE
+        old_dtype = self.rope.pos_embed.dtype
         self.rope = RoPE(
             self.hidden_dim // self.num_heads,
             temperature=self.rope_temperature,
@@ -662,7 +665,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             rope_style=self.rope_style,
             rope_rot_type=self.rope_rot_type,
             device=self.rope.pos_embed.device,
-        )
+        ).to(dtype=old_dtype)
 
         # Define adjusted decoder block
         self.decoder_block = partial(
@@ -705,6 +708,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             )
 
         # Adjust RoPE
+        old_dtype = self.rope.pos_embed.dtype
         self.rope = RoPE(
             self.hidden_dim // self.num_heads,
             temperature=self.rope_temperature,
@@ -715,7 +719,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             rope_style=self.rope_style,
             rope_rot_type=self.rope_rot_type,
             device=self.rope.pos_embed.device,
-        )
+        ).to(dtype=old_dtype)
 
         self.patch_size = patch_size
 

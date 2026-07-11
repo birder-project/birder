@@ -216,6 +216,7 @@
     "multiclass",
     "multihead",
     "multimodal",
+    "multinomial",
     "multiscale",
     "multistep",
     "mvit",

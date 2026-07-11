@@ -95,8 +95,9 @@ class SimCLR(SSLBaseNet):
         z1 = self.projection_head(h1)
         z2 = self.projection_head(h2)
 
+        z1 = torch.concat(FullGatherLayer.apply(z1), dim=0)
+        z2 = torch.concat(FullGatherLayer.apply(z2), dim=0)
         features = torch.concat([z1, z2], dim=0)
-        features = torch.concat(FullGatherLayer.apply(features), dim=0)
 
         loss = self._contrastive_loss(features)
 

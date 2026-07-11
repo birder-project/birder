@@ -383,9 +383,9 @@ def interpolate_attention_bias(
     # Interpolate
     orig_dtype = attention_bias.dtype
     attention_bias = attention_bias.float()  # Interpolate needs float32
-    attention_bias = attention_bias.reshape(1, old_resolution[0], old_resolution[1], H).permute(0, 3, 1, 2)
+    attention_bias = attention_bias.reshape(1, H, old_resolution[0], old_resolution[1])
     attention_bias = F.interpolate(attention_bias, size=new_resolution, mode=mode, antialias=True)
-    attention_bias = attention_bias.permute(0, 2, 3, 1).reshape(H, new_resolution[0] * new_resolution[1])
+    attention_bias = attention_bias.reshape(H, new_resolution[0] * new_resolution[1])
     attention_bias = attention_bias.to(orig_dtype)
 
     return attention_bias

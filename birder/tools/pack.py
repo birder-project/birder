@@ -21,6 +21,7 @@ from tqdm import tqdm
 
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common.lib import class_list_from_class_to_idx
 from birder.common.lib import format_duration
 from birder.conf import settings
 
@@ -42,7 +43,7 @@ class CustomImageFolder(ImageFolder):
         super().__init__(root, loader=str, allow_empty=True)
 
     def find_classes(self, _directory: str) -> tuple[list[str], dict[str, int]]:
-        classes = list(self._class_to_idx.keys())
+        classes = class_list_from_class_to_idx(self._class_to_idx)
         return (classes, self._class_to_idx)
 
 
@@ -50,7 +51,7 @@ def _get_class_to_idx(paths: list[str]) -> dict[str, int]:
     class_list: list[str] = []
     for path in paths:
         dataset = ImageFolder(path)
-        class_list.extend(list(dataset.class_to_idx.keys()))
+        class_list.extend(class_list_from_class_to_idx(dataset.class_to_idx))
 
     class_list = sorted(list(set(class_list)))
     class_to_idx = {k: v for v, k in enumerate(class_list)}
@@ -60,7 +61,7 @@ def _get_class_to_idx(paths: list[str]) -> dict[str, int]:
 
 def _save_classes(pack_path: Path, class_to_idx: dict[str, int]) -> None:
     class_list_path = pack_path.joinpath("classes.txt")
-    doc = "\n".join(list(class_to_idx.keys()))
+    doc = "\n".join(class_list_from_class_to_idx(class_to_idx))
 
     logger.info(f"Saving class list at {class_list_path}")
     with open(class_list_path, "w", encoding="utf-8") as handle:

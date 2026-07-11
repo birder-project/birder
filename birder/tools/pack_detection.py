@@ -22,6 +22,7 @@ from tqdm import tqdm
 
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common.lib import class_list_from_class_to_idx
 from birder.common.lib import detection_class_to_idx
 from birder.common.lib import format_duration
 from birder.conf import settings
@@ -128,7 +129,7 @@ def _load_coco_targets(
     class_to_idx, category_id_to_label = build_coco_category_remap(
         categories_by_id, target_class_to_idx=target_class_to_idx, use_class_file_ids=use_class_file_ids
     )
-    class_list = list(class_to_idx.keys())
+    class_list = class_list_from_class_to_idx(class_to_idx)
     valid_category_ids = set(categories_by_id.keys())
 
     annotations_by_image_id: dict[int, list[dict[str, Any]]] = {}
@@ -332,7 +333,8 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
         logger.info(f"Ignoring {len(ignore_list):,} file names from {args.ignore_file}")
 
     if args.append is True:
-        existing_class_list = list(fs_ops.read_class_file(pack_path.joinpath("classes.txt")).keys())
+        existing_class_to_idx = fs_ops.read_class_file(pack_path.joinpath("classes.txt"))
+        existing_class_list = class_list_from_class_to_idx(existing_class_to_idx)
         if existing_class_list != class_list:
             raise ValueError("classes.txt in target path does not match the COCO categories being appended")
 

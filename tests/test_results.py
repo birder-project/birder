@@ -150,6 +150,8 @@ class TestClassification(unittest.TestCase):
         self.assertEqual(results._top_k_indices, [2, 4, 5])
         self.assertEqual(results.predictions.tolist(), [2, 1, 2, 2, 2, 2])
         self.assertEqual(results.prediction_names.to_list(), ["l2", "l1", "l2", "l2", "l2", "l2"])
+        self.assertEqual(results.mistakes["sample"].to_list(), ["file1.jpeg", "file5.png", "file6.webp"])
+        self.assertEqual(results.out_of_top_k["sample"].to_list(), ["file1.jpeg"])
 
         report = results.detailed_report()
         self.assertSequenceEqual(report["Class"].to_list(), [0, 1, 2, 3])
@@ -205,6 +207,32 @@ class TestClassification(unittest.TestCase):
         self.assertFalse(filtered_results.missing_labels)
         self.assertAlmostEqual(filtered_results.accuracy, 1.0 / 3.0)
 
+    def test_sparse_results_sort_sparse_values_with_samples(self) -> None:
+        sample_list = ["zebra.jpg", "ant.jpg", "monkey.jpg"]
+        labels = [0, 3, 1]
+        label_names = ["l0", "l1", "l2", "l3"]
+        output = np.array(
+            [
+                [0.80, 0.10, 0.07, 0.03],
+                [0.05, 0.10, 0.15, 0.70],
+                [0.05, 0.65, 0.20, 0.10],
+            ],
+            dtype=np.float32,
+        )
+        expected_sparse_indices = np.array([[3, 2, 1], [1, 2, 3], [0, 1, 2]], dtype=np.int32)
+        expected_sparse_probs = np.array([[0.70, 0.15, 0.10], [0.65, 0.20, 0.10], [0.80, 0.10, 0.07]], dtype=np.float32)
+
+        results = SparseResults(sample_list, labels, label_names, output, sparse_k=3)
+
+        self.assertEqual(results.to_dataframe()["sample"].to_list(), ["ant.jpg", "monkey.jpg", "zebra.jpg"])
+        np.testing.assert_array_equal(results._sparse_indices, expected_sparse_indices)
+        np.testing.assert_array_equal(results._sparse_probs, expected_sparse_probs)
+        self.assertEqual(results._top_k_indices, [0, 1, 2])
+
+        filtered_results = results.filter_by_labels([0, 3])
+        np.testing.assert_array_equal(filtered_results._sparse_indices, expected_sparse_indices[[0, 2]])
+        np.testing.assert_array_equal(filtered_results._sparse_probs, expected_sparse_probs[[0, 2]])
+
     def test_partial_sparse_results(self) -> None:
         sample_list = ["file1.jpeg", "file2.jpg", "file3.jpeg", "file4.jpeg", "file5.png", "file6.webp"]
         labels = [0, settings.NO_LABEL, 2, settings.NO_LABEL, 1, 3]
@@ -230,6 +258,8 @@ class TestClassification(unittest.TestCase):
         self.assertEqual(results._top_k_indices, [2, 4, 5])
         self.assertEqual(results.predictions.tolist(), [2, 1, 2, 2, 2, 2])
         self.assertEqual(results.prediction_names.to_list(), ["l2", "l1", "l2", "l2", "l2", "l2"])
+        self.assertEqual(results.mistakes["sample"].to_list(), ["file1.jpeg", "file5.png", "file6.webp"])
+        self.assertEqual(results.out_of_top_k["sample"].to_list(), ["file1.jpeg"])
 
         report = results.detailed_report()
         self.assertSequenceEqual(report["Class"].to_list(), [0, 1, 2, 3])

@@ -89,8 +89,6 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         assert self.config is not None, "must set config"
 
         image_size = self.size
-        attention_dropout = 0.0
-        dropout = 0.0
         abs_pos_embed: bool = self.config.get("abs_pos_embed", True)
         pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", False)
         patch_size: int = self.config["patch_size"]
@@ -119,6 +117,9 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         out_indices: Optional[list[int]] = self.config.get("out_indices", None)
         min_patch_size: int = self.config.get("min_patch_size", 8)
         max_patch_size: int = self.config.get("max_patch_size", 48)
+        dropout: float = self.config.get("dropout", 0.0)
+        attention_dropout: float = self.config.get("attention_dropout", 0.0)
+        projection_dropout: float = self.config.get("projection_dropout", 0.0)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         if norm_layer_type == "LayerNorm":
@@ -202,6 +203,7 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             mlp_dim,
             dropout,
             attention_dropout,
+            projection_dropout,
             dpr,
             pre_norm=pre_norm,
             qkv_bias=qkv_bias,
@@ -256,9 +258,10 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             EncoderBlock,
             16,
             mlp_dim=None,
-            dropout=0,
-            attention_dropout=0,
-            drop_path=0,
+            dropout=0.0,
+            attention_dropout=0.0,
+            projection_dropout=0.0,
+            drop_path=0.0,
             activation_layer=act_layer,
             norm_layer=norm_layer,
             norm_layer_eps=norm_layer_eps,

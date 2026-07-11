@@ -7,6 +7,7 @@ from rich.console import Console
 
 from birder.common import cli
 from birder.common import fs_ops
+from birder.common.lib import class_list_from_class_to_idx
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import SignatureType
@@ -138,7 +139,9 @@ def main(args: argparse.Namespace) -> None:
     console.print(f"Model size (inc. buffers): {(model_info['model_size']) / 1024**2:,.2f} [bold]MB[/bold]")
     console.print()
     if args.classes is True:
-        console.print(Columns(list(class_to_idx.keys()), column_first=True, title="[bold]Class list[/bold]"))
+        console.print(
+            Columns(class_list_from_class_to_idx(class_to_idx), column_first=True, title="[bold]Class list[/bold]")
+        )
     if is_nan is True:
         console.print()
         console.print("[red]Warning, NaN detected at the model weights[/red]")

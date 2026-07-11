@@ -1,3 +1,4 @@
+import csv
 import gzip
 import logging
 import os
@@ -5,6 +6,7 @@ from functools import cached_property
 from typing import Any
 from typing import Literal
 from typing import Optional
+from typing import TextIO
 
 import numpy as np
 import numpy.typing as npt
@@ -67,6 +69,15 @@ class Results:
     """
 
     num_desc_cols = 4
+
+    @classmethod
+    def _write_label_names(cls, handle: TextIO, label_names: list[str]) -> None:
+        writer = csv.writer(handle, lineterminator=os.linesep)
+        writer.writerow([""] * cls.num_desc_cols + label_names)
+
+    @classmethod
+    def _read_label_names(cls, handle: TextIO) -> list[str]:
+        return next(csv.reader(handle))[cls.num_desc_cols :]
 
     def __init__(
         self,
@@ -198,14 +209,20 @@ class Results:
 
     @property
     def mistakes(self) -> pl.DataFrame:
-        return self._results_df.filter(pl.col("label") != pl.col("prediction"))
+        return self._results_df.filter(
+            (pl.col("label") != settings.NO_LABEL) & (pl.col("label") != pl.col("prediction"))
+        )
 
     @property
     def out_of_top_k(self) -> pl.DataFrame:
         if self._top_k_is_meaningful is False:
             return self._results_df.head(0)
 
-        return self._results_df.with_row_index().filter(~pl.col("index").is_in(self._top_k_indices)).drop("index")
+        return (
+            self._results_df.with_row_index()
+            .filter((pl.col("label") != settings.NO_LABEL) & ~pl.col("index").is_in(self._top_k_indices))
+            .drop("index")
+        )
 
     @property
     def num_out_of_top_k(self) -> int:
@@ -473,10 +490,8 @@ class Results:
             logger.info(f"Saving results at {results_path}")
 
             # Write label names list
-            with open(results_path, "w", encoding="utf-8") as handle:
-                handle.write("," * Results.num_desc_cols)
-                handle.write(",".join(self._label_names))
-                handle.write(os.linesep)
+            with open(results_path, "w", encoding="utf-8", newline="") as handle:
+                self._write_label_names(handle, self._label_names)
 
             # Write the data frame
             with open(results_path, "a", encoding="utf-8") as handle:
@@ -502,13 +517,11 @@ class Results:
 
         # Read label names
         if path.endswith(".gz") is True:
-            with gzip.open(path, "rt", encoding="utf-8") as handle:
-                label_names = handle.readline().rstrip(os.linesep).split(",")
-                label_names = label_names[Results.num_desc_cols :]
+            with gzip.open(path, "rt", encoding="utf-8", newline="") as handle:
+                label_names = Results._read_label_names(handle)
         else:
-            with open(path, "r", encoding="utf-8") as handle:
-                label_names = handle.readline().rstrip(os.linesep).split(",")
-                label_names = label_names[Results.num_desc_cols :]
+            with open(path, "r", encoding="utf-8", newline="") as handle:
+                label_names = Results._read_label_names(handle)
 
         # Read the data frame
         schema_overrides = {
@@ -598,10 +611,14 @@ class SparseResults(Results):
         self._label_names = label_names
         self._lazy = lazy
 
-        self._results_df = pl.DataFrame(
+        results_df = pl.DataFrame(
             {"sample": sample_list, "label": labels, "label_name": names, "prediction": predictions}
         )
-        self._results_df = self._results_df.sort("sample", descending=False)
+        sort_order = results_df["sample"].arg_sort().to_numpy()
+
+        self._sparse_probs = self._sparse_probs[sort_order]
+        self._sparse_indices = self._sparse_indices[sort_order]
+        self._results_df = results_df[sort_order]
 
         self._setup_metrics_and_flags()
 
@@ -663,10 +680,8 @@ class SparseResults(Results):
             logger.info(f"Saving results at {results_path}")
 
             # Write label names list
-            with open(results_path, "w", encoding="utf-8") as handle:
-                handle.write("," * Results.num_desc_cols)
-                handle.write(",".join(self._label_names))
-                handle.write(os.linesep)
+            with open(results_path, "w", encoding="utf-8", newline="") as handle:
+                self._write_label_names(handle, self._label_names)
 
             # Write the data frame
             with open(results_path, "a", encoding="utf-8") as handle:
@@ -783,19 +798,19 @@ def detect_file_format(path: str) -> tuple[list[str], Optional[int]]:
 
     # Read label names and peek at header to detect format
     if path.endswith(".gz") is True:
-        with gzip.open(path, "rt", encoding="utf-8") as handle:
-            label_names = handle.readline().rstrip(os.linesep).split(",")
-            label_names = label_names[Results.num_desc_cols :]
+        with gzip.open(path, "rt", encoding="utf-8", newline="") as handle:
+            reader = csv.reader(handle)
+            label_names = next(reader)[Results.num_desc_cols :]
 
             # Peek at the header line to detect format
-            header_cols = handle.readline().rstrip(os.linesep).split(",")
+            header_cols = next(reader)
     else:
-        with open(path, "r", encoding="utf-8") as handle:
-            label_names = handle.readline().rstrip(os.linesep).split(",")
-            label_names = label_names[Results.num_desc_cols :]
+        with open(path, "r", encoding="utf-8", newline="") as handle:
+            reader = csv.reader(handle)
+            label_names = next(reader)[Results.num_desc_cols :]
 
             # Peek at the header line to detect format
-            header_cols = handle.readline().rstrip(os.linesep).split(",")
+            header_cols = next(reader)
 
     # Detect format by looking for sparse-specific columns
     has_prob_col = any(col.startswith("prob_") for col in header_cols)

@@ -60,10 +60,12 @@ class PatchEmbed(nn.Module):
 
 
 class CrossAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int, qkv_bias: bool, attn_drop: float, proj_drop: float) -> None:
+    def __init__(
+        self, dim: int, num_heads: int, qkv_bias: bool, attention_dropout: float, projection_dropout: float
+    ) -> None:
         super().__init__()
         self.num_heads = num_heads
-        self.attn_drop = attn_drop
+        self.attention_dropout = attention_dropout
         head_dim = dim // num_heads
         self.scale = head_dim**-0.5
 
@@ -71,7 +73,7 @@ class CrossAttention(nn.Module):
         self.wk = nn.Linear(dim, dim, bias=qkv_bias)
         self.wv = nn.Linear(dim, dim, bias=qkv_bias)
         self.proj = nn.Linear(dim, dim)
-        self.proj_drop = nn.Dropout(proj_drop)
+        self.projection_dropout = nn.Dropout(projection_dropout)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, N, C = x.shape
@@ -83,23 +85,33 @@ class CrossAttention(nn.Module):
         v = self.wv(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
 
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
-            q, k, v, dropout_p=self.attn_drop if self.training else 0.0, scale=self.scale
+            q, k, v, dropout_p=self.attention_dropout if self.training else 0.0, scale=self.scale
         )
         x = x.transpose(1, 2).reshape(B, 1, C)  # (BH1N @ BHN(C/H)) -> BH1(C/H) -> B1H(C/H) -> B1C
         x = self.proj(x)
-        x = self.proj_drop(x)
+        x = self.projection_dropout(x)
 
         return x
 
 
 class CrossAttentionBlock(nn.Module):
     def __init__(
-        self, dim: int, num_heads: int, qkv_bias: bool, proj_drop: float, attn_drop: float, drop_path: float
+        self,
+        dim: int,
+        num_heads: int,
+        qkv_bias: bool,
+        attention_dropout: float,
+        projection_dropout: float,
+        drop_path: float,
     ) -> None:
         super().__init__()
         self.norm1 = nn.LayerNorm(dim, eps=1e-6)
         self.attn = CrossAttention(
-            dim, num_heads=num_heads, qkv_bias=qkv_bias, attn_drop=attn_drop, proj_drop=proj_drop
+            dim,
+            num_heads=num_heads,
+            qkv_bias=qkv_bias,
+            attention_dropout=attention_dropout,
+            projection_dropout=projection_dropout,
         )
         self.drop_path = StochasticDepth(drop_path, mode="row")
 
@@ -116,8 +128,9 @@ class MultiScaleBlock(nn.Module):
         num_heads: list[int],
         mlp_ratio: list[float],
         qkv_bias: bool,
-        proj_drop: float,
-        attn_drop: float,
+        dropout: float,
+        attention_dropout: float,
+        projection_dropout: float,
         drop_path: list[float],
     ) -> None:
         super().__init__()
@@ -133,8 +146,9 @@ class MultiScaleBlock(nn.Module):
                         num_heads=num_heads[d],
                         hidden_dim=dim[d],
                         mlp_dim=int(mlp_ratio[d] * dim[d]),
-                        dropout=proj_drop,
-                        attention_dropout=attn_drop,
+                        dropout=dropout,
+                        attention_dropout=attention_dropout,
+                        projection_dropout=projection_dropout,
                         drop_path=drop_path[i],
                         activation_layer=nn.GELU,
                     )
@@ -162,8 +176,8 @@ class MultiScaleBlock(nn.Module):
                         dim=dim[d_],
                         num_heads=nh,
                         qkv_bias=qkv_bias,
-                        proj_drop=proj_drop,
-                        attn_drop=attn_drop,
+                        attention_dropout=attention_dropout,
+                        projection_dropout=projection_dropout,
                         drop_path=drop_path[-1],
                     )
                 )
@@ -175,8 +189,8 @@ class MultiScaleBlock(nn.Module):
                             dim=dim[d_],
                             num_heads=nh,
                             qkv_bias=qkv_bias,
-                            proj_drop=proj_drop,
-                            attn_drop=attn_drop,
+                            attention_dropout=attention_dropout,
+                            projection_dropout=projection_dropout,
                             drop_path=drop_path[-1],
                         )
                     )
@@ -234,14 +248,15 @@ class CrossViT(BaseNet):
 
         qkv_bias = True
         pos_drop_rate = 0.0
-        proj_drop_rate = 0.0
-        attn_drop_rate = 0.0
         patch_size = [12, 16]
         embed_dim: list[int] = self.config["embed_dim"]
         depths: list[list[int]] = self.config["depths"]
         num_heads: list[int] = self.config["num_heads"]
         mlp_ratio: list[float] = self.config["mlp_ratio"]
         multi_conv: bool = self.config["multi_conv"]
+        dropout: float = self.config.get("dropout", 0.0)
+        attention_dropout: float = self.config.get("attention_dropout", 0.0)
+        projection_dropout: float = self.config.get("projection_dropout", 0.0)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         image_size = [(self.size[0], self.size[1])] * len(patch_size)
@@ -282,8 +297,9 @@ class CrossViT(BaseNet):
                 num_heads=num_heads,
                 mlp_ratio=mlp_ratio,
                 qkv_bias=qkv_bias,
-                proj_drop=proj_drop_rate,
-                attn_drop=attn_drop_rate,
+                dropout=dropout,
+                attention_dropout=attention_dropout,
+                projection_dropout=projection_dropout,
                 drop_path=dpr[dpr_ptr : dpr_ptr + curr_depth],
             )
             dpr_ptr += curr_depth

@@ -171,6 +171,9 @@ def main(args: argparse.Namespace) -> None:
         device, args.network, tag=args.tag, epoch=args.epoch, inference=True, reparameterized=args.reparameterized
     )
     net.eval()
+    if args.dynamic_size is True:
+        net.set_dynamic_size()
+
     task = net.task
     size = lib.get_size_from_signature(signature)
     input_channels = lib.get_channels_from_signature(signature)

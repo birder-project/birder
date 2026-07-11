@@ -148,6 +148,8 @@ NET_TEST_CASES = [
     ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", False, False, 1, 14),
     ("rope_vit_s16_soft_moe_32e_4s_avg"),
     ("rope_vit5_reg4_s16"),
+    ("rope_vit_moe_vs32_8e_2k_last2"),
+    ("rope_vit_moe_reg1_vs32_8e_2k_last2"),
     ("sequencer2d_s"),
     ("shufflenet_v1_8"),
     ("shufflenet_v2_0_5"),
@@ -216,6 +218,8 @@ DYNAMIC_SIZE_CASES = [
     ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", 1, 14),
     ("rope_vit_s16_soft_moe_32e_4s_avg"),
     ("rope_vit5_reg4_s16"),
+    ("rope_vit_moe_vs32_8e_2k_last2"),
+    ("rope_vit_moe_reg1_vs32_8e_2k_last2"),
     ("simple_vit_b32"),
     ("swin_transformer_v1_t"),
     ("swin_transformer_v2_t"),
@@ -747,6 +751,8 @@ class TestNet(unittest.TestCase):
             ("rope_vit_reg8_so150m_p14_swiglu_rms_avg"),
             ("rope_vit_s16_soft_moe_32e_4s_avg"),
             ("rope_vit5_reg4_s16"),
+            ("rope_vit_moe_vs32_8e_2k_last2"),
+            ("rope_vit_moe_reg1_vs32_8e_2k_last2"),
             ("swin_transformer_v2_t"),
             ("swin_transformer_v2_w2_t"),
             ("vit_s32"),
@@ -836,6 +842,8 @@ class TestNet(unittest.TestCase):
             ("rope_vit_reg8_so150m_p14_swiglu_rms_avg"),
             ("rope_vit_s16_soft_moe_32e_4s_avg"),
             ("rope_vit5_reg4_s16"),
+            ("rope_vit_moe_vs32_8e_2k_last2"),
+            ("rope_vit_moe_reg1_vs32_8e_2k_last2"),
             ("simple_vit_b32"),
             ("vit_s32"),
             ("vit_s16_pn"),
@@ -924,11 +932,13 @@ class TestNet(unittest.TestCase):
             ("rope_flexivit_s16"),
             ("rope_vit_s32"),
             ("rope_vit5_reg4_s16"),
+            ("rope_vit_moe_vs32_8e_2k_last2"),
             ("simple_vit_s32"),
             ("swin_transformer_v1_t"),
             ("swin_transformer_v2_t"),
             ("vit_s32"),
             ("vit_sam_b16"),
+            ("vit_moe_vs32_8e_2k_last2"),
             ("vit_parallel_s16_18x2_ls"),
         ]
     )
@@ -1089,6 +1099,8 @@ class TestNonSquareNet(unittest.TestCase):
             ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", 1, 14, 14),
             ("rope_vit_s16_soft_moe_32e_4s_avg"),
             ("rope_vit5_reg4_s16"),
+            ("rope_vit_moe_vs32_8e_2k_last2"),
+            ("rope_vit_moe_reg1_vs32_8e_2k_last2"),
             ("sequencer2d_s"),
             ("shufflenet_v1_8"),
             ("shufflenet_v2_0_5"),
@@ -1260,6 +1272,8 @@ class TestSpecialFunctions(unittest.TestCase):
             ("rope_flexivit_s16"),
             ("rope_vit_s32"),
             ("rope_vit5_reg4_s16"),
+            ("rope_vit_moe_vs32_8e_2k_last2"),
+            ("rope_vit_moe_reg1_vs32_8e_2k_last2"),
             ("simple_vit_s32"),
             ("vit_s32"),
             ("vit_b16_qkn_ls"),
@@ -1290,8 +1304,11 @@ class TestSpecialFunctions(unittest.TestCase):
             ("rope_flexivit_s16"),
             ("rope_vit_s32"),
             ("rope_vit5_reg4_s16"),
+            ("rope_vit_moe_vs32_8e_2k_last2"),
+            ("rope_vit_moe_reg1_vs32_8e_2k_last2"),
             ("simple_vit_s32"),
             ("vit_s32"),
+            ("vit_moe_vs32_8e_2k_last2"),
         ]
     )
     def test_vit_forward_features_attention_mask(self, network_name: str) -> None:
@@ -1337,6 +1354,48 @@ class TestSpecialFunctions(unittest.TestCase):
         n.set_grad_checkpointing()
         with self.assertRaisesRegex(ValueError, "Attention weights cannot be returned"):
             n.encoder.set_need_attn(True)
+
+    @parameterized.expand(  # type: ignore[untyped-decorator]
+        [
+            ("vit_moe_vs32_8e_2k_last2"),
+            ("rope_vit_moe_vs32_8e_2k_last2"),
+        ]
+    )
+    def test_vit_moe_grad_checkpointing_with_aux_losses(self, network_name: str) -> None:
+        config = {
+            "patch_size": 16,
+            "num_layers": 3,
+            "num_heads": 2,
+            "hidden_dim": 8,
+            "mlp_dim": 16,
+            "drop_path_rate": 0.0,
+            "moe_last_n_layers": 1,
+            "moe_num_experts": 2,
+            "router_noise_std": 0.0,
+            "mlp_head": False,
+        }
+        baseline = registry.net_factory(network_name, 2, config=config, size=(32, 32))
+        with torch.no_grad():
+            baseline.classifier.weight.fill_(1.0)
+
+        baseline.train()
+        baseline.set_moe_loss_output(True)
+        checkpointed = copy.deepcopy(baseline)
+        checkpointed.set_grad_checkpointing(segments=3)
+        inputs = torch.rand((8, DEFAULT_NUM_CHANNELS, 32, 32))
+
+        with torch.no_grad():
+            expected_logits, expected_aux_losses = baseline(inputs)
+
+        logits, aux_losses = checkpointed(inputs)
+        self.assertTrue(torch.allclose(logits, expected_logits))
+        for key, expected in expected_aux_losses.items():
+            self.assertTrue(torch.allclose(aux_losses[key], expected), msg=key)
+
+        (logits.sum() + aux_losses["auxiliary_loss"]).backward()
+        for param in (checkpointed.conv_proj.weight, checkpointed.encoder.block[1].mlp.router.gate.weight):
+            self.assertIsNotNone(param.grad)
+            self.assertTrue(torch.isfinite(param.grad).all().item())
 
     def test_rope_vit_encoder_out_indices(self) -> None:
         n = registry.net_factory("rope_vit_s16_avg", 10, size=(128, 128))
@@ -1475,6 +1534,7 @@ class TestSpecialFunctions(unittest.TestCase):
             ("vit_s32"),
             ("vit_b16_qkn_ls"),
             ("vit_b16_nf_swiglu"),
+            ("vit_moe_vs32_8e_2k_last2"),
             ("vit_parallel_s16_18x2_ls"),
             ("vit_sam_b16"),
         ]

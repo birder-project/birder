@@ -177,7 +177,7 @@ def infer_batch(
         flipped_detections = _rescale_detections(flipped_detections, scaled_sizes, normalized_sizes)
         detections_list.append(flipped_detections)
 
-    return fuse_detections_wbf(detections_list, iou_thr=0.55, conf_type="avg")
+    return fuse_detections_wbf(detections_list, iou_thr=0.55, conf_type="absent_model_aware_avg")
 
 
 def infer_dataloader(

@@ -3,11 +3,15 @@ EfficientDet, adapted from
 https://github.com/rwightman/efficientdet-pytorch/blob/master/effdet/efficientdet.py
 
 Paper "EfficientDet: Scalable and Efficient Object Detection", https://arxiv.org/abs/1911.09070
+
+Changes from original:
+* Head BatchNorm layers are shared across feature-pyramid levels instead of using per-level statistics
 """
 
 # Reference license: Apache-2.0
 
 import itertools
+import math
 from collections.abc import Callable
 from functools import partial
 from typing import Any
@@ -391,6 +395,10 @@ class ClassificationHead(HeadNet):
     def __init__(self, num_outputs: int, repeats: int, fpn_channels: int, num_anchors: int) -> None:
         super().__init__(num_outputs, repeats, fpn_channels, num_anchors)
         self.BETWEEN_THRESHOLDS = Matcher.BETWEEN_THRESHOLDS
+
+        # Weight initialization
+        prior_probability = 0.01
+        nn.init.constant_(self.predict[-1].bias, -math.log((1 - prior_probability) / prior_probability))
 
     def compute_loss(
         self,

@@ -153,6 +153,8 @@ class RetinaNetRegressionHead(nn.Module):
         self.conv = nn.Sequential(*conv)
         self.bbox_reg = nn.Conv2d(in_channels, num_anchors * 4, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
 
+        self.box_coder = BoxCoder(weights=(1.0, 1.0, 1.0, 1.0))
+
         # Weights initialization
         for layer in self.conv.modules():
             if isinstance(layer, nn.Conv2d):
@@ -160,7 +162,8 @@ class RetinaNetRegressionHead(nn.Module):
                 if layer.bias is not None:
                     nn.init.zeros_(layer.bias)
 
-        self.box_coder = BoxCoder(weights=(1.0, 1.0, 1.0, 1.0))
+        nn.init.normal_(self.bbox_reg.weight, std=0.01)
+        nn.init.zeros_(self.bbox_reg.bias)
 
     def compute_loss(
         self,
@@ -190,7 +193,7 @@ class RetinaNetRegressionHead(nn.Module):
                 loss = generalized_box_iou_loss(bbox_per_image, matched_gt_boxes_per_image, reduction="sum", eps=1e-7)
             else:
                 target_regression = self.box_coder.encode_single(matched_gt_boxes_per_image, anchors_per_image)
-                loss = F.l1_loss(bbox_regression_per_image, target_regression, reduction="sum") / max(1, num_foreground)
+                loss = F.l1_loss(bbox_regression_per_image, target_regression, reduction="sum")
 
             losses.append(loss / max(1, num_foreground))
 
@@ -290,9 +293,11 @@ class RetinaNet(DetectionBaseNet):
         if feature_pyramid_type == "fpn":
             feature_pyramid: Callable[..., nn.Module] = BackboneWithFPN
             num_anchor_sizes = len(self.backbone.return_stages) + 2
+            extra_blocks = LastLevelP6P7(self.backbone.return_channels[-1], fpn_width)
         elif feature_pyramid_type == "sfp":
             feature_pyramid = partial(BackboneWithSimpleFPN, num_stages=3)
             num_anchor_sizes = 3 + 2
+            extra_blocks = LastLevelP6P7(fpn_width, fpn_width)
         else:
             raise ValueError(f"Unknown feature_pyramid_type '{feature_pyramid_type}'")
 
@@ -302,7 +307,7 @@ class RetinaNet(DetectionBaseNet):
         self.backbone_with_fpn = feature_pyramid(
             self.backbone,
             fpn_width,
-            extra_blocks=LastLevelP6P7(self.backbone.return_channels[-1], 256),
+            extra_blocks=extra_blocks,
         )
 
         anchor_sizes = [[x, int(x * 2 ** (1.0 / 3)), int(x * 2 ** (2.0 / 3))] for x in [32, 64, 128, 256, 512]]

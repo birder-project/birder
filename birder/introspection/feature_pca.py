@@ -7,6 +7,7 @@ import torch
 from PIL import Image
 from sklearn.decomposition import PCA
 
+from birder.data.transforms.classification import RGBType
 from birder.introspection.base import InterpretabilityResult
 from birder.introspection.base import preprocess_image
 from birder.net.base import DetectorBackbone
@@ -28,19 +29,19 @@ class FeaturePCA:
         net: DetectorBackbone,
         device: torch.device,
         transform: Callable[..., torch.Tensor],
+        rgb_stats: RGBType,
         normalize: bool = False,
-        channels_last: bool = False,
         stage: Optional[str] = None,
     ) -> None:
         self.net = net.eval()
         self.device = device
         self.transform = transform
+        self.rgb_stats = rgb_stats
         self.normalize = normalize
-        self.channels_last = channels_last
         self.stage = stage
 
     def __call__(self, image: str | Path | Image.Image) -> InterpretabilityResult:
-        input_tensor, rgb_img = preprocess_image(image, self.transform, self.device)
+        input_tensor, rgb_img = preprocess_image(image, self.transform, self.device, self.rgb_stats)
 
         with torch.inference_mode():
             features_dict = self.net.detection_features(input_tensor)
@@ -52,17 +53,11 @@ class FeaturePCA:
 
         features_np = features.cpu().numpy()
 
-        # Handle channels_last format (B, H, W, C) vs channels_first (B, C, H, W)
-        if self.channels_last is True:
-            B, H, W, C = features_np.shape
-            # Already in (B, H, W, C), just reshape to (B*H*W, C)
-            features_reshaped = features_np.reshape(-1, C)
-        else:
-            B, C, H, W = features_np.shape
-            # Reshape to (spatial_points, channels) for PCA
-            features_reshaped = features_np.reshape(B, C, -1)
-            features_reshaped = features_reshaped.transpose(0, 2, 1)  # (B, H*W, C)
-            features_reshaped = features_reshaped.reshape(-1, C)  # (B*H*W, C)
+        # DetectorBackbone.detection_features returns tensors in (B, C, H, W) format
+        B, C, H, W = features_np.shape
+        features_reshaped = features_np.reshape(B, C, -1)
+        features_reshaped = features_reshaped.transpose(0, 2, 1)  # (B, H*W, C)
+        features_reshaped = features_reshaped.reshape(-1, C)  # (B*H*W, C)
 
         x = features_reshaped
         if self.normalize is True:

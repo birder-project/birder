@@ -211,25 +211,31 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec --network vit_reg4_
 #### Data2Vec2: ViT reg4 m16
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_reg4_m16 --batch-size 128 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 4 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_reg4_m16 --decoder-dim 512 --batch-size 128 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 4 --lr 0.0005 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data data/detection_data/training
 ```
 
 #### Data2Vec2: ViT b16
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_b16 --batch-size 96 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 4 --grad-accum-steps 16 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_b16 --batch-size 96 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 4 --grad-accum-steps 16 --lr 0.0005 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data data/detection_data/training
 ```
 
 #### Data2Vec2: SoViT reg8 150m p14 swiglu
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_reg8_so150m_p14_swiglu --average-layers 12 --decoder-layers 3 --decoder-kernel-size 5 --decoder-dim 896 --batch-size 32 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 4 --lr 0.0004 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_reg8_so150m_p14_swiglu --average-layers 12 --decoder-layers 3 --decoder-kernel-size 5 --decoder-dim 896 --batch-size 32 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 4 --lr 0.0004 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
 ```
 
 #### Data2Vec2: ViT Parallel s16 18x2 LS
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_parallel_s16_18x2_ls --average-layers 12 --batch-size 96 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 4 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_micro_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_parallel_s16_18x2_ls --average-layers 12 --batch-size 96 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 4 --lr 0.0005 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --custom-layer-wd gamma=0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_micro_packed/_info.json
+```
+
+#### Data2Vec2: ViT l16
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_data2vec2 --network vit_l16 --average-layers 18 --decoder-layers 3 --decoder-kernel-size 5 --decoder-dim 1024 --mask-ratio 0.75 --mask-ratio-adjust 0.1 --clone-batch 16 --batch-size 16 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 4 --grad-accum-steps 8 --lr 0.0004 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
 ```
 
 ### DINO v1
@@ -396,6 +402,12 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2_dist --network vit_r
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_franca --network vit_s16_ls --dino-out-dim 49152 --ibot-separate-head --ibot-out-dim 49152 --momentum-teacher 0.994 --warmup-teacher-temp-epochs 15 --batch-size 64 --opt adamw --clip-grad-norm 3 --grad-accum-steps 16 --lr 0.00075 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --amp --amp-dtype bfloat16 --compile --data-path data/training
+```
+
+#### Franca: ViT MoE m16 16e 2k every2 LS
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_franca --network vit_moe_m16_16e_2k_every2_ls --model-config moe_top_k=1 --moe-aux-loss --dino-out-dim 65536 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 49152 --nesting-levels 4 --sinkhorn-queue-size 2048 --batch-size 64 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --epochs 500 --steps-per-epoch 2000 --warmup-epochs 32 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --wds --wds-info /mnt/data/imagenet-12k-wds/_info.json --wds-split train --wds-info /mnt/data/ssl_bio_packed/_info.json --wds-split training
 ```
 
 #### Franca: ViT b16 LS

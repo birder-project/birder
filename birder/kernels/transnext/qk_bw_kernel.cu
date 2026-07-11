@@ -12,9 +12,9 @@
 
 template <typename scalar_t>
 __global__ void qk_bw_kernel(
-    const torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> d_attn_weight,
-    const torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> keys,
-    torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> d_queries,
+    const torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> d_attn_weight,
+    const torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> keys,
+    torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> d_queries,
     int height,
     int width,
     int kernel_size
@@ -56,9 +56,9 @@ __global__ void qk_bw_kernel(
 
 template <typename scalar_t>
 __global__ void qk_inverse_bw_kernel(
-    const torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> d_attn_weight,
-    const torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> queries,
-    torch::PackedTensorAccessor<scalar_t, 4, torch::RestrictPtrTraits, size_t> d_keys,
+    const torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> d_attn_weight,
+    const torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> queries,
+    torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> d_keys,
     int height,
     int width,
     int kernel_size
@@ -115,7 +115,6 @@ std::vector<torch::Tensor> qk_bw_cu(
     TORCH_CHECK(queries.size(3) == keys.size(3), "Query and Key should have same Head Dims");
     const int B= queries.size(0), N = queries.size(1), L = queries.size(2), C = queries.size(3);
 
-    const int attention_span = kernel_size* kernel_size;
     const int DIMTHREADS = min(cuda_threads, C);
     const int PIXELTHREADS = min(int(cuda_threads / DIMTHREADS), L);
     const int BATCHTHREADS = max(1, cuda_threads / (PIXELTHREADS * DIMTHREADS));
@@ -129,17 +128,17 @@ std::vector<torch::Tensor> qk_bw_cu(
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(queries.scalar_type(), "qk_bw_cu",
     ([&] {
         qk_bw_kernel<scalar_t><<<blocks, threads>>>(
-            d_attn_weight.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),
-            keys.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),
-            d_queries.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),        
+            d_attn_weight.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
+            keys.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
+            d_queries.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
             height,
             width,
             kernel_size
         );
         qk_inverse_bw_kernel<scalar_t><<<blocks, threads>>>(
-            d_attn_weight.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),
-            queries.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),
-            d_keys.packed_accessor<scalar_t, 4, torch::RestrictPtrTraits, size_t>(),        
+            d_attn_weight.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
+            queries.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
+            d_keys.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
             height,
             width,
             kernel_size

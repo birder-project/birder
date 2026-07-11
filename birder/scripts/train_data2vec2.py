@@ -1,9 +1,6 @@
 """
 Paper "Efficient Self-supervised Learning with Contextualized Target Representations for Vision, Speech and Language",
 https://arxiv.org/abs/2212.07525
-
-Changes from original:
-* No teacher momentum truncation
 """
 
 import argparse
@@ -35,7 +32,7 @@ from birder.common import training_utils
 from birder.common.lib import format_duration
 from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
-from birder.common.masking import InverseRollBlockMasking
+from birder.common.masking import FixedSizeBlockMasking
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import get_image_loader
@@ -169,12 +166,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     logger.debug(f"Using RGB stats: {rgb_stats}")
 
     mask_size = (args.size[0] // net.backbone.max_stride, args.size[1] // net.backbone.max_stride)
-    seq_len = mask_size[0] * mask_size[1]
-    mask_generator = InverseRollBlockMasking(
+    mask_generator = FixedSizeBlockMasking(
         mask_size,
-        num_masking_patches=int(seq_len * args.mask_ratio),
-        min_aspect=0.33,
-        max_aspect=3.33,
+        mask_ratio=args.mask_ratio,
+        block_size=args.mask_block_size,
+        mask_ratio_adjust=args.mask_ratio_adjust,
+        inverse_mask=True,
     )
     if overrides.training_transform is not None:
         training_transform = overrides.training_transform(args)
@@ -324,8 +321,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
 
     # Teacher momentum schedule
-    momentum_schedule = training_utils.cosine_scheduler(
-        args.momentum_teacher, 0.99999, args.epochs, 0, epoch_num_batches
+    total_optimizer_steps = args.epochs * optimizer_steps_per_epoch
+    momentum_schedule = training_utils.linear_scheduler(
+        args.momentum_teacher,
+        args.momentum_teacher_end,
+        total_steps=total_optimizer_steps + 1,
+        anneal_end_step=args.momentum_teacher_anneal_end_step,
     )
 
     # Gradient scaler and AMP related tasks
@@ -420,6 +421,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     #
     # Training loop
     #
+    optimizer_step = (begin_epoch - 1) * optimizer_steps_per_epoch
     if virtual_epoch_mode is True:
         train_iter = iter(training_loader)
 
@@ -459,7 +461,6 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             batch_iter = enumerate(training_loader)
 
         for i, (_, (x, masks), _) in batch_iter:
-            global_iter = ((epoch - 1) * epoch_num_batches) + i
             x = x.to(device, dtype=model_dtype, non_blocking=True)
             masks = masks.to(device, dtype=model_dtype, non_blocking=True)
             masks = masks.reshape(-1, masks.size(-1))
@@ -501,9 +502,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     scheduler.step()
 
             if optimizer_update is True:
+                optimizer_step += 1
+
                 # EMA update for the teacher
                 with torch.no_grad():
-                    m = momentum_schedule[global_iter]
+                    m = momentum_schedule[optimizer_step]
                     torch._foreach_lerp_(
                         list(net_without_ddp.ema_backbone.parameters()),
                         list(net_without_ddp.backbone.parameters()),
@@ -671,13 +674,25 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--decoder-layers", type=int, default=6, help="number of decoder layers")
     parser.add_argument("--decoder-kernel-size", type=int, default=3, help="decoder kernel size")
     parser.add_argument("--decoder-dim", type=int, default=768, help="decoder dimensionality")
-    parser.add_argument("--mask-ratio", type=float, default=0.75, help="masking ratio")
+    parser.add_argument("--mask-ratio", type=float, default=0.8, help="masking ratio")
+    parser.add_argument("--mask-block-size", type=int, default=3, help="side length of sampled mask blocks")
+    parser.add_argument(
+        "--mask-ratio-adjust",
+        type=float,
+        default=0.07,
+        help="adjustment to the visible ratio used to determine the number of mask blocks",
+    )
     parser.add_argument("--clone-batch", type=int, default=8, help="number of different masked versions")
     parser.add_argument(
-        "--momentum-teacher",
-        type=float,
-        default=0.9998,
-        help="base EMA parameter for teacher update, set a higher value with small batches",
+        "--momentum-teacher", type=float, default=0.9998, help="initial EMA parameter for the teacher update"
+    )
+    parser.add_argument(
+        "--momentum-teacher-end", type=float, default=0.99999, help="final EMA parameter for the teacher update"
+    )
+    parser.add_argument(
+        "--momentum-teacher-anneal-end-step",
+        type=int,
+        help="optimizer step at which teacher momentum reaches its final value",
     )
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser)
@@ -708,6 +723,12 @@ def validate_args(args: argparse.Namespace) -> None:
     # Script specific checks
     if registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION, net_type=MaskedTokenOmissionMixin) is False:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
+    if args.decoder_kernel_size <= 0 or args.decoder_kernel_size % 2 == 0:
+        raise cli.ValidationError("--decoder-kernel-size must be a positive odd integer")
+    if args.mask_block_size <= 1:
+        raise cli.ValidationError("--mask-block-size must be greater than 1")
+    if 1.0 - args.mask_ratio + args.mask_ratio_adjust < 0.0:
+        raise cli.ValidationError("--mask-ratio-adjust results in a negative block sampling ratio")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

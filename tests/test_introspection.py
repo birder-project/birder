@@ -6,6 +6,7 @@ import torch
 from PIL import Image
 from torch import nn
 
+from birder.data.transforms.classification import get_rgb_stats
 from birder.introspection import base
 from birder.introspection.attention_rollout import AttentionRollout
 from birder.introspection.feature_pca import FeaturePCA
@@ -109,7 +110,7 @@ class TestIntrospectionBase(unittest.TestCase):
             return torch.rand(3, 16, 16)
 
         device = torch.device("cpu")
-        input_tensor, rgb_img = base.preprocess_image(img, simple_transform, device)
+        input_tensor, rgb_img = base.preprocess_image(img, simple_transform, device, get_rgb_stats("neutral"))
 
         self.assertEqual(input_tensor.shape, (1, 3, 16, 16))
         self.assertEqual(rgb_img.shape, (16, 16, 3))
@@ -121,6 +122,7 @@ class TestInterpreters(unittest.TestCase):
     def setUp(self) -> None:
         torch.manual_seed(0)
         self.device = torch.device("cpu")
+        self.rgb_stats = get_rgb_stats("neutral")
 
         # Create test image
         self.test_image = Image.new("RGB", (16, 16), color=(128, 128, 128))
@@ -141,7 +143,13 @@ class TestInterpreters(unittest.TestCase):
             return torch.from_numpy(arr).permute(2, 0, 1)
 
         interpreter = AttentionRollout(
-            net, self.device, vit_transform, attention_layer_name="attn", discard_ratio=0.9, head_fusion="max"
+            net,
+            self.device,
+            vit_transform,
+            self.rgb_stats,
+            attention_layer_name="attn",
+            discard_ratio=0.9,
+            head_fusion="max",
         )
         result = interpreter(self.test_image, target_class=None)
 
@@ -178,7 +186,13 @@ class TestInterpreters(unittest.TestCase):
         net.forward = counting_forward  # type: ignore[method-assign]
 
         interpreter = AttentionRollout(
-            net, self.device, vit_transform, attention_layer_name="attn", discard_ratio=0.9, head_fusion="max"
+            net,
+            self.device,
+            vit_transform,
+            self.rgb_stats,
+            attention_layer_name="attn",
+            discard_ratio=0.9,
+            head_fusion="max",
         )
 
         # Track attention list length during execution
@@ -216,7 +230,7 @@ class TestInterpreters(unittest.TestCase):
     def test_feature_pca_result_structure(self) -> None:
         net = _TinyCNN()
 
-        interpreter = FeaturePCA(net, self.device, self.transform)
+        interpreter = FeaturePCA(net, self.device, self.transform, self.rgb_stats)
         result = interpreter(self.test_image)
 
         self.assertIsInstance(result.original_image, np.ndarray)
@@ -237,7 +251,7 @@ class TestInterpreters(unittest.TestCase):
     def test_feature_pca_values_normalized(self) -> None:
         net = _TinyCNN()
 
-        interpreter = FeaturePCA(net, self.device, self.transform)
+        interpreter = FeaturePCA(net, self.device, self.transform, self.rgb_stats)
         result = interpreter(self.test_image)
 
         self.assertTrue(np.all(result.raw_output >= 0))
@@ -250,7 +264,7 @@ class TestInterpreters(unittest.TestCase):
         net = _TinyCNN()
         target_layer = net.conv2
 
-        interpreter = GradCAM(net, self.device, self.transform, target_layer)
+        interpreter = GradCAM(net, self.device, self.transform, self.rgb_stats, target_layer)
         result = interpreter(self.test_image, target_class=None)
 
         # Check result structure
@@ -270,7 +284,7 @@ class TestInterpreters(unittest.TestCase):
         net = _TinyCNN()
         target_layer = net.conv2
 
-        interpreter = GradCAM(net, self.device, self.transform, target_layer)
+        interpreter = GradCAM(net, self.device, self.transform, self.rgb_stats, target_layer)
         result = interpreter(self.test_image, target_class=1)
 
         self.assertEqual(result.predicted_class, 1)
@@ -279,7 +293,7 @@ class TestInterpreters(unittest.TestCase):
         net = _TinyCNN()
         target_layer = net.conv2
 
-        interpreter = GradCAM(net, self.device, self.transform, target_layer)
+        interpreter = GradCAM(net, self.device, self.transform, self.rgb_stats, target_layer)
 
         with self.assertRaises(ValueError):
             interpreter(self.test_image, target_class=5)
@@ -290,7 +304,7 @@ class TestInterpreters(unittest.TestCase):
     def test_guided_backprop_result_structure(self) -> None:
         net = _TinyCNN()
 
-        interpreter = GuidedBackprop(net, self.device, self.transform)
+        interpreter = GuidedBackprop(net, self.device, self.transform, self.rgb_stats)
         result = interpreter(self.test_image, target_class=None)
 
         # Check result structure
@@ -307,14 +321,14 @@ class TestInterpreters(unittest.TestCase):
 
     def test_guided_backprop_model_restoration(self) -> None:
         net = _TinyCNN()
-        original_relu_count = sum(1 for m in net.modules() if isinstance(m, nn.ReLU))
+        net.relu = nn.ReLU(inplace=True)
+        original_relu = net.relu
 
-        interpreter = GuidedBackprop(net, self.device, self.transform)
+        interpreter = GuidedBackprop(net, self.device, self.transform, self.rgb_stats)
         _ = interpreter(self.test_image, target_class=0)
 
-        # Check model is restored
-        restored_relu_count = sum(1 for m in net.modules() if isinstance(m, nn.ReLU))
-        self.assertEqual(original_relu_count, restored_relu_count)
+        self.assertIs(net.relu, original_relu)
+        self.assertTrue(net.relu.inplace)
 
     def test_transformer_attribution_result_structure(self) -> None:
         net = registry.net_factory("vit_t16", 2, size=(160, 160))
@@ -324,7 +338,9 @@ class TestInterpreters(unittest.TestCase):
             arr = np.array(x).astype(np.float32) / 255.0
             return torch.from_numpy(arr).permute(2, 0, 1)
 
-        interpreter = TransformerAttribution(net, self.device, vit_transform, attention_layer_name="attn")
+        interpreter = TransformerAttribution(
+            net, self.device, vit_transform, self.rgb_stats, attention_layer_name="attn"
+        )
         result = interpreter(self.test_image, target_class=None)
 
         self.assertIsInstance(result.original_image, np.ndarray)
@@ -346,7 +362,9 @@ class TestInterpreters(unittest.TestCase):
             arr = np.array(x).astype(np.float32) / 255.0
             return torch.from_numpy(arr).permute(2, 0, 1)
 
-        interpreter = TransformerAttribution(net, self.device, vit_transform, attention_layer_name="attn")
+        interpreter = TransformerAttribution(
+            net, self.device, vit_transform, self.rgb_stats, attention_layer_name="attn"
+        )
         result = interpreter(self.test_image, target_class=1)
 
         self.assertEqual(result.predicted_class, 1)

@@ -2679,13 +2679,13 @@ torchrun --nproc_per_node=2 train.py --network vit_moe_vs32_8e_2k_last2 --model-
 #### ViT MoE: b16 8e 2k every2
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_moe_b16_8e_2k_every2 --moe-aux-loss --batch-size 256 --opt adamw --opt-fused --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.0008 --wd 0.1 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler polynomial --lr-power 1 --epochs 300 --warmup-epochs 10 --size 224 --aug-level 8 --mixup-alpha 0.5 --rgb-mode centered --drop-last --amp --amp-dtype bfloat16 --compile
+torchrun --nproc_per_node=2 train.py --network vit_moe_b16_8e_2k_every2 --model-config drop_path_rate=0.0 --moe-aux-loss --batch-size 256 --opt adamw --opt-fused --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.0008 --wd 0.1 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler polynomial --lr-power 1 --epochs 300 --warmup-epochs 10 --size 224 --aug-level 8 --mixup-alpha 0.5 --rgb-mode centered --drop-last --amp --amp-dtype bfloat16 --compile
 ```
 
 Fine-tuning, increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_moe_b16_8e_2k_every2 --model-config moe_capacity_factor=1.5 --moe-aux-loss --batch-size 64 --opt-fused --clip-grad-norm 10 --grad-accum-steps 8 --lr 0.003 --wd 0 --lr-scheduler cosine --lr-cosine-min 1e-5 --epochs 10 --size 384 --aug-level 4 --rgb-mode centered --amp --amp-dtype bfloat16 --compile
+torchrun --nproc_per_node=2 train.py --network vit_moe_b16_8e_2k_every2 --model-config drop_path_rate=0.0,moe_capacity_factor=1.5 --moe-aux-loss --batch-size 64 --opt-fused --clip-grad-norm 10 --grad-accum-steps 8 --lr 0.003 --wd 0 --lr-scheduler cosine --lr-cosine-min 1e-5 --epochs 10 --size 384 --aug-level 4 --rgb-mode centered --amp --amp-dtype bfloat16 --compile
 ```
 
 ### ViT Parallel
